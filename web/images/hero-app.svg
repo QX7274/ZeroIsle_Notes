@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5F7FA">
+        <animate attributeName="stop-color" values="#F5F7FA;#E5E5EA;#F5F7FA" dur="10s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#C3CFE2">
+        <animate attributeName="stop-color" values="#C3CFE2;#D4DFF7;#C3CFE2" dur="10s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect x="50" y="50" width="500" height="300" rx="20" fill="url(#bgGradient)" stroke="#007AFF" stroke-width="2">
+    <animate attributeName="rx" values="20;25;20" dur="10s" repeatCount="indefinite" />
+  </rect>
+  <rect x="70" y="80" width="150" height="240" rx="10" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1"/>
+  <rect x="240" y="80" width="290" height="240" rx="10" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1"/>
+
+  <!-- 左侧菜单 -->
+  <rect x="85" y="100" width="120" height="30" rx="5" fill="#007AFF" opacity="0.1"/>
+  <rect x="95" y="110" width="20" height="10" rx="2" fill="#007AFF"/>
+  <rect x="125" y="110" width="70" height="10" rx="2" fill="#007AFF" opacity="0.5"/>
+
+  <rect x="85" y="140" width="120" height="20" rx="5" fill="#F2F2F7"/>
+  <rect x="95" y="145" width="20" height="10" rx="2" fill="#8E8E93" opacity="0.5"/>
+  <rect x="125" y="145" width="70" height="10" rx="2" fill="#8E8E93" opacity="0.3"/>
+
+  <rect x="85" y="170" width="120" height="20" rx="5" fill="#F2F2F7"/>
+  <rect x="95" y="175" width="20" height="10" rx="2" fill="#8E8E93" opacity="0.5"/>
+  <rect x="125" y="175" width="70" height="10" rx="2" fill="#8E8E93" opacity="0.3"/>
+
+  <rect x="85" y="200" width="120" height="20" rx="5" fill="#F2F2F7"/>
+  <rect x="95" y="205" width="20" height="10" rx="2" fill="#8E8E93" opacity="0.5"/>
+  <rect x="125" y="205" width="70" height="10" rx="2" fill="#8E8E93" opacity="0.3"/>
+
+  <!-- 右侧内容 -->
+  <rect x="260" y="100" width="250" height="30" rx="5" fill="#007AFF" opacity="0.1"/>
+  <rect x="270" y="110" width="230" height="10" rx="2" fill="#007AFF" opacity="0.5"/>
+
+  <rect x="260" y="150" width="250" height="150" rx="5" fill="#F2F2F7"/>
+
+  <!-- 循环展示不同功能 -->
+  <g id="appScreens">
+    <!-- 知识图谱示意 -->
+    <g id="knowledgeGraph" opacity="1">
+      <circle cx="300" cy="200" r="15" fill="#007AFF">
+        <animate attributeName="r" values="15;17;15" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="350" cy="170" r="10" fill="#FF9500"/>
+      <circle cx="380" cy="220" r="12" fill="#4CD964"/>
+      <circle cx="420" cy="180" r="8" fill="#FF3B30"/>
+      <circle cx="460" cy="230" r="10" fill="#32ADE6"/>
+
+      <line x1="300" y1="200" x2="350" y2="170" stroke="#8E8E93" stroke-width="1">
+        <animate attributeName="stroke-width" values="1;2;1" dur="4s" repeatCount="indefinite"/>
+      </line>
+      <line x1="300" y1="200" x2="380" y2="220" stroke="#8E8E93" stroke-width="1">
+        <animate attributeName="stroke-width" values="1;2;1" dur="5s" repeatCount="indefinite"/>
+      </line>
+      <line x1="350" y1="170" x2="420" y2="180" stroke="#8E8E93" stroke-width="1"/>
+      <line x1="380" y1="220" x2="460" y2="230" stroke="#8E8E93" stroke-width="1"/>
+      <line x1="420" y1="180" x2="460" y2="230" stroke="#8E8E93" stroke-width="1"/>
+
+      <animate attributeName="opacity" values="1;1;0;0;0;1" dur="15s" repeatCount="indefinite"/>
+    </g>
+
+    <!-- 手写识别示意 -->
+    <g id="handwriting" opacity="0">
+      <rect x="270" y="160" width="230" height="80" rx="5" fill="#F5F7FA"/>
+
+      <path d="M290 200 C300 190, 310 210, 320 200 S330 180, 340 200" stroke="#000000" stroke-width="2" fill="none"/>
+      <path d="M350 200 C360 190, 370 210, 380 200 S390 180, 400 200" stroke="#000000" stroke-width="2" fill="none"/>
+
+      <rect x="290" y="230" width="190" height="30" rx="5" fill="#F5F7FA"/>
+      <text x="385" y="250" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#000000">零屿笔记</text>
+
+      <circle cx="300" cy="180" r="3" fill="#007AFF" opacity="0.5">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="320" cy="180" r="3" fill="#007AFF" opacity="0.5">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" begin="0.3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="340" cy="180" r="3" fill="#007AFF" opacity="0.5">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+      </circle>
+
+      <animate attributeName="opacity" values="0;0;1;0;0;0" dur="15s" repeatCount="indefinite"/>
+    </g>
+
+    <!-- 思维导图示意 -->
+    <g id="mindMap" opacity="0">
+      <ellipse cx="385" cy="200" rx="60" ry="30" fill="#007AFF" opacity="0.8" filter="url(#glow)">
+        <animate attributeName="rx" values="60;62;60" dur="5s" repeatCount="indefinite"/>
+        <animate attributeName="ry" values="30;32;30" dur="5s" repeatCount="indefinite"/>
+      </ellipse>
+      <text x="385" y="205" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="white">项目计划</text>
+
+      <line x1="325" y1="200" x2="300" y2="160" stroke="#FF9500" stroke-width="1.5">
+        <animate attributeName="stroke-width" values="1.5;2;1.5" dur="4s" repeatCount="indefinite"/>
+      </line>
+      <ellipse cx="300" cy="160" rx="30" ry="15" fill="#FF9500" opacity="0.8"/>
+      <text x="300" y="165" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="white">需求分析</text>
+
+      <line x1="325" y1="200" x2="300" y2="240" stroke="#4CD964" stroke-width="1.5">
+        <animate attributeName="stroke-width" values="1.5;2;1.5" dur="5s" repeatCount="indefinite"/>
+      </line>
+      <ellipse cx="300" cy="240" rx="30" ry="15" fill="#4CD964" opacity="0.8"/>
+      <text x="300" y="245" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="white">设计阶段</text>
+
+      <line x1="445" y1="200" x2="470" y2="160" stroke="#FF3B30" stroke-width="1.5">
+        <animate attributeName="stroke-width" values="1.5;2;1.5" dur="6s" repeatCount="indefinite"/>
+      </line>
+      <ellipse cx="470" cy="160" rx="30" ry="15" fill="#FF3B30" opacity="0.8"/>
+      <text x="470" y="165" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="white">开发阶段</text>
+
+      <line x1="445" y1="200" x2="470" y2="240" stroke="#32ADE6" stroke-width="1.5">
+        <animate attributeName="stroke-width" values="1.5;2;1.5" dur="7s" repeatCount="indefinite"/>
+      </line>
+      <ellipse cx="470" cy="240" rx="30" ry="15" fill="#32ADE6" opacity="0.8"/>
+      <text x="470" y="245" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="white">测试发布</text>
+
+      <animate attributeName="opacity" values="0;0;0;1;0;0" dur="15s" repeatCount="indefinite"/>
+    </g>
+
+    <!-- 社区功能示意 -->
+    <g id="community" opacity="0">
+      <rect x="270" y="160" width="230" height="20" rx="5" fill="#007AFF"/>
+      <text x="320" y="175" font-family="Arial, sans-serif" font-size="10" fill="white">零屿笔记社区</text>
+
+      <rect x="270" y="190" width="230" height="40" rx="5" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1"/>
+      <circle cx="290" cy="210" r="10" fill="#FF9500" opacity="0.8"/>
+      <rect x="310" y="200" width="150" height="6" rx="2" fill="#000000" opacity="0.8"/>
+      <rect x="310" y="210" width="120" height="4" rx="2" fill="#8E8E93" opacity="0.5"/>
+      <rect x="310" y="220" width="50" height="4" rx="2" fill="#F2F2F7"/>
+
+      <rect x="270" y="240" width="230" height="40" rx="5" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1"/>
+      <circle cx="290" cy="260" r="10" fill="#4CD964" opacity="0.8"/>
+      <rect x="310" y="250" width="150" height="6" rx="2" fill="#000000" opacity="0.8"/>
+      <rect x="310" y="260" width="120" height="4" rx="2" fill="#8E8E93" opacity="0.5"/>
+      <rect x="310" y="270" width="50" height="4" rx="2" fill="#F2F2F7"/>
+
+      <circle cx="470" cy="310" r="15" fill="#007AFF" filter="url(#glow)">
+        <animate attributeName="r" values="15;16;15" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <text x="470" y="315" font-family="Arial, sans-serif" font-size="15" text-anchor="middle" fill="white">+</text>
+
+      <animate attributeName="opacity" values="0;0;0;0;1;0" dur="15s" repeatCount="indefinite"/>
+    </g>
+  </g>
+
+  <!-- 底部工具栏 -->
+  <rect x="70" y="330" width="460" height="40" rx="5" fill="#F5F7FA" stroke="#E5E5EA" stroke-width="1"/>
+  <circle cx="120" cy="350" r="10" fill="#007AFF" opacity="0.5"/>
+  <circle cx="170" cy="350" r="10" fill="#FF9500" opacity="0.5"/>
+  <circle cx="220" cy="350" r="10" fill="#4CD964" opacity="0.5"/>
+  <circle cx="270" cy="350" r="10" fill="#FF3B30" opacity="0.5"/>
+  <circle cx="320" cy="350" r="10" fill="#32ADE6" opacity="0.5"/>
+</svg>

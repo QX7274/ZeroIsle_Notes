@@ -1,0 +1,19 @@
+pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+
+
+rootProject.name = 'ZeroIsle_Notes'
+include ':app'
+includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// 指定react-native-camera的变体
+gradle.beforeProject { project ->
+    if (project.name == 'react-native-camera') {
+        project.ext.defaultVariant = 'general'
+    }
+}
+
+include ':@react-native-community_picker'
+project(':@react-native-community_picker').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-community/picker/android')

@@ -1,0 +1,15 @@
+<resources>
+  <color name="white">#FFFFFF</color>
+  <color name="black">#000000</color>
+  <color name="primary">#007AFF</color>
+  <color name="secondary">#5856D6</color>
+  <color name="success">#34C759</color>
+  <color name="danger">#FF3B30</color>
+  <color name="warning">#FF9500</color>
+  <color name="info">#5AC8FA</color>
+  <color name="light">#F2F2F7</color>
+  <color name="dark">#1C1C1E</color>
+  <color name="gray">#8E8E93</color>
+  <color name="colorPrimary">#023c69</color>
+  <color name="colorPrimaryDark">#ffffff</color>
+</resources>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 渐变定义 -->
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#007AFF">
+        <animate attributeName="stop-color" values="#007AFF;#32ADE6;#007AFF" dur="10s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#32ADE6">
+        <animate attributeName="stop-color" values="#32ADE6;#0056b3;#32ADE6" dur="10s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+
+    <!-- 移除发光效果 -->
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="200" height="60" fill="transparent" />
+
+  <!-- 零屿笔记 Logo -->
+  <g transform="translate(10, 30)">
+    <!-- 零 -->
+    <text x="0" y="8" font-family="'Microsoft YaHei', 'Noto Sans SC', sans-serif" font-size="28" font-weight="bold" fill="#007AFF">零</text>
+
+    <!-- 屿 -->
+    <text x="35" y="8" font-family="'Microsoft YaHei', 'Noto Sans SC', sans-serif" font-size="28" font-weight="bold" fill="#007AFF">屿</text>
+
+    <!-- 笔 -->
+    <text x="70" y="8" font-family="'Microsoft YaHei', 'Noto Sans SC', sans-serif" font-size="28" font-weight="bold" fill="#007AFF">笔</text>
+
+    <!-- 记 -->
+    <text x="105" y="8" font-family="'Microsoft YaHei', 'Noto Sans SC', sans-serif" font-size="28" font-weight="bold" fill="#007AFF">记</text>
+
+    <!-- 动态效果 -->
+    <animate attributeName="opacity" values="1;0.9;1" dur="3s" repeatCount="indefinite" />
+  </g>
+
+  <!-- 英文 ZeroIsle Notes -->
+  <g transform="translate(145, 25)">
+    <text font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#007AFF">
+      <tspan x="0" y="0">Zero</tspan>
+      <tspan x="0" y="15">Isle</tspan>
+    </text>
+    <animate attributeName="opacity" values="1;0.9;1" dur="3s" repeatCount="indefinite" />
+  </g>
+
+  <!-- 动态元素：微妙的波纹效果 -->
+  <circle cx="80" cy="30" r="40" stroke="#007AFF" stroke-width="0.5" fill="none" opacity="0.1">
+    <animate attributeName="r" values="40;45;40" dur="6s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.1;0.05;0.1" dur="6s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- 笔记图标 -->
+  <g transform="translate(175, 40)">
+    <path d="M0,0 L10,0 L10,12 L5,10 L0,12 Z" fill="#007AFF" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;0.9;0.7" dur="4s" repeatCount="indefinite" />
+    </path>
+  </g>
+</svg>

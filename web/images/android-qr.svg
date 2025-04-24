@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="white"/>
+  
+  <!-- 简化的二维码图案 -->
+  <rect x="40" y="40" width="120" height="120" fill="white"/>
+  
+  <!-- 左上角定位图案 -->
+  <rect x="50" y="50" width="30" height="30" fill="black"/>
+  <rect x="55" y="55" width="20" height="20" fill="white"/>
+  <rect x="60" y="60" width="10" height="10" fill="black"/>
+  
+  <!-- 右上角定位图案 -->
+  <rect x="120" y="50" width="30" height="30" fill="black"/>
+  <rect x="125" y="55" width="20" height="20" fill="white"/>
+  <rect x="130" y="60" width="10" height="10" fill="black"/>
+  
+  <!-- 左下角定位图案 -->
+  <rect x="50" y="120" width="30" height="30" fill="black"/>
+  <rect x="55" y="125" width="20" height="20" fill="white"/>
+  <rect x="60" y="130" width="10" height="10" fill="black"/>
+  
+  <!-- 二维码数据点 -->
+  <rect x="90" y="50" width="5" height="5" fill="black"/>
+  <rect x="100" y="50" width="5" height="5" fill="black"/>
+  <rect x="90" y="60" width="5" height="5" fill="black"/>
+  <rect x="100" y="60" width="5" height="5" fill="black"/>
+  <rect x="110" y="60" width="5" height="5" fill="black"/>
+  <rect x="50" y="90" width="5" height="5" fill="black"/>
+  <rect x="60" y="90" width="5" height="5" fill="black"/>
+  <rect x="70" y="90" width="5" height="5" fill="black"/>
+  <rect x="90" y="90" width="5" height="5" fill="black"/>
+  <rect x="110" y="90" width="5" height="5" fill="black"/>
+  <rect x="120" y="90" width="5" height="5" fill="black"/>
+  <rect x="130" y="90" width="5" height="5" fill="black"/>
+  <rect x="140" y="90" width="5" height="5" fill="black"/>
+  <rect x="50" y="100" width="5" height="5" fill="black"/>
+  <rect x="70" y="100" width="5" height="5" fill="black"/>
+  <rect x="80" y="100" width="5" height="5" fill="black"/>
+  <rect x="90" y="100" width="5" height="5" fill="black"/>
+  <rect x="100" y="100" width="5" height="5" fill="black"/>
+  <rect x="120" y="100" width="5" height="5" fill="black"/>
+  <rect x="140" y="100" width="5" height="5" fill="black"/>
+  <rect x="90" y="110" width="5" height="5" fill="black"/>
+  <rect x="100" y="110" width="5" height="5" fill="black"/>
+  <rect x="110" y="110" width="5" height="5" fill="black"/>
+  <rect x="120" y="110" width="5" height="5" fill="black"/>
+  <rect x="130" y="110" width="5" height="5" fill="black"/>
+  <rect x="90" y="120" width="5" height="5" fill="black"/>
+  <rect x="100" y="120" width="5" height="5" fill="black"/>
+  <rect x="110" y="120" width="5" height="5" fill="black"/>
+  <rect x="90" y="130" width="5" height="5" fill="black"/>
+  <rect x="100" y="130" width="5" height="5" fill="black"/>
+  <rect x="110" y="130" width="5" height="5" fill="black"/>
+  <rect x="120" y="130" width="5" height="5" fill="black"/>
+  <rect x="130" y="130" width="5" height="5" fill="black"/>
+  <rect x="140" y="130" width="5" height="5" fill="black"/>
+  
+  <!-- Android图标 -->
+  <circle cx="100" cy="100" r="15" fill="#3DDC84"/>
+  <path d="M100 90 L105 95 L95 95 Z" fill="white"/>
+  <circle cx="93" cy="97" r="2" fill="white"/>
+  <circle cx="107" cy="97" r="2" fill="white"/>
+  <path d="M90 100 L90 110 L93 110 L93 100 Z" fill="white"/>
+  <path d="M107 100 L107 110 L110 110 L110 100 Z" fill="white"/>
+</svg>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F2F2F7">
+        <animate attributeName="stop-color" values="#F2F2F7;#E5E5EA;#F2F2F7" dur="15s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#E5E5EA">
+        <animate attributeName="stop-color" values="#E5E5EA;#F2F2F7;#E5E5EA" dur="15s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect width="600" height="400" fill="url(#bgGradient)" rx="20">
+    <animate attributeName="rx" values="20;25;20" dur="15s" repeatCount="indefinite" />
+  </rect>
+  
+  <!-- 无限画布背景 -->
+  <rect x="100" y="80" width="400" height="240" rx="10" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="2"/>
+  
+  <!-- 网格背景 -->
+  <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#F2F2F7" stroke-width="1"/>
+  </pattern>
+  <rect x="100" y="80" width="400" height="240" fill="url(#grid)"/>
+  
+  <!-- 画布内容 -->
+  <g transform="translate(300, 200)">
+    <!-- 中心点 -->
+    <circle cx="0" cy="0" r="5" fill="#007AFF">
+      <animate attributeName="r" values="5;7;5" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    
+    <!-- 连接线和节点 -->
+    <line x1="0" y1="0" x2="-80" y2="-60" stroke="#007AFF" stroke-width="2" stroke-dasharray="5,3">
+      <animate attributeName="stroke-dashoffset" values="0;16" dur="3s" repeatCount="indefinite"/>
+    </line>
+    <rect x="-100" y="-80" width="40" height="40" rx="5" fill="#FF9500" opacity="0.8"/>
+    <text x="-80" y="-60" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="white">笔记1</text>
+    
+    <line x1="0" y1="0" x2="80" y2="-60" stroke="#007AFF" stroke-width="2" stroke-dasharray="5,3">
+      <animate attributeName="stroke-dashoffset" values="0;16" dur="3s" repeatCount="indefinite"/>
+    </line>
+    <circle cx="80" cy="-60" r="20" fill="#4CD964" opacity="0.8"/>
+    <text x="80" y="-60" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="white">概念图</text>
+    
+    <line x1="0" y1="0" x2="-80" y2="60" stroke="#007AFF" stroke-width="2" stroke-dasharray="5,3">
+      <animate attributeName="stroke-dashoffset" values="0;16" dur="3s" repeatCount="indefinite"/>
+    </line>
+    <ellipse cx="-80" cy="60" rx="30" ry="20" fill="#FF3B30" opacity="0.8"/>
+    <text x="-80" y="60" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="white">思维导图</text>
+    
+    <line x1="0" y1="0" x2="80" y2="60" stroke="#007AFF" stroke-width="2" stroke-dasharray="5,3">
+      <animate attributeName="stroke-dashoffset" values="0;16" dur="3s" repeatCount="indefinite"/>
+    </line>
+    <polygon points="80,40 100,60 80,80 60,60" fill="#32ADE6" opacity="0.8"/>
+    <text x="80" y="60" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="white">流程图</text>
+  </g>
+  
+  <!-- 工具栏 -->
+  <rect x="100" y="330" width="400" height="30" rx="5" fill="#F5F7FA"/>
+  <circle cx="130" cy="345" r="10" fill="#007AFF" opacity="0.5"/>
+  <circle cx="160" cy="345" r="10" fill="#FF9500" opacity="0.5"/>
+  <circle cx="190" cy="345" r="10" fill="#4CD964" opacity="0.5"/>
+  <circle cx="220" cy="345" r="10" fill="#FF3B30" opacity="0.5"/>
+  <rect x="250" cy="345" width="220" height="10" rx="5" fill="#E5E5EA"/>
+  
+  <!-- 缩放动画效果 -->
+  <g transform="translate(300, 200)" opacity="0.2">
+    <circle cx="0" cy="0" r="50" fill="none" stroke="#007AFF" stroke-width="1">
+      <animate attributeName="r" values="50;100;50" dur="10s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.2;0.1;0.2" dur="10s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <!-- 移动指示器 -->
+  <g opacity="0.5">
+    <path d="M 300 70 L 310 60 L 300 50 L 290 60 Z" fill="#007AFF">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M 300 330 L 310 320 L 300 310 L 290 320 Z" fill="#007AFF" transform="rotate(180, 300, 320)">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M 90 200 L 100 190 L 110 200 L 100 210 Z" fill="#007AFF" transform="rotate(270, 100, 200)">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M 510 200 L 520 190 L 530 200 L 520 210 Z" fill="#007AFF" transform="rotate(90, 520, 200)">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>

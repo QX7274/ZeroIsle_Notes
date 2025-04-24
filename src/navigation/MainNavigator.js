@@ -1,0 +1,116 @@
+/**
+ * 主功能导航配置
+ */
+
+import React from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
+import { useSelector } from 'react-redux';
+import { selectTheme } from '../redux/slices/uiSlice';
+import { colors } from '../utils/constants/colors';
+
+// 导入知识图谱和手写识别组件
+import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
+import SearchScreen from '../screens/SearchScreen';
+
+// 临时占位组件
+import { View, Text } from 'react-native';
+
+const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// 临时占位屏幕组件
+const PlaceholderScreen = ({ route }) => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ fontSize: 18 }}>{route.name} 屏幕正在开发中...</Text>
+  </View>
+);
+
+// 笔记导航堆栈
+const NotesNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="NotesList" component={NoteListScreen} options={{ title: '我的笔记' }} />
+    <Stack.Screen name="NoteEdit" component={NoteEditScreen} options={{ title: '编辑笔记' }} />
+    <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
+    <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
+    <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
+  </Stack.Navigator>
+);
+
+// 知识图谱导航堆栈
+const KnowledgeGraphNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
+    <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
+    <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
+    <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
+    <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
+    <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
+  </Stack.Navigator>
+);
+
+// 设置导航堆栈
+const SettingsNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="Settings" component={PlaceholderScreen} options={{ title: '设置' }} />
+    <Stack.Screen name="Profile" component={PlaceholderScreen} options={{ title: '个人资料' }} />
+    <Stack.Screen name="AppSettings" component={PlaceholderScreen} options={{ title: '应用设置' }} />
+  </Stack.Navigator>
+);
+
+/**
+ * 主功能导航器
+ * 使用底部标签导航，包含笔记、知识图谱和设置等主要功能模块
+ */
+const MainNavigator = () => {
+  const theme = useSelector(selectTheme);
+  const isDarkMode = theme === 'dark';
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textLight,
+        tabBarStyle: {
+          backgroundColor: isDarkMode ? colors.darkBackground : colors.white,
+          borderTopColor: isDarkMode ? colors.darkBorder : colors.border,
+        },
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen
+        name="Notes"
+        component={NotesNavigator}
+        options={{
+          title: '笔记',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size }}>📝</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="KnowledgeGraph"
+        component={KnowledgeGraphNavigator}
+        options={{
+          title: '知识图谱',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size }}>🔍</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsNavigator}
+        options={{
+          title: '设置',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+export default MainNavigator;

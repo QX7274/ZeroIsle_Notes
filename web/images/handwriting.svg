@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景与设备框架保持不变 -->
+  <rect width="600" height="400" fill="#F2F2F7" rx="20"/>
+  <rect x="100" y="50" width="400" height="300" rx="15" fill="#FFF" stroke="#C7C7CC" stroke-width="2"/>
+
+  <!-- 手写文字区域 -->
+  <g transform="translate(130 120)">
+    <!-- 中文使用站酷手写体 -->
+    <text x="0" y="40" font-family="ZCOOL XiaoWei" font-size="36" fill="#000">
+      零屿笔记
+    </text>
+    
+    <!-- 英文使用Caveat手写体 -->
+    <text x="0" y="80" font-family="Caveat" font-size="42" fill="#000" letter-spacing="2px">
+      ZeroIsle Notes
+    </text>
+  </g>
+
+  <!-- 其他元素保持原样 -->
+  <rect x="150" y="250" width="300" height="40" rx="5" fill="#F5F7FA" stroke="#E5E5EA"/>
+  <text x="170" y="275" font-family="Arial" font-size="16">零屿笔记 ZeroIsle Notes</text>
+  
+  <!-- 动画元素 -->
+  <g opacity="0.5">
+    <circle cx="200" cy="120" r="5" fill="#007AFF">
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="250" cy="120" r="5" fill="#007AFF">
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" begin="0.3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="300" cy="120" r="5" fill="#007AFF">
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="350" cy="120" r="5" fill="#007AFF">
+      <animate attributeName="opacity" values="0.2;1;0.2" dur="2s" begin="0.9s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- 手写笔图标 -->
+  <path d="M450 100 L470 80 480 90 460 110Z" fill="#007AFF"/>
+  <line x1="460" y1="110" x2="450" y2="100" stroke="#007AFF" stroke-width="2"/>
+
+  <!-- 准确率指示 -->
+  <rect x="450" y="250" width="80" height="10" rx="5" fill="#E5E5EA"/>
+  <rect x="450" y="250" width="64" height="10" rx="5" fill="#4CD964"/>
+  <text x="490" y="280" font-family="Arial" font-size="12" text-anchor="middle" fill="#8E8E93">准确率 80%</text>
+</svg>

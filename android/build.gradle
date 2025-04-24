@@ -1,0 +1,91 @@
+buildscript {
+    ext {
+        buildToolsVersion = "34.0.0"
+        minSdkVersion = 23
+        compileSdkVersion = 35
+        targetSdkVersion = 35
+        ndkVersion = "26.1.10909125"
+        kotlinVersion = "1.9.25"
+
+        // 从 gradle.properties 读取react-native-camera变体配置
+        def properties = new Properties()
+        file("gradle.properties").withInputStream { properties.load(it) }
+        reactNativeCameraVariant = properties.getProperty('reactNativeCameraVariant', 'general')
+    }
+    repositories {
+        // 添加国内镜像源
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://maven.aliyun.com/nexus/content/groups/public/' }
+        maven { url 'https://dl.google.com/dl/android/maven2/' }
+        maven { url 'https://repo.huaweicloud.com/repository/maven/' }
+        maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+        maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.6.0")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    }
+}
+
+// 全局仓库配置
+allprojects {
+    repositories {
+        // 添加国内镜像源
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url 'https://maven.aliyun.com/repository/apache-snapshots' }
+        maven { url "https://jitpack.io" }
+        maven { url "https://maven.aliyun.com/nexus/content/groups/public/" }
+        maven { url "https://dl.bintray.com/thelasterstar/maven/" }
+        maven { url "https://dl.bintray.com/umsdk/release" }
+        // 谷歌平替
+        maven { url 'https://dl.google.com/dl/android/maven2/' }
+        maven { url "https://maven.google.com" }
+        google()
+        mavenCentral()
+        jcenter()
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+
+// 自定义任务来预下载依赖
+task downloadDependencies() {
+    doLast {
+        println "\n\n开始预下载依赖..."
+        configurations.all { configuration ->
+            if (configuration.canBeResolved) {
+                configuration.resolve()
+            }
+        }
+        println "依赖预下载完成!\n\n"
+    }
+}
+
+// 全局配置注释掉，避免构建问题
+/*
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            // 确保所有项目都使用相同的架构
+            try {
+                if (project.android.defaultConfig.hasProperty('ndk')) {
+                    project.android.defaultConfig.ndk.abiFilters = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+                }
+            } catch (Exception e) {
+                println "注意: 项目 ${project.name} 不支持设置 abiFilters"
+            }
+        }
+    }
+}
+*/
