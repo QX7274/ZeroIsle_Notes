@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="200px" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Error State</title>
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#FF4D4F" offset="0%"></stop>
+            <stop stop-color="#F5222D" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Error" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <circle id="Background" fill="#FFF1F0" cx="100" cy="100" r="100"></circle>
+        <circle id="Circle" stroke="url(#linearGradient-1)" stroke-width="8" cx="100" cy="100" r="70"></circle>
+        <path d="M70,70 L130,130" id="Line" stroke="url(#linearGradient-1)" stroke-width="8" stroke-linecap="round"></path>
+        <path d="M70,130 L130,70" id="Line" stroke="url(#linearGradient-1)" stroke-width="8" stroke-linecap="round"></path>
+    </g>
+</svg>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1440px" height="1024px" viewBox="0 0 1440 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#1890FF" offset="0%"></stop>
+            <stop stop-color="#722ED1" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#13C2C2" offset="0%"></stop>
+            <stop stop-color="#1890FF" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect fill="#F0F2F5" x="0" y="0" width="1440" height="1024"></rect>
+        <path d="M0,0 L1440,0 L1440,1024 L0,1024 L0,0 Z" fill="url(#linearGradient-1)" opacity="0.2"></path>
+        <path d="M0,0 C239.976,341.33 479.976,512 720,512 C960.024,512 1200.02,341.33 1440,0 L1440,1024 L0,1024 L0,0 Z" fill="url(#linearGradient-2)" opacity="0.1"></path>
+        <circle fill="#FFFFFF" opacity="0.1" cx="720" cy="512" r="300"></circle>
+        <circle fill="#FFFFFF" opacity="0.1" cx="720" cy="512" r="200"></circle>
+        <circle fill="#FFFFFF" opacity="0.1" cx="720" cy="512" r="100"></circle>
+        <circle fill="#FFFFFF" opacity="0.2" cx="720" cy="512" r="50"></circle>
+        <circle fill="#FFFFFF" opacity="0.3" cx="720" cy="512" r="25"></circle>
+        <circle fill="#FFFFFF" opacity="0.05" cx="200" cy="200" r="100"></circle>
+        <circle fill="#FFFFFF" opacity="0.05" cx="1200" cy="800" r="150"></circle>
+        <circle fill="#FFFFFF" opacity="0.05" cx="1100" cy="200" r="80"></circle>
+        <circle fill="#FFFFFF" opacity="0.05" cx="300" cy="800" r="120"></circle>
+    </g>
+</svg>

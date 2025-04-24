@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="200px" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Empty State</title>
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#1890FF" offset="0%"></stop>
+            <stop stop-color="#52C41A" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Empty" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect id="Background" fill="#F5F5F5" opacity="0.5" x="0" y="0" width="200" height="200" rx="10"></rect>
+        <g id="Box" transform="translate(50.000000, 50.000000)">
+            <rect id="Rectangle" stroke="url(#linearGradient-1)" stroke-width="3" x="0" y="0" width="100" height="80" rx="5"></rect>
+            <rect id="Rectangle" fill="url(#linearGradient-1)" opacity="0.2" x="10" y="10" width="80" height="60" rx="3"></rect>
+            <path d="M30,100 L70,100 L70,80 L30,80 L30,100 Z" id="Rectangle" stroke="url(#linearGradient-1)" stroke-width="3"></path>
+            <path d="M40,40 L60,40 L60,30 L40,30 L40,40 Z M40,50 L60,50 L60,45 L40,45 L40,50 Z" id="Combined-Shape" fill="url(#linearGradient-1)"></path>
+        </g>
+    </g>
+</svg>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="200px" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Success State</title>
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#52C41A" offset="0%"></stop>
+            <stop stop-color="#389E0D" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Success" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <circle id="Background" fill="#F6FFED" cx="100" cy="100" r="100"></circle>
+        <circle id="Circle" stroke="url(#linearGradient-1)" stroke-width="8" cx="100" cy="100" r="70"></circle>
+        <path d="M70,100 L90,120 L130,80" id="Check" stroke="url(#linearGradient-1)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </g>
+</svg>

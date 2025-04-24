@@ -1,0 +1,234 @@
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 淡出动画 */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 上滑入动画 */
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 下滑入动画 */
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 左滑入动画 */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 右滑入动画 */
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 缩放入动画 */
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 缩放出动画 */
+@keyframes scaleOut {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* 旋转入动画 */
+@keyframes rotateIn {
+  from {
+    transform: rotate(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0);
+    opacity: 1;
+  }
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 闪烁动画 */
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 波纹动画 */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 抖动动画 */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* 弹跳动画 */
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-20px);
+  }
+  60% {
+    transform: translateY(-10px);
+  }
+}
+
+/* 淡入动画类 */
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* 淡出动画类 */
+.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+/* 上滑入动画类 */
+.slide-in-up {
+  animation: slideInUp 0.5s ease-out forwards;
+}
+
+/* 下滑入动画类 */
+.slide-in-down {
+  animation: slideInDown 0.5s ease-out forwards;
+}
+
+/* 左滑入动画类 */
+.slide-in-left {
+  animation: slideInLeft 0.5s ease-out forwards;
+}
+
+/* 右滑入动画类 */
+.slide-in-right {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+/* 缩放入动画类 */
+.scale-in {
+  animation: scaleIn 0.5s ease-out forwards;
+}
+
+/* 缩放出动画类 */
+.scale-out {
+  animation: scaleOut 0.5s ease-out forwards;
+}
+
+/* 旋转入动画类 */
+.rotate-in {
+  animation: rotateIn 0.5s ease-out forwards;
+}
+
+/* 脉冲动画类 */
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* 闪烁动画类 */
+.blink {
+  animation: blink 1s ease-in-out infinite;
+}
+
+/* 波纹动画类 */
+.ripple {
+  animation: ripple 1s ease-out infinite;
+}
+
+/* 抖动动画类 */
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* 弹跳动画类 */
+.bounce {
+  animation: bounce 1s ease-in-out;
+}
