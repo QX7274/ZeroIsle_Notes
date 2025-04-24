@@ -1,79 +1,445 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 零屿笔记 (ZeroIsle Notes)
 
-# Getting Started
+<p align="center">
+  <img src="src/assets/logo.png" alt="零屿笔记" width="180" />
+</p>
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+<p align="center">
+  <b>智能笔记应用 | 知识管理系统 | AI助手</b>
+</p>
 
-## Step 1: Start the Metro Server
+<p align="center">
+  <a href="#功能特点">功能特点</a> •
+  <a href="#技术架构">技术架构</a> •
+  <a href="#快速开始">快速开始</a> •
+  <a href="#项目结构">项目结构</a> •
+  <a href="#开发指南">开发指南</a> •
+  <a href="#贡献指南">贡献指南</a> •
+  <a href="#许可证">许可证</a>
+</p>
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+---
 
-To start Metro, run the following command from the _root_ of your React Native project:
+## 📝 项目简介
 
-```bash
-# using npm
-npm start
+零屿笔记是一款现代化的智能笔记应用，集成了AI助手、知识图谱、语音识别等多种先进功能，旨在为用户提供全方位的知识管理解决方案。应用采用React Native开发，支持Android和iOS平台，提供流畅的用户体验和丰富的功能。
 
-# OR using Yarn
-yarn start
+零屿笔记的核心理念是"知识连接创造价值"。通过智能化的知识管理工具，帮助用户将碎片化信息转化为结构化知识，实现个人知识体系的构建与成长。无论是学生、研究人员、创作者还是专业人士，都能在零屿笔记中找到适合自己的知识管理方式。
+
+### 设计理念
+
+- **简约而不简单**：界面设计简洁直观，但功能丰富强大
+- **智能化辅助**：AI技术贯穿各个功能模块，降低知识管理门槛
+- **知识互联**：通过知识图谱和关联推荐，构建知识间的联系
+- **隐私保护**：本地优先的数据存储策略，保障用户数据安全
+- **开放生态**：支持多种数据导入导出格式，与其他工具无缝协作
+
+## ✨ 功能特点
+
+### 📋 笔记管理
+- **富文本编辑**：支持Markdown、代码高亮、图片插入等，提供所见即所得的编辑体验
+- **分类与标签**：多层级分类系统和灵活的标签管理，支持自定义颜色和图标
+- **版本历史**：自动追踪笔记修改历史，支持版本比对和一键恢复
+- **离线支持**：完整的离线工作模式，网络恢复后自动同步
+- **自动保存**：智能检测内容变更，定时保存，防止意外丢失
+- **模板系统**：预设多种笔记模板，支持自定义和分享模板
+- **批量操作**：支持多选、批量编辑、移动和删除
+- **导入导出**：支持多种格式导入导出，包括Markdown、HTML、PDF和纯文本
+- **笔记锁定**：重要笔记可设置密码保护
+- **协作编辑**：支持多人实时协作编辑（企业版功能）
+
+### 🤖 AI助手
+- **智能对话**：基于先进的AI模型（支持GPT-4、Claude等）提供上下文感知的对话支持
+- **语音交互**：高精度语音识别和自然语音合成，支持多种语言和口音
+- **文本处理**：
+  - **翻译引擎**：支持100+语言之间的互译，保留原文格式
+  - **智能摘要**：长文本一键生成摘要，可调节摘要长度和风格
+  - **语法检查**：自动检测并修正语法、拼写和标点错误
+  - **风格转换**：将文本转换为不同的写作风格（学术、商务、创意等）
+- **图像分析**：
+  - **OCR文字识别**：从图片中提取文字内容
+  - **图片描述**：自动生成图片内容的详细描述
+  - **图表数据提取**：识别图表中的数据并转换为表格
+- **流式响应**：实时显示AI回复，提升交互体验，支持中断和继续生成
+- **知识增强**：
+  - **笔记内容分析**：自动分析笔记内容，提供相关概念和资源推荐
+  - **问题解答**：基于用户笔记内容回答特定领域问题
+  - **创意激发**：提供思路拓展和创意建议
+- **多模态交互**：支持文本、语音、图像混合输入，实现更自然的交互方式
+- **本地模型支持**：可选择在设备本地运行轻量级AI模型，保护隐私并支持离线使用
+- **自定义指令**：用户可创建和保存常用AI指令，提高工作效率
+
+### 🧠 知识管理
+- **知识图谱**：
+  - **自动构建**：基于笔记内容自动生成知识连接
+  - **交互式编辑**：手动调整和优化知识图谱结构
+  - **多维度视图**：按主题、时间、关联度等多角度查看知识网络
+  - **节点分析**：识别核心概念和知识盲点
+- **思维导图**：
+  - **多种布局**：支持放射型、树形、鱼骨图等多种布局方式
+  - **实时协作**：多人同步编辑思维导图
+  - **智能建议**：AI辅助提供分支建议和内容完善
+  - **一键转换**：思维导图与笔记内容互相转换
+- **关联推荐**：
+  - **上下文感知**：基于当前笔记内容智能推荐相关笔记
+  - **学习路径**：生成特定主题的学习和阅读路径
+  - **知识缺口识别**：发现知识体系中的空白点并提供补充建议
+  - **引用追踪**：自动记录笔记间的引用关系
+- **全文检索**：
+  - **语义搜索**：基于内容含义而非仅关键词的搜索
+  - **过滤器系统**：多条件组合筛选搜索结果
+  - **搜索历史**：记录并分析搜索模式
+  - **快捷检索**：支持快捷键和自然语言查询
+- **知识库管理**：
+  - **多知识库**：支持创建和管理多个独立知识库
+  - **权限控制**：细粒度的访问权限设置
+  - **版本管理**：知识库整体的版本历史
+  - **数据统计**：知识积累和使用情况的可视化统计
+
+### 🎨 创意工具
+- **画布**：
+  - **无限画布**：无边界的创意空间，支持缩放和平移
+  - **多媒体元素**：文本、图形、图片、链接的自由组合
+  - **模板库**：提供头脑风暴、项目规划、流程图等多种模板
+  - **协作白板**：多人实时协作创意构思
+  - **智能排版**：一键整理画布元素，生成美观布局
+- **代码编辑器**：
+  - **语法高亮**：支持50+种编程语言的语法高亮
+  - **智能补全**：代码自动补全和错误提示
+  - **代码运行**：内置解释器，支持Python、JavaScript等语言的代码执行
+  - **版本对比**：代码版本差异可视化比较
+  - **代码片段库**：保存和复用常用代码片段
+- **语音转文字**：
+  - **实时转录**：语音实时转为文本，支持长时间录音
+  - **多语言识别**：支持20+种语言的语音识别
+  - **说话人分离**：自动区分多人对话中的不同说话人
+  - **关键词提取**：自动标记语音内容中的关键词和重点
+  - **语音命令**：通过语音指令控制应用功能
+- **手写识别**：
+  - **多语言识别**：支持多种语言的手写文字识别
+  - **手写笔记**：使用触控笔直接在应用中手写笔记
+  - **公式识别**：识别手写数学公式并转换为标准格式
+  - **图形识别**：将手绘图形转换为规范图形
+  - **手写搜索**：通过手写内容搜索笔记
+- **创意激发工具**：
+  - **灵感生成器**：基于关键词生成创意灵感
+  - **概念联想**：自动关联相关概念，拓展思路
+  - **随机提示**：提供随机创意挑战和思考角度
+  - **创意模板**：各类创意工作的结构化模板
+
+### 📊 数据分析
+- **使用统计**：
+  - **活跃度分析**：笔记创建、编辑、阅读的频率和时间分布
+  - **功能使用情况**：各功能模块的使用频率和时长统计
+  - **生产力报告**：个人知识管理效率的量化分析
+  - **目标追踪**：设定知识管理目标并追踪完成情况
+- **标签分析**：
+  - **兴趣图谱**：基于标签使用频率生成个人兴趣地图
+  - **知识分布**：可视化展示知识在不同领域的分布情况
+  - **关联强度**：分析标签之间的关联程度和模式
+  - **热点追踪**：识别个人关注的热点话题变化趋势
+- **时间线**：
+  - **知识演进**：追踪特定主题知识的积累和演变过程
+  - **学习路径**：回顾个人学习历程，识别关键节点
+  - **里程碑标记**：在时间线上标记重要的知识突破点
+  - **周期分析**：发现个人学习和创作的周期性模式
+- **内容分析**：
+  - **深度指标**：评估笔记内容的深度和复杂度
+  - **连贯性分析**：检测知识体系的连贯性和完整性
+  - **引用网络**：分析笔记间的引用关系网络
+  - **情感分析**：识别笔记内容的情感倾向和变化
+- **协作分析**（团队版）：
+  - **贡献度统计**：团队成员的贡献度量化分析
+  - **协作模式**：识别团队协作的模式和效率
+  - **知识流动**：追踪团队内知识的流动和传播路径
+  - **互动热图**：可视化团队成员间的互动频率和方式
+
+## 🛠️ 技术架构
+
+### 前端技术
+- **React Native**：跨平台移动应用开发框架
+  - 版本：0.75.5
+  - 特性：Hermes引擎、新架构支持、Fabric渲染器
+  - 优势：代码共享、原生性能、热重载开发
+- **Redux Toolkit**：状态管理
+  - 特性：简化的Redux配置、内置不可变更新逻辑
+  - 模块：切片(Slice)模式、异步Thunk、RTK Query
+  - 优势：类型安全、开发者工具集成、性能优化
+- **React Navigation**：页面导航
+  - 版本：7.x
+  - 导航类型：堆栈、标签页、抽屉、模态框
+  - 特性：类型安全的导航、深度链接支持、动画自定义
+- **React Native Paper**：UI组件库
+  - 设计规范：Material Design 3
+  - 主题：动态主题、深色模式、自定义主题
+  - 组件：表单控件、卡片、对话框、列表等60+组件
+- **React Native Skia**：高性能图形渲染
+  - 功能：矢量图形、动画、滤镜、着色器
+  - 应用：知识图谱可视化、数据图表、自定义UI效果
+  - 优势：硬件加速、高性能绘图、复杂视觉效果
+- **React Native Reanimated**：流畅动画效果
+  - 版本：3.x
+  - 特性：声明式API、工作线程动画、手势集成
+  - 应用：列表动画、页面转场、交互反馈
+
+### 后端技术
+- **Django**：Python Web框架
+  - 版本：4.2.x
+  - 特性：ORM系统、中间件、信号机制
+  - 应用：用户认证、数据模型、业务逻辑
+  - 优势：快速开发、安全性、可扩展性
+- **Django REST Framework**：RESTful API开发
+  - 特性：序列化器、视图集、权限控制
+  - API文档：自动生成的Swagger/OpenAPI文档
+  - 认证：JWT、OAuth2.0、Session认证
+- **PostgreSQL**：关系型数据库
+  - 版本：14.x
+  - 特性：JSON字段、全文搜索、地理数据支持
+  - 扩展：pgvector（向量存储）、TimescaleDB（时序数据）
+  - 优势：事务完整性、复杂查询、可靠性
+- **Redis**：缓存和消息队列
+  - 用途：会话存储、API缓存、实时通知
+  - 数据类型：字符串、列表、集合、有序集合、哈希
+  - 特性：发布/订阅、Lua脚本、事务
+- **Celery**：异步任务处理
+  - 任务类型：定时任务、后台处理、长时间运行的操作
+  - 应用：AI处理、数据分析、邮件发送、报告生成
+  - 监控：Flower监控面板、任务状态追踪
+
+### AI与机器学习
+- **OpenAI API**：GPT模型集成
+  - 模型：GPT-4、GPT-3.5-Turbo
+  - 功能：聊天补全、文本生成、嵌入向量
+  - 应用：AI助手对话、内容生成、语义搜索
+  - 特性：上下文理解、流式响应、函数调用
+- **TensorFlow Lite**：移动端机器学习
+  - 模型类型：文本分类、图像识别、自然语言处理
+  - 优化：量化、模型裁剪、硬件加速
+  - 应用：离线AI功能、实时分析、低延迟推理
+  - 集成：原生模块桥接、Java/Kotlin API
+- **Whisper**：语音识别
+  - 特性：多语言支持、噪声鲁棒性、长音频处理
+  - 模型大小：从tiny到large多种规格
+  - 应用：语音转文字、会议记录、语音命令
+  - 部署：服务器端API和设备端轻量版
+- **Vision API**：图像分析
+  - 功能：物体检测、场景理解、OCR文字识别
+  - 集成：OpenAI GPT-4 Vision、Google Cloud Vision
+  - 应用：图片笔记分析、手写识别、图表解析
+  - 特性：多模态理解、上下文感知分析
+- **自然语言处理**：
+  - 技术：命名实体识别、关键词提取、情感分析
+  - 库：spaCy、NLTK、Hugging Face Transformers
+  - 应用：自动标签生成、内容分类、知识图谱构建
+  - 特性：多语言支持、领域适应、增量学习
+
+### 存储与同步
+- **AsyncStorage**：本地数据存储
+  - 用途：用户设置、离线数据、认证信息
+  - 特性：键值对存储、异步API、加密选项
+  - 优化：批量操作、存储分区、过期策略
+  - 备份：自动备份和恢复机制
+- **RNFS**：文件系统操作
+  - 功能：文件读写、目录管理、文件传输
+  - 存储类型：应用内存储、外部存储、缓存目录
+  - 应用：附件管理、媒体文件处理、导出功能
+  - 优化：流式处理、进度监控、错误恢复
+- **NetInfo**：网络状态监测
+  - 功能：连接类型检测、网络变化监听
+  - 应用：离线模式切换、网络质量适应
+  - 优化：带宽感知、数据节省模式
+  - 集成：与同步系统的无缝协作
+- **自定义同步机制**：确保数据一致性
+  - 策略：增量同步、冲突解决、优先级排序
+  - 特性：后台同步、定时同步、手动触发
+  - 监控：同步状态追踪、失败重试机制
+  - 优化：批量操作、压缩传输、差异比较
+- **数据加密**：
+  - 方法：AES-256加密、安全密钥存储
+  - 范围：敏感笔记、个人信息、认证凭据
+  - 特性：端到端加密、生物识别解锁
+  - 合规：GDPR、CCPA等隐私法规遵循
+
+## 🚀 快速开始
+
+### 环境要求
+- Node.js >= 18
+- React Native 0.75.5
+- VScode / Android Studio / Xcode
+- Python 3.8+ (后端)
+
+### 安装步骤
+
+1. **克隆仓库**
+   ```bash
+   git clone https://github.com/yourusername/zeroislenotes.git
+   cd zeroislenotes
+   ```
+
+2. **安装依赖**
+   ```bash
+   # 使用yarn安装前端依赖
+   yarn install-deps-yarn
+
+   # 安装iOS依赖 (仅macOS)
+   yarn pod-install
+
+   # 安装后端依赖
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+3. **启动应用**
+   ```bash
+   # 启动Metro服务器
+   yarn start
+
+   # 在新终端中启动Android应用
+   yarn android
+
+   # 或启动iOS应用 (仅macOS)
+   yarn ios
+   ```
+
+4. **启动后端服务**
+   ```bash
+   cd backend
+   python manage.py runserver
+   ```
+
+5. **启动管理系统**（可选）
+   ```bash
+   # 启动管理系统后端
+   cd admin_system/backend
+   python manage.py runserver 8001
+
+   # 启动管理系统前端
+   cd admin_system/frontend
+   yarn start
+   ```
+
+6. **查阅项目文档**
+   ```bash
+   # 浏览项目文档目录
+   cd Info
+
+   # 推荐首先阅读的文档
+   cat 开发者总体指南.md
+   cat 安装和部署指南.md
+   ```
+
+## 📂 项目结构
+
+项目采用模块化架构，清晰地分离了移动应用、后端服务、管理系统和文档，便于团队协作和维护。
+
+```
+zeroislenotes/
+├── android/                # Android原生代码
+├── ios/                    # iOS原生代码
+├── src/                    # React Native源代码
+│   ├── assets/             # 静态资源
+│   ├── components/         # 可复用组件
+│   ├── config/             # 配置文件
+│   ├── context/            # React上下文
+│   ├── native/             # 原生模块桥接
+│   ├── navigation/         # 导航配置
+│   ├── redux/              # Redux状态管理
+│   ├── screens/            # 应用屏幕
+│   ├── services/           # API服务
+│   ├── store/              # 状态存储
+│   └── utils/              # 工具函数
+├── backend/                # Django后端
+│   ├── ai_assistant/       # AI助手模块
+│   ├── notes/              # 笔记管理
+│   ├── knowledge_graph/    # 知识图谱
+│   ├── users/              # 用户管理
+│   ├── community/          # 社区功能
+│   ├── search/             # 搜索引擎
+│   ├── canvas/             # 画布功能
+│   ├── code/               # 代码编辑器
+│   ├── voice_recognition/  # 语音识别
+│   └── reminder/           # 提醒系统
+├── admin_system/           # 管理系统
+│   ├── backend/            # 管理后端API
+│   │   ├── admin_backend/  # 项目配置
+│   │   ├── auth_api/       # 认证模块
+│   │   ├── users/          # 用户管理
+│   │   ├── content/        # 内容管理
+│   │   ├── settings_api/   # 系统设置
+│   │   └── logs/           # 日志模块
+│   └── frontend/           # 管理前端界面
+│       ├── public/         # 静态资源
+│       └── src/            # React源代码
+├── web/                    # 官方网站
+│   ├── css/                # 样式文件
+│   ├── js/                 # JavaScript脚本
+│   ├── images/             # 图片资源
+│   └── index.html          # 主页面
+├── Info/                   # 项目文档
+│   ├── 前端开发手册.md      # 前端开发指南
+│   ├── 后端模型详解.md      # 后端数据模型文档
+│   ├── 功能模块详细说明.md   # 功能模块说明
+│   ├── 安装和部署指南.md     # 部署文档
+│   ├── 开发者总体指南.md     # 开发者指南
+│   ├── 技术选型.md          # 技术栈说明
+│   └── 项目文档.md          # 综合项目文档
 ```
 
-## Step 2: Start your Application
+### 主要目录说明
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+#### 📱 移动应用
+- **src/**：React Native应用源代码，包含UI组件、业务逻辑和状态管理
+- **android/**：Android平台特定代码，包含原生模块和配置
+- **ios/**：iOS平台特定代码，包含原生模块和配置
 
-### For Android
+#### 🖥️ 后端服务
+- **backend/**：Django后端服务，提供API接口和业务逻辑处理
+  - **ai_assistant/**：AI助手模块，集成OpenAI API，提供智能对话和内容生成
+  - **notes/**：笔记管理核心模块，处理笔记的CRUD操作和版本控制
+  - **knowledge_graph/**：知识图谱模块，构建和管理知识点之间的关联
+  - **voice_recognition/**：语音识别模块，基于Whisper模型实现语音转文字
 
-```bash
-# using npm
-npm run android
+#### 👨‍💼 管理系统
+- **admin_system/**：独立的管理后台系统，用于内容审核和用户管理
+  - **backend/**：基于Django的管理API
+  - **frontend/**：基于React和Ant Design的管理界面
 
-# OR using Yarn
-yarn android
-```
+#### 🌐 官方网站
+- **web/**：项目官方网站，提供产品介绍、下载和文档入口
+  - 采用响应式设计，支持多设备访问
 
-### For iOS
+#### 📚 项目文档
+- **Info/**：详细的项目文档，包括开发指南、架构设计和API文档
+  - 面向开发者的技术文档
+  - 面向管理员的操作手册
+  - 项目规划和路线图
 
-```bash
-# using npm
-npm run ios
+## 💻 开发指南
 
-# OR using Yarn
-yarn ios
-```
+### 代码规范
+- 遵循ESLint配置的代码风格
+- 使用TypeScript进行类型检查
+- 组件使用函数式组件和Hooks
+- 使用异步/await处理异步操作
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+### 状态管理
+- 使用Redux Toolkit管理全局状态
+- 使用React Context管理主题等上下文状态
+- 使用AsyncStorage持久化本地数据
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+### UI开发
+- 遵循Material Design设计规范
+- 使用主题系统支持深色/浅色模式
+- 支持不同屏幕尺寸的响应式布局
 
-## Step 3: Modifying your App
+### 测试
+- 使用Jest进行单元测试
+- 使用React Native Testing Library进行组件测试
+- 编写端到端测试确保功能完整性
 
-Now that you have successfully run the app, let's modify it.
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+---
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+<p align="center">
+  由❤️打造 | 零屿笔记团队
+</p>
