@@ -4,11 +4,8 @@
  */
 
 import React from 'react';
+import LinearGradient from 'react-native-linear-gradient';
 import { StyleSheet } from 'react-native';
-import { getGradientComponent } from './gradientFixUtils';
-
-// 获取可用的渐变组件
-const LinearGradient = getGradientComponent();
 
 /**
  * 创建线性渐变背景
@@ -21,10 +18,10 @@ const LinearGradient = getGradientComponent();
  * @returns {JSX.Element} - 渐变组件
  */
 export const createLinearGradient = (
-  colors,
-  {
-    locations = null,
-    start = { x: 0, y: 0 },
+  colors, 
+  { 
+    locations = null, 
+    start = { x: 0, y: 0 }, 
     end = { x: 1, y: 0 },
     style = {},
     ...props
