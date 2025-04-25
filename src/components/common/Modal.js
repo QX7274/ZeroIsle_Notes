@@ -1,76 +1,25 @@
 /**
- * 现代化Modal对话框组件
- * 支持动画效果和多种样式
+ * 通用Modal对话框组件
  */
 
-import React, { useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal as RNModal,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  Animated,
-  Dimensions,
-  Platform
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Modal as RNModal, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectModal, hideModal } from '../../redux/slices/uiSlice';
-import { SPACING, BORDER_RADIUS, SHADOW } from '../../utils/constants/dimensions';
+import { SPACING } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
 import Button from './Button';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 /**
- * 现代化Modal对话框组件
+ * 通用Modal对话框组件
  * 自动连接到Redux状态，显示全局Modal
  */
 const Modal = () => {
   const modal = useSelector(selectModal);
   const dispatch = useDispatch();
-  const { colors, isDarkMode } = useTheme();
-
-  // 动画值
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-
+  const { colors } = useTheme();
   // 获取动态样式
-  const dynamicStyles = getStyles(colors, isDarkMode);
-
-  // 处理模态框显示/隐藏动画
-  useEffect(() => {
-    if (modal.visible) {
-      // 显示动画
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      // 隐藏动画
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.9,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [modal.visible, fadeAnim, scaleAnim]);
+  const dynamicStyles = getStyles(colors);
 
   const closeModal = () => {
     dispatch(hideModal());
@@ -92,23 +41,15 @@ const Modal = () => {
 
   // 渲染提示对话框
   const renderAlert = () => {
-    const { title, message, onConfirm, icon, iconColor } = modal.data || {};
+    const { title, message, onConfirm } = modal.data || {};
 
     return (
       <View style={dynamicStyles.content}>
-        {icon && (
-          <View style={[dynamicStyles.iconContainer, { backgroundColor: iconColor || colors.primary + '20' }]}>
-            <Icon name={icon} size={32} color={iconColor || colors.primary} />
-          </View>
-        )}
         {title && <Text style={dynamicStyles.title}>{title}</Text>}
         {message && <Text style={dynamicStyles.message}>{message}</Text>}
         <View style={dynamicStyles.buttonContainer}>
           <Button
             title="确定"
-            type="gradient"
-            gradientType="primary"
-            rounded
             onPress={() => {
               closeModal();
               if (onConfirm) onConfirm();
@@ -122,39 +63,16 @@ const Modal = () => {
 
   // 渲染确认对话框
   const renderConfirm = () => {
-    const {
-      title,
-      message,
-      onConfirm,
-      onCancel,
-      confirmText,
-      cancelText,
-      icon,
-      iconColor,
-      destructive
-    } = modal.data || {};
+    const { title, message, onConfirm, onCancel, confirmText, cancelText } = modal.data || {};
 
     return (
       <View style={dynamicStyles.content}>
-        {icon && (
-          <View style={[
-            dynamicStyles.iconContainer,
-            { backgroundColor: (destructive ? colors.error : iconColor || colors.primary) + '20' }
-          ]}>
-            <Icon
-              name={icon}
-              size={32}
-              color={destructive ? colors.error : (iconColor || colors.primary)}
-            />
-          </View>
-        )}
         {title && <Text style={dynamicStyles.title}>{title}</Text>}
         {message && <Text style={dynamicStyles.message}>{message}</Text>}
         <View style={dynamicStyles.buttonContainer}>
           <Button
             title={cancelText || "取消"}
             type="outline"
-            rounded
             onPress={() => {
               closeModal();
               if (onCancel) onCancel();
@@ -163,9 +81,6 @@ const Modal = () => {
           />
           <Button
             title={confirmText || "确定"}
-            type={destructive ? 'gradient' : 'gradient'}
-            gradientType={destructive ? 'error' : 'primary'}
-            rounded
             onPress={() => {
               closeModal();
               if (onConfirm) onConfirm();
@@ -179,168 +94,90 @@ const Modal = () => {
 
   // 渲染自定义内容
   const renderCustom = () => {
-    const { content, showCloseButton } = modal.data || {};
-
-    return (
-      <View style={dynamicStyles.customContent}>
-        {showCloseButton && (
-          <TouchableOpacity
-            style={dynamicStyles.closeButton}
-            onPress={closeModal}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          >
-            <Icon name="close" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-        {content || null}
-      </View>
-    );
-  };
-
-  // 计算动画样式
-  const animatedOverlayStyle = {
-    opacity: fadeAnim,
-  };
-
-  const animatedModalStyle = {
-    opacity: fadeAnim,
-    transform: [{ scale: scaleAnim }],
+    const { content } = modal.data || {};
+    return content || null;
   };
 
   return (
     <RNModal
       visible={modal.visible}
       transparent
-      animationType="none"
+      animationType="fade"
       onRequestClose={closeModal}
-      statusBarTranslucent
     >
-      <Animated.View style={[dynamicStyles.overlay, animatedOverlayStyle]}>
-        <TouchableWithoutFeedback onPress={closeModal}>
-          <View style={dynamicStyles.overlayTouchable}>
-            <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
-              <Animated.View style={[dynamicStyles.modalContainer, animatedModalStyle]}>
-                {renderContent()}
-              </Animated.View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Animated.View>
+      <TouchableWithoutFeedback onPress={closeModal}>
+        <View style={dynamicStyles.overlay}>
+          <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
+            <View style={dynamicStyles.modalContainer}>
+              {renderContent()}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </RNModal>
   );
 };
 
 // 使用内联样式，因为我们需要访问动态的颜色主题
-const getStyles = (colors, isDarkMode) => {
-  // 获取屏幕尺寸
-  const { width, height } = Dimensions.get('window');
-
-  return {
-    // 背景遮罩
-    overlay: {
-      flex: 1,
-      backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-
-    // 可点击区域
-    overlayTouchable: {
-      width: '100%',
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-
-    // 模态框容器
-    modalContainer: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: BORDER_RADIUS.LARGE,
-      width: width > 550 ? 500 : width * 0.85,
-      maxWidth: 500,
-      padding: SPACING.LARGE,
-      ...SHADOW.LARGE,
-      // 添加边框以增强在暗模式下的可见性
-      borderWidth: isDarkMode ? 1 : 0,
-      borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-    },
-
-    // 内容容器
-    content: {
-      alignItems: 'center',
-      width: '100%',
-    },
-
-    // 自定义内容容器
-    customContent: {
-      width: '100%',
-      position: 'relative',
-    },
-
-    // 图标容器
-    iconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: SPACING.MEDIUM,
-    },
-
-    // 标题
-    title: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: colors.text,
-      marginBottom: SPACING.MEDIUM,
-      textAlign: 'center',
-    },
-
-    // 消息文本
-    message: {
-      fontSize: 16,
-      color: colors.textSecondary,
-      marginBottom: SPACING.LARGE,
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-
-    // 按钮容器
-    buttonContainer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      width: '100%',
-      marginTop: SPACING.SMALL,
-    },
-
-    // 按钮
-    button: {
-      minWidth: 120,
-      marginHorizontal: SPACING.SMALL,
-    },
-
-    // 取消按钮
-    cancelButton: {
-      marginRight: SPACING.SMALL,
-    },
-
-    // 关闭按钮
-    closeButton: {
-      position: 'absolute',
-      top: -SPACING.SMALL,
-      right: -SPACING.SMALL,
-      zIndex: 10,
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-  };
-};
+const getStyles = (colors) => ({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: colors.white || '#FFFFFF',
+    borderRadius: 8, // 使用固定值替代borderRadius.medium
+    width: '80%',
+    maxWidth: 400,
+    padding: SPACING.LARGE,
+    shadowColor: colors.shadow || '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  content: {
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text || '#000000',
+    marginBottom: SPACING.MEDIUM,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 16,
+    color: colors.textSecondary || '#8E8E93',
+    marginBottom: SPACING.LARGE,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  button: {
+    minWidth: 100,
+    marginHorizontal: SPACING.SMALL,
+  },
+  cancelButton: {
+    marginRight: SPACING.SMALL,
+  },
+});
 
 // 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  overlay: {},
+  modalContainer: {},
+  content: {},
+  title: {},
+  message: {},
+  buttonContainer: {},
+  button: {},
+  cancelButton: {},
+});
 
 export default Modal;

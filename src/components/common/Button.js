@@ -1,29 +1,21 @@
 /**
- * 现代化通用按钮组件
- * 支持渐变背景、阴影效果和多种样式
+ * 通用按钮组件
  */
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
-import { SPACING, SHADOW } from '../../utils/constants/dimensions';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { SPACING } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
-import LinearGradient from 'react-native-linear-gradient';
-import { createHorizontalGradient } from '../../utils/gradientUtils';
 
 /**
- * 现代化按钮组件
+ * 通用按钮组件
  * @param {string} title - 按钮文字
  * @param {function} onPress - 点击事件处理函数
- * @param {string} type - 按钮类型：primary, secondary, outline, text, gradient
+ * @param {string} type - 按钮类型：primary, secondary, outline, text
  * @param {boolean} disabled - 是否禁用
  * @param {boolean} loading - 是否显示加载状态
- * @param {string} size - 按钮大小：small, medium, large
- * @param {string} elevation - 阴影高度：none, small, medium, large
- * @param {boolean} rounded - 是否使用圆角
- * @param {string} gradientType - 渐变类型：primary, secondary, success, error, warning
  * @param {object} style - 自定义样式
  * @param {object} textStyle - 文字自定义样式
- * @param {object} gradientProps - 渐变属性
  */
 const Button = ({
   title,
@@ -31,56 +23,45 @@ const Button = ({
   type = 'primary',
   disabled = false,
   loading = false,
-  size = 'medium',
-  elevation = 'medium',
-  rounded = false,
-  gradientType = 'primary',
   style,
   textStyle,
-  gradientProps,
   ...props
 }) => {
-  const { colors, isDarkMode } = useTheme();
+  const { colors } = useTheme();
   // 获取动态样式
-  const dynamicStyles = getStyles(colors, isDarkMode);
+  const dynamicStyles = getStyles(colors);
 
   // 根据类型和状态确定样式
   const buttonStyle = [dynamicStyles.button];
   const buttonTextStyle = [dynamicStyles.text];
 
-  // 根据大小添加样式
-  switch (size) {
-    case 'small':
-      buttonStyle.push(dynamicStyles.smallButton);
-      buttonTextStyle.push(dynamicStyles.smallText);
+  // 根据类型添加样式
+  switch (type) {
+    case 'primary':
+      buttonStyle.push(dynamicStyles.primaryButton);
+      buttonTextStyle.push(dynamicStyles.primaryText);
       break;
-    case 'large':
-      buttonStyle.push(dynamicStyles.largeButton);
-      buttonTextStyle.push(dynamicStyles.largeText);
+    case 'secondary':
+      buttonStyle.push(dynamicStyles.secondaryButton);
+      buttonTextStyle.push(dynamicStyles.secondaryText);
+      break;
+    case 'outline':
+      buttonStyle.push(dynamicStyles.outlineButton);
+      buttonTextStyle.push(dynamicStyles.outlineText);
+      break;
+    case 'text':
+      buttonStyle.push(dynamicStyles.textButton);
+      buttonTextStyle.push(dynamicStyles.textButtonText);
       break;
     default:
-      // medium 是默认值，不需要额外样式
-      break;
+      buttonStyle.push(dynamicStyles.primaryButton);
+      buttonTextStyle.push(dynamicStyles.primaryText);
   }
 
-  // 圆角样式
-  if (rounded) {
-    buttonStyle.push(dynamicStyles.roundedButton);
-  }
-
-  // 阴影样式
-  if (elevation !== 'none' && type !== 'text' && type !== 'outline') {
-    switch (elevation) {
-      case 'small':
-        buttonStyle.push(dynamicStyles.elevationSmall);
-        break;
-      case 'large':
-        buttonStyle.push(dynamicStyles.elevationLarge);
-        break;
-      default:
-        buttonStyle.push(dynamicStyles.elevationMedium);
-        break;
-    }
+  // 禁用状态样式
+  if (disabled) {
+    buttonStyle.push(dynamicStyles.disabledButton);
+    buttonTextStyle.push(dynamicStyles.disabledText);
   }
 
   // 添加自定义样式
@@ -92,202 +73,63 @@ const Button = ({
     buttonTextStyle.push(textStyle);
   }
 
-  // 禁用状态样式
-  if (disabled) {
-    buttonStyle.push(dynamicStyles.disabledButton);
-    buttonTextStyle.push(dynamicStyles.disabledText);
-
-    // 渲染禁用按钮
-    return (
-      <View style={[buttonStyle, { overflow: 'hidden' }]}>
-        {loading ? (
-          <ActivityIndicator
-            size="small"
-            color={colors.textSecondary}
-          />
-        ) : (
-          <Text style={buttonTextStyle}>{title}</Text>
-        )}
-      </View>
-    );
-  }
-
-  // 根据类型渲染不同的按钮
-  if (type === 'gradient') {
-    // 渐变按钮
-    const gradientColors = colors.gradients[gradientType] || colors.gradients.primary;
-
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        disabled={loading}
-        activeOpacity={0.8}
-        style={[buttonStyle, { overflow: 'hidden', backgroundColor: 'transparent' }]}
-        {...props}
-      >
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-          {...gradientProps}
+  return (
+    <TouchableOpacity
+      style={buttonStyle}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.7}
+      {...props}
+    >
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={type === 'primary' ? (colors.white || '#FFFFFF') : colors.primary}
         />
-        {loading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={[buttonTextStyle, dynamicStyles.primaryText]}>
-            {title}
-          </Text>
-        )}
-      </TouchableOpacity>
-    );
-  } else if (type === 'outline') {
-    // 轮廓按钮
-    buttonStyle.push(dynamicStyles.outlineButton);
-    buttonTextStyle.push(dynamicStyles.outlineText);
-
-    return (
-      <TouchableOpacity
-        style={buttonStyle}
-        onPress={onPress}
-        disabled={loading}
-        activeOpacity={0.7}
-        {...props}
-      >
-        {loading ? (
-          <ActivityIndicator
-            size="small"
-            color={colors.primary}
-          />
-        ) : (
-          <Text style={buttonTextStyle}>{title}</Text>
-        )}
-      </TouchableOpacity>
-    );
-  } else if (type === 'text') {
-    // 文本按钮
-    buttonStyle.push(dynamicStyles.textButton);
-    buttonTextStyle.push(dynamicStyles.textButtonText);
-
-    return (
-      <TouchableOpacity
-        style={buttonStyle}
-        onPress={onPress}
-        disabled={loading}
-        activeOpacity={0.5}
-        {...props}
-      >
-        {loading ? (
-          <ActivityIndicator
-            size="small"
-            color={colors.primary}
-          />
-        ) : (
-          <Text style={buttonTextStyle}>{title}</Text>
-        )}
-      </TouchableOpacity>
-    );
-  } else {
-    // 普通按钮 (primary, secondary)
-    if (type === 'primary') {
-      buttonStyle.push(dynamicStyles.primaryButton);
-      buttonTextStyle.push(dynamicStyles.primaryText);
-    } else if (type === 'secondary') {
-      buttonStyle.push(dynamicStyles.secondaryButton);
-      buttonTextStyle.push(dynamicStyles.secondaryText);
-    }
-
-    return (
-      <TouchableOpacity
-        style={buttonStyle}
-        onPress={onPress}
-        disabled={loading}
-        activeOpacity={0.7}
-        {...props}
-      >
-        {loading ? (
-          <ActivityIndicator
-            size="small"
-            color="#FFFFFF"
-          />
-        ) : (
-          <Text style={buttonTextStyle}>{title}</Text>
-        )}
-      </TouchableOpacity>
-    );
-  }
+      ) : (
+        <Text style={buttonTextStyle}>{title}</Text>
+      )}
+    </TouchableOpacity>
+  );
 };
 
 // 使用内联样式，因为我们需要访问动态的颜色主题
-const getStyles = (colors, isDarkMode) => ({
-  // 基础按钮样式
+const getStyles = (colors) => ({
   button: {
-    borderRadius: 10,
+    borderRadius: 8, // 使用固定值
     paddingVertical: SPACING.MEDIUM,
     paddingHorizontal: SPACING.LARGE,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 120,
-    flexDirection: 'row',
   },
-
-  // 文本样式
   text: {
     fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
   },
-
-  // 按钮大小变体
-  smallButton: {
-    paddingVertical: SPACING.SMALL,
-    paddingHorizontal: SPACING.MEDIUM,
-    minWidth: 80,
-  },
-  smallText: {
-    fontSize: 14,
-  },
-  largeButton: {
-    paddingVertical: SPACING.LARGE,
-    paddingHorizontal: SPACING.XLARGE,
-    minWidth: 160,
-  },
-  largeText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-
-  // 圆角按钮
-  roundedButton: {
-    borderRadius: 50,
-  },
-
   // 主要按钮样式
   primaryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary || '#007AFF',
   },
   primaryText: {
-    color: '#FFFFFF',
+    color: colors.white || '#FFFFFF',
   },
-
   // 次要按钮样式
   secondaryButton: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.secondary || '#5AC8FA',
   },
   secondaryText: {
-    color: '#FFFFFF',
+    color: colors.white || '#FFFFFF',
   },
-
   // 轮廓按钮样式
   outlineButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary || '#007AFF',
   },
   outlineText: {
-    color: colors.primary,
+    color: colors.primary || '#007AFF',
   },
-
   // 文本按钮样式
   textButton: {
     backgroundColor: 'transparent',
@@ -296,32 +138,32 @@ const getStyles = (colors, isDarkMode) => ({
     minWidth: 0,
   },
   textButtonText: {
-    color: colors.primary,
-    fontWeight: '500',
+    color: colors.primary || '#007AFF',
   },
-
   // 禁用状态
   disabledButton: {
-    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    borderColor: 'transparent',
+    backgroundColor: colors.disabled || '#E5E5E5',
+    borderColor: colors.disabled || '#E5E5E5',
   },
   disabledText: {
-    color: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-  },
-
-  // 阴影样式
-  elevationSmall: {
-    ...SHADOW.SMALL,
-  },
-  elevationMedium: {
-    ...SHADOW.MEDIUM,
-  },
-  elevationLarge: {
-    ...SHADOW.LARGE,
+    color: colors.textLight || '#8E8E93',
   },
 });
 
 // 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  button: {},
+  text: {},
+  primaryButton: {},
+  primaryText: {},
+  secondaryButton: {},
+  secondaryText: {},
+  outlineButton: {},
+  outlineText: {},
+  textButton: {},
+  textButtonText: {},
+  disabledButton: {},
+  disabledText: {},
+});
 
 export default Button;

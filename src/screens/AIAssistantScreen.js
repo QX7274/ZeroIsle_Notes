@@ -1,8 +1,3 @@
-/**
- * 现代化AI助手屏幕
- * 支持渐变背景和动画效果
- */
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -23,7 +18,6 @@ import {
   Share,
   PermissionsAndroid,
   Linking,
-  StatusBar,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
@@ -33,9 +27,6 @@ import AIAssistantModule from '../native/AIAssistantModule';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
-import LinearGradient from 'react-native-linear-gradient';
-import { SPACING, BORDER_RADIUS, SHADOW } from '../utils/constants/dimensions';
-import { Card, Button } from '../components/common';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -48,9 +39,7 @@ const STORAGE_KEYS = {
 };
 
 const AIAssistantScreen = ({ navigation }) => {
-  const { colors, isDarkMode } = useTheme();
-
-  // 状态管理
+  const { theme } = useTheme();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -63,66 +52,22 @@ const AIAssistantScreen = ({ navigation }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState('00:00');
   const [isTranscribing, setIsTranscribing] = useState(false);
-
-  // 引用
   const flatListRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
   const audioFilePath = useRef(Platform.OS === 'android' ?
     `${RNFS.CachesDirectoryPath}/audio_message.mp3` :
     `${RNFS.CachesDirectoryPath}/audio_message.m4a`).current;
-
-  // 动画值
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const headerFadeAnim = useRef(new Animated.Value(0)).current;
-  const headerSlideAnim = useRef(new Animated.Value(-50)).current;
-  const messageFadeAnim = useRef(new Animated.Value(0)).current;
-
-  // 渐变色
-  const headerGradient = isDarkMode
-    ? colors.gradients.header
-    : ['#4361EE', '#4CC9F0'];
-  const userMessageGradient = isDarkMode
-    ? colors.gradients.primary
-    : ['#4361EE', '#3A0CA3'];
-  const suggestionGradient = isDarkMode
-    ? ['rgba(67, 97, 238, 0.2)', 'rgba(76, 201, 240, 0.1)']
-    : ['rgba(67, 97, 238, 0.1)', 'rgba(76, 201, 240, 0.05)'];
 
   // 加载设置和聊天历史
   useEffect(() => {
     loadSettings();
     loadChatHistory();
 
-    // 设置状态栏
-    StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content');
-    if (Platform.OS === 'android') {
-      StatusBar.setBackgroundColor('transparent');
-      StatusBar.setTranslucent(true);
-    }
-
     // 监听键盘显示隐藏事件
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       setShowQuickActions(false);
     });
-
-    // 启动动画
-    Animated.parallel([
-      Animated.timing(headerFadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerSlideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(messageFadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
 
     return () => {
       keyboardDidShowListener.remove();
@@ -584,204 +529,97 @@ const AIAssistantScreen = ({ navigation }) => {
   };
 
   // 渲染消息项
-  const renderMessageItem = ({ item, index }) => {
+  const renderMessageItem = ({ item }) => {
     const isUser = item.sender === 'user';
     const isSelected = selectedMessageId === item.id;
 
-    // 计算动画延迟，实现列表项的交错动画
-    const animDelay = index * 100;
-
-    // 格式化时间
-    const formattedTime = new Date(item.timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
     return (
-      <Animated.View
-        style={[
-          styles.messageWrapper,
-          {
-            opacity: messageFadeAnim,
-            transform: [{
-              translateY: messageFadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0]
-              })
-            }]
-          }
-        ]}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onLongPress={() => toggleQuickActions(item.id)}
+        style={styles.messageWrapper}
       >
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onLongPress={() => toggleQuickActions(item.id)}
-          style={styles.messageTouchable}
+        <View
+          style={[
+            styles.messageContainer,
+            isUser ? styles.userMessageContainer : styles.assistantMessageContainer,
+            isUser
+              ? { backgroundColor: theme.colors.primary }
+              : { backgroundColor: theme.colors.card },
+            item.isError && { backgroundColor: '#ffdddd' },
+          ]}
         >
-          {isUser ? (
-            // 用户消息 - 使用渐变背景
-            <View style={styles.userMessageWrapper}>
-              <LinearGradient
-                colors={userMessageGradient}
-                style={[
-                  styles.messageContainer,
-                  styles.userMessageContainer,
-                  item.isError && styles.errorMessageContainer,
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.userMessageText}>
-                  {item.text}
-                </Text>
-                <Text style={styles.userTimestampText}>
-                  {formattedTime}
-                </Text>
-              </LinearGradient>
-            </View>
+          {markdownEnabled && !isUser && !item.isError ? (
+            <Markdown
+              style={{
+                body: {
+                  color: theme.colors.text,
+                  fontSize: 16,
+                  lineHeight: 22,
+                },
+                code_block: {
+                  backgroundColor: theme.colors.card + '80',
+                  padding: 8,
+                  borderRadius: 4,
+                },
+                code_inline: {
+                  backgroundColor: theme.colors.card + '80',
+                  padding: 2,
+                  borderRadius: 2,
+                },
+                link: {
+                  color: theme.colors.primary,
+                  textDecorationLine: 'underline',
+                },
+                blockquote: {
+                  borderLeftWidth: 4,
+                  borderLeftColor: theme.colors.primary + '80',
+                  paddingLeft: 8,
+                  opacity: 0.8,
+                },
+              }}
+              onLinkPress={(url) => {
+                Linking.openURL(url);
+                return false;
+              }}
+            >
+              {item.text}
+            </Markdown>
           ) : (
-            // 助手消息 - 使用卡片样式
-            <View style={styles.assistantMessageWrapper}>
-              <View style={styles.assistantAvatarContainer}>
-                <LinearGradient
-                  colors={headerGradient}
-                  style={styles.assistantAvatar}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Icon name="smart-toy" size={16} color="#FFFFFF" />
-                </LinearGradient>
-              </View>
-              <View
-                style={[
-                  styles.messageContainer,
-                  styles.assistantMessageContainer,
-                  { backgroundColor: colors.cardBackground },
-                  item.isError && styles.errorMessageContainer,
-                ]}
-              >
-                {markdownEnabled && !item.isError ? (
-                  <Markdown
-                    style={{
-                      body: {
-                        color: colors.text,
-                        fontSize: 16,
-                        lineHeight: 22,
-                      },
-                      code_block: {
-                        backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)',
-                        padding: 12,
-                        borderRadius: BORDER_RADIUS.MEDIUM,
-                        marginVertical: SPACING.SMALL,
-                      },
-                      code_inline: {
-                        backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)',
-                        padding: 4,
-                        borderRadius: BORDER_RADIUS.SMALL,
-                      },
-                      link: {
-                        color: colors.primary,
-                        textDecorationLine: 'underline',
-                      },
-                      blockquote: {
-                        borderLeftWidth: 4,
-                        borderLeftColor: colors.primary + '80',
-                        paddingLeft: SPACING.MEDIUM,
-                        opacity: 0.8,
-                        marginVertical: SPACING.SMALL,
-                      },
-                      bullet_list: {
-                        marginVertical: SPACING.SMALL,
-                      },
-                      ordered_list: {
-                        marginVertical: SPACING.SMALL,
-                      },
-                      heading1: {
-                        fontSize: 24,
-                        fontWeight: 'bold',
-                        marginVertical: SPACING.MEDIUM,
-                        color: colors.text,
-                      },
-                      heading2: {
-                        fontSize: 20,
-                        fontWeight: 'bold',
-                        marginVertical: SPACING.SMALL,
-                        color: colors.text,
-                      },
-                      heading3: {
-                        fontSize: 18,
-                        fontWeight: 'bold',
-                        marginVertical: SPACING.SMALL,
-                        color: colors.text,
-                      },
-                      hr: {
-                        backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                        height: 1,
-                        marginVertical: SPACING.MEDIUM,
-                      },
-                      table: {
-                        borderWidth: 1,
-                        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
-                        borderRadius: BORDER_RADIUS.SMALL,
-                        marginVertical: SPACING.SMALL,
-                      },
-                      th: {
-                        padding: SPACING.SMALL,
-                        backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
-                      },
-                      td: {
-                        padding: SPACING.SMALL,
-                        borderTopWidth: 1,
-                        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                      },
-                    }}
-                    onLinkPress={(url) => {
-                      Linking.openURL(url);
-                      return false;
-                    }}
-                  >
-                    {item.text}
-                  </Markdown>
-                ) : (
-                  <Text
-                    style={[
-                      styles.assistantMessageText,
-                      { color: colors.text },
-                      item.isError && styles.errorMessageText,
-                    ]}
-                  >
-                    {item.text}
-                  </Text>
-                )}
-                <Text
-                  style={[
-                    styles.assistantTimestampText,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  {formattedTime}
-                </Text>
-              </View>
-            </View>
+            <Text
+              style={[
+                styles.messageText,
+                isUser
+                  ? { color: '#fff' }
+                  : { color: theme.colors.text },
+                item.isError && { color: '#ff0000' },
+              ]}
+            >
+              {item.text}
+            </Text>
           )}
-        </TouchableOpacity>
+          <Text
+            style={[
+              styles.timestampText,
+              isUser
+                ? { color: '#fff8' }
+                : { color: theme.colors.text + '80' },
+            ]}
+          >
+            {new Date(item.timestamp).toLocaleTimeString()}
+          </Text>
+        </View>
 
         {isSelected && showQuickActions && (
           <Animated.View
-            style={[
-              styles.quickActionsContainer,
-              {
-                opacity: fadeAnim,
-                backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                ...SHADOW.MEDIUM
-              }
-            ]}
+            style={[styles.quickActionsContainer, { opacity: fadeAnim }]}
           >
             <TouchableOpacity
               style={styles.quickActionButton}
               onPress={() => copyMessageToClipboard(item.text)}
             >
-              <Icon name="content-copy" size={20} color={colors.primary} />
-              <Text style={[styles.quickActionText, { color: colors.text }]}>复制</Text>
+              <Icon name="content-copy" size={20} color={theme.colors.primary} />
+              <Text style={[styles.quickActionText, { color: theme.colors.text }]}>复制</Text>
             </TouchableOpacity>
 
             {!isUser && (
@@ -794,8 +632,8 @@ const AIAssistantScreen = ({ navigation }) => {
                   setShowQuickActions(false);
                 }}
               >
-                <Icon name="volume-up" size={20} color={colors.primary} />
-                <Text style={[styles.quickActionText, { color: colors.text }]}>朗读</Text>
+                <Icon name="volume-up" size={20} color={theme.colors.primary} />
+                <Text style={[styles.quickActionText, { color: theme.colors.text }]}>朗读</Text>
               </TouchableOpacity>
             )}
 
@@ -803,97 +641,47 @@ const AIAssistantScreen = ({ navigation }) => {
               style={styles.quickActionButton}
               onPress={() => shareMessage(item.text)}
             >
-              <Icon name="share" size={20} color={colors.primary} />
-              <Text style={[styles.quickActionText, { color: colors.text }]}>分享</Text>
+              <Icon name="share" size={20} color={theme.colors.primary} />
+              <Text style={[styles.quickActionText, { color: theme.colors.text }]}>分享</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
-      </Animated.View>
+      </TouchableOpacity>
     );
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      {/* 渐变背景 */}
-      <LinearGradient
-        colors={isDarkMode ? ['#121212', '#1E1E1E'] : ['#F8F9FA', '#FFFFFF']}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      />
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>AI助手</Text>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity style={styles.headerButton} onPress={exportChatHistory}>
+            <Icon name="save-alt" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={clearChatHistory}>
+            <Icon name="delete" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={openSettings}>
+            <Icon name="settings" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {/* 渐变头部 */}
-      <Animated.View
-        style={[
-          styles.headerContainer,
-          {
-            opacity: headerFadeAnim,
-            transform: [{ translateY: headerSlideAnim }]
-          }
-        ]}
-      >
-        <LinearGradient
-          colors={headerGradient}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        >
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>AI助手</Text>
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={exportChatHistory}
-                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              >
-                <Icon name="save-alt" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={clearChatHistory}
-                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              >
-                <Icon name="delete" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={openSettings}
-                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              >
-                <Icon name="settings" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
+      <View style={styles.engineBanner}>
+        <View style={[styles.engineBadge, { backgroundColor: theme.colors.primary + '20' }]}>
+          <Text style={[styles.engineBadgeText, { color: theme.colors.primary }]}>
+            {aiEngine === AIAssistantModule.ENGINE_LOCAL ? '本地引擎' :
+             aiEngine === AIAssistantModule.ENGINE_BAIDU ? '百度文心一言' :
+             aiEngine === AIAssistantModule.ENGINE_XUNFEI ? '讯飞星火' :
+             aiEngine === AIAssistantModule.ENGINE_ZHIPU ? '智谱ChatGLM' : '未知引擎'}
+          </Text>
+        </View>
+      </View>
 
-          <View style={styles.engineBanner}>
-            <View style={styles.engineBadge}>
-              <Icon
-                name={
-                  aiEngine === AIAssistantModule.ENGINE_LOCAL ? 'memory' :
-                  aiEngine === AIAssistantModule.ENGINE_BAIDU ? 'psychology' :
-                  aiEngine === AIAssistantModule.ENGINE_XUNFEI ? 'bolt' :
-                  aiEngine === AIAssistantModule.ENGINE_ZHIPU ? 'smart-toy' : 'help'
-                }
-                size={14}
-                color="#FFFFFF"
-                style={styles.engineIcon}
-              />
-              <Text style={styles.engineBadgeText}>
-                {aiEngine === AIAssistantModule.ENGINE_LOCAL ? '本地引擎' :
-                 aiEngine === AIAssistantModule.ENGINE_BAIDU ? '百度文心一言' :
-                 aiEngine === AIAssistantModule.ENGINE_XUNFEI ? '讯飞星火' :
-                 aiEngine === AIAssistantModule.ENGINE_ZHIPU ? '智谱ChatGLM' : '未知引擎'}
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      {/* 消息列表 */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -902,144 +690,104 @@ const AIAssistantScreen = ({ navigation }) => {
         contentContainerStyle={styles.messagesList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        showsVerticalScrollIndicator={false}
       />
 
-      {/* 输入区域 */}
-      <View style={[
-        styles.inputContainer,
-        { borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }
-      ]}>
+      <View style={styles.inputContainer}>
         {isVoiceMode ? (
-          // 语音输入模式
           <TouchableOpacity
-            style={[
-              styles.voiceButton,
-              isRecording && styles.recordingButton,
-              { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }
-            ]}
+            style={[styles.voiceButton, isRecording && styles.recordingButton]}
             onPress={isRecording ? stopRecording : startRecording}
             activeOpacity={0.7}
             disabled={isTranscribing}
           >
             {isTranscribing ? (
               <View style={styles.transcribingContainer}>
-                <ActivityIndicator color={colors.primary} size="small" />
-                <Text style={[styles.voiceButtonText, { color: colors.text }]}>正在转写...</Text>
+                <ActivityIndicator color={theme.colors.primary} size="small" />
+                <Text style={[styles.voiceButtonText, { color: theme.colors.text }]}>正在转写...</Text>
               </View>
             ) : (
               <>
                 <Icon
                   name={isRecording ? "mic" : "mic-none"}
                   size={28}
-                  color={isRecording ? "#FFFFFF" : colors.text}
+                  color={isRecording ? "#fff" : theme.colors.text}
                 />
-                <Text style={[
-                  styles.voiceButtonText,
-                  { color: isRecording ? "#FFFFFF" : colors.text }
-                ]}>
+                <Text style={[styles.voiceButtonText, { color: isRecording ? "#fff" : theme.colors.text }]}>
                   {isRecording ? `录音中 ${recordTime}` : "按住说话"}
                 </Text>
               </>
             )}
           </TouchableOpacity>
         ) : (
-          // 文本输入模式
           <TextInput
             style={[
               styles.input,
               {
-                color: colors.text,
-                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                borderColor: 'transparent',
+                color: theme.colors.text,
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
               },
             ]}
             value={inputText}
             onChangeText={setInputText}
             placeholder="输入消息..."
-            placeholderTextColor={colors.textSecondary}
+            placeholderTextColor={theme.colors.text + '80'}
             multiline
           />
         )}
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[
-              styles.modeToggleButton,
-              { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }
-            ]}
+            style={styles.modeToggleButton}
             onPress={toggleVoiceMode}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
           >
             <Icon
               name={isVoiceMode ? "keyboard" : "mic"}
-              size={22}
-              color={colors.text}
+              size={24}
+              color={theme.colors.text}
             />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.sendButton,
-              isLoading || (!isVoiceMode && !inputText.trim())
-                ? { opacity: 0.5 }
-                : { opacity: 1 }
-            ]}
+            style={[styles.sendButton, { backgroundColor: theme.colors.primary }]}
             onPress={sendMessage}
             disabled={isLoading || (!isVoiceMode && !inputText.trim())}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
           >
-            <LinearGradient
-              colors={colors.gradients.primary}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              borderRadius={22}
-            />
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Icon name="send" size={20} color="#FFFFFF" />
+              <Icon name="send" size={24} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 快速建议 */}
-      <View style={[
-        styles.quickSuggestions,
-        { borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }
-      ]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestionScrollContent}
-        >
-          {[
-            '介绍一下你自己',
-            '零屿笔记有哪些功能？',
-            '如何使用思维导图？',
-            '如何切换AI模型？',
-            '写一篇短文',
-            '帮我分析一个问题'
-          ].map((suggestion, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.suggestionChip}
-              onPress={() => setInputText(suggestion)}
-            >
-              <LinearGradient
-                colors={suggestionGradient}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                borderRadius={16}
-              />
-              <Text style={[styles.suggestionText, { color: colors.primary }]}>
-                {suggestion}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      <View style={styles.quickSuggestions}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <TouchableOpacity
+            style={[styles.suggestionChip, { backgroundColor: theme.colors.primary + '20' }]}
+            onPress={() => setInputText('介绍一下你自己')}
+          >
+            <Text style={[styles.suggestionText, { color: theme.colors.primary }]}>介绍一下你自己</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.suggestionChip, { backgroundColor: theme.colors.primary + '20' }]}
+            onPress={() => setInputText('零屿笔记有哪些功能？')}
+          >
+            <Text style={[styles.suggestionText, { color: theme.colors.primary }]}>零屿笔记有哪些功能？</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.suggestionChip, { backgroundColor: theme.colors.primary + '20' }]}
+            onPress={() => setInputText('如何使用思维导图？')}
+          >
+            <Text style={[styles.suggestionText, { color: theme.colors.primary }]}>如何使用思维导图？</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.suggestionChip, { backgroundColor: theme.colors.primary + '20' }]}
+            onPress={() => setInputText('如何切换AI模型？')}
+          >
+            <Text style={[styles.suggestionText, { color: theme.colors.primary }]}>如何切换AI模型？</Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -1047,177 +795,108 @@ const AIAssistantScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // 基础容器样式
   container: {
     flex: 1,
   },
-
-  // 头部样式
-  headerContainer: {
-    width: '100%',
-    overflow: 'hidden',
-    ...SHADOW.MEDIUM,
-  },
   header: {
-    width: '100%',
-    paddingTop: Platform.OS === 'ios' ? 44 : 16,
-  },
-  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.LARGE,
-    paddingVertical: SPACING.MEDIUM,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   headerButtons: {
     flexDirection: 'row',
   },
   headerButton: {
-    marginLeft: SPACING.LARGE,
+    marginLeft: 16,
   },
-
-  // 引擎标签样式
   engineBanner: {
-    paddingVertical: SPACING.SMALL,
-    paddingHorizontal: SPACING.LARGE,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   engineBadge: {
-    paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: SPACING.TINY,
-    borderRadius: BORDER_RADIUS.ROUND,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  engineIcon: {
-    marginRight: SPACING.TINY,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
   engineBadgeText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
-
-  // 消息列表样式
   messagesList: {
-    padding: SPACING.LARGE,
-    paddingBottom: SPACING.XXLARGE,
+    padding: 16,
   },
   messageWrapper: {
-    marginBottom: SPACING.MEDIUM,
-  },
-  messageTouchable: {
-    width: '100%',
-  },
-
-  // 用户消息样式
-  userMessageWrapper: {
-    alignItems: 'flex-end',
-    width: '100%',
+    marginBottom: 16,
   },
   messageContainer: {
     maxWidth: '80%',
-    padding: SPACING.MEDIUM,
-    borderRadius: BORDER_RADIUS.LARGE,
-    ...SHADOW.SMALL,
+    padding: 12,
+    borderRadius: 16,
   },
   userMessageContainer: {
-    borderBottomRightRadius: BORDER_RADIUS.SMALL,
-  },
-  userMessageText: {
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#FFFFFF',
-  },
-  userTimestampText: {
-    fontSize: 10,
-    marginTop: SPACING.SMALL,
     alignSelf: 'flex-end',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-
-  // 助手消息样式
-  assistantMessageWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    width: '100%',
-  },
-  assistantAvatarContainer: {
-    marginRight: SPACING.SMALL,
-    marginTop: SPACING.SMALL,
-  },
-  assistantAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderBottomRightRadius: 4,
   },
   assistantMessageContainer: {
-    borderBottomLeftRadius: BORDER_RADIUS.SMALL,
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 4,
   },
-  assistantMessageText: {
+  messageText: {
     fontSize: 16,
     lineHeight: 22,
   },
-  assistantTimestampText: {
+  timestampText: {
     fontSize: 10,
-    marginTop: SPACING.SMALL,
+    marginTop: 4,
     alignSelf: 'flex-end',
   },
-
-  // 错误消息样式
-  errorMessageContainer: {
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-  },
-  errorMessageText: {
-    color: '#FF3B30',
-  },
-
-  // 快捷操作样式
   quickActionsContainer: {
     flexDirection: 'row',
-    marginTop: SPACING.SMALL,
-    marginBottom: SPACING.MEDIUM,
-    padding: SPACING.MEDIUM,
-    borderRadius: BORDER_RADIUS.LARGE,
+    marginTop: 4,
+    marginBottom: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
     alignSelf: 'center',
   },
   quickActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: SPACING.MEDIUM,
-    padding: SPACING.SMALL,
+    marginHorizontal: 8,
+    padding: 4,
   },
   quickActionText: {
-    marginLeft: SPACING.SMALL,
-    fontSize: 14,
+    marginLeft: 4,
+    fontSize: 12,
   },
-
-  // 输入区域样式
   inputContainer: {
     flexDirection: 'row',
-    padding: SPACING.MEDIUM,
+    padding: 8,
     borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: BORDER_RADIUS.ROUND,
-    paddingHorizontal: SPACING.LARGE,
-    paddingVertical: SPACING.MEDIUM,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     maxHeight: 100,
   },
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: SPACING.SMALL,
   },
   modeToggleButton: {
     width: 40,
@@ -1225,7 +904,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.SMALL,
+    marginHorizontal: 4,
   },
   sendButton: {
     width: 44,
@@ -1233,23 +912,22 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    marginLeft: 4,
   },
-
-  // 语音输入样式
   voiceButton: {
     flex: 1,
     height: 50,
-    borderRadius: BORDER_RADIUS.ROUND,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
   },
   recordingButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#ff4c4c',
   },
   voiceButtonText: {
-    marginLeft: SPACING.MEDIUM,
+    marginLeft: 8,
     fontSize: 16,
   },
   transcribingContainer: {
@@ -1257,25 +935,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // 快速建议样式
   quickSuggestions: {
-    paddingVertical: SPACING.MEDIUM,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
-  },
-  suggestionScrollContent: {
-    paddingHorizontal: SPACING.LARGE,
+    borderTopColor: '#e0e0e0',
   },
   suggestionChip: {
-    paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: SPACING.SMALL,
-    borderRadius: BORDER_RADIUS.ROUND,
-    marginRight: SPACING.MEDIUM,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
   },
   suggestionText: {
     fontSize: 14,
-    fontWeight: '500',
   },
 });
 
