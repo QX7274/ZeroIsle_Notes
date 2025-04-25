@@ -1,0 +1,11 @@
+"""
+用户模块模型初始化文件
+导入所有模型以便在其他地方直接从users.models导入
+"""
+
+from .user import User
+from .verification_code import VerificationCode
+from .third_party_account import ThirdPartyAccount
+from .user_profile import UserProfile
+from .user_settings import UserSettings
+from .user_device import UserDevice

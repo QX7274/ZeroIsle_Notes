@@ -1,0 +1,21 @@
+{% extends "emails/base.html" %}
+
+{% block title %}验证码 - 零屿笔记{% endblock %}
+
+{% block header %}验证码{% endblock %}
+
+{% block content %}
+<p>您好，</p>
+
+<p>您正在进行{{ purpose }}操作，您的验证码是：</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <div class="code">{{ code }}</div>
+</div>
+
+<p>此验证码将在{{ expire_minutes }}分钟后失效，请勿将验证码泄露给他人。</p>
+
+<p>如果您没有请求此验证码，请忽略此邮件。</p>
+
+<p>谢谢！<br>零屿笔记团队</p>
+{% endblock %}

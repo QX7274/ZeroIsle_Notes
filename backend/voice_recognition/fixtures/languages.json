@@ -1,0 +1,152 @@
+[
+  {
+    "model": "voice_recognition.language",
+    "pk": 1,
+    "fields": {
+      "code": "zh",
+      "name": "Chinese",
+      "native_name": "中文",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 2,
+    "fields": {
+      "code": "zh-CN",
+      "name": "Chinese (Simplified)",
+      "native_name": "简体中文",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 3,
+    "fields": {
+      "code": "zh-TW",
+      "name": "Chinese (Traditional)",
+      "native_name": "繁體中文",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 4,
+    "fields": {
+      "code": "en",
+      "name": "English",
+      "native_name": "English",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 5,
+    "fields": {
+      "code": "en-US",
+      "name": "English (US)",
+      "native_name": "English (US)",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 6,
+    "fields": {
+      "code": "ja",
+      "name": "Japanese",
+      "native_name": "日本語",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 7,
+    "fields": {
+      "code": "ko",
+      "name": "Korean",
+      "native_name": "한국어",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 8,
+    "fields": {
+      "code": "fr",
+      "name": "French",
+      "native_name": "Français",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 9,
+    "fields": {
+      "code": "de",
+      "name": "German",
+      "native_name": "Deutsch",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 10,
+    "fields": {
+      "code": "es",
+      "name": "Spanish",
+      "native_name": "Español",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 11,
+    "fields": {
+      "code": "ru",
+      "name": "Russian",
+      "native_name": "Русский",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 12,
+    "fields": {
+      "code": "pt",
+      "name": "Portuguese",
+      "native_name": "Português",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 13,
+    "fields": {
+      "code": "it",
+      "name": "Italian",
+      "native_name": "Italiano",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 14,
+    "fields": {
+      "code": "nl",
+      "name": "Dutch",
+      "native_name": "Nederlands",
+      "is_active": true
+    }
+  },
+  {
+    "model": "voice_recognition.language",
+    "pk": 15,
+    "fields": {
+      "code": "ar",
+      "name": "Arabic",
+      "native_name": "العربية",
+      "is_active": true
+    }
+  }
+]

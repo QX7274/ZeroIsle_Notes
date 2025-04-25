@@ -1,0 +1,102 @@
+[
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 1,
+    "fields": {
+      "name": "gpt-3.5-turbo",
+      "provider": "openai",
+      "description": "OpenAI GPT-3.5 Turbo模型，适用于大多数任务",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": true,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.001500",
+      "price_per_1k_tokens_output": "0.002000",
+      "is_active": true,
+      "is_default": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 2,
+    "fields": {
+      "name": "gpt-4",
+      "provider": "openai",
+      "description": "OpenAI GPT-4模型，更强大的推理能力",
+      "max_tokens": 8192,
+      "token_limit": 8192,
+      "default_temperature": 0.7,
+      "supports_functions": true,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.030000",
+      "price_per_1k_tokens_output": "0.060000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 3,
+    "fields": {
+      "name": "gpt-4-vision-preview",
+      "provider": "openai",
+      "description": "OpenAI GPT-4 Vision模型，支持图像理解",
+      "max_tokens": 4096,
+      "token_limit": 8192,
+      "default_temperature": 0.7,
+      "supports_functions": true,
+      "supports_vision": true,
+      "price_per_1k_tokens_input": "0.030000",
+      "price_per_1k_tokens_output": "0.060000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 4,
+    "fields": {
+      "name": "ernie-bot-4",
+      "provider": "baidu",
+      "description": "百度文心一言ERNIE Bot 4模型",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.012000",
+      "price_per_1k_tokens_output": "0.012000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 5,
+    "fields": {
+      "name": "spark-3.5",
+      "provider": "xunfei",
+      "description": "讯飞星火认知大模型3.5",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.010000",
+      "price_per_1k_tokens_output": "0.010000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  }
+]

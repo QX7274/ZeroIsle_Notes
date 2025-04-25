@@ -1,0 +1,114 @@
+[
+  {
+    "model": "community.category",
+    "pk": 1,
+    "fields": {
+      "name": "公告",
+      "slug": "announcements",
+      "description": "官方公告和重要信息",
+      "icon": "bullhorn",
+      "color": "#FF5722",
+      "parent": null,
+      "order": 1,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 2,
+    "fields": {
+      "name": "使用技巧",
+      "slug": "tips",
+      "description": "分享使用技巧和经验",
+      "icon": "lightbulb",
+      "color": "#4CAF50",
+      "parent": null,
+      "order": 2,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 3,
+    "fields": {
+      "name": "问题求助",
+      "slug": "help",
+      "description": "寻求帮助和解决方案",
+      "icon": "question-circle",
+      "color": "#2196F3",
+      "parent": null,
+      "order": 3,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 4,
+    "fields": {
+      "name": "功能建议",
+      "slug": "suggestions",
+      "description": "提出功能建议和改进意见",
+      "icon": "comment",
+      "color": "#9C27B0",
+      "parent": null,
+      "order": 4,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 5,
+    "fields": {
+      "name": "资源分享",
+      "slug": "resources",
+      "description": "分享有用的资源和工具",
+      "icon": "share-alt",
+      "color": "#FF9800",
+      "parent": null,
+      "order": 5,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 6,
+    "fields": {
+      "name": "学习笔记",
+      "slug": "study-notes",
+      "description": "分享学习笔记和心得",
+      "icon": "book",
+      "color": "#607D8B",
+      "parent": null,
+      "order": 6,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "community.category",
+    "pk": 7,
+    "fields": {
+      "name": "闲聊灌水",
+      "slug": "chat",
+      "description": "轻松话题和日常交流",
+      "icon": "coffee",
+      "color": "#795548",
+      "parent": null,
+      "order": 7,
+      "is_active": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  }
+]

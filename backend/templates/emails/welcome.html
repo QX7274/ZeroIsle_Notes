@@ -1,0 +1,30 @@
+{% extends "emails/base.html" %}
+
+{% block title %}欢迎加入零屿笔记{% endblock %}
+
+{% block header %}欢迎加入{% endblock %}
+
+{% block content %}
+<p>您好 {{ user.username }}，</p>
+
+<p>欢迎加入零屿笔记！我们很高兴您成为我们社区的一员。</p>
+
+<p>零屿笔记是一款功能强大的笔记应用，帮助您组织思想、管理知识和提高效率。</p>
+
+<h3>开始使用</h3>
+<p>您可以通过以下方式开始使用零屿笔记：</p>
+<ul>
+    <li>创建您的第一个笔记</li>
+    <li>探索知识图谱功能</li>
+    <li>尝试AI助手</li>
+    <li>设置提醒</li>
+</ul>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="https://zeroislenotes.com/guide" class="button">查看使用指南</a>
+</div>
+
+<p>如果您有任何问题或需要帮助，请随时联系我们的支持团队。</p>
+
+<p>祝您使用愉快！<br>零屿笔记团队</p>
+{% endblock %}

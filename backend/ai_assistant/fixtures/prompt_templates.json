@@ -1,0 +1,92 @@
+[
+  {
+    "model": "ai_assistant.prompttemplate",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "title": "笔记摘要生成",
+      "description": "根据笔记内容生成简洁的摘要",
+      "content": "请为以下笔记内容生成一个简洁的摘要，不超过200字：\n\n{{content}}",
+      "category": "summarization",
+      "tags": "摘要,笔记",
+      "variables": ["content"],
+      "usage_count": 0,
+      "is_public": true,
+      "is_featured": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.prompttemplate",
+    "pk": 2,
+    "fields": {
+      "user": 1,
+      "title": "中英文翻译",
+      "description": "将文本在中文和英文之间互译",
+      "content": "请将以下{{source_language}}文本翻译成{{target_language}}：\n\n{{text}}",
+      "category": "translation",
+      "tags": "翻译,中英文",
+      "variables": ["source_language", "target_language", "text"],
+      "usage_count": 0,
+      "is_public": true,
+      "is_featured": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.prompttemplate",
+    "pk": 3,
+    "fields": {
+      "user": 1,
+      "title": "代码解释",
+      "description": "解释代码的功能和实现原理",
+      "content": "请解释以下{{language}}代码的功能和实现原理：\n\n```{{language}}\n{{code}}\n```",
+      "category": "coding",
+      "tags": "代码,解释",
+      "variables": ["language", "code"],
+      "usage_count": 0,
+      "is_public": true,
+      "is_featured": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.prompttemplate",
+    "pk": 4,
+    "fields": {
+      "user": 1,
+      "title": "学习计划生成",
+      "description": "根据主题和时间生成学习计划",
+      "content": "请为我生成一个关于学习《{{subject}}》的{{duration}}学习计划。我的目标是{{goal}}。请包含具体的学习资源和每天/每周的学习任务。",
+      "category": "academic",
+      "tags": "学习,计划",
+      "variables": ["subject", "duration", "goal"],
+      "usage_count": 0,
+      "is_public": true,
+      "is_featured": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.prompttemplate",
+    "pk": 5,
+    "fields": {
+      "user": 1,
+      "title": "文章改写",
+      "description": "改写文章以提高可读性和表达效果",
+      "content": "请改写以下文章，使其更加{{style}}，同时保持原意：\n\n{{article}}",
+      "category": "writing",
+      "tags": "写作,改写",
+      "variables": ["style", "article"],
+      "usage_count": 0,
+      "is_public": true,
+      "is_featured": true,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  }
+]
