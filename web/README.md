@@ -1,6 +1,7 @@
 # 零屿笔记官方网站
 
 ![零屿笔记](images/logo.png)
+暂时访问网站：[零屿笔记](https://web-self-iota.vercel.app/)
 
 ## 项目概述
 
