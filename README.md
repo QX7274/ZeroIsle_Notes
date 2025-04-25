@@ -1,7 +1,7 @@
 # 零屿笔记 (ZeroIsle Notes)
 
 <p align="center">
-  <img src="src/assets/logo.png" alt="零屿笔记" width="180" />
+  <img src="src\assets\images\logo.png" alt="零屿笔记" width="180" />
 </p>
 
 <p align="center">

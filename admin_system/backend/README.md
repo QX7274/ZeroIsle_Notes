@@ -7,7 +7,7 @@
 - Django 5.2
 - Django REST Framework 3.16.0
 - JWT认证
-- SQLite数据库（可根据需要更换为其他数据库）
+- MongoDB
 
 ## 安装与运行
 
