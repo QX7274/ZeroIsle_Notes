@@ -1,8 +1,10 @@
 /**
  * 社区API服务
+ * 提供社区相关的API调用，包括帖子、评论、点赞、关注等功能
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import { offlineStorageService } from '../offlineStorage';
 
 /**
  * 获取社区笔记
@@ -260,6 +262,323 @@ export const getUserFollowers = async (id, params = {}) => {
   }
 };
 
+/**
+ * 获取帖子详情
+ * @param {string} id - 帖子ID
+ * @returns {Promise} - 帖子详情
+ */
+export const getPostDetail = async (id) => {
+  try {
+    // 检查网络状态
+    const status = offlineStorageService.getStatus();
+
+    if (!status.isOnline) {
+      // 离线模式：从缓存获取
+      const cachedPosts = await offlineStorageService.getCachedData('community_posts');
+      const post = cachedPosts?.find(p => p.id === id);
+
+      if (post) {
+        return {
+          success: true,
+          data: post,
+          fromCache: true
+        };
+      } else {
+        return {
+          success: false,
+          message: '离线模式下无法获取未缓存的帖子',
+          error: new Error('Offline mode')
+        };
+      }
+    }
+
+    // 在线模式：从服务器获取
+    const response = await instance.get(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`);
+
+    // 缓存数据
+    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    const postIndex = cachedPosts.findIndex(p => p.id === id);
+
+    if (postIndex >= 0) {
+      cachedPosts[postIndex] = response.data;
+    } else {
+      cachedPosts.push(response.data);
+    }
+
+    await offlineStorageService.cacheData('community_posts', cachedPosts);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取帖子详情失败',
+      error
+    };
+  }
+};
+
+/**
+ * 创建帖子
+ * @param {object} postData - 帖子数据
+ * @returns {Promise} - 创建结果
+ */
+export const createPost = async (postData) => {
+  try {
+    // 检查网络状态
+    const status = offlineStorageService.getStatus();
+
+    if (!status.isOnline) {
+      // 离线模式：添加到待处理操作
+      const tempId = `temp_${Date.now()}`;
+      const tempPost = {
+        ...postData,
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false
+      };
+
+      // 添加到离线存储
+      await offlineStorageService.addPendingOperation({
+        type: 'create_post',
+        data: postData,
+        timestamp: new Date().toISOString()
+      });
+
+      // 更新缓存
+      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      cachedPosts.unshift(tempPost);
+      await offlineStorageService.cacheData('community_posts', cachedPosts);
+
+      return {
+        success: true,
+        data: tempPost,
+        fromCache: true
+      };
+    }
+
+    // 在线模式：发送到服务器
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.NOTES, postData);
+
+    // 更新缓存
+    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    cachedPosts.unshift(response.data);
+    await offlineStorageService.cacheData('community_posts', cachedPosts);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '创建帖子失败',
+      error
+    };
+  }
+};
+
+/**
+ * 更新帖子
+ * @param {string} id - 帖子ID
+ * @param {object} postData - 帖子数据
+ * @returns {Promise} - 更新结果
+ */
+export const updatePost = async (id, postData) => {
+  try {
+    // 检查网络状态
+    const status = offlineStorageService.getStatus();
+
+    if (!status.isOnline) {
+      // 离线模式：添加到待处理操作
+      await offlineStorageService.addPendingOperation({
+        type: 'update_post',
+        data: { id, ...postData },
+        timestamp: new Date().toISOString()
+      });
+
+      // 更新缓存
+      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      const postIndex = cachedPosts.findIndex(p => p.id === id);
+
+      if (postIndex >= 0) {
+        cachedPosts[postIndex] = {
+          ...cachedPosts[postIndex],
+          ...postData,
+          updated_at: new Date().toISOString(),
+          is_synced: false
+        };
+        await offlineStorageService.cacheData('community_posts', cachedPosts);
+      }
+
+      return {
+        success: true,
+        data: cachedPosts[postIndex],
+        fromCache: true
+      };
+    }
+
+    // 在线模式：发送到服务器
+    const response = await instance.put(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`, postData);
+
+    // 更新缓存
+    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    const postIndex = cachedPosts.findIndex(p => p.id === id);
+
+    if (postIndex >= 0) {
+      cachedPosts[postIndex] = response.data;
+      await offlineStorageService.cacheData('community_posts', cachedPosts);
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '更新帖子失败',
+      error
+    };
+  }
+};
+
+/**
+ * 删除帖子
+ * @param {string} id - 帖子ID
+ * @returns {Promise} - 删除结果
+ */
+export const deletePost = async (id) => {
+  try {
+    // 检查网络状态
+    const status = offlineStorageService.getStatus();
+
+    if (!status.isOnline) {
+      // 离线模式：添加到待处理操作
+      await offlineStorageService.addPendingOperation({
+        type: 'delete_post',
+        data: { id },
+        timestamp: new Date().toISOString()
+      });
+
+      // 更新缓存
+      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      const updatedPosts = cachedPosts.filter(p => p.id !== id);
+      await offlineStorageService.cacheData('community_posts', updatedPosts);
+
+      return {
+        success: true,
+        fromCache: true
+      };
+    }
+
+    // 在线模式：发送到服务器
+    await instance.delete(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`);
+
+    // 更新缓存
+    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    const updatedPosts = cachedPosts.filter(p => p.id !== id);
+    await offlineStorageService.cacheData('community_posts', updatedPosts);
+
+    return {
+      success: true
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '删除帖子失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取用户帖子
+ * @param {string} userId - 用户ID
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 帖子列表
+ */
+export const getUserPosts = async (userId, params = {}) => {
+  try {
+    const response = await instance.get(`/community/users/${userId}/posts/`, { params });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取用户帖子失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取用户通知
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 通知列表
+ */
+export const getUserNotifications = async (params = {}) => {
+  try {
+    const response = await instance.get('/community/notifications/', { params });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取通知失败',
+      error
+    };
+  }
+};
+
+/**
+ * 标记通知为已读
+ * @param {string} id - 通知ID
+ * @returns {Promise} - 操作结果
+ */
+export const markNotificationAsRead = async (id) => {
+  try {
+    const response = await instance.post(`/community/notifications/${id}/read/`);
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '标记通知失败',
+      error
+    };
+  }
+};
+
+/**
+ * 标记所有通知为已读
+ * @returns {Promise} - 操作结果
+ */
+export const markAllNotificationsAsRead = async () => {
+  try {
+    const response = await instance.post('/community/notifications/read-all/');
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '标记所有通知失败',
+      error
+    };
+  }
+};
+
 const communityApi = {
   getCommunityNotes,
   toggleLike,
@@ -272,7 +591,15 @@ const communityApi = {
   getPopularTags,
   getRecommendedUsers,
   getUserFollowing,
-  getUserFollowers
+  getUserFollowers,
+  getPostDetail,
+  createPost,
+  updatePost,
+  deletePost,
+  getUserPosts,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead
 };
 
 export default communityApi;

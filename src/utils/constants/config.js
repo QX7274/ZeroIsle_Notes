@@ -64,3 +64,11 @@ export const FEATURES = {
   COMMUNITY: true,
   OFFLINE_MODE: true,
 };
+
+// 通知渠道
+export const NOTIFICATION_CHANNELS = {
+  REMINDER: 'reminder_channel',
+  SYNC: 'sync_channel',
+  COMMUNITY: 'community_channel',
+  UPDATE: 'update_channel',
+};

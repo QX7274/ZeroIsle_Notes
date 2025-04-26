@@ -31,6 +31,12 @@ import CategoryScreen from '../screens/CategoryScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
 import { CommunityScreen, PostDetailScreen } from '../screens/community';
+import {
+  KnowledgeGraphScreen,
+  NodeDetailScreen,
+  EdgeEditScreen,
+  KnowledgeAnalysisScreen
+} from '../screens/knowledge';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -228,6 +234,38 @@ const HomeStack = () => {
         component={AIAssistantSettingsScreen}
         options={{
           title: 'AI助手设置',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="KnowledgeGraph"
+        component={KnowledgeGraphScreen}
+        options={{
+          title: '知识图谱',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="NodeDetail"
+        component={NodeDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '节点详情',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="EdgeEdit"
+        component={EdgeEditScreen}
+        options={({ route }) => ({
+          title: route.params?.edgeId ? '编辑关系' : '创建关系',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="KnowledgeAnalysis"
+        component={KnowledgeAnalysisScreen}
+        options={{
+          title: '知识分析',
           headerBackTitleVisible: false,
         }}
       />
