@@ -23,6 +23,7 @@ import AuthNavigator from './AuthNavigator';
 import HomeScreen from '../screens/HomeScreen';
 import ReminderScreen from '../screens/ReminderScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import GroupScreen from '../screens/GroupScreen';
 import CodeEditorScreen from '../screens/CodeEditorScreen';
@@ -177,6 +178,14 @@ const MainTabs = () => {
         options={{
           title: '设置',
           tabBarLabel: '设置',
+        }}
+      />
+      <Stack.Screen
+        name="ThemeSettings"
+        component={ThemeSettingsScreen}
+        options={{
+          title: '主题设置',
+          headerBackTitleVisible: false,
         }}
       />
     </Tab.Navigator>

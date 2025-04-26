@@ -1,6 +1,6 @@
 /**
  * 应用入口
- * 集成了Redux状态管理、主题管理和导航等基础功能
+ * 集成了Redux状态管理、主题管理、可访问性和导航等基础功能
  */
 import React, { useEffect } from 'react';
 import { StatusBar, Platform, LogBox } from 'react-native';
@@ -17,6 +17,7 @@ import { navigationRef, processNavigationQueue } from './navigation/navigationRe
 
 // 导入上下文提供者
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 
 // 忽略特定的警告
 LogBox.ignoreLogs([
@@ -60,7 +61,9 @@ const App = () => {
         <PersistGate loading={null} persistor={persistor}>
           <SafeAreaProvider>
             <ThemeProvider>
-              <AppContainer />
+              <AccessibilityProvider>
+                <AppContainer />
+              </AccessibilityProvider>
             </ThemeProvider>
           </SafeAreaProvider>
         </PersistGate>

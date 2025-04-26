@@ -6,10 +6,12 @@ const KEYS = {
   REFRESH_TOKEN: 'zeroislenotes_refresh_token',
   USER: 'zeroislenotes_user',
   THEME: 'zeroislenotes_theme',
+  THEME_STYLE: 'zeroislenotes_theme_style',
   LANGUAGE: 'zeroislenotes_language',
   SETTINGS: 'zeroislenotes_settings',
   RECENT_SEARCHES: 'zeroislenotes_recent_searches',
   RECENT_NOTES: 'zeroislenotes_recent_notes',
+  ACCESSIBILITY: 'zeroislenotes_accessibility',
 };
 
 // Token 相关
@@ -134,10 +136,31 @@ export const setTheme = async (theme) => {
 export const getTheme = async () => {
   try {
     const theme = await AsyncStorage.getItem(KEYS.THEME);
-    return theme || 'light';
+    return theme || 'system';
   } catch (error) {
     console.error('获取主题失败:', error);
-    return 'light';
+    return 'system';
+  }
+};
+
+// 主题风格相关
+export const setThemeStyle = async (style) => {
+  try {
+    await AsyncStorage.setItem(KEYS.THEME_STYLE, style);
+    return true;
+  } catch (error) {
+    console.error('保存主题风格失败:', error);
+    return false;
+  }
+};
+
+export const getThemeStyle = async () => {
+  try {
+    const style = await AsyncStorage.getItem(KEYS.THEME_STYLE);
+    return style || 'classic';
+  } catch (error) {
+    console.error('获取主题风格失败:', error);
+    return 'classic';
   }
 };
 
@@ -244,5 +267,26 @@ export const clearAuth = async () => {
   } catch (error) {
     console.error('清除认证存储失败:', error);
     return false;
+  }
+};
+
+// 可访问性设置相关
+export const setAccessibilitySettings = async (settings) => {
+  try {
+    await AsyncStorage.setItem(KEYS.ACCESSIBILITY, JSON.stringify(settings));
+    return true;
+  } catch (error) {
+    console.error('保存可访问性设置失败:', error);
+    return false;
+  }
+};
+
+export const getAccessibilitySettings = async () => {
+  try {
+    const settings = await AsyncStorage.getItem(KEYS.ACCESSIBILITY);
+    return settings ? JSON.parse(settings) : {};
+  } catch (error) {
+    console.error('获取可访问性设置失败:', error);
+    return {};
   }
 };
