@@ -3,19 +3,23 @@
  */
 
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
-import { checkAuthState } from '../redux/slices/authSlice';
-import { setCurrentScreen } from '../redux/slices/uiSlice';
-import AuthNavigator from './AuthNavigator';
-import MainNavigator from './MainNavigator';
-import { Loading } from '../components/common';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Ionicons } from '@expo/vector-icons';
+import { navigationRef } from './navigationRef';
 
+// 导入Redux操作
+import { getProfile } from '../store/slices/authSlice';
+
+// 导入组件
+import { Loading } from '../components/common';
+
+// 导入导航器
+import AuthNavigator from './AuthNavigator';
+
+// 导入屏幕
 import HomeScreen from '../screens/HomeScreen';
 import ReminderScreen from '../screens/ReminderScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -37,19 +41,27 @@ const Tab = createBottomTabNavigator();
  */
 const AppNavigator = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated, isLoading } = useSelector(state => state.auth);
-  const { colors } = useTheme();
+  const { theme } = useTheme();
+
+  // 从Redux获取认证状态
+  const { isAuthenticated, isLoading } = useSelector(state => {
+    // 兼容旧的Redux结构
+    if (state.auth) {
+      return state.auth;
+    }
+    // 兼容旧的Redux结构
+    return {
+      isAuthenticated: state.user?.isAuthenticated || false,
+      isLoading: state.user?.isLoading || false
+    };
+  });
 
   // 应用启动时检查认证状态
   useEffect(() => {
-    dispatch(checkAuthState());
-  }, [dispatch]);
-
-  // 监听路由变化，更新当前屏幕
-  const onStateChange = (state) => {
-    const currentRouteName = getActiveRouteName(state);
-    dispatch(setCurrentScreen(currentRouteName));
-  };
+    if (isAuthenticated) {
+      dispatch(getProfile());
+    }
+  }, [dispatch, isAuthenticated]);
 
   // 如果正在检查认证状态，显示加载指示器
   if (isLoading) {
@@ -57,25 +69,33 @@ const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer onStateChange={onStateChange}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        ) : (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      {isAuthenticated ? (
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+      ) : (
+        <Stack.Screen name="Auth" component={AuthNavigator} />
+      )}
+    </Stack.Navigator>
   );
 };
 
+/**
+ * 主标签导航
+ * 包含首页、分类、社区和设置等主要功能模块
+ */
 const MainTabs = () => {
-  const { colors } = useTheme();
+  const { theme } = useTheme();
+  const { colors } = theme;
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ color, size }) => {
           let iconName;
 
           if (route.name === 'HomeStack') {
@@ -91,106 +111,212 @@ const MainTabs = () => {
           return <Icon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: colors.card,
           borderTopColor: colors.border,
+          elevation: 8,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.1,
+          shadowRadius: 3,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
         },
         headerStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: colors.card,
+          elevation: 4,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
         },
         headerTintColor: colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
       })}
     >
       <Tab.Screen
         name="HomeStack"
         component={HomeStack}
-        options={{ headerShown: false, title: '首页' }}
+        options={{
+          headerShown: false,
+          title: '首页',
+          tabBarLabel: '首页',
+        }}
       />
       <Tab.Screen
         name="CategoryStack"
         component={CategoryStack}
-        options={{ headerShown: false, title: '分类' }}
+        options={{
+          headerShown: false,
+          title: '分类',
+          tabBarLabel: '分类',
+        }}
       />
       <Tab.Screen
         name="CommunityStack"
         component={CommunityStack}
-        options={{ headerShown: false, title: '社区' }}
+        options={{
+          headerShown: false,
+          title: '社区',
+          tabBarLabel: '社区',
+        }}
       />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: '设置' }}
+        options={{
+          title: '设置',
+          tabBarLabel: '设置',
+        }}
       />
     </Tab.Navigator>
   );
 };
 
-const HomeStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="Note"
-      component={NoteScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="AIAssistant"
-      component={AIAssistantScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="AIAssistantSettings"
-      component={AIAssistantSettingsScreen}
-      options={{ headerShown: false }}
-    />
-  </Stack.Navigator>
-);
+/**
+ * 首页堆栈导航
+ * 包含首页、笔记详情、AI助手等功能
+ */
+const HomeStack = () => {
+  const { theme } = useTheme();
 
-const CategoryStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="CategoryList"
-      component={CategoryScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="NoteList"
-      component={NoteScreen}
-      options={{ headerShown: false }}
-    />
-  </Stack.Navigator>
-);
-
-const CommunityStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="Community"
-      component={CommunityScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="PostDetail"
-      component={PostDetailScreen}
-      options={{ headerShown: false }}
-    />
-  </Stack.Navigator>
-);
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Note"
+        component={NoteScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '笔记详情',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="AIAssistant"
+        component={AIAssistantScreen}
+        options={{
+          title: 'AI助手',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="AIAssistantSettings"
+        component={AIAssistantSettingsScreen}
+        options={{
+          title: 'AI助手设置',
+          headerBackTitleVisible: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
 
 /**
- * 获取当前活动路由名称
+ * 分类堆栈导航
+ * 包含分类列表、笔记列表等功能
  */
-const getActiveRouteName = (state) => {
-  const route = state.routes[state.index];
-  if (route.state) {
-    // 嵌套导航器
-    return getActiveRouteName(route.state);
-  }
-  return route.name;
+const CategoryStack = () => {
+  const { theme } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="CategoryList"
+        component={CategoryScreen}
+        options={{ title: '分类' }}
+      />
+      <Stack.Screen
+        name="NoteList"
+        component={NoteScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '笔记列表',
+          headerBackTitleVisible: false,
+        })}
+      />
+    </Stack.Navigator>
+  );
+};
+
+/**
+ * 社区堆栈导航
+ * 包含社区首页、帖子详情等功能
+ */
+const CommunityStack = () => {
+  const { theme } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="Community"
+        component={CommunityScreen}
+        options={{ title: '社区' }}
+      />
+      <Stack.Screen
+        name="PostDetail"
+        component={PostDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '帖子详情',
+          headerBackTitleVisible: false,
+        })}
+      />
+    </Stack.Navigator>
+  );
 };
 
 export default AppNavigator;

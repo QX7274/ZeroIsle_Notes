@@ -3,18 +3,26 @@
  * 用于渲染和交互知识图谱的节点和连接
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
   Dimensions,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { Svg, G, Line, Circle, Text as SvgText } from 'react-native-svg';
-import { PanGestureHandler, PinchGestureHandler } from 'react-native-gesture-handler';
-import Animated, { useAnimatedGestureHandler, useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-
-// 导入常量
-import { colors } from '../../utils/constants/colors';
+import { Svg, G, Line, Circle, Text as SvgText, Path } from 'react-native-svg';
+import { PanGestureHandler, PinchGestureHandler, TapGestureHandler, State } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedGestureHandler,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS
+} from 'react-native-reanimated';
+import { useTheme } from '../../context/ThemeContext';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Text } from '../common/Typography';
 
 // 屏幕尺寸
 const { width, height } = Dimensions.get('window');
@@ -26,6 +34,11 @@ const { width, height } = Dimensions.get('window');
  * @param {Object} visualization - 可视化配置（高亮节点、边等）
  * @param {Function} onNodePress - 节点点击回调
  * @param {Function} onNodeLongPress - 节点长按回调
+ * @param {Function} onAddNode - 添加节点回调
+ * @param {Function} onAddEdge - 添加边回调
+ * @param {Function} onDeleteNode - 删除节点回调
+ * @param {Function} onDeleteEdge - 删除边回调
+ * @param {boolean} isEditable - 是否可编辑
  */
 const GraphVisualization = ({
   nodes = [],
@@ -38,7 +51,27 @@ const GraphVisualization = ({
   },
   onNodePress,
   onNodeLongPress,
+  onAddNode,
+  onAddEdge,
+  onDeleteNode,
+  onDeleteEdge,
+  isEditable = false,
 }) => {
+  const { theme } = useTheme();
+  const { colors, dimensions } = theme;
+
+  // 状态
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [selectedEdge, setSelectedEdge] = useState(null);
+  const [showNodeMenu, setShowNodeMenu] = useState(false);
+  const [showEdgeMenu, setShowEdgeMenu] = useState(false);
+  const [showToolbar, setShowToolbar] = useState(true);
+  const [layoutType, setLayoutType] = useState('force'); // force, radial, hierarchical
+
+  // 引用
+  const svgRef = useRef(null);
+  const doubleTapRef = useRef(null);
+
   // 手势和动画相关
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -46,17 +79,17 @@ const GraphVisualization = ({
   const lastScale = useSharedValue(1);
   const lastTranslateX = useSharedValue(0);
   const lastTranslateY = useSharedValue(0);
-  
+
   // 重置视图
   const resetView = () => {
-    scale.value = 1;
-    translateX.value = 0;
-    translateY.value = 0;
+    scale.value = withTiming(1, { duration: 300 });
+    translateX.value = withTiming(0, { duration: 300 });
+    translateY.value = withTiming(0, { duration: 300 });
     lastScale.value = 1;
     lastTranslateX.value = 0;
     lastTranslateY.value = 0;
   };
-  
+
   // 手势处理 - 缩放
   const pinchHandler = useAnimatedGestureHandler({
     onStart: (_, ctx) => {
@@ -69,7 +102,7 @@ const GraphVisualization = ({
       lastScale.value = scale.value;
     },
   });
-  
+
   // 手势处理 - 平移
   const panHandler = useAnimatedGestureHandler({
     onStart: (_, ctx) => {
@@ -85,7 +118,7 @@ const GraphVisualization = ({
       lastTranslateY.value = translateY.value;
     },
   });
-  
+
   // 动画样式
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -96,31 +129,160 @@ const GraphVisualization = ({
       ],
     };
   });
-  
+
   // 根据节点类型获取颜色
   const getNodeColorByType = (type) => {
     switch (type) {
       case 'note':
-        return colors.primary;
+        return colors.info;
       case 'tag':
-        return colors.accent;
-      case 'category':
-        return colors.success;
-      case 'concept':
         return colors.warning;
+      case 'category':
+        return colors.error;
+      case 'concept':
+        return colors.primary;
+      case 'entity':
+        return colors.success;
+      case 'question':
+        return '#9C27B0'; // 紫色
+      case 'answer':
+        return '#00BCD4'; // 青色
+      case 'custom':
+        return '#607D8B'; // 蓝灰色
       default:
-        return colors.textLight;
+        return colors.textSecondary;
     }
   };
-  
+
+  // 根据边类型获取颜色
+  const getEdgeColorByType = (type) => {
+    switch (type) {
+      case 'related':
+        return colors.primary;
+      case 'includes':
+        return colors.success;
+      case 'causes':
+        return colors.warning;
+      case 'supports':
+        return colors.info;
+      case 'opposes':
+        return colors.error;
+      case 'precedes':
+        return '#9C27B0'; // 紫色
+      case 'follows':
+        return '#00BCD4'; // 青色
+      case 'custom':
+        return '#607D8B'; // 蓝灰色
+      default:
+        return colors.border;
+    }
+  };
+
+  // 处理节点点击
+  const handleNodePress = (node) => {
+    setSelectedNode(node);
+    setSelectedEdge(null);
+    setShowNodeMenu(true);
+    setShowEdgeMenu(false);
+
+    if (onNodePress) {
+      onNodePress(node);
+    }
+  };
+
+  // 处理节点长按
+  const handleNodeLongPress = (node) => {
+    if (onNodeLongPress) {
+      onNodeLongPress(node);
+    }
+  };
+
+  // 处理边点击
+  const handleEdgePress = (edge) => {
+    setSelectedEdge(edge);
+    setSelectedNode(null);
+    setShowEdgeMenu(true);
+    setShowNodeMenu(false);
+  };
+
+  // 处理添加节点
+  const handleAddNode = () => {
+    if (onAddNode) {
+      onAddNode();
+    }
+  };
+
+  // 处理添加边
+  const handleAddEdge = () => {
+    if (onAddEdge) {
+      if (selectedNode) {
+        onAddEdge(selectedNode);
+      } else {
+        Alert.alert('提示', '请先选择一个节点作为起点');
+      }
+    }
+  };
+
+  // 处理删除节点
+  const handleDeleteNode = () => {
+    if (selectedNode && onDeleteNode) {
+      Alert.alert(
+        '确认删除',
+        `确定要删除节点"${selectedNode.title || selectedNode.label || '未命名节点'}"吗？`,
+        [
+          {
+            text: '取消',
+            style: 'cancel',
+          },
+          {
+            text: '删除',
+            onPress: () => {
+              onDeleteNode(selectedNode);
+              setSelectedNode(null);
+              setShowNodeMenu(false);
+            },
+            style: 'destructive',
+          },
+        ]
+      );
+    }
+  };
+
+  // 处理删除边
+  const handleDeleteEdge = () => {
+    if (selectedEdge && onDeleteEdge) {
+      Alert.alert(
+        '确认删除',
+        '确定要删除这个关系吗？',
+        [
+          {
+            text: '取消',
+            style: 'cancel',
+          },
+          {
+            text: '删除',
+            onPress: () => {
+              onDeleteEdge(selectedEdge);
+              setSelectedEdge(null);
+              setShowEdgeMenu(false);
+            },
+            style: 'destructive',
+          },
+        ]
+      );
+    }
+  };
+
   // 渲染节点
   const renderNode = (node, index) => {
-    const isHighlighted = visualization.highlightedNodes.includes(node.id) || 
+    const isHighlighted = visualization.highlightedNodes.includes(node.id) ||
                          node.id === visualization.centerNode;
+    const isSelected = selectedNode?.id === node.id;
     const nodeSize = node.size || 20;
-    const nodeColor = isHighlighted ? colors.primary : 
-                     (node.color || getNodeColorByType(node.type));
-    
+    const nodeColor = isSelected ? colors.primary :
+                     (isHighlighted ? colors.primary :
+                     (node.color || getNodeColorByType(node.type)));
+
     return (
       <G key={`node-${node.id}`}>
         <Circle
@@ -128,16 +290,18 @@ const GraphVisualization = ({
           cy={node.y}
           r={nodeSize}
           fill={nodeColor}
-          stroke={isHighlighted ? colors.accent : colors.border}
-          strokeWidth={isHighlighted ? 2 : 1}
-          onPress={() => onNodePress && onNodePress(node)}
-          onLongPress={() => onNodeLongPress && onNodeLongPress(node)}
+          fillOpacity={isSelected ? 1 : 0.8}
+          stroke={isSelected ? colors.primary : (isHighlighted ? colors.primary : colors.border)}
+          strokeWidth={isSelected || isHighlighted ? 2 : 1}
+          onPress={() => handleNodePress(node)}
+          onLongPress={() => handleNodeLongPress(node)}
         />
         <SvgText
           x={node.x}
           y={node.y + nodeSize + 10}
           fontSize="10"
-          fill={colors.text}
+          fontWeight={isSelected || isHighlighted ? 'bold' : 'normal'}
+          fill={isSelected || isHighlighted ? colors.primary : colors.text}
           textAnchor="middle"
         >
           {node.label || node.title || `节点${index + 1}`}
@@ -145,39 +309,355 @@ const GraphVisualization = ({
       </G>
     );
   };
-  
+
   // 渲染边
   const renderEdge = (edge) => {
     const sourceNode = nodes.find(node => node.id === edge.source);
     const targetNode = nodes.find(node => node.id === edge.target);
-    
+
     if (!sourceNode || !targetNode) return null;
-    
+
     const isHighlighted = visualization.highlightedEdges.includes(edge.id);
-    
+    const isSelected = selectedEdge?.id === edge.id;
+    const edgeColor = isSelected ? colors.primary :
+                     (isHighlighted ? colors.primary :
+                     (edge.color || getEdgeColorByType(edge.type)));
+
+    // 计算箭头点
+    const dx = targetNode.x - sourceNode.x;
+    const dy = targetNode.y - sourceNode.y;
+    const angle = Math.atan2(dy, dx);
+
+    // 调整起点和终点，避免箭头与节点重叠
+    const sourceNodeSize = sourceNode.size || 20;
+    const targetNodeSize = targetNode.size || 20;
+
+    const startX = sourceNode.x + sourceNodeSize * Math.cos(angle);
+    const startY = sourceNode.y + sourceNodeSize * Math.sin(angle);
+    const endX = targetNode.x - targetNodeSize * Math.cos(angle);
+    const endY = targetNode.y - targetNodeSize * Math.sin(angle);
+
+    // 计算箭头
+    const arrowLength = 10;
+    const arrowWidth = 5;
+    const arrowX = endX - arrowLength * Math.cos(angle);
+    const arrowY = endY - arrowLength * Math.sin(angle);
+
+    const arrowPoint1X = arrowX + arrowWidth * Math.cos(angle + Math.PI/2);
+    const arrowPoint1Y = arrowY + arrowWidth * Math.sin(angle + Math.PI/2);
+    const arrowPoint2X = arrowX + arrowWidth * Math.cos(angle - Math.PI/2);
+    const arrowPoint2Y = arrowY + arrowWidth * Math.sin(angle - Math.PI/2);
+
+    // 计算边的中点，用于显示标签
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+
     return (
-      <Line
-        key={`edge-${edge.id}`}
-        x1={sourceNode.x}
-        y1={sourceNode.y}
-        x2={targetNode.x}
-        y2={targetNode.y}
-        stroke={isHighlighted ? colors.accent : colors.border}
-        strokeWidth={isHighlighted ? 2 : 1}
-        strokeDasharray={edge.type === 'dashed' ? '5,5' : undefined}
-      />
+      <G key={`edge-${edge.id}`} onPress={() => handleEdgePress(edge)}>
+        <Line
+          x1={startX}
+          y1={startY}
+          x2={endX}
+          y2={endY}
+          stroke={edgeColor}
+          strokeWidth={isSelected || isHighlighted ? 2 : 1}
+          strokeDasharray={edge.type === 'dashed' ? '5,5' : undefined}
+        />
+
+        {/* 箭头 */}
+        {edge.type !== 'related' && (
+          <Path
+            d={`M${endX},${endY} L${arrowPoint1X},${arrowPoint1Y} L${arrowPoint2X},${arrowPoint2Y} Z`}
+            fill={edgeColor}
+          />
+        )}
+
+        {/* 边标签 */}
+        {edge.label && (
+          <G>
+            <Circle
+              cx={midX}
+              cy={midY}
+              r={10}
+              fill={colors.card}
+              stroke={edgeColor}
+              strokeWidth={1}
+            />
+            <SvgText
+              x={midX}
+              y={midY + 3}
+              fontSize="8"
+              fill={edgeColor}
+              textAnchor="middle"
+            >
+              {edge.label}
+            </SvgText>
+          </G>
+        )}
+      </G>
     );
   };
-  
+
   // 当visualization.centerNode变化时，重置视图
   useEffect(() => {
     if (visualization.centerNode) {
-      // 可以在这里添加自动居中逻辑
+      // 找到中心节点
+      const centerNode = nodes.find(node => node.id === visualization.centerNode);
+      if (centerNode) {
+        // 计算需要的平移量，使中心节点位于视图中心
+        const targetX = width - centerNode.x;
+        const targetY = height - centerNode.y;
+
+        // 应用平移动画
+        translateX.value = withTiming(targetX, { duration: 500 });
+        translateY.value = withTiming(targetY, { duration: 500 });
+        lastTranslateX.value = targetX;
+        lastTranslateY.value = targetY;
+
+        // 如果有缩放级别，也应用缩放
+        if (visualization.zoomLevel) {
+          scale.value = withTiming(visualization.zoomLevel, { duration: 500 });
+          lastScale.value = visualization.zoomLevel;
+        }
+      }
     }
-  }, [visualization.centerNode]);
-  
+  }, [visualization.centerNode, nodes]);
+
+  // 渲染工具栏
+  const renderToolbar = () => {
+    if (!showToolbar) return null;
+
+    return (
+      <View style={[styles.toolbar, { backgroundColor: colors.card }]}>
+        <TouchableOpacity
+          style={styles.toolbarButton}
+          onPress={resetView}
+        >
+          <Icon name="center-focus-strong" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toolbarButton}
+          onPress={() => setLayoutType('force')}
+        >
+          <Icon name="scatter-plot" size={24} color={layoutType === 'force' ? colors.primary : colors.text} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toolbarButton}
+          onPress={() => setLayoutType('radial')}
+        >
+          <Icon name="radio-button-checked" size={24} color={layoutType === 'radial' ? colors.primary : colors.text} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toolbarButton}
+          onPress={() => setLayoutType('hierarchical')}
+        >
+          <Icon name="account-tree" size={24} color={layoutType === 'hierarchical' ? colors.primary : colors.text} />
+        </TouchableOpacity>
+
+        {isEditable && (
+          <TouchableOpacity
+            style={styles.toolbarButton}
+            onPress={handleAddNode}
+          >
+            <Icon name="add-circle" size={24} color={colors.success} />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // 渲染节点菜单
+  const renderNodeMenu = () => {
+    if (!showNodeMenu || !selectedNode) return null;
+
+    return (
+      <View style={[styles.nodeMenu, { backgroundColor: colors.card }]}>
+        <View style={styles.nodeMenuHeader}>
+          <View
+            style={[
+              styles.nodeTypeIndicator,
+              { backgroundColor: getNodeColorByType(selectedNode.type) }
+            ]}
+          />
+          <Text
+            variant="body"
+            size="medium"
+            bold
+            style={styles.nodeMenuTitle}
+          >
+            {selectedNode.title || selectedNode.label || '未命名节点'}
+          </Text>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setShowNodeMenu(false);
+              setSelectedNode(null);
+            }}
+          >
+            <Icon name="close" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.nodeMenuContent}>
+          <Text
+            variant="body"
+            size="small"
+            style={styles.nodeDescription}
+          >
+            {selectedNode.description || '暂无描述'}
+          </Text>
+
+          {isEditable && (
+            <View style={styles.nodeMenuActions}>
+              <TouchableOpacity
+                style={[styles.nodeMenuButton, { backgroundColor: colors.primary }]}
+                onPress={handleAddEdge}
+              >
+                <Icon name="add-link" size={20} color="#FFFFFF" />
+                <Text
+                  variant="body"
+                  size="small"
+                  color="card"
+                  style={styles.nodeMenuButtonText}
+                >
+                  添加关系
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.nodeMenuButton, { backgroundColor: colors.error }]}
+                onPress={handleDeleteNode}
+              >
+                <Icon name="delete" size={20} color="#FFFFFF" />
+                <Text
+                  variant="body"
+                  size="small"
+                  color="card"
+                  style={styles.nodeMenuButtonText}
+                >
+                  删除节点
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // 渲染边菜单
+  const renderEdgeMenu = () => {
+    if (!showEdgeMenu || !selectedEdge) return null;
+
+    // 获取源节点和目标节点
+    const sourceNode = nodes.find(node => node.id === selectedEdge.source);
+    const targetNode = nodes.find(node => node.id === selectedEdge.target);
+
+    if (!sourceNode || !targetNode) return null;
+
+    return (
+      <View style={[styles.edgeMenu, { backgroundColor: colors.card }]}>
+        <View style={styles.edgeMenuHeader}>
+          <View
+            style={[
+              styles.edgeTypeIndicator,
+              { backgroundColor: getEdgeColorByType(selectedEdge.type) }
+            ]}
+          />
+          <Text
+            variant="body"
+            size="medium"
+            bold
+            style={styles.edgeMenuTitle}
+          >
+            {selectedEdge.label || selectedEdge.type || '关系'}
+          </Text>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setShowEdgeMenu(false);
+              setSelectedEdge(null);
+            }}
+          >
+            <Icon name="close" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.edgeMenuContent}>
+          <View style={styles.edgeNodes}>
+            <View style={styles.edgeNodeItem}>
+              <View
+                style={[
+                  styles.nodeTypeIndicator,
+                  { backgroundColor: getNodeColorByType(sourceNode.type) }
+                ]}
+              />
+              <Text
+                variant="body"
+                size="small"
+                style={styles.edgeNodeText}
+              >
+                {sourceNode.title || sourceNode.label || '源节点'}
+              </Text>
+            </View>
+
+            <Icon name="arrow-forward" size={16} color={colors.textSecondary} />
+
+            <View style={styles.edgeNodeItem}>
+              <View
+                style={[
+                  styles.nodeTypeIndicator,
+                  { backgroundColor: getNodeColorByType(targetNode.type) }
+                ]}
+              />
+              <Text
+                variant="body"
+                size="small"
+                style={styles.edgeNodeText}
+              >
+                {targetNode.title || targetNode.label || '目标节点'}
+              </Text>
+            </View>
+          </View>
+
+          <Text
+            variant="body"
+            size="small"
+            style={styles.edgeDescription}
+          >
+            {selectedEdge.description || '暂无描述'}
+          </Text>
+
+          {isEditable && (
+            <View style={styles.edgeMenuActions}>
+              <TouchableOpacity
+                style={[styles.edgeMenuButton, { backgroundColor: colors.error }]}
+                onPress={handleDeleteEdge}
+              >
+                <Icon name="delete" size={20} color="#FFFFFF" />
+                <Text
+                  variant="body"
+                  size="small"
+                  color="card"
+                  style={styles.edgeMenuButtonText}
+                >
+                  删除关系
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
+      {renderToolbar()}
+
       <PinchGestureHandler
         onGestureEvent={pinchHandler}
       >
@@ -186,7 +666,12 @@ const GraphVisualization = ({
             onGestureEvent={panHandler}
           >
             <Animated.View style={[styles.graphWrapper, animatedStyle]}>
-              <Svg width={width * 2} height={height * 2} viewBox={`0 0 ${width * 2} ${height * 2}`}>
+              <Svg
+                ref={svgRef}
+                width={width * 2}
+                height={height * 2}
+                viewBox={`0 0 ${width * 2} ${height * 2}`}
+              >
                 <G>
                   {/* 渲染边 */}
                   {edges.map(renderEdge)}
@@ -198,6 +683,18 @@ const GraphVisualization = ({
           </PanGestureHandler>
         </Animated.View>
       </PinchGestureHandler>
+
+      {renderNodeMenu()}
+      {renderEdgeMenu()}
+
+      {isEditable && (
+        <TouchableOpacity
+          style={[styles.floatingButton, { backgroundColor: colors.primary }]}
+          onPress={() => setShowToolbar(!showToolbar)}
+        >
+          <Icon name={showToolbar ? 'expand-more' : 'expand-less'} size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -214,6 +711,147 @@ const styles = StyleSheet.create({
   graphWrapper: {
     width: width * 2,
     height: height * 2,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  toolbarButton: {
+    padding: 8,
+  },
+  nodeMenu: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  nodeMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  nodeTypeIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  nodeMenuTitle: {
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  nodeMenuContent: {
+    padding: 16,
+  },
+  nodeDescription: {
+    marginBottom: 16,
+  },
+  nodeMenuActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  nodeMenuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  nodeMenuButtonText: {
+    marginLeft: 8,
+  },
+  edgeMenu: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  edgeMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  edgeTypeIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  edgeMenuTitle: {
+    flex: 1,
+  },
+  edgeMenuContent: {
+    padding: 16,
+  },
+  edgeNodes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  edgeNodeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  edgeNodeText: {
+    marginLeft: 8,
+  },
+  edgeDescription: {
+    marginBottom: 16,
+  },
+  edgeMenuActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  edgeMenuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  edgeMenuButtonText: {
+    marginLeft: 8,
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 });
 

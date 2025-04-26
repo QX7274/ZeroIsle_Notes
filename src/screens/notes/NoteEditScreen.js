@@ -6,7 +6,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { createNote, fetchNoteById, updateNote, autoSaveNote, getNoteHistory, getNoteVersion, restoreNoteVersion, saveOfflineNote, syncOfflineNotes } from '../../redux/slices/notesSlice';
-import { Button, Loading, RichTextEditor, TagSelector, CategorySelector, Toast, NoteShareDialog } from '../../components/common';
+import { Button, Loading, Toast, NoteShareDialog, CategorySelector } from '../../components/common';
+import EnhancedRichTextEditor from '../../components/common/EnhancedRichTextEditor';
+import TagSelector from '../../components/notes/TagSelector';
 import { colors } from '../../utils/constants/colors';
 import { dimensions } from '../../utils/constants/dimensions';
 import { TIMEOUTS, DEFAULT_SETTINGS } from '../../utils/constants/config';
@@ -22,7 +24,7 @@ const NoteEditScreen = ({ route, navigation }) => {
   const { lastSaved, isLoading: isAutoSaving, error: autoSaveError } = useSelector(state => state.notes.autoSave);
   const { versions, isLoading: isLoadingHistory, currentVersion } = useSelector(state => state.notes.history);
   const { unsyncedCount } = useSelector(state => state.notes.offline);
-  
+
   // 笔记状态
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -30,7 +32,7 @@ const NoteEditScreen = ({ route, navigation }) => {
   const [tags, setTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  
+
   // 自动保存和历史版本状态
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(DEFAULT_SETTINGS.autoSave);
   const [isOffline, setIsOffline] = useState(false);
@@ -39,30 +41,30 @@ const NoteEditScreen = ({ route, navigation }) => {
   const [showVersionPreview, setShowVersionPreview] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  
+
   // 分享功能状态
   const [showShareDialog, setShowShareDialog] = useState(false);
-  
+
   // Toast显示计时器和自动保存计时器
   const toastTimerRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
-  
+
   // 显示Toast消息
   const showToast = (message) => {
     setToastMessage(message);
     setToastVisible(true);
-    
+
     // 清除现有计时器
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
     }
-    
+
     // 设置新计时器，3秒后自动隐藏
     toastTimerRef.current = setTimeout(() => {
       setToastVisible(false);
     }, 3000);
   };
-  
+
   // 分类和标签数据
   const [availableCategories, setAvailableCategories] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
@@ -74,20 +76,20 @@ const NoteEditScreen = ({ route, navigation }) => {
     if (!isNew && noteId) {
       dispatch(fetchNoteById(noteId));
     }
-    
+
     // 检查网络状态
     const unsubscribe = NetInfo.addEventListener(state => {
       const wasOffline = isOffline;
       const isNowOnline = state.isConnected;
       setIsOffline(!isNowOnline);
-      
+
       // 如果从离线状态恢复到在线状态，且有未同步的笔记，则自动触发同步
       if (wasOffline && isNowOnline && unsyncedCount > 0) {
         showToast('网络已恢复，正在同步笔记...');
         handleSyncOfflineNotes();
       }
     });
-    
+
     return () => {
       unsubscribe();
       // 清除所有计时器
@@ -99,27 +101,27 @@ const NoteEditScreen = ({ route, navigation }) => {
       }
     };
   }, [dispatch, isNew, noteId, isOffline, unsyncedCount]);
-  
+
   // 加载笔记历史版本
   const loadNoteHistory = useCallback(() => {
     if (!isNew && noteId) {
       dispatch(getNoteHistory(noteId));
     }
   }, [dispatch, isNew, noteId]);
-  
+
   // 查看历史版本
   const handleViewHistory = () => {
     loadNoteHistory();
     setShowHistory(true);
   };
-  
+
   // 预览特定版本
   const handlePreviewVersion = (version) => {
     setSelectedVersion(version);
     dispatch(getNoteVersion({ id: noteId, versionId: version.id }));
     setShowVersionPreview(true);
   };
-  
+
   // 恢复到特定版本
   const handleRestoreVersion = () => {
     if (selectedVersion) {
@@ -128,8 +130,8 @@ const NoteEditScreen = ({ route, navigation }) => {
         `确定要恢复到 ${new Date(selectedVersion.created_at).toLocaleString()} 的版本吗？`,
         [
           { text: '取消', style: 'cancel' },
-          { 
-            text: '恢复', 
+          {
+            text: '恢复',
             onPress: async () => {
               try {
                 await dispatch(restoreNoteVersion({ id: noteId, versionId: selectedVersion.id })).unwrap();
@@ -139,22 +141,22 @@ const NoteEditScreen = ({ route, navigation }) => {
               } catch (error) {
                 Alert.alert('恢复失败', error.message || '请稍后重试');
               }
-            } 
+            }
           }
         ]
       );
     }
   };
-  
+
   // 自动保存函数
   const handleAutoSave = useCallback(() => {
     if (!autoSaveEnabled || isNew || !noteId || !hasChanges) return;
-    
+
     // 清除现有计时器
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
-    
+
     // 设置新计时器
     autoSaveTimerRef.current = setTimeout(async () => {
       try {
@@ -164,7 +166,7 @@ const NoteEditScreen = ({ route, navigation }) => {
           category_id: category ? category.id : null,
           tag_ids: tags.map(tag => tag.id)
         };
-        
+
         if (isOffline) {
           // 离线模式：保存到本地
           await dispatch(saveOfflineNote({
@@ -172,12 +174,12 @@ const NoteEditScreen = ({ route, navigation }) => {
             ...noteData,
             updated_at: new Date().toISOString()
           })).unwrap();
-          
+
           showToast('笔记已离线保存');
         } else {
           // 在线模式：自动保存到服务器
           await dispatch(autoSaveNote({ id: noteId, noteData })).unwrap();
-          
+
           showToast('笔记已自动保存');
         }
       } catch (error) {
@@ -185,14 +187,14 @@ const NoteEditScreen = ({ route, navigation }) => {
       }
     }, TIMEOUTS.AUTO_SAVE);
   }, [dispatch, noteId, title, content, category, tags, isNew, hasChanges, autoSaveEnabled, isOffline]);
-  
+
   // 同步离线笔记
   const handleSyncOfflineNotes = async () => {
     if (isOffline) {
       Alert.alert('提示', '当前处于离线状态，无法同步');
       return;
     }
-    
+
     try {
       showToast('正在同步离线笔记...');
       const result = await dispatch(syncOfflineNotes()).unwrap();
@@ -206,7 +208,7 @@ const NoteEditScreen = ({ route, navigation }) => {
       Alert.alert('同步失败', error.message || '请稍后重试');
     }
   };
-  
+
   // 监听表单变化，触发自动保存
   useEffect(() => {
     if (hasChanges && !isNew) {
@@ -261,9 +263,9 @@ const NoteEditScreen = ({ route, navigation }) => {
       setHasChanges(title.trim() !== '' || content.trim() !== '' || category !== null || tags.length > 0);
     } else if (currentNote) {
       const currentTags = currentNote.tags || [];
-      const tagsChanged = tags.length !== currentTags.length || 
+      const tagsChanged = tags.length !== currentTags.length ||
         tags.some(tag => !currentTags.find(t => t.id === tag.id));
-      
+
       setHasChanges(
         title !== (currentNote.title || '') ||
         content !== (currentNote.content || '') ||
@@ -345,12 +347,12 @@ const NoteEditScreen = ({ route, navigation }) => {
       navigation.goBack();
     }
   };
-  
+
   // 切换自动保存
   const toggleAutoSave = () => {
     setAutoSaveEnabled(!autoSaveEnabled);
   };
-  
+
   // 处理分享笔记
   const handleShareNote = () => {
     if (isNew) {
@@ -359,33 +361,33 @@ const NoteEditScreen = ({ route, navigation }) => {
     }
     setShowShareDialog(true);
   };
-  
+
   // 关闭分享对话框
   const closeShareDialog = () => {
     setShowShareDialog(false);
   };
-  
+
   // 关闭历史版本模态框
   const closeHistoryModal = () => {
     setShowHistory(false);
     setSelectedVersion(null);
   };
-  
+
   // 关闭版本预览模态框
   const closeVersionPreview = () => {
     setShowVersionPreview(false);
   };
-  
+
   // 格式化日期
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
-  
+
   // 渲染历史版本项
   const renderVersionItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.versionItem} 
+    <TouchableOpacity
+      style={styles.versionItem}
       onPress={() => handlePreviewVersion(item)}
     >
       <Text style={styles.versionDate}>{formatDate(item.created_at)}</Text>
@@ -398,7 +400,7 @@ const NoteEditScreen = ({ route, navigation }) => {
   }
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
@@ -410,8 +412,8 @@ const NoteEditScreen = ({ route, navigation }) => {
         <Text style={styles.headerTitle}>{isNew ? '新建笔记' : '编辑笔记'}</Text>
         <View style={styles.headerActions}>
           {!isNew && (
-            <TouchableOpacity 
-              style={styles.iconButton} 
+            <TouchableOpacity
+              style={styles.iconButton}
               onPress={handleViewHistory}
               disabled={isLoadingHistory}
             >
@@ -419,24 +421,24 @@ const NoteEditScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           )}
           {!isNew && (
-            <TouchableOpacity 
-              style={[styles.iconButton, autoSaveEnabled && styles.activeIconButton]} 
+            <TouchableOpacity
+              style={[styles.iconButton, autoSaveEnabled && styles.activeIconButton]}
               onPress={toggleAutoSave}
             >
               <Icon name="save" size={22} color={autoSaveEnabled ? colors.primary : colors.text} />
             </TouchableOpacity>
           )}
           {!isNew && (
-            <TouchableOpacity 
-              style={styles.iconButton} 
+            <TouchableOpacity
+              style={styles.iconButton}
               onPress={handleShareNote}
             >
               <Icon name="share" size={22} color={colors.text} />
             </TouchableOpacity>
           )}
-          <Button 
-            title="保存" 
-            onPress={handleSave} 
+          <Button
+            title="保存"
+            onPress={handleSave}
             loading={isSaving}
             disabled={isSaving || !hasChanges}
             style={styles.saveButton}
@@ -456,7 +458,7 @@ const NoteEditScreen = ({ route, navigation }) => {
           placeholderTextColor={colors.textLight}
           maxLength={100}
         />
-        
+
         {/* 分类选择器 */}
         <CategorySelector
           selectedCategory={category}
@@ -466,7 +468,7 @@ const NoteEditScreen = ({ route, navigation }) => {
           onCreateCategory={handleCreateCategory}
           style={styles.categorySelector}
         />
-        
+
         {/* 标签选择器 */}
         <TagSelector
           selectedTags={tags}
@@ -476,19 +478,20 @@ const NoteEditScreen = ({ route, navigation }) => {
           onCreateTag={handleCreateTag}
           style={styles.tagSelector}
         />
-        
-        {/* 富文本编辑器 */}
-        <RichTextEditor
+
+        {/* 增强版富文本编辑器 */}
+        <EnhancedRichTextEditor
           value={content}
           onChange={setContent}
           style={styles.richTextEditor}
           noteId={noteId}
+          showToast={showToast}
         />
-        
+
         {/* 手写识别和语音转文本功能按钮 */}
         <View style={styles.featureButtonsContainer}>
-          <TouchableOpacity 
-            style={styles.featureButton} 
+          <TouchableOpacity
+            style={styles.featureButton}
             onPress={() => navigation.navigate('HandwritingRecognition', {
               noteId: noteId,
               onRecognized: (text) => {
@@ -501,9 +504,9 @@ const NoteEditScreen = ({ route, navigation }) => {
             <Icon name="edit" size={20} color={colors.white} />
             <Text style={styles.featureButtonText}>手写识别</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.featureButton, styles.voiceButton]} 
+
+          <TouchableOpacity
+            style={[styles.featureButton, styles.voiceButton]}
             onPress={() => navigation.navigate('VoiceToText', {
               noteId: noteId,
               onTranscribed: (text) => {
@@ -517,11 +520,11 @@ const NoteEditScreen = ({ route, navigation }) => {
             <Text style={styles.featureButtonText}>语音转文本</Text>
           </TouchableOpacity>
         </View>
-        
+
         {/* 离线同步状态 */}
         {unsyncedCount > 0 && !isOffline && (
-          <TouchableOpacity 
-            style={styles.syncButton} 
+          <TouchableOpacity
+            style={styles.syncButton}
             onPress={handleSyncOfflineNotes}
           >
             <Icon name="sync" size={16} color={colors.white} />
@@ -529,14 +532,14 @@ const NoteEditScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         )}
       </ScrollView>
-      
+
       {/* 自动保存状态提示 */}
       {toastVisible && (
         <View style={styles.toastContainer}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
-      
+
       {/* 历史版本模态框 */}
       <Modal
         visible={showHistory}
@@ -552,7 +555,7 @@ const NoteEditScreen = ({ route, navigation }) => {
                 <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             {isLoadingHistory ? (
               <Loading type="content" text="加载历史版本中..." />
             ) : (
@@ -569,7 +572,7 @@ const NoteEditScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-      
+
       {/* 版本预览模态框 */}
       <Modal
         visible={showVersionPreview}
@@ -585,7 +588,7 @@ const NoteEditScreen = ({ route, navigation }) => {
                 <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             {isLoadingHistory ? (
               <Loading type="content" text="加载版本内容中..." />
             ) : currentVersion ? (
@@ -599,7 +602,7 @@ const NoteEditScreen = ({ route, navigation }) => {
             ) : (
               <Text style={styles.emptyText}>无法加载版本内容</Text>
             )}
-            
+
             <View style={styles.modalFooter}>
               <Button
                 title="恢复此版本"
@@ -611,7 +614,7 @@ const NoteEditScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-      
+
       {/* 分享对话框 */}
       <NoteShareDialog
         visible={showShareDialog}

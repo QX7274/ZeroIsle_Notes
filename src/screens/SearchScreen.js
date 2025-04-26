@@ -8,10 +8,19 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { SPACING } from '../utils/constants/dimensions';
-import MultiModalSearch from '../components/search/MultiModalSearch';
-import SearchResults from '../components/search/SearchResults';
-import { search, clearSearchResults } from '../redux/slices/searchSlice';
+import {
+  search,
+  clearSearchResults,
+  addToSearchHistory,
+  selectSearchResults,
+  selectIsLoading,
+  selectError,
+} from '../redux/slices/searchSlice';
+import {
+  MultiModalSearch,
+  SearchResults,
+  SearchHistory
+} from '../components/search';
 
 /**
  * 搜索屏幕
@@ -19,30 +28,56 @@ import { search, clearSearchResults } from '../redux/slices/searchSlice';
  */
 const SearchScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
+  const { colors } = theme;
   const dispatch = useDispatch();
-  const { results, isLoading, error } = useSelector((state) => state.search);
-  
+
+  // 从Redux获取状态
+  const results = useSelector(selectSearchResults);
+  const isLoading = useSelector(selectIsLoading);
+  const error = useSelector(selectError);
+
+  // 本地状态
   const initialQuery = route.params?.query || '';
   const [searchPerformed, setSearchPerformed] = useState(false);
-  
+  const [showHistory, setShowHistory] = useState(!initialQuery);
+
   // 清理搜索结果
   useEffect(() => {
     return () => {
       dispatch(clearSearchResults());
     };
   }, [dispatch]);
-  
+
   // 处理搜索
   const handleSearch = (searchData) => {
+    // 添加到搜索历史
+    if (searchData.query) {
+      dispatch(addToSearchHistory({
+        query: searchData.query,
+        mode: searchData.mode || 'text',
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // 执行搜索
     dispatch(search(searchData));
     setSearchPerformed(true);
+    setShowHistory(false);
   };
-  
+
+  // 处理历史项点击
+  const handleHistoryItemPress = (query, mode) => {
+    // 执行搜索
+    dispatch(search({ query, mode }));
+    setSearchPerformed(true);
+    setShowHistory(false);
+  };
+
   // 处理取消
   const handleCancel = () => {
     navigation.goBack();
   };
-  
+
   // 处理结果点击
   const handleResultPress = (result) => {
     switch (result.type) {
@@ -59,9 +94,9 @@ const SearchScreen = ({ navigation, route }) => {
         break;
     }
   };
-  
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : null}
@@ -74,8 +109,8 @@ const SearchScreen = ({ navigation, route }) => {
             initialQuery={initialQuery}
           />
         </View>
-        
-        {searchPerformed && (
+
+        {searchPerformed ? (
           <View style={styles.resultsContainer}>
             <SearchResults
               results={results}
@@ -83,6 +118,13 @@ const SearchScreen = ({ navigation, route }) => {
               error={error}
               onResultPress={handleResultPress}
               navigation={navigation}
+            />
+          </View>
+        ) : showHistory && (
+          <View style={styles.historyContainer}>
+            <SearchHistory
+              onHistoryItemPress={handleHistoryItemPress}
+              visible={true}
             />
           </View>
         )}
@@ -99,9 +141,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchContainer: {
-    padding: SPACING.MEDIUM,
+    padding: 16,
   },
   resultsContainer: {
+    flex: 1,
+  },
+  historyContainer: {
     flex: 1,
   },
 });

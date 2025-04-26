@@ -4,7 +4,6 @@
 
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { SPACING } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
@@ -12,8 +11,10 @@ import { useTheme } from '../../context/ThemeContext';
  * @param {string} title - 按钮文字
  * @param {function} onPress - 点击事件处理函数
  * @param {string} type - 按钮类型：primary, secondary, outline, text
+ * @param {string} size - 按钮大小：small, medium, large, xlarge
  * @param {boolean} disabled - 是否禁用
  * @param {boolean} loading - 是否显示加载状态
+ * @param {boolean} fullWidth - 是否占满宽度
  * @param {object} style - 自定义样式
  * @param {object} textStyle - 文字自定义样式
  */
@@ -21,47 +22,141 @@ const Button = ({
   title,
   onPress,
   type = 'primary',
+  size = 'medium',
   disabled = false,
   loading = false,
+  fullWidth = false,
   style,
   textStyle,
   ...props
 }) => {
-  const { colors } = useTheme();
-  // 获取动态样式
-  const dynamicStyles = getStyles(colors);
+  const { theme } = useTheme();
+  const { colors, dimensions } = theme;
 
   // 根据类型和状态确定样式
-  const buttonStyle = [dynamicStyles.button];
-  const buttonTextStyle = [dynamicStyles.text];
+  const buttonStyle = [styles.button];
+  const buttonTextStyle = [styles.text];
+
+  // 根据尺寸添加样式
+  switch (size) {
+    case 'small':
+      buttonStyle.push(styles.smallButton);
+      buttonTextStyle.push(styles.smallText);
+      break;
+    case 'medium':
+      buttonStyle.push(styles.mediumButton);
+      buttonTextStyle.push(styles.mediumText);
+      break;
+    case 'large':
+      buttonStyle.push(styles.largeButton);
+      buttonTextStyle.push(styles.largeText);
+      break;
+    case 'xlarge':
+      buttonStyle.push(styles.xlargeButton);
+      buttonTextStyle.push(styles.xlargeText);
+      break;
+    default:
+      buttonStyle.push(styles.mediumButton);
+      buttonTextStyle.push(styles.mediumText);
+  }
 
   // 根据类型添加样式
   switch (type) {
     case 'primary':
-      buttonStyle.push(dynamicStyles.primaryButton);
-      buttonTextStyle.push(dynamicStyles.primaryText);
+      buttonStyle.push({
+        backgroundColor: colors.primary,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
       break;
     case 'secondary':
-      buttonStyle.push(dynamicStyles.secondaryButton);
-      buttonTextStyle.push(dynamicStyles.secondaryText);
+      buttonStyle.push({
+        backgroundColor: colors.secondary,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
+      break;
+    case 'success':
+      buttonStyle.push({
+        backgroundColor: colors.success,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
+      break;
+    case 'info':
+      buttonStyle.push({
+        backgroundColor: colors.info,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
+      break;
+    case 'warning':
+      buttonStyle.push({
+        backgroundColor: colors.warning,
+      });
+      buttonTextStyle.push({
+        color: colors.text,
+      });
+      break;
+    case 'error':
+      buttonStyle.push({
+        backgroundColor: colors.error,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
       break;
     case 'outline':
-      buttonStyle.push(dynamicStyles.outlineButton);
-      buttonTextStyle.push(dynamicStyles.outlineText);
+      buttonStyle.push({
+        backgroundColor: 'transparent',
+        borderWidth: dimensions.BORDER_WIDTH.REGULAR,
+        borderColor: colors.primary,
+      });
+      buttonTextStyle.push({
+        color: colors.primary,
+      });
       break;
     case 'text':
-      buttonStyle.push(dynamicStyles.textButton);
-      buttonTextStyle.push(dynamicStyles.textButtonText);
+      buttonStyle.push({
+        backgroundColor: 'transparent',
+        paddingVertical: dimensions.SPACING.SMALL,
+        paddingHorizontal: dimensions.SPACING.SMALL,
+        minWidth: 0,
+      });
+      buttonTextStyle.push({
+        color: colors.primary,
+      });
       break;
     default:
-      buttonStyle.push(dynamicStyles.primaryButton);
-      buttonTextStyle.push(dynamicStyles.primaryText);
+      buttonStyle.push({
+        backgroundColor: colors.primary,
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
   }
 
   // 禁用状态样式
   if (disabled) {
-    buttonStyle.push(dynamicStyles.disabledButton);
-    buttonTextStyle.push(dynamicStyles.disabledText);
+    buttonStyle.push({
+      backgroundColor: type === 'outline' || type === 'text' ? 'transparent' : colors.textDisabled,
+      borderColor: colors.textDisabled,
+      opacity: 0.7,
+    });
+    buttonTextStyle.push({
+      color: colors.textDisabled,
+    });
+  }
+
+  // 全宽样式
+  if (fullWidth) {
+    buttonStyle.push({
+      width: '100%',
+    });
   }
 
   // 添加自定义样式
@@ -84,7 +179,13 @@ const Button = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={type === 'primary' ? (colors.white || '#FFFFFF') : colors.primary}
+          color={
+            type === 'outline' || type === 'text'
+              ? colors.primary
+              : type === 'warning'
+                ? colors.text
+                : colors.card
+          }
         />
       ) : (
         <Text style={buttonTextStyle}>{title}</Text>
@@ -93,77 +194,51 @@ const Button = ({
   );
 };
 
-// 使用内联样式，因为我们需要访问动态的颜色主题
-const getStyles = (colors) => ({
+// 创建样式
+const styles = StyleSheet.create({
   button: {
-    borderRadius: 8, // 使用固定值
-    paddingVertical: SPACING.MEDIUM,
-    paddingHorizontal: SPACING.LARGE,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 120,
+    flexDirection: 'row',
   },
   text: {
-    fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
   },
-  // 主要按钮样式
-  primaryButton: {
-    backgroundColor: colors.primary || '#007AFF',
+  // 尺寸样式
+  smallButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    minWidth: 80,
   },
-  primaryText: {
-    color: colors.white || '#FFFFFF',
+  smallText: {
+    fontSize: 12,
   },
-  // 次要按钮样式
-  secondaryButton: {
-    backgroundColor: colors.secondary || '#5AC8FA',
+  mediumButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minWidth: 120,
   },
-  secondaryText: {
-    color: colors.white || '#FFFFFF',
+  mediumText: {
+    fontSize: 14,
   },
-  // 轮廓按钮样式
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.primary || '#007AFF',
+  largeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 160,
   },
-  outlineText: {
-    color: colors.primary || '#007AFF',
+  largeText: {
+    fontSize: 16,
   },
-  // 文本按钮样式
-  textButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: SPACING.SMALL,
-    paddingHorizontal: SPACING.SMALL,
-    minWidth: 0,
+  xlargeButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    minWidth: 200,
   },
-  textButtonText: {
-    color: colors.primary || '#007AFF',
+  xlargeText: {
+    fontSize: 18,
   },
-  // 禁用状态
-  disabledButton: {
-    backgroundColor: colors.disabled || '#E5E5E5',
-    borderColor: colors.disabled || '#E5E5E5',
-  },
-  disabledText: {
-    color: colors.textLight || '#8E8E93',
-  },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  button: {},
-  text: {},
-  primaryButton: {},
-  primaryText: {},
-  secondaryButton: {},
-  secondaryText: {},
-  outlineButton: {},
-  outlineText: {},
-  textButton: {},
-  textButtonText: {},
-  disabledButton: {},
-  disabledText: {},
 });
 
 export default Button;

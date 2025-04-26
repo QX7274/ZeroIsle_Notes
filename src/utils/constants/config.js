@@ -3,7 +3,7 @@
  */
 
 // API基础URL
-export const API_BASE_URL = __DEV__ 
+export const API_BASE_URL = __DEV__
   ? 'http://localhost:8000/api' // 开发环境
   : 'https://api.zeroislenotes.com/api'; // 生产环境
 
@@ -17,6 +17,12 @@ export const STORAGE_KEYS = {
   SETTINGS: 'app_settings',
   NOTES_CACHE: 'notes_cache',
   OFFLINE_NOTES: 'offline_notes',
+  OFFLINE_OPERATIONS: 'offline_operations',
+  LAST_SYNC_TIME: 'last_sync_time',
+  CANVAS_CACHE: 'canvas_cache',
+  KNOWLEDGE_GRAPH_CACHE: 'knowledge_graph_cache',
+  COMMUNITY_CACHE: 'community_cache',
+  BACKUP_INFO: 'backup_info',
 };
 
 // 默认设置

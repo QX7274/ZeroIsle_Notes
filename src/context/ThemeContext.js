@@ -1,80 +1,104 @@
+/**
+ * 主题上下文
+ * 提供主题切换功能
+ */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { lightTheme, darkTheme } from '../theme';
+import { getTheme, setTheme as saveTheme } from '../services/storage';
 
-const lightTheme = {
-  background: '#FFFFFF',
-  cardBackground: '#F5F5F5',
-  text: '#000000',
-  textSecondary: '#666666',
-  primary: '#007AFF',
-  secondary: '#5856D6',
-  border: '#E5E5E5',
-  error: '#FF3B30',
-  success: '#34C759',
-  warning: '#FF9500',
-  disabled: '#C7C7CC',
-  wechat: '#07C160',
-  qq: '#12B7F5',
-};
+// 创建主题上下文
+const ThemeContext = createContext({
+  theme: lightTheme,
+  isDarkMode: false,
+  themeType: 'light',
+  toggleTheme: () => {},
+  setThemeType: () => {},
+});
 
-const darkTheme = {
-  background: '#000000',
-  cardBackground: '#1C1C1E',
-  text: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  primary: '#0A84FF',
-  secondary: '#5E5CE6',
-  border: '#38383A',
-  error: '#FF453A',
-  success: '#32D74B',
-  warning: '#FF9F0A',
-  disabled: '#3A3A3C',
-  wechat: '#07C160',
-  qq: '#12B7F5',
-};
-
-const ThemeContext = createContext();
-
+// 主题提供者组件
 export const ThemeProvider = ({ children }) => {
+  // 获取系统主题
   const systemTheme = useColorScheme();
+  // 主题类型状态
+  const [themeType, setThemeType] = useState('system');
+  // 当前主题状态
   const [theme, setTheme] = useState(systemTheme === 'dark' ? darkTheme : lightTheme);
+  // 是否为深色主题
   const [isDarkMode, setIsDarkMode] = useState(systemTheme === 'dark');
 
+  // 加载保存的主题
   useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const savedTheme = await getTheme();
+        if (savedTheme) {
+          setThemeType(savedTheme);
+        }
+      } catch (error) {
+        console.error('加载主题失败:', error);
+      }
+    };
+
     loadTheme();
   }, []);
 
-  const loadTheme = async () => {
+  // 监听主题类型变化
+  useEffect(() => {
+    let newTheme;
+    let isDark;
+
+    if (themeType === 'system') {
+      newTheme = systemTheme === 'dark' ? darkTheme : lightTheme;
+      isDark = systemTheme === 'dark';
+    } else {
+      newTheme = themeType === 'dark' ? darkTheme : lightTheme;
+      isDark = themeType === 'dark';
+    }
+
+    setTheme(newTheme);
+    setIsDarkMode(isDark);
+  }, [themeType, systemTheme]);
+
+  // 切换主题
+  const toggleTheme = async () => {
+    const newThemeType = isDarkMode ? 'light' : 'dark';
+    setThemeType(newThemeType);
     try {
-      const savedTheme = await AsyncStorage.getItem('theme');
-      if (savedTheme) {
-        setIsDarkMode(savedTheme === 'dark');
-        setTheme(savedTheme === 'dark' ? darkTheme : lightTheme);
-      }
+      await saveTheme(newThemeType);
     } catch (error) {
-      console.error('加载主题失败:', error);
+      console.error('保存主题失败:', error);
     }
   };
 
-  const toggleTheme = async () => {
+  // 设置主题类型
+  const handleSetThemeType = async (type) => {
+    setThemeType(type);
     try {
-      const newTheme = !isDarkMode;
-      setIsDarkMode(newTheme);
-      setTheme(newTheme ? darkTheme : lightTheme);
-      await AsyncStorage.setItem('theme', newTheme ? 'dark' : 'light');
+      await saveTheme(type);
     } catch (error) {
-      console.error('切换主题失败:', error);
+      console.error('保存主题失败:', error);
     }
+  };
+
+  // 上下文值
+  const contextValue = {
+    theme,
+    colors: theme.colors,
+    isDarkMode,
+    themeType,
+    toggleTheme,
+    setThemeType: handleSetThemeType,
   };
 
   return (
-    <ThemeContext.Provider value={{ colors: theme, isDarkMode, toggleTheme }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
 };
 
+// 使用主题的钩子
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {

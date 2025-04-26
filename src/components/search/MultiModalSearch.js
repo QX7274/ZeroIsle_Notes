@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -12,27 +11,47 @@ import {
   PermissionsAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  search,
+  setSearchMode,
+  selectSearchMode,
+  selectIsLoading,
+  selectError,
+} from '../../redux/slices/searchSlice';
+import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { SPACING } from '../../utils/constants/dimensions';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
-import { searchApi } from '../../services';
+import SearchSuggestions from './SearchSuggestions';
 
 const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
   const { theme } = useTheme();
-  const [searchMode, setSearchMode] = useState('text');
+  const { colors, dimensions } = theme;
+  const dispatch = useDispatch();
+
+  // 从Redux获取状态
+  const reduxSearchMode = useSelector(selectSearchMode);
+  const isLoading = useSelector(selectIsLoading);
+  const reduxError = useSelector(selectError);
+
+  // 本地状态
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  
+  const [localError, setLocalError] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // 引用
   const searchInputRef = useRef(null);
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
   const recordingTimerRef = useRef(null);
   const recordingPathRef = useRef('');
+
+  // 合并错误
+  const error = localError || reduxError;
 
   // 权限检查
   const checkAudioPermission = async () => {
@@ -89,7 +108,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
       recordingPathRef.current = path;
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
@@ -108,7 +127,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
 
       await audioRecorderPlayer.current.stopRecorder();
       audioRecorderPlayer.current.removeRecordBackListener();
-      
+
       setIsRecording(false);
 
       if (recordingDuration < 1) {
@@ -126,38 +145,53 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
   // 处理搜索
   const handleSearch = async () => {
     if (isLoading) return;
-    
-    setIsLoading(true);
-    setError(null);
+
+    setLocalError(null);
+    setShowSuggestions(false);
 
     try {
-      let result;
-      
-      switch (searchMode) {
+      const searchData = {
+        mode: reduxSearchMode,
+      };
+
+      switch (reduxSearchMode) {
         case 'text':
           if (!searchQuery.trim()) throw new Error('请输入搜索内容');
-          result = await searchApi.textSearch(searchQuery.trim());
+          searchData.query = searchQuery.trim();
           break;
-          
+
         case 'voice':
           if (!recordingPathRef.current) throw new Error('没有录音文件');
           const audioData = await RNFS.readFile(recordingPathRef.current, 'base64');
-          result = await searchApi.voiceSearch(audioData);
+          searchData.audioBase64 = audioData;
           break;
-          
+
         case 'image':
           if (!selectedImage) throw new Error('没有选择图片');
           const imageData = await RNFS.readFile(selectedImage.uri, 'base64');
-          result = await searchApi.imageSearch(imageData);
+          searchData.imageBase64 = imageData;
           break;
+
+        default:
+          throw new Error('不支持的搜索模式');
       }
 
-      onSearch?.(result.data);
+      // 分发搜索Action
+      const resultAction = await dispatch(search(searchData));
+
+      if (search.fulfilled.match(resultAction)) {
+        onSearch?.(resultAction.payload);
+      }
     } catch (err) {
-      setError(err.message || '搜索失败');
-    } finally {
-      setIsLoading(false);
+      setLocalError(err.message || '搜索失败');
     }
+  };
+
+  // 处理建议点击
+  const handleSuggestionPress = (suggestion) => {
+    setSearchQuery(suggestion);
+    setShowSuggestions(false);
+    setTimeout(() => handleSearch(), 100);
   };
 
   // 取消操作
@@ -168,15 +202,18 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
 
   // 切换搜索模式
   const switchSearchMode = (mode) => {
-    if (mode === searchMode) return;
-    
-    if (searchMode === 'voice' && isRecording) {
+    if (mode === reduxSearchMode) return;
+
+    if (reduxSearchMode === 'voice' && isRecording) {
       stopRecording();
     }
-    
-    setSearchMode(mode);
-    setError(null);
-    
+
+    // 更新Redux状态
+    dispatch(setSearchMode(mode));
+
+    setLocalError(null);
+    setShowSuggestions(false);
+
     if (mode === 'text') {
       setTimeout(() => searchInputRef.current?.focus(), 100);
     } else {
@@ -195,8 +232,8 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
     };
 
     try {
-      const result = source === 'camera' 
-        ? await launchCamera(options) 
+      const result = source === 'camera'
+        ? await launchCamera(options)
         : await launchImageLibrary(options);
 
       if (result.didCancel) return;
@@ -223,18 +260,30 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
     <View style={styles.textSearchContainer}>
       <TextInput
         ref={searchInputRef}
-        style={[styles.searchInput, { color: theme.text, borderColor: theme.border }]}
+        style={[
+          styles.searchInput,
+          {
+            color: colors.text,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+          }
+        ]}
         placeholder="搜索笔记、标签、内容..."
-        placeholderTextColor={theme.textSecondary}
+        placeholderTextColor={colors.textSecondary}
         value={searchQuery}
-        onChangeText={setSearchQuery}
+        onChangeText={(text) => {
+          setSearchQuery(text);
+          setShowSuggestions(text.length >= 2);
+        }}
         onSubmitEditing={handleSearch}
+        onFocus={() => setShowSuggestions(searchQuery.length >= 2)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         returnKeyType="search"
         autoCapitalize="none"
       />
-      
+
       <TouchableOpacity
-        style={[styles.searchButton, { backgroundColor: theme.primary }]}
+        style={[styles.searchButton, { backgroundColor: colors.primary }]}
         onPress={handleSearch}
         disabled={isLoading}
       >
@@ -244,6 +293,12 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
           <Icon name="search" size={24} color="#FFFFFF" />
         )}
       </TouchableOpacity>
+
+      <SearchSuggestions
+        query={searchQuery}
+        onSuggestionPress={handleSuggestionPress}
+        visible={showSuggestions}
+      />
     </View>
   );
 
@@ -252,24 +307,39 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
     <View style={styles.voiceSearchContainer}>
       <View style={styles.recordingInfo}>
         {isRecording ? (
-          <Text style={[styles.recordingText, { color: theme.error }]}>
+          <Text
+            variant="body"
+            size="medium"
+            color="error"
+            center
+          >
             正在录音... {formatRecordingTime(recordingDuration)}
           </Text>
         ) : recordingPathRef.current ? (
-          <Text style={[styles.recordingText, { color: theme.text }]}>
+          <Text
+            variant="body"
+            size="medium"
+            color="text"
+            center
+          >
             录音完成 ({formatRecordingTime(recordingDuration)})
           </Text>
         ) : (
-          <Text style={[styles.recordingText, { color: theme.textSecondary }]}>
+          <Text
+            variant="body"
+            size="medium"
+            color="hint"
+            center
+          >
             点击麦克风图标开始录音
           </Text>
         )}
       </View>
-      
+
       <TouchableOpacity
         style={[
           styles.recordButton,
-          isRecording ? { backgroundColor: theme.error } : { backgroundColor: theme.primary },
+          isRecording ? { backgroundColor: colors.error } : { backgroundColor: colors.primary },
         ]}
         onPress={isRecording ? stopRecording : startRecording}
         disabled={isLoading}
@@ -280,6 +350,20 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
           <Icon name={isRecording ? 'stop' : 'mic'} size={32} color="#FFFFFF" />
         )}
       </TouchableOpacity>
+
+      {recordingPathRef.current && (
+        <TouchableOpacity
+          style={[styles.searchButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+          onPress={handleSearch}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Icon name="search" size={24} color="#FFFFFF" />
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -294,27 +378,63 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
             resizeMode="contain"
           />
           <TouchableOpacity
-            style={[styles.removeImageButton, { backgroundColor: theme.error }]}
+            style={[styles.removeImageButton, { backgroundColor: colors.error }]}
             onPress={() => setSelectedImage(null)}
           >
             <Icon name="close" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.searchButton,
+              {
+                backgroundColor: colors.primary,
+                position: 'absolute',
+                bottom: 16,
+                right: 16,
+              }
+            ]}
+            onPress={handleSearch}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Icon name="search" size={24} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.imageSourceButtons}>
           <TouchableOpacity
-            style={[styles.imageSourceButton, { backgroundColor: theme.primary }]}
+            style={[styles.imageSourceButton, { backgroundColor: colors.primary }]}
             onPress={() => selectImage('camera')}
           >
             <Icon name="camera-alt" size={24} color="#FFFFFF" />
-            <Text style={styles.imageSourceButtonText}>拍照</Text>
+            <Text
+              variant="body"
+              size="small"
+              color="card"
+              center
+              style={styles.imageSourceButtonText}
+            >
+              拍照
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.imageSourceButton, { backgroundColor: theme.primary }]}
+            style={[styles.imageSourceButton, { backgroundColor: colors.primary }]}
             onPress={() => selectImage('gallery')}
           >
             <Icon name="photo-library" size={24} color="#FFFFFF" />
-            <Text style={styles.imageSourceButtonText}>从相册选择</Text>
+            <Text
+              variant="body"
+              size="small"
+              color="card"
+              center
+              style={styles.imageSourceButtonText}
+            >
+              从相册选择
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -322,25 +442,25 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.cancelButton}
           onPress={handleCancel}
           disabled={isLoading}
         >
-          <Icon name="arrow-back" size={24} color={theme.text} />
+          <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        
+
         <View style={styles.searchModeButtons}>
           {['text', 'voice', 'image'].map((mode) => (
             <TouchableOpacity
               key={mode}
               style={[
                 styles.searchModeButton,
-                searchMode === mode && [
+                reduxSearchMode === mode && [
                   styles.activeSearchModeButton,
-                  { borderBottomColor: theme.primary },
+                  { borderBottomColor: colors.primary },
                 ],
               ]}
               onPress={() => switchSearchMode(mode)}
@@ -352,23 +472,30 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
                   mode === 'voice' ? 'mic' : 'image-search'
                 }
                 size={24}
-                color={searchMode === mode ? theme.primary : theme.textSecondary}
+                color={reduxSearchMode === mode ? colors.primary : colors.textSecondary}
               />
             </TouchableOpacity>
           ))}
         </View>
       </View>
-      
+
       <View style={styles.searchContainer}>
-        {searchMode === 'text' && renderTextSearch()}
-        {searchMode === 'voice' && renderVoiceSearch()}
-        {searchMode === 'image' && renderImageSearch()}
+        {reduxSearchMode === 'text' && renderTextSearch()}
+        {reduxSearchMode === 'voice' && renderVoiceSearch()}
+        {reduxSearchMode === 'image' && renderImageSearch()}
       </View>
-      
+
       {error && (
-        <View style={[styles.errorContainer, { backgroundColor: theme.error + '20' }]}>
-          <Icon name="error" size={20} color={theme.error} />
-          <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
+        <View style={[styles.errorContainer, { backgroundColor: colors.errorLight }]}>
+          <Icon name="error" size={20} color={colors.error} />
+          <Text
+            variant="body"
+            size="small"
+            color="error"
+            style={styles.errorText}
+          >
+            {error}
+          </Text>
         </View>
       )}
     </View>

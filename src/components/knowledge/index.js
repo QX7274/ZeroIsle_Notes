@@ -7,10 +7,23 @@ import GraphVisualization from './GraphVisualization';
 import PathVisualization from './PathVisualization';
 import StructureAnalysis from './StructureAnalysis';
 import RelatedConceptsView from './RelatedConceptsView';
+import NodeEditor from './NodeEditor';
+import EdgeEditor from './EdgeEditor';
 
 export {
   GraphVisualization,
   PathVisualization,
   StructureAnalysis,
   RelatedConceptsView,
+  NodeEditor,
+  EdgeEditor,
+};
+
+export default {
+  GraphVisualization,
+  PathVisualization,
+  StructureAnalysis,
+  RelatedConceptsView,
+  NodeEditor,
+  EdgeEditor,
 };

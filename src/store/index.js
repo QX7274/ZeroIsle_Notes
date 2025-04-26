@@ -1,28 +1,57 @@
-import { createStore, combineReducers, applyMiddleware } from 'redux';
-import thunk from 'redux-thunk';
+/**
+ * Redux存储配置
+ */
+import { configureStore } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { combineReducers } from 'redux';
 
-// 导入reducers
-import notesReducer from './reducers/notesReducer';
+// 导入切片
+import authReducer from './slices/authSlice';
+import notesReducer from './slices/notesSlice';
+import aiAssistantReducer from './slices/aiAssistantSlice';
+
+// 导入旧的reducers（保持兼容性）
 import userReducer from './reducers/userReducer';
 import settingsReducer from './reducers/settingsReducer';
 import remindersReducer from './reducers/remindersReducer';
 
+// 持久化配置
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['notes', 'user', 'settings', 'reminders']
+  whitelist: ['auth', 'user', 'settings', 'reminders', 'aiAssistant'], // 持久化的状态
 };
 
+// 合并所有reducer
 const rootReducer = combineReducers({
+  // 新的切片
+  auth: authReducer,
   notes: notesReducer,
+  aiAssistant: aiAssistantReducer,
+
+  // 旧的reducers（保持兼容性）
   user: userReducer,
   settings: settingsReducer,
-  reminders: remindersReducer
+  reminders: remindersReducer,
 });
 
+// 创建持久化reducer
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
-export const store = createStore(persistedReducer, applyMiddleware(thunk));
-export const persistor = persistStore(store); 
+// 创建存储
+export const store = configureStore({
+  reducer: persistedReducer,
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        // 忽略redux-persist的非序列化操作
+        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+      },
+    }),
+});
+
+// 创建持久化存储
+export const persistor = persistStore(store);
+
+export default { store, persistor };

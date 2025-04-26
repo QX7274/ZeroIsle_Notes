@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { SPACING } from '../../utils/constants/dimensions';
 import { Card } from '../common';
 
 /**
@@ -27,13 +26,13 @@ const SearchResults = ({
 }) => {
   const { theme } = useTheme();
   const [activeFilter, setActiveFilter] = useState('all');
-  
+
   // 过滤结果
   const filteredResults = results.filter((result) => {
     if (activeFilter === 'all') return true;
     return result.type === activeFilter;
   });
-  
+
   // 处理过滤器变化
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
@@ -41,7 +40,7 @@ const SearchResults = ({
       onFilterChange(filter);
     }
   };
-  
+
   // 处理结果点击
   const handleResultPress = (result) => {
     if (onResultPress) {
@@ -63,7 +62,7 @@ const SearchResults = ({
       }
     }
   };
-  
+
   // 获取结果图标
   const getResultIcon = (type) => {
     switch (type) {
@@ -77,7 +76,7 @@ const SearchResults = ({
         return 'help';
     }
   };
-  
+
   // 获取结果类型标签
   const getResultTypeLabel = (type) => {
     switch (type) {
@@ -91,7 +90,7 @@ const SearchResults = ({
         return type;
     }
   };
-  
+
   // 渲染过滤器
   const renderFilters = () => (
     <View style={styles.filtersContainer}>
@@ -115,7 +114,7 @@ const SearchResults = ({
             全部
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.filterButton,
@@ -140,7 +139,7 @@ const SearchResults = ({
             笔记
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.filterButton,
@@ -165,7 +164,7 @@ const SearchResults = ({
             标签
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[
             styles.filterButton,
@@ -193,7 +192,7 @@ const SearchResults = ({
       </ScrollView>
     </View>
   );
-  
+
   // 渲染结果项
   const renderResultItem = ({ item }) => (
     <TouchableOpacity onPress={() => handleResultPress(item)}>
@@ -205,16 +204,16 @@ const SearchResults = ({
               {getResultTypeLabel(item.type)}
             </Text>
           </View>
-          
+
           <Text style={[styles.resultDate, { color: theme.textSecondary }]}>
             {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
           </Text>
         </View>
-        
+
         <Text style={[styles.resultTitle, { color: theme.text }]}>
           {item.title}
         </Text>
-        
+
         {item.preview && (
           <Text
             style={[styles.resultPreview, { color: theme.textSecondary }]}
@@ -223,7 +222,7 @@ const SearchResults = ({
             {item.preview}
           </Text>
         )}
-        
+
         {item.matchedText && (
           <View style={[styles.matchContainer, { backgroundColor: theme.primary + '10' }]}>
             <Text style={[styles.matchLabel, { color: theme.primary }]}>
@@ -234,7 +233,7 @@ const SearchResults = ({
             </Text>
           </View>
         )}
-        
+
         {item.tags && item.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {item.tags.slice(0, 3).map((tag, index) => (
@@ -247,7 +246,7 @@ const SearchResults = ({
                 </Text>
               </View>
             ))}
-            
+
             {item.tags.length > 3 && (
               <Text style={[styles.moreTagsText, { color: theme.textSecondary }]}>
                 +{item.tags.length - 3}
@@ -255,7 +254,7 @@ const SearchResults = ({
             )}
           </View>
         )}
-        
+
         {item.relevance && (
           <View style={styles.relevanceContainer}>
             <Text style={[styles.relevanceLabel, { color: theme.textSecondary }]}>
@@ -277,7 +276,7 @@ const SearchResults = ({
       </Card>
     </TouchableOpacity>
   );
-  
+
   // 渲染加载状态
   if (isLoading) {
     return (
@@ -289,7 +288,7 @@ const SearchResults = ({
       </View>
     );
   }
-  
+
   // 渲染错误状态
   if (error) {
     return (
@@ -304,7 +303,7 @@ const SearchResults = ({
       </View>
     );
   }
-  
+
   // 渲染空结果
   if (results.length === 0) {
     return (
@@ -319,12 +318,12 @@ const SearchResults = ({
       </View>
     );
   }
-  
+
   // 渲染结果列表
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {renderFilters()}
-      
+
       <FlatList
         data={filteredResults}
         renderItem={renderResultItem}

@@ -10,9 +10,13 @@ import Loading from './Loading';
 import Toast from './Toast';
 import Modal from './Modal';
 import RichTextEditor from './RichTextEditor';
+import EnhancedRichTextEditor from './EnhancedRichTextEditor';
+import MarkdownPreview from './MarkdownPreview';
 import TagSelector from './TagSelector';
 import CategorySelector from './CategorySelector';
 import NoteShareDialog from './NoteShareDialog';
+
+import OfflineIndicator from './OfflineIndicator';
 
 export {
   Button,
@@ -22,7 +26,10 @@ export {
   Toast,
   Modal,
   RichTextEditor,
+  EnhancedRichTextEditor,
+  MarkdownPreview,
   TagSelector,
   CategorySelector,
   NoteShareDialog,
+  OfflineIndicator,
 };

@@ -1,213 +1,303 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
-  FlatList,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { loadNotes, addNote, updateNote, deleteNote } from '../store/slices/noteSlice';
-import { offlineStorageService } from '../services/offlineStorage';
-import { analyticsService } from '../services/analytics';
-import Icon from 'react-native-vector-icons/Ionicons';
+import {
+  fetchNotes,
+  fetchCategories,
+  fetchTags,
+  createNote,
+  updateNote,
+  deleteNote
+} from '../store/slices/notesSlice';
+import { NoteList, NoteEditor, NoteDetail } from '../components/notes';
+import { Button } from '../components/common';
+import { Text } from '../components/common/Typography';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
-const NoteScreen = () => {
+const NoteScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
+  const { colors } = theme;
   const dispatch = useDispatch();
-  const notes = useSelector(state => state.note.notes);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
-  const [noteContent, setNoteContent] = useState('');
-  const [noteTitle, setNoteTitle] = useState('');
 
+  // 从Redux获取状态
+  const notes = useSelector(state => state.notes.notes);
+  const categories = useSelector(state => state.notes.categories);
+  const tags = useSelector(state => state.notes.tags);
+  const currentNote = useSelector(state => state.notes.currentNote);
+  const isLoading = useSelector(state => state.notes.isLoading);
+  const error = useSelector(state => state.notes.error);
+
+  // 本地状态
+  const [view, setView] = useState('list'); // list, detail, edit
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [layout, setLayout] = useState('list'); // list, grid
+
+  // 初始化
   useEffect(() => {
-    init();
-    return () => {
-      // 清理工作
-    };
-  }, []);
+    loadData();
 
-  const init = async () => {
-    try {
-      setLoading(true);
-      await offlineStorageService.init();
-      await loadLocalNotes();
-    } catch (error) {
-      console.error('初始化失败:', error);
-      analyticsService.trackError(error, { operation: 'init' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadLocalNotes = async () => {
-    try {
-      const localNotes = await offlineStorageService.getNotes();
-      dispatch(loadNotes(localNotes));
-    } catch (error) {
-      console.error('加载本地笔记失败:', error);
-      analyticsService.trackError(error, { operation: 'load_local_notes' });
-    }
-  };
-
-  const handleSaveNote = async () => {
-    if (!noteTitle.trim()) {
-      Alert.alert('错误', '请输入笔记标题');
-      return;
-    }
-
-    try {
-      setSyncing(true);
-      const note = {
-        id: editingNote?.id || Date.now().toString(),
-        title: noteTitle,
-        content: noteContent,
-        createdAt: editingNote?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (editingNote) {
-        await dispatch(updateNote(note)).unwrap();
-      } else {
-        await dispatch(addNote(note)).unwrap();
+    // 如果有路由参数，处理它们
+    if (route.params) {
+      if (route.params.noteId) {
+        handleViewNote({ id: route.params.noteId });
       }
-
-      await offlineStorageService.saveNote(note);
-      setEditingNote(null);
-      setNoteTitle('');
-      setNoteContent('');
-      analyticsService.trackNoteAction(editingNote ? 'update' : 'create', note.id);
-    } catch (error) {
-      Alert.alert('错误', '保存笔记失败');
-      analyticsService.trackError(error, { operation: 'save_note' });
-    } finally {
-      setSyncing(false);
     }
-  };
+  }, [dispatch, route.params]);
 
-  const handleDeleteNote = async (note) => {
+  // 加载数据
+  const loadData = async () => {
     try {
-      setSyncing(true);
-      await dispatch(deleteNote(note.id)).unwrap();
-      await offlineStorageService.deleteNote(note.id);
-      analyticsService.trackNoteAction('delete', note.id);
+      // 获取笔记列表
+      dispatch(fetchNotes());
+
+      // 获取分类和标签
+      dispatch(fetchCategories());
+      dispatch(fetchTags());
     } catch (error) {
-      Alert.alert('错误', '删除笔记失败');
-      analyticsService.trackError(error, { operation: 'delete_note' });
-    } finally {
-      setSyncing(false);
+      console.error('加载数据失败:', error);
     }
   };
 
-  const handleEditNote = (note) => {
-    setEditingNote(note);
-    setNoteTitle(note.title);
-    setNoteContent(note.content);
+  // 刷新数据
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
-  const renderNote = ({ item }) => (
-    <View style={[styles.noteItem, { backgroundColor: theme.cardBackground }]}>
-      <View style={styles.noteInfo}>
-        <Text style={[styles.noteTitle, { color: theme.text }]}>{item.title}</Text>
-        <Text style={[styles.noteDate, { color: theme.textSecondary }]}>
-          {new Date(item.updatedAt).toLocaleString()}
-        </Text>
-      </View>
-      <View style={styles.noteActions}>
-        <TouchableOpacity
-          onPress={() => handleEditNote(item)}
-          style={[styles.editButton, { backgroundColor: theme.primary }]}
-        >
-          <Icon name="pencil" size={20} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleDeleteNote(item)}
-          style={[styles.deleteButton, { backgroundColor: theme.error }]}
-        >
-          <Icon name="trash" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  // 查看笔记详情
+  const handleViewNote = (note) => {
+    setSelectedNote(note);
+    setView('detail');
 
-  if (loading) {
+    // 更新导航标题
+    navigation.setOptions({
+      title: note.title || '笔记详情',
+    });
+  };
+
+  // 编辑笔记
+  const handleEditNote = (note) => {
+    setSelectedNote(note);
+    setView('edit');
+
+    // 更新导航标题
+    navigation.setOptions({
+      title: note ? '编辑笔记' : '新建笔记',
+    });
+  };
+
+  // 创建新笔记
+  const handleCreateNote = () => {
+    setSelectedNote(null);
+    setView('edit');
+
+    // 更新导航标题
+    navigation.setOptions({
+      title: '新建笔记',
+    });
+  };
+
+  // 保存笔记
+  const handleSaveNote = async (note) => {
+    try {
+      if (note.id) {
+        // 更新笔记
+        await dispatch(updateNote({
+          id: note.id,
+          noteData: note,
+        })).unwrap();
+
+        // 更新成功后返回详情页
+        handleViewNote(note);
+      } else {
+        // 创建笔记
+        const result = await dispatch(createNote(note)).unwrap();
+
+        // 创建成功后返回详情页
+        if (result) {
+          handleViewNote(result);
+        } else {
+          // 返回列表页
+          handleBackToList();
+        }
+      }
+    } catch (error) {
+      Alert.alert('错误', error.message || '保存笔记失败');
+    }
+  };
+
+  // 删除笔记
+  const handleDeleteNote = (note) => {
+    Alert.alert(
+      '确认删除',
+      `确定要删除笔记"${note.title}"吗？此操作不可恢复。`,
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteNote(note.id)).unwrap();
+
+              // 删除成功后返回列表页
+              handleBackToList();
+
+              // 显示成功提示
+              Alert.alert('提示', '笔记已删除');
+            } catch (error) {
+              Alert.alert('错误', error.message || '删除笔记失败');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 返回列表页
+  const handleBackToList = () => {
+    setView('list');
+    setSelectedNote(null);
+
+    // 更新导航标题
+    navigation.setOptions({
+      title: '笔记',
+    });
+  };
+
+  // 切换布局
+  const toggleLayout = () => {
+    setLayout(layout === 'list' ? 'grid' : 'list');
+  };
+
+  // 渲染加载状态
+  if (isLoading && notes.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {syncing && (
-        <View style={styles.syncIndicator}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.syncText, { color: theme.text }]}>同步中...</Text>
+  // 渲染错误状态
+  if (error && notes.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={64} color={colors.error} />
+          <Text
+            variant="body"
+            size="large"
+            color="error"
+            center
+            style={styles.errorText}
+          >
+            {error}
+          </Text>
+          <Button
+            title="重试"
+            onPress={loadData}
+            type="outline"
+            style={styles.retryButton}
+          />
         </View>
-      )}
-      
-      {editingNote ? (
-        <ScrollView style={styles.editorContainer}>
-          <TextInput
-            style={[styles.titleInput, { color: theme.text }]}
-            placeholder="输入标题"
-            placeholderTextColor={theme.textSecondary}
-            value={noteTitle}
-            onChangeText={setNoteTitle}
-          />
-          <TextInput
-            style={[styles.contentInput, { color: theme.text }]}
-            placeholder="输入内容"
-            placeholderTextColor={theme.textSecondary}
-            value={noteContent}
-            onChangeText={setNoteContent}
-            multiline
-          />
-          <View style={styles.editorActions}>
-            <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: theme.primary }]}
-              onPress={handleSaveNote}
-            >
-              <Text style={styles.buttonText}>保存</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: theme.error }]}
-              onPress={() => {
-                setEditingNote(null);
-                setNoteTitle('');
-                setNoteContent('');
-              }}
-            >
-              <Text style={styles.buttonText}>取消</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      ) : (
-        <>
-          <FlatList
-            data={notes}
-            renderItem={renderNote}
-            keyExtractor={item => item.id.toString()}
-            contentContainerStyle={styles.listContainer}
-          />
-          <View style={styles.addButtonContainer}>
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.primary }]}
-              onPress={() => setEditingNote({})}
-            >
-              <Icon name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+      </View>
+    );
+  }
+
+  // 渲染笔记列表
+  if (view === 'list') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <NoteList
+          notes={notes}
+          onNotePress={handleViewNote}
+          onEditPress={handleEditNote}
+          onDeletePress={handleDeleteNote}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          loading={isLoading}
+          layout={layout}
+          emptyText="暂无笔记，点击右下角按钮创建"
+        />
+
+        {/* 浮动按钮 */}
+        <View style={styles.fabContainer}>
+          <Button
+            title=""
+            onPress={toggleLayout}
+            style={[styles.layoutButton, { backgroundColor: colors.card }]}
+            textStyle={{ color: colors.text }}
+            size="small"
+          >
+            <Icon
+              name={layout === 'list' ? 'grid-view' : 'view-list'}
+              size={24}
+              color={colors.text}
+            />
+          </Button>
+
+          <Button
+            title=""
+            onPress={handleCreateNote}
+            style={styles.addButton}
+            size="large"
+          >
+            <Icon name="add" size={24} color={colors.card} />
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  // 渲染笔记详情
+  if (view === 'detail') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <NoteDetail
+          note={selectedNote}
+          onEdit={() => handleEditNote(selectedNote)}
+          onDelete={() => handleDeleteNote(selectedNote)}
+          onBack={handleBackToList}
+          relatedNotes={[]} // 相关笔记，可以从API获取
+          onRelatedNotePress={handleViewNote}
+        />
+      </View>
+    );
+  }
+
+  // 渲染笔记编辑器
+  if (view === 'edit') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <NoteEditor
+          note={selectedNote}
+          onSave={handleSaveNote}
+          onCancel={handleBackToList}
+          categories={categories}
+          tags={tags}
+          loading={isLoading}
+        />
+      </View>
+    );
+  }
+
+  // 默认渲染
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 };
@@ -216,95 +306,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  syncIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-  },
-  syncText: {
-    marginLeft: 10,
-    fontSize: 14,
-  },
-  listContainer: {
-    padding: 16,
-  },
-  noteItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  noteInfo: {
+  errorContainer: {
     flex: 1,
-  },
-  noteTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  noteDate: {
-    fontSize: 12,
-  },
-  noteActions: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
-  editButton: {
-    padding: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  deleteButton: {
-    padding: 8,
-    borderRadius: 4,
-  },
-  editorContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  titleInput: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  contentInput: {
-    fontSize: 16,
-    minHeight: 200,
-    textAlignVertical: 'top',
-  },
-  editorActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  errorText: {
     marginTop: 16,
+    marginBottom: 24,
   },
-  saveButton: {
-    padding: 12,
-    borderRadius: 4,
-    flex: 1,
-    marginRight: 8,
+  retryButton: {
+    minWidth: 120,
   },
-  cancelButton: {
-    padding: 12,
-    borderRadius: 4,
-    flex: 1,
-  },
-  buttonText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  addButtonContainer: {
+  fabContainer: {
     position: 'absolute',
     bottom: 16,
     right: 16,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  layoutButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   addButton: {
     width: 56,
@@ -312,12 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
 });
 
-export default NoteScreen; 
+export default NoteScreen;
