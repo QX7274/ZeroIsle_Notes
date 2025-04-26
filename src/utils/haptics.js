@@ -3,7 +3,7 @@
  * 提供触感反馈功能
  */
 import { Platform } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { Haptics, ImpactFeedbackStyle, NotificationFeedbackType, isExpoAvailable } from './expoCompatibility';
 
 /**
  * 轻触反馈
@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
  */
 export const lightFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(ImpactFeedbackStyle.Light);
   }
 };
 
@@ -21,7 +21,7 @@ export const lightFeedback = () => {
  */
 export const mediumFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(ImpactFeedbackStyle.Medium);
   }
 };
 
@@ -31,7 +31,7 @@ export const mediumFeedback = () => {
  */
 export const heavyFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Haptics.impactAsync(ImpactFeedbackStyle.Heavy);
   }
 };
 
@@ -41,7 +41,7 @@ export const heavyFeedback = () => {
  */
 export const successFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(NotificationFeedbackType.Success);
   }
 };
 
@@ -51,7 +51,7 @@ export const successFeedback = () => {
  */
 export const warningFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Haptics.notificationAsync(NotificationFeedbackType.Warning);
   }
 };
 
@@ -61,7 +61,7 @@ export const warningFeedback = () => {
  */
 export const errorFeedback = () => {
   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Haptics.notificationAsync(NotificationFeedbackType.Error);
   }
 };
 

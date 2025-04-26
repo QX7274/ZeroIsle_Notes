@@ -6,10 +6,11 @@ import React, { useEffect } from 'react';
 import { StatusBar, Platform, LogBox } from 'react-native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from './store';
+import { store, persistor } from './store/index';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
+import { NavigationContainer } from '@react-navigation/native';
 
 // 导入导航
 import AppNavigator from './navigation/AppNavigator';
@@ -48,7 +49,9 @@ const AppContainer = () => {
         backgroundColor={theme.colors.background}
         translucent
       />
-      <AppNavigator />
+      <NavigationContainer ref={navigationRef}>
+        <AppNavigator />
+      </NavigationContainer>
     </PaperProvider>
   );
 };

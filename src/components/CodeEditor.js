@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   Text,
   Platform,
-  Picker,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '../context/ThemeContext';
 import { codeService } from '../services/codeService';
 import { analyticsService } from '../services/analytics';
@@ -55,7 +55,7 @@ const CodeEditor = ({
   const handleLanguageChange = (newLanguage) => {
     setLanguage(newLanguage);
     onLanguageChange?.(newLanguage);
-    
+
     analyticsService.trackCodeAction('change_language', {
       fromLanguage: language,
       toLanguage: newLanguage,
@@ -65,7 +65,7 @@ const CodeEditor = ({
   const handleCodeChange = async (text) => {
     setCode(text);
     onCodeChange?.(text);
-    
+
     // 检测代码并获取建议
     try {
       const result = await codeService.detectCode(text, language);
@@ -87,7 +87,7 @@ const CodeEditor = ({
       const completedCode = await codeService.completeCode(code, language);
       setCode(completedCode);
       setShowSuggestions(false);
-      
+
       analyticsService.trackCodeAction('use_suggestion', {
         language,
         suggestionType: suggestion.type,
@@ -101,7 +101,7 @@ const CodeEditor = ({
     try {
       const formattedCode = await codeService.formatCode(code, language);
       setCode(formattedCode);
-      
+
       analyticsService.trackCodeAction('format_code', {
         language,
         codeLength: code.length,
@@ -259,4 +259,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CodeEditor; 
+export default CodeEditor;

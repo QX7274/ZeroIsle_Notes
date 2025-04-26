@@ -12,6 +12,7 @@ import uiReducer from './slices/uiSlice';
 import knowledgeGraphReducer from './slices/knowledgeGraphSlice';
 import communityReducer from './slices/communitySlice';
 import searchReducer from './slices/searchSlice';
+import tagsReducer from './slices/tagsSlice';
 
 // 配置Redux存储
 const store = configureStore({
@@ -22,6 +23,7 @@ const store = configureStore({
     knowledgeGraph: knowledgeGraphReducer,
     community: communityReducer,
     search: searchReducer,
+    tags: tagsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

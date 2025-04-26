@@ -3,6 +3,7 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import AIAssistantModule from '../../native/AIAssistantModule';
 
 /**
  * 发送聊天消息
@@ -35,77 +36,31 @@ export const sendChatMessage = async (chatData) => {
  */
 export const sendStreamChatMessage = (chatData, onMessage, onComplete, onError) => {
   try {
-    const controller = new AbortController();
-    const { signal } = controller;
+    // 使用原生模块的流式响应
+    const streamController = AIAssistantModule.sendMessageStream(
+      chatData.message,
+      chatData.engine || 'local',
+      chatData.history || []
+    );
 
-    // 使用fetch API进行流式请求
-    fetch(`${instance.defaults.baseURL}${API_ENDPOINTS.AI_ASSISTANT.CHAT_STREAM}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': instance.defaults.headers.common['Authorization'],
-      },
-      body: JSON.stringify(chatData),
-      signal,
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`服务器响应错误: ${response.status}`);
-        }
-
-        if (!response.body) {
-          throw new Error('响应体为空');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        // 读取流
-        function read() {
-          reader.read().then(({ done, value }) => {
-            if (done) {
-              onComplete && onComplete(fullText);
-              return;
-            }
-
-            const chunk = decoder.decode(value, { stream: true });
-
-            // 处理SSE格式的数据
-            const lines = chunk.split('\n\n');
-            for (const line of lines) {
-              if (line.startsWith('data:')) {
-                try {
-                  const data = JSON.parse(line.substring(5).trim());
-                  if (data.text) {
-                    fullText = data.text;
-                    onMessage && onMessage(data.delta || '', fullText);
-                  }
-                } catch (e) {
-                  console.error('解析SSE数据失败:', e);
-                }
-              }
-            }
-
-            read();
-          }).catch(error => {
-            if (error.name === 'AbortError') {
-              console.log('流式请求已取消');
-            } else {
-              onError && onError(error);
-            }
-          });
-        }
-
-        read();
+    // 设置回调
+    streamController
+      .onMessage((content, fullText) => {
+        onMessage && onMessage(content, fullText);
       })
-      .catch(error => {
-        onError && onError(error);
+      .onComplete((fullText) => {
+        onComplete && onComplete(fullText);
+      })
+      .onError((error) => {
+        onError && onError(new Error(error));
       });
 
+    // 启动流式响应
+    streamController.start();
+
     return {
-      controller,
-      cancel: () => controller.abort(),
+      controller: streamController,
+      cancel: () => streamController.stop(),
     };
   } catch (error) {
     onError && onError(error);

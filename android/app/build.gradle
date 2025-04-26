@@ -227,32 +227,46 @@ configurations.all {
     }
 }
 
-// 添加特殊任务来处理libhermes.so文件的问题
-task createHermesLibs {
+// 添加特殊任务来处理缺失的.so文件问题
+task createPlaceholderLibs {
     doLast {
-        def hermesDir = new File("${buildDir}/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib")
-        if (!hermesDir.exists()) {
-            hermesDir.mkdirs()
+        def libsDir = new File("${buildDir}/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib")
+        if (!libsDir.exists()) {
+            libsDir.mkdirs()
         }
 
         ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"].each { arch ->
-            def archDir = new File(hermesDir, arch)
+            def archDir = new File(libsDir, arch)
             if (!archDir.exists()) {
                 archDir.mkdirs()
             }
 
-            def hermesFile = new File(archDir, "libhermes.so")
-            if (!hermesFile.exists()) {
-                hermesFile.createNewFile()
-                println "Created placeholder for ${hermesFile}"
+            // 创建可能缺失的库文件占位符
+            [
+                "libhermes.so",
+                "librrc_legacyviewmanagerinterop.so",
+                "librrc_image.so",
+                "librrc_text.so",
+                "librrc_view.so",
+                "libglog.so",
+                "libfbjni.so",
+                "libjsi.so",
+                "libreactnativejni.so",
+                "libfolly_runtime.so"
+            ].each { libName ->
+                def libFile = new File(archDir, libName)
+                if (!libFile.exists()) {
+                    libFile.createNewFile()
+                    println "Created placeholder for ${libFile}"
+                }
             }
         }
     }
 }
 
-// 确保在mergeDebugNativeLibs任务之前运行createHermesLibs任务
+// 确保在mergeDebugNativeLibs任务之前运行createPlaceholderLibs任务
 tasks.whenTaskAdded { task ->
-    if (task.name.contains('mergeDebugNativeLibs')) {
-        task.dependsOn createHermesLibs
+    if (task.name.contains('mergeDebugNativeLibs') || task.name.contains('stripDebugDebugSymbols')) {
+        task.dependsOn createPlaceholderLibs
     }
 }

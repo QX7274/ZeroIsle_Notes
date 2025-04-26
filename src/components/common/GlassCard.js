@@ -4,8 +4,20 @@
  */
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useTheme } from '../../context/ThemeContext';
+import { isExpoAvailable } from '../../utils/expoCompatibility';
+
+// 根据Expo可用性选择BlurView组件
+let BlurView;
+try {
+  // 尝试导入expo-blur
+  if (isExpoAvailable()) {
+    BlurView = require('expo-blur').BlurView;
+  }
+} catch (error) {
+  // BlurView不可用，将在渲染时使用后备方案
+  console.log('BlurView不可用，使用后备方案');
+}
 
 /**
  * 玻璃拟态卡片组件
@@ -75,8 +87,8 @@ const GlassCard = ({
 
   // 渲染卡片内容
   const renderContent = () => {
-    // 在iOS上使用BlurView
-    if (Platform.OS === 'ios') {
+    // 在iOS上使用BlurView（如果可用）
+    if (Platform.OS === 'ios' && isExpoAvailable() && BlurView) {
       return (
         <BlurView
           intensity={getIntensity()}
@@ -88,7 +100,7 @@ const GlassCard = ({
       );
     }
 
-    // 在Android上使用半透明背景
+    // 在Android上或BlurView不可用时使用半透明背景
     return (
       <View
         style={[

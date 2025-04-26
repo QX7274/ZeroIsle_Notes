@@ -3,11 +3,24 @@
  * 提供图像加载优化、缓存和渐进式加载
  */
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Animated, Platform } from 'react-native';
-import { Image } from 'expo-image';
+import { View, StyleSheet, Animated, Platform, Image as RNImage } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import * as FileSystem from 'expo-file-system';
-import * as Crypto from 'expo-crypto';
+import { FileSystem, Crypto, isExpoAvailable } from '../../utils/expoCompatibility';
+
+// 根据Expo可用性选择Image组件
+let Image;
+try {
+  // 尝试导入expo-image
+  if (isExpoAvailable()) {
+    Image = require('expo-image').Image;
+  } else {
+    // 使用React Native原生Image
+    Image = RNImage;
+  }
+} catch (error) {
+  // 使用React Native原生Image作为后备
+  Image = RNImage;
+}
 
 /**
  * 优化图像组件
@@ -37,12 +50,12 @@ const OptimizedImage = ({
 }) => {
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   const [imageOpacity] = useState(new Animated.Value(0));
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [cachedSource, setCachedSource] = useState(null);
-  
+
   // 处理图像源
   useEffect(() => {
     if (!source) {
@@ -50,7 +63,7 @@ const OptimizedImage = ({
       setIsLoading(false);
       return;
     }
-    
+
     // 如果是网络图像且启用了缓存，尝试从缓存加载
     if (cacheEnabled && typeof source === 'object' && source.uri && source.uri.startsWith('http')) {
       cacheImage(source.uri)
@@ -68,7 +81,7 @@ const OptimizedImage = ({
       setCachedSource(source);
     }
   }, [source, cacheEnabled]);
-  
+
   // 缓存图像
   const cacheImage = async (uri) => {
     try {
@@ -80,19 +93,19 @@ const OptimizedImage = ({
       const ext = uri.split('.').pop() || 'jpg';
       const cacheDir = `${FileSystem.cacheDirectory}images/`;
       const cacheFilePath = `${cacheDir}${hash}.${ext}`;
-      
+
       // 检查缓存目录是否存在
       const dirInfo = await FileSystem.getInfoAsync(cacheDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true });
       }
-      
+
       // 检查缓存文件是否存在
       const fileInfo = await FileSystem.getInfoAsync(cacheFilePath);
       if (fileInfo.exists) {
         return cacheFilePath;
       }
-      
+
       // 下载图像到缓存
       await FileSystem.downloadAsync(uri, cacheFilePath);
       return cacheFilePath;
@@ -101,11 +114,11 @@ const OptimizedImage = ({
       return null;
     }
   };
-  
+
   // 处理图像加载完成
   const handleLoad = () => {
     setIsLoading(false);
-    
+
     if (progressive) {
       Animated.timing(imageOpacity, {
         toValue: 1,
@@ -113,17 +126,17 @@ const OptimizedImage = ({
         useNativeDriver: true,
       }).start();
     }
-    
+
     onLoad && onLoad();
   };
-  
+
   // 处理图像加载失败
   const handleError = (error) => {
     setIsLoading(false);
     setIsError(true);
     onError && onError(error);
   };
-  
+
   // 渲染占位图
   const renderPlaceholder = () => {
     if (!placeholder) {
@@ -136,22 +149,30 @@ const OptimizedImage = ({
         />
       );
     }
-    
+
     return (
-      <Image
-        source={placeholder}
-        style={[styles.image, styles.placeholder]}
-        contentFit="cover"
-      />
+      isExpoAvailable() ? (
+        <Image
+          source={placeholder}
+          style={[styles.image, styles.placeholder]}
+          contentFit="cover"
+        />
+      ) : (
+        <Image
+          source={placeholder}
+          style={[styles.image, styles.placeholder]}
+          resizeMode="cover"
+        />
+      )
     );
   };
-  
+
   // 渲染图像
   return (
     <View style={[styles.container, style]}>
       {/* 占位图 */}
       {isLoading && renderPlaceholder()}
-      
+
       {/* 主图像 */}
       {cachedSource && !isError && (
         <Animated.View
@@ -160,26 +181,45 @@ const OptimizedImage = ({
             progressive ? { opacity: imageOpacity } : null,
           ]}
         >
-          <Image
-            source={cachedSource}
-            style={styles.image}
-            contentFit={resizeMode}
-            transition={progressive ? 300 : 0}
-            priority={priority}
-            onLoad={handleLoad}
-            onError={handleError}
-            {...props}
-          />
+          {isExpoAvailable() ? (
+            <Image
+              source={cachedSource}
+              style={styles.image}
+              contentFit={resizeMode}
+              transition={progressive ? 300 : 0}
+              priority={priority}
+              onLoad={handleLoad}
+              onError={handleError}
+              {...props}
+            />
+          ) : (
+            <Image
+              source={cachedSource}
+              style={styles.image}
+              resizeMode={resizeMode}
+              onLoad={handleLoad}
+              onError={handleError}
+              {...props}
+            />
+          )}
         </Animated.View>
       )}
-      
+
       {/* 加载失败图像 */}
       {isError && fallback && (
-        <Image
-          source={fallback}
-          style={styles.image}
-          contentFit="cover"
-        />
+        isExpoAvailable() ? (
+          <Image
+            source={fallback}
+            style={styles.image}
+            contentFit="cover"
+          />
+        ) : (
+          <Image
+            source={fallback}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        )
       )}
     </View>
   );

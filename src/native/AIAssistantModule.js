@@ -94,12 +94,27 @@ export default {
      * @returns {Object} - 包含流式响应控制器
      */
     sendMessageStream: (message, engine = ENGINE_LOCAL, history = []) => {
+        // 创建回调函数
+        let onMessageCallback = () => {};
+        let onCompleteCallback = () => {};
+        let onErrorCallback = () => {};
+        let intervalId = null;
+        let xhr = null;
+
         // 创建流式响应控制器
         const controller = {
-            eventSource: null,
-            onMessage: () => {},
-            onComplete: () => {},
-            onError: () => {},
+            onMessage: (callback) => {
+                onMessageCallback = callback;
+                return controller;
+            },
+            onComplete: (callback) => {
+                onCompleteCallback = callback;
+                return controller;
+            },
+            onError: (callback) => {
+                onErrorCallback = callback;
+                return controller;
+            },
             start: () => {
                 // 如果是本地引擎，使用模拟流式响应
                 if (engine === ENGINE_LOCAL) {
@@ -108,26 +123,27 @@ export default {
 
                     // 模拟流式响应
                     let index = 0;
-                    const interval = setInterval(() => {
+                    intervalId = setInterval(() => {
                         if (index < mockResponse.length) {
                             const char = mockResponse[index];
                             fullText += char;
-                            controller.onMessage(char, fullText);
+                            onMessageCallback(char, fullText);
                             index++;
                         } else {
-                            clearInterval(interval);
-                            controller.onComplete(fullText);
+                            clearInterval(intervalId);
+                            intervalId = null;
+                            onCompleteCallback(fullText);
                         }
                     }, 50);
 
-                    return;
+                    return controller;
                 }
 
-                // 使用EventSource连接后端流式响应
+                // 使用XMLHttpRequest连接后端流式响应
                 const url = getApiUrl('ai-assistant/chat/');
 
                 // 使用axios发送POST请求并获取流式响应
-                const xhr = new XMLHttpRequest();
+                xhr = new XMLHttpRequest();
                 xhr.open('POST', url);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.setRequestHeader('Accept', 'text/event-stream');
@@ -150,17 +166,17 @@ export default {
                                     const jsonData = JSON.parse(event.substring(6));
 
                                     if (jsonData.error) {
-                                        controller.onError(jsonData.error);
+                                        onErrorCallback(jsonData.error);
                                         return;
                                     }
 
                                     if (jsonData.done) {
-                                        controller.onComplete(jsonData.full_text);
+                                        onCompleteCallback(jsonData.full_text);
                                         return;
                                     }
 
                                     fullText = jsonData.full_text;
-                                    controller.onMessage(jsonData.content, fullText);
+                                    onMessageCallback(jsonData.content, fullText);
                                 } catch (e) {
                                     console.error('解析SSE数据失败:', e);
                                 }
@@ -169,13 +185,13 @@ export default {
                     } else if (xhr.readyState === 4) {
                         // 请求完成
                         if (xhr.status !== 200) {
-                            controller.onError(`请求失败: ${xhr.status}`);
+                            onErrorCallback(`请求失败: ${xhr.status}`);
                         }
                     }
                 };
 
                 xhr.onerror = function() {
-                    controller.onError('连接错误');
+                    onErrorCallback('连接错误');
                 };
 
                 // 发送请求
@@ -185,10 +201,17 @@ export default {
                     history: history,
                     stream: true
                 }));
+
+                return controller;
             },
             stop: () => {
-                if (controller.eventSource) {
-                    controller.eventSource.close();
+                if (intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+                if (xhr) {
+                    xhr.abort();
+                    xhr = null;
                 }
             }
         };
