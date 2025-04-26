@@ -60,7 +60,7 @@ const Input = ({
     {
       color: colors.text,
       marginBottom: dimensions.SPACING.XSMALL,
-      ...theme.typography.LABEL.MEDIUM,
+      ...theme.typography.LABEL.SMALL,
     },
     labelStyle,
   ];
@@ -88,35 +88,35 @@ const Input = ({
       textInputStyle.push({
         paddingHorizontal: dimensions.SPACING.SMALL,
         paddingVertical: dimensions.SPACING.XSMALL,
-        fontSize: dimensions.FONT_SIZE.SMALL,
+        fontSize: dimensions.FONT_SIZE.TINY,
       });
       break;
     case 'medium':
       textInputStyle.push({
         paddingHorizontal: dimensions.SPACING.MEDIUM,
         paddingVertical: dimensions.SPACING.SMALL,
-        fontSize: dimensions.FONT_SIZE.MEDIUM,
+        fontSize: dimensions.FONT_SIZE.SMALL,
       });
       break;
     case 'large':
       textInputStyle.push({
         paddingHorizontal: dimensions.SPACING.REGULAR,
         paddingVertical: dimensions.SPACING.MEDIUM,
-        fontSize: dimensions.FONT_SIZE.REGULAR,
+        fontSize: dimensions.FONT_SIZE.MEDIUM,
       });
       break;
     case 'xlarge':
       textInputStyle.push({
         paddingHorizontal: dimensions.SPACING.LARGE,
         paddingVertical: dimensions.SPACING.REGULAR,
-        fontSize: dimensions.FONT_SIZE.LARGE,
+        fontSize: dimensions.FONT_SIZE.REGULAR,
       });
       break;
     default:
       textInputStyle.push({
         paddingHorizontal: dimensions.SPACING.MEDIUM,
         paddingVertical: dimensions.SPACING.SMALL,
-        fontSize: dimensions.FONT_SIZE.MEDIUM,
+        fontSize: dimensions.FONT_SIZE.SMALL,
       });
   }
 
@@ -234,8 +234,11 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     position: 'absolute',
-    top: '50%',
-    transform: [{ translateY: -10 }],
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    display: 'flex',
   },
 });
 

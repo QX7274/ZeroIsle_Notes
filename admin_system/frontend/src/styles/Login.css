@@ -31,7 +31,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, #1890ff 0%, #52c41a 100%);
+  background: linear-gradient(135deg, #1E90FF 0%, #FFFFFF 100%);
   opacity: 0.8;
   z-index: -1;
   animation: gradientAnimation 10s ease infinite;
@@ -85,25 +85,25 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #1890ff, #52c41a);
+  background: linear-gradient(90deg, #1E90FF, #87CEFA);
   z-index: 1;
 }
 
 /* 登录头部 */
 .login-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 40px;
 }
 
 .login-logo {
   display: flex;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .login-logo img {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
 }
 
@@ -114,19 +114,19 @@
 
 /* 登录表单 */
 .login-button {
-  height: 40px;
-  font-size: 16px;
+  height: 36px;
+  font-size: 14px;
   margin-top: 10px;
-  background: linear-gradient(90deg, #1890ff, #52c41a);
+  background: linear-gradient(90deg, #1E90FF, #87CEFA);
   border: none;
-  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.3);
+  box-shadow: 0 2px 6px rgba(30, 144, 255, 0.3);
   transition: all 0.3s;
 }
 
 .login-button:hover {
-  background: linear-gradient(90deg, #40a9ff, #73d13d);
+  background: linear-gradient(90deg, #4169E1, #ADD8E6);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(30, 144, 255, 0.4);
 }
 
 .login-form-forgot {
@@ -140,7 +140,7 @@
 
 .login-divider-text {
   color: #8c8c8c;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .login-other-methods {
@@ -151,14 +151,46 @@
 }
 
 .login-other-methods button {
-  font-size: 24px;
+  font-size: 20px;
   color: #8c8c8c;
   transition: all 0.3s;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .login-other-methods button:hover {
   color: #1890ff;
   transform: scale(1.1);
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.login-other-methods .wechat-button,
+.login-other-methods .qq-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.login-other-methods .wechat-button:hover {
+  background-color: rgba(7, 193, 96, 0.1);
+}
+
+.login-other-methods .qq-button:hover {
+  background-color: rgba(18, 183, 245, 0.1);
+}
+
+.third-party-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 /* 登录页脚 */
@@ -169,7 +201,7 @@
 }
 
 .login-version {
-  font-size: 12px;
+  font-size: 10px;
   margin-top: 4px;
   font-family: monospace;
 }
@@ -182,7 +214,7 @@
   }
 
   .login-logo img {
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
   }
 }

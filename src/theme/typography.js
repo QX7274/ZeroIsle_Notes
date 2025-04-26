@@ -111,6 +111,13 @@ export const BODY = {
     fontWeight: FONT_WEIGHT.REGULAR,
     letterSpacing: 0.4,
   },
+  TINY: {
+    fontFamily: FONT_FAMILY.REGULAR,
+    fontSize: FONT_SIZE.TINY,
+    lineHeight: LINE_HEIGHT.TINY,
+    fontWeight: FONT_WEIGHT.REGULAR,
+    letterSpacing: 0.4,
+  },
 };
 
 // 按钮样式

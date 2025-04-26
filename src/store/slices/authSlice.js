@@ -2,7 +2,7 @@
  * 认证状态切片
  */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { authApi } from '../../services/api';
+import authApi from '../../services/api/authApi';
 import { setToken, setRefreshToken, setUser, clearAuth } from '../../services/storage';
 
 // 初始状态
@@ -20,13 +20,19 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
+      // 确保credentials对象存在且格式正确
+      if (!credentials || typeof credentials !== 'object') {
+        return rejectWithValue('登录信息不完整，请重试');
+      }
+
       const result = await authApi.login(credentials);
-      if (result.success) {
+      if (result && result.success) {
         return result.data;
       }
-      return rejectWithValue(result.message || '登录失败');
+      return rejectWithValue(result?.message || '登录失败，请检查用户名和密码');
     } catch (error) {
-      return rejectWithValue(error.message || '登录失败');
+      console.error('登录错误:', error);
+      return rejectWithValue(error?.message || '登录失败，请稍后重试');
     }
   }
 );

@@ -19,26 +19,26 @@ export const moderateScale = (size, factor = 0.5) => size + (scale(size) - size)
 
 // 字体大小
 export const FONT_SIZE = {
-  TINY: moderateScale(10),
-  SMALL: moderateScale(12),
-  MEDIUM: moderateScale(14),
-  REGULAR: moderateScale(16),
-  LARGE: moderateScale(18),
-  XLARGE: moderateScale(20),
-  XXLARGE: moderateScale(24),
-  XXXLARGE: moderateScale(30),
+  TINY: moderateScale(8),
+  SMALL: moderateScale(10),
+  MEDIUM: moderateScale(12),
+  REGULAR: moderateScale(14),
+  LARGE: moderateScale(16),
+  XLARGE: moderateScale(18),
+  XXLARGE: moderateScale(22),
+  XXXLARGE: moderateScale(26),
 };
 
 // 行高
 export const LINE_HEIGHT = {
-  TINY: moderateScale(14),
-  SMALL: moderateScale(18),
-  MEDIUM: moderateScale(20),
-  REGULAR: moderateScale(24),
-  LARGE: moderateScale(28),
-  XLARGE: moderateScale(30),
-  XXLARGE: moderateScale(36),
-  XXXLARGE: moderateScale(45),
+  TINY: moderateScale(12),
+  SMALL: moderateScale(15),
+  MEDIUM: moderateScale(18),
+  REGULAR: moderateScale(20),
+  LARGE: moderateScale(24),
+  XLARGE: moderateScale(26),
+  XXLARGE: moderateScale(32),
+  XXXLARGE: moderateScale(38),
 };
 
 // 间距

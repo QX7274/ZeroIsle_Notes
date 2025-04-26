@@ -71,11 +71,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
       >
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../../android/app/src/main/playstore.png')}
+            source={require('../../assets/images/login_logo.png')}
             style={styles.logo}
-            resizeMode="contain"
+            resizeMode="cover"
           />
-          <Text style={styles.appName}>零屿笔记</Text>
         </View>
 
         <View style={styles.formContainer}>
@@ -140,15 +139,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.XLARGE,
   },
   logo: {
-    width: 80,
-    height: 80,
+    width: 400,
+    height: 200,
     marginBottom: SPACING.MEDIUM,
   },
-  appName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#007AFF', // 使用固定颜色值
-  },
+
   formContainer: {
     width: '100%',
     maxWidth: 400,
@@ -181,7 +176,7 @@ const styles = StyleSheet.create({
   },
   linkContainer: {
     alignItems: 'center',
-    marginTop: SPACING.LARGE,
+    marginTop: SPACING.MEDIUM,
   },
   linkButton: {
     minWidth: 0,

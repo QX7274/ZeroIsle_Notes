@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, message, Typography, Space, Checkbox, Alert, Divider } from 'antd';
-import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined, WechatOutlined, QqOutlined } from '@ant-design/icons';
 import { login } from '../services/authService';
 import { Loading } from '../components/feedback';
 import { FadeIn, Pulse } from '../components/animations';
@@ -155,8 +155,13 @@ const Login = ({ setIsAuthenticated }) => {
           </Divider>
 
           <div className="login-other-methods">
+            <Button type="link" className="wechat-button">
+              <img src="/wechat.svg" alt="微信登录" className="third-party-icon" />
+            </Button>
+            <Button type="link" className="qq-button">
+              <img src="/QQ.png" alt="QQ登录" className="third-party-icon" />
+            </Button>
             <Button type="link" icon={<GithubOutlined />} size="large" />
-            <Button type="link" icon={<SafetyOutlined />} size="large" />
           </div>
 
           <div className="login-footer">

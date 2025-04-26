@@ -192,9 +192,9 @@ const RegisterScreen = ({ navigation }) => {
       >
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../../android/app/src/main/playstore.png')}
+            source={require('../../assets/images/login_logo.png')}
             style={styles.logo}
-            resizeMode="contain"
+            resizeMode="cover"
           />
           <Text
             variant="heading"

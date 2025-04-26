@@ -12,7 +12,23 @@ import { setToken, setRefreshToken, setUser, clearAuth } from '../storage';
  */
 export const login = async (loginData) => {
   try {
+    // 验证loginData是否有效
+    if (!loginData || typeof loginData !== 'object') {
+      return {
+        success: false,
+        message: '登录信息不完整，请重试'
+      };
+    }
+
     const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN, loginData);
+
+    // 验证响应数据是否包含必要的字段
+    if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
+      return {
+        success: false,
+        message: '服务器返回数据格式错误，请联系管理员'
+      };
+    }
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
@@ -25,9 +41,20 @@ export const login = async (loginData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('登录API错误:', error);
+
+    // 根据错误类型返回不同的错误消息
+    if (error.status === 401) {
+      return {
+        success: false,
+        message: '用户名或密码错误',
+        error
+      };
+    }
+
     return {
       success: false,
-      message: error.message || '登录失败',
+      message: error.message || '登录失败，请稍后重试',
       error
     };
   }
@@ -41,6 +68,43 @@ export const login = async (loginData) => {
 export const register = async (userData) => {
   try {
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER, userData);
+
+    // 保存令牌和用户信息
+    if (response.data.access && response.data.refresh && response.data.user) {
+      await setToken(response.data.access);
+      await setRefreshToken(response.data.refresh);
+      await setUser(response.data.user);
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '注册失败',
+      error
+    };
+  }
+};
+
+/**
+ * 用户名注册
+ * @param {object} userData - 用户数据 (username, password)
+ * @returns {Promise} - 注册结果
+ */
+export const registerWithUsername = async (userData) => {
+  try {
+    const response = await instance.post('/auth/register/username', userData);
+
+    // 保存令牌和用户信息
+    if (response.data.access && response.data.refresh && response.data.user) {
+      await setToken(response.data.access);
+      await setRefreshToken(response.data.refresh);
+      await setUser(response.data.user);
+    }
+
     return {
       success: true,
       data: response.data
@@ -179,12 +243,14 @@ export const resetPassword = async (email) => {
 /**
  * 发送验证码
  * @param {string} phone - 手机号
+ * @param {string} type - 验证码类型 (login/register)
  * @returns {Promise} - 发送结果
  */
-export const sendVerificationCode = async (phone) => {
+export const sendVerificationCode = async (phone, type = 'login') => {
   try {
     const response = await instance.post('/auth/send_verification_code/', {
-      phone
+      phone,
+      type
     });
 
     return {
@@ -195,6 +261,92 @@ export const sendVerificationCode = async (phone) => {
     return {
       success: false,
       message: error.message || '发送验证码失败',
+      error
+    };
+  }
+};
+
+/**
+ * 手机号+验证码登录
+ * @param {object} loginData - 登录数据 (phone, code)
+ * @returns {Promise} - 登录结果
+ */
+export const loginWithCode = async (loginData) => {
+  try {
+    const response = await instance.post('/auth/login/code', loginData);
+
+    // 保存令牌和用户信息
+    const { access, refresh, user } = response.data;
+    await setToken(access);
+    await setRefreshToken(refresh);
+    await setUser(user);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '登录失败',
+      error
+    };
+  }
+};
+
+/**
+ * 手机号+验证码注册
+ * @param {object} userData - 用户数据 (phone, code, password)
+ * @returns {Promise} - 注册结果
+ */
+export const registerWithPhone = async (userData) => {
+  try {
+    const response = await instance.post('/auth/register/phone', userData);
+
+    // 保存令牌和用户信息
+    if (response.data.access && response.data.refresh && response.data.user) {
+      await setToken(response.data.access);
+      await setRefreshToken(response.data.refresh);
+      await setUser(response.data.user);
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '注册失败',
+      error
+    };
+  }
+};
+
+/**
+ * 邮箱注册
+ * @param {object} userData - 用户数据 (email, password)
+ * @returns {Promise} - 注册结果
+ */
+export const registerWithEmail = async (userData) => {
+  try {
+    const response = await instance.post('/auth/register/email', userData);
+
+    // 保存令牌和用户信息
+    if (response.data.access && response.data.refresh && response.data.user) {
+      await setToken(response.data.access);
+      await setRefreshToken(response.data.refresh);
+      await setUser(response.data.user);
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '注册失败',
       error
     };
   }
@@ -284,12 +436,16 @@ export const logout = async () => {
 const authApi = {
   login,
   register,
+  registerWithUsername,
+  registerWithEmail,
+  registerWithPhone,
   refreshToken,
   getProfile,
   updateProfile,
   changePassword,
   resetPassword,
   sendVerificationCode,
+  loginWithCode,
   wechatLogin,
   qqLogin,
   logout

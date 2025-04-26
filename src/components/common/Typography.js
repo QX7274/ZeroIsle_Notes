@@ -124,6 +124,9 @@ export const Body = ({
 
   // 根据大小添加样式
   switch (size) {
+    case 'tiny':
+      bodyStyle.push(typography.BODY.TINY);
+      break;
     case 'small':
       bodyStyle.push(typography.BODY.SMALL);
       break;
