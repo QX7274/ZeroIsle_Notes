@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # 第三方应用
     'rest_framework',
     'rest_framework_simplejwt',
@@ -29,7 +29,7 @@ INSTALLED_APPS = [
     'django_filters',
     'corsheaders',
     'drf_yasg',  # Swagger文档
-    
+
     # 自定义应用
     'users',
     'notes',
@@ -81,7 +81,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ASGI配置
-ASGI_APPLICATION = 'backend.routing.application'
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # MongoDB数据库配置
 DATABASES = {
@@ -187,7 +187,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 
+            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'),
                       int(os.environ.get('REDIS_PORT', 6379)))],
         },
     },

@@ -13,6 +13,8 @@
 - **Channels**: WebSocket支持，实现实时通信功能
 - **JWT**: 用户认证，提供安全的API访问机制
 - **Swagger/ReDoc**: API文档生成工具，自动生成交互式API文档
+- **Elasticsearch**: 全文搜索引擎，提供高效的搜索功能
+- **Sentence Transformers**: 语义搜索，支持基于向量的相似度搜索
 
 ## 目录结构
 
@@ -24,7 +26,8 @@ backend/
 │   │   ├── feedback.py     # 反馈模型（用户对AI回复的评价）
 │   │   ├── model_config.py # 模型配置（AI模型参数设置）
 │   │   ├── prompt_template.py # 提示模板（预设的AI提示）
-│   │   └── usage_record.py # 使用记录（跟踪API调用）
+│   │   ├── usage_record.py # 使用记录（跟踪API调用）
+│   │   └── embedding.py    # 嵌入模型（向量表示）
 │   ├── serializers/        # 序列化器
 │   │   ├── conversation.py # 对话序列化器
 │   │   ├── feedback.py     # 反馈序列化器
@@ -35,13 +38,16 @@ backend/
 │   │   ├── conversation.py # 对话视图（处理对话请求）
 │   │   ├── feedback.py     # 反馈视图（处理用户反馈）
 │   │   ├── message.py      # 消息视图（单条消息操作）
-│   │   └── model_config.py # 模型配置视图（AI模型设置）
+│   │   ├── model_config.py # 模型配置视图（AI模型设置）
+│   │   └── embedding.py    # 嵌入视图（生成文本嵌入）
 │   ├── services/           # 业务逻辑
 │   │   ├── baidu_service.py # 百度AI服务（接入百度AI能力）
 │   │   ├── conversation_service.py # 对话服务（核心对话逻辑）
 │   │   ├── openai_service.py # OpenAI服务（GPT接口调用）
 │   │   ├── prompt_service.py # 提示服务（提示词处理）
-│   │   └── token_counter.py # Token计数器（计算API消耗）
+│   │   ├── token_counter.py # Token计数器（计算API消耗）
+│   │   ├── embedding_service.py # 嵌入服务（文本向量化）
+│   │   └── anthropic_service.py # Anthropic服务（Claude接口调用）
 │   └── fixtures/           # 初始数据
 │       ├── model_configs.json # 模型配置数据
 │       └── prompt_templates.json # 提示模板数据
@@ -56,7 +62,9 @@ backend/
 │   ├── wsgi.py             # WSGI配置（Web服务器网关接口）
 │   ├── asgi.py             # ASGI配置（异步服务器网关接口）
 │   ├── celery.py           # Celery配置（任务队列设置）
-│   └── routing.py          # WebSocket路由（实时通信）
+│   ├── middleware.py       # 全局中间件（请求/响应处理）
+│   ├── routing.py          # WebSocket路由（实时通信）
+│   └── logging.py          # 日志配置（应用日志设置）
 ├── canvas/                 # 无限画布模块（思维导图和流程图）
 │   ├── models/             # 数据模型
 │   │   ├── canvas.py       # 画布模型（存储画布基本信息）
@@ -199,20 +207,31 @@ backend/
 │   ├── models/             # 数据模型
 │   │   ├── search_index.py # 搜索索引模型（索引记录）
 │   │   ├── search_query.py # 搜索查询模型（查询历史）
-│   │   └── search_result.py # 搜索结果模型（结果缓存）
+│   │   ├── search_result.py # 搜索结果模型（结果缓存）
+│   │   ├── search_synonym.py # 搜索同义词模型（同义词管理）
+│   │   └── search_filter.py # 搜索过滤器模型（过滤条件）
 │   ├── serializers/        # 序列化器
 │   │   ├── search_index.py # 搜索索引序列化器
 │   │   ├── search_query.py # 搜索查询序列化器
-│   │   └── search_result.py # 搜索结果序列化器
+│   │   ├── search_result.py # 搜索结果序列化器
+│   │   ├── search_synonym.py # 搜索同义词序列化器
+│   │   └── search_filter.py # 搜索过滤器序列化器
 │   ├── views/              # 视图
 │   │   ├── search.py       # 搜索视图（搜索入口）
 │   │   ├── search_index.py # 搜索索引视图（索引管理）
-│   │   └── search_query.py # 搜索查询视图（查询历史）
-│   └── services/           # 业务逻辑
-│       ├── indexer_service.py # 索引服务（建立索引）
-│       ├── search_service.py # 搜索服务（执行搜索）
-│       ├── suggestion_service.py # 建议服务（搜索建议）
-│       └── vector_service.py # 向量服务（语义搜索）
+│   │   ├── search_query.py # 搜索查询视图（查询历史）
+│   │   ├── search_synonym.py # 搜索同义词视图（同义词管理）
+│   │   └── search_filter.py # 搜索过滤器视图（过滤条件管理）
+│   ├── services/           # 业务逻辑
+│   │   ├── indexer_service.py # 索引服务（建立索引）
+│   │   ├── search_service.py # 搜索服务（执行搜索）
+│   │   ├── suggestion_service.py # 建议服务（搜索建议）
+│   │   ├── vector_service.py # 向量服务（语义搜索）
+│   │   ├── elasticsearch_service.py # Elasticsearch服务（全文搜索）
+│   │   └── synonym_service.py # 同义词服务（同义词管理）
+│   └── connectors/         # 搜索连接器
+│       ├── elasticsearch_connector.py # ES连接器
+│       └── vector_db_connector.py # 向量数据库连接器
 ├── static/                 # 静态文件（CSS、JS、图片）
 ├── templates/              # HTML模板
 │   └── emails/             # 邮件模板
@@ -266,11 +285,59 @@ backend/
 │   │   └── xunfei_asr_service.py # 讯飞语音识别服务
 │   └── fixtures/           # 初始数据
 │       └── languages.json  # 语言数据（支持的语言列表）
+├── analytics/              # 数据分析模块（用户行为和应用分析）
+│   ├── models/             # 数据模型
+│   │   ├── user_activity.py # 用户活动模型（用户行为记录）
+│   │   ├── app_usage.py    # 应用使用模型（功能使用统计）
+│   │   ├── performance.py  # 性能模型（性能指标记录）
+│   │   └── error_log.py    # 错误日志模型（错误记录）
+│   ├── serializers/        # 序列化器
+│   │   ├── user_activity.py # 用户活动序列化器
+│   │   ├── app_usage.py    # 应用使用序列化器
+│   │   ├── performance.py  # 性能序列化器
+│   │   └── error_log.py    # 错误日志序列化器
+│   ├── views/              # 视图
+│   │   ├── dashboard.py    # 仪表盘视图（数据可视化）
+│   │   ├── user_activity.py # 用户活动视图（用户行为分析）
+│   │   ├── app_usage.py    # 应用使用视图（功能使用分析）
+│   │   └── error_log.py    # 错误日志视图（错误分析）
+│   ├── services/           # 业务逻辑
+│   │   ├── analytics_service.py # 分析服务（数据分析核心）
+│   │   ├── reporting_service.py # 报告服务（生成分析报告）
+│   │   ├── tracking_service.py # 跟踪服务（记录用户行为）
+│   │   └── export_service.py # 导出服务（导出分析数据）
+│   └── tasks/              # 定时任务
+│       ├── daily_report.py # 每日报告任务
+│       └── data_cleanup.py # 数据清理任务
+├── integrations/           # 第三方集成模块（外部服务集成）
+│   ├── models/             # 数据模型
+│   │   ├── integration.py  # 集成模型（集成配置）
+│   │   ├── webhook.py      # Webhook模型（接收外部事件）
+│   │   └── api_key.py      # API密钥模型（访问凭证）
+│   ├── serializers/        # 序列化器
+│   │   ├── integration.py  # 集成序列化器
+│   │   ├── webhook.py      # Webhook序列化器
+│   │   └── api_key.py      # API密钥序列化器
+│   ├── views/              # 视图
+│   │   ├── integration.py  # 集成视图（集成管理）
+│   │   ├── webhook.py      # Webhook视图（接收外部事件）
+│   │   └── api_key.py      # API密钥视图（密钥管理）
+│   ├── services/           # 业务逻辑
+│   │   ├── github_service.py # GitHub服务（代码仓库集成）
+│   │   ├── google_drive_service.py # Google Drive服务（文件存储集成）
+│   │   ├── slack_service.py # Slack服务（消息通知集成）
+│   │   └── zoom_service.py # Zoom服务（视频会议集成）
+│   └── webhooks/           # Webhook处理器
+│       ├── github_webhook.py # GitHub Webhook处理器
+│       ├── slack_webhook.py # Slack Webhook处理器
+│       └── stripe_webhook.py # Stripe Webhook处理器
 ├── .env.example            # 环境变量示例（配置模板）
 ├── .gitignore              # Git忽略文件（排除不需要版本控制的文件）
 ├── DIRECTORY_STRUCTURE.md  # 目录结构说明文档
 ├── manage.py               # Django管理脚本（命令行工具）
-└── requirements.txt        # 依赖列表（项目依赖包）
+├── requirements.txt        # 依赖列表（项目依赖包）
+├── requirements-dev.txt    # 开发环境依赖列表
+└── docker-compose.yml      # Docker Compose配置文件
 ```
 
 ## 安装与运行
@@ -281,6 +348,8 @@ backend/
 - MongoDB 6.0+
 - Neo4j 5.0+
 - Redis 7.0+
+- Elasticsearch 8.0+
+- Node.js 16.0+ (用于前端开发)
 
 ### 安装步骤
 
@@ -413,6 +482,12 @@ http://localhost:8000/redoc/
   - 高级搜索: `/api/v1/search/advanced/` - POST
   - 语义搜索: `/api/v1/search/semantic/` - POST
   - 标签搜索: `/api/v1/search/tags/` - GET
+  - 同义词管理: `/api/v1/search/synonyms/` - GET, POST
+  - 同义词详情: `/api/v1/search/synonyms/{id}/` - GET, PUT, DELETE
+  - 搜索过滤器: `/api/v1/search/filters/` - GET, POST
+  - 搜索过滤器详情: `/api/v1/search/filters/{id}/` - GET, PUT, DELETE
+  - 搜索建议: `/api/v1/search/suggest/` - GET
+  - 热门搜索: `/api/v1/search/trending/` - GET
 
 ### 社区
 
@@ -444,6 +519,34 @@ http://localhost:8000/redoc/
   - 画布元素详情: `/api/v1/canvas/elements/{id}/` - GET, PUT, DELETE
   - 画布导出: `/api/v1/canvas/canvases/{id}/export/` - GET
   - 画布导入: `/api/v1/canvas/import/` - POST
+  - 画布模板: `/api/v1/canvas/templates/` - GET
+  - 画布协作: `/api/v1/canvas/canvases/{id}/collaborate/` - POST
+  - 画布历史: `/api/v1/canvas/canvases/{id}/history/` - GET
+
+### 数据分析
+
+- 分析: `/api/v1/analytics/`
+  - 仪表盘数据: `/api/v1/analytics/dashboard/` - GET
+  - 用户活动: `/api/v1/analytics/user-activity/` - GET
+  - 应用使用: `/api/v1/analytics/app-usage/` - GET
+  - 错误日志: `/api/v1/analytics/error-logs/` - GET
+  - 性能指标: `/api/v1/analytics/performance/` - GET
+  - 生成报告: `/api/v1/analytics/reports/generate/` - POST
+  - 导出数据: `/api/v1/analytics/export/` - POST
+
+### 第三方集成
+
+- 集成: `/api/v1/integrations/`
+  - 集成列表/创建: `/api/v1/integrations/` - GET, POST
+  - 集成详情: `/api/v1/integrations/{id}/` - GET, PUT, DELETE
+  - Webhook管理: `/api/v1/integrations/webhooks/` - GET, POST
+  - Webhook详情: `/api/v1/integrations/webhooks/{id}/` - GET, PUT, DELETE
+  - API密钥管理: `/api/v1/integrations/api-keys/` - GET, POST
+  - API密钥详情: `/api/v1/integrations/api-keys/{id}/` - GET, PUT, DELETE
+  - GitHub集成: `/api/v1/integrations/github/` - GET, POST
+  - Google Drive集成: `/api/v1/integrations/google-drive/` - GET, POST
+  - Slack集成: `/api/v1/integrations/slack/` - GET, POST
+  - Zoom集成: `/api/v1/integrations/zoom/` - GET, POST
 
 ## 开发指南
 
@@ -492,6 +595,56 @@ coverage report
 coverage html  # 生成HTML报告
 ```
 
+## 开发环境配置
+
+### VSCode配置
+
+推荐使用VSCode进行开发，并安装以下扩展：
+
+- Python
+- Django
+- MongoDB for VS Code
+- Neo4j Graph App
+- Redis Client
+- REST Client
+- GitLens
+- Docker
+
+### 调试配置
+
+在VSCode中添加以下launch.json配置：
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Django",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [
+                "runserver",
+                "0.0.0.0:8000"
+            ],
+            "django": true,
+            "justMyCode": true
+        },
+        {
+            "name": "Django Shell",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [
+                "shell"
+            ],
+            "django": true,
+            "justMyCode": true
+        }
+    ]
+}
+```
+
 ## 部署
 
 ### 使用Gunicorn和Nginx
@@ -512,6 +665,75 @@ docker build -t zeroislenotes-backend .
 
 # 运行容器
 docker run -p 8000:8000 zeroislenotes-backend
+```
+
+### 使用Docker Compose
+
+创建docker-compose.yml文件：
+
+```yaml
+version: '3'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+      - redis
+      - neo4j
+      - elasticsearch
+    environment:
+      - DJANGO_SETTINGS_MODULE=backend.settings.production
+      - MONGODB_URI=mongodb://mongodb:27017/zeroislenotes
+      - REDIS_URL=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  neo4j:
+    image: neo4j:5.0
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    environment:
+      - NEO4J_AUTH=neo4j/password
+
+  redis:
+    image: redis:7.0
+    ports:
+      - "6379:6379"
+
+  elasticsearch:
+    image: elasticsearch:8.0.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
+volumes:
+  mongodb_data:
+  neo4j_data:
+  elasticsearch_data:
+```
+
+启动所有服务：
+
+```bash
+docker-compose up -d
 ```
 
 ## 贡献指南
@@ -570,12 +792,49 @@ Closes #123
 2. 按照requirements.txt中的确切版本安装依赖
 3. 如果必要，可以降级Django版本以兼容djongo
 
+## 性能优化
+
+### 数据库优化
+
+- MongoDB索引优化
+  - 为常用查询字段创建索引
+  - 使用复合索引优化多字段查询
+  - 定期执行索引维护
+
+- Neo4j查询优化
+  - 使用参数化查询
+  - 优化Cypher查询语句
+  - 为关键节点属性创建索引
+
+- Redis缓存策略
+  - 缓存热点数据
+  - 设置合理的过期时间
+  - 使用Redis Pipeline减少网络开销
+
+### API性能优化
+
+- 使用分页减少响应数据量
+- 实现数据压缩
+- 添加适当的缓存头
+- 使用异步任务处理耗时操作
+- 优化数据库查询，减少N+1问题
+
+### 监控与日志
+
+- 使用Prometheus监控系统性能
+- 使用Grafana创建可视化仪表盘
+- 集成Sentry进行错误跟踪
+- 实现结构化日志记录
+- 设置性能基准和告警机制
+
 ## 许可证
 
-[MIT](LICENSE)
+本项目采用[MIT](LICENSE)许可证。
 
 ## 联系方式
 
 如有任何问题或建议，请通过以下方式联系我们：
 - 电子邮件：support@zeroislenotes.com
-- GitHub Issues：https://github.com/yourusername/zeroislenotes/issues
+- GitHub Issues：https://github.com/zeroislenotes/backend/issues
+- 官方网站：https://www.zeroislenotes.com
+- 微信公众号：零屿笔记

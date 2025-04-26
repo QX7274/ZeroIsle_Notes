@@ -1,84 +1,28 @@
-# 导入MongoDB配置
-from .mongodb_settings import *
+"""
+Django设置文件
+这个文件是为了向后兼容而保留的
+实际设置文件位于settings目录中
+"""
 
-# 安全配置
-SECRET_KEY = 'django-insecure-zeroislenotes-secret-key-for-development'
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
-# Celery配置
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'Asia/Shanghai'
+# 加载环境变量
+load_dotenv()
 
-# Channels配置
-ASGI_APPLICATION = 'backend.routing.application'
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
-}
+# 构建路径
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# JWT配置
-from datetime import timedelta
+# 根据环境变量加载不同的设置文件
+environment = os.environ.get('DJANGO_ENV', 'development')
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-}
+if environment == 'production':
+    from .settings.production import *
+elif environment == 'testing':
+    from .settings.testing import *
+else:
+    from .settings.development import *
 
-# REST Framework配置
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    )
-}
-
-# 短信服务配置
-SMS_API_KEY = 'your_sms_api_key'
-SMS_API_SECRET = 'your_sms_api_secret'
-
-# 第三方登录配置
-WECHAT_APP_ID = 'your_wechat_app_id'
-WECHAT_APP_SECRET = 'your_wechat_app_secret'
-QQ_APP_ID = 'your_qq_app_id'
-QQ_APP_KEY = 'your_qq_app_key'
-
-# Neo4j配置
-NEO4J_URI = 'bolt://localhost:7687'
-NEO4J_USER = 'neo4j'
-NEO4J_PASSWORD = 'password'
-
-# 安装的应用
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'channels',
-    'users',
-    'reminder',
-    'notes',
-    'knowledge_graph',
-    'ai_assistant',
-    'voice_recognition',
-    'community',
-    'search',
-]
+# 这个文件中的其他设置已经被移动到settings目录中的相应文件中
+# 请在settings/base.py, settings/development.py, settings/production.py, settings/testing.py中查看
