@@ -22,7 +22,7 @@ import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
-import DocumentPicker from 'react-native-document-picker';
+import { pick, types } from '@react-native-documents/picker';
 import NetInfo from '@react-native-community/netinfo';
 
 // 常量和工具函数
@@ -40,7 +40,7 @@ const audioRecorderPlayer = new AudioRecorderPlayer();
 
 const VoiceToTextScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  
+
   // 状态管理
   const [isRecording, setIsRecording] = useState(false);
   const [recordingPath, setRecordingPath] = useState('');
@@ -53,10 +53,10 @@ const VoiceToTextScreen = ({ navigation, route }) => {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [meetingSummary, setMeetingSummary] = useState('');
   const [showSummary, setShowSummary] = useState(false);
-  
+
   // 路由参数
   const { onTranscribed, noteId } = route.params || {};
-  
+
   // 引用
   const durationTimerRef = useRef(null);
   const toastTimerRef = useRef(null);
@@ -70,7 +70,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         ]);
-        
+
         return (
           granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED &&
           granted[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED
@@ -110,7 +110,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       setRecordingPath(path);
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       durationTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
@@ -127,7 +127,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       clearInterval(durationTimerRef.current);
       const path = await audioRecorderPlayer.stopRecorder();
       audioRecorderPlayer.removeRecordBackListener();
-      
+
       setIsRecording(false);
       setAudioUri(`file://${path}`);
       displayToast('录音已保存');
@@ -144,7 +144,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
         displayToast('没有可播放的录音');
         return;
       }
-      
+
       await audioRecorderPlayer.startPlayer(audioUri);
       audioRecorderPlayer.addPlayBackListener((e) => {
         if (e.current_position === e.duration) {
@@ -160,15 +160,15 @@ const VoiceToTextScreen = ({ navigation, route }) => {
   // 文件选择
   const selectAudioFile = async () => {
     try {
-      const res = await DocumentPicker.pick({
-        type: [DocumentPicker.types.audio],
+      const [res] = await pick({
+        type: [types.audio],
       });
-      
+
       setAudioUri(res.uri);
       displayToast('音频文件已选择');
     } catch (error) {
-      if (!DocumentPicker.isCancel(error)) {
-        console.error('选择文件失败:', error);
+      console.error('选择文件失败:', error);
+      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
         displayToast('选择文件失败');
       }
     }
@@ -189,7 +189,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       }
 
       setIsTranscribing(true);
-      
+
       const fileContent = await RNFS.readFile(audioUri, 'base64');
       const result = await voiceApi.transcribeFromRecording(fileContent, noteId);
 
@@ -206,14 +206,14 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       setIsTranscribing(false);
     }
   };
-  
+
   // 生成会议纪要
   const generateMeetingSummary = async () => {
     if (!transcribedText) {
       displayToast('请先转写语音内容');
       return;
     }
-    
+
     try {
       // 检查网络连接
       const netInfo = await NetInfo.fetch();
@@ -221,12 +221,12 @@ const VoiceToTextScreen = ({ navigation, route }) => {
         displayToast('无网络连接，无法生成会议纪要');
         return;
       }
-      
+
       setIsGeneratingSummary(true);
-      
+
       // 调用会议纪要API
       const result = await voiceApi.generateMeetingSummary(transcribedText);
-      
+
       if (result.success && result.summary) {
         setMeetingSummary(result.summary);
         setShowSummary(true);
@@ -241,14 +241,14 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       setIsGeneratingSummary(false);
     }
   };
-  
+
   // 保存转写文本
   const saveTranscribedText = () => {
     if (!transcribedText) {
       displayToast('没有可保存的转写内容');
       return;
     }
-    
+
     if (onTranscribed) {
       onTranscribed(transcribedText);
       navigation.goBack();
@@ -272,14 +272,14 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       });
     }
   };
-  
+
   // 保存会议纪要
   const saveMeetingSummary = () => {
     if (!meetingSummary) {
       displayToast('没有可保存的会议纪要');
       return;
     }
-    
+
     if (onTranscribed) {
       onTranscribed(meetingSummary);
       setShowSummary(false);
@@ -306,27 +306,27 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       setShowSummary(false);
     }
   };
-  
+
   // 清除录音和转写内容
   const clearAll = () => {
     if (isRecording) {
       stopRecording();
     }
-    
+
     setAudioUri(null);
     setTranscribedText('');
     setRecordingDuration(0);
     setMeetingSummary('');
     displayToast('已清除所有内容');
   };
-  
+
   // 格式化时间
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
+
   // 组件清理
   useEffect(() => {
     return () => {
@@ -336,7 +336,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       clearTimeout(toastTimerRef.current);
     };
   }, []);
-  
+
   return (
     <View style={styles.container}>
       {/* 顶部导航栏 */}
@@ -349,7 +349,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           <Icon name="delete-outline" size={24} color={colors.danger} />
         </TouchableOpacity>
       </View>
-      
+
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* 录音控制区域 */}
         <View style={styles.recordingSection}>
@@ -357,7 +357,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
             <Text style={styles.durationText}>{formatDuration(recordingDuration)}</Text>
             {isRecording && <View style={styles.recordingIndicator} />}
           </View>
-          
+
           <View style={styles.controlsRow}>
             {isRecording ? (
               <TouchableOpacity onPress={stopRecording} style={[styles.controlButton, styles.stopButton]}>
@@ -368,21 +368,21 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 <Icon name="mic" size={36} color={colors.white} />
               </TouchableOpacity>
             )}
-            
+
             {audioUri && !isRecording && (
               <TouchableOpacity onPress={playRecording} style={[styles.controlButton, styles.playButton]}>
                 <Icon name="play-arrow" size={36} color={colors.white} />
               </TouchableOpacity>
             )}
-            
+
             <TouchableOpacity onPress={selectAudioFile} style={[styles.controlButton, styles.fileButton]}>
               <Icon name="folder-open" size={28} color={colors.white} />
             </TouchableOpacity>
           </View>
-          
+
           {audioUri && !isRecording && (
-            <TouchableOpacity 
-              onPress={transcribeAudio} 
+            <TouchableOpacity
+              onPress={transcribeAudio}
               style={[styles.actionButton, styles.transcribeButton]}
               disabled={isTranscribing}
             >
@@ -397,7 +397,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           )}
         </View>
-        
+
         {/* 转写结果区域 */}
         {transcribedText ? (
           <View style={styles.transcriptionSection}>
@@ -407,18 +407,18 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 <Text style={styles.transcriptionText}>{transcribedText}</Text>
               </ScrollView>
             </View>
-            
+
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity 
-                onPress={saveTranscribedText} 
+              <TouchableOpacity
+                onPress={saveTranscribedText}
                 style={[styles.actionButton, styles.saveButton]}
               >
                 <Icon name="save" size={20} color={colors.white} />
                 <Text style={styles.actionButtonText}>保存文本</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={generateMeetingSummary} 
+
+              <TouchableOpacity
+                onPress={generateMeetingSummary}
                 style={[styles.actionButton, styles.summaryButton]}
                 disabled={isGeneratingSummary}
               >
@@ -435,14 +435,14 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           </View>
         ) : null}
       </ScrollView>
-      
+
       {/* Toast消息 */}
       {showToast && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
-      
+
       {/* 会议纪要弹窗 */}
       <Modal
         visible={showSummary}
@@ -458,21 +458,21 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.summaryScrollView}>
               <Text style={styles.summaryText}>{meetingSummary}</Text>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                onPress={() => setShowSummary(false)} 
+              <TouchableOpacity
+                onPress={() => setShowSummary(false)}
                 style={[styles.modalButton, styles.cancelButton]}
               >
                 <Text style={styles.cancelButtonText}>取消</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={saveMeetingSummary} 
+
+              <TouchableOpacity
+                onPress={saveMeetingSummary}
                 style={[styles.modalButton, styles.confirmButton]}
               >
                 <Text style={styles.confirmButtonText}>保存纪要</Text>

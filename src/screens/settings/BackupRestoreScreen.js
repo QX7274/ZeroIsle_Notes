@@ -19,7 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
-import DocumentPicker from 'react-native-document-picker';
+import { pick, types } from '@react-native-documents/picker';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import { offlineStorageService } from '../../services/offlineStorage';
 import { analyticsService } from '../../services/analytics';
@@ -28,21 +28,21 @@ const BackupRestoreScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取状态
   const user = useSelector(state => state.auth.user);
-  
+
   // 本地状态
   const [backups, setBackups] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
-  
+
   // 加载备份列表
   useEffect(() => {
     loadBackups();
   }, []);
-  
+
   // 加载备份列表
   const loadBackups = async () => {
     setIsLoading(true);
@@ -50,7 +50,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       // 获取备份信息
       const backupInfoJson = await AsyncStorage.getItem(STORAGE_KEYS.BACKUP_INFO);
       const backupInfo = backupInfoJson ? JSON.parse(backupInfoJson) : [];
-      
+
       // 检查备份文件是否存在
       const validBackups = [];
       for (const backup of backupInfo) {
@@ -63,7 +63,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           console.error('检查备份文件失败:', error);
         }
       }
-      
+
       setBackups(validBackups);
     } catch (error) {
       console.error('加载备份列表失败:', error);
@@ -72,11 +72,11 @@ const BackupRestoreScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 请求存储权限（仅Android）
   const requestStoragePermission = async () => {
     if (Platform.OS !== 'android') return true;
-    
+
     try {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
@@ -88,14 +88,14 @@ const BackupRestoreScreen = ({ navigation }) => {
           buttonPositive: '确定',
         }
       );
-      
+
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     } catch (error) {
       console.error('请求存储权限失败:', error);
       return false;
     }
   };
-  
+
   // 创建备份
   const createBackup = async () => {
     // 请求存储权限
@@ -104,21 +104,21 @@ const BackupRestoreScreen = ({ navigation }) => {
       Alert.alert('权限被拒绝', '无法创建备份，因为存储权限被拒绝');
       return;
     }
-    
+
     setIsCreatingBackup(true);
     try {
       // 获取所有存储键
       const keys = await AsyncStorage.getAllKeys();
-      
+
       // 过滤需要备份的键
-      const keysToBackup = keys.filter(key => 
-        key.startsWith('notes_') || 
-        key.startsWith('tags_') || 
-        key.startsWith('categories_') || 
-        key === STORAGE_KEYS.NOTES_CACHE || 
+      const keysToBackup = keys.filter(key =>
+        key.startsWith('notes_') ||
+        key.startsWith('tags_') ||
+        key.startsWith('categories_') ||
+        key === STORAGE_KEYS.NOTES_CACHE ||
         key === STORAGE_KEYS.SETTINGS
       );
-      
+
       // 获取所有数据
       const data = {};
       for (const key of keysToBackup) {
@@ -127,22 +127,22 @@ const BackupRestoreScreen = ({ navigation }) => {
           data[key] = value;
         }
       }
-      
+
       // 创建备份文件名
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `zeroislenotes_backup_${timestamp}.json`;
-      
+
       // 确定备份路径
-      const backupDir = Platform.OS === 'android' 
-        ? `${RNFS.ExternalDirectoryPath}/backups` 
+      const backupDir = Platform.OS === 'android'
+        ? `${RNFS.ExternalDirectoryPath}/backups`
         : `${RNFS.DocumentDirectoryPath}/backups`;
-      
+
       // 创建备份目录
       await RNFS.mkdir(backupDir);
-      
+
       // 备份文件路径
       const backupPath = `${backupDir}/${fileName}`;
-      
+
       // 写入备份文件
       await RNFS.writeFile(
         backupPath,
@@ -154,7 +154,7 @@ const BackupRestoreScreen = ({ navigation }) => {
         }),
         'utf8'
       );
-      
+
       // 更新备份信息
       const newBackup = {
         id: Date.now().toString(),
@@ -163,16 +163,16 @@ const BackupRestoreScreen = ({ navigation }) => {
         timestamp: new Date().toISOString(),
         size: (await RNFS.stat(backupPath)).size,
       };
-      
+
       const updatedBackups = [...backups, newBackup];
       setBackups(updatedBackups);
-      
+
       // 保存备份信息
       await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
-      
+
       // 显示成功提示
       Alert.alert('备份成功', `备份已保存到: ${backupPath}`);
-      
+
       // 记录分析事件
       analyticsService.trackEvent('backup_created', {
         size: newBackup.size,
@@ -181,14 +181,14 @@ const BackupRestoreScreen = ({ navigation }) => {
     } catch (error) {
       console.error('创建备份失败:', error);
       Alert.alert('错误', `创建备份失败: ${error.message}`);
-      
+
       // 记录错误
       analyticsService.trackError(error, { operation: 'create_backup' });
     } finally {
       setIsCreatingBackup(false);
     }
   };
-  
+
   // 恢复备份
   const restoreBackup = async (backup) => {
     Alert.alert(
@@ -207,29 +207,29 @@ const BackupRestoreScreen = ({ navigation }) => {
               // 读取备份文件
               const backupContent = await RNFS.readFile(backup.path, 'utf8');
               const backupData = JSON.parse(backupContent);
-              
+
               // 验证备份版本
               if (!backupData.version || backupData.version !== 1) {
                 throw new Error('不支持的备份版本');
               }
-              
+
               // 恢复数据
               for (const [key, value] of Object.entries(backupData.data)) {
                 await AsyncStorage.setItem(key, value);
               }
-              
+
               // 清除离线操作
               await offlineStorageService.clearOfflineData();
-              
+
               // 显示成功提示
               Alert.alert('恢复成功', '备份已成功恢复，应用将重新启动');
-              
+
               // 记录分析事件
               analyticsService.trackEvent('backup_restored', {
                 backup_id: backup.id,
                 backup_timestamp: backup.timestamp,
               });
-              
+
               // 重启应用（实际应用中可能需要使用特定的重启机制）
               // 这里简单地返回到主屏幕
               navigation.reset({
@@ -239,7 +239,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             } catch (error) {
               console.error('恢复备份失败:', error);
               Alert.alert('错误', `恢复备份失败: ${error.message}`);
-              
+
               // 记录错误
               analyticsService.trackError(error, { operation: 'restore_backup' });
             } finally {
@@ -251,28 +251,26 @@ const BackupRestoreScreen = ({ navigation }) => {
       ]
     );
   };
-  
+
   // 导入备份
   const importBackup = async () => {
     try {
       // 选择文件
-      const result = await DocumentPicker.pick({
-        type: [DocumentPicker.types.allFiles],
+      const [file] = await pick({
+        type: [types.allFiles],
       });
-      
-      const file = result[0];
-      
+
       // 验证文件类型
       if (!file.name.endsWith('.json')) {
         Alert.alert('错误', '请选择有效的备份文件 (.json)');
         return;
       }
-      
+
       setIsLoading(true);
-      
+
       // 读取文件内容
       const content = await RNFS.readFile(file.uri, 'utf8');
-      
+
       // 验证备份格式
       try {
         const backupData = JSON.parse(content);
@@ -284,23 +282,23 @@ const BackupRestoreScreen = ({ navigation }) => {
         setIsLoading(false);
         return;
       }
-      
+
       // 复制文件到备份目录
-      const backupDir = Platform.OS === 'android' 
-        ? `${RNFS.ExternalDirectoryPath}/backups` 
+      const backupDir = Platform.OS === 'android'
+        ? `${RNFS.ExternalDirectoryPath}/backups`
         : `${RNFS.DocumentDirectoryPath}/backups`;
-      
+
       // 创建备份目录
       await RNFS.mkdir(backupDir);
-      
+
       // 生成新文件名
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `zeroislenotes_imported_${timestamp}.json`;
       const destPath = `${backupDir}/${fileName}`;
-      
+
       // 复制文件
       await RNFS.copyFile(file.uri, destPath);
-      
+
       // 更新备份信息
       const newBackup = {
         id: Date.now().toString(),
@@ -310,16 +308,16 @@ const BackupRestoreScreen = ({ navigation }) => {
         size: (await RNFS.stat(destPath)).size,
         imported: true,
       };
-      
+
       const updatedBackups = [...backups, newBackup];
       setBackups(updatedBackups);
-      
+
       // 保存备份信息
       await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
-      
+
       // 显示成功提示
       Alert.alert('导入成功', '备份文件已成功导入');
-      
+
       // 记录分析事件
       analyticsService.trackEvent('backup_imported', {
         size: newBackup.size,
@@ -327,12 +325,12 @@ const BackupRestoreScreen = ({ navigation }) => {
       });
     } catch (error) {
       console.error('导入备份失败:', error);
-      if (DocumentPicker.isCancel(error)) {
+      if (error.code === 'DOCUMENT_PICKER_CANCELED') {
         // 用户取消了选择
         console.log('用户取消了文件选择');
       } else {
         Alert.alert('错误', `导入备份失败: ${error.message}`);
-        
+
         // 记录错误
         analyticsService.trackError(error, { operation: 'import_backup' });
       }
@@ -340,7 +338,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 删除备份
   const deleteBackup = async (backup) => {
     Alert.alert(
@@ -358,14 +356,14 @@ const BackupRestoreScreen = ({ navigation }) => {
             try {
               // 删除文件
               await RNFS.unlink(backup.path);
-              
+
               // 更新备份列表
               const updatedBackups = backups.filter(b => b.id !== backup.id);
               setBackups(updatedBackups);
-              
+
               // 保存备份信息
               await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
-              
+
               // 记录分析事件
               analyticsService.trackEvent('backup_deleted', {
                 backup_id: backup.id,
@@ -374,7 +372,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             } catch (error) {
               console.error('删除备份失败:', error);
               Alert.alert('错误', `删除备份失败: ${error.message}`);
-              
+
               // 记录错误
               analyticsService.trackError(error, { operation: 'delete_backup' });
             } finally {
@@ -386,27 +384,27 @@ const BackupRestoreScreen = ({ navigation }) => {
       ]
     );
   };
-  
+
   // 导出备份
   const exportBackup = async (backup) => {
     // 这里可以实现导出备份到其他应用的功能
     // 例如使用Share API或DocumentPicker
     Alert.alert('导出备份', '此功能尚未实现');
   };
-  
+
   // 格式化文件大小
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
-  
+
   // 格式化日期
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
-  
+
   // 渲染备份项
   const renderBackupItem = (backup) => (
     <View
@@ -425,14 +423,14 @@ const BackupRestoreScreen = ({ navigation }) => {
             {backup.imported ? '导入的备份' : '本地备份'}
           </Text>
         </View>
-        
+
         <Text
           variant="caption"
           color="hint"
         >
           创建于: {formatDate(backup.timestamp)}
         </Text>
-        
+
         <Text
           variant="caption"
           color="hint"
@@ -440,7 +438,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           大小: {formatFileSize(backup.size)}
         </Text>
       </View>
-      
+
       <View style={styles.backupActions}>
         <TouchableOpacity
           style={[styles.backupAction, { backgroundColor: colors.primary + '20' }]}
@@ -449,14 +447,14 @@ const BackupRestoreScreen = ({ navigation }) => {
         >
           <Icon name="restore" size={16} color={colors.primary} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.backupAction, { backgroundColor: colors.success + '20' }]}
           onPress={() => exportBackup(backup)}
         >
           <Icon name="share" size={16} color={colors.success} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.backupAction, { backgroundColor: colors.error + '20' }]}
           onPress={() => deleteBackup(backup)}
@@ -467,7 +465,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       </View>
     </View>
   );
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -481,7 +479,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             disabled={isCreatingBackup || isRestoringBackup}
             loading={isCreatingBackup}
           />
-          
+
           <Button
             title="导入备份"
             onPress={importBackup}
@@ -491,7 +489,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             disabled={isLoading || isCreatingBackup || isRestoringBackup}
           />
         </View>
-        
+
         {/* 备份列表 */}
         <View style={styles.backupsContainer}>
           <Text
@@ -501,7 +499,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           >
             备份列表
           </Text>
-          
+
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -536,7 +534,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             backups.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).map(renderBackupItem)
           )}
         </View>
-        
+
         {/* 备份说明 */}
         <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
           <Text
@@ -547,7 +545,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           >
             关于备份
           </Text>
-          
+
           <Text
             variant="body"
             size="small"
@@ -556,7 +554,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           >
             备份包含您的笔记、标签、分类和应用设置。备份不包含账户信息和云端同步数据。
           </Text>
-          
+
           <Text
             variant="body"
             size="small"
@@ -565,7 +563,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           >
             建议定期创建备份，以防数据丢失。您可以将备份导出到其他应用或云存储服务进行额外保护。
           </Text>
-          
+
           <Text
             variant="body"
             size="small"
