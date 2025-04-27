@@ -4,6 +4,7 @@
 """
 
 from .email_service import EmailService
+from .token_service import TokenService
 from .sms_service import SmsService
 from .notification_service import NotificationService
 from .token_service import TokenService

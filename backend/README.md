@@ -827,14 +827,4 @@ Closes #123
 - 实现结构化日志记录
 - 设置性能基准和告警机制
 
-## 许可证
 
-本项目采用[MIT](LICENSE)许可证。
-
-## 联系方式
-
-如有任何问题或建议，请通过以下方式联系我们：
-- 电子邮件：support@zeroislenotes.com
-- GitHub Issues：https://github.com/zeroislenotes/backend/issues
-- 官方网站：https://www.zeroislenotes.com
-- 微信公众号：零屿笔记

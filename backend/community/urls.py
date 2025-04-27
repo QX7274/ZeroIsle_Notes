@@ -26,18 +26,21 @@ router.register(r'follows', FollowViewSet, basename='follow')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 
 # 兼容旧版API
+# 暂时注释掉旧版API，以解决导入错误
+# 后续需要逐步迁移这些API到视图集中
 legacy_router = DefaultRouter()
-legacy_router.register(r'posts', legacy_views.CommunityPostViewSet)
-legacy_router.register(r'comments', legacy_views.CommentViewSet)
-legacy_router.register(r'tags', legacy_views.PostTagViewSet)
-legacy_router.register(r'categories', legacy_views.PostCategoryViewSet)
-legacy_router.register(r'notifications', legacy_views.NotificationViewSet, basename='legacy-notification')
-legacy_router.register(r'follows', legacy_views.FollowViewSet, basename='legacy-follow')
+# legacy_router.register(r'posts', legacy_views.CommunityPostViewSet)
+# legacy_router.register(r'comments', legacy_views.CommentViewSet)
+# legacy_router.register(r'tags', legacy_views.PostTagViewSet)
+# legacy_router.register(r'categories', legacy_views.PostCategoryViewSet)
+# legacy_router.register(r'notifications', legacy_views.NotificationViewSet, basename='legacy-notification')
+# legacy_router.register(r'follows', legacy_views.FollowViewSet, basename='legacy-follow')
 
 urlpatterns = [
     # API路由
     path('', include(router.urls)),
 
     # 兼容旧版API
-    path('legacy/', include(legacy_router.urls)),
+    # 暂时注释掉旧版API，以解决导入错误
+    # path('legacy/', include(legacy_router.urls)),
 ]

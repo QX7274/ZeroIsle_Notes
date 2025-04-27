@@ -5,7 +5,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from common.models import UserOwnedModel, PublicModel
-from notes.models import Note
 
 User = get_user_model()
 
@@ -29,10 +28,10 @@ class KnowledgeNode(UserOwnedModel, PublicModel):
     description = models.TextField(blank=True, null=True, verbose_name='描述')
     type = models.CharField(max_length=20, choices=NODE_TYPES, default='concept', verbose_name='节点类型')
     note = models.ForeignKey(
-        Note, 
-        on_delete=models.SET_NULL, 
-        blank=True, 
-        null=True, 
+        'notes.Note',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name='knowledge_nodes',
         verbose_name='关联笔记'
     )

@@ -6,3 +6,4 @@
 from .canvas import CanvasSerializer
 from .canvas_element import CanvasElementSerializer
 from .canvas_connection import CanvasConnectionSerializer
+from .canvas_detail import CanvasDetailSerializer

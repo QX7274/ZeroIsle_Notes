@@ -9,3 +9,4 @@ from .third_party_account import ThirdPartyAccount
 from .user_profile import UserProfile
 from .user_settings import UserSettings
 from .user_device import UserDevice
+from .login_attempt import LoginAttempt

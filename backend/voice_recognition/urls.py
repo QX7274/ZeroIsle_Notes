@@ -20,9 +20,11 @@ router.register(r'languages', LanguageViewSet, basename='language')
 router.register(r'speakers', SpeakerViewSet, basename='speaker')
 
 # 兼容旧版API
+# 暂时注释掉旧版API，以解决导入错误
+# 后续需要逐步迁移这些API到视图集中
 legacy_urls = [
-    path('voice-transcription', legacy_views.transcribe_audio, name='transcribe_audio'),
-    path('meeting-summary', legacy_views.generate_meeting_summary, name='generate_meeting_summary'),
+    # path('voice-transcription', legacy_views.transcribe_audio, name='transcribe_audio'),
+    # path('meeting-summary', legacy_views.generate_meeting_summary, name='generate_meeting_summary'),
 ]
 
 urlpatterns = [

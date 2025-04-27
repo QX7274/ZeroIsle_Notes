@@ -10,8 +10,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.conf import settings
+from django.core.cache import cache
+from django.db import transaction
+from django.contrib.auth.hashers import make_password, check_password
 from common.utils import get_client_ip
-from users.models import VerificationCode, UserDevice
+from users.models import VerificationCode, UserDevice, LoginAttempt
 from users.serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -26,7 +29,14 @@ from users.services import (
     SmsService,
     NotificationService
 )
+import logging
+from datetime import timedelta
+import hashlib
+import hmac
+import base64
+import json
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 class UserRegistrationView(viewsets.ViewSet):
@@ -35,13 +45,29 @@ class UserRegistrationView(viewsets.ViewSet):
     """
     permission_classes = [permissions.AllowAny]
 
+    def _hash_password(self, password):
+        """使用PBKDF2算法加密密码"""
+        salt = settings.SECRET_KEY[:16].encode()
+        iterations = 100000
+        key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, iterations)
+        return base64.b64encode(key).decode()
+
+    @transaction.atomic
     def create(self, request):
         """
         标准注册方法
         """
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
+            # 加密密码
+            password = serializer.validated_data.pop('password')
+            hashed_password = self._hash_password(password)
+
+            # 创建用户
+            user = User.objects.create(
+                **serializer.validated_data,
+                password=hashed_password
+            )
 
             # 生成令牌
             refresh = RefreshToken.for_user(user)
@@ -215,27 +241,76 @@ class UserRegistrationView(viewsets.ViewSet):
                 last_login_ip=get_client_ip(request)
             )
 
+
+
 class UserLoginView(viewsets.ViewSet):
     """
     用户登录视图
     """
     permission_classes = [permissions.AllowAny]
 
+    def _verify_password(self, password, hashed_password):
+        """验证密码"""
+        salt = settings.SECRET_KEY[:16].encode()
+        iterations = 100000
+        key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, iterations)
+        return base64.b64encode(key).decode() == hashed_password
+
+    def _check_login_attempts(self, ip_address):
+        """检查登录尝试次数"""
+        attempts = LoginAttempt.objects.filter(
+            ip_address=ip_address,
+            timestamp__gte=timezone.now() - timedelta(minutes=15)
+        ).count()
+
+        if attempts >= 5:
+            return False
+        return True
+
+    def _record_login_attempt(self, ip_address, success):
+        """记录登录尝试"""
+        LoginAttempt.objects.create(
+            ip_address=ip_address,
+            success=success,
+            timestamp=timezone.now()
+        )
+
+    @transaction.atomic
     def create(self, request):
         """
         标准登录方法
         """
+        ip_address = get_client_ip(request)
+
+        # 检查登录尝试次数
+        if not self._check_login_attempts(ip_address):
+            return Response(
+                {'error': '登录尝试次数过多，请15分钟后再试'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
 
+            # 验证密码
+            if not self._verify_password(request.data['password'], user.password):
+                self._record_login_attempt(ip_address, False)
+                return Response(
+                    {'error': '密码错误'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
             # 更新最后登录信息
             user.last_login = timezone.now()
-            user.last_login_ip = get_client_ip(request)
+            user.last_login_ip = ip_address
             user.save(update_fields=['last_login', 'last_login_ip'])
 
             # 记录设备信息
             self._record_device(request, user)
+
+            # 记录成功登录
+            self._record_login_attempt(ip_address, True)
 
             # 生成令牌
             refresh = RefreshToken.for_user(user)
@@ -255,157 +330,81 @@ class UserLoginView(viewsets.ViewSet):
         return self.create(request)
 
     @action(detail=False, methods=['post'])
-    def login_with_password(self, request):
+    def login_with_third_party(self, request):
         """
-        用户名/手机号+密码登录
+        第三方登录
         """
-        username = request.data.get('username')
-        phone = request.data.get('phone')
-        password = request.data.get('password')
+        provider = request.data.get('provider')
+        token = request.data.get('token')
 
-        if not password:
-            return Response({'error': '密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not username and not phone:
-            return Response({'error': '用户名或手机号不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 尝试查找用户
-        try:
-            if username:
-                user = User.objects.get(username=username)
-            else:
-                user = User.objects.get(phone=phone)
-
-            # 验证密码
-            if not user.check_password(password):
-                return Response({'error': '密码错误'}, status=status.HTTP_400_BAD_REQUEST)
-
-        except User.DoesNotExist:
-            return Response({'error': '用户不存在'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 更新最后登录信息
-        user.last_login = timezone.now()
-        user.last_login_ip = get_client_ip(request)
-        user.save(update_fields=['last_login', 'last_login_ip'])
-
-        # 记录设备信息
-        self._record_device(request, user)
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
-
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        })
-
-    @action(detail=False, methods=['post'])
-    def login_with_email(self, request):
-        """
-        邮箱+密码登录
-        """
-        email = request.data.get('email')
-        password = request.data.get('password')
-
-        if not email or not password:
-            return Response({'error': '邮箱和密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 尝试查找用户
-        try:
-            user = User.objects.get(email=email)
-
-            # 验证密码
-            if not user.check_password(password):
-                return Response({'error': '密码错误'}, status=status.HTTP_400_BAD_REQUEST)
-
-        except User.DoesNotExist:
-            return Response({'error': '用户不存在'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 更新最后登录信息
-        user.last_login = timezone.now()
-        user.last_login_ip = get_client_ip(request)
-        user.save(update_fields=['last_login', 'last_login_ip'])
-
-        # 记录设备信息
-        self._record_device(request, user)
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
-
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        })
-
-    @action(detail=False, methods=['post'])
-    def login_with_code(self, request):
-        """
-        手机号+验证码登录
-        """
-        phone = request.data.get('phone')
-        code = request.data.get('code')
-
-        if not phone or not code:
-            return Response({'error': '手机号和验证码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 验证验证码
-        try:
-            verification = VerificationCode.objects.get(
-                phone=phone,
-                purpose='login',
-                is_used=False,
-                expires_at__gt=timezone.now()
+        if not provider or not token:
+            return Response(
+                {'error': '缺少必要参数'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            if verification.code != code:
-                return Response({'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # 标记验证码为已使用
-            verification.is_used = True
-            verification.save()
-
-        except VerificationCode.DoesNotExist:
-            return Response({'error': '验证码无效或已过期'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 尝试查找用户
         try:
-            user = User.objects.get(phone=phone)
-        except User.DoesNotExist:
-            # 如果用户不存在，创建新用户（自动注册）
-            username = f"user_{phone[-4:]}"
+            # 验证第三方token
+            user_info = self._verify_third_party_token(provider, token)
 
-            # 确保用户名唯一
-            base_username = username
-            count = 1
-            while User.objects.filter(username=username).exists():
-                username = f"{base_username}{count}"
-                count += 1
+            # 查找或创建用户
+            user, created = User.objects.get_or_create(
+                **self._get_user_lookup(provider, user_info),
+                defaults=self._get_user_defaults(provider, user_info)
+            )
 
-            # 创建随机密码
-            import random
-            import string
-            password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+            # 生成令牌
+            refresh = RefreshToken.for_user(user)
 
-            user = User.objects.create_user(username=username, phone=phone, password=password)
+            return Response({
+                'user': UserSerializer(user).data,
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'is_new_user': created
+            })
 
-        # 更新最后登录信息
-        user.last_login = timezone.now()
-        user.last_login_ip = get_client_ip(request)
-        user.save(update_fields=['last_login', 'last_login_ip'])
+        except Exception as e:
+            logger.error(f"第三方登录失败: {str(e)}")
+            return Response(
+                {'error': '第三方登录失败'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
-        # 记录设备信息
-        self._record_device(request, user)
+    def _verify_third_party_token(self, provider, token):
+        """验证第三方token"""
+        if provider == 'wechat':
+            return self._verify_wechat_token(token)
+        elif provider == 'qq':
+            return self._verify_qq_token(token)
+        else:
+            raise ValueError(f"不支持的第三方登录提供商: {provider}")
 
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+    def _verify_wechat_token(self, token):
+        """验证微信token"""
+        # 实现微信token验证逻辑
+        pass
 
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        })
+    def _verify_qq_token(self, token):
+        """验证QQtoken"""
+        # 实现QQtoken验证逻辑
+        pass
+
+    def _get_user_lookup(self, provider, user_info):
+        """获取用户查询条件"""
+        if provider == 'wechat':
+            return {'wechat_openid': user_info['openid']}
+        elif provider == 'qq':
+            return {'qq_openid': user_info['openid']}
+        return {}
+
+    def _get_user_defaults(self, provider, user_info):
+        """获取用户默认值"""
+        defaults = {
+            'username': f"{provider}_{user_info['openid'][:8]}",
+            'nickname': user_info.get('nickname', ''),
+            'avatar': user_info.get('avatar', ''),
+        }
+        return defaults
 
     def _record_device(self, request, user):
         """记录用户设备信息"""

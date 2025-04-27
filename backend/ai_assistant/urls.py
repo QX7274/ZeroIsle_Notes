@@ -24,11 +24,13 @@ router.register(r'usage-records', UsageRecordViewSet, basename='usage-record')
 router.register(r'feedback', FeedbackViewSet, basename='feedback')
 
 # 兼容旧版API
+# 暂时注释掉旧版API，以解决导入错误
+# 后续需要逐步迁移这些API到视图集中
 legacy_urls = [
-    path('chat/', legacy_views.chat_completion, name='ai_chat'),
-    path('transcribe/', legacy_views.transcribe_audio, name='ai_transcribe'),
-    path('process-text/', legacy_views.process_text, name='ai_process_text'),
-    path('analyze-image/', legacy_views.analyze_image, name='ai_analyze_image'),
+    # path('chat/', legacy_views.chat_completion, name='ai_chat'),
+    # path('transcribe/', legacy_views.transcribe_audio, name='ai_transcribe'),
+    # path('process-text/', legacy_views.process_text, name='ai_process_text'),
+    # path('analyze-image/', legacy_views.analyze_image, name='ai_analyze_image'),
 ]
 
 urlpatterns = [

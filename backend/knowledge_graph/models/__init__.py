@@ -9,3 +9,8 @@ from .graph import KnowledgeGraph
 from .concept import Concept
 from .entity import Entity
 from .relation import Relation
+
+__all__ = ['KnowledgeNode', 'KnowledgeEdge', 'KnowledgeGraph', 'Concept', 'Entity', 'Relation']
+from .relation import Relation
+
+__all__ = ['KnowledgeNode', 'KnowledgeEdge', 'KnowledgeGraph', 'Concept', 'Entity', 'Relation']

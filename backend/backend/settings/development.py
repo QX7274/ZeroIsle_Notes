@@ -3,12 +3,27 @@
 """
 
 from .base import *
+from pymongo import MongoClient
 
 # 调试模式
 DEBUG = True
 
 # 允许的主机
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'djongo',
+        'NAME': 'zeroislenotes',
+        'CLIENT': {
+            'host': 'mongodb://localhost:27017/'
+        }
+    }
+}
+
+# MongoDB连接配置
+MONGO_CLIENT = MongoClient('mongodb://localhost:27017/')
+MONGO_DB = MONGO_CLIENT['zeroislenotes']
 
 # 日志配置
 LOGGING = {

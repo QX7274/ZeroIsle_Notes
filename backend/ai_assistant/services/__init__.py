@@ -9,3 +9,6 @@ from .xunfei_service import XunfeiService
 from .token_counter import TokenCounter
 from .conversation_service import ConversationService
 from .prompt_service import PromptService
+from .whisper_service import WhisperService
+from .image_analysis_service import ImageAnalysisService
+from .text_processing_service import TextProcessingService
