@@ -3,78 +3,91 @@
 """
 
 from rest_framework import serializers
-from .models import Reminder, ReminderNotification
+from .mongodb_models import Reminder, ReminderNotification
 
 
-class ReminderSerializer(serializers.ModelSerializer):
+class ReminderSerializer(serializers.Serializer):
     """
     提醒序列化器
+    使用MongoDB模型
     """
-    username = serializers.SerializerMethodField()
-    note_title = serializers.SerializerMethodField()
+    id = serializers.UUIDField(read_only=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    note = serializers.UUIDField(source='note.id', read_only=True, allow_null=True)
+    note_title = serializers.CharField(source='note.title', read_only=True, allow_null=True)
+    title = serializers.CharField(required=True, max_length=200)
+    description = serializers.CharField(required=False, allow_blank=True)
+    due_date = serializers.DateTimeField(required=True)
+    priority = serializers.ChoiceField(
+        choices=['low', 'medium', 'high'],
+        default='medium',
+        required=False
+    )
+    frequency = serializers.ChoiceField(
+        choices=['once', 'daily', 'weekly', 'monthly', 'yearly'],
+        default='once',
+        required=False
+    )
+    is_completed = serializers.BooleanField(default=False, required=False)
+    is_enabled = serializers.BooleanField(default=True, required=False)
+    completed_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+
+    # 兼容旧版API的字段
+    content = serializers.CharField(source='description', required=False, allow_blank=True)
+    reminder_time = serializers.DateTimeField(source='due_date', required=False)
+    status = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
-    is_overdue = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Reminder
-        fields = [
-            'id', 'user', 'username', 'note', 'note_title',
-            'title', 'content', 'reminder_time', 'status',
-            'status_display', 'created_at', 'updated_at', 'is_overdue'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
-    def get_username(self, obj):
+
+    def get_status(self, obj):
         """
-        获取用户名
+        获取状态（兼容旧版API）
         """
-        return obj.user.username
-    
-    def get_note_title(self, obj):
-        """
-        获取笔记标题
-        """
-        if obj.note:
-            return obj.note.title
-        return None
-    
+        if obj.is_completed:
+            return 'completed'
+        return 'pending'
+
     def get_status_display(self, obj):
         """
-        获取状态显示名称
+        获取状态显示名称（兼容旧版API）
         """
-        return obj.get_status_display()
-    
-    def get_is_overdue(self, obj):
-        """
-        判断是否已过期
-        """
-        return obj.is_overdue
+        if obj.is_completed:
+            return '已完成'
+        return '待处理'
 
 
-class ReminderNotificationSerializer(serializers.ModelSerializer):
+class ReminderNotificationSerializer(serializers.Serializer):
     """
     提醒通知序列化器
+    使用MongoDB模型
     """
-    reminder_title = serializers.SerializerMethodField()
+    id = serializers.UUIDField(read_only=True)
+    reminder = serializers.UUIDField(source='reminder.id', read_only=True)
+    reminder_title = serializers.CharField(source='reminder.title', read_only=True)
+    status = serializers.ChoiceField(
+        choices=['pending', 'sent', 'failed'],
+        read_only=True
+    )
     status_display = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ReminderNotification
-        fields = [
-            'id', 'reminder', 'reminder_title', 'status',
-            'status_display', 'sent_at', 'error_message',
-            'created_at'
-        ]
-        read_only_fields = ['id', 'created_at']
-    
-    def get_reminder_title(self, obj):
-        """
-        获取提醒标题
-        """
-        return obj.reminder.title
-    
+    scheduled_time = serializers.DateTimeField(read_only=True)
+    sent_time = serializers.DateTimeField(read_only=True, allow_null=True)
+    error_message = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    # 兼容旧版API的字段
+    sent_at = serializers.DateTimeField(source='sent_time', read_only=True)
+
     def get_status_display(self, obj):
         """
         获取状态显示名称
         """
-        return obj.get_status_display()
+        status_map = {
+            'pending': '待发送',
+            'sent': '已发送',
+            'failed': '发送失败'
+        }
+        return status_map.get(obj.status, obj.status)

@@ -3,25 +3,21 @@
 """
 
 from rest_framework import serializers
-from notes.models import NoteSync
+from notes.mongodb_models import Note
 
 
-class NoteSyncSerializer(serializers.ModelSerializer):
+class NoteSyncSerializer(serializers.Serializer):
     """
     笔记同步序列化器
     """
-    username = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = NoteSync
-        fields = [
-            'id', 'user', 'username', 'device_id', 'last_sync_at',
-            'sync_status', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
-    def get_username(self, obj):
-        """
-        获取用户名
-        """
-        return obj.user.username
+    id = serializers.UUIDField(read_only=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    device_id = serializers.CharField(max_length=100)
+    last_sync_at = serializers.DateTimeField()
+    sync_status = serializers.ChoiceField(
+        choices=['success', 'failed', 'in_progress'],
+        default='success'
+    )
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)

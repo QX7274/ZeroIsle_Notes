@@ -20,10 +20,15 @@ const instance = axios.create({
 // 请求拦截器
 instance.interceptors.request.use(
   (config) => {
+    console.log('API请求:', config.method.toUpperCase(), config.url);
+
     // 从本地存储获取 token
     const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('使用认证令牌:', token.substring(0, 10) + '...');
+    } else {
+      console.log('未使用认证令牌');
     }
 
     // 添加时间戳防止缓存（仅对GET请求）
@@ -44,9 +49,11 @@ instance.interceptors.request.use(
 // 响应拦截器
 instance.interceptors.response.use(
   (response) => {
+    console.log('API响应成功:', response.config.url, response.status);
     return response;
   },
   (error) => {
+    console.error('API响应错误:', error.config?.url, error.message);
     const { response } = error;
 
     if (response) {
@@ -91,8 +98,10 @@ instance.interceptors.response.use(
 
     // 处理网络错误
     if (error.message === 'Network Error') {
+      console.error('网络连接错误:', error);
       const networkError = new Error('网络错误，请检查网络连接');
       networkError.isNetworkError = true;
+      networkError.originalError = error;
       return Promise.reject(networkError);
     }
 

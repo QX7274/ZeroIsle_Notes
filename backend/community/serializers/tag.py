@@ -3,16 +3,20 @@
 """
 
 from rest_framework import serializers
-from community.models import Tag
+from community.mongodb_models import Tag, Post
 
-class TagSerializer(serializers.ModelSerializer):
+class TagSerializer(serializers.Serializer):
     """标签序列化器"""
-    post_count = serializers.IntegerField(read_only=True)
-    
-    class Meta:
-        model = Tag
-        fields = [
-            'id', 'name', 'slug', 'description', 'color',
-            'is_active', 'post_count', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'post_count', 'created_at', 'updated_at']
+    id = serializers.CharField(read_only=True)
+    name = serializers.CharField(max_length=50)
+    slug = serializers.CharField(max_length=50)
+    description = serializers.CharField(required=False, allow_blank=True)
+    color = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    is_active = serializers.BooleanField(default=True)
+    post_count = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def get_post_count(self, obj):
+        """获取帖子数量"""
+        return Post.objects.filter(tags=obj.name, is_deleted=False).count()

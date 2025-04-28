@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'canvas',
     'code',
     'common',
+    'notification',
 ]
 
 # 中间件配置
@@ -86,17 +87,22 @@ ASGI_APPLICATION = 'backend.asgi.application'
 # MongoDB数据库配置
 DATABASES = {
     'default': {
-        'ENGINE': 'djongo',
-        'NAME': 'zeroislenotes',
-        'CLIENT': {
-            'host': os.environ.get('MONGO_HOST', 'localhost'),
-            'port': int(os.environ.get('MONGO_PORT', 27017)),
-            'username': os.environ.get('MONGO_USER', ''),
-            'password': os.environ.get('MONGO_PASSWORD', ''),
-            'authSource': 'admin',
-        }
+        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine
     }
 }
+
+# MongoDB连接配置
+import mongoengine
+
+# 连接到MongoDB
+mongoengine.connect(
+    db='zeroislenotes',
+    host=os.environ.get('MONGO_HOST', 'localhost'),
+    port=int(os.environ.get('MONGO_PORT', 27017)),
+    username=os.environ.get('MONGO_USER', ''),
+    password=os.environ.get('MONGO_PASSWORD', ''),
+    authentication_source='admin'
+)
 
 # 用户认证配置
 AUTH_USER_MODEL = 'users.User'

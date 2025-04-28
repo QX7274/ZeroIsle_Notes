@@ -10,10 +10,12 @@ from .auth import (
     UserProfileView,
     PasswordChangeView,
     PasswordResetView,
-    VerificationCodeView
+    VerificationCodeView,
+    UserBindingView
 )
 from .user import UserViewSet
 from .profile import UserProfileViewSet
 from .settings import UserSettingsViewSet
 from .device import UserDeviceViewSet
 from .third_party import ThirdPartyAuthViewSet
+from .test import TestAPIView

@@ -11,18 +11,15 @@ DEBUG = True
 # 允许的主机
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'djongo',
-        'NAME': 'zeroislenotes',
-        'CLIENT': {
-            'host': 'mongodb://localhost:27017/'
-        }
-    }
-}
-
-# MongoDB连接配置
-MONGO_CLIENT = MongoClient('mongodb://localhost:27017/')
+# 使用base.py中的MongoDB配置
+# 直接使用PyMongo客户端进行原生操作
+MONGO_CLIENT = MongoClient(
+    host=os.environ.get('MONGO_HOST', 'localhost'),
+    port=int(os.environ.get('MONGO_PORT', 27017)),
+    username=os.environ.get('MONGO_USER', ''),
+    password=os.environ.get('MONGO_PASSWORD', ''),
+    authSource='admin'
+)
 MONGO_DB = MONGO_CLIENT['zeroislenotes']
 
 # 日志配置

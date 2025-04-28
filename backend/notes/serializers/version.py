@@ -3,28 +3,20 @@
 """
 
 from rest_framework import serializers
-from notes.models import NoteVersion
+from notes.mongodb_models import NoteVersion
 
 
-class NoteVersionSerializer(serializers.ModelSerializer):
+class NoteVersionSerializer(serializers.Serializer):
     """
     笔记版本序列化器
     """
-    created_by_username = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = NoteVersion
-        fields = [
-            'id', 'note', 'title', 'content', 'version_number',
-            'created_by', 'created_by_username', 'created_at',
-            'comment', 'is_auto_save'
-        ]
-        read_only_fields = ['id', 'created_at']
-    
-    def get_created_by_username(self, obj):
-        """
-        获取创建者用户名
-        """
-        if obj.created_by:
-            return obj.created_by.username
-        return None
+    id = serializers.UUIDField(read_only=True)
+    note = serializers.UUIDField(source='note.id')
+    title = serializers.CharField(max_length=255)
+    content = serializers.CharField()
+    version_number = serializers.IntegerField()
+    created_by = serializers.UUIDField(source='created_by.id')
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    comment = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    is_auto_save = serializers.BooleanField(default=False)
+    created_at = serializers.DateTimeField(read_only=True)

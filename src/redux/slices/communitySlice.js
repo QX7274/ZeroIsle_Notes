@@ -3,7 +3,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import * as communityApi from '../../services/communityApi';
+import communityApi from '../../services/api/communityApi';
 
 // 异步Action: 获取社区帖子列表
 export const fetchPosts = createAsyncThunk(
@@ -13,24 +13,28 @@ export const fetchPosts = createAsyncThunk(
       // 调用实际的API
       const response = await communityApi.getPosts({
         page: params?.page || 1,
-        pageSize: params?.pageSize || 10,
+        page_size: params?.pageSize || 10,
         tag: params?.tag,
         category: params?.category,
-        author: params?.author,
-        featured: params?.featured,
+        user: params?.author,
+        is_featured: params?.featured,
         ordering: params?.ordering,
       });
 
+      if (!response.success) {
+        return rejectWithValue(response.message || '获取社区帖子失败');
+      }
+
       return {
-        posts: response.data.results,
+        posts: response.data.results || [],
         pagination: {
           page: params?.page || 1,
           totalPages: Math.ceil(response.data.count / (params?.pageSize || 10)),
-          totalItems: response.data.count,
+          totalItems: response.data.count || 0,
         },
       };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || error.message || '获取社区帖子失败');
+      return rejectWithValue(error.message || '获取社区帖子失败');
     }
   }
 );
@@ -42,9 +46,14 @@ export const fetchPostDetail = createAsyncThunk(
     try {
       // 调用实际的API
       const response = await communityApi.getPostDetail(postId);
+
+      if (!response.success) {
+        return rejectWithValue(response.message || '获取帖子详情失败');
+      }
+
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || error.message || '获取帖子详情失败');
+      return rejectWithValue(error.message || '获取帖子详情失败');
     }
   }
 );
@@ -55,18 +64,22 @@ export const fetchComments = createAsyncThunk(
   async ({ postId, page = 1 }, { rejectWithValue }) => {
     try {
       // 调用实际的API
-      const response = await communityApi.getComments({
-        post: postId,
+      const response = await communityApi.getPostComments(postId, {
         page: page,
+        page_size: 10,
         parent: null, // 获取顶级评论
       });
 
+      if (!response.success) {
+        return rejectWithValue(response.message || '获取评论失败');
+      }
+
       return {
-        comments: response.data.results,
+        comments: response.data.results || [],
         pagination: {
           page: page,
           totalPages: Math.ceil(response.data.count / 10),
-          totalItems: response.data.count,
+          totalItems: response.data.count || 0,
         },
       };
     } catch (error) {
@@ -81,10 +94,18 @@ export const likePost = createAsyncThunk(
   async ({ postId, liked }, { rejectWithValue }) => {
     try {
       // 调用实际的API
-      await communityApi.likePost(postId);
-      return { postId, liked };
+      const response = await communityApi.togglePostLike(postId);
+
+      if (!response.success) {
+        return rejectWithValue(response.message || '点赞操作失败');
+      }
+
+      return {
+        postId,
+        liked: response.data.is_active // 使用后端返回的实际点赞状态
+      };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || error.message || '点赞操作失败');
+      return rejectWithValue(error.message || '点赞操作失败');
     }
   }
 );
@@ -95,15 +116,18 @@ export const postComment = createAsyncThunk(
   async ({ postId, content, parentId = null }, { rejectWithValue }) => {
     try {
       // 调用实际的API
-      const response = await communityApi.createComment({
-        post: postId,
+      const response = await communityApi.addComment(postId, {
         content: content,
-        parent: parentId
+        parent_id: parentId
       });
+
+      if (!response.success) {
+        return rejectWithValue(response.message || '发布评论失败');
+      }
 
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || error.message || '发布评论失败');
+      return rejectWithValue(error.message || '发布评论失败');
     }
   }
 );

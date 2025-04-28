@@ -7,13 +7,13 @@ import { API_ENDPOINTS } from '../../config/api';
 import { offlineStorageService } from '../offlineStorage';
 
 /**
- * 获取社区笔记
+ * 获取社区帖子列表
  * @param {object} params - 查询参数
- * @returns {Promise} - 笔记列表
+ * @returns {Promise} - 帖子列表
  */
-export const getCommunityNotes = async (params = {}) => {
+export const getPosts = async (params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.COMMUNITY.NOTES, { params });
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.POSTS, { params });
     return {
       success: true,
       data: response.data
@@ -21,20 +21,20 @@ export const getCommunityNotes = async (params = {}) => {
   } catch (error) {
     return {
       success: false,
-      message: error.message || '获取社区笔记失败',
+      message: error.message || '获取社区帖子失败',
       error
     };
   }
 };
 
 /**
- * 点赞/取消点赞笔记
- * @param {string} id - 笔记ID
+ * 点赞/取消点赞帖子
+ * @param {string} id - 帖子ID
  * @returns {Promise} - 操作结果
  */
-export const toggleLike = async (id) => {
+export const togglePostLike = async (id) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.LIKE(id));
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.LIKE_POST(id));
     return {
       success: true,
       data: response.data
@@ -42,19 +42,19 @@ export const toggleLike = async (id) => {
   } catch (error) {
     return {
       success: false,
-      message: error.message || '操作失败',
+      message: error.message || '点赞操作失败',
       error
     };
   }
 };
 
 /**
- * 获取笔记评论
- * @param {string} id - 笔记ID
+ * 获取帖子评论
+ * @param {string} id - 帖子ID
  * @param {object} params - 查询参数
  * @returns {Promise} - 评论列表
  */
-export const getNoteComments = async (id, params = {}) => {
+export const getPostComments = async (id, params = {}) => {
   try {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.COMMENTS(id), { params });
     return {
@@ -72,7 +72,7 @@ export const getNoteComments = async (id, params = {}) => {
 
 /**
  * 添加评论
- * @param {string} id - 笔记ID
+ * @param {string} id - 帖子ID
  * @param {object} commentData - 评论数据
  * @returns {Promise} - 添加结果
  */
@@ -113,13 +113,13 @@ export const deleteComment = async (id) => {
 };
 
 /**
- * 关注/取消关注用户
- * @param {string} id - 用户ID
+ * 点赞/取消点赞评论
+ * @param {string} id - 评论ID
  * @returns {Promise} - 操作结果
  */
-export const toggleFollow = async (id) => {
+export const toggleCommentLike = async (id) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.FOLLOW(id));
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.LIKE_COMMENT(id));
     return {
       success: true,
       data: response.data
@@ -127,7 +127,86 @@ export const toggleFollow = async (id) => {
   } catch (error) {
     return {
       success: false,
-      message: error.message || '操作失败',
+      message: error.message || '点赞评论失败',
+      error
+    };
+  }
+};
+
+/**
+ * 关注/取消关注用户
+ * @param {string} userId - 用户ID
+ * @returns {Promise} - 操作结果
+ */
+export const toggleFollow = async (userId) => {
+  try {
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.FOLLOW, {
+      content_type: 'User',
+      object_id: userId
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '关注操作失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取用户的关注者
+ * @param {string} userId - 用户ID
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 关注者列表
+ */
+export const getUserFollowers = async (userId, params = {}) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWERS, {
+      params: {
+        ...params,
+        content_type: 'User',
+        object_id: userId
+      }
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取关注者失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取用户关注的人
+ * @param {string} userId - 用户ID
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 关注列表
+ */
+export const getUserFollowing = async (userId, params = {}) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWING, {
+      params: {
+        ...params,
+        user_id: userId
+      }
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取关注列表失败',
       error
     };
   }
@@ -183,7 +262,7 @@ export const shareNoteToCommuity = async (id, shareData) => {
  */
 export const getPopularTags = async (params = {}) => {
   try {
-    const response = await instance.get('/community/tags/popular/', { params });
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.POPULAR_TAGS, { params });
     return {
       success: true,
       data: response.data
@@ -192,6 +271,48 @@ export const getPopularTags = async (params = {}) => {
     return {
       success: false,
       message: error.message || '获取热门标签失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取所有标签
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 标签列表
+ */
+export const getTags = async (params = {}) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.TAGS, { params });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取标签失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取所有分类
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 分类列表
+ */
+export const getCategories = async (params = {}) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.CATEGORIES, { params });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取分类失败',
       error
     };
   }
@@ -213,50 +334,6 @@ export const getRecommendedUsers = async (params = {}) => {
     return {
       success: false,
       message: error.message || '获取推荐用户失败',
-      error
-    };
-  }
-};
-
-/**
- * 获取用户关注的人
- * @param {string} id - 用户ID
- * @param {object} params - 查询参数
- * @returns {Promise} - 用户列表
- */
-export const getUserFollowing = async (id, params = {}) => {
-  try {
-    const response = await instance.get(`/community/users/${id}/following/`, { params });
-    return {
-      success: true,
-      data: response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取关注列表失败',
-      error
-    };
-  }
-};
-
-/**
- * 获取用户的粉丝
- * @param {string} id - 用户ID
- * @param {object} params - 查询参数
- * @returns {Promise} - 用户列表
- */
-export const getUserFollowers = async (id, params = {}) => {
-  try {
-    const response = await instance.get(`/community/users/${id}/followers/`, { params });
-    return {
-      success: true,
-      data: response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取粉丝列表失败',
       error
     };
   }
@@ -293,7 +370,7 @@ export const getPostDetail = async (id) => {
     }
 
     // 在线模式：从服务器获取
-    const response = await instance.get(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`);
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id));
 
     // 缓存数据
     const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
@@ -361,7 +438,7 @@ export const createPost = async (postData) => {
     }
 
     // 在线模式：发送到服务器
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.NOTES, postData);
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.POSTS, postData);
 
     // 更新缓存
     const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
@@ -422,7 +499,7 @@ export const updatePost = async (id, postData) => {
     }
 
     // 在线模式：发送到服务器
-    const response = await instance.put(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`, postData);
+    const response = await instance.put(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id), postData);
 
     // 更新缓存
     const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
@@ -476,7 +553,7 @@ export const deletePost = async (id) => {
     }
 
     // 在线模式：发送到服务器
-    await instance.delete(`${API_ENDPOINTS.COMMUNITY.NOTES}${id}/`);
+    await instance.delete(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id));
 
     // 更新缓存
     const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
@@ -524,7 +601,7 @@ export const getUserPosts = async (userId, params = {}) => {
  */
 export const getUserNotifications = async (params = {}) => {
   try {
-    const response = await instance.get('/community/notifications/', { params });
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.NOTIFICATIONS, { params });
     return {
       success: true,
       data: response.data
@@ -545,7 +622,7 @@ export const getUserNotifications = async (params = {}) => {
  */
 export const markNotificationAsRead = async (id) => {
   try {
-    const response = await instance.post(`/community/notifications/${id}/read/`);
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.MARK_NOTIFICATION_READ(id));
     return {
       success: true,
       data: response.data
@@ -565,7 +642,7 @@ export const markNotificationAsRead = async (id) => {
  */
 export const markAllNotificationsAsRead = async () => {
   try {
-    const response = await instance.post('/community/notifications/read-all/');
+    const response = await instance.post(`${API_ENDPOINTS.COMMUNITY.NOTIFICATIONS}mark_all_as_read/`);
     return {
       success: true,
       data: response.data
@@ -580,26 +657,45 @@ export const markAllNotificationsAsRead = async () => {
 };
 
 const communityApi = {
-  getCommunityNotes,
-  toggleLike,
-  getNoteComments,
-  addComment,
-  deleteComment,
-  toggleFollow,
-  getActivityStream,
-  shareNoteToCommuity,
-  getPopularTags,
-  getRecommendedUsers,
-  getUserFollowing,
-  getUserFollowers,
+  // 帖子相关
+  getPosts,
   getPostDetail,
   createPost,
   updatePost,
   deletePost,
+  togglePostLike,
   getUserPosts,
+
+  // 评论相关
+  getPostComments,
+  addComment,
+  deleteComment,
+  toggleCommentLike,
+
+  // 关注相关
+  toggleFollow,
+  getUserFollowers,
+  getUserFollowing,
+
+  // 标签和分类
+  getTags,
+  getPopularTags,
+  getCategories,
+
+  // 活动和通知
+  getActivityStream,
   getUserNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+
+  // 其他
+  getRecommendedUsers,
+  shareNoteToCommuity,
+
+  // 兼容旧版API
+  getCommunityNotes: getPosts,
+  toggleLike: togglePostLike,
+  getNoteComments: getPostComments
 };
 
 export default communityApi;

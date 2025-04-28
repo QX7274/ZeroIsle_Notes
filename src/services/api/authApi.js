@@ -20,7 +20,11 @@ export const login = async (loginData) => {
       };
     }
 
+    console.log('登录请求数据:', loginData);
+
     const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN, loginData);
+
+    console.log('登录响应数据:', response.data);
 
     // 验证响应数据是否包含必要的字段
     if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
@@ -67,7 +71,11 @@ export const login = async (loginData) => {
  */
 export const register = async (userData) => {
   try {
+    console.log('注册请求数据:', userData);
+
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER, userData);
+
+    console.log('注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data.access && response.data.refresh && response.data.user) {
@@ -81,9 +89,12 @@ export const register = async (userData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('注册错误:', error);
+    console.error('错误详情:', error.response?.data || error.message);
+
     return {
       success: false,
-      message: error.message || '注册失败',
+      message: error.response?.data?.detail || error.message || '注册失败',
       error
     };
   }
@@ -96,7 +107,11 @@ export const register = async (userData) => {
  */
 export const registerWithUsername = async (userData) => {
   try {
-    const response = await instance.post('/auth/register/username', userData);
+    console.log('用户名注册请求数据:', userData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, userData);
+
+    console.log('用户名注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data.access && response.data.refresh && response.data.user) {
@@ -110,6 +125,7 @@ export const registerWithUsername = async (userData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('用户名注册失败:', error);
     return {
       success: false,
       message: error.message || '注册失败',
@@ -125,9 +141,13 @@ export const registerWithUsername = async (userData) => {
  */
 export const refreshToken = async (refreshToken) => {
   try {
+    console.log('刷新令牌请求数据:', refreshToken);
+
     const response = await instance.post(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
       refresh: refreshToken
     });
+
+    console.log('刷新令牌响应数据:', response.data);
 
     // 保存新的访问令牌
     await setToken(response.data.access);
@@ -137,6 +157,7 @@ export const refreshToken = async (refreshToken) => {
       data: response.data
     };
   } catch (error) {
+    console.error('刷新令牌失败:', error);
     return {
       success: false,
       message: error.message || '刷新令牌失败',
@@ -151,12 +172,18 @@ export const refreshToken = async (refreshToken) => {
  */
 export const getProfile = async () => {
   try {
+    console.log('获取用户资料请求');
+
     const response = await instance.get(API_ENDPOINTS.AUTH.PROFILE);
+
+    console.log('获取用户资料响应数据:', response.data);
+
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('获取用户资料失败:', error);
     return {
       success: false,
       message: error.message || '获取用户资料失败',
@@ -172,7 +199,11 @@ export const getProfile = async () => {
  */
 export const updateProfile = async (profileData) => {
   try {
+    console.log('更新用户资料请求数据:', profileData);
+
     const response = await instance.put(API_ENDPOINTS.AUTH.PROFILE, profileData);
+
+    console.log('更新用户资料响应数据:', response.data);
 
     // 更新本地存储的用户信息
     await setUser(response.data);
@@ -182,6 +213,7 @@ export const updateProfile = async (profileData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('更新用户资料失败:', error);
     return {
       success: false,
       message: error.message || '更新用户资料失败',
@@ -198,16 +230,21 @@ export const updateProfile = async (profileData) => {
  */
 export const changePassword = async (oldPassword, newPassword) => {
   try {
+    console.log('修改密码请求数据:', { oldPassword, newPassword });
+
     const response = await instance.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
       old_password: oldPassword,
       new_password: newPassword
     });
+
+    console.log('修改密码响应数据:', response.data);
 
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('修改密码失败:', error);
     return {
       success: false,
       message: error.message || '修改密码失败',
@@ -223,15 +260,20 @@ export const changePassword = async (oldPassword, newPassword) => {
  */
 export const resetPassword = async (email) => {
   try {
+    console.log('重置密码请求数据:', { email });
+
     const response = await instance.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
       email
     });
+
+    console.log('重置密码响应数据:', response.data);
 
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('重置密码失败:', error);
     return {
       success: false,
       message: error.message || '重置密码失败',
@@ -248,16 +290,21 @@ export const resetPassword = async (email) => {
  */
 export const sendVerificationCode = async (phone, type = 'login') => {
   try {
-    const response = await instance.post('/auth/send_verification_code/', {
+    console.log('发送验证码:', phone, type);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
       phone,
       type
     });
+
+    console.log('验证码发送响应:', response.data);
 
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('发送验证码失败:', error);
     return {
       success: false,
       message: error.message || '发送验证码失败',
@@ -273,7 +320,11 @@ export const sendVerificationCode = async (phone, type = 'login') => {
  */
 export const loginWithCode = async (loginData) => {
   try {
-    const response = await instance.post('/auth/login/code', loginData);
+    console.log('验证码登录请求数据:', loginData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_CODE, loginData);
+
+    console.log('验证码登录响应数据:', response.data);
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
@@ -286,6 +337,7 @@ export const loginWithCode = async (loginData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('验证码登录失败:', error);
     return {
       success: false,
       message: error.message || '登录失败',
@@ -301,7 +353,11 @@ export const loginWithCode = async (loginData) => {
  */
 export const registerWithPhone = async (userData) => {
   try {
-    const response = await instance.post('/auth/register/phone', userData);
+    console.log('手机号注册请求数据:', userData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, userData);
+
+    console.log('手机号注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data.access && response.data.refresh && response.data.user) {
@@ -315,6 +371,7 @@ export const registerWithPhone = async (userData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('手机号注册失败:', error);
     return {
       success: false,
       message: error.message || '注册失败',
@@ -330,7 +387,11 @@ export const registerWithPhone = async (userData) => {
  */
 export const registerWithEmail = async (userData) => {
   try {
-    const response = await instance.post('/auth/register/email', userData);
+    console.log('邮箱注册请求数据:', userData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, userData);
+
+    console.log('邮箱注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data.access && response.data.refresh && response.data.user) {
@@ -344,6 +405,7 @@ export const registerWithEmail = async (userData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('邮箱注册失败:', error);
     return {
       success: false,
       message: error.message || '注册失败',
@@ -359,9 +421,13 @@ export const registerWithEmail = async (userData) => {
  */
 export const wechatLogin = async (code) => {
   try {
-    const response = await instance.post('/auth/wechat_login/', {
+    console.log('微信登录请求数据:', code);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_WECHAT, {
       code
     });
+
+    console.log('微信登录响应数据:', response.data);
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
@@ -374,6 +440,7 @@ export const wechatLogin = async (code) => {
       data: response.data
     };
   } catch (error) {
+    console.error('微信登录失败:', error);
     return {
       success: false,
       message: error.message || '微信登录失败',
@@ -389,9 +456,13 @@ export const wechatLogin = async (code) => {
  */
 export const qqLogin = async (code) => {
   try {
-    const response = await instance.post('/auth/qq_login/', {
+    console.log('QQ登录请求数据:', code);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_QQ, {
       code
     });
+
+    console.log('QQ登录响应数据:', response.data);
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
@@ -404,9 +475,158 @@ export const qqLogin = async (code) => {
       data: response.data
     };
   } catch (error) {
+    console.error('QQ登录失败:', error);
     return {
       success: false,
       message: error.message || 'QQ登录失败',
+      error
+    };
+  }
+};
+
+/**
+ * 绑定邮箱
+ * @param {object} bindData - 绑定数据 (email, password)
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 绑定结果
+ */
+export const bindEmail = async (bindData, token = null) => {
+  try {
+    console.log('绑定邮箱请求数据:', bindData);
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.BIND_EMAIL, bindData, config);
+
+    console.log('绑定邮箱响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('绑定邮箱失败:', error);
+    return {
+      success: false,
+      message: error.message || '绑定邮箱失败',
+      error
+    };
+  }
+};
+
+/**
+ * 绑定手机号
+ * @param {object} bindData - 绑定数据 (phone, code, password)
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 绑定结果
+ */
+export const bindPhone = async (bindData, token = null) => {
+  try {
+    console.log('绑定手机号请求数据:', bindData);
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.BIND_PHONE, bindData, config);
+
+    console.log('绑定手机号响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('绑定手机号失败:', error);
+    return {
+      success: false,
+      message: error.message || '绑定手机号失败',
+      error
+    };
+  }
+};
+
+/**
+ * 绑定微信
+ * @param {string} code - 微信授权码
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 绑定结果
+ */
+export const bindWechat = async (code, token = null) => {
+  try {
+    console.log('绑定微信请求数据:', code);
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.BIND_WECHAT, { code }, config);
+
+    console.log('绑定微信响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('绑定微信失败:', error);
+    return {
+      success: false,
+      message: error.message || '绑定微信失败',
+      error
+    };
+  }
+};
+
+/**
+ * 绑定QQ
+ * @param {string} code - QQ授权码
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 绑定结果
+ */
+export const bindQQ = async (code, token = null) => {
+  try {
+    console.log('绑定QQ请求数据:', code);
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.BIND_QQ, { code }, config);
+
+    console.log('绑定QQ响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('绑定QQ失败:', error);
+    return {
+      success: false,
+      message: error.message || '绑定QQ失败',
       error
     };
   }
@@ -448,6 +668,10 @@ const authApi = {
   loginWithCode,
   wechatLogin,
   qqLogin,
+  bindEmail,
+  bindPhone,
+  bindWechat,
+  bindQQ,
   logout
 };
 

@@ -3,179 +3,195 @@
 """
 
 from rest_framework import serializers
-from community.models import Post, Category, Tag
+from community.mongodb_models import Post, Category, Tag
 from users.serializers import UserSerializer
 
-class PostSerializer(serializers.ModelSerializer):
+class PostSerializer(serializers.Serializer):
     """帖子基础序列化器"""
-    class Meta:
-        model = Post
-        fields = [
-            'id', 'title', 'content', 'excerpt', 'status',
-            'category', 'tags', 'cover_image', 'view_count',
-            'like_count', 'comment_count', 'allow_comments',
-            'is_pinned', 'is_featured', 'is_public',
-            'published_at', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'view_count', 'like_count', 'comment_count', 'published_at', 'created_at', 'updated_at']
+    id = serializers.CharField(read_only=True)
+    user = serializers.CharField(read_only=True)
+    title = serializers.CharField(max_length=255)
+    content = serializers.CharField()
+    excerpt = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, default='published')
+    category = serializers.CharField(required=False, allow_null=True)
+    tags = serializers.ListField(child=serializers.CharField(), required=False)
+    cover_image = serializers.CharField(required=False, allow_blank=True)
+    view_count = serializers.IntegerField(read_only=True)
+    like_count = serializers.IntegerField(read_only=True)
+    comment_count = serializers.IntegerField(read_only=True)
+    allow_comments = serializers.BooleanField(default=True)
+    is_pinned = serializers.BooleanField(default=False)
+    is_featured = serializers.BooleanField(default=False)
+    is_public = serializers.BooleanField(default=True)
+    published_at = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
-class PostListSerializer(serializers.ModelSerializer):
+class PostListSerializer(serializers.Serializer):
     """帖子列表序列化器"""
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
+    title = serializers.CharField(max_length=255)
+    excerpt = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, default='published')
+    status_display = serializers.SerializerMethodField()
+    category = serializers.CharField(required=False, allow_null=True)
+    category_name = serializers.SerializerMethodField()
     tag_names = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    cover_image = serializers.CharField(required=False, allow_blank=True)
+    view_count = serializers.IntegerField(read_only=True)
+    like_count = serializers.IntegerField(read_only=True)
+    comment_count = serializers.IntegerField(read_only=True)
+    is_pinned = serializers.BooleanField(default=False)
+    is_featured = serializers.BooleanField(default=False)
+    is_public = serializers.BooleanField(default=True)
     is_liked = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Post
-        fields = [
-            'id', 'user', 'title', 'excerpt', 'status', 'status_display',
-            'category', 'category_name', 'tag_names', 'cover_image',
-            'view_count', 'like_count', 'comment_count',
-            'is_pinned', 'is_featured', 'is_public', 'is_liked',
-            'published_at', 'created_at'
-        ]
-        read_only_fields = ['id', 'user', 'view_count', 'like_count', 'comment_count', 'published_at', 'created_at']
-    
+    published_at = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    def get_status_display(self, obj):
+        """获取状态显示名称"""
+        return dict(Post.STATUS_CHOICES).get(obj.status, '')
+
+    def get_category_name(self, obj):
+        """获取分类名称"""
+        if hasattr(obj, 'category') and obj.category:
+            try:
+                category = Category.objects.get(id=obj.category)
+                return category.name
+            except Category.DoesNotExist:
+                pass
+        return ''
+
     def get_tag_names(self, obj):
         """获取标签名称列表"""
-        return [tag.name for tag in obj.tags.all()]
-    
+        if hasattr(obj, 'tags') and obj.tags:
+            return obj.tags
+        return []
+
     def get_is_liked(self, obj):
         """获取当前用户是否点赞"""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            from community.services import LikeService
-            like_service = LikeService()
-            return like_service.is_liked_by_user(request.user, obj)
+            from community.mongodb_models import Like
+            like = Like.objects.filter(
+                user=request.user,
+                content_type='Post',
+                object_id=str(obj.id),
+                is_active=True
+            ).first()
+            return like is not None
         return False
 
-class PostDetailSerializer(serializers.ModelSerializer):
+class PostDetailSerializer(serializers.Serializer):
     """帖子详情序列化器"""
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
+    title = serializers.CharField(max_length=255)
+    content = serializers.CharField()
+    excerpt = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, default='published')
+    status_display = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    cover_image = serializers.CharField(required=False, allow_blank=True)
+    view_count = serializers.IntegerField(read_only=True)
+    like_count = serializers.IntegerField(read_only=True)
+    comment_count = serializers.IntegerField(read_only=True)
+    allow_comments = serializers.BooleanField(default=True)
+    is_pinned = serializers.BooleanField(default=False)
+    is_featured = serializers.BooleanField(default=False)
+    is_public = serializers.BooleanField(default=True)
     is_liked = serializers.SerializerMethodField()
     is_followed = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Post
-        fields = [
-            'id', 'user', 'title', 'content', 'excerpt', 'status', 'status_display',
-            'category', 'tags', 'cover_image', 'view_count', 'like_count',
-            'comment_count', 'allow_comments', 'is_pinned', 'is_featured',
-            'is_public', 'is_liked', 'is_followed', 'published_at',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'user', 'view_count', 'like_count', 'comment_count', 'published_at', 'created_at', 'updated_at']
-    
+    published_at = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def get_status_display(self, obj):
+        """获取状态显示名称"""
+        return dict(Post.STATUS_CHOICES).get(obj.status, '')
+
     def get_category(self, obj):
         """获取分类信息"""
-        if obj.category:
-            from community.serializers import CategorySerializer
-            return CategorySerializer(obj.category).data
+        if hasattr(obj, 'category') and obj.category:
+            try:
+                category = Category.objects.get(id=obj.category)
+                from community.serializers import CategorySerializer
+                return CategorySerializer(category).data
+            except Category.DoesNotExist:
+                pass
         return None
-    
+
     def get_tags(self, obj):
         """获取标签信息"""
-        from community.serializers import TagSerializer
-        return TagSerializer(obj.tags.all(), many=True).data
-    
+        if hasattr(obj, 'tags') and obj.tags:
+            tags = []
+            for tag_name in obj.tags:
+                try:
+                    tag = Tag.objects.get(name=tag_name)
+                    tags.append(tag)
+                except Tag.DoesNotExist:
+                    pass
+            from community.serializers import TagSerializer
+            return TagSerializer(tags, many=True).data
+        return []
+
     def get_is_liked(self, obj):
         """获取当前用户是否点赞"""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            from community.services import LikeService
-            like_service = LikeService()
-            return like_service.is_liked_by_user(request.user, obj)
+            from community.mongodb_models import Like
+            like = Like.objects.filter(
+                user=request.user,
+                content_type='Post',
+                object_id=str(obj.id),
+                is_active=True
+            ).first()
+            return like is not None
         return False
-    
+
     def get_is_followed(self, obj):
         """获取当前用户是否关注作者"""
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            from community.services import FollowService
-            follow_service = FollowService()
-            return follow_service.is_following(request.user, obj.user)
+        if request and request.user.is_authenticated and hasattr(obj, 'user') and obj.user:
+            from community.mongodb_models import Follow
+            follow = Follow.objects.filter(
+                user=request.user,
+                content_type='User',
+                object_id=str(obj.user.id),
+                is_active=True
+            ).first()
+            return follow is not None
         return False
 
-class PostCreateSerializer(serializers.ModelSerializer):
+class PostCreateSerializer(serializers.Serializer):
     """帖子创建序列化器"""
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(),
-        required=False,
-        allow_null=True,
-        source='category'
-    )
+    title = serializers.CharField(max_length=255)
+    content = serializers.CharField()
+    excerpt = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, default='published')
+    category_id = serializers.CharField(required=False, allow_null=True)
     tags = serializers.ListField(
         child=serializers.CharField(),
         required=False
     )
-    
-    class Meta:
-        model = Post
-        fields = [
-            'title', 'content', 'excerpt', 'status',
-            'category_id', 'tags', 'cover_image',
-            'allow_comments', 'is_public'
-        ]
-    
-    def create(self, validated_data):
-        """创建帖子"""
-        tags_data = validated_data.pop('tags', [])
-        
-        # 创建帖子
-        post = Post.objects.create(**validated_data)
-        
-        # 添加标签
-        if tags_data:
-            tags = []
-            for tag_name in tags_data:
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
-                tags.append(tag)
-            post.tags.set(tags)
-        
-        return post
+    cover_image = serializers.CharField(required=False, allow_blank=True)
+    allow_comments = serializers.BooleanField(default=True)
+    is_public = serializers.BooleanField(default=True)
 
-class PostUpdateSerializer(serializers.ModelSerializer):
+class PostUpdateSerializer(serializers.Serializer):
     """帖子更新序列化器"""
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(),
-        required=False,
-        allow_null=True,
-        source='category'
-    )
+    title = serializers.CharField(max_length=255, required=False)
+    content = serializers.CharField(required=False)
+    excerpt = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, required=False)
+    category_id = serializers.CharField(required=False, allow_null=True)
     tags = serializers.ListField(
         child=serializers.CharField(),
         required=False
     )
-    
-    class Meta:
-        model = Post
-        fields = [
-            'title', 'content', 'excerpt', 'status',
-            'category_id', 'tags', 'cover_image',
-            'allow_comments', 'is_public'
-        ]
-    
-    def update(self, instance, validated_data):
-        """更新帖子"""
-        tags_data = validated_data.pop('tags', None)
-        
-        # 更新帖子字段
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
-        instance.save()
-        
-        # 更新标签
-        if tags_data is not None:
-            tags = []
-            for tag_name in tags_data:
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
-                tags.append(tag)
-            instance.tags.set(tags)
-        
-        return instance
+    cover_image = serializers.CharField(required=False, allow_blank=True)
+    allow_comments = serializers.BooleanField(required=False)
+    is_public = serializers.BooleanField(required=False)

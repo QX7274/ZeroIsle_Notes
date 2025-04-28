@@ -13,7 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 import { codeService } from '../services/codeService';
 import { analyticsService } from '../services/analytics';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { docco } from 'react-syntax-highlighter/styles/hljs';
 
 const SUPPORTED_LANGUAGES = [
   { id: 'javascript', name: 'JavaScript' },

@@ -3,127 +3,153 @@
 """
 
 from rest_framework import serializers
-from community.models import Comment, Post
+from community.mongodb_models import Comment, Post
 from users.serializers import UserSerializer
 
-class CommentSerializer(serializers.ModelSerializer):
+class CommentSerializer(serializers.Serializer):
     """评论基础序列化器"""
-    class Meta:
-        model = Comment
-        fields = [
-            'id', 'post', 'parent', 'content',
-            'like_count', 'is_pinned', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'like_count', 'created_at', 'updated_at']
+    id = serializers.CharField(read_only=True)
+    user = serializers.CharField(read_only=True)
+    post = serializers.CharField()
+    parent = serializers.CharField(required=False, allow_null=True)
+    content = serializers.CharField()
+    like_count = serializers.IntegerField(read_only=True)
+    is_pinned = serializers.BooleanField(default=False)
+    is_deleted = serializers.BooleanField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
-class CommentListSerializer(serializers.ModelSerializer):
+class CommentListSerializer(serializers.Serializer):
     """评论列表序列化器"""
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
+    post = serializers.CharField()
+    parent = serializers.CharField(required=False, allow_null=True)
+    content = serializers.CharField()
+    like_count = serializers.IntegerField(read_only=True)
+    is_pinned = serializers.BooleanField(default=False)
     reply_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Comment
-        fields = [
-            'id', 'user', 'post', 'parent', 'content',
-            'like_count', 'is_pinned', 'reply_count',
-            'is_liked', 'created_at'
-        ]
-        read_only_fields = ['id', 'user', 'like_count', 'reply_count', 'created_at']
-    
+    created_at = serializers.DateTimeField(read_only=True)
+
     def get_reply_count(self, obj):
         """获取回复数量"""
-        return obj.replies.filter(is_deleted=False).count()
-    
+        return Comment.objects.filter(parent=obj.id, is_deleted=False).count()
+
     def get_is_liked(self, obj):
         """获取当前用户是否点赞"""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            from community.services import LikeService
-            like_service = LikeService()
-            return like_service.is_liked_by_user(request.user, obj)
+            from community.mongodb_models import Like
+            like = Like.objects.filter(
+                user=request.user,
+                content_type='Comment',
+                object_id=str(obj.id),
+                is_active=True
+            ).first()
+            return like is not None
         return False
 
-class CommentDetailSerializer(serializers.ModelSerializer):
+class CommentDetailSerializer(serializers.Serializer):
     """评论详情序列化器"""
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
-    post_title = serializers.CharField(source='post.title', read_only=True)
+    post = serializers.CharField()
+    post_title = serializers.SerializerMethodField()
+    parent = serializers.CharField(required=False, allow_null=True)
     parent_user = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
+    content = serializers.CharField()
+    like_count = serializers.IntegerField(read_only=True)
+    is_pinned = serializers.BooleanField(default=False)
     is_liked = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Comment
-        fields = [
-            'id', 'user', 'post', 'post_title', 'parent',
-            'parent_user', 'content', 'like_count', 'is_pinned',
-            'is_liked', 'replies', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'user', 'like_count', 'created_at', 'updated_at']
-    
+    replies = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def get_post_title(self, obj):
+        """获取帖子标题"""
+        if hasattr(obj, 'post') and obj.post:
+            try:
+                post = Post.objects.get(id=obj.post)
+                return post.title
+            except Post.DoesNotExist:
+                pass
+        return ''
+
     def get_parent_user(self, obj):
         """获取父评论用户"""
-        if obj.parent:
-            return UserSerializer(obj.parent.user).data
+        if hasattr(obj, 'parent') and obj.parent:
+            try:
+                parent_comment = Comment.objects.get(id=obj.parent)
+                return UserSerializer(parent_comment.user).data
+            except Comment.DoesNotExist:
+                pass
         return None
-    
+
     def get_replies(self, obj):
         """获取回复列表"""
-        replies = obj.replies.filter(is_deleted=False)[:5]
+        replies = Comment.objects.filter(parent=obj.id, is_deleted=False)[:5]
         return CommentListSerializer(replies, many=True, context=self.context).data
-    
+
     def get_is_liked(self, obj):
         """获取当前用户是否点赞"""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            from community.services import LikeService
-            like_service = LikeService()
-            return like_service.is_liked_by_user(request.user, obj)
+            from community.mongodb_models import Like
+            like = Like.objects.filter(
+                user=request.user,
+                content_type='Comment',
+                object_id=str(obj.id),
+                is_active=True
+            ).first()
+            return like is not None
         return False
 
-class CommentCreateSerializer(serializers.ModelSerializer):
+class CommentCreateSerializer(serializers.Serializer):
     """评论创建序列化器"""
-    post_id = serializers.PrimaryKeyRelatedField(
-        queryset=Post.objects.all(),
-        source='post'
-    )
-    parent_id = serializers.PrimaryKeyRelatedField(
-        queryset=Comment.objects.all(),
-        required=False,
-        allow_null=True,
-        source='parent'
-    )
-    
-    class Meta:
-        model = Comment
-        fields = ['post_id', 'parent_id', 'content']
-    
+    post_id = serializers.CharField()
+    parent_id = serializers.CharField(required=False, allow_null=True)
+    content = serializers.CharField()
+
     def validate_post_id(self, value):
         """验证帖子"""
-        # 检查帖子是否允许评论
-        if not value.allow_comments:
-            raise serializers.ValidationError("该帖子不允许评论")
-        return value
-    
+        try:
+            post = Post.objects.get(id=value, is_deleted=False)
+            # 检查帖子是否允许评论
+            if not post.allow_comments:
+                raise serializers.ValidationError("该帖子不允许评论")
+            return value
+        except Post.DoesNotExist:
+            raise serializers.ValidationError("帖子不存在或已删除")
+
     def validate_parent_id(self, value):
         """验证父评论"""
-        if value and value.is_deleted:
-            raise serializers.ValidationError("父评论不存在")
+        if value:
+            try:
+                parent = Comment.objects.get(id=value)
+                if parent.is_deleted:
+                    raise serializers.ValidationError("父评论不存在或已删除")
+                return value
+            except Comment.DoesNotExist:
+                raise serializers.ValidationError("父评论不存在或已删除")
         return value
-    
+
     def validate(self, data):
         """验证数据"""
         # 检查父评论是否属于同一帖子
-        parent = data.get('parent')
-        post = data.get('post')
-        
-        if parent and parent.post != post:
-            raise serializers.ValidationError({"parent_id": "父评论不属于该帖子"})
-        
+        parent_id = data.get('parent_id')
+        post_id = data.get('post_id')
+
+        if parent_id:
+            try:
+                parent = Comment.objects.get(id=parent_id)
+                if str(parent.post) != post_id:
+                    raise serializers.ValidationError({"parent_id": "父评论不属于该帖子"})
+            except Comment.DoesNotExist:
+                pass
+
         return data
 
-class CommentUpdateSerializer(serializers.ModelSerializer):
+class CommentUpdateSerializer(serializers.Serializer):
     """评论更新序列化器"""
-    class Meta:
-        model = Comment
-        fields = ['content']
+    content = serializers.CharField()

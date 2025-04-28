@@ -9,11 +9,22 @@ from knowledge_graph.views import (
     KnowledgeNodeViewSet,
     KnowledgeEdgeViewSet
 )
+from knowledge_graph.views.mongo_views import (
+    MongoKnowledgeGraphViewSet,
+    MongoKnowledgeNodeViewSet,
+    MongoKnowledgeEdgeViewSet
+)
 
 # 创建路由器
 router = DefaultRouter()
 router.register(r'nodes', KnowledgeNodeViewSet, basename='knowledge-node')
 router.register(r'edges', KnowledgeEdgeViewSet, basename='knowledge-edge')
+
+# 创建MongoDB路由器
+mongo_router = DefaultRouter()
+mongo_router.register(r'nodes', MongoKnowledgeNodeViewSet, basename='mongo-knowledge-node')
+mongo_router.register(r'edges', MongoKnowledgeEdgeViewSet, basename='mongo-knowledge-edge')
+mongo_router.register(r'graphs', MongoKnowledgeGraphViewSet, basename='mongo-knowledge-graph')
 
 # API路径
 api_urls = [
@@ -39,6 +50,9 @@ urlpatterns = [
 
     # 节点相关URL
     path('nodes/', include(node_urls)),
+
+    # MongoDB API URL
+    path('mongo/', include(mongo_router.urls)),
 
     # 兼容旧版API
     path('links/', include(router.urls[1:2])),  # 兼容旧版links路由

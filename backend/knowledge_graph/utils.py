@@ -1,4 +1,4 @@
-\"""知识图谱工具函数"""
+"""知识图谱工具函数"""
 
 from collections import defaultdict, deque
 from .models import KnowledgeNode, KnowledgeEdge

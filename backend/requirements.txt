@@ -1,102 +1,102 @@
-# ÁãÓì±Ê¼ÇÓ¦ÓÃºó¶ËÒÀÀµ
+# é›¶å±¿ç¬”è®°åç«¯ä¾èµ–åº“
 
-# DjangoºÍREST¿ò¼Ü
-Django==3.2.18
+# Djangoå’ŒRESTæ¡†æ¶
+Django==4.2.20
 djangorestframework==3.14.0
-djangorestframework-simplejwt==5.3.0
-django-cors-headers==4.3.0
-django-filter==23.3
-drf-yasg==1.21.7  # Swagger/OpenAPIÎÄµµ
-django-extensions==3.2.3  # À©Õ¹DjangoÃüÁîĞĞ¹¤¾ß
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+django-filter==23.5
+drf-yasg==1.21.7  # Swagger/OpenAPIæ–‡æ¡£
+django-extensions==3.2.3  # æ‰©å±•Djangoå‘½ä»¤è¡Œå·¥å…·
 
-# Òì²½ºÍWebSocket
+# å¼‚æ­¥å’ŒWebSocket
 channels==4.0.0
 channels-redis==4.1.0
-daphne==4.0.0  # ASGI·şÎñÆ÷
-uvicorn==0.23.2  # ¸ßĞÔÄÜASGI·şÎñÆ÷
+daphne==4.0.0  # ASGIæœåŠ¡å™¨
+uvicorn==0.23.2  # é«˜æ€§èƒ½ASGIæœåŠ¡å™¨
 
-# ÈÎÎñ¶ÓÁĞ
+# ä»»åŠ¡é˜Ÿåˆ—
 celery==5.3.4
 redis==5.0.1
-django-celery-beat==2.5.0  # ¶¨Ê±ÈÎÎñ
-django-celery-results==2.5.1  # ´æ´¢ÈÎÎñ½á¹û
+django-celery-beat==2.5.0  # å®šæ—¶ä»»åŠ¡
+django-celery-results==2.5.1  # å­˜å‚¨ç»“æœ
 
-# Êı¾İ¿â
-djongo==1.3.6  # MongoDBÁ¬½ÓÆ÷
-pymongo==3.12.3  # MongoDBÇı¶¯
-sqlparse==0.2.4  # ÌØ¶¨°æ±¾£¬½â¾ödjongo¼æÈİĞÔÎÊÌâ
-py2neo==2021.2.4  # Neo4jÍ¼Êı¾İ¿â
-neo4j==5.13.0  # Neo4j¹Ù·½Çı¶¯
+# æ•°æ®åº“
+pymongo==4.6.1  # MongoDBé©±åŠ¨
+mongoengine==0.27.0  # MongoDB ODM
+motor==3.3.2  # MongoDBå¼‚æ­¥é©±åŠ¨
+py2neo==2021.2.4  # Neo4jå›¾æ•°æ®åº“
+neo4j==5.15.0  # Neo4jå®˜æ–¹é©±åŠ¨
 
-# ÎÄ¼ş´¦Àí
-Pillow==10.1.0  # Í¼Ïñ´¦Àí
-PyPDF2==3.0.1  # PDF´¦Àí
-python-docx==1.0.1  # WordÎÄµµ´¦Àí
-python-pptx==0.6.23  # PowerPoint´¦Àí
-pytesseract==0.3.10  # OCRÎÄ×ÖÊ¶±ğ
-python-magic==0.4.27  # ÎÄ¼şÀàĞÍ¼ì²â
-openpyxl==3.1.2  # Excel´¦Àí
+# æ–‡ä»¶å¤„ç†
+Pillow==10.1.0  # å›¾åƒå¤„ç†
+PyPDF2==3.0.1  # PDFå¤„ç†
+python-docx==1.0.1  # Wordæ–‡æ¡£å¤„ç†
+python-pptx==0.6.23  # PowerPointå¤„ç†
+pytesseract==0.3.10  # OCRæ–‡å­—è¯†åˆ«
+python-magic==0.4.27  # æ–‡ä»¶ç±»å‹æ£€æµ‹
+openpyxl==3.1.2  # Excelå¤„ç†
 
-# AIºÍ»úÆ÷Ñ§Ï°
+# AIå’Œæœºå™¨å­¦ä¹ 
 openai==1.3.7  # OpenAI API
-openai-whisper==20231117  # ÓïÒôÊ¶±ğ
-tiktoken==0.5.1  # OpenAI token¼ÆÊı
+openai-whisper==20231117  # è¯­éŸ³è¯†åˆ«
+tiktoken==0.5.1  # OpenAI tokenè®¡æ•°
 torch==2.1.2  # PyTorch
-torchaudio==2.1.2  # ÒôÆµ´¦Àí
+torchaudio==2.1.2  # éŸ³é¢‘å¤„ç†
 transformers==4.36.2  # Hugging Face Transformers
-sentence-transformers==2.2.2  # ÎÄ±¾ÏòÁ¿»¯
-paddlepaddle==2.5.2  # °Ù¶È·É½°
+sentence-transformers==2.2.2  # æ–‡æœ¬å‘é‡åŒ–
+paddlepaddle==2.5.2  # ç™¾åº¦é£æ¡¨
 paddleocr==2.7.0.3  # OCR
-numpy==1.24.3  # ÊıÖµ¼ÆËã
-scikit-learn==1.3.0  # »úÆ÷Ñ§Ï°
-scipy==1.11.3  # ¿ÆÑ§¼ÆËã
-pandas==2.1.1  # Êı¾İ·ÖÎö
+numpy==1.24.3  # æ•°å€¼è®¡ç®—
+scikit-learn==1.3.0  # æœºå™¨å­¦ä¹ 
+scipy==1.11.3  # ç§‘å­¦è®¡ç®—
+pandas==2.1.1  # æ•°æ®åˆ†æ
 
-# ÖªÊ¶Í¼Æ×
-networkx==3.1  # Í¼ÂÛËã·¨
-matplotlib==3.7.2  # Êı¾İ¿ÉÊÓ»¯
-pyvis==0.3.2  # ½»»¥Ê½ÍøÂç¿ÉÊÓ»¯
+# çŸ¥è¯†å›¾è°±
+networkx==3.1  # å›¾è®ºç®—æ³•
+matplotlib==3.7.2  # æ•°æ®å¯è§†åŒ–
+pyvis==0.3.2  # äº¤äº’å¼ç½‘ç»œå¯è§†åŒ–
 
-# ´úÂëÖ´ĞĞ
+# ä»£ç æ‰§è¡Œ
 docker==6.1.3  # Docker API
-jupyter-client==8.3.1  # Jupyter¿Í»§¶Ë
-nbformat==5.9.2  # Notebook¸ñÊ½
+jupyter-client==8.3.1  # Jupyterå®¢æˆ·ç«¯
+nbformat==5.9.2  # Notebookæ ¼å¼
 
-# ¹¤¾ßºÍ¸¨Öú¿â
-python-dotenv==1.0.0  # »·¾³±äÁ¿
-requests==2.31.0  # HTTPÇëÇó
-beautifulsoup4==4.12.2  # HTML½âÎö
-jieba==0.42.1  # ÖĞÎÄ·Ö´Ê
-pydantic==2.4.2  # Êı¾İÑéÖ¤
-bcrypt==4.0.1  # ÃÜÂë¹şÏ£
+# å·¥å…·å’Œè¾…åŠ©åº“
+python-dotenv==1.0.0  # ç¯å¢ƒå˜é‡
+requests==2.31.0  # HTTPè¯·æ±‚
+beautifulsoup4==4.12.2  # HTMLè§£æ
+jieba==0.42.1  # ä¸­æ–‡åˆ†è¯
+pydantic==2.4.2  # æ•°æ®éªŒè¯
+bcrypt==4.0.1  # å¯†ç å“ˆå¸Œ
 python-jose==3.3.0  # JWT
-passlib==1.7.4  # ÃÜÂë¿â
-python-multipart==0.0.6  # ±íµ¥Êı¾İ´¦Àí
-speechrecognition==3.10.0  # ÓïÒôÊ¶±ğ
-python-dateutil==2.8.2  # ÈÕÆÚ´¦Àí
-pytz==2023.3  # Ê±Çø´¦Àí
-Markdown==3.5  # Markdown½âÎö
-bleach==6.1.0  # HTMLÇåÀí
-Pygments==2.16.1  # ´úÂë¸ßÁÁ
-psutil==5.9.6  # ÏµÍ³¼à¿Ø
-tqdm==4.66.1  # ½ø¶ÈÌõ
-colorama==0.4.6  # ÖÕ¶ËÑÕÉ«
-python-slugify==8.0.1  # URLÓÑºÃµÄ×Ö·û´®
+passlib==1.7.4  # å¯†ç åº“
+python-multipart==0.0.6  # è¡¨å•æ•°æ®å¤„ç†
+speechrecognition==3.10.0  # è¯­éŸ³è¯†åˆ«
+python-dateutil==2.8.2  # æ—¥æœŸå¤„ç†
+pytz==2023.3  # æ—¶åŒºå¤„ç†
+Markdown==3.5  # Markdownè§£æ
+bleach==6.1.0  # HTMLæ¸…ç†
+Pygments==2.16.1  # ä»£ç é«˜äº®
+psutil==5.9.6  # ç³»ç»Ÿç›‘æ§
+tqdm==4.66.1  # è¿›åº¦æ¡
+colorama==0.4.6  # ç»ˆç«¯é¢œè‰²
+python-slugify==8.0.1  # URLå‹å¥½çš„å­—ç¬¦ä¸²
 
-# ²âÊÔºÍ¿ª·¢
+# æµ‹è¯•å’Œå¼€å‘
 pytest==7.4.3
 pytest-django==4.5.2
-pytest-cov==4.1.0  # ´úÂë¸²¸ÇÂÊ
+pytest-cov==4.1.0  # æµ‹è¯•è¦†ç›–ç‡
 coverage==7.3.2
 factory-boy==3.3.0
 Faker==19.13.0
-black==23.11.0  # ´úÂë¸ñÊ½»¯
-isort==5.12.0  # µ¼ÈëÅÅĞò
-flake8==6.1.0  # ´úÂë¼ì²é
-mypy==1.7.0  # ÀàĞÍ¼ì²é
-django-debug-toolbar==4.2.0  # µ÷ÊÔ¹¤¾ßÀ¸
+black==23.11.0  # ä»£ç æ ¼å¼åŒ–
+isort==5.12.0  # å¯¼å…¥æ’åº
+flake8==6.1.0  # ä»£ç æ£€æŸ¥
+mypy==1.7.0  # ç±»å‹æ£€æŸ¥
+django-debug-toolbar==4.2.0  # è°ƒè¯•å·¥å…·æ 
 
-# ²¿Êğ
-gunicorn==21.2.0  # WSGI·şÎñÆ÷
-whitenoise==6.6.0  # ¾²Ì¬ÎÄ¼ş
-sentry-sdk==1.35.0  # ´íÎó¸ú×Ù
+# éƒ¨ç½²
+gunicorn==21.2.0  # WSGIæœåŠ¡å™¨
+whitenoise==6.6.0  # é™æ€æ–‡ä»¶
+sentry-sdk==1.35.0  # é”™è¯¯ç›‘æ§

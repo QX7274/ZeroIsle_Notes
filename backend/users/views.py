@@ -1,8 +1,10 @@
-from django.contrib.auth import login
+from django.contrib.auth import login, get_user_model
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from .forms import UserRegistrationForm
-from ..mongodb_service import mongodb_service
+from django.contrib.auth.forms import UserCreationForm as UserRegistrationForm
+from mongodb_service import mongodb_service
+
+User = get_user_model()
 
 
 def register_user(request):
@@ -10,7 +12,7 @@ def register_user(request):
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            
+
             # 写入MongoDB
             mongo_data = {
                 'django_user_id': user.id,
@@ -18,8 +20,8 @@ def register_user(request):
                 'email': user.email,
                 'date_joined': user.date_joined.isoformat()
             }
-            insert_result = mongodb_service.insert_user(mongo_data)
-            
+            insert_result = mongodb_service.insert_user_sync(mongo_data)
+
             if insert_result:
                 login(request, user)
                 return redirect('/')
@@ -31,12 +33,12 @@ def login_user(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
-        
+
         # 查询MongoDB用户
-        mongo_user = mongodb_service.get_user(username)
+        mongo_user = mongodb_service.get_user_sync(username)
         if not mongo_user:
             return JsonResponse({'error': '用户不存在'}, status=401)
-        
+
         # 验证Django用户密码
         try:
             user = User.objects.get(id=mongo_user['django_user_id'])

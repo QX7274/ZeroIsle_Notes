@@ -7,8 +7,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
+import uuid
+from django.utils import timezone
 
-from community.models import Comment
+from community.mongodb_models import Comment
 from community.serializers import (
     CommentSerializer,
     CommentListSerializer,
@@ -20,7 +22,7 @@ from community.services import CommentService, LikeService
 from common.permissions import IsOwnerOrReadOnly
 from common.pagination import StandardResultsSetPagination
 
-class CommentViewSet(viewsets.ModelViewSet):
+class CommentViewSet(viewsets.ViewSet):
     """评论视图集"""
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
@@ -30,11 +32,11 @@ class CommentViewSet(viewsets.ModelViewSet):
     search_fields = ['content']
     ordering_fields = ['created_at', 'like_count']
     ordering = ['-is_pinned', '-created_at']
-    
+
     def get_queryset(self):
         """获取查询集"""
-        return Comment.objects.filter(is_deleted=False).select_related('user', 'post', 'parent')
-    
+        return Comment.objects.filter(is_deleted=False)
+
     def get_serializer_class(self):
         """根据操作类型选择序列化器"""
         if self.action == 'list':
@@ -46,83 +48,171 @@ class CommentViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update']:
             return CommentUpdateSerializer
         return self.serializer_class
-    
-    def perform_create(self, serializer):
-        """创建评论时设置用户"""
-        serializer.save(user=self.request.user)
-    
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        """点赞评论"""
-        comment = self.get_object()
-        
-        # 切换点赞状态
-        like_service = LikeService()
-        like, is_active = like_service.toggle_like(request.user, comment)
-        
-        return Response({
-            'id': comment.id,
-            'like_count': comment.like_count,
-            'is_liked': is_active
-        })
-    
-    @action(detail=True, methods=['get'])
-    def replies(self, request, pk=None):
-        """获取评论回复"""
-        comment = self.get_object()
-        
-        # 获取回复
-        replies = Comment.objects.filter(parent=comment, is_deleted=False)
-        
+
+    def list(self, request):
+        """获取评论列表"""
+        queryset = self.get_queryset()
+
+        # 应用过滤
+        for backend in list(self.filter_backends):
+            queryset = backend().filter_queryset(request, queryset, self)
+
         # 分页
-        page = self.paginate_queryset(replies)
-        
+        page = self.paginate_queryset(queryset)
+
         if page is not None:
             serializer = CommentListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        
-        serializer = CommentListSerializer(replies, many=True, context={'request': request})
+
+        serializer = CommentListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
-    
+
+    def retrieve(self, request, pk=None):
+        """获取评论详情"""
+        try:
+            comment = Comment.objects.get(id=pk, is_deleted=False)
+            serializer = CommentDetailSerializer(comment, context={'request': request})
+            return Response(serializer.data)
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "评论不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def create(self, request):
+        """创建评论"""
+        serializer = CommentCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # 创建评论
+            comment_service = CommentService()
+            comment = comment_service.create_comment(
+                user=request.user,
+                post_id=serializer.validated_data['post_id'],
+                content=serializer.validated_data['content'],
+                parent_id=serializer.validated_data.get('parent_id')
+            )
+
+            serializer = CommentDetailSerializer(comment, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, pk=None):
+        """更新评论"""
+        try:
+            comment = Comment.objects.get(id=pk, user=request.user, is_deleted=False)
+            serializer = CommentUpdateSerializer(data=request.data)
+            if serializer.is_valid():
+                comment.content = serializer.validated_data['content']
+                comment.updated_at = timezone.now()
+                comment.save()
+
+                serializer = CommentDetailSerializer(comment, context={'request': request})
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "评论不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def destroy(self, request, pk=None):
+        """删除评论"""
+        try:
+            comment = Comment.objects.get(id=pk, user=request.user, is_deleted=False)
+            comment.is_deleted = True
+            comment.deleted_at = timezone.now()
+            comment.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "评论不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        """点赞评论"""
+        try:
+            comment = Comment.objects.get(id=pk, is_deleted=False)
+
+            # 切换点赞状态
+            like_service = LikeService()
+            like, is_active = like_service.toggle_like(request.user, comment)
+
+            return Response({
+                'id': str(comment.id),
+                'like_count': comment.like_count,
+                'is_liked': is_active
+            })
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "评论不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['get'])
+    def replies(self, request, pk=None):
+        """获取评论回复"""
+        try:
+            comment = Comment.objects.get(id=pk, is_deleted=False)
+
+            # 获取回复
+            replies = Comment.objects.filter(parent=comment, is_deleted=False)
+
+            # 分页
+            page = self.paginate_queryset(replies)
+
+            if page is not None:
+                serializer = CommentListSerializer(page, many=True, context={'request': request})
+                return self.get_paginated_response(serializer.data)
+
+            serializer = CommentListSerializer(replies, many=True, context={'request': request})
+            return Response(serializer.data)
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "评论不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
     @action(detail=False, methods=['get'])
     def by_post(self, request):
         """获取帖子评论"""
         post_id = request.query_params.get('post_id')
-        
+
         if not post_id:
             return Response(
                 {"detail": "缺少post_id参数"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # 获取顶级评论
         comments = Comment.objects.filter(
             post_id=post_id,
             parent__isnull=True,
             is_deleted=False
         )
-        
+
         # 分页
         page = self.paginate_queryset(comments)
-        
+
         if page is not None:
             serializer = CommentListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = CommentListSerializer(comments, many=True, context={'request': request})
         return Response(serializer.data)
-    
+
     @action(detail=False, methods=['get'])
     def my(self, request):
         """获取我的评论"""
         comments = Comment.objects.filter(user=request.user, is_deleted=False)
-        
+
         # 分页
         page = self.paginate_queryset(comments)
-        
+
         if page is not None:
             serializer = CommentListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = CommentListSerializer(comments, many=True, context={'request': request})
         return Response(serializer.data)

@@ -3,33 +3,27 @@
 """
 
 from rest_framework import serializers
-from notes.models import NoteComment
+from notes.mongodb_models import Note
 
 
-class NoteCommentSerializer(serializers.ModelSerializer):
+class NoteCommentSerializer(serializers.Serializer):
     """
     笔记评论序列化器
     """
-    username = serializers.SerializerMethodField()
+    id = serializers.UUIDField(read_only=True)
+    note = serializers.UUIDField(source='note.id')
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
     user_avatar = serializers.SerializerMethodField()
+    content = serializers.CharField(required=True)
+    parent = serializers.UUIDField(source='parent.id', required=False, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    is_deleted = serializers.BooleanField(default=False, read_only=True)
+    likes_count = serializers.IntegerField(read_only=True)
     replies_count = serializers.SerializerMethodField()
     is_reply = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = NoteComment
-        fields = [
-            'id', 'note', 'user', 'username', 'user_avatar', 'content',
-            'parent', 'created_at', 'updated_at', 'is_deleted',
-            'likes_count', 'replies_count', 'is_reply'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'likes_count']
-    
-    def get_username(self, obj):
-        """
-        获取用户名
-        """
-        return obj.user.username
-    
+
     def get_user_avatar(self, obj):
         """
         获取用户头像
@@ -37,15 +31,17 @@ class NoteCommentSerializer(serializers.ModelSerializer):
         if hasattr(obj.user, 'profile') and obj.user.profile.avatar:
             return obj.user.profile.avatar.url
         return None
-    
+
     def get_replies_count(self, obj):
         """
         获取回复数量
         """
-        return obj.replies.filter(is_deleted=False).count()
-    
+        if hasattr(obj, 'replies'):
+            return len([r for r in obj.replies if not r.is_deleted])
+        return 0
+
     def get_is_reply(self, obj):
         """
         判断是否为回复
         """
-        return obj.is_reply
+        return obj.parent is not None

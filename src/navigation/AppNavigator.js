@@ -32,6 +32,7 @@ import CategoryScreen from '../screens/CategoryScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
 import { CommunityScreen, PostDetailScreen } from '../screens/community';
+import ApiTestComponent from '../components/ApiTestComponent';
 import {
   KnowledgeGraphScreen,
   NodeDetailScreen,
@@ -361,6 +362,14 @@ const CommunityStack = () => {
           title: route.params?.title || '帖子详情',
           headerBackTitleVisible: false,
         })}
+      />
+      <Stack.Screen
+        name="ApiTest"
+        component={ApiTestComponent}
+        options={{
+          title: 'API测试',
+          headerBackTitleVisible: false,
+        }}
       />
     </Stack.Navigator>
   );

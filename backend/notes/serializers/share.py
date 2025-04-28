@@ -3,79 +3,102 @@
 """
 
 from rest_framework import serializers
-from notes.models import NoteShare
+from notes.mongodb_models import NoteShare
 from django.utils import timezone
+import uuid
 
 
-class NoteShareSerializer(serializers.ModelSerializer):
+class NoteShareSerializer(serializers.Serializer):
     """
     笔记分享序列化器
     """
-    note_title = serializers.SerializerMethodField()
-    created_by_username = serializers.SerializerMethodField()
+    id = serializers.UUIDField(read_only=True)
+    note = serializers.UUIDField(source='note.id')
+    note_title = serializers.CharField(source='note.title', read_only=True)
+    share_type = serializers.ChoiceField(choices=['link', 'email', 'user'])
+    share_code = serializers.CharField(max_length=20, read_only=True)
+    share_to = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    password = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
+    is_password_protected = serializers.BooleanField(default=False)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    created_by_username = serializers.CharField(source='user.username', read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    is_active = serializers.BooleanField(default=True)
+    view_count = serializers.IntegerField(read_only=True)
+
+    # 计算字段
     share_url = serializers.SerializerMethodField()
     is_expired = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = NoteShare
-        fields = [
-            'id', 'note', 'note_title', 'share_type', 'share_code',
-            'password', 'shared_with', 'expires_at', 'created_by',
-            'created_by_username', 'created_at', 'updated_at',
-            'is_active', 'view_count', 'allow_comment',
-            'share_url', 'is_expired'
-        ]
-        read_only_fields = ['id', 'share_code', 'created_at', 'updated_at', 'view_count']
-    
-    def get_note_title(self, obj):
-        """
-        获取笔记标题
-        """
-        return obj.note.title
-    
-    def get_created_by_username(self, obj):
-        """
-        获取创建者用户名
-        """
-        return obj.created_by.username
-    
+
     def get_share_url(self, obj):
         """
         获取分享链接
         """
-        return obj.get_share_url()
-    
+        if obj.share_type == 'link' and obj.share_code:
+            return f"/share/{obj.share_code}"
+        return None
+
     def get_is_expired(self, obj):
         """
         判断分享是否过期
         """
-        return obj.is_expired
+        if not obj.expires_at:
+            return False
+        return timezone.now() > obj.expires_at
 
 
-class NoteShareCreateSerializer(serializers.ModelSerializer):
+class NoteShareCreateSerializer(serializers.Serializer):
     """
     创建笔记分享的序列化器
     """
+    note = serializers.UUIDField(required=True)
+    share_type = serializers.ChoiceField(choices=['link', 'email', 'user'], default='link')
+    share_to = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    password = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
+    is_password_protected = serializers.BooleanField(default=False)
     expires_days = serializers.IntegerField(required=False, write_only=True)
-    
-    class Meta:
-        model = NoteShare
-        fields = [
-            'note', 'share_type', 'password', 'shared_with',
-            'expires_days', 'allow_comment'
-        ]
-    
+
     def create(self, validated_data):
         """
         创建笔记分享
         """
+        from notes.mongodb_models import Note
+
         expires_days = validated_data.pop('expires_days', None)
-        
+        note_id = validated_data.pop('note')
+
+        # 获取笔记
+        try:
+            note = Note.objects.get(id=note_id)
+        except Note.DoesNotExist:
+            raise serializers.ValidationError("笔记不存在")
+
         # 设置过期时间
+        expires_at = None
         if expires_days:
-            validated_data['expires_at'] = timezone.now() + timezone.timedelta(days=expires_days)
-        
+            expires_at = timezone.now() + timezone.timedelta(days=expires_days)
+
+        # 生成分享码
+        import random
+        import string
+        share_code = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+
         # 创建分享
-        share = NoteShare.objects.create(**validated_data)
-        
+        share = NoteShare(
+            id=uuid.uuid4(),
+            note=note,
+            user=self.context['request'].user,
+            share_type=validated_data.get('share_type', 'link'),
+            share_to=validated_data.get('share_to', ''),
+            share_code=share_code,
+            is_password_protected=validated_data.get('is_password_protected', False),
+            password=validated_data.get('password', ''),
+            expires_at=expires_at,
+            created_at=timezone.now(),
+            updated_at=timezone.now()
+        )
+        share.save()
+
         return share

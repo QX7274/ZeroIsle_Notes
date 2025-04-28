@@ -3,24 +3,26 @@
 """
 
 from rest_framework import serializers
-from notes.models import NoteAttachment
+from notes.mongodb_models import NoteAttachment
 
 
-class NoteAttachmentSerializer(serializers.ModelSerializer):
+class NoteAttachmentSerializer(serializers.Serializer):
     """
     笔记附件序列化器
     """
+    id = serializers.UUIDField(read_only=True)
+    note = serializers.UUIDField(source='note.id')
+    file = serializers.FileField(required=True)
+    file_name = serializers.CharField(max_length=255)
+    file_type = serializers.CharField(max_length=50, read_only=True)
+    file_size = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    # 计算字段
     file_size_display = serializers.SerializerMethodField()
     file_type_display = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = NoteAttachment
-        fields = [
-            'id', 'note', 'file', 'file_name', 'file_type', 'file_size',
-            'file_size_display', 'file_type_display', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'file_size', 'file_type', 'created_at', 'updated_at']
-    
+
     def get_file_size_display(self, obj):
         """
         格式化文件大小显示
@@ -34,13 +36,13 @@ class NoteAttachmentSerializer(serializers.ModelSerializer):
             return f"{size/(1024*1024):.1f} MB"
         else:
             return f"{size/(1024*1024*1024):.1f} GB"
-    
+
     def get_file_type_display(self, obj):
         """
         获取文件类型显示名称
         """
         file_type = obj.file_type.lower()
-        
+
         # 图片类型
         if file_type in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']:
             return '图片'

@@ -6,11 +6,10 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
 import jieba
 import jieba.analyse
 
-from knowledge_graph.models import KnowledgeNode, KnowledgeEdge
+from knowledge_graph.mongodb_models import KnowledgeNode, KnowledgeEdge
 from knowledge_graph.serializers import (
     KnowledgeNodeListSerializer,
     KnowledgeEdgeListSerializer
@@ -49,14 +48,14 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                 # 如果Neo4j查询失败，回退到Django ORM
                 pass
 
-        # 使用Django ORM查询
+        # 使用MongoDB查询
         # 查询节点
-        nodes_query = KnowledgeNode.objects.filter(user=user)
+        nodes_query = KnowledgeNode.objects.filter(user=user, is_deleted=False)
         if node_types:
             nodes_query = nodes_query.filter(type__in=node_types)
 
         # 查询边
-        edges_query = KnowledgeEdge.objects.filter(user=user)
+        edges_query = KnowledgeEdge.objects.filter(user=user, is_deleted=False)
         if edge_types:
             edges_query = edges_query.filter(type__in=edge_types)
 
@@ -150,9 +149,10 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
             )
 
         nodes = KnowledgeNode.objects.filter(
-            Q(user=request.user) &
-            (Q(title__icontains=query) |
-             Q(description__icontains=query))
+            user=request.user,
+            is_deleted=False
+        ).filter(
+            title__icontains=query
         )
 
         serializer = KnowledgeNodeListSerializer(nodes, many=True)

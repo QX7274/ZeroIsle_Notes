@@ -165,7 +165,7 @@ export const transcribeAudio = async (audioFile) => {
     const formData = new FormData();
     formData.append('audio', audioFile);
 
-    const response = await instance.post('/voice-recognition/transcribe/', formData, {
+    const response = await instance.post(API_ENDPOINTS.VOICE.TRANSCRIBE, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -194,7 +194,7 @@ export const analyzeImage = async (imageFile) => {
     const formData = new FormData();
     formData.append('image', imageFile);
 
-    const response = await instance.post('/ai-assistant/analyze-image/', formData, {
+    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.BASE + 'analyze-image/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

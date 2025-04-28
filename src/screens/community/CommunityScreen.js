@@ -218,12 +218,20 @@ const CommunityScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>社区</Text>
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={() => navigation.navigate('CommunitySearch')}
-        >
-          <Icon name="search" size={24} color={theme.text} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('ApiTest')}
+          >
+            <Icon name="code" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('CommunitySearch')}
+          >
+            <Icon name="search" size={24} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.categoriesContainer}>
@@ -306,8 +314,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  searchButton: {
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButton: {
     padding: SPACING.SMALL,
+    marginLeft: SPACING.SMALL,
   },
   categoriesContainer: {
     paddingHorizontal: SPACING.MEDIUM,

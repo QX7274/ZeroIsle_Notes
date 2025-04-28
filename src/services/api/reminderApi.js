@@ -221,12 +221,13 @@ export const getTodayReminders = async (params = {}) => {
  */
 export const createReminderFromNote = async (data) => {
   try {
-    const response = await instance.post('/reminder/from-note/', data);
+    const response = await instance.post(API_ENDPOINTS.REMINDER.BASE + 'from-note/', data);
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('从笔记创建提醒失败:', error);
     return {
       success: false,
       message: error.message || '从笔记创建提醒失败',
@@ -242,12 +243,13 @@ export const createReminderFromNote = async (data) => {
  */
 export const toggleEnableReminder = async (id) => {
   try {
-    const response = await instance.post(`/reminder/reminders/${id}/toggle_enable/`);
+    const response = await instance.post(`${API_ENDPOINTS.REMINDER.DETAIL(id)}toggle_enable/`);
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('启用/禁用提醒失败:', error);
     return {
       success: false,
       message: error.message || '启用/禁用提醒失败',
@@ -262,12 +264,13 @@ export const toggleEnableReminder = async (id) => {
  */
 export const getReminderNotifications = async () => {
   try {
-    const response = await instance.get('/reminder/notifications/');
+    const response = await instance.get(API_ENDPOINTS.REMINDER.BASE + 'notifications/');
     return {
       success: true,
       data: response.data
     };
   } catch (error) {
+    console.error('获取提醒通知失败:', error);
     return {
       success: false,
       message: error.message || '获取提醒通知失败',

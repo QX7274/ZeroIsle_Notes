@@ -2,9 +2,24 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView, TemplateView
+from django.http import JsonResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+
+# 根路径视图函数 - 返回JSON格式的API信息
+def api_root_json(request):
+    """
+    API根路径，返回API信息（JSON格式）
+    """
+    return JsonResponse({
+        'name': '零屿笔记 API',
+        'version': 'v1',
+        'status': 'running',
+        'documentation': '/swagger/',
+        'api_prefix': '/api/v1/'
+    })
 
 # API文档配置
 schema_view = get_schema_view(
@@ -24,6 +39,15 @@ schema_view = get_schema_view(
 api_prefix = 'api/v1/'
 
 urlpatterns = [
+    # 根路径 - 使用HTML模板
+    path('', TemplateView.as_view(template_name='index.html'), name='api-root'),
+
+    # API根路径 - JSON格式
+    path('api.json', api_root_json, name='api-root-json'),
+
+    # 重定向到Swagger文档
+    path('api/', RedirectView.as_view(url='/swagger/', permanent=False), name='api-docs'),
+
     # Django管理后台
     path('admin/', admin.site.urls),
 
@@ -43,6 +67,8 @@ urlpatterns = [
     path(f'{api_prefix}community/', include('community.urls')),
     path(f'{api_prefix}canvas/', include('canvas.urls')),
     path(f'{api_prefix}code/', include('code.urls')),
+    path(f'{api_prefix}common/', include('common.urls')),
+    path(f'{api_prefix}notifications/', include('notification.urls')),
 ]
 
 # 添加媒体文件URL

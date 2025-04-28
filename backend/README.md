@@ -355,7 +355,7 @@ backend/
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/yourusername/zeroislenotes.git
+   git clone https://github.com/qx7274/zeroislenotes.git
    cd zeroislenotes/backend
    ```
 

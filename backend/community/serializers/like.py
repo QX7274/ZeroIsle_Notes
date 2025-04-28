@@ -3,18 +3,20 @@
 """
 
 from rest_framework import serializers
-from community.models import Like
+from community.mongodb_models import Like
 from users.serializers import UserSerializer
 
-class LikeSerializer(serializers.ModelSerializer):
+class LikeSerializer(serializers.Serializer):
     """点赞序列化器"""
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
-    content_type_name = serializers.CharField(source='content_type.model', read_only=True)
-    
-    class Meta:
-        model = Like
-        fields = [
-            'id', 'user', 'content_type', 'content_type_name',
-            'object_id', 'is_active', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'user', 'content_type', 'content_type_name', 'object_id', 'created_at', 'updated_at']
+    content_type = serializers.CharField(read_only=True)
+    content_type_name = serializers.SerializerMethodField()
+    object_id = serializers.CharField(read_only=True)
+    is_active = serializers.BooleanField(default=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def get_content_type_name(self, obj):
+        """获取内容类型名称"""
+        return obj.content_type.lower() if obj.content_type else ''

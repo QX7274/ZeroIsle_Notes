@@ -5,8 +5,11 @@
 
 // 根据环境选择API基础URL
 export const API_BASE_URL = __DEV__
-  ? 'http://10.0.2.2:8000/api/v1'  // Android模拟器访问本机地址
-  : 'http://localhost:8000/api/v1'; // 生产环境地址
+  ? 'http://10.0.2.2:8000/api'  // Android模拟器访问本机地址
+  : 'http://localhost:8000/api'; // 生产环境地址
+
+// 调试信息
+console.log('API_BASE_URL:', API_BASE_URL);
 
 // API版本
 export const API_VERSION = 'v1';
@@ -18,13 +21,24 @@ export const REQUEST_TIMEOUT = 15000;
 export const API_ENDPOINTS = {
   // 认证相关
   AUTH: {
-    LOGIN: '/auth/login/',
-    REGISTER: '/auth/register/',
-    REFRESH_TOKEN: '/auth/token/refresh/',
-    PROFILE: '/auth/profile/',
-    CHANGE_PASSWORD: '/auth/password/change/',
-    RESET_PASSWORD: '/auth/password/reset/',
-    VERIFY_EMAIL: '/auth/email/verify/',
+    LOGIN: '/users/login/',
+    REGISTER: '/users/register/',
+    REGISTER_USERNAME: '/users/register/username/',
+    REGISTER_EMAIL: '/users/register/email/',
+    REGISTER_PHONE: '/users/register/phone/',
+    LOGIN_CODE: '/users/login/code/',
+    LOGIN_WECHAT: '/users/login/wechat/',
+    LOGIN_QQ: '/users/login/qq/',
+    REFRESH_TOKEN: '/users/token/refresh/',
+    PROFILE: '/users/profile/',
+    CHANGE_PASSWORD: '/users/password/change/',
+    RESET_PASSWORD: '/users/password/reset/',
+    VERIFY_EMAIL: '/users/email/verify/',
+    SEND_VERIFICATION_CODE: '/users/send-verification-code/',
+    BIND_EMAIL: '/users/bind/email/',
+    BIND_PHONE: '/users/bind/phone/',
+    BIND_WECHAT: '/users/bind/wechat/',
+    BIND_QQ: '/users/bind/qq/',
   },
 
   // 笔记相关
@@ -55,6 +69,7 @@ export const API_ENDPOINTS = {
 
   // AI助手相关
   AI_ASSISTANT: {
+    BASE: '/ai-assistant/',
     CHAT: '/ai-assistant/chat/',
     CHAT_STREAM: '/ai-assistant/chat/stream/',
     SUMMARIZE: '/ai-assistant/summarize/',
@@ -62,8 +77,14 @@ export const API_ENDPOINTS = {
     TRANSLATE: '/ai-assistant/translate/',
     ANALYZE_SENTIMENT: '/ai-assistant/analyze-sentiment/',
     TRANSCRIBE: '/ai-assistant/transcribe/',
+    ANALYZE_IMAGE: '/ai-assistant/analyze-image/',
     MODELS: '/ai-assistant/models/',
     RESET_SESSION: '/ai-assistant/reset-session/',
+    CONVERSATIONS: '/ai-assistant/conversations/',
+    CONVERSATION_DETAIL: (id) => `/ai-assistant/conversations/${id}/`,
+    PROMPT_TEMPLATES: '/ai-assistant/prompt-templates/',
+    PROMPT_TEMPLATE_DETAIL: (id) => `/ai-assistant/prompt-templates/${id}/`,
+    USAGE: '/ai-assistant/usage/',
   },
 
   // 代码执行相关
@@ -101,23 +122,43 @@ export const API_ENDPOINTS = {
 
   // 社区相关
   COMMUNITY: {
-    NOTES: '/community/notes/',
-    LIKE: (id) => `/community/notes/${id}/like/`,
-    COMMENTS: (id) => `/community/notes/${id}/comments/`,
+    POSTS: '/community/posts/',
+    POST_DETAIL: (id) => `/community/posts/${id}/`,
+    LIKE_POST: (id) => `/community/posts/${id}/like/`,
+    COMMENTS: (id) => `/community/posts/${id}/comments/`,
     COMMENT_DETAIL: (id) => `/community/comments/${id}/`,
-    FOLLOW: (id) => `/community/users/${id}/follow/`,
+    LIKE_COMMENT: (id) => `/community/comments/${id}/like/`,
+    FOLLOW: (id) => `/community/follows/toggle/`,
+    FOLLOWERS: (id) => `/community/follows/followers/`,
+    FOLLOWING: (id) => `/community/follows/following/`,
+    CATEGORIES: '/community/categories/',
+    TAGS: '/community/tags/',
+    POPULAR_TAGS: '/community/tags/popular/',
+    NOTIFICATIONS: '/community/notifications/',
+    NOTIFICATION_DETAIL: (id) => `/community/notifications/${id}/`,
+    MARK_NOTIFICATION_READ: (id) => `/community/notifications/${id}/mark_as_read/`,
     ACTIVITY: '/community/activity/',
+  },
+
+  // 通知相关
+  NOTIFICATION: {
+    BASE: '/notifications/',
+    DETAIL: (id) => `/notifications/${id}/`,
+    MARK_AS_READ: (id) => `/notifications/${id}/mark_as_read/`,
+    MARK_ALL_AS_READ: '/notifications/mark_all_as_read/',
+    UNREAD_COUNT: '/notifications/unread_count/',
+    DELETE_ALL: '/notifications/delete_all/',
   },
 
   // 提醒相关
   REMINDER: {
     BASE: '/reminder/reminders/',
     DETAIL: (id) => `/reminder/reminders/${id}/`,
-    COMPLETE: (id) => `/reminder/reminders/${id}/complete/`,
-    REOPEN: (id) => `/reminder/reminders/${id}/reopen/`,
-    UPCOMING: '/reminder/reminders/upcoming/',
-    OVERDUE: '/reminder/reminders/overdue/',
-    TODAY: '/reminder/reminders/today/',
+    COMPLETE: (id) => `/reminder/complete/${id}/`,
+    REOPEN: (id) => `/reminder/reopen/${id}/`,
+    UPCOMING: '/reminder/upcoming/',
+    OVERDUE: '/reminder/overdue/',
+    TODAY: '/reminder/today/',
   },
 
   // 画布相关
