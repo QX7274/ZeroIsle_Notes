@@ -1,41 +1,67 @@
 import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+import PDFLib, { PDFDocument, PDFPage } from 'react-native-pdf-lib';
 import RNShare from 'react-native-share';
 import { analyticsService } from './analytics';
 
 class ExportService {
   async exportToPDF(content, title) {
     try {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <title>${title}</title>
-            <style>
-              body { font-family: Arial; padding: 20px; }
-              h1 { color: #333; }
-              p { line-height: 1.6; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <div>${content.replace(/\n/g, '<br>')}</div>
-          </body>
-        </html>
-      `;
+      // 创建PDF页面
+      const page = PDFPage
+        .create()
+        .setMediaBox(595, 842) // A4尺寸 (595 x 842 points)
+        .drawText(title, {
+          x: 50,
+          y: 800,
+          color: '#333333',
+          fontSize: 24,
+          fontName: 'Times New Roman',
+        });
 
-      const options = {
-        html,
-        fileName: `${title.replace(/[^a-z0-9]/gi, '_')}.pdf`,
-        directory: 'Documents',
-      };
-      
-      const { filePath } = await RNHTMLtoPDF.convert(options);
-      if (!filePath) throw new Error('PDF 生成失败');
+      // 将内容分行处理
+      const lines = content.split('\n');
+      let yPosition = 750; // 从标题下方开始
 
-      await this.shareFile(filePath, `${title}.pdf`, 'application/pdf');
+      for (const line of lines) {
+        if (line.trim() === '') {
+          // 空行，增加一些间距
+          yPosition -= 20;
+          continue;
+        }
+
+        // 绘制文本行
+        page.drawText(line, {
+          x: 50,
+          y: yPosition,
+          color: '#000000',
+          fontSize: 12,
+          fontName: 'Times New Roman',
+        });
+
+        yPosition -= 20; // 行间距
+
+        // 如果到达页面底部，可以在这里添加新页面的逻辑
+        if (yPosition < 50) {
+          // 这里可以添加新页面的代码
+          break;
+        }
+      }
+
+      // 获取文档目录
+      const docsDir = await PDFLib.getDocumentsDirectory();
+      const fileName = `${title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      const filePath = `${docsDir}/${fileName}`;
+
+      // 创建PDF文档并写入
+      const pdfPath = await PDFDocument
+        .create(filePath)
+        .addPages(page)
+        .write();
+
+      if (!pdfPath) throw new Error('PDF 生成失败');
+
+      await this.shareFile(pdfPath, `${title}.pdf`, 'application/pdf');
       analyticsService.trackExport('pdf', { title });
     } catch (error) {
       console.error('导出 PDF 失败:', error);
@@ -66,10 +92,10 @@ class ExportService {
 
       const fileName = `${title.replace(/[^a-z0-9]/gi, '_')}.docx`;
       const filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      
+
       await RNFS.writeFile(filePath, docxContent, 'utf8');
       await this.shareFile(filePath, fileName, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      
+
       analyticsService.trackExport('word', { title });
     } catch (error) {
       console.error('导出 Word 失败:', error);
