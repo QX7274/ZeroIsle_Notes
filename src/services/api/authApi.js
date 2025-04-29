@@ -71,22 +71,44 @@ export const login = async (loginData) => {
  */
 export const register = async (userData) => {
   try {
-    console.log('注册请求数据:', userData);
+    // 添加必要的参数
+    const completeUserData = {
+      ...userData,
+      confirm_password: userData.password, // 添加确认密码
+      // 不再自动添加手机号
+    };
 
-    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER, userData);
+    console.log('注册请求数据:', completeUserData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER, completeUserData);
 
     console.log('注册响应数据:', response.data);
 
-    // 保存令牌和用户信息
-    if (response.data.access && response.data.refresh && response.data.user) {
-      await setToken(response.data.access);
-      await setRefreshToken(response.data.refresh);
-      await setUser(response.data.user);
+    // 检查响应数据格式
+    if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
+      throw new Error('服务器返回数据格式错误');
     }
+
+    // 确保token是字符串且不为空
+    const accessToken = response.data.access?.toString()?.trim();
+    const refreshToken = response.data.refresh?.toString()?.trim();
+
+    if (!accessToken || !refreshToken) {
+      throw new Error('无效的token格式');
+    }
+
+    // 保存令牌和用户信息
+    await setToken(accessToken);
+    await setRefreshToken(refreshToken);
+    await setUser(response.data.user);
 
     return {
       success: true,
-      data: response.data
+      data: {
+        token: accessToken,
+        refreshToken: refreshToken,
+        user: response.data.user
+      }
     };
   } catch (error) {
     console.error('注册错误:', error);

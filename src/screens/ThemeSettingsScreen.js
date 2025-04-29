@@ -20,27 +20,27 @@ import * as Haptics from '../utils/haptics';
 import * as Animations from '../utils/animations';
 
 const ThemeSettingsScreen = ({ navigation }) => {
-  const { 
-    theme, 
-    isDarkMode, 
-    themeType, 
+  const {
+    theme,
+    isDarkMode,
+    themeType,
     themeStyle,
-    toggleTheme, 
+    toggleTheme,
     setThemeType,
     setThemeStyle,
   } = useTheme();
-  
-  const { 
+
+  const {
     isReduceMotionEnabled,
     getAccessibilityProps,
   } = useAccessibility();
-  
+
   const { colors, dimensions } = theme;
-  
+
   // 动画值
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.95));
-  
+
   // 启动进入动画
   useEffect(() => {
     if (!isReduceMotionEnabled) {
@@ -51,25 +51,25 @@ const ThemeSettingsScreen = ({ navigation }) => {
       scaleAnim.setValue(1);
     }
   }, []);
-  
+
   // 处理主题类型变更
   const handleThemeTypeChange = (type) => {
     Haptics.selectionFeedback();
     setThemeType(type);
   };
-  
+
   // 处理主题风格变更
   const handleThemeStyleChange = (style) => {
     Haptics.selectionFeedback();
     setThemeStyle(style);
   };
-  
+
   // 处理主题切换
   const handleToggleTheme = () => {
     Haptics.mediumFeedback();
     toggleTheme();
   };
-  
+
   // 渲染主题类型选项
   const renderThemeTypeOptions = () => {
     const options = [
@@ -77,7 +77,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
       { value: 'dark', label: '深色', icon: 'nights-stay' },
       { value: 'system', label: '跟随系统', icon: 'settings-system-daydream' },
     ];
-    
+
     return (
       <View style={styles.optionsContainer}>
         {options.map((option) => (
@@ -117,7 +117,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
       </View>
     );
   };
-  
+
   // 渲染主题风格选项
   const renderThemeStyleOptions = () => {
     return (
@@ -172,7 +172,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.stylePreviewLine,
-                  { 
+                  {
                     width: '70%',
                     backgroundColor: isDarkMode ? '#333333' : '#E0E0E0'
                   }
@@ -203,7 +203,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
             />
           )}
         </TouchableOpacity>
-        
+
         {/* 现代风格 */}
         <TouchableOpacity
           style={[
@@ -243,7 +243,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.stylePreviewCircle,
-                  { 
+                  {
                     backgroundColor: isDarkMode ? '#4CC9F0' : '#4361EE',
                     borderRadius: 8,
                   }
@@ -254,7 +254,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.stylePreviewLine,
-                  { 
+                  {
                     backgroundColor: isDarkMode ? '#333333' : '#E9ECEF',
                     borderRadius: 8,
                   }
@@ -263,7 +263,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.stylePreviewLine,
-                  { 
+                  {
                     width: '70%',
                     backgroundColor: isDarkMode ? '#333333' : '#E9ECEF',
                     borderRadius: 8,
@@ -273,9 +273,9 @@ const ThemeSettingsScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.stylePreviewGradientButton,
-                  { 
-                    backgroundColor: isDarkMode 
-                      ? 'rgba(76, 201, 240, 0.8)' 
+                  {
+                    backgroundColor: isDarkMode
+                      ? 'rgba(76, 201, 240, 0.8)'
                       : 'rgba(67, 97, 238, 0.8)',
                     borderRadius: 12,
                   }
@@ -303,12 +303,12 @@ const ThemeSettingsScreen = ({ navigation }) => {
       </View>
     );
   };
-  
+
   return (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.container,
-        { 
+        {
           backgroundColor: colors.background,
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }]
@@ -337,7 +337,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
             自定义应用的外观和风格，选择适合你的主题
           </Text>
         </View>
-        
+
         <GlassCard style={styles.card}>
           <View style={styles.cardHeader}>
             <Icon name="palette" size={24} color={colors.primary} />
@@ -349,7 +349,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               主题模式
             </Text>
           </View>
-          
+
           <Text
             variant="body"
             size="small"
@@ -358,9 +358,9 @@ const ThemeSettingsScreen = ({ navigation }) => {
           >
             选择浅色或深色主题，或跟随系统设置
           </Text>
-          
+
           {renderThemeTypeOptions()}
-          
+
           <View style={styles.toggleContainer}>
             <Text
               variant="body"
@@ -382,7 +382,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
             />
           </View>
         </GlassCard>
-        
+
         <GlassCard style={styles.card}>
           <View style={styles.cardHeader}>
             <Icon name="style" size={24} color={colors.primary} />
@@ -394,7 +394,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
               主题风格
             </Text>
           </View>
-          
+
           <Text
             variant="body"
             size="small"
@@ -403,10 +403,38 @@ const ThemeSettingsScreen = ({ navigation }) => {
           >
             选择应用的视觉风格
           </Text>
-          
+
           {renderThemeStyleOptions()}
         </GlassCard>
-        
+
+        <GlassCard style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Icon name="color-lens" size={24} color={colors.primary} />
+            <Text
+              variant="h3"
+              size="medium"
+              style={styles.cardTitle}
+            >
+              自定义主题
+            </Text>
+          </View>
+
+          <Text
+            variant="body"
+            size="small"
+            color="textSecondary"
+            style={styles.cardDescription}
+          >
+            自定义应用的颜色方案，创建专属于你的主题
+          </Text>
+
+          <GradientButton
+            title="自定义颜色"
+            onPress={() => navigation.navigate('ThemeCustomization')}
+            style={styles.customizeButton}
+          />
+        </GlassCard>
+
         <View style={styles.buttonContainer}>
           <GradientButton
             title="应用设置"
@@ -539,6 +567,9 @@ const styles = StyleSheet.create({
   },
   button: {
     minWidth: 200,
+  },
+  customizeButton: {
+    marginTop: 8,
   },
 });
 

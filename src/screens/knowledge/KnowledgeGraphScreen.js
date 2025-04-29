@@ -40,8 +40,8 @@ import {
 } from '../../redux/slices/knowledgeGraphSlice';
 
 // 导入常量和工具函数
-import { colors } from '../../utils/constants/colors';
 import { dimensions } from '../../utils/constants/dimensions';
+import { useTheme } from '../../context/ThemeContext';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
@@ -54,6 +54,12 @@ const { width, height } = Dimensions.get('window');
  */
 const KnowledgeGraphScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+
+  // 获取主题颜色
+  const { colors } = useTheme();
+
+  // 获取动态样式
+  const styles = getStyles(colors);
 
   // 从Redux获取状态
   const nodes = useSelector(selectNodes);
@@ -143,13 +149,13 @@ const KnowledgeGraphScreen = ({ navigation }) => {
       case 'note':
         return colors.primary;
       case 'tag':
-        return colors.accent;
+        return colors.secondary;
       case 'category':
         return colors.success;
       case 'concept':
         return colors.warning;
       default:
-        return colors.textLight;
+        return colors.textSecondary;
     }
   };
 
@@ -173,7 +179,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   if (nodes.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Icon name="bubble-chart" size={80} color={colors.textLight} />
+        <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
         <Text style={styles.emptyText}>暂无知识图谱数据</Text>
         <Text style={styles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
         <Button
@@ -229,7 +235,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
           <Icon
             name="info-outline"
             size={24}
-            color={selectedNode ? colors.text : colors.textLight}
+            color={selectedNode ? colors.text : colors.textSecondary}
           />
           <Text
             style={[styles.toolbarButtonText, !selectedNode && styles.disabledText]}
@@ -353,7 +359,8 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+// 使用内联样式，因为我们需要访问动态的颜色主题
+const getStyles = (colors) => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -377,7 +384,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   disabledText: {
-    color: colors.textLight,
+    color: colors.textSecondary,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -511,7 +518,7 @@ const styles = StyleSheet.create({
   },
   emptySubText: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 30,
@@ -519,6 +526,41 @@ const styles = StyleSheet.create({
   createButton: {
     width: 200,
   },
+});
+
+// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
+const styles = StyleSheet.create({
+  container: {},
+  toolbar: {},
+  toolbarButton: {},
+  toolbarButtonText: {},
+  disabledText: {},
+  optionsContainer: {},
+  optionButton: {},
+  activeOption: {},
+  optionText: {},
+  filtersContainer: {},
+  filterTitle: {},
+  filterChip: {},
+  activeFilterChip: {},
+  filterChipText: {},
+  graphContainer: {},
+  graphWrapper: {},
+  nodeInfoContainer: {},
+  nodeInfoHeader: {},
+  nodeTypeIndicator: {},
+  nodeTitle: {},
+  closeButton: {},
+  nodeDescription: {},
+  nodeActions: {},
+  nodeActionButton: {},
+  nodeActionText: {},
+  errorContainer: {},
+  errorText: {},
+  emptyContainer: {},
+  emptyText: {},
+  emptySubText: {},
+  createButton: {},
 });
 
 export default KnowledgeGraphScreen;

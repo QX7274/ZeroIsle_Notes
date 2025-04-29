@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL, REQUEST_TIMEOUT, ERROR_CODES, ERROR_MESSAGES } from '../../config/api';
-import { getToken, removeToken, removeUser } from '../storage';
+import { getTokenSync, removeToken, removeUser } from '../storage';
 import { Alert } from 'react-native';
 import { navigate } from '../../navigation/navigationRef';
 
@@ -23,7 +23,7 @@ instance.interceptors.request.use(
     console.log('API请求:', config.method.toUpperCase(), config.url);
 
     // 从本地存储获取 token
-    const token = getToken();
+    const token = getTokenSync();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('使用认证令牌:', token.substring(0, 10) + '...');

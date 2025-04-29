@@ -211,15 +211,30 @@ const LoginScreen = ({ navigation }) => {
             });
           } else {
             // 用户名注册
-            result = await authApi.register({
+            result = await authApi.registerWithUsername({
               username: identifier,
               password
             });
           }
 
           if (result.success) {
-            dispatch(login(result.data));
-            Alert.alert('注册成功', '欢迎加入零屿笔记！');
+            // 注册成功后，使用用户名和密码进行登录
+            const loginResult = await authApi.login({
+              username: identifier,
+              password: password
+            });
+
+            if (loginResult.success) {
+              // 使用正确的格式更新Redux状态
+              dispatch({ type: 'auth/setUserInfo', payload: loginResult.data.user });
+              dispatch({ type: 'auth/setAuthToken', payload: loginResult.data.access });
+              dispatch({ type: 'auth/setAuthRefreshToken', payload: loginResult.data.refresh });
+              Alert.alert('注册成功', '欢迎加入零屿笔记！');
+            } else {
+              // 如果登录失败，仍然显示注册成功，但提示用户手动登录
+              Alert.alert('注册成功', '请使用您的用户名和密码登录');
+              setIsRegister(false); // 切换到登录界面
+            }
           } else {
             setError(result.message || '注册失败，请稍后重试');
           }
@@ -294,7 +309,9 @@ const LoginScreen = ({ navigation }) => {
 
           if (result && result.success) {
             // 登录成功，更新Redux状态
-            dispatch(login(result.data));
+            dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
+            dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
+            dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
           } else {
             // 登录失败，显示错误信息
             setError(result?.message || '登录失败，请检查用户名和密码');

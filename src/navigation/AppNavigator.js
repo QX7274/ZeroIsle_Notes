@@ -24,6 +24,7 @@ import HomeScreen from '../screens/HomeScreen';
 import ReminderScreen from '../screens/ReminderScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
+import ThemeCustomizationScreen from '../screens/ThemeCustomizationScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import GroupScreen from '../screens/GroupScreen';
 import CodeEditorScreen from '../screens/CodeEditorScreen';
@@ -33,12 +34,11 @@ import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
 import { CommunityScreen, PostDetailScreen } from '../screens/community';
 import ApiTestComponent from '../components/ApiTestComponent';
-import {
-  KnowledgeGraphScreen,
-  NodeDetailScreen,
-  EdgeEditScreen,
-  KnowledgeAnalysisScreen
-} from '../screens/knowledge';
+// 直接导入知识图谱相关组件
+import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
+import NodeDetailScreen from '../screens/knowledge/NodeDetailScreen';
+import EdgeEditScreen from '../screens/knowledge/EdgeEditScreen';
+import KnowledgeAnalysisScreen from '../screens/knowledge/KnowledgeAnalysisScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -110,6 +110,8 @@ const MainTabs = () => {
             iconName = 'home';
           } else if (route.name === 'CategoryStack') {
             iconName = 'folder';
+          } else if (route.name === 'AIAssistant') {
+            iconName = 'smart-toy';
           } else if (route.name === 'CommunityStack') {
             iconName = 'forum';
           } else if (route.name === 'Settings') {
@@ -165,6 +167,14 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
+        name="AIAssistant"
+        component={AIAssistantScreen}
+        options={{
+          title: 'AI助手',
+          tabBarLabel: 'AI助手',
+        }}
+      />
+      <Tab.Screen
         name="CommunityStack"
         component={CommunityStack}
         options={{
@@ -179,14 +189,6 @@ const MainTabs = () => {
         options={{
           title: '设置',
           tabBarLabel: '设置',
-        }}
-      />
-      <Stack.Screen
-        name="ThemeSettings"
-        component={ThemeSettingsScreen}
-        options={{
-          title: '主题设置',
-          headerBackTitleVisible: false,
         }}
       />
     </Tab.Navigator>
@@ -231,22 +233,7 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         })}
       />
-      <Stack.Screen
-        name="AIAssistant"
-        component={AIAssistantScreen}
-        options={{
-          title: 'AI助手',
-          headerBackTitleVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="AIAssistantSettings"
-        component={AIAssistantSettingsScreen}
-        options={{
-          title: 'AI助手设置',
-          headerBackTitleVisible: false,
-        }}
-      />
+
       <Stack.Screen
         name="KnowledgeGraph"
         component={KnowledgeGraphScreen}

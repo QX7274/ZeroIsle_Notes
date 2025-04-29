@@ -21,6 +21,9 @@ import OfflineIndicator from './OfflineIndicator';
 import GradientButton from './GradientButton';
 import GlassCard from './GlassCard';
 
+// 主题相关组件
+import ThemeColorPicker from './ThemeColorPicker';
+
 // 动画组件
 import AnimatedList from './AnimatedList';
 
@@ -50,6 +53,9 @@ export {
   // 现代UI组件
   GradientButton,
   GlassCard,
+
+  // 主题相关组件
+  ThemeColorPicker,
 
   // 动画组件
   AnimatedList,

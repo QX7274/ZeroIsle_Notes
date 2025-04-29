@@ -20,7 +20,7 @@ import Animated, {
   withTiming,
   runOnJS
 } from 'react-native-reanimated';
-import { useTheme } from '../../context/ThemeContext';
+import { colors } from '../../utils/constants/colors';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 
@@ -57,8 +57,7 @@ const GraphVisualization = ({
   onDeleteEdge,
   isEditable = false,
 }) => {
-  const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  // 使用静态颜色
 
   // 状态
   const [selectedNode, setSelectedNode] = useState(null);

@@ -14,7 +14,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useTheme } from '../../context/ThemeContext';
+import { colors } from '../../utils/constants/colors';
 import { Text } from '../../components/common/Typography';
 import { Button, Card, Toast } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -30,20 +30,19 @@ import { offlineStorageService } from '../../services/offlineStorage';
 
 const EdgeEditScreen = ({ route, navigation }) => {
   const { edgeId, sourceNodeId, targetNodeId } = route.params || {};
-  const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  // 使用静态颜色
   const dispatch = useDispatch();
-  
+
   // 从Redux获取状态
   const { currentEdge, nodes, loading, error } = useSelector(state => state.knowledgeGraph);
-  
+
   // 本地状态
   const [edge, setEdge] = useState(null);
   const [isCreating, setIsCreating] = useState(!edgeId);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('info');
   const [isOffline, setIsOffline] = useState(!offlineStorageService.getStatus().isOnline);
-  
+
   // 监听离线状态变化
   useEffect(() => {
     const unsubscribe = offlineStorageService.addListener(event => {
@@ -51,10 +50,10 @@ const EdgeEditScreen = ({ route, navigation }) => {
         setIsOffline(!event.isOnline);
       }
     });
-    
+
     return () => unsubscribe();
   }, []);
-  
+
   // 加载边数据
   useEffect(() => {
     if (edgeId) {
@@ -69,20 +68,20 @@ const EdgeEditScreen = ({ route, navigation }) => {
         properties: {},
       });
     }
-    
+
     // 加载所有节点
     if (nodes.length === 0) {
       dispatch(getAllNodes());
     }
   }, [edgeId, sourceNodeId, targetNodeId]);
-  
+
   // 当边数据加载完成后，初始化编辑状态
   useEffect(() => {
     if (currentEdge && !isCreating) {
       setEdge({ ...currentEdge });
     }
   }, [currentEdge, isCreating]);
-  
+
   // 加载边数据
   const loadEdgeData = async () => {
     try {
@@ -91,38 +90,38 @@ const EdgeEditScreen = ({ route, navigation }) => {
       showToast('加载边数据失败: ' + (err.message || '请稍后重试'), 'error');
     }
   };
-  
+
   // 显示Toast消息
   const showToast = (message, type = 'info') => {
     setToastMessage(message);
     setToastType(type);
-    
+
     // 自动关闭
     setTimeout(() => {
       setToastMessage('');
     }, 3000);
   };
-  
+
   // 处理保存
   const handleSave = async () => {
     if (!edge) return;
-    
+
     // 验证数据
     if (!edge.source) {
       showToast('请选择源节点', 'error');
       return;
     }
-    
+
     if (!edge.target) {
       showToast('请选择目标节点', 'error');
       return;
     }
-    
+
     if (!edge.type) {
       showToast('请选择关系类型', 'error');
       return;
     }
-    
+
     try {
       if (isCreating) {
         await dispatch(createEdge(edge)).unwrap();
@@ -131,7 +130,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
         await dispatch(updateEdge({ id: edgeId, edgeData: edge })).unwrap();
         showToast('保存成功', 'success');
       }
-      
+
       // 返回上一页
       setTimeout(() => {
         navigation.goBack();
@@ -140,14 +139,14 @@ const EdgeEditScreen = ({ route, navigation }) => {
       showToast('保存失败: ' + (err.message || '请稍后重试'), 'error');
     }
   };
-  
+
   // 处理删除
   const handleDelete = () => {
     if (isCreating) {
       navigation.goBack();
       return;
     }
-    
+
     Alert.alert(
       '删除关系',
       '确定要删除此关系吗？此操作不可撤销。',
@@ -169,7 +168,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
       ]
     );
   };
-  
+
   // 渲染加载状态
   if (loading && !edge && !isCreating) {
     return (
@@ -188,7 +187,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
       </View>
     );
   }
-  
+
   // 渲染错误状态
   if (error && !edge && !isCreating) {
     return (
@@ -212,7 +211,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
       </View>
     );
   }
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 离线指示器 */}
@@ -228,7 +227,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
           </Text>
         </View>
       )}
-      
+
       <ScrollView style={styles.scrollView}>
         <Card style={styles.card}>
           <Text
@@ -238,7 +237,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
           >
             {isCreating ? '创建关系' : '编辑关系'}
           </Text>
-          
+
           {edge && (
             <EdgeEditor
               edge={edge}
@@ -247,7 +246,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
               isCreating={isCreating}
             />
           )}
-          
+
           <View style={styles.cardActions}>
             <Button
               title="取消"
@@ -255,7 +254,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
               onPress={() => navigation.goBack()}
               style={styles.actionButton}
             />
-            
+
             {!isCreating && (
               <Button
                 title="删除"
@@ -267,7 +266,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
                 disabled={isOffline}
               />
             )}
-            
+
             <Button
               title={isCreating ? '创建' : '保存'}
               onPress={handleSave}
@@ -277,7 +276,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
           </View>
         </Card>
       </ScrollView>
-      
+
       {/* Toast消息 */}
       {toastMessage ? (
         <Toast

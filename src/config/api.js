@@ -5,8 +5,8 @@
 
 // 根据环境选择API基础URL
 export const API_BASE_URL = __DEV__
-  ? 'http://10.0.2.2:8000/api'  // Android模拟器访问本机地址
-  : 'http://localhost:8000/api'; // 生产环境地址
+  ? 'http://192.168.152.232:8000/api/v1'  // 使用热点网络中的IP地址
+  : 'http://localhost:8000/api/v1'; // 生产环境地址
 
 // 调试信息
 console.log('API_BASE_URL:', API_BASE_URL);
@@ -21,24 +21,24 @@ export const REQUEST_TIMEOUT = 15000;
 export const API_ENDPOINTS = {
   // 认证相关
   AUTH: {
-    LOGIN: '/users/login/',
-    REGISTER: '/users/register/',
-    REGISTER_USERNAME: '/users/register/username/',
-    REGISTER_EMAIL: '/users/register/email/',
-    REGISTER_PHONE: '/users/register/phone/',
-    LOGIN_CODE: '/users/login/code/',
-    LOGIN_WECHAT: '/users/login/wechat/',
-    LOGIN_QQ: '/users/login/qq/',
-    REFRESH_TOKEN: '/users/token/refresh/',
-    PROFILE: '/users/profile/',
-    CHANGE_PASSWORD: '/users/password/change/',
-    RESET_PASSWORD: '/users/password/reset/',
-    VERIFY_EMAIL: '/users/email/verify/',
-    SEND_VERIFICATION_CODE: '/users/send-verification-code/',
-    BIND_EMAIL: '/users/bind/email/',
-    BIND_PHONE: '/users/bind/phone/',
-    BIND_WECHAT: '/users/bind/wechat/',
-    BIND_QQ: '/users/bind/qq/',
+    LOGIN: '/auth/login/',
+    REGISTER: '/auth/register/',
+    REGISTER_USERNAME: '/auth/register/username/',
+    REGISTER_EMAIL: '/auth/register/email/',
+    REGISTER_PHONE: '/auth/register/phone/',
+    LOGIN_CODE: '/auth/login/code/',
+    LOGIN_WECHAT: '/auth/login/wechat/',
+    LOGIN_QQ: '/auth/login/qq/',
+    REFRESH_TOKEN: '/auth/token/refresh/',
+    PROFILE: '/auth/profile/',
+    CHANGE_PASSWORD: '/auth/password/change/',
+    RESET_PASSWORD: '/auth/password/reset/',
+    VERIFY_EMAIL: '/auth/email/verify/',
+    SEND_VERIFICATION_CODE: '/auth/send-verification-code/',
+    BIND_EMAIL: '/auth/bind/email/',
+    BIND_PHONE: '/auth/bind/phone/',
+    BIND_WECHAT: '/auth/bind/wechat/',
+    BIND_QQ: '/auth/bind/qq/',
   },
 
   // 笔记相关

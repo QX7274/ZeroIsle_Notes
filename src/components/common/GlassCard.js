@@ -8,15 +8,20 @@ import { useTheme } from '../../context/ThemeContext';
 import { isExpoAvailable } from '../../utils/expoCompatibility';
 
 // 根据Expo可用性选择BlurView组件
-let BlurView;
-try {
-  // 尝试导入expo-blur
-  if (isExpoAvailable()) {
-    BlurView = require('expo-blur').BlurView;
+let BlurView = null;
+// 使用安全的方式检查Expo可用性
+const expoAvailable = isExpoAvailable();
+if (expoAvailable) {
+  try {
+    // 尝试导入expo-blur
+    const expoBlur = require('expo-blur');
+    if (expoBlur && expoBlur.BlurView) {
+      BlurView = expoBlur.BlurView;
+    }
+  } catch (error) {
+    // BlurView不可用，将在渲染时使用后备方案
+    console.log('BlurView不可用，使用后备方案:', error.message);
   }
-} catch (error) {
-  // BlurView不可用，将在渲染时使用后备方案
-  console.log('BlurView不可用，使用后备方案');
 }
 
 /**
@@ -88,16 +93,21 @@ const GlassCard = ({
   // 渲染卡片内容
   const renderContent = () => {
     // 在iOS上使用BlurView（如果可用）
-    if (Platform.OS === 'ios' && isExpoAvailable() && BlurView) {
-      return (
-        <BlurView
-          intensity={getIntensity()}
-          tint={getTint()}
-          style={[styles.blurView, { borderRadius: borderRadius || dimensions.BORDER_RADIUS.MEDIUM }]}
-        >
-          <View style={contentStyle}>{children}</View>
-        </BlurView>
-      );
+    if (Platform.OS === 'ios' && expoAvailable && BlurView) {
+      try {
+        return (
+          <BlurView
+            intensity={getIntensity()}
+            tint={getTint()}
+            style={[styles.blurView, { borderRadius: borderRadius || dimensions.BORDER_RADIUS.MEDIUM }]}
+          >
+            <View style={contentStyle}>{children}</View>
+          </BlurView>
+        );
+      } catch (error) {
+        console.log('渲染BlurView时出错:', error.message);
+        // 出错时使用后备方案
+      }
     }
 
     // 在Android上或BlurView不可用时使用半透明背景

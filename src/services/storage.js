@@ -7,6 +7,7 @@ const KEYS = {
   USER: 'zeroislenotes_user',
   THEME: 'zeroislenotes_theme',
   THEME_STYLE: 'zeroislenotes_theme_style',
+  CUSTOM_THEME: 'zeroislenotes_custom_theme',
   LANGUAGE: 'zeroislenotes_language',
   SETTINGS: 'zeroislenotes_settings',
   RECENT_SEARCHES: 'zeroislenotes_recent_searches',
@@ -161,6 +162,27 @@ export const getThemeStyle = async () => {
   } catch (error) {
     console.error('获取主题风格失败:', error);
     return 'classic';
+  }
+};
+
+// 自定义主题相关
+export const setCustomTheme = async (customTheme) => {
+  try {
+    await AsyncStorage.setItem(KEYS.CUSTOM_THEME, JSON.stringify(customTheme));
+    return true;
+  } catch (error) {
+    console.error('保存自定义主题失败:', error);
+    return false;
+  }
+};
+
+export const getCustomTheme = async () => {
+  try {
+    const customTheme = await AsyncStorage.getItem(KEYS.CUSTOM_THEME);
+    return customTheme ? JSON.parse(customTheme) : { light: {}, dark: {} };
+  } catch (error) {
+    console.error('获取自定义主题失败:', error);
+    return { light: {}, dark: {} };
   }
 };
 

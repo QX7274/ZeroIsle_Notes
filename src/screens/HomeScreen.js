@@ -64,26 +64,53 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={notes}
-        renderItem={renderNoteItem}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-      />
-      <View style={styles.buttonContainer}>
+  // 渲染空状态的欢迎界面
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Icon name="document-text-outline" size={80} color={colors.primary} />
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>欢迎使零屿u笔记</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+        您还没有创建任何笔记，点击右下角的按钮开始创建吧！
+      </Text>
+
+      <View style={[styles.aiAssistantCard, { backgroundColor: colors.primaryContainer }]}>
+        <View style={styles.aiAssistantHeader}>
+          <Icon name="bulb-outline" size={24} color={colors.primary} />
+          <Text style={[styles.aiAssistantTitle, { color: colors.text }]}>AI助手</Text>
+        </View>
+        <Text style={[styles.aiAssistantDesc, { color: colors.textSecondary }]}>
+          使用我们的AI助手帮助您更高效地记录和整理笔记，提供智能建议和内容分析。
+        </Text>
         <TouchableOpacity
-          style={[styles.aiButton, { backgroundColor: colors.primary }]}
+          style={[styles.aiAssistantButton, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('AIAssistant')}
         >
-          <Icon name="chatbubble-ellipses" size={24} color="#FFFFFF" />
+          <Text style={[styles.aiAssistantButtonText, { color: colors.onPrimary }]}>立即体验</Text>
+          <Icon name="arrow-forward-outline" size={18} color={colors.onPrimary} />
         </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {notes && notes.length > 0 ? (
+        <FlatList
+          data={notes}
+          renderItem={renderNoteItem}
+          keyExtractor={item => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+        />
+      ) : (
+        renderEmptyState()
+      )}
+
+      <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('Note', { note: null })}
         >
-          <Icon name="add" size={30} color="#FFFFFF" />
+          <Icon name="add" size={30} color={colors.onPrimary} />
         </TouchableOpacity>
       </View>
     </View>
@@ -137,14 +164,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 4
   },
-  aiButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  // 空状态样式
+  emptyContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  // AI助手卡片样式
+  aiAssistantCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    elevation: 2,
+  },
+  aiAssistantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  aiAssistantTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  aiAssistantDesc: {
+    fontSize: 14,
+    lineHeight: 20,
     marginBottom: 16,
-    elevation: 4
+  },
+  aiAssistantButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  aiAssistantButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 4,
   }
 });
 

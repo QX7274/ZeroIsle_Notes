@@ -44,7 +44,20 @@ export const register = createAsyncThunk(
     try {
       const result = await authApi.register(userData);
       if (result.success) {
-        return result.data;
+        // 确保token是字符串
+        const token = String(result.data.token);
+        const refreshToken = String(result.data.refreshToken);
+        
+        // 保存token和用户信息
+        await setToken(token);
+        await setRefreshToken(refreshToken);
+        await setUser(result.data.user);
+        
+        return {
+          token,
+          refreshToken,
+          user: result.data.user
+        };
       }
       return rejectWithValue(result.message || '注册失败');
     } catch (error) {

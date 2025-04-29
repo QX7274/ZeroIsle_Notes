@@ -28,8 +28,8 @@ import {
 } from '../../redux/slices/knowledgeGraphSlice';
 
 // 导入常量和工具函数
-import { colors } from '../../utils/constants/colors';
 import { dimensions } from '../../utils/constants/dimensions';
+import { useTheme } from '../../context/ThemeContext';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
@@ -39,15 +39,21 @@ import { Button, Loading, Toast } from '../../components/common';
  */
 const NodeDetailScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  
+
+  // 获取主题颜色
+  const { colors } = useTheme();
+
+  // 获取动态样式
+  const styles = getStyles(colors);
+
   // 从路由参数获取节点ID
   const { nodeId } = route.params || {};
-  
+
   // 从Redux获取状态
   const nodes = useSelector(selectNodes);
   const edges = useSelector(selectEdges);
   const isLoading = useSelector(selectIsLoading);
-  
+
   // 本地状态
   const [node, setNode] = useState(null);
   const [relatedNodes, setRelatedNodes] = useState([]);
@@ -57,7 +63,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
   const [showAddRelation, setShowAddRelation] = useState(false);
   const [selectedRelationType, setSelectedRelationType] = useState('related');
   const [selectedTargetNode, setSelectedTargetNode] = useState(null);
-  
+
   // 加载节点数据
   useEffect(() => {
     if (nodeId && nodes.length > 0) {
@@ -65,12 +71,12 @@ const NodeDetailScreen = ({ navigation, route }) => {
       if (foundNode) {
         setNode(foundNode);
         setEditedNode(foundNode);
-        
+
         // 查找相关节点
         const nodeRelations = edges.filter(
           edge => edge.source === nodeId || edge.target === nodeId
         );
-        
+
         const relatedNodeIds = new Set();
         nodeRelations.forEach(relation => {
           if (relation.source === nodeId) {
@@ -79,7 +85,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
             relatedNodeIds.add(relation.source);
           }
         });
-        
+
         const relatedNodesData = nodes.filter(n => relatedNodeIds.has(n.id));
         setRelatedNodes(relatedNodesData);
       } else {
@@ -88,7 +94,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
       }
     }
   }, [nodeId, nodes, edges]);
-  
+
   // 切换编辑模式
   const toggleEditMode = () => {
     if (isEditing) {
@@ -117,7 +123,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
       setIsEditing(true);
     }
   };
-  
+
   // 保存节点更改
   const saveNodeChanges = async () => {
     try {
@@ -130,7 +136,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
       setToastMessage('保存失败: ' + error.message);
     }
   };
-  
+
   // 处理节点属性变化
   const handleNodeChange = (field, value) => {
     setEditedNode(prev => ({
@@ -138,14 +144,14 @@ const NodeDetailScreen = ({ navigation, route }) => {
       [field]: value,
     }));
   };
-  
+
   // 添加关系
   const addRelation = async () => {
     if (!selectedTargetNode) {
       setToastMessage('请选择目标节点');
       return;
     }
-    
+
     try {
       const relationData = {
         source: nodeId,
@@ -153,9 +159,9 @@ const NodeDetailScreen = ({ navigation, route }) => {
         type: selectedRelationType,
         label: getRelationLabel(selectedRelationType),
       };
-      
+
       await dispatch(createEdge(relationData)).unwrap();
-      
+
       setShowAddRelation(false);
       setSelectedTargetNode(null);
       setToastMessage('关系添加成功');
@@ -163,7 +169,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
       setToastMessage('添加关系失败: ' + error.message);
     }
   };
-  
+
   // 获取关系标签
   const getRelationLabel = (type) => {
     switch (type) {
@@ -179,7 +185,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
         return '相关';
     }
   };
-  
+
   // 删除节点
   const deleteNode = () => {
     Alert.alert(
@@ -207,12 +213,12 @@ const NodeDetailScreen = ({ navigation, route }) => {
       ],
     );
   };
-  
+
   // 渲染加载状态
   if (isLoading) {
     return <Loading text="加载节点数据中..." />;
   }
-  
+
   // 渲染节点未找到状态
   if (!node) {
     return (
@@ -222,18 +228,18 @@ const NodeDetailScreen = ({ navigation, route }) => {
           <Text style={styles.errorText}>未找到节点数据</Text>
           <Button title="返回" onPress={() => navigation.goBack()} />
         </View>
-        
+
         {toastMessage ? (
-          <Toast 
-            message={toastMessage} 
-            onDismiss={() => setToastMessage('')} 
-            type="error" 
+          <Toast
+            message={toastMessage}
+            onDismiss={() => setToastMessage('')}
+            type="error"
           />
         ) : null}
       </View>
     );
   }
-  
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollContainer}>
@@ -242,14 +248,14 @@ const NodeDetailScreen = ({ navigation, route }) => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>基本信息</Text>
             <TouchableOpacity onPress={toggleEditMode}>
-              <Icon 
-                name={isEditing ? 'check' : 'edit'} 
-                size={24} 
-                color={colors.primary} 
+              <Icon
+                name={isEditing ? 'check' : 'edit'}
+                size={24}
+                color={colors.primary}
               />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.infoContainer}>
             {/* 节点类型 */}
             <View style={styles.infoRow}>
@@ -257,43 +263,43 @@ const NodeDetailScreen = ({ navigation, route }) => {
               {isEditing ? (
                 <View style={styles.typeSelector}>
                   {['note', 'tag', 'category', 'concept'].map(type => (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       key={type}
                       style={[
-                        styles.typeOption, 
+                        styles.typeOption,
                         editedNode.type === type && styles.selectedTypeOption
                       ]}
                       onPress={() => handleNodeChange('type', type)}
                     >
-                      <Text 
+                      <Text
                         style={[
                           styles.typeOptionText,
                           editedNode.type === type && styles.selectedTypeOptionText
                         ]}
                       >
-                        {type === 'note' ? '笔记' : 
-                         type === 'tag' ? '标签' : 
+                        {type === 'note' ? '笔记' :
+                         type === 'tag' ? '标签' :
                          type === 'category' ? '分类' : '概念'}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               ) : (
-                <View 
+                <View
                   style={[
-                    styles.typeTag, 
-                    { backgroundColor: getNodeColorByType(node.type) }
+                    styles.typeTag,
+                    { backgroundColor: getNodeColorByType(node.type, colors) }
                   ]}
                 >
                   <Text style={styles.typeTagText}>
-                    {node.type === 'note' ? '笔记' : 
-                     node.type === 'tag' ? '标签' : 
+                    {node.type === 'note' ? '笔记' :
+                     node.type === 'tag' ? '标签' :
                      node.type === 'category' ? '分类' : '概念'}
                   </Text>
                 </View>
               )}
             </View>
-            
+
             {/* 节点标题 */}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>标题:</Text>
@@ -310,7 +316,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
                 </Text>
               )}
             </View>
-            
+
             {/* 节点描述 */}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>描述:</Text>
@@ -329,12 +335,12 @@ const NodeDetailScreen = ({ navigation, route }) => {
                 </Text>
               )}
             </View>
-            
+
             {/* 如果是笔记类型，显示笔记链接 */}
             {node.type === 'note' && node.noteId && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>笔记链接:</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.noteLink}
                   onPress={() => navigation.navigate('NoteDetail', { noteId: node.noteId })}
                 >
@@ -345,38 +351,38 @@ const NodeDetailScreen = ({ navigation, route }) => {
             )}
           </View>
         </View>
-        
+
         {/* 节点关系 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>关联关系</Text>
             <TouchableOpacity onPress={() => setShowAddRelation(!showAddRelation)}>
-              <Icon 
-                name={showAddRelation ? 'close' : 'add'} 
-                size={24} 
-                color={colors.primary} 
+              <Icon
+                name={showAddRelation ? 'close' : 'add'}
+                size={24}
+                color={colors.primary}
               />
             </TouchableOpacity>
           </View>
-          
+
           {/* 添加关系表单 */}
           {showAddRelation && (
             <View style={styles.addRelationContainer}>
               <Text style={styles.addRelationTitle}>添加新关系</Text>
-              
+
               <View style={styles.relationTypeSelector}>
                 <Text style={styles.relationTypeLabel}>关系类型:</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {['related', 'parent', 'child', 'reference'].map(type => (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       key={type}
                       style={[
-                        styles.relationTypeOption, 
+                        styles.relationTypeOption,
                         selectedRelationType === type && styles.selectedRelationTypeOption
                       ]}
                       onPress={() => setSelectedRelationType(type)}
                     >
-                      <Text 
+                      <Text
                         style={[
                           styles.relationTypeOptionText,
                           selectedRelationType === type && styles.selectedRelationTypeOptionText
@@ -388,25 +394,25 @@ const NodeDetailScreen = ({ navigation, route }) => {
                   ))}
                 </ScrollView>
               </View>
-              
+
               <Text style={styles.targetNodeLabel}>目标节点:</Text>
               <ScrollView style={styles.targetNodeList}>
                 {nodes
                   .filter(n => n.id !== nodeId)
                   .map(targetNode => (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       key={targetNode.id}
                       style={[
-                        styles.targetNodeItem, 
+                        styles.targetNodeItem,
                         selectedTargetNode?.id === targetNode.id && styles.selectedTargetNodeItem
                       ]}
                       onPress={() => setSelectedTargetNode(targetNode)}
                     >
-                      <View 
+                      <View
                         style={[
-                          styles.targetNodeTypeIndicator, 
-                          { backgroundColor: getNodeColorByType(targetNode.type) }
-                        ]} 
+                          styles.targetNodeTypeIndicator,
+                          { backgroundColor: getNodeColorByType(targetNode.type, colors) }
+                        ]}
                       />
                       <Text style={styles.targetNodeTitle}>
                         {targetNode.label || targetNode.title || `节点${targetNode.id}`}
@@ -414,16 +420,16 @@ const NodeDetailScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   ))}
               </ScrollView>
-              
-              <Button 
-                title="添加关系" 
-                onPress={addRelation} 
+
+              <Button
+                title="添加关系"
+                onPress={addRelation}
                 disabled={!selectedTargetNode}
                 style={styles.addRelationButton}
               />
             </View>
           )}
-          
+
           {/* 关联节点列表 */}
           {relatedNodes.length > 0 ? (
             <View style={styles.relatedNodesContainer}>
@@ -433,28 +439,28 @@ const NodeDetailScreen = ({ navigation, route }) => {
                   edge => (edge.source === nodeId && edge.target === relatedNode.id) ||
                          (edge.source === relatedNode.id && edge.target === nodeId)
                 );
-                
+
                 const relationType = relation ? relation.type || 'related' : 'related';
                 const relationLabel = relation ? relation.label || getRelationLabel(relationType) : getRelationLabel('related');
-                
+
                 return (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     key={relatedNode.id}
                     style={styles.relatedNodeItem}
                     onPress={() => navigation.push('NodeDetail', { nodeId: relatedNode.id })}
                   >
                     <View style={styles.relatedNodeHeader}>
-                      <View 
+                      <View
                         style={[
-                          styles.relatedNodeTypeIndicator, 
-                          { backgroundColor: getNodeColorByType(relatedNode.type) }
-                        ]} 
+                          styles.relatedNodeTypeIndicator,
+                          { backgroundColor: getNodeColorByType(relatedNode.type, colors) }
+                        ]}
                       />
                       <Text style={styles.relatedNodeTitle}>
                         {relatedNode.label || relatedNode.title || `节点${relatedNode.id}`}
                       </Text>
                     </View>
-                    
+
                     <View style={styles.relationInfo}>
                       <Text style={styles.relationLabel}>{relationLabel}</Text>
                       <Icon name="arrow-forward" size={16} color={colors.text} />
@@ -467,25 +473,25 @@ const NodeDetailScreen = ({ navigation, route }) => {
             <Text style={styles.emptyRelationsText}>暂无关联节点</Text>
           )}
         </View>
-        
+
         {/* 危险操作区域 */}
         <View style={styles.dangerSection}>
           <Text style={styles.dangerSectionTitle}>危险操作</Text>
-          <Button 
-            title="删除节点" 
-            onPress={deleteNode} 
+          <Button
+            title="删除节点"
+            onPress={deleteNode}
             style={styles.deleteButton}
             textStyle={styles.deleteButtonText}
           />
         </View>
       </ScrollView>
-      
+
       {/* Toast消息 */}
       {toastMessage ? (
-        <Toast 
-          message={toastMessage} 
-          onDismiss={() => setToastMessage('')} 
-          type={toastMessage.includes('失败') ? 'error' : 'success'} 
+        <Toast
+          message={toastMessage}
+          onDismiss={() => setToastMessage('')}
+          type={toastMessage.includes('失败') ? 'error' : 'success'}
         />
       ) : null}
     </View>
@@ -493,7 +499,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
 };
 
 // 根据节点类型获取颜色
-const getNodeColorByType = (type) => {
+const getNodeColorByType = (type, colors) => {
   switch (type) {
     case 'note':
       return colors.primary;
@@ -504,11 +510,12 @@ const getNodeColorByType = (type) => {
     case 'concept':
       return colors.warning;
     default:
-      return colors.textLight;
+      return colors.textSecondary;
   }
 };
 
-const styles = StyleSheet.create({
+// 使用内联样式，因为我们需要访问动态的颜色主题
+const getStyles = (colors) => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -565,7 +572,7 @@ const styles = StyleSheet.create({
     padding: 8,
     fontSize: 16,
     color: colors.text,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   textArea: {
     height: 100,
@@ -594,7 +601,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   selectedTypeOptionText: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   typeTag: {
     paddingVertical: 4,
@@ -603,7 +610,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   typeTagText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -612,7 +619,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: colors.backgroundLight,
+    backgroundColor: colors.primaryContainer,
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
@@ -625,7 +632,7 @@ const styles = StyleSheet.create({
   addRelationContainer: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: colors.backgroundLight,
+    backgroundColor: colors.primaryContainer,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
@@ -663,7 +670,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   selectedRelationTypeOptionText: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   targetNodeLabel: {
     fontSize: 14,
@@ -683,11 +690,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 4,
     marginBottom: 8,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   selectedTargetNodeItem: {
     borderColor: colors.primary,
-    backgroundColor: colors.backgroundLight,
+    backgroundColor: colors.primaryContainer,
   },
   targetNodeTypeIndicator: {
     width: 12,
@@ -711,7 +718,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   relatedNodeHeader: {
     flexDirection: 'row',
@@ -736,11 +743,11 @@ const styles = StyleSheet.create({
   },
   relationLabel: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
   },
   emptyRelationsText: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 16,
@@ -750,7 +757,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     padding: 16,
     borderRadius: 8,
-    backgroundColor: colors.errorLight,
+    backgroundColor: colors.errorContainer,
     borderWidth: 1,
     borderColor: colors.error,
   },
@@ -764,7 +771,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error,
   },
   deleteButtonText: {
-    color: colors.white,
+    color: colors.onError,
   },
   errorContainer: {
     flex: 1,
@@ -778,6 +785,59 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 20,
   },
+});
+
+// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
+const styles = StyleSheet.create({
+  container: {},
+  scrollContainer: {},
+  section: {},
+  sectionHeader: {},
+  sectionTitle: {},
+  infoContainer: {},
+  infoRow: {},
+  infoLabel: {},
+  infoValue: {},
+  input: {},
+  textArea: {},
+  typeSelector: {},
+  typeOption: {},
+  selectedTypeOption: {},
+  typeOptionText: {},
+  selectedTypeOptionText: {},
+  typeTag: {},
+  typeTagText: {},
+  noteLink: {},
+  noteLinkText: {},
+  addRelationContainer: {},
+  addRelationTitle: {},
+  relationTypeSelector: {},
+  relationTypeLabel: {},
+  relationTypeOption: {},
+  selectedRelationTypeOption: {},
+  relationTypeOptionText: {},
+  selectedRelationTypeOptionText: {},
+  targetNodeLabel: {},
+  targetNodeList: {},
+  targetNodeItem: {},
+  selectedTargetNodeItem: {},
+  targetNodeTypeIndicator: {},
+  targetNodeTitle: {},
+  addRelationButton: {},
+  relatedNodesContainer: {},
+  relatedNodeItem: {},
+  relatedNodeHeader: {},
+  relatedNodeTypeIndicator: {},
+  relatedNodeTitle: {},
+  relationInfo: {},
+  relationLabel: {},
+  emptyRelationsText: {},
+  dangerSection: {},
+  dangerSectionTitle: {},
+  deleteButton: {},
+  deleteButtonText: {},
+  errorContainer: {},
+  errorText: {},
 });
 
 export default NodeDetailScreen;

@@ -208,7 +208,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   if (nodes.length === 0) {
     return (
       <View style={dynamicStyles.emptyContainer}>
-        <Icon name="bubble-chart" size={80} color={colors.textLight} />
+        <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
         <Text style={dynamicStyles.emptyText}>暂无知识图谱数据</Text>
         <Text style={dynamicStyles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
         <Button
@@ -260,13 +260,13 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
       case 'note':
         return colors.primary;
       case 'tag':
-        return colors.accent;
+        return colors.secondary;
       case 'category':
         return colors.success;
       case 'concept':
         return colors.warning;
       default:
-        return colors.textLight;
+        return colors.textSecondary;
     }
   };
 
@@ -459,7 +459,7 @@ const getStyles = (colors) => ({
   },
   pathDescription: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
     marginBottom: 15,
   },
   nodeSelectors: {
@@ -476,7 +476,7 @@ const getStyles = (colors) => ({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 4,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
   selectedNodeContainer: {
     flex: 1,
@@ -495,7 +495,7 @@ const getStyles = (colors) => ({
   },
   placeholderText: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
   },
   arrowIcon: {
     marginHorizontal: 10,
@@ -523,7 +523,7 @@ const getStyles = (colors) => ({
   },
   conceptsDescription: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
     marginBottom: 15,
   },
   conceptNodeSelector: {
@@ -558,7 +558,7 @@ const getStyles = (colors) => ({
   },
   emptySubText: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 30,

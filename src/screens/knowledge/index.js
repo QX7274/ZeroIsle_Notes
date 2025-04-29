@@ -6,10 +6,12 @@ import KnowledgeGraphScreen from './KnowledgeGraphScreen';
 import NodeDetailScreen from './NodeDetailScreen';
 import HandwritingRecognitionScreen from './HandwritingRecognitionScreen';
 import KnowledgeAnalysisScreen from './KnowledgeAnalysisScreen';
+import EdgeEditScreen from './EdgeEditScreen';
 
 export {
   KnowledgeGraphScreen,
   NodeDetailScreen,
   HandwritingRecognitionScreen,
   KnowledgeAnalysisScreen,
+  EdgeEditScreen,
 };

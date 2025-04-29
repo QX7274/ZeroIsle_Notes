@@ -266,6 +266,53 @@ const SettingsScreen = ({ navigation }) => {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
+            <Icon name="smart-toy" size={20} color={colors.primary} />
+            <Text
+              variant="h3"
+              size="medium"
+              style={styles.sectionTitle}
+            >
+              AI助手设置
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: colors.card }]}
+            onPress={() => navigation.navigate('AIAssistantSettings')}
+            {...getAccessibilityProps(
+              'AI助手设置',
+              '配置AI助手的行为和偏好',
+              true
+            )}
+          >
+            <View style={styles.settingContent}>
+              <Icon
+                name="settings-suggest"
+                size={24}
+                color={colors.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text
+                  variant="body"
+                  size="medium"
+                >
+                  AI助手配置
+                </Text>
+                <Text
+                  variant="caption"
+                  color="textSecondary"
+                >
+                  配置AI助手的行为和偏好设置
+                </Text>
+              </View>
+            </View>
+            <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
             <Icon name="settings" size={20} color={colors.primary} />
             <Text
               variant="h3"
