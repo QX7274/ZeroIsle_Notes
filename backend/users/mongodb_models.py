@@ -14,7 +14,7 @@ class User(Document):
     """
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='用户ID')
     username = StringField(max_length=150, required=True, unique=True, verbose_name='用户名')
-    email = EmailField(sparse=True, verbose_name='邮箱地址')
+    email = EmailField(sparse=True, required=False, verbose_name='邮箱地址')
     phone = StringField(max_length=20, sparse=True, verbose_name='手机号')
     password = StringField(required=True, verbose_name='密码哈希')
     first_name = StringField(max_length=30, default='', verbose_name='名')

@@ -45,9 +45,8 @@ class MongoUserRegistrationSerializer(serializers.Serializer):
         if phone and User.objects(phone=phone).first():
             raise serializers.ValidationError({'phone': '手机号已注册'})
 
-        # 确保至少有邮箱或手机号
-        if not email and not phone:
-            raise serializers.ValidationError('必须提供邮箱或手机号')
+        # 不再强制要求邮箱或手机号
+        # 用户可以在注册后在个人中心绑定这些信息
 
         # 验证验证码
         if 'verification_code' in data and data.get('verification_code'):
@@ -84,19 +83,27 @@ class MongoUserRegistrationSerializer(serializers.Serializer):
         """创建用户"""
         # 提取必要字段
         username = validated_data.get('username')
-        email = validated_data.get('email', '')
-        phone = validated_data.get('phone', '')
+        email = validated_data.get('email')
+        phone = validated_data.get('phone')
         password = validated_data.get('password')
 
         # 创建用户
-        user = User(
-            username=username,
-            email=email,
-            phone=phone,
-            password=make_password(password),  # 使用Django的密码哈希
-            is_active=True,
-            date_joined=timezone.now()
-        )
+        user_data = {
+            'username': username,
+            'password': make_password(password),  # 使用Django的密码哈希
+            'is_active': True,
+            'date_joined': timezone.now()
+        }
+
+        # 只有当邮箱不为空且不是空字符串时才添加
+        if email and email.strip():
+            user_data['email'] = email
+
+        # 只有当手机号不为空且不是空字符串时才添加
+        if phone and phone.strip():
+            user_data['phone'] = phone
+
+        user = User(**user_data)
         user.save()
 
         return user

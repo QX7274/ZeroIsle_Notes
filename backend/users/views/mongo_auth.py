@@ -279,6 +279,86 @@ class MongoUserLoginView(viewsets.ViewSet):
         """
         return self.create(request)
 
+    @action(detail=False, methods=['post'])
+    def wechat_login(self, request):
+        """
+        微信登录
+        """
+        code = request.data.get('code')
+
+        if not code:
+            return Response({'error': '微信授权码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 在实际应用中，应该调用微信API获取用户信息
+        # 这里简化处理，直接使用code作为用户标识
+
+        # 检查是否已有关联用户
+        user = User.objects(wechat_id=code).first()
+
+        if not user:
+            # 创建新用户
+            username = f"wx_user_{uuid.uuid4().hex[:8]}"
+            user = User(
+                username=username,
+                wechat_id=code,
+                is_active=True,
+                date_joined=timezone.now()
+            )
+            user.save()
+
+        # 更新最后登录信息
+        user.last_login = timezone.now()
+        user.save()
+
+        # 生成令牌
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'user': MongoUserSerializer(user).data,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        })
+
+    @action(detail=False, methods=['post'])
+    def qq_login(self, request):
+        """
+        QQ登录
+        """
+        code = request.data.get('code')
+
+        if not code:
+            return Response({'error': 'QQ授权码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 在实际应用中，应该调用QQ API获取用户信息
+        # 这里简化处理，直接使用code作为用户标识
+
+        # 检查是否已有关联用户
+        user = User.objects(qq_id=code).first()
+
+        if not user:
+            # 创建新用户
+            username = f"qq_user_{uuid.uuid4().hex[:8]}"
+            user = User(
+                username=username,
+                qq_id=code,
+                is_active=True,
+                date_joined=timezone.now()
+            )
+            user.save()
+
+        # 更新最后登录信息
+        user.last_login = timezone.now()
+        user.save()
+
+        # 生成令牌
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'user': MongoUserSerializer(user).data,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        })
+
     def _record_device(self, request, user):
         """记录用户设备信息"""
         # 在实际应用中，应该将设备信息保存到数据库
