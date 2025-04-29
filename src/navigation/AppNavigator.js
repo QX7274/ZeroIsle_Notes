@@ -18,6 +18,7 @@ import { Loading } from '../components/common';
 
 // 导入导航器
 import AuthNavigator from './AuthNavigator';
+import SettingsNavigator from './SettingsNavigator';
 
 // 导入屏幕
 import HomeScreen from '../screens/HomeScreen';
@@ -32,7 +33,7 @@ import NoteScreen from '../screens/NoteScreen';
 import CategoryScreen from '../screens/CategoryScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
-import { CommunityScreen, PostDetailScreen } from '../screens/community';
+import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
 import ApiTestComponent from '../components/ApiTestComponent';
 // 直接导入知识图谱相关组件
 import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
@@ -114,8 +115,8 @@ const MainTabs = () => {
             iconName = 'smart-toy';
           } else if (route.name === 'CommunityStack') {
             iconName = 'forum';
-          } else if (route.name === 'Settings') {
-            iconName = 'settings';
+          } else if (route.name === 'Profile') {
+            iconName = 'person';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
@@ -184,11 +185,12 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
+        name="Profile"
+        component={SettingsNavigator}
         options={{
-          title: '设置',
-          tabBarLabel: '设置',
+          headerShown: false,
+          title: '个人中心',
+          tabBarLabel: '个人中心',
         }}
       />
     </Tab.Navigator>
@@ -356,6 +358,14 @@ const CommunityStack = () => {
         options={{
           title: 'API测试',
           headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="CreatePost"
+        component={CreatePostScreen}
+        options={{
+          title: '创建帖子',
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

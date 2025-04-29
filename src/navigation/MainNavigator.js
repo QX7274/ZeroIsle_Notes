@@ -13,6 +13,12 @@ import { colors } from '../utils/constants/colors';
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
 import SearchScreen from '../screens/SearchScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import ProfileSettings from '../screens/settings/ProfileSettings';
+import BindPhone from '../screens/settings/BindPhone';
+import BindEmail from '../screens/settings/BindEmail';
+import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
 
 // 临时占位组件
 import { View, Text } from 'react-native';
@@ -50,12 +56,15 @@ const KnowledgeGraphNavigator = () => (
   </Stack.Navigator>
 );
 
-// 设置导航堆栈
-const SettingsNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen name="Settings" component={PlaceholderScreen} options={{ title: '设置' }} />
-    <Stack.Screen name="Profile" component={PlaceholderScreen} options={{ title: '个人资料' }} />
-    <Stack.Screen name="AppSettings" component={PlaceholderScreen} options={{ title: '应用设置' }} />
+// 个人中心导航堆栈
+const ProfileNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: '个人中心' }} />
+    <Stack.Screen name="ProfileSettings" component={ProfileSettings} options={{ title: '个人资料' }} />
+    <Stack.Screen name="BindPhone" component={BindPhone} options={{ title: '手机绑定' }} />
+    <Stack.Screen name="BindEmail" component={BindEmail} options={{ title: '邮箱绑定' }} />
+    <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{ title: '主题设置' }} />
+    <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
   </Stack.Navigator>
 );
 
@@ -100,12 +109,12 @@ const MainNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Settings"
-        component={SettingsNavigator}
+        name="Profile"
+        component={ProfileNavigator}
         options={{
-          title: '设置',
+          title: '个人中心',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>⚙️</Text>
+            <Text style={{ color, fontSize: size }}>👤</Text>
           ),
         }}
       />

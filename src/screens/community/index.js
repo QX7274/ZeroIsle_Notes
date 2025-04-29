@@ -5,8 +5,10 @@
 
 import CommunityScreen from './CommunityScreen';
 import PostDetailScreen from './PostDetailScreen';
+import CreatePostScreen from './CreatePostScreen';
 
 export {
   CommunityScreen,
   PostDetailScreen,
+  CreatePostScreen,
 };

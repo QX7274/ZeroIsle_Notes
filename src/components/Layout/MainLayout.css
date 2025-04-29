@@ -1,0 +1,77 @@
+.main-sider {
+  position: relative;
+}
+
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #1890ff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.main-header {
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  z-index: 1;
+}
+
+.trigger-button {
+  font-size: 18px;
+  line-height: 64px;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-dropdown {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.user-dropdown:hover {
+  background-color: rgba(0, 0, 0, 0.025);
+}
+
+.username {
+  margin-left: 8px;
+}
+
+.main-content {
+  margin: 24px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 4px;
+  min-height: 280px;
+  overflow: auto;
+}
+
+.sider-footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  padding: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .main-content {
+    margin: 16px;
+    padding: 16px;
+  }
+}

@@ -56,11 +56,7 @@ const SettingsScreen = ({ navigation }) => {
     navigation.navigate('ThemeSettings');
   };
 
-  const handleLanguageChange = async (language) => {
-    Haptics.selectionFeedback();
-    await storage.set('language', language);
-    dispatch({ type: 'CHANGE_LANGUAGE', payload: language });
-  };
+  // 移除语言设置功能，只使用中文
 
   const handleClearCache = async () => {
     Haptics.warningFeedback();
@@ -76,9 +72,15 @@ const SettingsScreen = ({ navigation }) => {
   const handleLogout = async () => {
     Haptics.heavyFeedback();
     try {
+      // 使用Redux操作退出登录
+      await dispatch({ type: 'LOGOUT' });
+
+      // 清除本地存储
       await storage.remove('token');
       await storage.remove('user');
+
       // 导航到登录页面
+      navigation.navigate('Auth', { screen: 'Login' });
     } catch (error) {
       console.error('退出登录失败:', error);
     }
@@ -105,7 +107,7 @@ const SettingsScreen = ({ navigation }) => {
             size="large"
             style={styles.headerTitle}
           >
-            设置
+            个人中心
           </Text>
           <Text
             variant="body"
@@ -113,9 +115,11 @@ const SettingsScreen = ({ navigation }) => {
             color="textSecondary"
             style={styles.headerDescription}
           >
-            自定义应用的外观和行为
+            管理个人信息和应用设置
           </Text>
         </View>
+
+
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -193,101 +197,32 @@ const SettingsScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* 语言设置部分已移除，只使用中文 */}
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Icon name="language" size={20} color={colors.primary} />
+            <Icon name="person" size={20} color={colors.primary} />
             <Text
               variant="h3"
               size="medium"
               style={styles.sectionTitle}
             >
-              语言设置
+              个人信息
             </Text>
           </View>
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: colors.card }]}
-            onPress={() => handleLanguageChange(LANGUAGES.ZH)}
+            onPress={() => navigation.navigate('ProfileSettings')}
             {...getAccessibilityProps(
-              '选择简体中文',
-              '将应用语言设置为简体中文',
-              true,
-              settings.language === LANGUAGES.ZH
-            )}
-          >
-            <View style={styles.settingContent}>
-              <Icon
-                name="translate"
-                size={24}
-                color={colors.primary}
-                style={styles.settingIcon}
-              />
-              <Text
-                variant="body"
-                size="medium"
-              >
-                简体中文
-              </Text>
-            </View>
-            {settings.language === LANGUAGES.ZH && (
-              <Icon name="check" size={24} color={colors.primary} />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingItem, { backgroundColor: colors.card }]}
-            onPress={() => handleLanguageChange(LANGUAGES.EN)}
-            {...getAccessibilityProps(
-              '选择英文',
-              '将应用语言设置为英文',
-              true,
-              settings.language === LANGUAGES.EN
-            )}
-          >
-            <View style={styles.settingContent}>
-              <Icon
-                name="translate"
-                size={24}
-                color={colors.primary}
-                style={styles.settingIcon}
-              />
-              <Text
-                variant="body"
-                size="medium"
-              >
-                English
-              </Text>
-            </View>
-            {settings.language === LANGUAGES.EN && (
-              <Icon name="check" size={24} color={colors.primary} />
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="smart-toy" size={20} color={colors.primary} />
-            <Text
-              variant="h3"
-              size="medium"
-              style={styles.sectionTitle}
-            >
-              AI助手设置
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.settingItem, { backgroundColor: colors.card }]}
-            onPress={() => navigation.navigate('AIAssistantSettings')}
-            {...getAccessibilityProps(
-              'AI助手设置',
-              '配置AI助手的行为和偏好',
+              '个人资料',
+              '查看和编辑个人资料',
               true
             )}
           >
             <View style={styles.settingContent}>
               <Icon
-                name="settings-suggest"
+                name="account-circle"
                 size={24}
                 color={colors.primary}
                 style={styles.settingIcon}
@@ -297,19 +232,89 @@ const SettingsScreen = ({ navigation }) => {
                   variant="body"
                   size="medium"
                 >
-                  AI助手配置
+                  个人资料
                 </Text>
                 <Text
                   variant="caption"
                   color="textSecondary"
                 >
-                  配置AI助手的行为和偏好设置
+                  查看和编辑个人资料信息
+                </Text>
+              </View>
+            </View>
+            <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: colors.card }]}
+            onPress={() => navigation.navigate('BindPhone')}
+            {...getAccessibilityProps(
+              '手机绑定',
+              '绑定或更换手机号',
+              true
+            )}
+          >
+            <View style={styles.settingContent}>
+              <Icon
+                name="phone-android"
+                size={24}
+                color={colors.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text
+                  variant="body"
+                  size="medium"
+                >
+                  手机绑定
+                </Text>
+                <Text
+                  variant="caption"
+                  color="textSecondary"
+                >
+                  {settings.user?.phone ? '已绑定: ' + settings.user.phone : '未绑定手机号'}
+                </Text>
+              </View>
+            </View>
+            <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: colors.card }]}
+            onPress={() => navigation.navigate('BindEmail')}
+            {...getAccessibilityProps(
+              '邮箱绑定',
+              '绑定或更换邮箱',
+              true
+            )}
+          >
+            <View style={styles.settingContent}>
+              <Icon
+                name="email"
+                size={24}
+                color={colors.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text
+                  variant="body"
+                  size="medium"
+                >
+                  邮箱绑定
+                </Text>
+                <Text
+                  variant="caption"
+                  color="textSecondary"
+                >
+                  {settings.user?.email ? '已绑定: ' + settings.user.email : '未绑定邮箱'}
                 </Text>
               </View>
             </View>
             <Icon name="chevron-right" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
+
+
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -351,6 +356,40 @@ const SettingsScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: colors.card, marginBottom: 16 }]}
+            onPress={() => navigation.navigate('AIAssistantSettings')}
+            {...getAccessibilityProps(
+              'AI助手设置',
+              '设置AI助手',
+              true
+            )}
+          >
+            <View style={styles.settingContent}>
+              <Icon
+                name="smart-toy"
+                size={24}
+                color={colors.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text
+                  variant="body"
+                  size="medium"
+                >
+                  AI助手设置
+                </Text>
+                <Text
+                  variant="caption"
+                  color="textSecondary"
+                >
+                  自定义AI助手功能和行为
+                </Text>
+              </View>
+            </View>
+            <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+
           <GradientButton
             title="退出登录"
             onPress={handleLogout}
@@ -431,6 +470,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     minWidth: 200,
   },
+
 });
 
 export default SettingsScreen;

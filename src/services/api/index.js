@@ -14,6 +14,7 @@ import searchApi from './searchApi';
 import communityApi from './communityApi';
 import canvasApi from './canvasApi';
 import codeApi from './codeApi';
+import userApi from './userApi';
 
 // 导出API服务
 export {
@@ -26,7 +27,8 @@ export {
   searchApi,
   communityApi,
   canvasApi,
-  codeApi
+  codeApi,
+  userApi
 };
 
 // 默认导出所有API服务
@@ -40,5 +42,6 @@ export default {
   search: searchApi,
   community: communityApi,
   canvas: canvasApi,
-  code: codeApi
+  code: codeApi,
+  user: userApi
 };

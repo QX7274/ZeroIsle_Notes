@@ -36,10 +36,10 @@ const NoteEditor = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 内容输入框引用
   const contentInputRef = useRef(null);
-  
+
   // 本地状态
   const [title, setTitle] = useState(note.title || '');
   const [content, setContent] = useState(note.content || '');
@@ -47,15 +47,17 @@ const NoteEditor = ({
   const [selectedTags, setSelectedTags] = useState(note.tags || []);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
-  
+  const [template, setTemplate] = useState(note.template || 'blank');
+
   // 初始化状态
   useEffect(() => {
     setTitle(note.title || '');
     setContent(note.content || '');
     setSelectedCategory(note.category_id || null);
     setSelectedTags(note.tags || []);
+    setTemplate(note.template || 'blank');
   }, [note]);
-  
+
   // 处理保存
   const handleSave = () => {
     // 验证标题
@@ -63,7 +65,7 @@ const NoteEditor = ({
       Alert.alert('提示', '请输入笔记标题');
       return;
     }
-    
+
     // 构建笔记对象
     const updatedNote = {
       ...note,
@@ -71,23 +73,25 @@ const NoteEditor = ({
       content: content.trim(),
       category_id: selectedCategory,
       tags: selectedTags,
+      template: template,
+      type: note.type || 'note',
     };
-    
+
     // 调用保存回调
     onSave && onSave(updatedNote);
   };
-  
+
   // 处理取消
   const handleCancel = () => {
     onCancel && onCancel();
   };
-  
+
   // 处理选择分类
   const handleSelectCategory = (categoryId) => {
     setSelectedCategory(categoryId);
     setShowCategoryPicker(false);
   };
-  
+
   // 处理选择标签
   const handleToggleTag = (tagId) => {
     if (selectedTags.includes(tagId)) {
@@ -96,11 +100,11 @@ const NoteEditor = ({
       setSelectedTags([...selectedTags, tagId]);
     }
   };
-  
+
   // 渲染分类选择器
   const renderCategoryPicker = () => {
     if (!showCategoryPicker) return null;
-    
+
     return (
       <View style={[
         styles.pickerContainer,
@@ -114,7 +118,7 @@ const NoteEditor = ({
         >
           选择分类
         </Text>
-        
+
         <ScrollView style={styles.pickerScrollView}>
           <TouchableOpacity
             style={[
@@ -132,7 +136,7 @@ const NoteEditor = ({
               无分类
             </Text>
           </TouchableOpacity>
-          
+
           {categories.map(category => (
             <TouchableOpacity
               key={category.id}
@@ -161,7 +165,7 @@ const NoteEditor = ({
             </TouchableOpacity>
           ))}
         </ScrollView>
-        
+
         <Button
           title="关闭"
           onPress={() => setShowCategoryPicker(false)}
@@ -171,11 +175,11 @@ const NoteEditor = ({
       </View>
     );
   };
-  
+
   // 渲染标签选择器
   const renderTagPicker = () => {
     if (!showTagPicker) return null;
-    
+
     return (
       <View style={[
         styles.pickerContainer,
@@ -189,7 +193,7 @@ const NoteEditor = ({
         >
           选择标签
         </Text>
-        
+
         <ScrollView style={styles.pickerScrollView}>
           <View style={styles.tagsContainer}>
             {tags.map(tag => (
@@ -213,7 +217,7 @@ const NoteEditor = ({
             ))}
           </View>
         </ScrollView>
-        
+
         <Button
           title="关闭"
           onPress={() => setShowTagPicker(false)}
@@ -223,14 +227,14 @@ const NoteEditor = ({
       </View>
     );
   };
-  
+
   // 获取当前选中的分类名称
   const getSelectedCategoryName = () => {
     if (!selectedCategory) return '无分类';
     const category = categories.find(c => c.id === selectedCategory);
     return category ? category.name : '无分类';
   };
-  
+
   // 获取当前选中的标签名称
   const getSelectedTagsText = () => {
     if (selectedTags.length === 0) return '无标签';
@@ -240,7 +244,7 @@ const NoteEditor = ({
     }).filter(Boolean);
     return selectedTagNames.join(', ');
   };
-  
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -260,7 +264,7 @@ const NoteEditor = ({
           returnKeyType="next"
           onSubmitEditing={() => contentInputRef.current?.focus()}
         />
-        
+
         <Text
           variant="body"
           size="medium"
@@ -269,7 +273,7 @@ const NoteEditor = ({
         >
           内容
         </Text>
-        
+
         <TextInput
           ref={contentInputRef}
           style={[
@@ -278,7 +282,9 @@ const NoteEditor = ({
               color: colors.text,
               backgroundColor: colors.background,
               borderColor: colors.border,
-            }
+            },
+            template === 'lined' && styles.linedTemplate,
+            template === 'grid' && styles.gridTemplate,
           ]}
           value={content}
           onChangeText={setContent}
@@ -287,7 +293,7 @@ const NoteEditor = ({
           multiline
           textAlignVertical="top"
         />
-        
+
         <View style={styles.metadataContainer}>
           <TouchableOpacity
             style={[
@@ -307,7 +313,7 @@ const NoteEditor = ({
             </Text>
             <Icon name="arrow-drop-down" size={20} color={colors.text} />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.metadataButton,
@@ -327,7 +333,7 @@ const NoteEditor = ({
             <Icon name="arrow-drop-down" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.buttonContainer}>
           <Button
             title="保存"
@@ -337,7 +343,7 @@ const NoteEditor = ({
             style={styles.saveButton}
             size="large"
           />
-          
+
           <Button
             title="取消"
             onPress={handleCancel}
@@ -348,7 +354,7 @@ const NoteEditor = ({
           />
         </View>
       </ScrollView>
-      
+
       {renderCategoryPicker()}
       {renderTagPicker()}
     </KeyboardAvoidingView>
@@ -373,6 +379,23 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     marginBottom: 16,
+  },
+  linedTemplate: {
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderRadius: 0,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    backgroundImage: null,
+    lineHeight: 30,
+    paddingTop: 8,
+  },
+  gridTemplate: {
+    borderWidth: 0,
+    borderRadius: 0,
+    backgroundColor: '#fff',
+    backgroundImage: null,
   },
   metadataContainer: {
     marginBottom: 24,

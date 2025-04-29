@@ -3,6 +3,9 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import { offlineStorageService } from '../offlineStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../../utils/constants/config';
 
 /**
  * 创建笔记
@@ -11,11 +14,48 @@ import { API_ENDPOINTS } from '../../config/api';
  */
 export const createNote = async (note) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.NOTES.BASE, note);
-    return {
-      success: true,
-      data: response.data
+    // 检查网络状态
+    const status = offlineStorageService.getStatus();
+
+    // 如果在线，尝试联网创建笔记
+    if (status.isOnline) {
+      try {
+        const response = await instance.post(API_ENDPOINTS.NOTES.BASE, note);
+        return {
+          success: true,
+          data: response.data
+        };
+      } catch (networkError) {
+        console.log('网络创建笔记失败，使用本地模式', networkError);
+        // 网络请求失败，转为离线模式
+      }
+    }
+
+    // 离线模式：保存到本地存储
+    // 生成临时ID
+    const tempId = 'temp_' + Date.now();
+
+    // 创建本地笔记对象
+    const localNote = {
+      ...note,
+      id: tempId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_synced: false
     };
+
+    // 使用离线存储服务保存笔记
+    const saveResult = await offlineStorageService.saveNote(localNote);
+
+    if (saveResult.success) {
+      return {
+        success: true,
+        data: saveResult.note,
+        isOffline: true
+      };
+    } else {
+      throw new Error(saveResult.error || '保存离线笔记失败');
+    }
   } catch (error) {
     return {
       success: false,
@@ -154,7 +194,7 @@ export const getNoteStats = async () => {
  * 获取笔记标签
  * @returns {Promise} - 标签列表
  */
-export const getNoteTags = async () => {
+const getNoteTags = async () => {
   try {
     const response = await instance.get(API_ENDPOINTS.NOTES.TAGS);
     return {
@@ -174,7 +214,7 @@ export const getNoteTags = async () => {
  * 获取笔记分类
  * @returns {Promise} - 分类列表
  */
-export const getNoteCategories = async () => {
+const getNoteCategories = async () => {
   try {
     const response = await instance.get(API_ENDPOINTS.NOTES.CATEGORIES);
     return {
@@ -195,7 +235,7 @@ export const getNoteCategories = async () => {
  * @param {string} id - 笔记ID
  * @returns {Promise} - 历史版本列表
  */
-export const getNoteHistory = async (id) => {
+const getNoteHistory = async (id) => {
   try {
     const response = await instance.get(API_ENDPOINTS.NOTES.HISTORY(id));
     return {
@@ -217,7 +257,7 @@ export const getNoteHistory = async (id) => {
  * @param {string} format - 导出格式（如 'pdf', 'markdown', 'html'）
  * @returns {Promise} - 导出结果
  */
-export const exportNote = async (id, format) => {
+const exportNote = async (id, format) => {
   try {
     const response = await instance.get(`${API_ENDPOINTS.NOTES.EXPORT}?id=${id}&format=${format}`, {
       responseType: 'blob'
@@ -240,7 +280,7 @@ export const exportNote = async (id, format) => {
  * @param {FormData} formData - 包含文件的表单数据
  * @returns {Promise} - 导入结果
  */
-export const importNote = async (formData) => {
+const importNote = async (formData) => {
   try {
     const response = await instance.post(API_ENDPOINTS.NOTES.IMPORT, formData, {
       headers: {
@@ -260,6 +300,61 @@ export const importNote = async (formData) => {
   }
 };
 
+/**
+ * 保存离线笔记
+ * @param {object} note - 笔记数据
+ * @returns {Promise} - 保存结果
+ */
+export const saveOfflineNote = async (note) => {
+  try {
+    const saveResult = await offlineStorageService.saveNote(note);
+    return saveResult;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '保存离线笔记失败',
+      error
+    };
+  }
+};
+
+/**
+ * 同步离线笔记
+ * @returns {Promise} - 同步结果
+ */
+export const syncOfflineNotes = async () => {
+  try {
+    const result = await offlineStorageService.manualSync();
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '同步离线笔记失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取离线笔记
+ * @returns {Promise} - 离线笔记列表
+ */
+export const getOfflineNotes = async () => {
+  try {
+    const notes = await offlineStorageService.getNotes();
+    return {
+      success: true,
+      data: notes
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '获取离线笔记失败',
+      error
+    };
+  }
+};
+
 const notesApi = {
   createNote,
   updateNote,
@@ -272,7 +367,10 @@ const notesApi = {
   getNoteCategories,
   getNoteHistory,
   exportNote,
-  importNote
+  importNote,
+  saveOfflineNote,
+  syncOfflineNotes,
+  getOfflineNotes
 };
 
 export default notesApi;

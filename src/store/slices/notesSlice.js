@@ -2,7 +2,7 @@
  * 笔记状态切片
  */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { notesApi } from '../../services/api';
+import notesApi from '../../services/api/notesApi';
 
 // 初始状态
 const initialState = {
@@ -19,6 +19,12 @@ const initialState = {
     totalPages: 0,
     totalItems: 0,
   },
+  offline: {
+    isLoading: false,
+    error: null,
+    unsyncedCount: 0,
+    lastSynced: null
+  }
 };
 
 // 异步操作：获取所有笔记
@@ -60,6 +66,13 @@ export const createNote = createAsyncThunk(
     try {
       const result = await notesApi.createNote(noteData);
       if (result.success) {
+        // 如果是离线创建的笔记，增加未同步计数
+        if (result.isOffline) {
+          return {
+            ...result.data,
+            isOffline: true
+          };
+        }
         return result.data;
       }
       return rejectWithValue(result.message || '创建笔记失败');
@@ -175,6 +188,49 @@ const notesSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    // 同步离线笔记
+    builder
+      .addCase(syncOfflineNotes.pending, (state) => {
+        state.offline.isLoading = true;
+        state.offline.error = null;
+      })
+      .addCase(syncOfflineNotes.fulfilled, (state, action) => {
+        state.offline.isLoading = false;
+        state.offline.lastSynced = new Date().toISOString();
+        state.offline.unsyncedCount = Math.max(0, state.offline.unsyncedCount - (action.payload.synced || 0));
+      })
+      .addCase(syncOfflineNotes.rejected, (state, action) => {
+        state.offline.isLoading = false;
+        state.offline.error = action.payload || '同步离线笔记失败';
+      });
+
+    // 保存离线笔记
+    builder
+      .addCase(saveOfflineNote.pending, (state) => {
+        state.offline.isLoading = true;
+        state.offline.error = null;
+      })
+      .addCase(saveOfflineNote.fulfilled, (state, action) => {
+        state.offline.isLoading = false;
+        state.offline.unsyncedCount += 1;
+
+        // 更新笔记列表
+        const index = state.notes.findIndex(note => note.id === action.payload.id);
+        if (index >= 0) {
+          state.notes[index] = action.payload;
+        } else {
+          state.notes.unshift(action.payload);
+        }
+
+        // 更新当前笔记
+        if (state.currentNote && state.currentNote.id === action.payload.id) {
+          state.currentNote = action.payload;
+        }
+      })
+      .addCase(saveOfflineNote.rejected, (state, action) => {
+        state.offline.isLoading = false;
+        state.offline.error = action.payload || '保存离线笔记失败';
+      });
     // 获取所有笔记
     builder
       .addCase(fetchNotes.pending, (state) => {
@@ -221,6 +277,11 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.notes.unshift(action.payload);
         state.currentNote = action.payload;
+
+        // 如果是离线创建的笔记，增加未同步计数
+        if (action.payload.isOffline) {
+          state.offline.unsyncedCount += 1;
+        }
       })
       .addCase(createNote.rejected, (state, action) => {
         state.isLoading = false;
@@ -310,6 +371,38 @@ const notesSlice = createSlice({
   },
 });
 
+// 添加同步离线笔记的异步操作
+export const syncOfflineNotes = createAsyncThunk(
+  'notes/syncOfflineNotes',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await notesApi.syncOfflineNotes();
+      if (result.success) {
+        return result;
+      }
+      return rejectWithValue(result.message || '同步离线笔记失败');
+    } catch (error) {
+      return rejectWithValue(error.message || '同步离线笔记失败');
+    }
+  }
+);
+
+// 添加保存离线笔记的异步操作
+export const saveOfflineNote = createAsyncThunk(
+  'notes/saveOfflineNote',
+  async (note, { rejectWithValue }) => {
+    try {
+      const result = await notesApi.saveOfflineNote(note);
+      if (result.success) {
+        return result.note;
+      }
+      return rejectWithValue(result.error || '保存离线笔记失败');
+    } catch (error) {
+      return rejectWithValue(error.message || '保存离线笔记失败');
+    }
+  }
+);
+
 // 导出操作
 export const {
   setCurrentNote,
@@ -327,6 +420,7 @@ export const selectStats = (state) => state.notes.stats;
 export const selectIsLoading = (state) => state.notes.isLoading;
 export const selectError = (state) => state.notes.error;
 export const selectPagination = (state) => state.notes.pagination;
+export const selectOfflineStatus = (state) => state.notes.offline;
 
 // 导出切片
 export default notesSlice.reducer;

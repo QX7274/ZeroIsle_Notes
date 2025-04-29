@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Text } from '../../components/common/Typography';
 
 /**
  * 聊天输入组件
@@ -35,14 +36,14 @@ const ChatInput = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [message, setMessage] = useState('');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  
+
   // 输入框引用
   const inputRef = useRef(null);
-  
+
   // 监听键盘显示/隐藏
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -63,15 +64,15 @@ const ChatInput = ({
       keyboardDidHideListener.remove();
     };
   }, []);
-  
+
   // 发送消息
   const handleSend = () => {
     if (message.trim() === '') return;
-    
+
     onSend && onSend(message.trim());
     setMessage('');
   };
-  
+
   // 处理语音按钮
   const handleVoiceButton = () => {
     if (isRecording) {
@@ -80,72 +81,93 @@ const ChatInput = ({
       onStartVoice && onStartVoice();
     }
   };
-  
+
   // 处理取消
   const handleCancel = () => {
     onCancel && onCancel();
   };
-  
-  // 渲染发送按钮
-  const renderSendButton = () => {
+
+  // 渲染取消按钮
+  const renderCancelButton = () => {
     if (isLoading) {
       return (
         <TouchableOpacity
           style={[
-            styles.sendButton,
+            styles.actionButton,
             { backgroundColor: colors.error }
           ]}
           onPress={handleCancel}
         >
-          <Icon name="close" size={24} color={colors.card} />
+          <Icon name="close" size={20} color={colors.card} />
+          <Text
+            variant="body"
+            size="small"
+            color="card"
+            style={styles.buttonText}
+          >
+            取消
+          </Text>
         </TouchableOpacity>
       );
     }
-    
-    if (message.trim() === '') {
-      if (voiceEnabled) {
-        return (
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              { backgroundColor: isRecording ? colors.error : colors.primary }
-            ]}
-            onPress={handleVoiceButton}
-          >
-            <Icon
-              name={isRecording ? 'mic-off' : 'mic'}
-              size={24}
-              color={colors.card}
-            />
-          </TouchableOpacity>
-        );
-      }
-      
-      return (
-        <View
-          style={[
-            styles.sendButton,
-            { backgroundColor: colors.primary + '80' }
-          ]}
-        >
-          <Icon name="send" size={24} color={colors.card} />
-        </View>
-      );
-    }
-    
+    return null;
+  };
+
+  // 渲染语音按钮
+  const renderVoiceButton = () => {
+    if (isLoading || !voiceEnabled) return null;
+
     return (
       <TouchableOpacity
         style={[
-          styles.sendButton,
-          { backgroundColor: colors.primary }
+          styles.actionButton,
+          { backgroundColor: isRecording ? colors.error : colors.primary }
         ]}
-        onPress={handleSend}
+        onPress={handleVoiceButton}
       >
-        <Icon name="send" size={24} color={colors.card} />
+        <Icon
+          name={isRecording ? 'mic-off' : 'mic'}
+          size={20}
+          color={colors.card}
+        />
+        <Text
+          variant="body"
+          size="small"
+          color="card"
+          style={styles.buttonText}
+        >
+          {isRecording ? '停止' : '语音'}
+        </Text>
       </TouchableOpacity>
     );
   };
-  
+
+  // 渲染发送按钮
+  const renderSendButton = () => {
+    const isDisabled = message.trim() === '';
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.actionButton,
+          { backgroundColor: isDisabled ? colors.primary + '80' : colors.primary }
+        ]}
+        onPress={handleSend}
+        disabled={isDisabled}
+      >
+        <Icon name="send" size={20} color={colors.card} />
+        <Text
+          variant="body"
+          size="small"
+          color="card"
+          style={styles.buttonText}
+        >
+          发送
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={[
       styles.container,
@@ -169,7 +191,7 @@ const ChatInput = ({
           maxLength={2000}
           editable={!isLoading && !isRecording}
         />
-        
+
         {isRecording && (
           <ActivityIndicator
             style={styles.recordingIndicator}
@@ -178,8 +200,12 @@ const ChatInput = ({
           />
         )}
       </View>
-      
-      {renderSendButton()}
+
+      <View style={styles.actionsContainer}>
+        {renderCancelButton()}
+        {renderVoiceButton()}
+        {renderSendButton()}
+      </View>
     </View>
   );
 };
@@ -209,12 +235,26 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 0 : 8,
     paddingBottom: Platform.OS === 'ios' ? 0 : 8,
   },
-  sendButton: {
-    width: 40,
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    marginLeft: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+  },
+  buttonText: {
+    marginLeft: 4,
   },
   recordingIndicator: {
     marginLeft: 8,

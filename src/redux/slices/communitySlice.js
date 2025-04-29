@@ -132,6 +132,64 @@ export const postComment = createAsyncThunk(
   }
 );
 
+// 异步Action: 创建帖子
+export const createPost = createAsyncThunk(
+  'community/createPost',
+  async (postData, { rejectWithValue }) => {
+    try {
+      // 处理FormData
+      let formData = null;
+
+      if (postData.cover_image || postData.attachments) {
+        formData = new FormData();
+
+        // 添加基本字段
+        formData.append('title', postData.title);
+        formData.append('content', postData.content);
+        formData.append('excerpt', postData.excerpt);
+
+        if (postData.category_id) {
+          formData.append('category_id', postData.category_id);
+        }
+
+        // 添加标签
+        if (postData.tags && postData.tags.length > 0) {
+          postData.tags.forEach(tag => {
+            formData.append('tags', tag);
+          });
+        }
+
+        // 添加其他字段
+        formData.append('is_public', postData.is_public ? 'true' : 'false');
+        formData.append('allow_comments', postData.allow_comments ? 'true' : 'false');
+
+        // 添加封面图片
+        if (postData.cover_image) {
+          formData.append('cover_image', postData.cover_image);
+        }
+
+        // 添加附件
+        if (postData.attachments && postData.attachments.length > 0) {
+          postData.attachments.forEach((attachment, index) => {
+            formData.append(`attachment_${index}`, attachment);
+          });
+        }
+      }
+
+      // 调用实际的API
+      const response = await communityApi.createPost(formData || postData);
+
+      if (!response.success) {
+        return rejectWithValue(response.message || '创建帖子失败');
+      }
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.message || '创建帖子失败');
+    }
+  }
+);
+
 // 初始状态
 const initialState = {
   posts: [],
@@ -254,6 +312,20 @@ const communitySlice = createSlice({
         if (postIndex !== -1) {
           state.posts[postIndex].comments += 1;
         }
+      })
+
+      // 创建帖子
+      .addCase(createPost.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createPost.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.posts.unshift(action.payload);
+      })
+      .addCase(createPost.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });

@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -71,6 +73,18 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
 
   // 本地状态
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const [showAISelector, setShowAISelector] = useState(false);
+  const [selectedAI, setSelectedAI] = useState(null);
+
+  // AI引擎选项
+  const aiEngineOptions = [
+    { id: AIAssistantModule.ENGINE_BAIDU, name: '百度文心一言' },
+    { id: AIAssistantModule.ENGINE_XUNFEI, name: '讯飞星火' },
+    { id: AIAssistantModule.ENGINE_ZHIPU, name: '智谱ChatGLM' },
+    { id: AIAssistantModule.ENGINE_QIANFAN, name: '千帆大模型' },
+    { id: AIAssistantModule.ENGINE_MOONSHOT, name: 'Moonshot AI' },
+    { id: AIAssistantModule.ENGINE_LOCAL, name: '本地引擎' },
+  ];
 
   // API密钥状态
   const [baiduApiKey, setBaiduApiKey] = useState('');
@@ -93,7 +107,11 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
 
     // 加载API密钥
     loadApiKeys();
-  }, [dispatch]);
+
+    // 设置当前选中的AI引擎
+    const currentEngine = aiEngineOptions.find(option => option.id === aiEngine);
+    setSelectedAI(currentEngine || aiEngineOptions[0]);
+  }, [dispatch, aiEngine]);
 
   // 加载API密钥
   const loadApiKeys = async () => {
@@ -256,6 +274,13 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   const handleSelectEngine = (engine) => {
     dispatch(setAiEngine(engine));
 
+    // 更新选中的AI
+    const selectedOption = aiEngineOptions.find(option => option.id === engine);
+    setSelectedAI(selectedOption);
+
+    // 隐藏选择器
+    setShowAISelector(false);
+
     // 根据引擎设置默认模型
     switch (engine) {
       case AIAssistantModule.ENGINE_BAIDU:
@@ -277,6 +302,64 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
         dispatch(setAiModel(''));
         break;
     }
+  };
+
+  // 渲染AI选择器
+  const renderAISelector = () => {
+    return (
+      <Modal
+        visible={showAISelector}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAISelector(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAISelector(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text
+              variant="body"
+              size="large"
+              bold
+              style={styles.modalTitle}
+            >
+              选择AI引擎
+            </Text>
+
+            <FlatList
+              data={aiEngineOptions}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.aiOptionItem,
+                    {
+                      backgroundColor: item.id === aiEngine ? colors.primary + '20' : 'transparent',
+                      borderBottomColor: colors.border
+                    }
+                  ]}
+                  onPress={() => handleSelectEngine(item.id)}
+                >
+                  <Text
+                    variant="body"
+                    size="medium"
+                    color={item.id === aiEngine ? 'primary' : 'text'}
+                    bold={item.id === aiEngine}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.id === aiEngine && (
+                    <Icon name="check" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
   };
 
   // 渲染引擎选择按钮
@@ -366,6 +449,33 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           AI助手设置
         </Text>
         <View style={{ width: 24 }} />
+      </View>
+
+      {renderAISelector()}
+
+      <View style={styles.aiSelectorContainer}>
+        <Text
+          variant="body"
+          size="large"
+          bold
+          style={styles.aiSelectorLabel}
+        >
+          当前AI引擎
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.aiSelectorButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setShowAISelector(true)}
+        >
+          <Text
+            variant="body"
+            size="medium"
+            style={styles.aiSelectorText}
+          >
+            {selectedAI ? selectedAI.name : '选择AI引擎'}
+          </Text>
+          <Icon name="arrow-drop-down" size={24} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -729,6 +839,58 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  // AI选择器相关样式
+  aiSelectorContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  aiSelectorLabel: {
+    marginBottom: 8,
+  },
+  aiSelectorButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  aiSelectorText: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '70%',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalTitle: {
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  aiOptionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
   },
   scrollView: {
     flex: 1,

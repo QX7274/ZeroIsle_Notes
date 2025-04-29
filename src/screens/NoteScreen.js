@@ -4,6 +4,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  TouchableOpacity,
+  ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -13,12 +15,17 @@ import {
   fetchTags,
   createNote,
   updateNote,
-  deleteNote
+  deleteNote,
+  syncOfflineNotes,
+  importNote
 } from '../store/slices/notesSlice';
+import DocumentPicker from 'react-native-document-picker';
+import ImagePicker from 'react-native-image-picker';
 import { NoteList, NoteEditor, NoteDetail } from '../components/notes';
 import { Button } from '../components/common';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { offlineStorageService } from '../services/offlineStorage';
 
 const NoteScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
@@ -37,8 +44,9 @@ const NoteScreen = ({ navigation, route }) => {
   const [view, setView] = useState('list'); // list, detail, edit
   const [refreshing, setRefreshing] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [layout, setLayout] = useState('list'); // list, grid
+  const [showCreateOptions, setShowCreateOptions] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   // 初始化
   useEffect(() => {
@@ -50,6 +58,18 @@ const NoteScreen = ({ navigation, route }) => {
         handleViewNote({ id: route.params.noteId });
       }
     }
+
+    // 监听网络状态
+    const unsubscribe = offlineStorageService.addListener(event => {
+      if (event.type === 'connectionChange' || event.type === 'offlineModeChange') {
+        setIsOffline(!offlineStorageService.getStatus().isOnline);
+      }
+    });
+
+    // 获取当前网络状态
+    setIsOffline(!offlineStorageService.getStatus().isOnline);
+
+    return () => unsubscribe();
   }, [dispatch, route.params]);
 
   // 加载数据
@@ -97,13 +117,63 @@ const NoteScreen = ({ navigation, route }) => {
 
   // 创建新笔记
   const handleCreateNote = () => {
-    setSelectedNote(null);
-    setView('edit');
-
-    // 更新导航标题
-    navigation.setOptions({
-      title: '新建笔记',
-    });
+    Alert.alert(
+      '新建笔记',
+      '选择笔记类型',
+      [
+        {
+          text: '空白笔记',
+          onPress: () => {
+            setSelectedNote({
+              title: '',
+              content: '',
+              type: 'note',
+              template: 'blank'
+            });
+            setView('edit');
+            navigation.setOptions({ title: '新建笔记' });
+          },
+        },
+        {
+          text: '横格笔记',
+          onPress: () => {
+            setSelectedNote({
+              title: '',
+              content: '',
+              type: 'note',
+              template: 'lined'
+            });
+            setView('edit');
+            navigation.setOptions({ title: '新建横格笔记' });
+          },
+        },
+        {
+          text: '方格笔记',
+          onPress: () => {
+            setSelectedNote({
+              title: '',
+              content: '',
+              type: 'note',
+              template: 'grid'
+            });
+            setView('edit');
+            navigation.setOptions({ title: '新建方格笔记' });
+          },
+        },
+        {
+          text: '无限画布',
+          onPress: () => handleCreateCanvas(),
+        },
+        {
+          text: '导入文件',
+          onPress: () => handleImportNote(),
+        },
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   // 保存笔记
@@ -125,6 +195,11 @@ const NoteScreen = ({ navigation, route }) => {
         // 创建成功后返回详情页
         if (result) {
           handleViewNote(result);
+
+          // 如果是离线创建的笔记，显示提示
+          if (result.isOffline) {
+            ToastAndroid.show('笔记已离线保存，将在网络恢复后同步', ToastAndroid.LONG);
+          }
         } else {
           // 返回列表页
           handleBackToList();
@@ -180,6 +255,151 @@ const NoteScreen = ({ navigation, route }) => {
   // 切换布局
   const toggleLayout = () => {
     setLayout(layout === 'list' ? 'grid' : 'list');
+  };
+
+  // 导入笔记
+  const handleImportNote = () => {
+    Alert.alert(
+      '导入文件',
+      '选择要导入的文件类型',
+      [
+        {
+          text: 'PDF文档',
+          onPress: () => importPDF(),
+        },
+        {
+          text: 'Word文档',
+          onPress: () => importWord(),
+        },
+        {
+          text: '图片',
+          onPress: () => importImage(),
+        },
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  // 导入PDF
+  const importPDF = async () => {
+    try {
+      // 使用文档选择器选择PDF文件
+      const res = await DocumentPicker.pick({
+        type: [DocumentPicker.types.pdf],
+      });
+
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('file', {
+        uri: res[0].uri,
+        type: res[0].type,
+        name: res[0].name,
+      });
+      formData.append('type', 'pdf');
+
+      // 调用导入API
+      const result = await dispatch(importNote(formData)).unwrap();
+
+      // 导入成功后查看笔记
+      if (result) {
+        handleViewNote(result);
+        ToastAndroid.show('PDF导入成功', ToastAndroid.SHORT);
+      }
+    } catch (err) {
+      if (!DocumentPicker.isCancel(err)) {
+        console.error('导入PDF错误:', err);
+        Alert.alert('导入失败', err.message || '请稍后重试');
+      }
+    }
+  };
+
+  // 导入Word
+  const importWord = async () => {
+    try {
+      // 使用文档选择器选择Word文件
+      const res = await DocumentPicker.pick({
+        type: [DocumentPicker.types.docx, DocumentPicker.types.doc],
+      });
+
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('file', {
+        uri: res[0].uri,
+        type: res[0].type,
+        name: res[0].name,
+      });
+      formData.append('type', 'word');
+
+      // 调用导入API
+      const result = await dispatch(importNote(formData)).unwrap();
+
+      // 导入成功后查看笔记
+      if (result) {
+        handleViewNote(result);
+        ToastAndroid.show('Word文档导入成功', ToastAndroid.SHORT);
+      }
+    } catch (err) {
+      if (!DocumentPicker.isCancel(err)) {
+        console.error('导入Word错误:', err);
+        Alert.alert('导入失败', err.message || '请稍后重试');
+      }
+    }
+  };
+
+  // 导入图片
+  const importImage = async () => {
+    try {
+      // 使用图片选择器选择图片
+      const res = await ImagePicker.launchImageLibrary({
+        mediaType: 'photo',
+        includeBase64: false,
+        maxHeight: 2000,
+        maxWidth: 2000,
+      });
+
+      if (res.didCancel) return;
+
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('file', {
+        uri: res.assets[0].uri,
+        type: res.assets[0].type,
+        name: res.assets[0].fileName,
+      });
+      formData.append('type', 'image');
+
+      // 调用导入API
+      const result = await dispatch(importNote(formData)).unwrap();
+
+      // 导入成功后查看笔记
+      if (result) {
+        handleViewNote(result);
+        ToastAndroid.show('图片导入成功', ToastAndroid.SHORT);
+      }
+    } catch (err) {
+      console.error('导入图片错误:', err);
+      Alert.alert('导入失败', err.message || '请稍后重试');
+    }
+  };
+
+  // 创建无限画布
+  const handleCreateCanvas = () => {
+    // 创建新的无限画布笔记
+    const canvasNote = {
+      title: '无标题画布',
+      content: '',
+      type: 'canvas',
+      metadata: {
+        canvasType: 'infinite',
+        elements: []
+      }
+    };
+
+    // 保存画布笔记
+    handleSaveNote(canvasNote);
   };
 
   // 渲染加载状态
@@ -249,14 +469,71 @@ const NoteScreen = ({ navigation, route }) => {
             />
           </Button>
 
-          <Button
-            title=""
-            onPress={handleCreateNote}
-            style={styles.addButton}
-            size="large"
+          {/* 创建笔记按钮 */}
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => setShowCreateOptions(!showCreateOptions)}
           >
-            <Icon name="add" size={24} color={colors.card} />
-          </Button>
+            <View style={styles.addButtonInner}>
+              <Icon name="add" size={28} color={colors.card} />
+            </View>
+          </TouchableOpacity>
+
+          {/* 创建选项菜单 */}
+          {showCreateOptions && (
+            <View style={[styles.createOptionsContainer, { backgroundColor: colors.card }]}>
+              <TouchableOpacity
+                style={styles.createOption}
+                onPress={() => {
+                  setShowCreateOptions(false);
+                  handleCreateNote();
+                }}
+              >
+                <Icon name="note-add" size={22} color={colors.primary} />
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={styles.createOptionText}
+                >
+                  新建笔记
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.createOption}
+                onPress={() => {
+                  setShowCreateOptions(false);
+                  handleImportNote();
+                }}
+              >
+                <Icon name="upload-file" size={22} color={colors.primary} />
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={styles.createOptionText}
+                >
+                  导入文件
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.createOption}
+                onPress={() => {
+                  setShowCreateOptions(false);
+                  handleCreateCanvas();
+                }}
+              >
+                <Icon name="dashboard-customize" size={22} color={colors.primary} />
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={styles.createOptionText}
+                >
+                  无限画布
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -340,6 +617,42 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  addButtonInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  createOptionsContainer: {
+    position: 'absolute',
+    bottom: 72,
+    right: 0,
+    width: 160,
+    borderRadius: 12,
+    padding: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  createOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  createOptionText: {
+    marginLeft: 12,
   },
 });
 

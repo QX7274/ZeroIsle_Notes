@@ -16,11 +16,14 @@ import userReducer from './reducers/userReducer';
 import settingsReducer from './reducers/settingsReducer';
 import remindersReducer from './reducers/remindersReducer';
 
+// 导入其他必要的reducers
+import communityReducer from '../redux/slices/communitySlice';
+
 // 持久化配置
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'user', 'settings', 'reminders', 'aiAssistant'], // 持久化的状态
+  whitelist: ['auth', 'user', 'settings', 'reminders', 'aiAssistant', 'community'], // 持久化的状态
 };
 
 // 合并所有reducer
@@ -29,6 +32,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   notes: notesReducer,
   aiAssistant: aiAssistantReducer,
+  community: communityReducer,
 
   // 旧的reducers（保持兼容性）
   user: userReducer,

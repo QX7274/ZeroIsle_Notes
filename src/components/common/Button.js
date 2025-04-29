@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
@@ -17,6 +17,9 @@ import { useTheme } from '../../context/ThemeContext';
  * @param {boolean} fullWidth - 是否占满宽度
  * @param {object} style - 自定义样式
  * @param {object} textStyle - 文字自定义样式
+ * @param {element} icon - 按钮图标（React元素）
+ * @param {string} iconPosition - 图标位置：left, right
+ * @param {object} iconStyle - 图标容器自定义样式
  */
 const Button = ({
   title,
@@ -28,6 +31,9 @@ const Button = ({
   fullWidth = false,
   style,
   textStyle,
+  icon = null,
+  iconPosition = 'left',
+  iconStyle,
   ...props
 }) => {
   const { theme } = useTheme();
@@ -168,6 +174,23 @@ const Button = ({
     buttonTextStyle.push(textStyle);
   }
 
+  // 确定图标颜色
+  const iconColor = type === 'outline' || type === 'text'
+    ? colors.primary
+    : type === 'warning'
+      ? colors.text
+      : colors.card;
+
+  // 确定图标大小
+  let iconSize = 16;
+  switch (size) {
+    case 'small': iconSize = 14; break;
+    case 'medium': iconSize = 16; break;
+    case 'large': iconSize = 18; break;
+    case 'xlarge': iconSize = 20; break;
+    default: iconSize = 16;
+  }
+
   return (
     <TouchableOpacity
       style={buttonStyle}
@@ -179,16 +202,28 @@ const Button = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={
-            type === 'outline' || type === 'text'
-              ? colors.primary
-              : type === 'warning'
-                ? colors.text
-                : colors.card
-          }
+          color={iconColor}
         />
       ) : (
-        <Text style={buttonTextStyle}>{title}</Text>
+        <>
+          {icon && iconPosition === 'left' && (
+            <View style={[styles.iconContainer, { marginRight: title ? 8 : 0 }, iconStyle]}>
+              {React.cloneElement(icon, {
+                size: icon.props.size || iconSize,
+                color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+              })}
+            </View>
+          )}
+          {title && <Text style={buttonTextStyle}>{title}</Text>}
+          {icon && iconPosition === 'right' && (
+            <View style={[styles.iconContainer, { marginLeft: title ? 8 : 0 }, iconStyle]}>
+              {React.cloneElement(icon, {
+                size: icon.props.size || iconSize,
+                color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+              })}
+            </View>
+          )}
+        </>
       )}
     </TouchableOpacity>
   );
@@ -238,6 +273,10 @@ const styles = StyleSheet.create({
   },
   xlargeText: {
     fontSize: 18,
+  },
+  iconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

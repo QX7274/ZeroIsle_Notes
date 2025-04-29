@@ -399,7 +399,7 @@ export const getPostDetail = async (id) => {
 
 /**
  * 创建帖子
- * @param {object} postData - 帖子数据
+ * @param {object|FormData} postData - 帖子数据或FormData对象
  * @returns {Promise} - 创建结果
  */
 export const createPost = async (postData) => {
@@ -410,8 +410,18 @@ export const createPost = async (postData) => {
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       const tempId = `temp_${Date.now()}`;
+
+      // 如果是FormData，需要转换为普通对象进行缓存
+      let dataToCache = postData;
+      if (postData instanceof FormData) {
+        dataToCache = {};
+        for (let [key, value] of postData.entries()) {
+          dataToCache[key] = value;
+        }
+      }
+
       const tempPost = {
-        ...postData,
+        ...dataToCache,
         id: tempId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -421,7 +431,7 @@ export const createPost = async (postData) => {
       // 添加到离线存储
       await offlineStorageService.addPendingOperation({
         type: 'create_post',
-        data: postData,
+        data: dataToCache,
         timestamp: new Date().toISOString()
       });
 
@@ -438,7 +448,18 @@ export const createPost = async (postData) => {
     }
 
     // 在线模式：发送到服务器
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.POSTS, postData);
+    let response;
+
+    // 根据数据类型设置不同的请求头
+    if (postData instanceof FormData) {
+      response = await instance.post(API_ENDPOINTS.COMMUNITY.POSTS, postData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    } else {
+      response = await instance.post(API_ENDPOINTS.COMMUNITY.POSTS, postData);
+    }
 
     // 更新缓存
     const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
@@ -450,6 +471,7 @@ export const createPost = async (postData) => {
       data: response.data
     };
   } catch (error) {
+    console.error('创建帖子失败:', error);
     return {
       success: false,
       message: error.message || '创建帖子失败',
