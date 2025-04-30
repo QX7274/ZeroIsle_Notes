@@ -17,4 +17,6 @@ router.register(r'connections', CanvasConnectionViewSet, basename='canvas-connec
 
 urlpatterns = [
     path('', include(router.urls)),
+    # 兼容前端API调用
+    path('import/', CanvasViewSet.as_view({'post': 'import_canvas'}), name='canvas-import'),
 ]

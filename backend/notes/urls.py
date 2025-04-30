@@ -10,6 +10,8 @@ from .views import (
     HandwritingViewSet, OCRModelViewSet, OCRTrainingDataViewSet,
     WhisperModelViewSet, WhisperTrainingDataViewSet
 )
+from .views.annotation import AnnotationViewSet
+from .views.drawing_path import DrawingPathViewSet
 
 router = DefaultRouter()
 router.register(r'notes', NoteViewSet, basename='note')
@@ -30,6 +32,8 @@ router.register(r'ocr-models', OCRModelViewSet, basename='ocr-model')
 router.register(r'ocr-training-data', OCRTrainingDataViewSet, basename='ocr-training-data')
 router.register(r'whisper-models', WhisperModelViewSet, basename='whisper-model')
 router.register(r'whisper-training-data', WhisperTrainingDataViewSet, basename='whisper-training-data')
+router.register(r'annotations', AnnotationViewSet, basename='annotation')
+router.register(r'drawing-paths', DrawingPathViewSet, basename='drawing-path')
 
 urlpatterns = [
     path('', include(router.urls)),

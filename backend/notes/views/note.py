@@ -8,6 +8,24 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 import uuid
+import os
+import logging
+import tempfile
+from PIL import Image
+import io
+
+# 尝试导入PDF和Word处理库
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+
+try:
+    from docx import Document
+    PYTHON_DOCX_AVAILABLE = True
+except ImportError:
+    PYTHON_DOCX_AVAILABLE = False
 
 from notes.mongodb_models import Note
 from notes.serializers import (
@@ -18,6 +36,9 @@ from notes.serializers import (
 )
 from common.permissions import IsOwnerOrReadOnly
 from common.pagination import StandardResultsSetPagination
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 class NoteViewSet(viewsets.ModelViewSet):
     """笔记视图集"""
@@ -121,3 +142,105 @@ class NoteViewSet(viewsets.ModelViewSet):
             "public_count": public_count,
             "deleted_count": deleted_count
         })
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_note(self, request):
+        """导入PDF或Word文档为笔记"""
+        try:
+            # 获取文件和类型
+            file = request.FILES.get('file')
+            file_type = request.data.get('type', '').lower()
+
+            if not file:
+                return Response(
+                    {'error': '未提供文件'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if file_type not in ['pdf', 'word']:
+                return Response(
+                    {'error': '不支持的文件类型，仅支持PDF和Word文档'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 创建临时文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}') as temp_file:
+                for chunk in file.chunks():
+                    temp_file.write(chunk)
+                temp_file_path = temp_file.name
+
+            # 提取文件内容
+            title = os.path.splitext(file.name)[0]  # 使用文件名作为标题
+            content = ""
+
+            # 处理PDF文件
+            if file_type == 'pdf':
+                if not PYPDF2_AVAILABLE:
+                    os.unlink(temp_file_path)  # 删除临时文件
+                    return Response(
+                        {'error': 'PyPDF2库未安装，无法处理PDF文件'},
+                        status=status.HTTP_501_NOT_IMPLEMENTED
+                    )
+
+                try:
+                    with open(temp_file_path, 'rb') as f:
+                        pdf_reader = PyPDF2.PdfReader(f)
+                        for page_num in range(len(pdf_reader.pages)):
+                            page = pdf_reader.pages[page_num]
+                            content += page.extract_text() + "\n\n"
+                except Exception as e:
+                    logger.error(f"PDF解析错误: {str(e)}")
+                    os.unlink(temp_file_path)  # 删除临时文件
+                    return Response(
+                        {'error': f'PDF解析错误: {str(e)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            # 处理Word文件
+            elif file_type == 'word':
+                if not PYTHON_DOCX_AVAILABLE:
+                    os.unlink(temp_file_path)  # 删除临时文件
+                    return Response(
+                        {'error': 'python-docx库未安装，无法处理Word文件'},
+                        status=status.HTTP_501_NOT_IMPLEMENTED
+                    )
+
+                try:
+                    doc = Document(temp_file_path)
+                    for para in doc.paragraphs:
+                        content += para.text + "\n"
+                except Exception as e:
+                    logger.error(f"Word解析错误: {str(e)}")
+                    os.unlink(temp_file_path)  # 删除临时文件
+                    return Response(
+                        {'error': f'Word解析错误: {str(e)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            # 删除临时文件
+            os.unlink(temp_file_path)
+
+            # 创建笔记
+            note = Note(
+                id=uuid.uuid4(),
+                user=request.user,
+                title=title,
+                content=content,
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+            note.save()
+
+            # 返回结果
+            return Response({
+                'message': f'导入{file_type.upper()}成功',
+                'note_id': str(note.id),
+                'title': note.title
+            })
+
+        except Exception as e:
+            logger.error(f"导入笔记失败: {str(e)}")
+            return Response(
+                {'error': f'导入笔记失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

@@ -23,7 +23,7 @@ class SearchIndex(Document):
         ('community_post', '社区帖子'),
         ('community_comment', '社区评论'),
     )
-    
+
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='索引ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
     title = StringField(max_length=255, required=True, verbose_name='标题')
@@ -36,7 +36,7 @@ class SearchIndex(Document):
     is_public = BooleanField(default=False, verbose_name='是否公开')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'search_indices',
         'indexes': [
@@ -49,10 +49,10 @@ class SearchIndex(Document):
         ],
         'ordering': ['-updated_at']
     }
-    
+
     def __str__(self):
         return f"{self.index_type}: {self.title}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -66,11 +66,12 @@ class SearchQuery(Document):
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='查询ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
     query = StringField(max_length=255, required=True, verbose_name='查询内容')
+    search_type = StringField(max_length=20, default='text', verbose_name='搜索类型')
     filters = DictField(default=dict, verbose_name='过滤条件')
     result_count = IntField(default=0, verbose_name='结果数量')
     execution_time = FloatField(default=0, verbose_name='执行时间(秒)')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
     meta = {
         'collection': 'search_queries',
         'indexes': [
@@ -80,7 +81,7 @@ class SearchQuery(Document):
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return f"{self.user.username}: {self.query}"
 
@@ -99,7 +100,7 @@ class SearchResult(Document):
     object_id = StringField(required=True, verbose_name='对象ID')
     result_type = StringField(max_length=20, required=True, verbose_name='结果类型')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
     meta = {
         'collection': 'search_results',
         'indexes': [
@@ -109,7 +110,7 @@ class SearchResult(Document):
         ],
         'ordering': ['position']
     }
-    
+
     def __str__(self):
         return f"{self.query.query} - {self.title} ({self.score})"
 
@@ -125,7 +126,7 @@ class SearchSuggestion(Document):
     is_global = BooleanField(default=False, verbose_name='是否全局')
     last_used = DateTimeField(default=timezone.now, verbose_name='最后使用时间')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
     meta = {
         'collection': 'search_suggestions',
         'indexes': [
@@ -138,17 +139,17 @@ class SearchSuggestion(Document):
         ],
         'ordering': ['-frequency', '-last_used']
     }
-    
+
     def __str__(self):
         if self.user:
             return f"{self.user.username}: {self.text} ({self.frequency})"
         return f"全局: {self.text} ({self.frequency})"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新最后使用时间"""
         self.last_used = timezone.now()
         return super().save(*args, **kwargs)
-    
+
     def increment_frequency(self):
         """增加频率"""
         self.frequency += 1

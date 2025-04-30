@@ -6,3 +6,4 @@
 from .canvas_service import CanvasService
 from .canvas_element_service import CanvasElementService
 from .canvas_connection_service import CanvasConnectionService
+from .export_service import CanvasExportService
