@@ -75,13 +75,37 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  // 获取默认头像
+  const getDefaultAvatar = () => {
+    // 默认头像列表，可以根据用户ID或用户名生成不同的默认头像
+    const defaultAvatars = [
+      require('../assets/images/default_avatar_1.png'),
+      require('../assets/images/default_avatar_2.png'),
+      require('../assets/images/default_avatar_3.png'),
+      require('../assets/images/default_avatar_4.png'),
+    ];
+
+    // 如果用户已登录，根据用户ID选择一个默认头像
+    if (user && user.id) {
+      const avatarIndex = parseInt(user.id.toString().slice(-1)) % defaultAvatars.length;
+      return defaultAvatars[avatarIndex];
+    }
+
+    // 未登录用户使用第一个默认头像
+    return defaultAvatars[0];
+  };
+
   // 渲染用户信息
   const renderUserInfo = () => {
     if (!user) {
       return (
         <View style={styles.userInfoContainer}>
           <View style={[styles.avatarContainer, { backgroundColor: colors.card }]}>
-            <Icon name="person" size={60} color={colors.primary} />
+            <Image
+              source={getDefaultAvatar()}
+              style={styles.avatar}
+              defaultSource={require('../assets/images/default_avatar_1.png')}
+            />
           </View>
           <Text
             variant="heading"
@@ -119,9 +143,11 @@ const ProfileScreen = ({ navigation }) => {
               style={styles.avatar}
             />
           ) : (
-            <View style={[styles.defaultAvatar, { backgroundColor: colors.card }]}>
-              <Icon name="person" size={60} color={colors.primary} />
-            </View>
+            <Image
+              source={getDefaultAvatar()}
+              style={styles.avatar}
+              defaultSource={require('../assets/images/default_avatar_1.png')}
+            />
           )}
         </TouchableOpacity>
         <Text
@@ -173,6 +199,25 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
         <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+      </TouchableOpacity>
+    );
+  };
+
+  // 渲染设置按钮
+  const renderSettingsButton = () => {
+    return (
+      <TouchableOpacity
+        style={[styles.settingsButton, { backgroundColor: colors.card }]}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <Icon name="settings-outline" size={24} color={colors.primary} />
+        <Text
+          variant="body"
+          size="medium"
+          style={[styles.settingsButtonText, { color: colors.text }]}
+        >
+          设置
+        </Text>
       </TouchableOpacity>
     );
   };

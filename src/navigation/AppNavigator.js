@@ -33,6 +33,7 @@ import NoteScreen from '../screens/NoteScreen';
 import CategoryScreen from '../screens/CategoryScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
+import SearchResultsScreen from '../screens/SearchResultsScreen';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
 import ApiTestComponent from '../components/ApiTestComponent';
 // 直接导入知识图谱相关组件
@@ -226,6 +227,14 @@ const HomeStack = () => {
         name="Home"
         component={HomeScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SearchResults"
+        component={SearchResultsScreen}
+        options={{
+          title: '搜索结果',
+          headerBackTitleVisible: false,
+        }}
       />
       <Stack.Screen
         name="Note"

@@ -379,6 +379,37 @@ class OfflineStorageService {
     }
   }
 
+  async getLastCanvas() {
+    try {
+      const canvases = await this.getCanvases();
+      if (canvases.length === 0) {
+        return null;
+      }
+
+      // 按更新时间排序，获取最新的画布
+      canvases.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt || 0);
+        const dateB = new Date(b.updatedAt || b.createdAt || 0);
+        return dateB - dateA;
+      });
+
+      return canvases[0];
+    } catch (error) {
+      console.error('获取最后画布失败:', error);
+      return null;
+    }
+  }
+
+  async getCanvasById(id) {
+    try {
+      const canvases = await this.getCanvases();
+      return canvases.find(canvas => canvas.id === id) || null;
+    } catch (error) {
+      console.error(`获取画布(ID: ${id})失败:`, error);
+      return null;
+    }
+  }
+
   async addPendingOperation(operation) {
     this.pendingOperations.push(operation);
     await this.savePendingOperations();

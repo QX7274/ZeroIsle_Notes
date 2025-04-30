@@ -1,16 +1,18 @@
 /**
  * 通用按钮组件
+ * 支持多种样式变体和动画效果
  */
 
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View, Animated, Pressable } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import * as Animations from '../../utils/animations';
 
 /**
  * 通用按钮组件
  * @param {string} title - 按钮文字
  * @param {function} onPress - 点击事件处理函数
- * @param {string} type - 按钮类型：primary, secondary, outline, text
+ * @param {string} type - 按钮类型：primary, secondary, success, info, warning, error, outline, text, gradient
  * @param {string} size - 按钮大小：small, medium, large, xlarge
  * @param {boolean} disabled - 是否禁用
  * @param {boolean} loading - 是否显示加载状态
@@ -20,6 +22,11 @@ import { useTheme } from '../../context/ThemeContext';
  * @param {element} icon - 按钮图标（React元素）
  * @param {string} iconPosition - 图标位置：left, right
  * @param {object} iconStyle - 图标容器自定义样式
+ * @param {string} animation - 动画类型：none, fade, scale, bounce
+ * @param {number} animationDuration - 动画持续时间
+ * @param {string} gradientType - 渐变类型：primary, secondary, success, info, warning, error
+ * @param {boolean} elevated - 是否添加阴影效果
+ * @param {string} shape - 按钮形状：rectangle, rounded, pill, circle
  */
 const Button = ({
   title,
@@ -34,14 +41,87 @@ const Button = ({
   icon = null,
   iconPosition = 'left',
   iconStyle,
+  animation = 'none',
+  animationDuration = 300,
+  gradientType = 'primary',
+  elevated = true,
+  shape = 'rounded',
   ...props
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
 
+  // 创建动画值
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.95));
+  const [pressAnim] = useState(new Animated.Value(1));
+
+  // 启动进入动画
+  useEffect(() => {
+    if (animation === 'fade') {
+      Animations.fadeIn(fadeAnim, 1, animationDuration);
+    } else if (animation === 'scale') {
+      fadeAnim.setValue(1);
+      Animations.scale(scaleAnim, 1, animationDuration);
+    } else if (animation === 'bounce') {
+      fadeAnim.setValue(1);
+      Animations.bounce(scaleAnim, 1, animationDuration);
+    } else {
+      fadeAnim.setValue(1);
+      scaleAnim.setValue(1);
+    }
+  }, []);
+
+  // 处理按压动画
+  const handlePressIn = () => {
+    Animated.timing(pressAnim, {
+      toValue: 0.97,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(pressAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  };
+
   // 根据类型和状态确定样式
   const buttonStyle = [styles.button];
   const buttonTextStyle = [styles.text];
+
+  // 根据形状添加样式
+  switch (shape) {
+    case 'rectangle':
+      buttonStyle.push({
+        borderRadius: 0,
+      });
+      break;
+    case 'rounded':
+      buttonStyle.push({
+        borderRadius: 8,
+      });
+      break;
+    case 'pill':
+      buttonStyle.push({
+        borderRadius: 50,
+      });
+      break;
+    case 'circle':
+      buttonStyle.push({
+        borderRadius: 100,
+        aspectRatio: 1,
+        padding: 0,
+      });
+      break;
+    default:
+      buttonStyle.push({
+        borderRadius: 8,
+      });
+  }
 
   // 根据尺寸添加样式
   switch (size) {
@@ -137,6 +217,15 @@ const Button = ({
         color: colors.primary,
       });
       break;
+    case 'gradient':
+      // 渐变样式在LinearGradient中设置
+      buttonStyle.push({
+        backgroundColor: 'transparent', // 避免背景色覆盖渐变
+      });
+      buttonTextStyle.push({
+        color: colors.card,
+      });
+      break;
     default:
       buttonStyle.push({
         backgroundColor: colors.primary,
@@ -144,6 +233,25 @@ const Button = ({
       buttonTextStyle.push({
         color: colors.card,
       });
+  }
+
+  // 添加阴影效果
+  if (elevated && type !== 'outline' && type !== 'text') {
+    const shadowColor = type === 'primary' ? colors.primary :
+                        type === 'secondary' ? colors.secondary :
+                        type === 'success' ? colors.success :
+                        type === 'info' ? colors.info :
+                        type === 'warning' ? colors.warning :
+                        type === 'error' ? colors.error :
+                        colors.shadow;
+
+    buttonStyle.push({
+      shadowColor,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4.65,
+      elevation: 6,
+    });
   }
 
   // 禁用状态样式
@@ -191,88 +299,149 @@ const Button = ({
     default: iconSize = 16;
   }
 
-  return (
-    <TouchableOpacity
-      style={buttonStyle}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.7}
-      {...props}
-    >
-      {loading ? (
+  // 动画样式
+  const animatedStyle = {
+    opacity: fadeAnim,
+    transform: [
+      { scale: animation === 'none' ? pressAnim : scaleAnim }
+    ],
+  };
+
+  // 渲染按钮内容
+  const renderButtonContent = () => {
+    if (loading) {
+      return (
         <ActivityIndicator
           size="small"
           color={iconColor}
         />
-      ) : (
-        <>
-          {icon && iconPosition === 'left' && (
-            <View style={[styles.iconContainer, { marginRight: title ? 8 : 0 }, iconStyle]}>
-              {React.cloneElement(icon, {
-                size: icon.props.size || iconSize,
-                color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
-              })}
-            </View>
-          )}
-          {title && <Text style={buttonTextStyle}>{title}</Text>}
-          {icon && iconPosition === 'right' && (
-            <View style={[styles.iconContainer, { marginLeft: title ? 8 : 0 }, iconStyle]}>
-              {React.cloneElement(icon, {
-                size: icon.props.size || iconSize,
-                color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
-              })}
-            </View>
-          )}
-        </>
-      )}
-    </TouchableOpacity>
+      );
+    }
+
+    return (
+      <>
+        {icon && iconPosition === 'left' && (
+          <View style={[styles.iconContainer, { marginRight: title ? 8 : 0 }, iconStyle]}>
+            {React.cloneElement(icon, {
+              size: icon.props.size || iconSize,
+              color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+            })}
+          </View>
+        )}
+        {title && <Text style={buttonTextStyle}>{title}</Text>}
+        {icon && iconPosition === 'right' && (
+          <View style={[styles.iconContainer, { marginLeft: title ? 8 : 0 }, iconStyle]}>
+            {React.cloneElement(icon, {
+              size: icon.props.size || iconSize,
+              color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+            })}
+          </View>
+        )}
+      </>
+    );
+  };
+
+  // 渲染渐变按钮
+  if (type === 'gradient') {
+    try {
+      const LinearGradient = require('react-native-linear-gradient').default;
+      const gradientColors = colors.gradient[gradientType.toUpperCase()] || colors.gradient.PRIMARY;
+
+      return (
+        <Animated.View style={animatedStyle}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onPress}
+            disabled={disabled || loading}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            {...props}
+          >
+            <LinearGradient
+              colors={gradientColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={buttonStyle}
+            >
+              {renderButtonContent()}
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      );
+    } catch (error) {
+      console.warn('LinearGradient not available, falling back to default button');
+      // 回退到普通按钮
+      type = 'primary';
+    }
+  }
+
+  // 渲染普通按钮
+  return (
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={buttonStyle}
+        onPress={onPress}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        {...props}
+      >
+        {renderButtonContent()}
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
 // 创建样式
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    overflow: 'hidden',
   },
   text: {
     fontWeight: '600',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   // 尺寸样式
   smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     minWidth: 80,
   },
   smallText: {
     fontSize: 12,
+    fontWeight: '500',
   },
   mediumButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     minWidth: 120,
   },
   mediumText: {
     fontSize: 14,
+    fontWeight: '600',
   },
   largeButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
     minWidth: 160,
   },
   largeText: {
     fontSize: 16,
+    fontWeight: '600',
   },
   xlargeButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 28,
     minWidth: 200,
   },
   xlargeText: {
     fontSize: 18,
+    fontWeight: '700',
   },
   iconContainer: {
     justifyContent: 'center',

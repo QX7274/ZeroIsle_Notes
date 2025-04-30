@@ -32,6 +32,10 @@ export const NOTES_ENDPOINTS = {
   GET_VERSION: (id, versionId) => `${API_BASE_URL}/notes/${id}/history/${versionId}`,
   RESTORE_VERSION: (id, versionId) => `${API_BASE_URL}/notes/${id}/history/${versionId}/restore`,
   SYNC_OFFLINE: `${API_BASE_URL}/notes/sync-offline`,
+  // 注释相关
+  ANNOTATIONS: `${API_BASE_URL}/annotations`,
+  // 绘图路径相关
+  DRAWING_PATHS: `${API_BASE_URL}/drawing-paths`,
 };
 
 // 分类相关

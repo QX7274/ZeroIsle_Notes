@@ -1,6 +1,7 @@
 /**
  * 动画工具类
  * 提供常用的动画效果
+ * 包含现代化的UI动画和交互效果
  */
 import { Animated, Easing } from 'react-native';
 
@@ -248,6 +249,108 @@ export const interpolate = (value, inputRange, outputRange) => {
   });
 };
 
+/**
+ * 闪烁动画
+ * @param {Animated.Value} value - 动画值
+ * @param {number} minOpacity - 最小透明度
+ * @param {number} maxOpacity - 最大透明度
+ * @param {number} duration - 动画持续时间
+ * @returns {Animated.CompositeAnimation} - 动画对象
+ */
+export const blink = (value, minOpacity = 0.2, maxOpacity = 1, duration = 1000) => {
+  value.setValue(maxOpacity);
+  Animated.loop(
+    Animated.sequence([
+      Animated.timing(value, {
+        toValue: minOpacity,
+        duration: duration / 2,
+        easing: Easing.ease,
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
+      Animated.timing(value, {
+        toValue: maxOpacity,
+        duration: duration / 2,
+        easing: Easing.ease,
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
+    ])
+  ).start();
+};
+
+/**
+ * 波纹动画
+ * @param {Animated.Value} scaleValue - 缩放动画值
+ * @param {Animated.Value} opacityValue - 透明度动画值
+ * @param {number} duration - 动画持续时间
+ * @param {boolean} loop - 是否循环
+ * @param {function} callback - 动画完成回调
+ */
+export const ripple = (scaleValue, opacityValue, duration = 1000, loop = false, callback) => {
+  scaleValue.setValue(0);
+  opacityValue.setValue(1);
+
+  const animation = Animated.parallel([
+    Animated.timing(scaleValue, {
+      toValue: 1,
+      duration,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+      isInteraction: false,
+    }),
+    Animated.timing(opacityValue, {
+      toValue: 0,
+      duration,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+      isInteraction: false,
+    }),
+  ]);
+
+  if (loop) {
+    Animated.loop(animation).start();
+  } else {
+    animation.start(callback);
+  }
+};
+
+/**
+ * 弹性滑入动画
+ * @param {Animated.Value} value - 动画值
+ * @param {number} fromValue - 起始值
+ * @param {number} toValue - 目标值
+ * @param {number} duration - 动画持续时间
+ * @param {function} callback - 动画完成回调
+ */
+export const elasticSlideIn = (value, fromValue, toValue = 0, duration = 500, callback) => {
+  value.setValue(fromValue);
+  Animated.spring(value, {
+    toValue,
+    duration,
+    friction: 5,
+    tension: 40,
+    useNativeDriver: true,
+    isInteraction: false,
+  }).start(callback);
+};
+
+/**
+ * 卡片翻转动画
+ * @param {Animated.Value} value - 动画值
+ * @param {number} duration - 动画持续时间
+ * @param {function} callback - 动画完成回调
+ */
+export const flipCard = (value, duration = 500, callback) => {
+  Animated.timing(value, {
+    toValue: value._value === 0 ? 180 : 0,
+    duration,
+    easing: Easing.ease,
+    useNativeDriver: true,
+    isInteraction: true,
+  }).start(callback);
+};
+
 export default {
   fadeIn,
   fadeOut,
@@ -258,6 +361,10 @@ export default {
   pulse,
   shake,
   stagger,
+  blink,
+  ripple,
+  elasticSlideIn,
+  flipCard,
   createAnimatedValue,
   createAnimatedValueArray,
   interpolate,

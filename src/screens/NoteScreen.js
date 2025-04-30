@@ -161,6 +161,33 @@ const NoteScreen = ({ navigation, route }) => {
           },
         },
         {
+          text: '清单笔记',
+          onPress: () => {
+            setSelectedNote({
+              title: '',
+              content: '- [ ] 待办事项1\n- [ ] 待办事项2\n- [ ] 待办事项3',
+              type: 'note',
+              template: 'checklist'
+            });
+            setView('edit');
+            navigation.setOptions({ title: '新建清单笔记' });
+          },
+        },
+        {
+          text: '日记模板',
+          onPress: () => {
+            const today = new Date().toLocaleDateString('zh-CN');
+            setSelectedNote({
+              title: `日记 - ${today}`,
+              content: `# ${today} 日记\n\n## 今日心情\n\n## 今日总结\n\n## 明日计划`,
+              type: 'note',
+              template: 'diary'
+            });
+            setView('edit');
+            navigation.setOptions({ title: '新建日记' });
+          },
+        },
+        {
           text: '无限画布',
           onPress: () => handleCreateCanvas(),
         },

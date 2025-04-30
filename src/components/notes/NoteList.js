@@ -43,22 +43,64 @@ const NoteList = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 渲染笔记项
   const renderNoteItem = ({ item }) => {
     // 提取标签和分类
     const tags = item.tags || [];
     const category = item.category || {};
-    
+
+    // 获取笔记类型图标
+    const getNoteTypeIcon = () => {
+      if (item.type === 'canvas') return 'gesture';
+
+      switch (item.template) {
+        case 'lined': return 'subject';
+        case 'grid': return 'grid-on';
+        case 'checklist': return 'check-box';
+        case 'diary': return 'event-note';
+        default: return 'description';
+      }
+    };
+
+    // 获取笔记类型颜色
+    const getNoteTypeColor = () => {
+      if (item.type === 'canvas') return '#9C27B0'; // 紫色
+
+      switch (item.template) {
+        case 'lined': return '#2196F3'; // 蓝色
+        case 'grid': return '#4CAF50'; // 绿色
+        case 'checklist': return '#FF9800'; // 橙色
+        case 'diary': return '#E91E63'; // 粉色
+        default: return colors.primary;
+      }
+    };
+
+    // 判断是否为离线笔记
+    const isOfflineNote = item.isOffline || item.sync_status === 'pending';
+
     return (
       <Card
         style={[
           styles.noteCard,
           layout === 'grid' && styles.gridCard,
+          item.pinned && styles.pinnedCard,
         ]}
         elevation="small"
         onPress={() => onNotePress && onNotePress(item)}
       >
+        {item.pinned && (
+          <View style={styles.pinnedBadge}>
+            <Icon name="push-pin" size={16} color={colors.card} />
+          </View>
+        )}
+
+        <View style={styles.noteTypeIndicator}>
+          <View style={[styles.noteTypeIcon, { backgroundColor: getNoteTypeColor() }]}>
+            <Icon name={getNoteTypeIcon()} size={16} color="#fff" />
+          </View>
+        </View>
+
         <View style={styles.noteContent}>
           <Text
             variant="body"
@@ -68,8 +110,15 @@ const NoteList = ({
             numberOfLines={2}
           >
             {item.title}
+            {isOfflineNote && (
+              <Text
+                variant="body"
+                size="small"
+                color="hint"
+              > (离线)</Text>
+            )}
           </Text>
-          
+
           {item.content && (
             <Text
               variant="body"
@@ -81,7 +130,7 @@ const NoteList = ({
               {item.content}
             </Text>
           )}
-          
+
           <View style={styles.noteFooter}>
             <View style={styles.noteMetadata}>
               {category.name && (
@@ -99,7 +148,22 @@ const NoteList = ({
                   </Text>
                 </View>
               )}
-              
+
+              {tags.length > 0 && (
+                <View style={styles.tagContainer}>
+                  <Icon name="local-offer" size={14} color={colors.textHint} />
+                  <Text
+                    variant="body"
+                    size="small"
+                    color="hint"
+                    numberOfLines={1}
+                    style={styles.tagText}
+                  >
+                    {tags.length}
+                  </Text>
+                </View>
+              )}
+
               <Text
                 variant="body"
                 size="small"
@@ -109,7 +173,7 @@ const NoteList = ({
                 {formatDate(item.updated_at || item.created_at)}
               </Text>
             </View>
-            
+
             <View style={styles.noteActions}>
               {onEditPress && (
                 <TouchableOpacity
@@ -119,7 +183,7 @@ const NoteList = ({
                   <Icon name="edit" size={20} color={colors.primary} />
                 </TouchableOpacity>
               )}
-              
+
               {onDeletePress && (
                 <TouchableOpacity
                   style={styles.actionButton}
@@ -134,11 +198,11 @@ const NoteList = ({
       </Card>
     );
   };
-  
+
   // 渲染空列表
   const renderEmptyList = () => {
     if (loading) return null;
-    
+
     return (
       <View style={styles.emptyContainer}>
         <Icon
@@ -158,18 +222,18 @@ const NoteList = ({
       </View>
     );
   };
-  
+
   // 渲染底部加载指示器
   const renderFooter = () => {
     if (!loading) return null;
-    
+
     return (
       <View style={styles.footerContainer}>
         <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   };
-  
+
   return (
     <FlatList
       data={notes}
@@ -211,13 +275,56 @@ const styles = StyleSheet.create({
   },
   noteCard: {
     marginBottom: 12,
+    position: 'relative',
+    overflow: 'visible',
   },
   gridCard: {
     flex: 1,
     margin: 6,
+    minHeight: 180,
+  },
+  pinnedCard: {
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  pinnedBadge: {
+    position: 'absolute',
+    top: -8,
+    right: 8,
+    backgroundColor: '#FFD700',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+  },
+  noteTypeIndicator: {
+    position: 'absolute',
+    top: 12,
+    left: -8,
+    zIndex: 1,
+  },
+  noteTypeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
   },
   noteContent: {
     flex: 1,
+    paddingLeft: 16, // 为类型图标留出空间
   },
   noteTitle: {
     marginBottom: 8,
@@ -242,6 +349,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 12,
     marginRight: 8,
+  },
+  tagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  tagText: {
+    marginLeft: 4,
   },
   noteDate: {
     marginTop: 4,

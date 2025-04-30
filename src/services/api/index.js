@@ -15,6 +15,8 @@ import communityApi from './communityApi';
 import canvasApi from './canvasApi';
 import codeApi from './codeApi';
 import userApi from './userApi';
+import annotationApi from './annotationApi';
+import drawingPathApi from './drawingPathApi';
 
 // 导出API服务
 export {
@@ -28,7 +30,9 @@ export {
   communityApi,
   canvasApi,
   codeApi,
-  userApi
+  userApi,
+  annotationApi,
+  drawingPathApi
 };
 
 // 默认导出所有API服务
@@ -43,5 +47,7 @@ export default {
   community: communityApi,
   canvas: canvasApi,
   code: codeApi,
-  user: userApi
+  user: userApi,
+  annotation: annotationApi,
+  drawingPath: drawingPathApi
 };

@@ -47,6 +47,7 @@ const NoteEditor = ({
   const [selectedTags, setSelectedTags] = useState(note.tags || []);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [template, setTemplate] = useState(note.template || 'blank');
 
   // 初始化状态
@@ -176,6 +177,76 @@ const NoteEditor = ({
     );
   };
 
+  // 渲染模板选择器
+  const renderTemplatePicker = () => {
+    if (!showTemplatePicker) return null;
+
+    const templateOptions = [
+      { id: 'blank', name: '空白模板', icon: 'description' },
+      { id: 'lined', name: '横格模板', icon: 'subject' },
+      { id: 'grid', name: '方格模板', icon: 'grid-on' },
+      { id: 'checklist', name: '清单模板', icon: 'check-box' },
+      { id: 'diary', name: '日记模板', icon: 'event-note' },
+    ];
+
+    return (
+      <View style={[
+        styles.pickerContainer,
+        { backgroundColor: colors.card }
+      ]}>
+        <Text
+          variant="body"
+          size="medium"
+          bold
+          style={styles.pickerTitle}
+        >
+          选择模板
+        </Text>
+
+        <ScrollView style={styles.pickerScrollView}>
+          {templateOptions.map(option => (
+            <TouchableOpacity
+              key={option.id}
+              style={[
+                styles.pickerItem,
+                template === option.id && styles.pickerItemSelected,
+                template === option.id && { borderColor: colors.primary }
+              ]}
+              onPress={() => {
+                setTemplate(option.id);
+                setShowTemplatePicker(false);
+              }}
+            >
+              <Icon
+                name={option.icon}
+                size={20}
+                color={template === option.id ? colors.primary : colors.text}
+                style={styles.pickerItemIcon}
+              />
+              <Text
+                variant="body"
+                size="medium"
+                color={template === option.id ? 'primary' : undefined}
+              >
+                {option.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.pickerButtonContainer}>
+          <Button
+            title="取消"
+            onPress={() => setShowTemplatePicker(false)}
+            type="outline"
+            size="small"
+            style={styles.pickerButton}
+          />
+        </View>
+      </View>
+    );
+  };
+
   // 渲染标签选择器
   const renderTagPicker = () => {
     if (!showTagPicker) return null;
@@ -285,6 +356,8 @@ const NoteEditor = ({
             },
             template === 'lined' && styles.linedTemplate,
             template === 'grid' && styles.gridTemplate,
+            template === 'checklist' && styles.checklistTemplate,
+            template === 'diary' && styles.diaryTemplate,
           ]}
           value={content}
           onChangeText={setContent}
@@ -295,6 +368,29 @@ const NoteEditor = ({
         />
 
         <View style={styles.metadataContainer}>
+          <TouchableOpacity
+            style={[
+              styles.metadataButton,
+              { borderColor: colors.border }
+            ]}
+            onPress={() => setShowTemplatePicker(true)}
+          >
+            <Icon name="style" size={20} color={colors.primary} />
+            <Text
+              variant="body"
+              size="medium"
+              style={styles.metadataText}
+              numberOfLines={1}
+            >
+              {template === 'blank' ? '空白模板' :
+               template === 'lined' ? '横格模板' :
+               template === 'grid' ? '方格模板' :
+               template === 'checklist' ? '清单模板' :
+               template === 'diary' ? '日记模板' : '选择模板'}
+            </Text>
+            <Icon name="arrow-drop-down" size={20} color={colors.text} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.metadataButton,
@@ -357,6 +453,7 @@ const NoteEditor = ({
 
       {renderCategoryPicker()}
       {renderTagPicker()}
+      {renderTemplatePicker()}
     </KeyboardAvoidingView>
   );
 };
@@ -396,6 +493,20 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     backgroundColor: '#fff',
     backgroundImage: null,
+  },
+  checklistTemplate: {
+    borderWidth: 0,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    fontFamily: 'monospace',
+    lineHeight: 24,
+  },
+  diaryTemplate: {
+    borderWidth: 0,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    lineHeight: 24,
+    fontFamily: 'serif',
   },
   metadataContainer: {
     marginBottom: 24,
