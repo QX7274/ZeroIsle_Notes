@@ -10,3 +10,5 @@ from .code_detect import CodeDetectView
 from .code_complete import CodeCompleteView
 from .code_format import CodeFormatView
 from .code_lint import CodeLintView
+from .code_explain import CodeExplainView
+from .code_example import CodeExampleView

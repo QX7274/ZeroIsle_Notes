@@ -1,26 +1,23 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import axios from 'axios';
 
-const { AIAssistantModule, BaiduAIAssistantModule } = NativeModules;
-
 // 引擎类型常量
-const ENGINE_LOCAL = AIAssistantModule?.ENGINE_LOCAL || 'local';
-const ENGINE_BAIDU = AIAssistantModule?.ENGINE_BAIDU || 'baidu';
-const ENGINE_XUNFEI = AIAssistantModule?.ENGINE_XUNFEI || 'xunfei';
-const ENGINE_ZHIPU = AIAssistantModule?.ENGINE_ZHIPU || 'zhipu';
-const ENGINE_QIANFAN = AIAssistantModule?.ENGINE_QIANFAN || 'qianfan';
-const ENGINE_MOONSHOT = AIAssistantModule?.ENGINE_MOONSHOT || 'moonshot';
+const ENGINE_BAIDU = 'baidu';
+const ENGINE_XUNFEI = 'xunfei';
+const ENGINE_ZHIPU = 'zhipu';
+const ENGINE_QIANFAN = 'qianfan';
+const ENGINE_MOONSHOT = 'moonshot';
 
 // 模型常量
-const MODEL_ERNIE_BOT = AIAssistantModule?.MODEL_ERNIE_BOT || 'ernie_bot';
-const MODEL_ERNIE_BOT_TURBO = AIAssistantModule?.MODEL_ERNIE_BOT_TURBO || 'ernie_bot_turbo';
-const MODEL_SPARK_DESK = AIAssistantModule?.MODEL_SPARK_DESK || 'spark_desk';
-const MODEL_SPARK_DESK_V3 = AIAssistantModule?.MODEL_SPARK_DESK_V3 || 'spark_desk_v3';
-const MODEL_CHATGLM_TURBO = AIAssistantModule?.MODEL_CHATGLM_TURBO || 'chatglm_turbo';
-const MODEL_CHATGLM_PRO = AIAssistantModule?.MODEL_CHATGLM_PRO || 'chatglm_pro';
-const MODEL_QIANFAN_BLOOMZ = AIAssistantModule?.MODEL_QIANFAN_BLOOMZ || 'qianfan_bloomz';
-const MODEL_QIANFAN_LLAMA = AIAssistantModule?.MODEL_QIANFAN_LLAMA || 'qianfan_llama';
-const MODEL_MOONSHOT_V1 = AIAssistantModule?.MODEL_MOONSHOT_V1 || 'moonshot_v1';
+const MODEL_ERNIE_BOT = 'ernie_bot';
+const MODEL_ERNIE_BOT_TURBO = 'ernie_bot_turbo';
+const MODEL_SPARK_DESK = 'spark_desk';
+const MODEL_SPARK_DESK_V3 = 'spark_desk_v3';
+const MODEL_CHATGLM_TURBO = 'chatglm_turbo';
+const MODEL_CHATGLM_PRO = 'chatglm_pro';
+const MODEL_QIANFAN_BLOOMZ = 'qianfan_bloomz';
+const MODEL_QIANFAN_LLAMA = 'qianfan_llama';
+const MODEL_MOONSHOT_V1 = 'moonshot_v1';
 
 // API基础URL
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -30,7 +27,6 @@ const getApiUrl = (endpoint) => `${API_BASE_URL}/${endpoint}`;
 
 export default {
     // 引擎类型
-    ENGINE_LOCAL,
     ENGINE_BAIDU,
     ENGINE_XUNFEI,
     ENGINE_ZHIPU,
@@ -58,20 +54,11 @@ export default {
     /**
      * 发送消息到AI助手
      * @param {string} message - 用户消息
-     * @param {string} engine - 使用的引擎类型，默认为本地引擎
+     * @param {string} engine - 使用的引擎类型
      * @returns {Promise<Object>} - 包含AI回复的Promise
      */
-    sendMessage: (message, engine = ENGINE_LOCAL) => {
-        // 如果是本地引擎，使用原生模块
-        if (engine === ENGINE_LOCAL && AIAssistantModule) {
-            return new Promise((resolve, reject) => {
-                AIAssistantModule.sendMessage(message, engine)
-                    .then(result => resolve(result))
-                    .catch(error => reject(error));
-            });
-        }
-
-        // 如果是其他引擎，使用后端 API
+    sendMessage: (message, engine = ENGINE_BAIDU) => {
+        // 使用后端 API
         return axios.post(getApiUrl('ai-assistant/chat/'), {
             prompt: message,
             engine: engine,
@@ -93,7 +80,7 @@ export default {
      * @param {Array} history - 历史消息
      * @returns {Object} - 包含流式响应控制器
      */
-    sendMessageStream: (message, engine = ENGINE_LOCAL, history = []) => {
+    sendMessageStream: (message, engine = ENGINE_BAIDU, history = []) => {
         // 创建回调函数
         let onMessageCallback = () => {};
         let onCompleteCallback = () => {};
@@ -116,28 +103,6 @@ export default {
                 return controller;
             },
             start: () => {
-                // 如果是本地引擎，使用模拟流式响应
-                if (engine === ENGINE_LOCAL) {
-                    let fullText = '';
-                    const mockResponse = '我是零屿笔记的AI助手，可以帮助你管理笔记、知识和任务。你可以问我任何问题，我会尽力提供帮助。';
-
-                    // 模拟流式响应
-                    let index = 0;
-                    intervalId = setInterval(() => {
-                        if (index < mockResponse.length) {
-                            const char = mockResponse[index];
-                            fullText += char;
-                            onMessageCallback(char, fullText);
-                            index++;
-                        } else {
-                            clearInterval(intervalId);
-                            intervalId = null;
-                            onCompleteCallback(fullText);
-                        }
-                    }, 50);
-
-                    return controller;
-                }
 
                 // 使用XMLHttpRequest连接后端流式响应
                 const url = getApiUrl('ai-assistant/chat/');
@@ -149,7 +114,10 @@ export default {
                 xhr.setRequestHeader('Accept', 'text/event-stream');
 
                 // 添加认证头
-                // TODO: 添加实际的认证头
+                const authToken = localStorage.getItem('auth_token');
+                if (authToken) {
+                    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                }
 
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState === 3) {
@@ -223,10 +191,13 @@ export default {
      * 重置会话
      */
     resetSession: () => {
-        AIAssistantModule.resetSession();
-        if (BaiduAIAssistantModule) {
-            BaiduAIAssistantModule.resetSession();
-        }
+        // 使用后端API重置会话
+        return axios.post(getApiUrl('ai-assistant/reset-session/'))
+            .then(() => ({ success: true }))
+            .catch(error => {
+                console.error('重置会话失败:', error);
+                throw new Error(error.response?.data?.error || error.message);
+            });
     },
 
     /**
@@ -271,10 +242,19 @@ export default {
      * @returns {Promise<Object>} - 包含AI回复的Promise
      */
     sendMessageWithModel: (message, engine, model) => {
-        return new Promise((resolve, reject) => {
-            AIAssistantModule.sendMessageWithModel(message, engine, model)
-                .then(result => resolve(result))
-                .catch(error => reject(error));
+        // 使用后端API发送消息
+        return axios.post(getApiUrl('ai-assistant/chat/'), {
+            prompt: message,
+            engine: engine,
+            model: model,
+            stream: false
+        })
+        .then(response => {
+            return { text: response.data.response };
+        })
+        .catch(error => {
+            console.error('API请求失败:', error);
+            throw new Error(error.response?.data?.error || error.message);
         });
     },
 

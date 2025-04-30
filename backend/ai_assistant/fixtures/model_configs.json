@@ -59,6 +59,7 @@
       "updated_at": "2023-01-01T00:00:00Z"
     }
   },
+
   {
     "model": "ai_assistant.modelconfig",
     "pk": 4,
@@ -93,6 +94,126 @@
       "supports_vision": false,
       "price_per_1k_tokens_input": "0.010000",
       "price_per_1k_tokens_output": "0.010000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 6,
+    "fields": {
+      "name": "ernie-bot-turbo",
+      "provider": "baidu",
+      "description": "百度文心一言ERNIE Bot Turbo",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.008000",
+      "price_per_1k_tokens_output": "0.008000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 7,
+    "fields": {
+      "name": "chatglm-turbo",
+      "provider": "zhipu",
+      "description": "智谱ChatGLM Turbo",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.010000",
+      "price_per_1k_tokens_output": "0.010000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 8,
+    "fields": {
+      "name": "chatglm-pro",
+      "provider": "zhipu",
+      "description": "智谱ChatGLM Pro",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.015000",
+      "price_per_1k_tokens_output": "0.015000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 9,
+    "fields": {
+      "name": "qianfan-llama",
+      "provider": "qianfan",
+      "description": "千帆大模型Llama-2-7B",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.010000",
+      "price_per_1k_tokens_output": "0.010000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 10,
+    "fields": {
+      "name": "qianfan-bloomz",
+      "provider": "qianfan",
+      "description": "千帆大模型BLOOMZ-7B",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.010000",
+      "price_per_1k_tokens_output": "0.010000",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "ai_assistant.modelconfig",
+    "pk": 11,
+    "fields": {
+      "name": "moonshot-v1",
+      "provider": "moonshot",
+      "description": "Moonshot AI V1",
+      "max_tokens": 4096,
+      "token_limit": 4096,
+      "default_temperature": 0.7,
+      "supports_functions": false,
+      "supports_vision": false,
+      "price_per_1k_tokens_input": "0.015000",
+      "price_per_1k_tokens_output": "0.015000",
       "is_active": true,
       "is_default": false,
       "created_at": "2023-01-01T00:00:00Z",

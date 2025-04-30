@@ -121,23 +121,37 @@ const ChatInput = ({
       <TouchableOpacity
         style={[
           styles.actionButton,
-          { backgroundColor: isRecording ? colors.error : colors.primary }
+          {
+            backgroundColor: isRecording ? colors.error : colors.primary,
+            borderRadius: 25,
+            width: 50,
+            height: 50,
+            elevation: 4,
+            shadowColor: isRecording ? colors.error : colors.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 3,
+          }
         ]}
         onPress={handleVoiceButton}
+        activeOpacity={0.7}
       >
-        <Icon
-          name={isRecording ? 'mic-off' : 'mic'}
-          size={20}
-          color={colors.card}
-        />
-        <Text
-          variant="body"
-          size="small"
-          color="card"
-          style={styles.buttonText}
-        >
-          {isRecording ? '停止' : '语音'}
-        </Text>
+        {isRecording ? (
+          <View style={styles.recordingIndicatorContainer}>
+            <Icon
+              name="mic"
+              size={24}
+              color={colors.card}
+            />
+            <View style={[styles.recordingPulse, { borderColor: colors.card }]} />
+          </View>
+        ) : (
+          <Icon
+            name="mic"
+            size={24}
+            color={colors.card}
+          />
+        )}
       </TouchableOpacity>
     );
   };
@@ -150,20 +164,23 @@ const ChatInput = ({
       <TouchableOpacity
         style={[
           styles.actionButton,
-          { backgroundColor: isDisabled ? colors.primary + '80' : colors.primary }
+          {
+            backgroundColor: isDisabled ? colors.primary + '80' : colors.primary,
+            borderRadius: 25,
+            width: 50,
+            height: 50,
+            elevation: 4,
+            shadowColor: colors.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 3,
+          }
         ]}
         onPress={handleSend}
         disabled={isDisabled}
+        activeOpacity={0.7}
       >
-        <Icon name="send" size={20} color={colors.card} />
-        <Text
-          variant="body"
-          size="small"
-          color="card"
-          style={styles.buttonText}
-        >
-          发送
-        </Text>
+        <Icon name="send" size={24} color={colors.card} />
       </TouchableOpacity>
     );
   };
@@ -258,6 +275,21 @@ const styles = StyleSheet.create({
   },
   recordingIndicator: {
     marginLeft: 8,
+  },
+  // 新增样式
+  recordingIndicatorContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordingPulse: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    opacity: 0.5,
+    transform: [{ scale: 1.2 }],
   },
 });
 

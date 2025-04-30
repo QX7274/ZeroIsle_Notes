@@ -26,6 +26,7 @@ import { Button } from '../components/common';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { offlineStorageService } from '../services/offlineStorage';
+import NoteToolbar from '../components/note/NoteToolbar';
 
 const NoteScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
@@ -47,6 +48,10 @@ const NoteScreen = ({ navigation, route }) => {
   const [layout, setLayout] = useState('list'); // list, grid
   const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [selectedText, setSelectedText] = useState('');
+  const [activeTool, setActiveTool] = useState('pen');
+  const [activeColor, setActiveColor] = useState('#000000');
+  const [activeStrokeWidth, setActiveStrokeWidth] = useState(2);
 
   // 初始化
   useEffect(() => {
@@ -429,6 +434,77 @@ const NoteScreen = ({ navigation, route }) => {
     handleSaveNote(canvasNote);
   };
 
+  // 处理工具变化
+  const handleToolChange = (tool, options) => {
+    setActiveTool(tool);
+
+    if (options) {
+      if (options.color) {
+        setActiveColor(options.color);
+      }
+
+      if (options.strokeWidth) {
+        setActiveStrokeWidth(options.strokeWidth);
+      }
+    }
+  };
+
+  // 处理颜色变化
+  const handleColorChange = (color) => {
+    setActiveColor(color);
+  };
+
+  // 处理笔粗细变化
+  const handleStrokeWidthChange = (width) => {
+    setActiveStrokeWidth(width);
+  };
+
+  // 处理文本选择
+  const handleTextSelection = (text) => {
+    setSelectedText(text);
+  };
+
+  // 处理AI处理结果
+  const handleAIProcessResult = (result, toolId) => {
+    // 根据工具类型处理结果
+    switch (toolId) {
+      case 'translate':
+        Alert.alert('翻译结果', result);
+        break;
+      case 'code_recognition':
+        // 将识别的代码插入到笔记中
+        if (selectedNote && view === 'edit') {
+          const updatedNote = {
+            ...selectedNote,
+            content: selectedNote.content + '\n\n```\n' + result + '\n```'
+          };
+          setSelectedNote(updatedNote);
+        }
+        break;
+      case 'summarize':
+        Alert.alert('摘要', result);
+        break;
+      case 'extract_keywords':
+        Alert.alert('关键词', result);
+        break;
+      case 'explain':
+        Alert.alert('解释', result);
+        break;
+      case 'rewrite':
+        // 将改写的文本插入到笔记中
+        if (selectedNote && view === 'edit') {
+          const updatedNote = {
+            ...selectedNote,
+            content: selectedNote.content.replace(selectedText, result)
+          };
+          setSelectedNote(updatedNote);
+        }
+        break;
+      default:
+        Alert.alert('AI处理结果', result);
+    }
+  };
+
   // 渲染加载状态
   if (isLoading && notes.length === 0) {
     return (
@@ -570,6 +646,13 @@ const NoteScreen = ({ navigation, route }) => {
   if (view === 'detail') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* AI工具栏 */}
+        <NoteToolbar
+          isEditMode={false}
+          selectedText={selectedText}
+          onAIProcessResult={handleAIProcessResult}
+        />
+
         <NoteDetail
           note={selectedNote}
           onEdit={() => handleEditNote(selectedNote)}
@@ -577,6 +660,7 @@ const NoteScreen = ({ navigation, route }) => {
           onBack={handleBackToList}
           relatedNotes={[]} // 相关笔记，可以从API获取
           onRelatedNotePress={handleViewNote}
+          onTextSelection={handleTextSelection}
         />
       </View>
     );
@@ -586,6 +670,16 @@ const NoteScreen = ({ navigation, route }) => {
   if (view === 'edit') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* 工具栏 */}
+        <NoteToolbar
+          onToolChange={handleToolChange}
+          onColorChange={handleColorChange}
+          onStrokeWidthChange={handleStrokeWidthChange}
+          onAIProcessResult={handleAIProcessResult}
+          selectedText={selectedText}
+          isEditMode={true}
+        />
+
         <NoteEditor
           note={selectedNote}
           onSave={handleSaveNote}
@@ -593,6 +687,10 @@ const NoteScreen = ({ navigation, route }) => {
           categories={categories}
           tags={tags}
           loading={isLoading}
+          activeTool={activeTool}
+          activeColor={activeColor}
+          activeStrokeWidth={activeStrokeWidth}
+          onTextSelection={handleTextSelection}
         />
       </View>
     );

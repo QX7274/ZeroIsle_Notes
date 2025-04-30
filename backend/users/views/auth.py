@@ -5,7 +5,7 @@
 from rest_framework import status, permissions, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -663,17 +663,23 @@ class UserLogoutView(APIView):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-class UserProfileView(APIView):
+class UserProfileView(viewsets.ViewSet):
     """
     用户资料视图
     """
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def retrieve(self, request):
+        """获取用户资料"""
         serializer = UserDetailSerializer(request.user)
         return Response(serializer.data)
 
-    def put(self, request):
+    def get(self, request):
+        """兼容旧版API"""
+        return self.retrieve(request)
+
+    def update(self, request):
+        """更新用户资料"""
         from users.serializers import UserUpdateSerializer
         serializer = UserUpdateSerializer(request.user, data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -681,13 +687,69 @@ class UserProfileView(APIView):
             return Response(UserDetailSerializer(request.user).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self, request):
+    def put(self, request):
+        """兼容旧版API"""
+        return self.update(request)
+
+    def partial_update(self, request):
+        """部分更新用户资料"""
         from users.serializers import UserUpdateSerializer
         serializer = UserUpdateSerializer(request.user, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(UserDetailSerializer(request.user).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        """兼容旧版API"""
+        return self.partial_update(request)
+
+    @action(detail=False, methods=['post'])
+    def upload_avatar(self, request):
+        """
+        上传头像
+        """
+        if 'avatar' not in request.FILES:
+            return Response({'error': '请选择要上传的头像'}, status=status.HTTP_400_BAD_REQUEST)
+
+        avatar_file = request.FILES['avatar']
+
+        # 验证文件类型
+        valid_extensions = ['jpg', 'jpeg', 'png', 'gif']
+        ext = avatar_file.name.split('.')[-1].lower()
+        if ext not in valid_extensions:
+            return Response({'error': '不支持的文件类型，请上传jpg、jpeg、png或gif格式的图片'},
+                           status=status.HTTP_400_BAD_REQUEST)
+
+        # 验证文件大小（限制为5MB）
+        if avatar_file.size > 5 * 1024 * 1024:
+            return Response({'error': '文件大小不能超过5MB'},
+                           status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 保存头像
+            user = request.user
+
+            # 如果用户已有头像，先删除旧头像
+            if user.avatar:
+                user.avatar.delete(save=False)
+
+            # 设置新头像
+            user.avatar = avatar_file
+            user.save()
+
+            # 返回头像URL
+            avatar_url = request.build_absolute_uri(user.avatar.url) if user.avatar else None
+
+            return Response({
+                'message': '头像上传成功',
+                'avatar_url': avatar_url
+            })
+
+        except Exception as e:
+            logger.error(f"头像上传失败: {str(e)}")
+            return Response({'error': '头像上传失败，请稍后重试'},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PasswordChangeView(APIView):
     """

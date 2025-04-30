@@ -14,14 +14,18 @@ class DrawingPathSerializer(serializers.Serializer):
     user = UserSerializer(read_only=True)
     note = serializers.PrimaryKeyRelatedField(queryset=Note.objects.all(), required=False, allow_null=True)
     canvas_id = serializers.CharField(required=False, allow_blank=True)
-    tool_type = serializers.ChoiceField(choices=('pen', 'pencil', 'highlighter', 'eraser', 'shape'), required=True)
-    shape_type = serializers.ChoiceField(choices=('line', 'rectangle', 'circle', 'triangle', 'arrow'), required=False, allow_null=True)
+    tool_type = serializers.ChoiceField(choices=(
+        'pen', 'pencil', 'brush', 'marker', 'highlighter', 'calligraphy', 'eraser', 'shape', 'text', 'image'
+    ), required=True)
+    shape_type = serializers.ChoiceField(choices=(
+        'line', 'rectangle', 'circle', 'triangle', 'arrow', 'diamond', 'pentagon', 'hexagon', 'star', 'cloud'
+    ), required=False, allow_null=True)
     path_data = serializers.DictField(required=True)
     color = serializers.CharField(required=False, allow_blank=True)
     stroke_width = serializers.IntegerField(required=False)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
-    
+
     def validate(self, data):
         """
         验证数据
@@ -29,13 +33,13 @@ class DrawingPathSerializer(serializers.Serializer):
         # 如果工具类型是形状，则必须提供形状类型
         if data.get('tool_type') == 'shape' and not data.get('shape_type'):
             raise serializers.ValidationError("形状工具必须提供形状类型")
-        
+
         # 必须提供笔记ID或画布ID
         if not data.get('note') and not data.get('canvas_id'):
             raise serializers.ValidationError("必须提供笔记ID或画布ID")
-        
+
         return data
-    
+
     def create(self, validated_data):
         """
         创建绘图路径
@@ -45,7 +49,7 @@ class DrawingPathSerializer(serializers.Serializer):
         drawing_path = DrawingPath(**validated_data)
         drawing_path.save()
         return drawing_path
-    
+
     def update(self, instance, validated_data):
         """
         更新绘图路径

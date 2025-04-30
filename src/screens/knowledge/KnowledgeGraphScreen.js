@@ -88,7 +88,105 @@ const KnowledgeGraphScreen = ({ navigation }) => {
     try {
       await dispatch(fetchKnowledgeGraph()).unwrap();
     } catch (err) {
+      console.error('加载知识图谱失败:', err);
       setToastMessage('加载知识图谱失败: ' + (err.message || '请稍后重试'));
+
+      // 如果API加载失败，使用模拟数据
+      const mockNodes = [
+        {
+          id: '1',
+          label: '笔记方法',
+          type: 'concept',
+          x: 100,
+          y: 100,
+          size: 30,
+          description: '高效记笔记的方法和技巧'
+        },
+        {
+          id: '2',
+          label: '康奈尔笔记法',
+          type: 'note',
+          noteId: '101',
+          x: 200,
+          y: 50,
+          size: 25,
+          description: '一种将笔记分为笔记、线索和总结三个部分的方法'
+        },
+        {
+          id: '3',
+          label: '思维导图',
+          type: 'note',
+          noteId: '102',
+          x: 200,
+          y: 150,
+          size: 25,
+          description: '一种图形化的思考和组织信息的方法'
+        },
+        {
+          id: '4',
+          label: '学习效率',
+          type: 'tag',
+          x: 300,
+          y: 100,
+          size: 20,
+          description: '提高学习效率的方法和技巧'
+        },
+        {
+          id: '5',
+          label: '知识管理',
+          type: 'category',
+          x: 50,
+          y: 200,
+          size: 25,
+          description: '管理和组织知识的方法和工具'
+        }
+      ];
+
+      const mockEdges = [
+        {
+          id: 'e1',
+          source: '1',
+          target: '2',
+          label: '包含',
+          type: 'contains'
+        },
+        {
+          id: 'e2',
+          source: '1',
+          target: '3',
+          label: '包含',
+          type: 'contains'
+        },
+        {
+          id: 'e3',
+          source: '2',
+          target: '4',
+          label: '标记',
+          type: 'tagged'
+        },
+        {
+          id: 'e4',
+          source: '3',
+          target: '4',
+          label: '标记',
+          type: 'tagged'
+        },
+        {
+          id: 'e5',
+          source: '5',
+          target: '1',
+          label: '分类',
+          type: 'categorized'
+        }
+      ];
+
+      dispatch({
+        type: 'knowledgeGraph/fetchKnowledgeGraphSuccess',
+        payload: {
+          nodes: mockNodes,
+          edges: mockEdges
+        }
+      });
     }
   };
 

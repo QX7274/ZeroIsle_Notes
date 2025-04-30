@@ -20,6 +20,10 @@ import { navigationRef, processNavigationQueue } from './navigation/navigationRe
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 
+// 导入服务
+import { offlineStorageService } from './services/offlineStorage';
+import { analyticsService } from './services/analytics';
+
 // 忽略特定的警告
 LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
@@ -29,6 +33,34 @@ LogBox.ignoreLogs([
 // 主应用容器
 const AppContainer = () => {
   const { theme, isDarkMode } = useTheme();
+
+  // 初始化服务
+  useEffect(() => {
+    const initServices = async () => {
+      try {
+        console.log('正在初始化服务...');
+
+        // 初始化分析服务
+        await analyticsService.init();
+        console.log('分析服务初始化完成');
+
+        // 初始化离线存储服务
+        const offlineInitResult = await offlineStorageService.init();
+        console.log('离线存储服务初始化' + (offlineInitResult ? '成功' : '失败'));
+
+        // 记录应用启动事件
+        analyticsService.trackEvent('app_launched', {
+          timestamp: new Date().toISOString(),
+          platform: Platform.OS,
+          version: Platform.Version,
+        });
+      } catch (error) {
+        console.error('初始化服务失败:', error);
+      }
+    };
+
+    initServices();
+  }, []);
 
   // 监听主题变化，更新状态栏
   useEffect(() => {

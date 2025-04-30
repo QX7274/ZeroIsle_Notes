@@ -543,8 +543,12 @@ class DrawingPath(Document):
     user = ReferenceField(User, required=True, verbose_name='用户')
     note = ReferenceField(Note, required=False, verbose_name='笔记')
     canvas_id = StringField(max_length=100, verbose_name='画布ID')
-    tool_type = StringField(max_length=20, choices=('pen', 'pencil', 'highlighter', 'eraser', 'shape'), required=True, verbose_name='工具类型')
-    shape_type = StringField(max_length=20, choices=('line', 'rectangle', 'circle', 'triangle', 'arrow'), verbose_name='形状类型')
+    tool_type = StringField(max_length=20, choices=(
+        'pen', 'pencil', 'brush', 'marker', 'highlighter', 'calligraphy', 'eraser', 'shape', 'text', 'image'
+    ), required=True, verbose_name='工具类型')
+    shape_type = StringField(max_length=20, choices=(
+        'line', 'rectangle', 'circle', 'triangle', 'arrow', 'diamond', 'pentagon', 'hexagon', 'star', 'cloud'
+    ), verbose_name='形状类型')
     path_data = DictField(required=True, verbose_name='路径数据')
     color = StringField(max_length=20, verbose_name='颜色')
     stroke_width = IntField(verbose_name='线条宽度')

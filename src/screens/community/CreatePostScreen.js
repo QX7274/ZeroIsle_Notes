@@ -46,17 +46,42 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 加载分类和标签
   useEffect(() => {
-    // 使用try-catch防止错误
+    loadCategoriesAndTags();
+  }, [dispatch]);
+
+  // 加载分类和标签数据
+  const loadCategoriesAndTags = async () => {
     try {
-      dispatch(fetchCategories());
-      dispatch(fetchTags());
+      // 尝试从API加载分类和标签
+      const categoriesResult = await dispatch(fetchCategories()).unwrap();
+      const tagsResult = await dispatch(fetchTags()).unwrap();
+
+      // 更新本地状态
+      setAvailableCategories(categoriesResult || []);
+      setAvailableTags(tagsResult || []);
     } catch (error) {
       console.error('加载分类和标签失败:', error);
-      // 设置默认空数组
-      setAvailableCategories([]);
-      setAvailableTags([]);
+
+      // 设置默认分类和标签
+      const defaultCategories = [
+        { id: '1', name: '笔记模板' },
+        { id: '2', name: '学习资料' },
+        { id: '3', name: '使用技巧' },
+        { id: '4', name: '知识图谱' },
+      ];
+
+      const defaultTags = [
+        { id: '1', name: '效率提升' },
+        { id: '2', name: '笔记技巧' },
+        { id: '3', name: '知识管理' },
+        { id: '4', name: '学习方法' },
+        { id: '5', name: '案例分享' },
+      ];
+
+      setAvailableCategories(defaultCategories);
+      setAvailableTags(defaultTags);
     }
-  }, [dispatch]);
+  };
 
   // 本地分类和标签状态
   const [availableCategories, setAvailableCategories] = useState([]);
@@ -226,9 +251,28 @@ const CreatePostScreen = ({ navigation }) => {
 
         // 添加附件
         if (attachments.length > 0) {
+          // 创建附件数组
+          const attachmentsArray = [];
+
+          // 添加每个附件
           attachments.forEach((attachment, index) => {
-            postData.append(`attachment_${index}`, attachment);
+            // 添加附件文件
+            postData.append(`file_${index}`, attachment);
+
+            // 添加附件元数据到数组
+            attachmentsArray.push({
+              name: attachment.name,
+              type: attachment.type,
+              size: attachment.size,
+              index: index
+            });
           });
+
+          // 添加附件元数据JSON
+          postData.append('attachments_meta', JSON.stringify(attachmentsArray));
+
+          // 添加附件数量
+          postData.append('attachment_count', attachments.length.toString());
         }
       } else {
         // 无文件上传，使用普通JSON

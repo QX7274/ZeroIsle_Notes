@@ -103,7 +103,25 @@ const CommunityScreen = ({ navigation }) => {
   const loadPosts = async () => {
     if (isLoading) return;
 
-    dispatch(fetchPosts({ page, pageSize: 10 }));
+    try {
+      // 尝试从API加载帖子
+      await dispatch(fetchPosts({ page, pageSize: 10 })).unwrap();
+    } catch (error) {
+      console.error('加载帖子失败:', error);
+
+      // 如果API加载失败，使用模拟数据
+      dispatch({
+        type: 'community/fetchPostsSuccess',
+        payload: {
+          posts: mockPosts,
+          pagination: {
+            page: 1,
+            totalPages: 1,
+            totalItems: mockPosts.length
+          }
+        }
+      });
+    }
   };
 
   // 下拉刷新

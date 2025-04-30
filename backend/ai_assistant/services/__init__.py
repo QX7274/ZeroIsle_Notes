@@ -6,6 +6,9 @@ AI助手模块服务初始化文件
 from .openai_service import OpenAIService
 from .baidu_service import BaiduService
 from .xunfei_service import XunfeiService
+from .zhipu_service import ZhipuService
+from .qianfan_service import QianfanService
+from .moonshot_service import MoonshotService
 from .token_counter import TokenCounter
 from .conversation_service import ConversationService
 from .prompt_service import PromptService

@@ -404,8 +404,8 @@ const GraphVisualization = ({
       const centerNode = nodes.find(node => node.id === visualization.centerNode);
       if (centerNode) {
         // 计算需要的平移量，使中心节点位于视图中心
-        const targetX = width - centerNode.x;
-        const targetY = height - centerNode.y;
+        const targetX = width / 2 - centerNode.x;
+        const targetY = height / 2 - centerNode.y;
 
         // 应用平移动画
         translateX.value = withTiming(targetX, { duration: 500 });
@@ -420,7 +420,7 @@ const GraphVisualization = ({
         }
       }
     }
-  }, [visualization.centerNode, nodes]);
+  }, [visualization.centerNode, nodes, width, height]);
 
   // 渲染工具栏
   const renderToolbar = () => {

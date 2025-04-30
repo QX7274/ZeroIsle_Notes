@@ -8,7 +8,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 import uuid
+import json
+import os
 from django.utils import timezone
+from django.conf import settings
 from mongoengine.queryset.visitor import Q
 
 from community.mongodb_models import Post, Like, Follow
@@ -261,8 +264,108 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         """创建帖子"""
-        serializer = PostCreateSerializer(data=request.data)
-        if serializer.is_valid():
+        # 检查是否是multipart/form-data请求
+        is_multipart = request.content_type and 'multipart/form-data' in request.content_type
+
+        # 处理表单数据
+        if is_multipart:
+            # 从表单中获取基本数据
+            title = request.data.get('title', '')
+            content = request.data.get('content', '')
+            excerpt = request.data.get('excerpt', '')
+            status_value = request.data.get('status', 'published')
+            category_id = request.data.get('category_id')
+            allow_comments = request.data.get('allow_comments', 'true').lower() == 'true'
+            is_public = request.data.get('is_public', 'true').lower() == 'true'
+
+            # 处理标签
+            tags = []
+            if 'tags' in request.data:
+                if isinstance(request.data.getlist('tags'), list):
+                    tags = request.data.getlist('tags')
+                else:
+                    tags = [request.data.get('tags')]
+
+            # 处理封面图片
+            cover_image = ''
+            if 'cover_image' in request.FILES:
+                cover_file = request.FILES['cover_image']
+                # 这里应该有处理和保存图片的逻辑
+                # 例如上传到云存储并获取URL
+                cover_image = f"/media/community/covers/{cover_file.name}"
+
+                # 保存文件到本地
+                import os
+                from django.conf import settings
+
+                upload_dir = os.path.join(settings.MEDIA_ROOT, 'community', 'covers')
+                os.makedirs(upload_dir, exist_ok=True)
+
+                with open(os.path.join(upload_dir, cover_file.name), 'wb+') as destination:
+                    for chunk in cover_file.chunks():
+                        destination.write(chunk)
+
+            # 处理附件
+            attachments = []
+            if 'attachments_meta' in request.data:
+                try:
+                    attachments_meta = json.loads(request.data.get('attachments_meta', '[]'))
+                    attachment_count = int(request.data.get('attachment_count', '0'))
+
+                    for i in range(attachment_count):
+                        if f'file_{i}' in request.FILES:
+                            file_obj = request.FILES[f'file_{i}']
+                            meta = next((m for m in attachments_meta if m.get('index') == i), None)
+
+                            if meta:
+                                # 保存文件到本地
+                                import os
+                                from django.conf import settings
+
+                                upload_dir = os.path.join(settings.MEDIA_ROOT, 'community', 'attachments')
+                                os.makedirs(upload_dir, exist_ok=True)
+
+                                file_path = os.path.join(upload_dir, file_obj.name)
+                                with open(file_path, 'wb+') as destination:
+                                    for chunk in file_obj.chunks():
+                                        destination.write(chunk)
+
+                                # 添加附件信息
+                                attachments.append({
+                                    'name': meta.get('name', file_obj.name),
+                                    'type': meta.get('type', file_obj.content_type),
+                                    'size': meta.get('size', file_obj.size),
+                                    'url': f"/media/community/attachments/{file_obj.name}"
+                                })
+                except Exception as e:
+                    return Response(
+                        {'error': f'处理附件时出错: {str(e)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # 创建帖子
+            post = Post(
+                id=uuid.uuid4(),
+                user=request.user,
+                title=title,
+                content=content,
+                excerpt=excerpt,
+                status=status_value,
+                category=category_id,
+                tags=tags,
+                cover_image=cover_image,
+                attachments=attachments,
+                allow_comments=allow_comments,
+                is_public=is_public,
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+        else:
+            # 处理JSON数据
+            serializer = PostCreateSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
             # 创建帖子
             post = Post(
                 id=uuid.uuid4(),
@@ -271,7 +374,7 @@ class PostViewSet(viewsets.ModelViewSet):
                 content=serializer.validated_data['content'],
                 excerpt=serializer.validated_data.get('excerpt', ''),
                 status=serializer.validated_data.get('status', 'published'),
-                category=serializer.validated_data.get('category'),
+                category=serializer.validated_data.get('category_id'),
                 tags=serializer.validated_data.get('tags', []),
                 cover_image=serializer.validated_data.get('cover_image', ''),
                 allow_comments=serializer.validated_data.get('allow_comments', True),
@@ -280,19 +383,18 @@ class PostViewSet(viewsets.ModelViewSet):
                 updated_at=timezone.now()
             )
 
-            # 如果状态是已发布，设置发布时间
-            if post.status == 'published':
-                post.published_at = timezone.now()
+        # 如果状态是已发布，设置发布时间
+        if post.status == 'published':
+            post.published_at = timezone.now()
 
-            # 如果没有摘要，自动生成
-            if not post.excerpt and post.content:
-                post.excerpt = post.content[:200]
+        # 如果没有摘要，自动生成
+        if not post.excerpt and post.content:
+            post.excerpt = post.content[:200]
 
-            post.save()
+        post.save()
 
-            serializer = PostDetailSerializer(post, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PostDetailSerializer(post, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, pk=None):
         """更新帖子"""

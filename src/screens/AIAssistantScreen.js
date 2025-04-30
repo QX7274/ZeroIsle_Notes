@@ -5,16 +5,15 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
-  Clipboard,
   ToastAndroid,
   Animated,
   Keyboard,
   PermissionsAndroid,
-  Linking,
   Modal,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -193,12 +192,17 @@ const AIAssistantScreen = ({ navigation }) => {
   };
 
   // 复制消息内容
-  const handleCopyMessage = (text) => {
-    Clipboard.setString(text);
-    if (Platform.OS === 'android') {
-      ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
-    } else {
-      Alert.alert('提示', '已复制到剪贴板');
+  const handleCopyMessage = async (text) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('提示', '已复制到剪贴板');
+      }
+    } catch (error) {
+      console.error('复制到剪贴板失败:', error);
+      Alert.alert('错误', '复制到剪贴板失败');
     }
     setSelectedMessageId(null);
     setShowQuickActions(false);
@@ -318,13 +322,16 @@ const AIAssistantScreen = ({ navigation }) => {
       });
 
       try {
+        // 获取认证令牌
+        const authToken = await AsyncStorage.getItem('auth_token');
+
         // 调用后端API进行转写
         const response = await fetch(`${AIAssistantModule.getApiUrl('ai-assistant/transcribe/')}`, {
           method: 'POST',
           body: formData,
           headers: {
             'Content-Type': 'multipart/form-data',
-            // TODO: 添加认证头
+            'Authorization': authToken ? `Bearer ${authToken}` : '',
           },
         });
 
@@ -482,27 +489,13 @@ const AIAssistantScreen = ({ navigation }) => {
 
       {renderAISelector()}
 
-      <View style={[styles.aiSelectorContainer, { borderBottomColor: colors.border }]}>
-        <View style={styles.aiSelectorHeader}>
-          <Text
-            variant="body"
-            size="medium"
-            bold
-            style={styles.aiSelectorLabel}
-          >
-            AI引擎
-          </Text>
-          <TouchableOpacity
-            style={styles.aiSettingsButton}
-            onPress={() => navigation.navigate('AIAssistantSettings')}
-          >
-            <Icon name="settings" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+      {/* AI引擎选择器 - 放在顶部 */}
+      <View style={[styles.aiSelectorContainer, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
         <TouchableOpacity
-          style={[styles.aiSelectorButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.aiSelectorButton, { borderColor: colors.border }]}
           onPress={() => setShowAISelector(true)}
         >
+          <Icon name="smart-toy" size={22} color={colors.primary} style={styles.aiSelectorIcon} />
           <Text
             variant="body"
             size="medium"

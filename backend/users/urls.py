@@ -68,7 +68,8 @@ auth_urls = [
     path('bind/qq/', UserBindingView.as_view({'post': 'bind_qq'}), name='bind-qq'),
 
     # 兼容旧版API
-    path('me/', UserProfileView.as_view(), name='user-profile'),
+    path('me/', UserProfileView.as_view({'get': 'get', 'put': 'put', 'patch': 'patch'}), name='user-profile'),
+    path('avatar/upload/', UserProfileView.as_view({'post': 'upload_avatar'}), name='upload-avatar'),
     path('wechat_login/', ThirdPartyAuthViewSet.as_view({'post': 'wechat_login'}), name='wechat-login'),
     path('qq_login/', ThirdPartyAuthViewSet.as_view({'post': 'qq_login'}), name='qq-login'),
 

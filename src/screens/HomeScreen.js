@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   FlatList,
@@ -20,16 +20,125 @@ import { addNote, updateNote, deleteNote } from '../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from '../components/common/Typography';
 import { HomeSearchBar } from '../components/search';
+import SortControl from '../components/home/SortControl';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import OfflineIndicator from '../components/common/OfflineIndicator';
+import { offlineStorageService } from '../services/offlineStorage';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
-  const notes = useSelector(state => state.notes.notes);
+  const allNotes = useSelector(state => state.notes.notes);
+  const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
+  const [sortOption, setSortOption] = useState('updated_desc');
+  const [isOffline, setIsOffline] = useState(false);
 
+  // 加载排序偏好
   useEffect(() => {
+    const loadSortPreference = async () => {
+      try {
+        const savedSort = await AsyncStorage.getItem('home_sort_preference');
+        if (savedSort) {
+          setSortOption(savedSort);
+        }
+      } catch (error) {
+        console.error('加载排序偏好失败:', error);
+      }
+    };
+
+    loadSortPreference();
     loadNotes();
+  }, []);
+
+  // 监听网络状态
+  useEffect(() => {
+    // 获取当前网络状态
+    const status = offlineStorageService.getStatus();
+    setIsOffline(!status.isOnline);
+
+    // 添加监听器
+    const unsubscribe = offlineStorageService.addListener(event => {
+      if (event.type === 'connectionChange' || event.type === 'offlineModeChange') {
+        setIsOffline(!offlineStorageService.getStatus().isOnline);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 当笔记或排序选项变化时，重新排序
+  useEffect(() => {
+    if (allNotes && allNotes.length > 0) {
+      const sortedNotes = sortNotes(allNotes, sortOption);
+      setNotes(sortedNotes);
+    } else {
+      setNotes([]);
+    }
+  }, [allNotes, sortOption]);
+
+  // 排序笔记
+  const sortNotes = useCallback((notesToSort, option) => {
+    if (!notesToSort || notesToSort.length === 0) return [];
+
+    const sorted = [...notesToSort];
+
+    switch (option) {
+      case 'created_desc':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+      case 'created_asc':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateA - dateB;
+        });
+
+      case 'updated_desc':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt || 0);
+          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+      case 'updated_asc':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt || 0);
+          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+          return dateA - dateB;
+        });
+
+      case 'title_asc':
+        return sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+
+      case 'title_desc':
+        return sorted.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+
+      case 'type':
+        return sorted.sort((a, b) => {
+          // 首先按类型排序
+          if (a.type !== b.type) {
+            return (a.type || '').localeCompare(b.type || '');
+          }
+          // 然后按更新时间排序
+          const dateA = new Date(a.updatedAt || a.createdAt || 0);
+          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+      default:
+        return sorted;
+    }
+  }, []);
+
+  // 处理排序变化
+  const handleSortChange = useCallback((newSortOption) => {
+    setSortOption(newSortOption);
   }, []);
 
   const loadNotes = async () => {
@@ -272,6 +381,12 @@ const HomeScreen = ({ navigation }) => {
       {/* 搜索栏 */}
       <HomeSearchBar onSearch={handleSearch} />
 
+      {/* 排序控件 */}
+      <SortControl
+        onSortChange={handleSortChange}
+        initialSortOption={sortOption}
+      />
+
       {notes && notes.length > 0 ? (
         <FlatList
           data={notes}
@@ -285,6 +400,9 @@ const HomeScreen = ({ navigation }) => {
         renderEmptyState()
       )}
 
+      {/* 离线状态指示器 */}
+      {isOffline && <OfflineIndicator />}
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -293,7 +411,10 @@ const HomeScreen = ({ navigation }) => {
             setShowCreateOptions(true);
           }}
         >
-          <Icon name="add" size={30} color={colors.onPrimary} />
+          <View style={styles.addButtonInner}>
+            <Icon name="add" size={30} color={colors.onPrimary} />
+          </View>
+          <View style={styles.addButtonPulse} />
         </TouchableOpacity>
 
         {/* 创建选项弹出菜单 */}
@@ -321,17 +442,58 @@ const HomeScreen = ({ navigation }) => {
                 style={[styles.createOption, { borderBottomColor: colors.border }]}
                 onPress={() => {
                   setShowCreateOptions(false);
-                  navigation.navigate('Note', { note: null });
+                  navigation.navigate('Note', { note: null, type: 'text' });
                 }}
               >
-                <Icon name="description" size={24} color={colors.primary} />
-                <Text
-                  variant="body"
-                  size="medium"
-                  style={styles.createOptionText}
-                >
-                  新建笔记
-                </Text>
+                <View style={[styles.createOptionIcon, { backgroundColor: colors.primaryLight }]}>
+                  <Icon name="description" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.createOptionContent}>
+                  <Text
+                    variant="body"
+                    size="medium"
+                    style={styles.createOptionText}
+                  >
+                    新建笔记
+                  </Text>
+                  <Text
+                    variant="caption"
+                    color="textSecondary"
+                    style={styles.createOptionDescription}
+                  >
+                    创建一个新的文本笔记
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.createOption, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  setShowCreateOptions(false);
+                  navigation.navigate('Note', { note: null, type: 'styled' });
+                }}
+              >
+                <View style={[styles.createOptionIcon, { backgroundColor: colors.secondaryLight }]}>
+                  <Icon name="format-paint" size={24} color={colors.secondary} />
+                </View>
+                <View style={styles.createOptionContent}>
+                  <Text
+                    variant="body"
+                    size="medium"
+                    style={styles.createOptionText}
+                  >
+                    样式笔记
+                  </Text>
+                  <Text
+                    variant="caption"
+                    color="textSecondary"
+                    style={styles.createOptionDescription}
+                  >
+                    创建带有丰富样式的笔记
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -341,14 +503,26 @@ const HomeScreen = ({ navigation }) => {
                   importPDF();
                 }}
               >
-                <Icon name="picture-as-pdf" size={24} color={colors.primary} />
-                <Text
-                  variant="body"
-                  size="medium"
-                  style={styles.createOptionText}
-                >
-                  导入PDF
-                </Text>
+                <View style={[styles.createOptionIcon, { backgroundColor: '#FFECEF' }]}>
+                  <Icon name="picture-as-pdf" size={24} color="#E53935" />
+                </View>
+                <View style={styles.createOptionContent}>
+                  <Text
+                    variant="body"
+                    size="medium"
+                    style={styles.createOptionText}
+                  >
+                    导入PDF
+                  </Text>
+                  <Text
+                    variant="caption"
+                    color="textSecondary"
+                    style={styles.createOptionDescription}
+                  >
+                    从设备导入PDF文档
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -358,14 +532,26 @@ const HomeScreen = ({ navigation }) => {
                   importWord();
                 }}
               >
-                <Icon name="article" size={24} color={colors.primary} />
-                <Text
-                  variant="body"
-                  size="medium"
-                  style={styles.createOptionText}
-                >
-                  导入Word
-                </Text>
+                <View style={[styles.createOptionIcon, { backgroundColor: '#E3F2FD' }]}>
+                  <Icon name="article" size={24} color="#1976D2" />
+                </View>
+                <View style={styles.createOptionContent}>
+                  <Text
+                    variant="body"
+                    size="medium"
+                    style={styles.createOptionText}
+                  >
+                    导入Word
+                  </Text>
+                  <Text
+                    variant="caption"
+                    color="textSecondary"
+                    style={styles.createOptionDescription}
+                  >
+                    从设备导入Word文档
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -375,14 +561,26 @@ const HomeScreen = ({ navigation }) => {
                   navigation.navigate('Canvas');
                 }}
               >
-                <Icon name="dashboard" size={24} color={colors.primary} />
-                <Text
-                  variant="body"
-                  size="medium"
-                  style={styles.createOptionText}
-                >
-                  无限画布
-                </Text>
+                <View style={[styles.createOptionIcon, { backgroundColor: '#E8F5E9' }]}>
+                  <Icon name="dashboard" size={24} color="#388E3C" />
+                </View>
+                <View style={styles.createOptionContent}>
+                  <Text
+                    variant="body"
+                    size="medium"
+                    style={styles.createOptionText}
+                  >
+                    无限画布
+                  </Text>
+                  <Text
+                    variant="caption"
+                    color="textSecondary"
+                    style={styles.createOptionDescription}
+                  >
+                    创建自由绘画和思维导图
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -482,6 +680,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.27,
     shadowRadius: 4.65,
+    position: 'relative',
+    zIndex: 1,
+  },
+  addButtonInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  addButtonPulse: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    opacity: 0.6,
+    zIndex: -1,
   },
   // 加载指示器样式
   loaderContainer: {
@@ -525,12 +742,31 @@ const styles = StyleSheet.create({
   createOption: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
+    marginBottom: 4,
+  },
+  createOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  createOptionContent: {
+    flex: 1,
+    marginLeft: 8,
   },
   createOptionText: {
-    marginLeft: 16,
-    padding: 24,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  createOptionDescription: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   emptyTitle: {
     fontSize: 24,

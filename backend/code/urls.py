@@ -11,7 +11,9 @@ from code.views import (
     CodeDetectView,
     CodeCompleteView,
     CodeFormatView,
-    CodeLintView
+    CodeLintView,
+    CodeExplainView,
+    CodeExampleView
 )
 
 # 创建路由器
@@ -26,6 +28,8 @@ api_urls = [
     path('complete/', CodeCompleteView.as_view(), name='code-complete'),
     path('format/', CodeFormatView.as_view(), name='code-format'),
     path('lint/', CodeLintView.as_view(), name='code-lint'),
+    path('explain/', CodeExplainView.as_view(), name='code-explain'),
+    path('example/', CodeExampleView.as_view(), name='code-example'),
 ]
 
 urlpatterns = [
@@ -41,4 +45,6 @@ urlpatterns = [
     path('complete', CodeCompleteView.as_view(), name='code-complete-legacy'),
     path('format', CodeFormatView.as_view(), name='code-format-legacy'),
     path('lint', CodeLintView.as_view(), name='code-lint-legacy'),
+    path('explain', CodeExplainView.as_view(), name='code-explain-legacy'),
+    path('example', CodeExampleView.as_view(), name='code-example-legacy'),
 ]

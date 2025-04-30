@@ -1,33 +1,197 @@
 /**
  * 搜索结果页面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { HomeSearchBar } from '../components/search';
+import SearchFilters from '../components/search/SearchFilters';
+import SearchHistory from '../components/search/SearchHistory';
 
 const SearchResultsScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
-  
-  // 从路由参数获取搜索结果
+
+  // 从路由参数获取搜索结果和查询
   const initialResults = route.params?.results || [];
+  const initialQuery = route.params?.query || '';
+  const initialSearchMode = route.params?.searchMode || 'text';
+
+  // 状态
   const [results, setResults] = useState(initialResults);
+  const [filteredResults, setFilteredResults] = useState(initialResults);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [currentQuery, setCurrentQuery] = useState(initialQuery);
+  const [filters, setFilters] = useState({
+    contentType: 'all',
+    tags: [],
+    dateFrom: null,
+    dateTo: null,
+    sortBy: 'relevance',
+  });
 
   // 处理搜索
-  const handleSearch = (newResults) => {
+  const handleSearch = useCallback((newResults, query) => {
     setResults(newResults);
+    setFilteredResults(newResults);
+    setCurrentQuery(query || currentQuery);
+    setShowHistory(false);
+
+    // 记录搜索历史
+    if (query) {
+      dispatch({
+        type: 'search/addToHistory',
+        payload: {
+          query,
+          mode: initialSearchMode,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }, [dispatch, initialSearchMode, currentQuery]);
+
+  // 处理刷新
+  const handleRefresh = useCallback(async () => {
+    if (currentQuery) {
+      setIsRefreshing(true);
+      try {
+        // 重新执行搜索
+        const newResults = await dispatch({
+          type: 'search/search',
+          payload: { query: currentQuery, mode: initialSearchMode }
+        }).unwrap();
+
+        setResults(newResults);
+        applyFilters(newResults, filters);
+      } catch (error) {
+        setError('刷新搜索结果失败');
+      } finally {
+        setIsRefreshing(false);
+      }
+    }
+  }, [currentQuery, initialSearchMode, filters, dispatch]);
+
+  // 应用过滤器
+  const applyFilters = useCallback((resultsToFilter, currentFilters) => {
+    let filtered = [...resultsToFilter];
+
+    // 按内容类型过滤
+    if (currentFilters.contentType !== 'all') {
+      filtered = filtered.filter(item => item.type === currentFilters.contentType);
+    }
+
+    // 按标签过滤
+    if (currentFilters.tags && currentFilters.tags.length > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.tags) return false;
+        return currentFilters.tags.some(tagId =>
+          item.tags.some(tag => tag.id === tagId || tag === tagId)
+        );
+      });
+    }
+
+    // 按日期范围过滤
+    if (currentFilters.dateFrom) {
+      const fromDate = new Date(currentFilters.dateFrom);
+      filtered = filtered.filter(item => {
+        const itemDate = new Date(item.createdAt || item.created_at);
+        return itemDate >= fromDate;
+      });
+    }
+
+    if (currentFilters.dateTo) {
+      const toDate = new Date(currentFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999); // 设置为当天结束
+      filtered = filtered.filter(item => {
+        const itemDate = new Date(item.createdAt || item.created_at);
+        return itemDate <= toDate;
+      });
+    }
+
+    // 排序
+    switch (currentFilters.sortBy) {
+      case 'date_desc':
+        filtered.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.created_at || 0);
+          const dateB = new Date(b.createdAt || b.created_at || 0);
+          return dateB - dateA;
+        });
+        break;
+      case 'date_asc':
+        filtered.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.created_at || 0);
+          const dateB = new Date(b.createdAt || b.created_at || 0);
+          return dateA - dateB;
+        });
+        break;
+      case 'updated_desc':
+        filtered.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.updated_at || 0);
+          const dateB = new Date(b.updatedAt || b.updated_at || 0);
+          return dateB - dateA;
+        });
+        break;
+      case 'title_asc':
+        filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        break;
+      case 'title_desc':
+        filtered.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+        break;
+      // 相关度排序是默认的，不需要额外处理
+      default:
+        break;
+    }
+
+    setFilteredResults(filtered);
+  }, []);
+
+  // 当过滤器变化时应用过滤
+  useEffect(() => {
+    applyFilters(results, filters);
+  }, [filters, results, applyFilters]);
+
+  // 处理过滤器应用
+  const handleApplyFilters = (newFilters) => {
+    setFilters(newFilters);
+    setShowFilters(false);
+  };
+
+  // 处理历史项点击
+  const handleHistoryItemPress = (historyItem) => {
+    setCurrentQuery(historyItem.query);
+    setIsLoading(true);
+
+    // 执行搜索
+    dispatch({
+      type: 'search/search',
+      payload: { query: historyItem.query, mode: historyItem.mode || 'text' }
+    })
+      .then(action => {
+        if (action.payload) {
+          handleSearch(action.payload, historyItem.query);
+        }
+      })
+      .catch(err => {
+        setError('搜索失败: ' + err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setShowHistory(false);
+      });
   };
 
   // 处理结果点击
@@ -41,6 +205,9 @@ const SearchResultsScreen = ({ navigation, route }) => {
         break;
       case 'knowledge':
         navigation.navigate('NodeDetail', { nodeId: result.id });
+        break;
+      case 'canvas':
+        navigation.navigate('Canvas', { canvasId: result.id });
         break;
       default:
         break;
@@ -144,9 +311,56 @@ const SearchResultsScreen = ({ navigation, route }) => {
         >
           搜索结果
         </Text>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setShowHistory(!showHistory)}
+          >
+            <Icon
+              name="history"
+              size={24}
+              color={showHistory ? colors.primary : colors.text}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setShowFilters(!showFilters)}
+          >
+            <Icon
+              name="filter-list"
+              size={24}
+              color={showFilters ? colors.primary : colors.text}
+            />
+            {Object.values(filters).some(v =>
+              Array.isArray(v) ? v.length > 0 : v !== null && v !== 'all' && v !== 'relevance'
+            ) && (
+              <View style={[styles.filterBadge, { backgroundColor: colors.primary }]} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <HomeSearchBar onSearch={handleSearch} />
+      <HomeSearchBar
+        initialQuery={currentQuery}
+        onSearch={handleSearch}
+        onFocus={() => setShowHistory(true)}
+      />
+
+      {showFilters && (
+        <SearchFilters
+          onApplyFilters={handleApplyFilters}
+          initialFilters={filters}
+        />
+      )}
+
+      {showHistory && (
+        <SearchHistory
+          onHistoryItemPress={handleHistoryItemPress}
+          visible={showHistory}
+        />
+      )}
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -167,12 +381,33 @@ const SearchResultsScreen = ({ navigation, route }) => {
         </View>
       ) : (
         <FlatList
-          data={results}
+          data={filteredResults}
           renderItem={renderResultItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.resultsList}
           ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
+      )}
+
+      {/* 结果统计 */}
+      {!isLoading && !error && filteredResults.length > 0 && (
+        <View style={[styles.resultsStats, { backgroundColor: colors.card }]}>
+          <Text
+            variant="caption"
+            color="textSecondary"
+          >
+            找到 {filteredResults.length} 个结果
+            {filteredResults.length !== results.length && ` (已过滤，共 ${results.length} 个)`}
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -195,6 +430,23 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButton: {
+    padding: 8,
+    marginLeft: 8,
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   loadingContainer: {
     flex: 1,
@@ -266,6 +518,13 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     textAlign: 'center',
+  },
+  resultsStats: {
+    padding: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
   },
 });
 

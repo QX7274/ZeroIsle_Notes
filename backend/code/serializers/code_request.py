@@ -63,3 +63,38 @@ class CodeLintResponseSerializer(serializers.Serializer):
     issues = serializers.ListField(child=serializers.DictField())
     language = serializers.CharField()
     total_issues = serializers.IntegerField()
+
+class CodeExplainRequestSerializer(serializers.Serializer):
+    """代码解释请求序列化器"""
+    code = serializers.CharField()
+    language = serializers.CharField()
+    detail_level = serializers.ChoiceField(
+        choices=['low', 'medium', 'high'],
+        default='medium',
+        required=False
+    )
+
+class CodeExplainResponseSerializer(serializers.Serializer):
+    """代码解释响应序列化器"""
+    explanation = serializers.CharField()
+    structure = serializers.ListField(child=serializers.DictField())
+    language = serializers.CharField()
+    detail_level = serializers.CharField()
+
+class CodeExampleRequestSerializer(serializers.Serializer):
+    """代码示例请求序列化器"""
+    language = serializers.CharField()
+    concept = serializers.CharField()
+    complexity = serializers.ChoiceField(
+        choices=['low', 'medium', 'high'],
+        default='medium',
+        required=False
+    )
+
+class CodeExampleResponseSerializer(serializers.Serializer):
+    """代码示例响应序列化器"""
+    example = serializers.CharField()
+    explanation = serializers.CharField()
+    language = serializers.CharField()
+    concept = serializers.CharField()
+    complexity = serializers.CharField()
