@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 from datetime import timedelta
 
+# 导入 AI 配置
+from .ai_config import *
+
 # 构建项目路径
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 

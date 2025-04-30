@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 from common.utils import get_client_ip
-from users.mongodb_models import User, VerificationCode
+from users.mongodb_models import User, VerificationCode, UserProfile, UserSettings
 from users.serializers.mongo_auth import (
     MongoUserRegistrationSerializer,
     MongoUserLoginSerializer,
@@ -285,29 +285,59 @@ class MongoUserLoginView(viewsets.ViewSet):
         微信登录
         """
         code = request.data.get('code')
+        user_info = request.data.get('user_info', {})
 
         if not code:
             return Response({'error': '微信授权码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 在实际应用中，应该调用微信API获取用户信息
-        # 这里简化处理，直接使用code作为用户标识
+        # 提取微信头像URL
+        avatar_url = user_info.get('avatarUrl') or user_info.get('headimgurl')
+        nickname = user_info.get('nickname') or user_info.get('nickName', '')
 
         # 检查是否已有关联用户
-        user = User.objects(wechat_id=code).first()
+        user = User.objects(wechat_openid=code).first()
 
         if not user:
             # 创建新用户
             username = f"wx_user_{uuid.uuid4().hex[:8]}"
             user = User(
                 username=username,
-                wechat_id=code,
+                wechat_openid=code,
+                wechat_avatar=avatar_url,  # 保存微信头像URL
+                nickname=nickname,  # 保存微信昵称
                 is_active=True,
                 date_joined=timezone.now()
             )
             user.save()
 
+            # 创建用户资料
+            UserProfile.objects.create(
+                user=user,
+                nickname=nickname
+            )
+
+            # 创建用户设置
+            UserSettings.objects.create(
+                user=user
+            )
+        else:
+            # 更新头像和昵称
+            if avatar_url:
+                user.wechat_avatar = avatar_url
+            if nickname:
+                user.nickname = nickname
+
+                # 更新用户资料中的昵称
+                profile = UserProfile.objects(user=user).first()
+                if profile and not profile.nickname:
+                    profile.nickname = nickname
+                    profile.save()
+
+            user.save()
+
         # 更新最后登录信息
         user.last_login = timezone.now()
+        user.last_login_ip = get_client_ip(request)
         user.save()
 
         # 生成令牌
@@ -325,29 +355,59 @@ class MongoUserLoginView(viewsets.ViewSet):
         QQ登录
         """
         code = request.data.get('code')
+        user_info = request.data.get('user_info', {})
 
         if not code:
             return Response({'error': 'QQ授权码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 在实际应用中，应该调用QQ API获取用户信息
-        # 这里简化处理，直接使用code作为用户标识
+        # 提取QQ头像URL
+        avatar_url = user_info.get('figureurl_qq_2') or user_info.get('figureurl_qq_1') or user_info.get('figureurl_2')
+        nickname = user_info.get('nickname', '')
 
         # 检查是否已有关联用户
-        user = User.objects(qq_id=code).first()
+        user = User.objects(qq_openid=code).first()
 
         if not user:
             # 创建新用户
             username = f"qq_user_{uuid.uuid4().hex[:8]}"
             user = User(
                 username=username,
-                qq_id=code,
+                qq_openid=code,
+                qq_avatar=avatar_url,  # 保存QQ头像URL
+                nickname=nickname,  # 保存QQ昵称
                 is_active=True,
                 date_joined=timezone.now()
             )
             user.save()
 
+            # 创建用户资料
+            UserProfile.objects.create(
+                user=user,
+                nickname=nickname
+            )
+
+            # 创建用户设置
+            UserSettings.objects.create(
+                user=user
+            )
+        else:
+            # 更新头像和昵称
+            if avatar_url:
+                user.qq_avatar = avatar_url
+            if nickname:
+                user.nickname = nickname
+
+                # 更新用户资料中的昵称
+                profile = UserProfile.objects(user=user).first()
+                if profile and not profile.nickname:
+                    profile.nickname = nickname
+                    profile.save()
+
+            user.save()
+
         # 更新最后登录信息
         user.last_login = timezone.now()
+        user.last_login_ip = get_client_ip(request)
         user.save()
 
         # 生成令牌

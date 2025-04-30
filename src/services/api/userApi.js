@@ -181,6 +181,56 @@ const userApi = {
       };
     }
   },
+
+  /**
+   * 微信登录
+   * @param {string} code - 微信授权码
+   * @param {object} userInfo - 微信用户信息
+   * @returns {Promise} - 登录结果
+   */
+  wechatLogin: async (code, userInfo) => {
+    try {
+      const response = await instance.post('/auth/wechat/login/', {
+        code,
+        user_info: userInfo
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '微信登录失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * QQ登录
+   * @param {string} code - QQ授权码
+   * @param {object} userInfo - QQ用户信息
+   * @returns {Promise} - 登录结果
+   */
+  qqLogin: async (code, userInfo) => {
+    try {
+      const response = await instance.post('/auth/qq/login/', {
+        code,
+        user_info: userInfo
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'QQ登录失败',
+        error
+      };
+    }
+  },
 };
 
 export default userApi;

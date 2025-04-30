@@ -10,11 +10,11 @@ import { combineReducers } from 'redux';
 import authReducer from './slices/authSlice';
 import notesReducer from './slices/notesSlice';
 import aiAssistantReducer from './slices/aiAssistantSlice';
+import remindersReducer from './slices/reminderSlice';
 
 // 导入旧的reducers（保持兼容性）
 import userReducer from './reducers/userReducer';
 import settingsReducer from './reducers/settingsReducer';
-import remindersReducer from './reducers/remindersReducer';
 
 // 导入其他必要的reducers
 import communityReducer from '../redux/slices/communitySlice';

@@ -56,7 +56,7 @@ auth_urls = [
     # 其他认证相关
     path('logout/', UserLogoutView.as_view(), name='logout'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('profile/', UserProfileView.as_view(), name='profile'),
+    path('profile/', UserProfileView.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update'}), name='profile'),
     path('password/change/', PasswordChangeView.as_view(), name='password_change'),
     path('password/reset/', PasswordResetView.as_view(), name='password_reset'),
     path('verification-code/', MongoVerificationCodeView.as_view({'post': 'create'}), name='verification_code'),

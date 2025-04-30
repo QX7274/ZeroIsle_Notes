@@ -292,7 +292,10 @@ class MongoUserSerializer(serializers.Serializer):
     phone = serializers.CharField(read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
+    nickname = serializers.CharField(read_only=True)
     avatar = serializers.URLField(read_only=True)
+    wechat_avatar = serializers.URLField(read_only=True)
+    qq_avatar = serializers.URLField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     date_joined = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
@@ -306,7 +309,10 @@ class MongoUserSerializer(serializers.Serializer):
             'phone': instance.phone or '',
             'first_name': instance.first_name or '',
             'last_name': instance.last_name or '',
+            'nickname': instance.nickname or '',
             'avatar': instance.avatar or '',
+            'wechat_avatar': instance.wechat_avatar or '',
+            'qq_avatar': instance.qq_avatar or '',
             'is_active': instance.is_active,
             'date_joined': instance.date_joined,
             'last_login': instance.last_login

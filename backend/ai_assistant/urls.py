@@ -12,7 +12,8 @@ from .views import (
     UsageRecordViewSet,
     FeedbackViewSet
 )
-from . import views as legacy_views
+from .views import *
+from . import legacy_views
 
 # 创建路由器
 router = DefaultRouter()

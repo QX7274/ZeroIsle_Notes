@@ -24,7 +24,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 const ReminderScreen = () => {
   const { theme, colors } = useTheme();
   const dispatch = useDispatch();
-  const reminders = useSelector(state => state.reminder.reminders);
+  const reminders = useSelector(state => state.reminders.reminders);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [newReminder, setNewReminder] = useState({

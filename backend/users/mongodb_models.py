@@ -19,6 +19,7 @@ class User(Document):
     password = StringField(required=True, verbose_name='密码哈希')
     first_name = StringField(max_length=30, default='', verbose_name='名')
     last_name = StringField(max_length=150, default='', verbose_name='姓')
+    nickname = StringField(max_length=50, default='', verbose_name='昵称')
     avatar = URLField(verbose_name='头像URL')
     bio = StringField(max_length=500, verbose_name='个人简介')
     is_active = BooleanField(default=True, verbose_name='是否激活')
@@ -32,7 +33,9 @@ class User(Document):
     # 第三方登录相关字段
     wechat_openid = StringField(max_length=100, sparse=True, verbose_name='微信OpenID')
     wechat_unionid = StringField(max_length=100, verbose_name='微信UnionID')
+    wechat_avatar = URLField(verbose_name='微信头像URL')
     qq_openid = StringField(max_length=100, sparse=True, verbose_name='QQ OpenID')
+    qq_avatar = URLField(verbose_name='QQ头像URL')
 
     # 用户偏好设置
     preferences = DictField(verbose_name='偏好设置')

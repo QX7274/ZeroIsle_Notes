@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Clipboard from 'expo-clipboard';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -194,7 +194,7 @@ const AIAssistantScreen = ({ navigation }) => {
   // 复制消息内容
   const handleCopyMessage = async (text) => {
     try {
-      await Clipboard.setStringAsync(text);
+      Clipboard.setString(text);
       if (Platform.OS === 'android') {
         ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
       } else {

@@ -17,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'avatar', 'is_active', 'date_joined'
+            'nickname', 'avatar', 'is_active', 'date_joined'
         ]
         read_only_fields = ['id', 'date_joined']
 
@@ -28,16 +28,17 @@ class UserDetailSerializer(serializers.ModelSerializer):
     """
     profile = serializers.SerializerMethodField()
     settings = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'phone', 'first_name', 'last_name',
-            'avatar', 'bio', 'is_active', 'is_verified', 'date_joined',
-            'last_login', 'profile', 'settings'
+            'nickname', 'avatar', 'wechat_avatar', 'qq_avatar', 'bio',
+            'is_active', 'is_verified', 'date_joined', 'last_login',
+            'profile', 'settings'
         ]
         read_only_fields = ['id', 'date_joined', 'last_login']
-    
+
     def get_profile(self, obj):
         """获取用户资料"""
         from .profile import UserProfileSerializer
@@ -45,7 +46,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
             return UserProfileSerializer(obj.profile).data
         except UserProfile.DoesNotExist:
             return None
-    
+
     def get_settings(self, obj):
         """获取用户设置"""
         from .settings import UserSettingsSerializer
@@ -61,20 +62,20 @@ class UserCreateSerializer(serializers.ModelSerializer):
     """
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
     confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-    
+
     class Meta:
         model = User
         fields = [
             'username', 'email', 'phone', 'password', 'confirm_password',
             'first_name', 'last_name'
         ]
-    
+
     def validate(self, data):
         """验证密码是否匹配"""
         if data['password'] != data.pop('confirm_password'):
             raise serializers.ValidationError({'confirm_password': '两次输入的密码不匹配'})
         return data
-    
+
     def create(self, validated_data):
         """创建用户"""
         user = User.objects.create_user(
@@ -82,7 +83,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             password=validated_data['password']
         )
-        
+
         # 设置其他字段
         if 'phone' in validated_data:
             user.phone = validated_data['phone']
@@ -90,15 +91,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
             user.first_name = validated_data['first_name']
         if 'last_name' in validated_data:
             user.last_name = validated_data['last_name']
-        
+
         user.save()
-        
+
         # 创建用户资料
         UserProfile.objects.create(user=user)
-        
+
         # 创建用户设置
         UserSettings.objects.create(user=user)
-        
+
         return user
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -110,26 +111,26 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'username', 'email', 'phone', 'first_name', 'last_name',
-            'avatar', 'bio'
+            'nickname', 'avatar', 'bio'
         ]
-    
+
     def validate_email(self, value):
         """验证邮箱是否已存在"""
         user = self.context['request'].user
         if User.objects.exclude(pk=user.pk).filter(email=value).exists():
             raise serializers.ValidationError('该邮箱已被使用')
         return value
-    
+
     def validate_phone(self, value):
         """验证手机号是否已存在"""
         if not value:
             return value
-            
+
         user = self.context['request'].user
         if User.objects.exclude(pk=user.pk).filter(phone=value).exists():
             raise serializers.ValidationError('该手机号已被使用')
         return value
-    
+
     def validate_username(self, value):
         """验证用户名是否已存在"""
         user = self.context['request'].user

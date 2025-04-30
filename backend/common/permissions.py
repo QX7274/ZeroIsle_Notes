@@ -73,3 +73,13 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
         # 只允许管理员进行修改
         return request.user and request.user.is_staff
+
+
+class ReadOnly(permissions.BasePermission):
+    """
+    只读权限
+    只允许GET, HEAD, OPTIONS请求
+    """
+
+    def has_permission(self, request, view):
+        return request.method in permissions.SAFE_METHODS

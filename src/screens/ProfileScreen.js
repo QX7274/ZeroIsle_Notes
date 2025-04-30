@@ -79,10 +79,7 @@ const ProfileScreen = ({ navigation }) => {
   const getDefaultAvatar = () => {
     // 默认头像列表，可以根据用户ID或用户名生成不同的默认头像
     const defaultAvatars = [
-      require('../assets/images/default_avatar_1.png'),
-      require('../assets/images/default_avatar_2.png'),
-      require('../assets/images/default_avatar_3.png'),
-      require('../assets/images/default_avatar_4.png'),
+      require('../assets/images/default_avatar.png')
     ];
 
     // 如果用户已登录，根据用户ID选择一个默认头像
@@ -105,7 +102,7 @@ const ProfileScreen = ({ navigation }) => {
               <Image
                 source={getDefaultAvatar()}
                 style={styles.avatar}
-                defaultSource={require('../assets/images/default_avatar_1.png')}
+                defaultSource={require('../assets/images/default_avatar.png')}
               />
             </View>
             <View style={styles.userTextContainer}>
@@ -143,15 +140,29 @@ const ProfileScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('ProfileSettings')}
           >
             {user.avatar ? (
+              // 用户上传的头像
               <Image
                 source={{ uri: user.avatar }}
                 style={styles.avatar}
               />
+            ) : user.wechat_avatar ? (
+              // 微信头像
+              <Image
+                source={{ uri: user.wechat_avatar }}
+                style={styles.avatar}
+              />
+            ) : user.qq_avatar ? (
+              // QQ头像
+              <Image
+                source={{ uri: user.qq_avatar }}
+                style={styles.avatar}
+              />
             ) : (
+              // 默认头像
               <Image
                 source={getDefaultAvatar()}
                 style={styles.avatar}
-                defaultSource={require('../assets/images/default_avatar_1.png')}
+                defaultSource={require('../assets/images/default_avatar.png')}
               />
             )}
             <View style={styles.editAvatarBadge}>

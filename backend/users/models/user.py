@@ -19,6 +19,7 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, verbose_name='用户ID')
     email = models.EmailField(_('邮箱地址'), unique=True, blank=True, null=True)
     phone = models.CharField(_('手机号'), max_length=20, blank=True, null=True, unique=True)
+    nickname = models.CharField(_('昵称'), max_length=50, blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='头像')
     bio = models.TextField(max_length=500, blank=True, verbose_name='个人简介')
     is_verified = models.BooleanField(default=False, verbose_name='是否验证')
@@ -29,7 +30,9 @@ class User(AbstractUser):
     # 第三方登录相关字段
     wechat_openid = models.CharField(max_length=100, blank=True, null=True, unique=True, verbose_name='微信OpenID')
     wechat_unionid = models.CharField(max_length=100, blank=True, null=True, verbose_name='微信UnionID')
+    wechat_avatar = models.URLField(max_length=500, blank=True, null=True, verbose_name='微信头像')
     qq_openid = models.CharField(max_length=100, blank=True, null=True, unique=True, verbose_name='QQ OpenID')
+    qq_avatar = models.URLField(max_length=500, blank=True, null=True, verbose_name='QQ头像')
 
     # 用户偏好设置 - 使用TextField而不是JSONField以避免与MongoDB的兼容性问题
     preferences = models.TextField(default='{}', verbose_name='偏好设置')

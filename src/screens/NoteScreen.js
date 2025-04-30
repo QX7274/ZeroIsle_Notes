@@ -19,7 +19,7 @@ import {
   syncOfflineNotes,
   importNote
 } from '../store/slices/notesSlice';
-import DocumentPicker from 'react-native-document-picker';
+import DocumentPicker from '@react-native-documents/picker';
 import ImagePicker from 'react-native-image-picker';
 import { NoteList, NoteEditor, NoteDetail } from '../components/notes';
 import { Button } from '../components/common';
