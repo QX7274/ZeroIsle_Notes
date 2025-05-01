@@ -95,13 +95,35 @@ DATABASES = {
 
 # MongoDB设置
 import mongoengine
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+# 连接到主软件的MongoDB数据库
+MONGO_HOST = os.environ.get('MONGO_HOST', 'localhost')
+MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
+MONGO_DB = os.environ.get('MONGO_DB', 'zeroislenotes')
+MONGO_USER = os.environ.get('MONGO_USER', '')
+MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD', '')
 
 # 连接到MongoDB
-mongoengine.connect(
-    db='zeroislenotes_admin',
-    host='localhost',
-    port=27017
-)
+if MONGO_USER and MONGO_PASSWORD:
+    mongoengine.connect(
+        db=MONGO_DB,
+        host=MONGO_HOST,
+        port=MONGO_PORT,
+        username=MONGO_USER,
+        password=MONGO_PASSWORD,
+        authentication_source='admin'
+    )
+else:
+    mongoengine.connect(
+        db=MONGO_DB,
+        host=MONGO_HOST,
+        port=MONGO_PORT
+    )
 
 
 # Password validation

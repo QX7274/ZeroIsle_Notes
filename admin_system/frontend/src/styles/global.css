@@ -2,21 +2,76 @@
 @import url('animations.css');
 
 :root {
-  --primary-color: #1890ff;
-  --success-color: #52c41a;
-  --warning-color: #faad14;
-  --error-color: #f5222d;
-  --info-color: #1890ff;
+  /* 主色调 - 使用零屿笔记的品牌色 */
+  --primary-color: #2F54EB;
+  --primary-color-hover: #597EF7;
+  --primary-color-active: #1D39C4;
+  --primary-color-outline: rgba(47, 84, 235, 0.2);
+  --primary-1: #E6F7FF;
+  --primary-2: #BAE7FF;
+  --primary-3: #91D5FF;
+  --primary-4: #69C0FF;
+  --primary-5: #40A9FF;
+  --primary-6: #2F54EB;
+  --primary-7: #1D39C4;
+  --primary-8: #10239E;
+  --primary-9: #061178;
+  --primary-10: #030852;
+
+  /* 功能色 */
+  --success-color: #52C41A;
+  --success-color-hover: #73D13D;
+  --success-color-active: #389E0D;
+  --success-color-outline: rgba(82, 196, 26, 0.2);
+  --success-bg: #F6FFED;
+  --success-border: #B7EB8F;
+
+  --warning-color: #FAAD14;
+  --warning-color-hover: #FFC53D;
+  --warning-color-active: #D48806;
+  --warning-color-outline: rgba(250, 173, 20, 0.2);
+  --warning-bg: #FFF7E6;
+  --warning-border: #FFE58F;
+
+  --error-color: #F5222D;
+  --error-color-hover: #FF4D4F;
+  --error-color-active: #CF1322;
+  --error-color-outline: rgba(245, 34, 45, 0.2);
+  --error-bg: #FFF1F0;
+  --error-border: #FFA39E;
+
+  --info-color: #2F54EB;
+  --info-color-hover: #597EF7;
+  --info-color-active: #1D39C4;
+  --info-color-outline: rgba(47, 84, 235, 0.2);
+  --info-bg: #F0F5FF;
+  --info-border: #ADC6FF;
+
+  /* 中性色 */
   --text-color: rgba(0, 0, 0, 0.85);
   --text-color-secondary: rgba(0, 0, 0, 0.45);
+  --text-color-tertiary: rgba(0, 0, 0, 0.25);
   --disabled-color: rgba(0, 0, 0, 0.25);
-  --border-color: #d9d9d9;
-  --border-color-split: #f0f0f0;
-  --background-color: #f0f2f5;
-  --component-background: #fff;
-  --box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
-  --box-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --border-radius: 4px;
+  --disabled-bg: #F5F5F5;
+  --border-color: #D9D9D9;
+  --border-color-split: #F0F0F0;
+  --background-color: #F0F2F5;
+  --component-background: #FFFFFF;
+
+  /* 阴影 */
+  --box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08), 0 9px 28px 0 rgba(0, 0, 0, 0.05), 0 12px 48px 16px rgba(0, 0, 0, 0.03);
+  --box-shadow-sm: 0 1px 2px -2px rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.12), 0 5px 12px 4px rgba(0, 0, 0, 0.09);
+  --box-shadow-lg: 0 8px 24px -2px rgba(0, 0, 0, 0.05), 0 18px 46px 2px rgba(0, 0, 0, 0.05), 0 32px 64px 4px rgba(0, 0, 0, 0.03);
+
+  /* 圆角 */
+  --border-radius-sm: 4px;
+  --border-radius: 6px;
+  --border-radius-lg: 8px;
+
+  /* 动画 */
+  --animation-duration-slow: 0.3s;
+  --animation-duration-base: 0.2s;
+  --animation-duration-fast: 0.1s;
 }
 
 body {
@@ -28,7 +83,29 @@ body {
   background-color: var(--background-color);
   color: var(--text-color);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.5715;
+  transition: background-color var(--animation-duration-slow);
+}
+
+/* 链接样式 */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color var(--animation-duration-base);
+}
+
+a:hover {
+  color: var(--primary-color-hover);
+}
+
+a:active {
+  color: var(--primary-color-active);
+}
+
+/* 文本选择样式 */
+::selection {
+  background: var(--primary-color);
+  color: #fff;
 }
 
 /* 滚动条样式 */
@@ -189,40 +266,111 @@ body {
 /* 卡片样式 */
 .custom-card {
   margin-bottom: 24px;
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius-lg);
   box-shadow: var(--box-shadow-sm);
-  transition: all 0.3s;
-}
-
-.custom-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
-}
-
-.stat-card {
-  cursor: pointer;
-  transition: all 0.3s;
-  border-radius: var(--border-radius);
+  transition: all var(--animation-duration-slow);
+  border: 1px solid var(--border-color-split);
   overflow: hidden;
 }
 
+.custom-card:hover {
+  box-shadow: var(--box-shadow);
+  border-color: transparent;
+}
+
+.custom-card .ant-card-head {
+  border-bottom: 1px solid var(--border-color-split);
+  padding: 16px 24px;
+  font-weight: 500;
+}
+
+.custom-card .ant-card-body {
+  padding: 24px;
+}
+
+/* 统计卡片样式 */
+.stat-card {
+  cursor: pointer;
+  transition: all var(--animation-duration-slow);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  background: linear-gradient(to right bottom, var(--component-background), var(--component-background));
+  border: 1px solid var(--border-color-split);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--box-shadow);
   transform: translateY(-5px);
+  border-color: transparent;
+}
+
+.stat-card-primary {
+  background: linear-gradient(135deg, var(--primary-1), var(--primary-3));
+  border: none;
+}
+
+.stat-card-success {
+  background: linear-gradient(135deg, var(--success-bg), var(--success-border));
+  border: none;
+}
+
+.stat-card-warning {
+  background: linear-gradient(135deg, var(--warning-bg), var(--warning-border));
+  border: none;
+}
+
+.stat-card-error {
+  background: linear-gradient(135deg, var(--error-bg), var(--error-border));
+  border: none;
 }
 
 .stat-card-title {
   color: var(--text-color-secondary);
   font-size: 14px;
   margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.stat-card-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+
+.stat-card-desc {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-bottom: 0;
 }
 
 .stat-card-icon {
   position: absolute;
   top: 16px;
   right: 16px;
-  font-size: 24px;
+  font-size: 28px;
   color: var(--text-color-secondary);
   opacity: 0.5;
+  transition: all var(--animation-duration-base);
+}
+
+.stat-card:hover .stat-card-icon {
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.stat-card-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color-split);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-color-secondary);
 }
 
 /* 图表样式 */

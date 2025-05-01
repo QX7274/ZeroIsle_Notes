@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Button, Space, Modal, Form, 
-  Input, DatePicker, Select, message, Popconfirm 
+import {
+  Card, Table, Button, Space, Modal, Form,
+  Input, DatePicker, Select, message, Popconfirm,
+  Typography, Tabs, Badge, Tag, Row, Col, Tooltip,
+  Divider, Empty, Alert
 } from 'antd';
-import { 
-  PlusOutlined, EditOutlined, DeleteOutlined, 
-  ExclamationCircleOutlined, SendOutlined 
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined,
+  ExclamationCircleOutlined, SendOutlined,
+  EyeOutlined, ClockCircleOutlined, UserOutlined,
+  CalendarOutlined, BellOutlined, FileTextOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -14,6 +19,8 @@ import dayjs from 'dayjs';
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
+const { Title, Text, Paragraph } = Typography;
+const { TabPane } = Tabs;
 
 const AnnouncementManagement = () => {
   const [announcements, setAnnouncements] = useState([]);
@@ -22,10 +29,33 @@ const AnnouncementManagement = () => {
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm();
   const [editingId, setEditingId] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewAnnouncement, setPreviewAnnouncement] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
+  const [stats, setStats] = useState({
+    total: 0,
+    published: 0,
+    draft: 0,
+    expired: 0
+  });
 
   useEffect(() => {
     fetchAnnouncements();
   }, []);
+
+  // 更新统计数据
+  useEffect(() => {
+    const published = announcements.filter(item => item.status === 'published').length;
+    const draft = announcements.filter(item => item.status === 'draft').length;
+    const expired = announcements.filter(item => item.status === 'expired').length;
+
+    setStats({
+      total: announcements.length,
+      published,
+      draft,
+      expired
+    });
+  }, [announcements]);
 
   const fetchAnnouncements = async () => {
     setLoading(true);
@@ -33,7 +63,7 @@ const AnnouncementManagement = () => {
       // 在实际应用中，这里应该从API获取公告列表
       // const response = await axios.get('/api/settings/announcements');
       // setAnnouncements(response.data);
-      
+
       // 模拟API响应
       setTimeout(() => {
         setAnnouncements([
@@ -89,11 +119,16 @@ const AnnouncementManagement = () => {
     setModalVisible(true);
   };
 
+  const handlePreview = (record) => {
+    setPreviewAnnouncement(record);
+    setPreviewVisible(true);
+  };
+
   const handleDelete = async (id) => {
     try {
       // 在实际应用中，这里应该调用API删除公告
       // await axios.delete(`/api/settings/announcements/${id}`);
-      
+
       setAnnouncements(announcements.filter(item => item.id !== id));
       message.success('公告删除成功');
     } catch (error) {
@@ -105,8 +140,8 @@ const AnnouncementManagement = () => {
     try {
       // 在实际应用中，这里应该调用API发布公告
       // await axios.post(`/api/settings/announcements/${id}/publish`);
-      
-      setAnnouncements(announcements.map(item => 
+
+      setAnnouncements(announcements.map(item =>
         item.id === id ? { ...item, status: 'published' } : item
       ));
       message.success('公告发布成功');
@@ -128,10 +163,10 @@ const AnnouncementManagement = () => {
         if (editingId) {
           // 在实际应用中，这里应该调用API更新公告
           // await axios.put(`/api/settings/announcements/${editingId}`, formData);
-          
-          setAnnouncements(announcements.map(item => 
-            item.id === editingId ? { 
-              ...item, 
+
+          setAnnouncements(announcements.map(item =>
+            item.id === editingId ? {
+              ...item,
               ...formData,
               created_at: item.created_at,
             } : item
@@ -140,7 +175,7 @@ const AnnouncementManagement = () => {
         } else {
           // 在实际应用中，这里应该调用API创建公告
           // const response = await axios.post('/api/settings/announcements', formData);
-          
+
           const newAnnouncement = {
             id: String(announcements.length + 1),
             ...formData,
@@ -150,7 +185,7 @@ const AnnouncementManagement = () => {
           setAnnouncements([...announcements, newAnnouncement]);
           message.success('公告创建成功');
         }
-        
+
         setModalVisible(false);
       } catch (error) {
         message.error(editingId ? '更新公告失败' : '创建公告失败');
@@ -176,14 +211,17 @@ const AnnouncementManagement = () => {
       key: 'status',
       render: (status) => {
         const statusMap = {
-          draft: { text: '草稿', color: '#999' },
-          published: { text: '已发布', color: '#52c41a' },
-          expired: { text: '已过期', color: '#f5222d' },
+          draft: { text: '草稿', color: '#FF9F1C', icon: <ClockCircleOutlined /> },
+          published: { text: '已发布', color: '#4CC9F0', icon: <CheckCircleOutlined /> },
+          expired: { text: '已过期', color: '#F72585', icon: <CloseCircleOutlined /> },
         };
         return (
-          <span style={{ color: statusMap[status].color }}>
+          <Tag
+            icon={statusMap[status].icon}
+            color={status === 'draft' ? 'warning' : status === 'published' ? 'success' : 'error'}
+          >
             {statusMap[status].text}
-          </span>
+          </Tag>
         );
       },
     },
@@ -212,26 +250,35 @@ const AnnouncementManagement = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button 
-            type="primary" 
-            icon={<EditOutlined />} 
+          <Button
+            type="primary"
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => handlePreview(record)}
+          >
+            预览
+          </Button>
+
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
             size="small"
             onClick={() => handleEdit(record)}
           >
             编辑
           </Button>
-          
+
           {record.status === 'draft' && (
-            <Button 
-              type="primary" 
-              icon={<SendOutlined />} 
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
               size="small"
               onClick={() => handlePublish(record.id)}
             >
               发布
             </Button>
           )}
-          
+
           <Popconfirm
             title="确定要删除这条公告吗？"
             onConfirm={() => handleDelete(record.id)}
@@ -239,9 +286,9 @@ const AnnouncementManagement = () => {
             cancelText="取消"
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
           >
-            <Button 
-              danger 
-              icon={<DeleteOutlined />} 
+            <Button
+              danger
+              icon={<DeleteOutlined />}
               size="small"
             >
               删除
@@ -252,35 +299,155 @@ const AnnouncementManagement = () => {
     },
   ];
 
+  // 根据当前选中的标签过滤公告
+  const getFilteredAnnouncements = () => {
+    if (activeTab === 'all') return announcements;
+    return announcements.filter(item => item.status === activeTab);
+  };
+
   return (
-    <Card title="公告管理">
-      <Button 
-        type="primary" 
-        icon={<PlusOutlined />} 
-        onClick={handleAdd}
-        style={{ marginBottom: 16 }}
-      >
-        创建公告
-      </Button>
-      
-      <Table 
-        columns={columns} 
-        dataSource={announcements} 
-        rowKey="id" 
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-      />
-      
+    <div>
+      <Card className="announcement-card">
+        <div style={{ marginBottom: 24 }}>
+          <Row gutter={24}>
+            <Col span={6}>
+              <Card
+                className="settings-card"
+                style={{ backgroundColor: 'rgba(67, 97, 238, 0.05)' }}
+                hoverable
+              >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <FileTextOutlined style={{ fontSize: 36, color: '#4361EE', marginRight: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.45)', marginBottom: 4 }}>总公告数</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: 'rgba(0, 0, 0, 0.85)' }}>{stats.total}</div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card
+                className="settings-card"
+                style={{ backgroundColor: 'rgba(76, 201, 240, 0.05)' }}
+                hoverable
+              >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <CheckCircleOutlined style={{ fontSize: 36, color: '#4CC9F0', marginRight: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.45)', marginBottom: 4 }}>已发布</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: 'rgba(0, 0, 0, 0.85)' }}>{stats.published}</div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card
+                className="settings-card"
+                style={{ backgroundColor: 'rgba(255, 159, 28, 0.05)' }}
+                hoverable
+              >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <ClockCircleOutlined style={{ fontSize: 36, color: '#FF9F1C', marginRight: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.45)', marginBottom: 4 }}>草稿</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: 'rgba(0, 0, 0, 0.85)' }}>{stats.draft}</div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card
+                className="settings-card"
+                style={{ backgroundColor: 'rgba(247, 37, 133, 0.05)' }}
+                hoverable
+              >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <CloseCircleOutlined style={{ fontSize: 36, color: '#F72585', marginRight: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.45)', marginBottom: 4 }}>已过期</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: 'rgba(0, 0, 0, 0.85)' }}>{stats.expired}</div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Title level={4} style={{ margin: 0 }}>公告管理</Title>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAdd}
+          >
+            创建公告
+          </Button>
+        </div>
+
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          className="settings-tabs"
+        >
+          <TabPane
+            tab={
+              <span>
+                <FileTextOutlined />
+                全部公告
+              </span>
+            }
+            key="all"
+          />
+          <TabPane
+            tab={
+              <span>
+                <CheckCircleOutlined />
+                已发布
+              </span>
+            }
+            key="published"
+          />
+          <TabPane
+            tab={
+              <span>
+                <ClockCircleOutlined />
+                草稿
+              </span>
+            }
+            key="draft"
+          />
+          <TabPane
+            tab={
+              <span>
+                <CloseCircleOutlined />
+                已过期
+              </span>
+            }
+            key="expired"
+          />
+        </Tabs>
+
+        <Table
+          columns={columns}
+          dataSource={getFilteredAnnouncements()}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          className="settings-table"
+        />
+
       <Modal
         title={modalTitle}
         open={modalVisible}
         onOk={handleModalOk}
         onCancel={() => setModalVisible(false)}
         width={800}
+        className="settings-modal"
       >
         <Form
           form={form}
           layout="vertical"
+          className="settings-form"
         >
           <Form.Item
             name="title"
@@ -289,30 +456,30 @@ const AnnouncementManagement = () => {
           >
             <Input placeholder="请输入公告标题" />
           </Form.Item>
-          
+
           <Form.Item
             name="content"
             label="公告内容"
             rules={[{ required: true, message: '请输入公告内容' }]}
           >
-            <ReactQuill 
-              theme="snow" 
+            <ReactQuill
+              theme="snow"
               style={{ height: 200, marginBottom: 50 }}
             />
           </Form.Item>
-          
+
           <Form.Item
             name="time_range"
             label="有效时间"
             rules={[{ required: true, message: '请选择有效时间' }]}
           >
-            <RangePicker 
-              showTime 
-              format="YYYY-MM-DD HH:mm:ss" 
+            <RangePicker
+              showTime
+              format="YYYY-MM-DD HH:mm:ss"
               style={{ width: '100%' }}
             />
           </Form.Item>
-          
+
           <Form.Item
             name="status"
             label="状态"
@@ -324,9 +491,65 @@ const AnnouncementManagement = () => {
               <Option value="expired">已过期</Option>
             </Select>
           </Form.Item>
+
+          <Alert
+            message="提示"
+            description="公告发布后将在指定的时间范围内向所有用户显示。过期后将自动停止显示。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
         </Form>
       </Modal>
+
+      <Modal
+        title="公告预览"
+        open={previewVisible}
+        onCancel={() => setPreviewVisible(false)}
+        footer={[
+          <Button key="back" onClick={() => setPreviewVisible(false)}>
+            关闭
+          </Button>,
+          previewAnnouncement?.status === 'draft' && (
+            <Button
+              key="publish"
+              type="primary"
+              onClick={() => {
+                handlePublish(previewAnnouncement.id);
+                setPreviewVisible(false);
+              }}
+            >
+              发布公告
+            </Button>
+          )
+        ]}
+        width={700}
+      >
+        {previewAnnouncement && (
+          <div className="announcement-preview">
+            <div className="announcement-preview-title">
+              {previewAnnouncement.title}
+            </div>
+            <Divider style={{ margin: '12px 0' }} />
+            <div
+              className="announcement-preview-content"
+              dangerouslySetInnerHTML={{ __html: previewAnnouncement.content }}
+            />
+            <div className="announcement-preview-meta">
+              <span>
+                <UserOutlined style={{ marginRight: 4 }} />
+                {previewAnnouncement.created_by}
+              </span>
+              <span>
+                <CalendarOutlined style={{ marginRight: 4 }} />
+                {previewAnnouncement.created_at}
+              </span>
+            </div>
+          </div>
+        )}
+      </Modal>
     </Card>
+    </div>
   );
 };
 

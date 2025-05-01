@@ -1,0 +1,421 @@
+/* 内容管理样式 */
+
+/* 内容列表容器 */
+.content-management-container {
+  animation: fadeIn 0.6s ease-out;
+}
+
+/* 内容列表头部 */
+.content-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.content-list-title {
+  display: flex;
+  align-items: center;
+}
+
+.content-list-icon {
+  font-size: 28px;
+  margin-right: 16px;
+  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.title-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 统计卡片 */
+.content-stat-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  padding: 0;
+  height: 100%;
+  position: relative;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.content-stat-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.content-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  font-size: 28px;
+  padding: 24px 0;
+}
+
+.content-stat-content {
+  flex: 1;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+.content-stat-title {
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 8px;
+}
+
+.content-stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 16px;
+}
+
+.content-stat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 搜索表单 */
+.content-search-form {
+  background: #fff;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+}
+
+.content-search-form:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.content-search-form .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.content-search-form .ant-form-item-label {
+  font-weight: 500;
+}
+
+.content-search-form .search-btn-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.content-search-form .search-btn-wrapper button {
+  margin-left: 12px;
+}
+
+/* 内容表格 */
+.content-table-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.content-table-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.content-table-card .ant-card-body {
+  padding: 0;
+}
+
+.content-table-card .ant-table-thead > tr > th {
+  background-color: rgba(245, 247, 250, 0.8);
+  font-weight: 600;
+}
+
+.content-table-card .ant-table-tbody > tr:hover > td {
+  background-color: rgba(67, 97, 238, 0.05);
+}
+
+.content-table-card .ant-table-row-selected > td {
+  background-color: rgba(67, 97, 238, 0.1);
+}
+
+/* 内容详情页 */
+.content-detail-container {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.content-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.content-detail-title {
+  display: flex;
+  align-items: center;
+}
+
+.content-detail-icon {
+  font-size: 28px;
+  margin-right: 16px;
+  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.content-info-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.content-info-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.content-preview-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+  padding: 0;
+}
+
+.content-preview-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.content-preview-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.content-preview-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.content-preview-content {
+  padding: 24px;
+  max-height: 500px;
+  overflow: auto;
+}
+
+/* 分类管理 */
+.category-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.category-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.category-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.category-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.category-tree {
+  padding: 24px;
+}
+
+.category-tree .ant-tree-treenode {
+  padding: 8px 0;
+}
+
+.category-tree .ant-tree-node-content-wrapper {
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.category-tree .ant-tree-node-content-wrapper:hover {
+  background-color: rgba(67, 97, 238, 0.05);
+}
+
+.category-tree .ant-tree-node-selected {
+  background-color: rgba(67, 97, 238, 0.1);
+}
+
+/* 标签管理 */
+.tag-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.tag-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.tag-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tag-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.tag-list {
+  padding: 24px;
+}
+
+.tag-item {
+  margin: 0 8px 8px 0;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tag-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.tag-item .anticon {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.tag-item .anticon:hover {
+  opacity: 1;
+}
+
+/* 批量操作工具栏 */
+.batch-actions-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(67, 97, 238, 0.05);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(67, 97, 238, 0.1);
+}
+
+.batch-actions-toolbar:hover {
+  background: rgba(67, 97, 238, 0.08);
+  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.1);
+}
+
+.batch-actions-info {
+  flex: 1;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.batch-actions-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-actions-buttons .ant-btn {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.batch-actions-buttons .ant-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .content-stat-value {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 992px) {
+  .content-list-header, .content-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .content-list-header .ant-space, 
+  .content-detail-header .ant-space {
+    margin-top: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .content-preview-card {
+    margin-bottom: 16px;
+  }
+  
+  .batch-actions-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .batch-actions-info {
+    text-align: center;
+  }
+  
+  .batch-actions-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

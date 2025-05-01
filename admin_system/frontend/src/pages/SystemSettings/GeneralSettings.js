@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, Switch, InputNumber, Select, message, Spin, Divider, Typography, Row, Col } from 'antd';
+import { Form, Input, Button, Card, Switch, InputNumber, Select, message, Spin, Divider, Typography, Row, Col, Space, Upload } from 'antd';
+import {
+  SaveOutlined,
+  ReloadOutlined,
+  GlobalOutlined,
+  UserOutlined,
+  FileTextOutlined,
+  SettingOutlined,
+  UploadOutlined,
+  InfoCircleOutlined
+} from '@ant-design/icons';
 import { getSystemConfig, updateSystemConfig } from '../../services/settingsService';
 
 const { Option } = Select;
@@ -9,13 +19,13 @@ const GeneralSettings = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+
   // 获取系统配置
   const fetchSystemConfig = async () => {
     try {
       setLoading(true);
       const data = await getSystemConfig();
-      
+
       // 设置表单初始值
       form.setFieldsValue({
         siteName: data.siteName,
@@ -41,11 +51,11 @@ const GeneralSettings = () => {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchSystemConfig();
   }, []);
-  
+
   // 提交表单
   const handleSubmit = async (values) => {
     try {
@@ -59,22 +69,23 @@ const GeneralSettings = () => {
       setSubmitting(false);
     }
   };
-  
+
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '50px 0' }}>
+      <div className="settings-loading">
         <Spin size="large" />
         <p>加载系统配置...</p>
       </div>
     );
   }
-  
+
   return (
-    <Card>
+    <Card className="settings-card">
       <Form
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
+        className="settings-form"
         initialValues={{
           userRegistration: true,
           emailVerification: true,
@@ -87,10 +98,13 @@ const GeneralSettings = () => {
           timeFormat: 'HH:mm:ss',
         }}
       >
-        <Divider orientation="left">
-          <Title level={4}>网站基本信息</Title>
+        <Divider orientation="left" className="settings-divider">
+          <Space>
+            <InfoCircleOutlined />
+            <Title level={4} style={{ margin: 0 }}>网站基本信息</Title>
+          </Space>
         </Divider>
-        
+
         <Row gutter={24}>
           <Col span={12}>
             <Form.Item
@@ -114,28 +128,33 @@ const GeneralSettings = () => {
             </Form.Item>
           </Col>
         </Row>
-        
+
         <Form.Item
           name="siteDescription"
           label="网站描述"
         >
           <Input.TextArea rows={3} placeholder="请输入网站描述" />
         </Form.Item>
-        
+
         <Form.Item
           name="siteKeywords"
           label="网站关键词"
         >
           <Input placeholder="请输入网站关键词，多个关键词用逗号分隔" />
         </Form.Item>
-        
+
         <Row gutter={24}>
           <Col span={12}>
             <Form.Item
               name="siteLogo"
               label="网站Logo"
             >
-              <Input placeholder="请输入Logo URL或上传Logo" />
+              <Input.Group compact>
+                <Input style={{ width: 'calc(100% - 100px)' }} placeholder="请输入Logo URL" />
+                <Upload>
+                  <Button icon={<UploadOutlined />}>上传</Button>
+                </Upload>
+              </Input.Group>
             </Form.Item>
           </Col>
           <Col span={12}>
@@ -143,15 +162,23 @@ const GeneralSettings = () => {
               name="siteFavicon"
               label="网站图标"
             >
-              <Input placeholder="请输入图标URL或上传图标" />
+              <Input.Group compact>
+                <Input style={{ width: 'calc(100% - 100px)' }} placeholder="请输入图标URL" />
+                <Upload>
+                  <Button icon={<UploadOutlined />}>上传</Button>
+                </Upload>
+              </Input.Group>
             </Form.Item>
           </Col>
         </Row>
-        
-        <Divider orientation="left">
-          <Title level={4}>用户设置</Title>
+
+        <Divider orientation="left" className="settings-divider">
+          <Space>
+            <UserOutlined />
+            <Title level={4} style={{ margin: 0 }}>用户设置</Title>
+          </Space>
         </Divider>
-        
+
         <Row gutter={24}>
           <Col span={8}>
             <Form.Item
@@ -184,11 +211,14 @@ const GeneralSettings = () => {
             </Form.Item>
           </Col>
         </Row>
-        
-        <Divider orientation="left">
-          <Title level={4}>内容设置</Title>
+
+        <Divider orientation="left" className="settings-divider">
+          <Space>
+            <FileTextOutlined />
+            <Title level={4} style={{ margin: 0 }}>内容设置</Title>
+          </Space>
         </Divider>
-        
+
         <Row gutter={24}>
           <Col span={8}>
             <Form.Item
@@ -233,11 +263,14 @@ const GeneralSettings = () => {
             </Form.Item>
           </Col>
         </Row>
-        
-        <Divider orientation="left">
-          <Title level={4}>区域设置</Title>
+
+        <Divider orientation="left" className="settings-divider">
+          <Space>
+            <GlobalOutlined />
+            <Title level={4} style={{ margin: 0 }}>区域设置</Title>
+          </Space>
         </Divider>
-        
+
         <Row gutter={24}>
           <Col span={8}>
             <Form.Item
@@ -281,11 +314,24 @@ const GeneralSettings = () => {
             </Form.Item>
           </Col>
         </Row>
-        
-        <Form.Item>
-          <Button type="primary" htmlType="submit" loading={submitting}>
-            保存设置
-          </Button>
+
+        <Form.Item className="settings-form-buttons">
+          <Space>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchSystemConfig}
+            >
+              重置
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={submitting}
+              icon={<SaveOutlined />}
+            >
+              保存设置
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>

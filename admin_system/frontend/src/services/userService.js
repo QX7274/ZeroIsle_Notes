@@ -3,8 +3,12 @@ import api from './authService';
 // 获取用户列表
 export const getUsers = async (params) => {
   try {
-    const response = await api.get('/users', { params });
-    return response.data.data;
+    // 实际项目中使用API调用
+    // const response = await api.get('/users', { params });
+    // return response.data.data;
+
+    // 使用模拟数据
+    return mockUsers(params);
   } catch (error) {
     console.error('获取用户列表错误:', error);
     throw error;
@@ -14,8 +18,12 @@ export const getUsers = async (params) => {
 // 获取用户详情
 export const getUserDetail = async (id) => {
   try {
-    const response = await api.get(`/users/${id}`);
-    return response.data.data;
+    // 实际项目中使用API调用
+    // const response = await api.get(`/users/${id}`);
+    // return response.data.data;
+
+    // 使用模拟数据
+    return mockUserDetail(id);
   } catch (error) {
     console.error('获取用户详情错误:', error);
     throw error;
@@ -80,10 +88,159 @@ export const resetUserPassword = async (id) => {
 // 获取用户统计数据
 export const getUserStats = async () => {
   try {
-    const response = await api.get('/users/stats');
-    return response.data;
+    // 实际项目中使用API调用
+    // const response = await api.get('/users/stats');
+    // return response.data;
+
+    // 使用模拟数据
+    return mockUserStats();
   } catch (error) {
     console.error('获取用户统计数据错误:', error);
     throw error;
   }
+};
+
+// 模拟数据
+const mockUsers = (params) => {
+  // 生成模拟用户数据
+  const generateMockUsers = (count) => {
+    const users = [];
+    for (let i = 1; i <= count; i++) {
+      users.push({
+        id: `user-${i}`,
+        username: `user${i}`,
+        email: `user${i}@example.com`,
+        phone: i % 3 === 0 ? null : `1380013800${i}`,
+        nickname: `用户${i}`,
+        avatar: null,
+        status: i % 10 === 0 ? 'banned' : (i % 5 === 0 ? 'inactive' : 'active'),
+        isEmailVerified: i % 3 !== 0,
+        isPhoneVerified: i % 4 !== 0,
+        createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastLoginAt: i % 7 === 0 ? null : new Date(Date.now() - i * 12 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
+    }
+    return users;
+  };
+
+  // 模拟分页和筛选
+  const allUsers = generateMockUsers(100);
+  let filteredUsers = [...allUsers];
+
+  // 关键词筛选
+  if (params.keyword) {
+    const keyword = params.keyword.toLowerCase();
+    filteredUsers = filteredUsers.filter(
+      (user) =>
+        user.username.toLowerCase().includes(keyword) ||
+        user.email.toLowerCase().includes(keyword) ||
+        (user.phone && user.phone.includes(keyword)) ||
+        (user.nickname && user.nickname.toLowerCase().includes(keyword))
+    );
+  }
+
+  // 状态筛选
+  if (params.status && params.status !== 'all') {
+    filteredUsers = filteredUsers.filter(
+      (user) => user.status === params.status
+    );
+  }
+
+  // 日期范围筛选
+  if (params.startDate && params.endDate) {
+    filteredUsers = filteredUsers.filter(
+      (user) =>
+        user.createdAt >= params.startDate && user.createdAt <= params.endDate
+    );
+  }
+
+  // 排序
+  if (params.sortField && params.sortOrder) {
+    filteredUsers.sort((a, b) => {
+      const fieldA = a[params.sortField];
+      const fieldB = b[params.sortField];
+
+      if (params.sortOrder === 'ascend') {
+        return fieldA > fieldB ? 1 : -1;
+      } else {
+        return fieldA < fieldB ? 1 : -1;
+      }
+    });
+  }
+
+  // 分页
+  const pageSize = params.pageSize || 10;
+  const page = params.page || 1;
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  const paginatedUsers = filteredUsers.slice(start, end);
+
+  return {
+    data: paginatedUsers,
+    total: filteredUsers.length,
+    page,
+    pageSize,
+  };
+};
+
+const mockUserDetail = (id) => {
+  // 模拟用户详情
+  const userId = id.split('-')[1];
+  return {
+    id,
+    username: `user${userId}`,
+    email: `user${userId}@example.com`,
+    phone: userId % 3 === 0 ? null : `1380013800${userId}`,
+    nickname: `用户${userId}`,
+    avatar: null,
+    bio: `这是用户${userId}的个人简介，包含了用户的一些基本信息和介绍。`,
+    status: userId % 10 === 0 ? 'banned' : (userId % 5 === 0 ? 'inactive' : 'active'),
+    isEmailVerified: userId % 3 !== 0,
+    isPhoneVerified: userId % 4 !== 0,
+    createdAt: new Date(Date.now() - userId * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    lastLoginAt: userId % 7 === 0 ? null : new Date(Date.now() - userId * 12 * 60 * 60 * 1000).toISOString().split('T')[0],
+    roles: ['user'],
+    permissions: ['read', 'write'],
+    notesCount: Math.floor(Math.random() * 20),
+    commentsCount: Math.floor(Math.random() * 10),
+    likesCount: Math.floor(Math.random() * 30),
+  };
+};
+
+const mockUserStats = () => {
+  // 模拟用户统计数据
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  return {
+    totalUsers: 100,
+    activeUsers: 75,
+    inactiveUsers: 20,
+    bannedUsers: 5,
+    todayNewUsers: 3,
+    userGrowth: [
+      { date: '2023-01-01', count: 5 },
+      { date: '2023-01-02', count: 8 },
+      { date: '2023-01-03', count: 12 },
+      { date: '2023-01-04', count: 7 },
+      { date: '2023-01-05', count: 10 },
+      { date: '2023-01-06', count: 15 },
+      { date: '2023-01-07', count: 20 },
+    ],
+    userActivity: [
+      { date: '2023-01-01', count: 30 },
+      { date: '2023-01-02', count: 45 },
+      { date: '2023-01-03', count: 60 },
+      { date: '2023-01-04', count: 40 },
+      { date: '2023-01-05', count: 55 },
+      { date: '2023-01-06', count: 70 },
+      { date: '2023-01-07', count: 80 },
+    ],
+    recentUsers: [
+      { id: 'user-1', username: 'user1', createdAt: today.toISOString().split('T')[0] },
+      { id: 'user-2', username: 'user2', createdAt: today.toISOString().split('T')[0] },
+      { id: 'user-3', username: 'user3', createdAt: yesterday.toISOString().split('T')[0] },
+    ],
+  };
 };

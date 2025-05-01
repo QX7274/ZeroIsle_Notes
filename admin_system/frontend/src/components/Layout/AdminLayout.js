@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Button, Badge, Tooltip, theme, message } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Button, Badge, Tooltip, theme, message, Space, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -15,9 +15,21 @@ import {
   GithubOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
+  AppstoreOutlined,
+  TagOutlined,
+  CloudOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  HomeOutlined,
+  BarChartOutlined,
+  FileExcelOutlined,
+  PieChartOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons';
 import { logout, getCurrentUser } from '../../services/authService';
 import '../../styles/AdminLayout.css';
+
+const { Text } = Typography;
 
 const { Header, Sider, Content, Footer } = Layout;
 
@@ -179,7 +191,44 @@ const AdminLayout = ({ setIsAuthenticated }) => {
     if (path.startsWith('/notes')) return '/notes';
     if (path.startsWith('/settings')) return '/settings';
     if (path.startsWith('/logs')) return '/logs';
+    if (path.startsWith('/analytics')) return '/analytics';
+    if (path.startsWith('/reports')) return '/reports';
     return '/dashboard';
+  };
+
+  // 获取面包屑导航
+  const getBreadcrumb = () => {
+    const path = location.pathname;
+    const breadcrumbMap = {
+      '/dashboard': [{ title: '仪表盘', icon: <HomeOutlined /> }],
+      '/users': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '用户管理', icon: <TeamOutlined /> }],
+      '/notes': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '内容管理', icon: <FileTextOutlined /> }],
+      '/settings': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '系统设置', icon: <SettingOutlined /> }],
+      '/logs': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '操作日志', icon: <HistoryOutlined /> }],
+      '/analytics': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '数据分析', icon: <BarChartOutlined /> }],
+      '/reports': [{ title: '首页', path: '/dashboard', icon: <HomeOutlined /> }, { title: '报表生成', icon: <FileExcelOutlined /> }],
+    };
+
+    // 处理子路径
+    if (path.startsWith('/users/')) {
+      return [...breadcrumbMap['/users'], { title: '用户详情', icon: <UserOutlined /> }];
+    } else if (path.startsWith('/notes/')) {
+      return [...breadcrumbMap['/notes'], { title: '笔记详情', icon: <FileTextOutlined /> }];
+    } else if (path.startsWith('/settings/')) {
+      const settingTitle = path.includes('profile') ? '个人资料' :
+                          path.includes('security') ? '安全设置' :
+                          path.includes('admin') ? '管理员管理' :
+                          path.includes('announcement') ? '系统公告' :
+                          path.includes('backup') ? '备份与恢复' : '基本设置';
+      const settingIcon = path.includes('profile') ? <UserOutlined /> :
+                         path.includes('security') ? <SafetyCertificateOutlined /> :
+                         path.includes('admin') ? <TeamOutlined /> :
+                         path.includes('announcement') ? <BellOutlined /> :
+                         path.includes('backup') ? <CloudOutlined /> : <AppstoreOutlined />;
+      return [...breadcrumbMap['/settings'], { title: settingTitle, icon: settingIcon }];
+    }
+
+    return breadcrumbMap[path] || breadcrumbMap['/dashboard'];
   };
 
   return (
@@ -196,10 +245,12 @@ const AdminLayout = ({ setIsAuthenticated }) => {
           left: 0,
           top: 0,
           bottom: 0,
-          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
+          boxShadow: '2px 0 20px rgba(0,0,0,0.08)', // 增强阴影效果
           zIndex: 1000,
+          borderRight: '1px solid rgba(0,0,0,0.03)', // 添加细边框
+          background: 'linear-gradient(135deg, #FFFFFF, #F8FAFF)', // 更新渐变背景
         }}
-        width={220}
+        width={260} // 增加宽度
       >
         <div className="logo">
           {collapsed ? '零屿' : '零屿笔记管理系统'}
@@ -209,44 +260,142 @@ const AdminLayout = ({ setIsAuthenticated }) => {
           mode="inline"
           selectedKeys={[getSelectedKey()]}
           onClick={handleMenuClick}
+          style={{
+            background: 'transparent', // 透明背景
+            border: 'none', // 移除边框
+            padding: '12px', // 增加内边距
+          }}
           items={[
             {
               key: '/dashboard',
-              icon: <DashboardOutlined />,
+              icon: <DashboardOutlined className="menu-icon" />,
               label: '仪表盘',
             },
             {
               key: '/users',
-              icon: <UserOutlined />,
+              icon: <TeamOutlined className="menu-icon" />,
               label: '用户管理',
             },
             {
               key: '/notes',
-              icon: <FileTextOutlined />,
+              icon: <FileTextOutlined className="menu-icon" />,
               label: '内容管理',
+              children: [
+                {
+                  key: '/notes/list',
+                  label: '笔记列表',
+                },
+                {
+                  key: '/notes/categories',
+                  label: '分类管理',
+                },
+                {
+                  key: '/notes/tags',
+                  label: '标签管理',
+                },
+              ],
             },
             {
               key: '/logs',
-              icon: <HistoryOutlined />,
+              icon: <HistoryOutlined className="menu-icon" />,
               label: '操作日志',
+              children: [
+                {
+                  key: '/logs/admin',
+                  label: '管理员日志',
+                },
+                {
+                  key: '/logs/system',
+                  label: '系统日志',
+                },
+                {
+                  key: '/logs/login',
+                  label: '登录日志',
+                },
+              ],
+            },
+            {
+              key: '/analytics',
+              icon: <BarChartOutlined className="menu-icon" />,
+              label: '数据分析',
+              children: [
+                {
+                  key: '/analytics/overview',
+                  label: '数据概览',
+                },
+                {
+                  key: '/analytics/user',
+                  label: '用户分析',
+                },
+                {
+                  key: '/analytics/content',
+                  label: '内容分析',
+                },
+                {
+                  key: '/analytics/system',
+                  label: '系统分析',
+                },
+              ],
+            },
+            {
+              key: '/reports',
+              icon: <FileExcelOutlined className="menu-icon" />,
+              label: '报表生成',
+              children: [
+                {
+                  key: '/reports/templates',
+                  label: '报表模板',
+                },
+                {
+                  key: '/reports/history',
+                  label: '报表历史',
+                },
+                {
+                  key: '/reports/custom',
+                  label: '自定义报表',
+                },
+              ],
             },
             {
               key: '/settings',
-              icon: <SettingOutlined />,
+              icon: <SettingOutlined className="menu-icon" />,
               label: '系统设置',
+              children: [
+                {
+                  key: '/settings/general',
+                  label: '基本设置',
+                },
+                {
+                  key: '/settings/security',
+                  label: '安全设置',
+                },
+                {
+                  key: '/settings/admin',
+                  label: '管理员管理',
+                },
+                {
+                  key: '/settings/announcement',
+                  label: '系统公告',
+                },
+                {
+                  key: '/settings/backup',
+                  label: '备份与恢复',
+                },
+              ],
             },
           ]}
         />
         <div className="sider-footer">
           <div className="version">v1.0.0</div>
+          <div className="copyright">零屿团队 © {new Date().getFullYear()}</div>
         </div>
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 220, transition: 'all 0.2s' }}>
+      <Layout style={{ marginLeft: collapsed ? 80 : 240, transition: 'all 0.3s ease' }}>
         <Header
+          className="main-header"
           style={{
             padding: 0,
-            background: token.colorBgContainer,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: 'rgba(255, 255, 255, 0.98)', // 半透明背景
             position: 'sticky',
             top: 0,
             zIndex: 999,
@@ -254,7 +403,8 @@ const AdminLayout = ({ setIsAuthenticated }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            height: 64,
+            height: 72, // 增加高度
+            backdropFilter: 'blur(10px)', // 增强毛玻璃效果
           }}
         >
           <div className="header-left">
@@ -263,17 +413,38 @@ const AdminLayout = ({ setIsAuthenticated }) => {
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
               style={{
-                fontSize: '16px',
-                width: 64,
-                height: 64,
+                fontSize: '20px', // 增加图标大小
+                width: 72, // 增加按钮宽度
+                height: 72, // 增加按钮高度
+                color: '#4361EE', // 使用主色调
               }}
+              className="trigger-button"
             />
             <div className="breadcrumb-container">
-              {/* 面包屑导航可以在这里添加 */}
+              <Space size={8}>
+                {getBreadcrumb().map((item, index) => (
+                  <React.Fragment key={index}>
+                    {index > 0 && <span className="breadcrumb-separator">/</span>}
+                    <Space size={4} className="breadcrumb-item">
+                      {item.icon}
+                      {item.path ? (
+                        <Text
+                          className="breadcrumb-text clickable"
+                          onClick={() => navigate(item.path)}
+                        >
+                          {item.title}
+                        </Text>
+                      ) : (
+                        <Text className="breadcrumb-text current">{item.title}</Text>
+                      )}
+                    </Space>
+                  </React.Fragment>
+                ))}
+              </Space>
             </div>
           </div>
           <div className="header-right">
-            <Tooltip title="帮助文档">
+            <Tooltip title="帮助文档" placement="bottom">
               <Button
                 type="text"
                 icon={<QuestionCircleOutlined />}
@@ -281,7 +452,7 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                 onClick={() => window.open('https://github.com/your-repo/docs', '_blank')}
               />
             </Tooltip>
-            <Tooltip title="GitHub仓库">
+            <Tooltip title="GitHub仓库" placement="bottom">
               <Button
                 type="text"
                 icon={<GithubOutlined />}
@@ -289,7 +460,7 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                 onClick={() => window.open('https://github.com/your-repo', '_blank')}
               />
             </Tooltip>
-            <Tooltip title={fullscreen ? '退出全屏' : '全屏'}>
+            <Tooltip title={fullscreen ? '退出全屏' : '全屏'} placement="bottom">
               <Button
                 type="text"
                 icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
@@ -298,17 +469,20 @@ const AdminLayout = ({ setIsAuthenticated }) => {
               />
             </Tooltip>
             <Dropdown overlay={notificationMenu} placement="bottomRight" trigger={['click']}>
-              <Badge count={notifications.length} className="notification-badge">
+              <Badge count={notifications.length} className="notification-badge" style={{ backgroundColor: token.colorPrimary }}>
                 <Button type="text" icon={<BellOutlined />} className="header-icon" />
               </Badge>
             </Dropdown>
             <Dropdown overlay={userMenu} placement="bottomRight" trigger={['click']}>
               <div className="user-info">
                 <Avatar
-                  size="small"
+                  size={40} // 增加头像大小
                   icon={<UserOutlined />}
                   src={userInfo.avatar}
-                  style={{ backgroundColor: userInfo.avatar ? 'transparent' : '#1890ff' }}
+                  style={{
+                    backgroundColor: userInfo.avatar ? 'transparent' : token.colorPrimary,
+                    boxShadow: '0 3px 10px rgba(67, 97, 238, 0.2)', // 增强阴影
+                  }}
                 />
                 <span className="username">{userInfo.username || '管理员'}</span>
               </div>
@@ -316,17 +490,29 @@ const AdminLayout = ({ setIsAuthenticated }) => {
           </div>
         </Header>
         <Content
+          className="main-content"
           style={{
-            margin: '24px 16px',
-            padding: 24,
+            margin: '24px',
+            padding: '32px', // 增加内边距
             background: token.colorBgContainer,
-            borderRadius: token.borderRadius,
+            borderRadius: '16px', // 增加圆角
             minHeight: 280,
+            boxShadow: '0 6px 24px rgba(0, 0, 0, 0.06)', // 增强阴影
+            animation: 'fadeIn 0.5s ease-out', // 添加淡入动画
           }}
         >
           <Outlet />
         </Content>
-        <Footer style={{ textAlign: 'center', padding: '12px 50px' }}>
+        <Footer style={{
+          textAlign: 'center',
+          padding: '20px 50px', // 增加内边距
+          background: 'rgba(245, 247, 250, 0.7)', // 添加背景色
+          borderTop: '1px solid rgba(0, 0, 0, 0.05)', // 添加顶部边框
+          color: 'rgba(0, 0, 0, 0.65)', // 更新文字颜色
+          fontSize: '14px', // 设置字体大小
+          fontWeight: '500', // 增加字体粗细
+          backdropFilter: 'blur(5px)', // 添加毛玻璃效果
+        }}>
           零屿笔记管理系统 ©{new Date().getFullYear()} 由 零屿团队 提供技术支持
         </Footer>
       </Layout>

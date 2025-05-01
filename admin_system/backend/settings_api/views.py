@@ -43,15 +43,83 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
                 'message': f'未找到键为{key}的设置'
             }, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=False, methods=['get'])
+    def all_configs(self, request):
+        """获取所有系统配置"""
+        settings = SystemSetting.objects.all()
+
+        # 将设置转换为字典格式
+        config_dict = {}
+        for setting in settings:
+            config_dict[setting.key] = setting.value
+
+        # 如果没有配置，返回默认配置
+        if not config_dict:
+            config_dict = self._get_default_configs()
+
+        return Response({
+            'status': 'success',
+            'data': config_dict
+        }, status=status.HTTP_200_OK)
+
+    def _get_default_configs(self):
+        """获取默认配置"""
+        return {
+            'siteName': '零屿笔记管理系统',
+            'siteDescription': '零屿笔记的管理后台系统，用于管理用户、内容和系统设置',
+            'siteKeywords': '零屿笔记,管理系统,后台管理',
+            'siteLogo': '/logo.png',
+            'siteFavicon': '/favicon.ico',
+            'adminEmail': 'admin@zeroisle.com',
+            'userRegistration': 'true',
+            'emailVerification': 'true',
+            'defaultUserRole': 'user',
+            'pageSize': '10',
+            'uploadMaxSize': '10',
+            'allowedFileTypes': 'jpg,jpeg,png,gif,pdf,doc,docx',
+            'timezone': 'Asia/Shanghai',
+            'dateFormat': 'YYYY-MM-DD',
+            'timeFormat': 'HH:mm:ss',
+        }
+
     @action(detail=False, methods=['post'])
     def batch_update(self, request):
         """批量更新设置"""
         settings_data = request.data
         if not isinstance(settings_data, list):
-            return Response({
-                'status': 'error',
-                'message': '请提供设置列表'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            # 尝试处理对象格式的配置
+            if isinstance(settings_data, dict):
+                results = []
+                for key, value in settings_data.items():
+                    description = f"{key}的配置值"
+
+                    # 将值转换为字符串
+                    if isinstance(value, (list, dict)):
+                        import json
+                        value = json.dumps(value)
+                    else:
+                        value = str(value)
+
+                    setting, created = SystemSetting.objects.update_or_create(
+                        key=key,
+                        defaults={'value': value, 'description': description}
+                    )
+
+                    results.append({
+                        'key': key,
+                        'status': 'success',
+                        'message': '创建成功' if created else '更新成功'
+                    })
+
+                return Response({
+                    'status': 'success',
+                    'data': results
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': '请提供设置列表或对象'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         results = []
         for item in settings_data:
@@ -66,6 +134,52 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
                     'message': '缺少必要字段'
                 })
                 continue
+
+            # 将值转换为字符串
+            if isinstance(value, (list, dict)):
+                import json
+                value = json.dumps(value)
+            else:
+                value = str(value)
+
+            setting, created = SystemSetting.objects.update_or_create(
+                key=key,
+                defaults={'value': value, 'description': description or f"{key}的配置值"}
+            )
+
+            results.append({
+                'key': key,
+                'status': 'success',
+                'message': '创建成功' if created else '更新成功'
+            })
+
+        return Response({
+            'status': 'success',
+            'data': results
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def update_config(self, request):
+        """更新系统配置"""
+        config_data = request.data
+        if not isinstance(config_data, dict):
+            return Response({
+                'status': 'error',
+                'message': '请提供配置对象'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        for key, value in config_data.items():
+            # 将值转换为字符串
+            if isinstance(value, (list, dict)):
+                import json
+                value = json.dumps(value)
+            elif isinstance(value, bool):
+                value = 'true' if value else 'false'
+            else:
+                value = str(value)
+
+            description = f"{key}的配置值"
 
             setting, created = SystemSetting.objects.update_or_create(
                 key=key,

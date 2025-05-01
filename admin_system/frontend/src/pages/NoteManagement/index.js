@@ -1,43 +1,61 @@
 import React from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
-import { Typography, Button } from 'antd';
+import { Typography, Button, Space } from 'antd';
+import { FileTextOutlined, AppstoreOutlined, TagOutlined, PlusOutlined } from '@ant-design/icons';
 import NoteList from './NoteList';
 import NoteDetail from './NoteDetail';
 import CategoryManagement from './CategoryManagement';
 import TagManagement from './TagManagement';
+import '../../styles/ContentManagement.css';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const NoteManagement = () => {
   const navigate = useNavigate();
-  
+
   return (
-    <div className="note-management-container">
+    <div className="content-management-container">
       <Routes>
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             <>
-              <div className="page-header">
-                <Title level={2}>内容管理</Title>
-                <div>
-                  <Button 
-                    type="primary" 
+              <div className="content-list-header">
+                <div className="content-list-title">
+                  <FileTextOutlined className="content-list-icon" />
+                  <div className="title-content">
+                    <Title level={3} style={{ margin: 0 }}>内容管理</Title>
+                    <Text type="secondary">管理系统中的笔记、分类和标签</Text>
+                  </div>
+                </div>
+                <Space>
+                  <Button
+                    icon={<AppstoreOutlined />}
                     onClick={() => navigate('/notes/categories')}
-                    style={{ marginRight: 16 }}
+                    size="large"
                   >
                     分类管理
                   </Button>
-                  <Button 
+                  <Button
+                    icon={<TagOutlined />}
                     onClick={() => navigate('/notes/tags')}
+                    size="large"
                   >
                     标签管理
                   </Button>
-                </div>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => navigate('/notes/create')}
+                    size="large"
+                  >
+                    创建笔记
+                  </Button>
+                </Space>
               </div>
               <NoteList />
             </>
-          } 
+          }
         />
         <Route path="/detail/:id" element={<NoteDetail />} />
         <Route path="/categories" element={<CategoryManagement />} />
