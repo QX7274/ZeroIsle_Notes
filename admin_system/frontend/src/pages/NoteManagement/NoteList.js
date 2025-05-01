@@ -16,9 +16,17 @@ import {
   CloudDownloadOutlined, CopyOutlined, LinkOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { getNotes, deleteNote, updateNoteStatus, getNoteStats } from '../../services/noteService';
-import { getCategories } from '../../services/categoryService';
-import { getTags } from '../../services/tagService';
+import {
+  getNotes,
+  deleteNote,
+  updateNoteStatus,
+  getNoteStats,
+  batchDeleteNotes,
+  exportNotes,
+  syncNotes
+} from '../../services/contentService';
+import { getCategories, syncCategories } from '../../services/contentService';
+import { getTags, syncTags } from '../../services/contentService';
 import { PageHeader } from '../../components/common';
 import { exportToExcel } from '../../utils/exportUtils';
 
@@ -149,27 +157,49 @@ const NoteList = () => {
   };
 
   // 导出笔记数据
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      // 准备导出数据
-      const exportData = notes.map(note => ({
-        标题: note.title,
-        作者: note.author?.username || '',
-        分类: note.category?.name || '无分类',
-        标签: note.tags?.map(tag => tag.name).join(', ') || '',
-        状态: note.status === 'published' ? '已发布' : '草稿',
-        创建时间: note.createdAt,
-        更新时间: note.updatedAt,
-        浏览量: note.views || 0,
-        点赞数: note.likes || 0,
-      }));
+      setLoading(true);
+      // 准备导出参数
+      const exportFilters = {
+        keyword: filters.keyword,
+        status: filters.status !== 'all' ? filters.status : undefined,
+        categoryId: filters.categoryId,
+        tagId: filters.tagId,
+        start_date: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
+        end_date: filters.dateRange?.[1]?.format('YYYY-MM-DD'),
+      };
 
-      // 导出Excel
-      exportToExcel(exportData, '笔记列表');
-      message.success('导出成功');
+      // 调用API导出数据
+      const result = await exportNotes(exportFilters);
+
+      if (result.data && result.data.length > 0) {
+        // 准备导出数据
+        const exportData = result.data.map(note => ({
+          标题: note.title,
+          作者: note.username || '',
+          分类: note.category_name || '无分类',
+          状态: note.status_display || (note.status === 'published' ? '已发布' : '草稿'),
+          笔记类型: note.note_type_display || note.note_type,
+          是否公开: note.is_public ? '是' : '否',
+          浏览量: note.view_count || 0,
+          点赞数: note.like_count || 0,
+          评论数: note.comment_count || 0,
+          创建时间: note.created_at,
+          更新时间: note.updated_at
+        }));
+
+        // 导出Excel
+        exportToExcel(exportData, '笔记列表');
+        message.success(result.message || '导出成功');
+      } else {
+        message.info('没有符合条件的数据可导出');
+      }
     } catch (error) {
       console.error('导出失败:', error);
       message.error('导出失败，请稍后重试');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -265,6 +295,30 @@ const NoteList = () => {
     fetchNotes();
     fetchNoteStats();
     message.success('数据已刷新');
+  };
+
+  // 同步数据
+  const handleSync = async () => {
+    try {
+      setLoading(true);
+      message.loading('正在同步数据，请稍候...', 0);
+
+      // 同步笔记数据
+      const result = await syncNotes({ incremental: true });
+
+      message.destroy();
+      message.success(result.message || '数据同步成功');
+
+      // 刷新数据
+      fetchNotes();
+      fetchNoteStats();
+    } catch (error) {
+      console.error('同步数据失败:', error);
+      message.destroy();
+      message.error('同步数据失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 处理搜索
@@ -444,6 +498,13 @@ const NoteList = () => {
             导出
           </Button>,
           <Button
+            key="sync"
+            icon={<CloudDownloadOutlined />}
+            onClick={handleSync}
+          >
+            同步数据
+          </Button>,
+          <Button
             key="refresh"
             icon={<ReloadOutlined />}
             onClick={handleRefresh}
@@ -610,13 +671,18 @@ const NoteList = () => {
                   okButtonProps: { danger: true },
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量删除API
-                      message.success(`已成功删除 ${selectedRowKeys.length} 个笔记`);
+                      setLoading(true);
+                      const result = await batchDeleteNotes(selectedRowKeys);
+                      message.success(result.message || `已成功删除 ${result.deleted_count} 个笔记`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchNotes();
+                      fetchNoteStats();
                     } catch (error) {
+                      console.error('批量删除失败:', error);
                       message.error('批量删除失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -627,24 +693,40 @@ const NoteList = () => {
               批量删除
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 // 导出选中笔记数据
                 try {
-                  const exportData = selectedRows.map(note => ({
-                    标题: note.title,
-                    作者: note.author?.username || '',
-                    分类: note.category?.name || '无分类',
-                    标签: note.tags?.map(tag => tag.name).join(', ') || '',
-                    状态: note.status === 'published' ? '已发布' : '草稿',
-                    创建时间: note.createdAt,
-                    更新时间: note.updatedAt,
-                    浏览量: note.views || 0,
-                    点赞数: note.likes || 0,
-                  }));
-                  exportToExcel(exportData, '选中笔记列表');
-                  message.success('导出成功');
+                  setLoading(true);
+                  // 调用API导出选中笔记数据
+                  const result = await exportNotes({}, selectedRowKeys);
+
+                  if (result.data && result.data.length > 0) {
+                    // 准备导出数据
+                    const exportData = result.data.map(note => ({
+                      标题: note.title,
+                      作者: note.username || '',
+                      分类: note.category_name || '无分类',
+                      状态: note.status_display || (note.status === 'published' ? '已发布' : '草稿'),
+                      笔记类型: note.note_type_display || note.note_type,
+                      是否公开: note.is_public ? '是' : '否',
+                      浏览量: note.view_count || 0,
+                      点赞数: note.like_count || 0,
+                      评论数: note.comment_count || 0,
+                      创建时间: note.created_at,
+                      更新时间: note.updated_at
+                    }));
+
+                    // 导出Excel
+                    exportToExcel(exportData, '选中笔记列表');
+                    message.success(result.message || '导出成功');
+                  } else {
+                    message.info('没有符合条件的数据可导出');
+                  }
                 } catch (error) {
+                  console.error('导出失败:', error);
                   message.error('导出失败，请稍后重试');
+                } finally {
+                  setLoading(false);
                 }
               }}
               icon={<ExportOutlined />}

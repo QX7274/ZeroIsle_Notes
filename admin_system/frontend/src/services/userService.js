@@ -3,12 +3,14 @@ import api from './authService';
 // 获取用户列表
 export const getUsers = async (params) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/users', { params });
-    // return response.data.data;
-
-    // 使用模拟数据
-    return mockUsers(params);
+    // 调用后端API
+    const response = await api.get('/users/profiles/', { params });
+    return {
+      data: response.data.results,
+      total: response.data.count,
+      page: params.page || 1,
+      pageSize: params.pageSize || 10
+    };
   } catch (error) {
     console.error('获取用户列表错误:', error);
     throw error;
@@ -18,12 +20,9 @@ export const getUsers = async (params) => {
 // 获取用户详情
 export const getUserDetail = async (id) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get(`/users/${id}`);
-    // return response.data.data;
-
-    // 使用模拟数据
-    return mockUserDetail(id);
+    // 调用后端API
+    const response = await api.get(`/users/profiles/${id}/`);
+    return response.data;
   } catch (error) {
     console.error('获取用户详情错误:', error);
     throw error;
@@ -33,8 +32,8 @@ export const getUserDetail = async (id) => {
 // 创建用户
 export const createUser = async (userData) => {
   try {
-    const response = await api.post('/users', userData);
-    return response.data.data;
+    const response = await api.post('/users/profiles/', userData);
+    return response.data;
   } catch (error) {
     console.error('创建用户错误:', error);
     throw error;
@@ -44,7 +43,7 @@ export const createUser = async (userData) => {
 // 更新用户
 export const updateUser = async (id, userData) => {
   try {
-    const response = await api.put(`/users/${id}`, userData);
+    const response = await api.put(`/users/profiles/${id}/`, userData);
     return response.data;
   } catch (error) {
     console.error('更新用户错误:', error);
@@ -55,7 +54,7 @@ export const updateUser = async (id, userData) => {
 // 删除用户
 export const deleteUser = async (id) => {
   try {
-    const response = await api.delete(`/users/${id}`);
+    const response = await api.delete(`/users/profiles/${id}/`);
     return response.data;
   } catch (error) {
     console.error('删除用户错误:', error);
@@ -66,7 +65,7 @@ export const deleteUser = async (id) => {
 // 更新用户状态
 export const updateUserStatus = async (id, status) => {
   try {
-    const response = await api.patch(`/users/${id}/status`, { status });
+    const response = await api.patch(`/users/profiles/${id}/status/`, { status });
     return response.data;
   } catch (error) {
     console.error('更新用户状态错误:', error);
@@ -77,7 +76,7 @@ export const updateUserStatus = async (id, status) => {
 // 重置用户密码
 export const resetUserPassword = async (id) => {
   try {
-    const response = await api.post(`/users/${id}/reset-password`);
+    const response = await api.post(`/users/profiles/${id}/reset-password/`);
     return response.data;
   } catch (error) {
     console.error('重置用户密码错误:', error);
@@ -88,14 +87,110 @@ export const resetUserPassword = async (id) => {
 // 获取用户统计数据
 export const getUserStats = async () => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/users/stats');
-    // return response.data;
-
-    // 使用模拟数据
-    return mockUserStats();
+    // 调用后端API
+    const response = await api.get('/users/profiles/stats/');
+    return response.data;
   } catch (error) {
     console.error('获取用户统计数据错误:', error);
+    throw error;
+  }
+};
+
+// 获取用户增长趋势
+export const getUserGrowth = async (days = 30) => {
+  try {
+    // 调用后端API
+    const response = await api.get('/users/profiles/growth/', { params: { days } });
+    return response.data;
+  } catch (error) {
+    console.error('获取用户增长趋势错误:', error);
+    throw error;
+  }
+};
+
+// 同步用户数据
+export const syncUsers = async (options = {}) => {
+  try {
+    const response = await api.post('/users/profiles/sync/', options);
+    return response.data;
+  } catch (error) {
+    console.error('同步用户数据错误:', error);
+    throw error;
+  }
+};
+
+// 批量激活用户
+export const batchActivateUsers = async (userIds) => {
+  try {
+    const response = await api.post('/users/profiles/batch_activate/', { user_ids: userIds });
+    return response.data;
+  } catch (error) {
+    console.error('批量激活用户错误:', error);
+    throw error;
+  }
+};
+
+// 批量禁用用户
+export const batchDeactivateUsers = async (userIds) => {
+  try {
+    const response = await api.post('/users/profiles/batch_deactivate/', { user_ids: userIds });
+    return response.data;
+  } catch (error) {
+    console.error('批量禁用用户错误:', error);
+    throw error;
+  }
+};
+
+// 批量删除用户
+export const batchDeleteUsers = async (userIds) => {
+  try {
+    const response = await api.post('/users/profiles/batch_delete/', { user_ids: userIds });
+    return response.data;
+  } catch (error) {
+    console.error('批量删除用户错误:', error);
+    throw error;
+  }
+};
+
+// 导出用户数据
+export const exportUsers = async (filters = {}, userIds = []) => {
+  try {
+    const response = await api.post('/users/profiles/export/', { filters, user_ids: userIds });
+    return response.data;
+  } catch (error) {
+    console.error('导出用户数据错误:', error);
+    throw error;
+  }
+};
+
+// 获取用户活动记录
+export const getUserActivities = async (params) => {
+  try {
+    const response = await api.get('/users/activities/', { params });
+    return {
+      data: response.data.results,
+      total: response.data.count,
+      page: params.page || 1,
+      pageSize: params.pageSize || 10
+    };
+  } catch (error) {
+    console.error('获取用户活动记录错误:', error);
+    throw error;
+  }
+};
+
+// 获取指定用户的活动记录
+export const getUserActivityById = async (userId, params) => {
+  try {
+    const response = await api.get(`/users/profiles/${userId}/activities/`, { params });
+    return {
+      data: response.data.results,
+      total: response.data.count,
+      page: params.page || 1,
+      pageSize: params.pageSize || 10
+    };
+  } catch (error) {
+    console.error('获取指定用户活动记录错误:', error);
     throw error;
   }
 };

@@ -33,6 +33,8 @@ urlpatterns = [
     path('api/content/', include('content.urls')),
     path('api/settings/', include('settings_api.urls')),
     path('api/logs/', include('logs.urls')),
+    path('api/sync/', include('sync.urls')),
+    path('api/analytics/', include('analytics.urls')),
 ]
 
 # 添加媒体文件URL

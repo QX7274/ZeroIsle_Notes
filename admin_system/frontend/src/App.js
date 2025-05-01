@@ -10,8 +10,7 @@ import UserManagement from './pages/UserManagement';
 import NoteManagement from './pages/NoteManagement';
 import SystemSettings from './pages/SystemSettings';
 import LogManagement from './pages/LogManagement';
-import DataAnalytics from './pages/DataAnalytics';
-import ReportGenerator from './pages/ReportGenerator';
+import Analytics from './pages/Analytics';
 import NotFound from './pages/NotFound';
 
 // 导入布局组件
@@ -69,8 +68,7 @@ function App() {
               <Route path="/notes/*" element={<NoteManagement />} />
               <Route path="/settings/*" element={<SystemSettings />} />
               <Route path="/logs/*" element={<LogManagement />} />
-              <Route path="/analytics" element={<DataAnalytics />} />
-              <Route path="/reports" element={<ReportGenerator />} />
+              <Route path="/analytics/*" element={<Analytics />} />
             </Route>
 
             <Route path="/" element={<Navigate to="/dashboard" />} />

@@ -362,9 +362,173 @@
   animation: fadeIn 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
+/* 日志分析页面样式 */
+.log-analytics-container {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.analytics-content {
+  margin-top: 24px;
+}
+
+.stats-row {
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  height: 100%;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card .ant-statistic-title {
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 8px;
+}
+
+.stat-card .ant-statistic-content {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.stat-card .ant-statistic-content-prefix {
+  margin-right: 8px;
+  font-size: 24px;
+}
+
+.stat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.chart-row {
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  height: 100%;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.chart-card:hover {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.chart-card .ant-card-head {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.chart-card .ant-card-body {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.empty-chart {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.analytics-tabs {
+  margin-top: 24px;
+}
+
+.analytics-tabs .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.analytics-tabs .ant-tabs-tab {
+  padding: 12px 20px;
+  transition: all 0.3s ease;
+  border-radius: 10px 10px 0 0;
+  margin-right: 4px;
+}
+
+.analytics-tabs .ant-tabs-tab-active {
+  background: linear-gradient(135deg, rgba(67, 97, 238, 0.1), rgba(67, 97, 238, 0.05));
+}
+
+.analytics-tabs .ant-tabs-tab-btn {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.analytics-tabs .ant-tabs-tab-btn .anticon {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.analytics-tabs .ant-tabs-ink-bar {
+  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  height: 3px;
+  border-radius: 3px;
+}
+
+.rank-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+.suggestion-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+}
+
+.suggestion-avatar.high {
+  background-color: #fff2f0;
+  color: #ff4d4f;
+}
+
+.suggestion-avatar.medium {
+  background-color: #fff7e6;
+  color: #faad14;
+}
+
+.suggestion-avatar.low {
+  background-color: #f0f5ff;
+  color: #1890ff;
+}
+
 /* 响应式调整 */
 @media (max-width: 1200px) {
-  .log-stat-value {
+  .log-stat-value, .stat-card .ant-statistic-content {
     font-size: 24px;
   }
 }
@@ -374,10 +538,20 @@
     flex-direction: column;
     align-items: flex-start;
   }
-  
-  .log-list-header .ant-space, 
+
+  .log-list-header .ant-space,
   .log-detail-header .ant-space {
     margin-top: 16px;
+  }
+
+  .chart-card .ant-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-card .ant-card-head .ant-picker-range {
+    margin-top: 12px;
+    width: 100%;
   }
 }
 
@@ -385,19 +559,23 @@
   .log-content-body {
     max-height: 300px;
   }
-  
+
   .batch-actions-toolbar {
     flex-direction: column;
     gap: 12px;
     padding: 16px;
   }
-  
+
   .batch-actions-info {
     text-align: center;
   }
-  
+
   .batch-actions-buttons {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .stat-card, .chart-card {
+    margin-bottom: 16px;
   }
 }

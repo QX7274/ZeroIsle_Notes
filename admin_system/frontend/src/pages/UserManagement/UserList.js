@@ -13,7 +13,17 @@ import {
   MoreOutlined, ImportOutlined, SettingOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { getUsers, deleteUser, updateUserStatus, getUserStats } from '../../services/userService';
+import {
+  getUsers,
+  deleteUser,
+  updateUserStatus,
+  getUserStats,
+  syncUsers,
+  batchActivateUsers,
+  batchDeactivateUsers,
+  batchDeleteUsers,
+  exportUsers
+} from '../../services/userService';
 import { PageHeader } from '../../components/common';
 import { exportToExcel } from '../../utils/exportUtils';
 import moment from 'dayjs';
@@ -111,24 +121,45 @@ const UserList = () => {
   };
 
   // 导出用户数据
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      // 准备导出数据
-      const exportData = users.map(user => ({
-        用户名: user.username,
-        邮箱: user.email,
-        手机号: user.phone || '',
-        状态: user.status === 'active' ? '活跃' : '禁用',
-        注册时间: user.createdAt,
-        最后登录: user.lastLoginAt || '',
-      }));
+      setLoading(true);
+      // 准备导出参数
+      const exportFilters = {
+        keyword: filters.keyword,
+        status: filters.status !== 'all' ? filters.status : undefined,
+        start_date: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
+        end_date: filters.dateRange?.[1]?.format('YYYY-MM-DD'),
+      };
 
-      // 导出Excel
-      exportToExcel(exportData, '用户列表');
-      message.success('导出成功');
+      // 调用API导出数据
+      const result = await exportUsers(exportFilters);
+
+      if (result.data && result.data.length > 0) {
+        // 准备导出数据
+        const exportData = result.data.map(user => ({
+          用户名: user.username,
+          邮箱: user.email,
+          手机号: user.phone || '',
+          状态: user.status === 'active' ? '活跃' : (user.status === 'inactive' ? '禁用' : '封禁'),
+          注册时间: user.date_joined,
+          最后登录: user.last_login || '',
+          笔记数量: user.note_count,
+          画布数量: user.canvas_count,
+          登录次数: user.login_count
+        }));
+
+        // 导出Excel
+        exportToExcel(exportData, '用户列表');
+        message.success(result.message || '导出成功');
+      } else {
+        message.info('没有符合条件的数据可导出');
+      }
     } catch (error) {
       console.error('导出失败:', error);
       message.error('导出失败，请稍后重试');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -137,6 +168,22 @@ const UserList = () => {
     fetchUsers();
     fetchUserStats();
     message.success('数据已刷新');
+  };
+
+  // 同步用户数据
+  const handleSyncUsers = async () => {
+    try {
+      setLoading(true);
+      const result = await syncUsers({ incremental: true });
+      message.success('用户数据同步成功');
+      fetchUsers();
+      fetchUserStats();
+    } catch (error) {
+      console.error('同步用户数据失败:', error);
+      message.error('同步用户数据失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 处理搜索
@@ -361,6 +408,14 @@ const UserList = () => {
             导出
           </Button>,
           <Button
+            key="sync"
+            icon={<SyncOutlined />}
+            onClick={handleSyncUsers}
+            loading={loading}
+          >
+            同步用户
+          </Button>,
+          <Button
             key="refresh"
             icon={<ReloadOutlined />}
             onClick={handleRefresh}
@@ -482,13 +537,18 @@ const UserList = () => {
                   content: `确定要启用选中的 ${selectedRowKeys.length} 个用户吗？`,
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量启用API
-                      message.success(`已成功启用 ${selectedRowKeys.length} 个用户`);
+                      setLoading(true);
+                      const result = await batchActivateUsers(selectedRowKeys);
+                      message.success(result.message || `已成功启用 ${result.activated_count} 个用户`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchUsers();
+                      fetchUserStats();
                     } catch (error) {
+                      console.error('批量启用失败:', error);
                       message.error('批量启用失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -505,13 +565,18 @@ const UserList = () => {
                   okButtonProps: { danger: true },
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量禁用API
-                      message.success(`已成功禁用 ${selectedRowKeys.length} 个用户`);
+                      setLoading(true);
+                      const result = await batchDeactivateUsers(selectedRowKeys);
+                      message.success(result.message || `已成功禁用 ${result.deactivated_count} 个用户`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchUsers();
+                      fetchUserStats();
                     } catch (error) {
+                      console.error('批量禁用失败:', error);
                       message.error('批量禁用失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -529,13 +594,18 @@ const UserList = () => {
                   okButtonProps: { danger: true },
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量删除API
-                      message.success(`已成功删除 ${selectedRowKeys.length} 个用户`);
+                      setLoading(true);
+                      const result = await batchDeleteUsers(selectedRowKeys);
+                      message.success(result.message || `已成功删除 ${result.deleted_count} 个用户`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchUsers();
+                      fetchUserStats();
                     } catch (error) {
+                      console.error('批量删除失败:', error);
                       message.error('批量删除失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -546,21 +616,38 @@ const UserList = () => {
               批量删除
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 // 导出选中用户数据
                 try {
-                  const exportData = selectedRows.map(user => ({
-                    用户名: user.username,
-                    邮箱: user.email,
-                    手机号: user.phone || '',
-                    状态: user.status === 'active' ? '活跃' : '禁用',
-                    注册时间: user.createdAt,
-                    最后登录: user.lastLoginAt || '',
-                  }));
-                  exportToExcel(exportData, '选中用户列表');
-                  message.success('导出成功');
+                  setLoading(true);
+                  // 调用API导出选中用户数据
+                  const result = await exportUsers({}, selectedRowKeys);
+
+                  if (result.data && result.data.length > 0) {
+                    // 准备导出数据
+                    const exportData = result.data.map(user => ({
+                      用户名: user.username,
+                      邮箱: user.email,
+                      手机号: user.phone || '',
+                      状态: user.status === 'active' ? '活跃' : (user.status === 'inactive' ? '禁用' : '封禁'),
+                      注册时间: user.date_joined,
+                      最后登录: user.last_login || '',
+                      笔记数量: user.note_count,
+                      画布数量: user.canvas_count,
+                      登录次数: user.login_count
+                    }));
+
+                    // 导出Excel
+                    exportToExcel(exportData, '选中用户列表');
+                    message.success(result.message || '导出成功');
+                  } else {
+                    message.info('没有符合条件的数据可导出');
+                  }
                 } catch (error) {
+                  console.error('导出失败:', error);
                   message.error('导出失败，请稍后重试');
+                } finally {
+                  setLoading(false);
                 }
               }}
               icon={<ExportOutlined />}

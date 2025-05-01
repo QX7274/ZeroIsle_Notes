@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     'content',
     'settings_api',
     'logs',
+    'sync',
+    'analytics',
 ]
 
 MIDDLEWARE = [

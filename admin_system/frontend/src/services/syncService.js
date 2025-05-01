@@ -7,12 +7,9 @@ import api from './authService';
 // 获取主应用同步状态
 export const getSyncStatus = async () => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/sync/status');
-    // return response.data;
-    
-    // 使用模拟数据
-    return mockSyncStatus();
+    // 调用后端API
+    const response = await api.get('/sync/records/status/');
+    return response.data;
   } catch (error) {
     console.error('获取同步状态错误:', error);
     throw error;
@@ -22,12 +19,9 @@ export const getSyncStatus = async () => {
 // 执行数据同步
 export const syncData = async (options = {}) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.post('/sync/execute', options);
-    // return response.data;
-    
-    // 使用模拟数据
-    return mockSyncData(options);
+    // 调用后端API
+    const response = await api.post('/sync/records/execute/', options);
+    return response.data;
   } catch (error) {
     console.error('执行数据同步错误:', error);
     throw error;
@@ -37,12 +31,9 @@ export const syncData = async (options = {}) => {
 // 获取同步历史记录
 export const getSyncHistory = async (params) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/sync/history', { params });
-    // return response.data;
-    
-    // 使用模拟数据
-    return mockSyncHistory(params);
+    // 调用后端API
+    const response = await api.get('/sync/records/', { params });
+    return response.data;
   } catch (error) {
     console.error('获取同步历史记录错误:', error);
     throw error;
@@ -52,12 +43,9 @@ export const getSyncHistory = async (params) => {
 // 获取同步配置
 export const getSyncConfig = async () => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/sync/config');
-    // return response.data;
-    
-    // 使用模拟数据
-    return mockSyncConfig();
+    // 调用后端API
+    const response = await api.get('/sync/configs/all_configs/');
+    return response.data;
   } catch (error) {
     console.error('获取同步配置错误:', error);
     throw error;
@@ -67,13 +55,9 @@ export const getSyncConfig = async () => {
 // 更新同步配置
 export const updateSyncConfig = async (configData) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.put('/sync/config', configData);
-    // return response.data;
-    
-    // 使用模拟数据
-    console.log('更新同步配置:', configData);
-    return { success: true, message: '同步配置更新成功' };
+    // 调用后端API
+    const response = await api.post('/sync/configs/update_configs/', configData);
+    return response.data;
   } catch (error) {
     console.error('更新同步配置错误:', error);
     throw error;
@@ -83,12 +67,9 @@ export const updateSyncConfig = async (configData) => {
 // 获取主应用数据统计
 export const getMainAppStats = async () => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/sync/main-app-stats');
-    // return response.data;
-    
-    // 使用模拟数据
-    return mockMainAppStats();
+    // 调用后端API
+    const response = await api.get('/sync/records/status/');
+    return response.data.data_stats;
   } catch (error) {
     console.error('获取主应用数据统计错误:', error);
     throw error;
@@ -130,14 +111,14 @@ const mockSyncHistory = (params) => {
     const history = [];
     const statuses = ['completed', 'failed', 'cancelled'];
     const types = ['full', 'incremental', 'users', 'notes', 'categories', 'tags'];
-    
+
     for (let i = 1; i <= count; i++) {
       const statusIndex = Math.random() > 0.8 ? (Math.random() > 0.5 ? 1 : 2) : 0; // 80% 成功，10% 失败，10% 取消
       const status = statuses[statusIndex];
       const type = types[i % types.length];
       const startTime = new Date(Date.now() - i * 24 * 3600000);
       const endTime = new Date(startTime.getTime() + (Math.floor(Math.random() * 30) + 1) * 60000);
-      
+
       history.push({
         id: `sync_${i}`,
         type,
@@ -155,28 +136,28 @@ const mockSyncHistory = (params) => {
         initiatedBy: 'admin',
       });
     }
-    
+
     return history;
   };
-  
+
   // 模拟分页和筛选
   const allHistory = generateMockHistory(50);
   let filteredHistory = [...allHistory];
-  
+
   // 类型筛选
   if (params.type && params.type !== 'all') {
     filteredHistory = filteredHistory.filter(
       (item) => item.type === params.type
     );
   }
-  
+
   // 状态筛选
   if (params.status && params.status !== 'all') {
     filteredHistory = filteredHistory.filter(
       (item) => item.status === params.status
     );
   }
-  
+
   // 日期范围筛选
   if (params.startDate && params.endDate) {
     filteredHistory = filteredHistory.filter(
@@ -184,13 +165,13 @@ const mockSyncHistory = (params) => {
         item.startTime.substring(0, 10) >= params.startDate && item.startTime.substring(0, 10) <= params.endDate
     );
   }
-  
+
   // 排序
   if (params.sortField && params.sortOrder) {
     filteredHistory.sort((a, b) => {
       const fieldA = a[params.sortField];
       const fieldB = b[params.sortField];
-      
+
       if (params.sortOrder === 'ascend') {
         return fieldA > fieldB ? 1 : -1;
       } else {
@@ -201,14 +182,14 @@ const mockSyncHistory = (params) => {
     // 默认按开始时间倒序排序
     filteredHistory.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
   }
-  
+
   // 分页
   const pageSize = params.pageSize || 10;
   const page = params.page || 1;
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
   const paginatedHistory = filteredHistory.slice(start, end);
-  
+
   return {
     data: paginatedHistory,
     total: filteredHistory.length,

@@ -25,6 +25,7 @@ import {
   FileExcelOutlined,
   PieChartOutlined,
   LineChartOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { logout, getCurrentUser } from '../../services/authService';
 import '../../styles/AdminLayout.css';
@@ -211,20 +212,22 @@ const AdminLayout = ({ setIsAuthenticated }) => {
 
     // 处理子路径
     if (path.startsWith('/users/')) {
-      return [...breadcrumbMap['/users'], { title: '用户详情', icon: <UserOutlined /> }];
+      if (path.includes('/users/analytics')) {
+        return [...breadcrumbMap['/users'], { title: '用户分析', icon: <LineChartOutlined /> }];
+      } else if (path.includes('/users/list')) {
+        return [...breadcrumbMap['/users'], { title: '用户列表', icon: <UnorderedListOutlined /> }];
+      } else {
+        return [...breadcrumbMap['/users'], { title: '用户详情', icon: <UserOutlined /> }];
+      }
     } else if (path.startsWith('/notes/')) {
       return [...breadcrumbMap['/notes'], { title: '笔记详情', icon: <FileTextOutlined /> }];
     } else if (path.startsWith('/settings/')) {
-      const settingTitle = path.includes('profile') ? '个人资料' :
-                          path.includes('security') ? '安全设置' :
-                          path.includes('admin') ? '管理员管理' :
-                          path.includes('announcement') ? '系统公告' :
-                          path.includes('backup') ? '备份与恢复' : '基本设置';
-      const settingIcon = path.includes('profile') ? <UserOutlined /> :
-                         path.includes('security') ? <SafetyCertificateOutlined /> :
-                         path.includes('admin') ? <TeamOutlined /> :
-                         path.includes('announcement') ? <BellOutlined /> :
-                         path.includes('backup') ? <CloudOutlined /> : <AppstoreOutlined />;
+      const settingTitle = path.includes('config') ? '系统配置' :
+                          path.includes('announcements') ? '公告管理' :
+                          path.includes('profile') ? '个人资料' : '系统设置';
+      const settingIcon = path.includes('config') ? <SettingOutlined /> :
+                         path.includes('announcements') ? <BellOutlined /> :
+                         path.includes('profile') ? <UserOutlined /> : <AppstoreOutlined />;
       return [...breadcrumbMap['/settings'], { title: settingTitle, icon: settingIcon }];
     }
 
@@ -275,6 +278,16 @@ const AdminLayout = ({ setIsAuthenticated }) => {
               key: '/users',
               icon: <TeamOutlined className="menu-icon" />,
               label: '用户管理',
+              children: [
+                {
+                  key: '/users/list',
+                  label: '用户列表',
+                },
+                {
+                  key: '/users/analytics',
+                  label: '用户分析',
+                },
+              ],
             },
             {
               key: '/notes',
@@ -302,15 +315,15 @@ const AdminLayout = ({ setIsAuthenticated }) => {
               children: [
                 {
                   key: '/logs/admin',
-                  label: '管理员日志',
+                  label: '管理员操作日志',
                 },
                 {
                   key: '/logs/system',
                   label: '系统日志',
                 },
                 {
-                  key: '/logs/login',
-                  label: '登录日志',
+                  key: '/logs/analytics',
+                  label: '日志分析',
                 },
               ],
             },
@@ -320,8 +333,8 @@ const AdminLayout = ({ setIsAuthenticated }) => {
               label: '数据分析',
               children: [
                 {
-                  key: '/analytics/overview',
-                  label: '数据概览',
+                  key: '/analytics/dashboard',
+                  label: '数据仪表盘',
                 },
                 {
                   key: '/analytics/user',
@@ -335,51 +348,33 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                   key: '/analytics/system',
                   label: '系统分析',
                 },
-              ],
-            },
-            {
-              key: '/reports',
-              icon: <FileExcelOutlined className="menu-icon" />,
-              label: '报表生成',
-              children: [
                 {
-                  key: '/reports/templates',
+                  key: '/analytics/reports',
+                  label: '报表管理',
+                },
+                {
+                  key: '/analytics/templates',
                   label: '报表模板',
                 },
-                {
-                  key: '/reports/history',
-                  label: '报表历史',
-                },
-                {
-                  key: '/reports/custom',
-                  label: '自定义报表',
-                },
               ],
             },
+
             {
               key: '/settings',
               icon: <SettingOutlined className="menu-icon" />,
               label: '系统设置',
               children: [
                 {
-                  key: '/settings/general',
-                  label: '基本设置',
+                  key: '/settings/config',
+                  label: '系统配置',
                 },
                 {
-                  key: '/settings/security',
-                  label: '安全设置',
+                  key: '/settings/announcements',
+                  label: '公告管理',
                 },
                 {
-                  key: '/settings/admin',
-                  label: '管理员管理',
-                },
-                {
-                  key: '/settings/announcement',
-                  label: '系统公告',
-                },
-                {
-                  key: '/settings/backup',
-                  label: '备份与恢复',
+                  key: '/settings/backups',
+                  label: '备份管理',
                 },
               ],
             },
