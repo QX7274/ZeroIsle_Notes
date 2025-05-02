@@ -96,9 +96,26 @@ const ProfileScreen = ({ navigation }) => {
   const renderUserInfo = () => {
     if (!user) {
       return (
-        <View style={[styles.userInfoContainer, { backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.userInfoContainer,
+            {
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: `${colors.border}80`,
+            }
+          ]}
+        >
           <View style={styles.userInfoContent}>
-            <View style={[styles.avatarContainer, { backgroundColor: colors.background }]}>
+            <View
+              style={[
+                styles.avatarContainer,
+                {
+                  backgroundColor: `${colors.primary}10`,
+                  borderColor: `${colors.primary}30`,
+                }
+              ]}
+            >
               <Image
                 source={getDefaultAvatar()}
                 style={styles.avatar}
@@ -109,7 +126,7 @@ const ProfileScreen = ({ navigation }) => {
               <Text
                 variant="heading"
                 level="h5"
-                style={styles.username}
+                style={[styles.username, { color: colors.text }]}
               >
                 未登录
               </Text>
@@ -127,17 +144,35 @@ const ProfileScreen = ({ navigation }) => {
             title="登录/注册"
             onPress={handleLogin}
             style={styles.loginButton}
+            gradientType="primary"
+            elevated={true}
           />
         </View>
       );
     }
 
     return (
-      <View style={[styles.userInfoContainer, { backgroundColor: colors.card }]}>
+      <View
+        style={[
+          styles.userInfoContainer,
+          {
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: `${colors.border}80`,
+          }
+        ]}
+      >
         <View style={styles.userInfoContent}>
           <TouchableOpacity
-            style={[styles.avatarContainer, { backgroundColor: colors.background }]}
+            style={[
+              styles.avatarContainer,
+              {
+                backgroundColor: colors.background,
+                borderColor: `${colors.primary}30`,
+              }
+            ]}
             onPress={() => navigation.navigate('ProfileSettings')}
+            activeOpacity={0.8}
           >
             {user.avatar ? (
               // 用户上传的头像
@@ -165,15 +200,21 @@ const ProfileScreen = ({ navigation }) => {
                 defaultSource={require('../assets/images/default_avatar.png')}
               />
             )}
-            <View style={styles.editAvatarBadge}>
-              <Icon name="edit" size={14} color="#fff" />
+            <View style={[
+              styles.editAvatarBadge,
+              {
+                backgroundColor: colors.primary,
+                borderColor: colors.card,
+              }
+            ]}>
+              <Icon name="edit" size={16} color="#fff" />
             </View>
           </TouchableOpacity>
           <View style={styles.userTextContainer}>
             <Text
               variant="heading"
               level="h5"
-              style={styles.username}
+              style={[styles.username, { color: colors.text }]}
             >
               {user.username || '未设置用户名'}
             </Text>
@@ -197,30 +238,34 @@ const ProfileScreen = ({ navigation }) => {
       <TouchableOpacity
         style={[styles.settingItem, { backgroundColor: colors.card }]}
         onPress={onPress}
+        activeOpacity={0.7}
       >
         <View style={styles.settingContent}>
-          <Icon
-            name={icon}
-            size={24}
-            color={colors.primary}
-            style={styles.settingIcon}
-          />
+          <View style={[styles.settingIcon, { backgroundColor: `${colors.primary}15` }]}>
+            <Icon
+              name={icon}
+              size={18}
+              color={colors.primary}
+            />
+          </View>
           <View style={styles.settingTextContainer}>
             <Text
               variant="body"
               size="medium"
+              style={{ fontWeight: '600', fontSize: 16, marginBottom: 4 }}
             >
               {title}
             </Text>
             <Text
               variant="caption"
               color="textSecondary"
+              style={{ fontSize: 13, lineHeight: 18 }}
             >
               {description}
             </Text>
           </View>
         </View>
-        <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+        <Icon name="chevron-right" size={22} color={colors.textSecondary} style={{ opacity: 0.7 }} />
       </TouchableOpacity>
     );
   };
@@ -260,13 +305,26 @@ const ProfileScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text
-            variant="heading"
-            level="h4"
-            style={styles.headerTitle}
-          >
-            个人中心
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: `${colors.primary}15`,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 12,
+            }}>
+              <Icon name="person" size={20} color={colors.primary} />
+            </View>
+            <Text
+              variant="heading"
+              level="h4"
+              style={styles.headerTitle}
+            >
+              个人中心
+            </Text>
+          </View>
         </View>
 
         {renderUserInfo()}
@@ -303,16 +361,42 @@ const ProfileScreen = ({ navigation }) => {
           {/* 设置按钮 - 放在底部 */}
           <View style={styles.bottomSettingsContainer}>
             <TouchableOpacity
-              style={[styles.settingsToggle, { backgroundColor: colors.card }]}
+              style={[
+                styles.settingsToggle,
+                {
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: `${colors.primary}20`,
+                }
+              ]}
               onPress={toggleSettings}
+              activeOpacity={0.7}
             >
-              <Text
-                variant="body"
-                size="medium"
-                style={styles.settingsToggleText}
-              >
-                {showSettings ? '隐藏设置' : '显示设置'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={[
+                  styles.settingIcon,
+                  {
+                    backgroundColor: `${colors.primary}15`,
+                    marginRight: 12,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                  }
+                ]}>
+                  <Icon
+                    name="settings"
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={styles.settingsToggleText}
+                >
+                  {showSettings ? '隐藏设置选项' : '显示设置选项'}
+                </Text>
+              </View>
               <Icon
                 name={showSettings ? "keyboard-arrow-up" : "keyboard-arrow-down"}
                 size={24}
@@ -369,76 +453,111 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 24,
+    paddingBottom: 32,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    marginLeft: 8,
-  },
-  userInfoContainer: {
-    marginHorizontal: 16,
-    marginVertical: 16,
-    borderRadius: 16,
-    padding: 16,
-    elevation: 4,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  headerTitle: {
+    marginLeft: 4,
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  userInfoContainer: {
+    marginHorizontal: 20,
+    marginVertical: 20,
+    borderRadius: 24,
+    padding: 24,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   userInfoContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    elevation: 4,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     position: 'relative',
+    borderWidth: 4,
+    borderColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   editAvatarBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#007AFF',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    backgroundColor: '#4361EE',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#fff',
+    elevation: 6,
+    shadowColor: '#4361EE',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
   },
   userTextContainer: {
-    marginLeft: 16,
+    marginLeft: 24,
     flex: 1,
   },
   username: {
-    marginBottom: 4,
+    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 32,
   },
   userDescription: {
-    marginBottom: 8,
+    marginBottom: 12,
+    fontSize: 15,
+    lineHeight: 22,
+    opacity: 0.8,
   },
   loginButton: {
-    marginTop: 16,
+    marginTop: 24,
     width: '100%',
+    height: 54,
+    borderRadius: 27,
+    elevation: 6,
+    shadowColor: '#4361EE',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   // 内容容器
   contentContainer: {
@@ -447,50 +566,55 @@ const styles = StyleSheet.create({
   },
   // 主要功能区域
   mainFunctionsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   // 底部设置区域
   bottomSettingsContainer: {
-    marginTop: 24,
+    marginTop: 40,
   },
   // 设置切换按钮
   settingsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    elevation: 2,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 24,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   settingsToggleText: {
-    fontWeight: '500',
+    fontWeight: '600',
+    fontSize: 18,
   },
   settingsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    marginBottom: 20,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   settingContent: {
     flexDirection: 'row',
@@ -498,36 +622,59 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingIcon: {
-    marginRight: 16,
+    marginRight: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(67, 97, 238, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#4361EE',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   settingTextContainer: {
     flex: 1,
   },
   divider: {
-    marginVertical: 16,
+    marginVertical: 24,
+    height: 1,
+    opacity: 0.1,
   },
   logoutButton: {
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 32,
+    marginBottom: 24,
+    height: 54,
+    borderRadius: 27,
+    elevation: 6,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   settingsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 16,
-    elevation: 2,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    marginHorizontal: 20,
+    marginTop: 24,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   settingsButtonText: {
-    marginLeft: 8,
-    fontWeight: '500',
+    marginLeft: 12,
+    fontWeight: '600',
+    fontSize: 18,
   },
 });
 

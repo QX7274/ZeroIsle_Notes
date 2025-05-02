@@ -19,10 +19,13 @@ import { Loading } from '../components/common';
 // 导入导航器
 import AuthNavigator from './AuthNavigator';
 import SettingsNavigator from './SettingsNavigator';
+import ReminderNavigator from './ReminderNavigator';
 
 // 导入屏幕
 import HomeScreen from '../screens/HomeScreen';
 import ReminderScreen from '../screens/ReminderScreen';
+import AddReminderScreen from '../screens/AddReminderScreen';
+import ReminderDetailScreen from '../screens/ReminderDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
 import ThemeCustomizationScreen from '../screens/ThemeCustomizationScreen';
@@ -41,6 +44,8 @@ import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
 import NodeDetailScreen from '../screens/knowledge/NodeDetailScreen';
 import EdgeEditScreen from '../screens/knowledge/EdgeEditScreen';
 import KnowledgeAnalysisScreen from '../screens/knowledge/KnowledgeAnalysisScreen';
+// 导入群组导航器
+import GroupsNavigator from './GroupsNavigator';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -112,10 +117,14 @@ const MainTabs = () => {
             iconName = 'home';
           } else if (route.name === 'CategoryStack') {
             iconName = 'folder';
+          } else if (route.name === 'ReminderStack') {
+            iconName = 'event-note';
           } else if (route.name === 'AIAssistant') {
             iconName = 'smart-toy';
           } else if (route.name === 'CommunityStack') {
             iconName = 'forum';
+          } else if (route.name === 'GroupsStack') {
+            iconName = 'groups';
           } else if (route.name === 'Profile') {
             iconName = 'person';
           }
@@ -169,6 +178,15 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
+        name="ReminderStack"
+        component={ReminderNavigator}
+        options={{
+          headerShown: false,
+          title: '日程',
+          tabBarLabel: '日程',
+        }}
+      />
+      <Tab.Screen
         name="AIAssistant"
         component={AIAssistantScreen}
         options={{
@@ -183,6 +201,15 @@ const MainTabs = () => {
           headerShown: false,
           title: '社区',
           tabBarLabel: '社区',
+        }}
+      />
+      <Tab.Screen
+        name="GroupsStack"
+        component={GroupsNavigator}
+        options={{
+          headerShown: false,
+          title: '群组',
+          tabBarLabel: '群组',
         }}
       />
       <Tab.Screen
@@ -276,6 +303,31 @@ const HomeStack = () => {
           title: '知识分析',
           headerBackTitleVisible: false,
         }}
+      />
+
+      <Stack.Screen
+        name="Reminder"
+        component={ReminderScreen}
+        options={{
+          title: '日程管理',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="AddReminder"
+        component={AddReminderScreen}
+        options={{
+          title: '添加提醒',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="ReminderDetail"
+        component={ReminderDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '提醒详情',
+          headerBackTitleVisible: false,
+        })}
       />
     </Stack.Navigator>
   );

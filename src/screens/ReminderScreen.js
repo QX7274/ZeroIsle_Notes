@@ -1,25 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
-  Alert,
   ActivityIndicator,
-  SectionList,
-  RefreshControl,
+  SafeAreaView,
+  StatusBar,
   Platform,
 } from 'react-native';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { useTheme } from '../context/ThemeContext';
-import { useDispatch, useSelector } from 'react-redux';
-import { loadReminders, addReminder, updateReminder, deleteReminder } from '../store/slices/reminderSlice';
-import reminderNotificationService from '../services/reminderNotificationService';
-import networkService from '../services/networkService';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, isToday, isPast, isFuture, addDays } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import ReminderListView from '../components/reminder/ReminderListView';
+import ReminderCalendarView from '../components/reminder/ReminderCalendarView';
+import ReminderCategoryView from '../components/reminder/ReminderCategoryView';
+import ReminderStatisticsView from '../components/reminder/ReminderStatisticsView';
+import networkService from '../services/networkService';
+
+const Tab = createMaterialTopTabNavigator();
 
 const ReminderScreen = () => {
   const { theme, colors } = useTheme();

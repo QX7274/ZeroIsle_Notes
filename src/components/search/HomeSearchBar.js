@@ -28,7 +28,7 @@ const HomeSearchBar = ({ onSearch }) => {
   const handleSearchResult = (results) => {
     setShowSearch(false);
     onSearch?.(results);
-    
+
     // 如果有结果，导航到搜索结果页面
     if (results && results.length > 0) {
       navigation.navigate('SearchResults', { results });
@@ -38,11 +38,27 @@ const HomeSearchBar = ({ onSearch }) => {
   return (
     <>
       <TouchableOpacity
-        style={[styles.searchBar, { backgroundColor: colors.card }]}
+        style={[
+          styles.searchBar,
+          {
+            backgroundColor: colors.card,
+            borderColor: `${colors.border}80`,
+          }
+        ]}
         onPress={() => setShowSearch(true)}
         activeOpacity={0.7}
       >
-        <Icon name="search" size={22} color={colors.textSecondary} />
+        <View style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: `${colors.primary}10`,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginRight: 10,
+        }}>
+          <Icon name="search" size={20} color={colors.primary} />
+        </View>
         <Text
           variant="body"
           size="medium"
@@ -74,20 +90,22 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 16,
     marginVertical: 8,
-    elevation: 2,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   placeholder: {
-    marginLeft: 8,
+    marginLeft: 10,
     flex: 1,
+    fontSize: 15,
   },
   modalContainer: {
     flex: 1,

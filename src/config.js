@@ -4,6 +4,8 @@
 
 // API配置
 export const API_URL = 'http://localhost:8000/api';
+// 如果在移动设备上测试，请使用本机IP地址
+// export const API_URL = 'http://192.168.1.100:8000/api';
 export const API_TIMEOUT = 10000;
 
 // 认证配置

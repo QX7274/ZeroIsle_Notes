@@ -276,17 +276,75 @@ export const changePassword = async (oldPassword, newPassword) => {
 };
 
 /**
+ * 发送密码重置验证码
+ * @param {object} data - 包含email或phone的对象
+ * @returns {Promise} - 发送结果
+ */
+export const sendResetCode = async (data) => {
+  try {
+    console.log('发送密码重置验证码请求数据:', data);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
+      ...data,
+      type: 'reset_password'
+    });
+
+    console.log('发送密码重置验证码响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('发送密码重置验证码失败:', error);
+    return {
+      success: false,
+      message: error.message || '发送密码重置验证码失败',
+      error
+    };
+  }
+};
+
+/**
+ * 验证密码重置验证码
+ * @param {object} data - 包含email/phone和code的对象
+ * @returns {Promise} - 验证结果
+ */
+export const verifyResetCode = async (data) => {
+  try {
+    console.log('验证密码重置验证码请求数据:', data);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.VERIFY_RESET_CODE, {
+      ...data,
+      type: 'reset_password'
+    });
+
+    console.log('验证密码重置验证码响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('验证密码重置验证码失败:', error);
+    return {
+      success: false,
+      message: error.message || '验证密码重置验证码失败',
+      error
+    };
+  }
+};
+
+/**
  * 重置密码
- * @param {string} email - 邮箱
+ * @param {object} data - 包含email/phone、verification_id和new_password的对象
  * @returns {Promise} - 重置结果
  */
-export const resetPassword = async (email) => {
+export const resetPassword = async (data) => {
   try {
-    console.log('重置密码请求数据:', { email });
+    console.log('重置密码请求数据:', data);
 
-    const response = await instance.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
-      email
-    });
+    const response = await instance.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data);
 
     console.log('重置密码响应数据:', response.data);
 
@@ -306,18 +364,17 @@ export const resetPassword = async (email) => {
 
 /**
  * 发送验证码
- * @param {string} phone - 手机号
- * @param {string} type - 验证码类型 (login/register)
+ * @param {object} data - 包含email或phone的对象，以及type
  * @returns {Promise} - 发送结果
  */
-export const sendVerificationCode = async (phone, type = 'login') => {
+export const sendVerificationCode = async (data) => {
   try {
-    console.log('发送验证码:', phone, type);
+    console.log('发送验证码请求数据:', data);
 
-    const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
-      phone,
-      type
-    });
+    // 确保data是对象
+    const requestData = typeof data === 'object' ? data : { phone: data, type: arguments[1] || 'login' };
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, requestData);
 
     console.log('验证码发送响应:', response.data);
 

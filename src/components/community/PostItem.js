@@ -32,7 +32,7 @@ const PostItem = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 提取帖子信息
   const {
     title,
@@ -49,16 +49,16 @@ const PostItem = ({
     has_images,
     is_featured,
   } = post || {};
-  
+
   // 格式化日期
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    
+
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) {
       // 今天
       return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -74,11 +74,11 @@ const PostItem = ({
       return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
     }
   };
-  
+
   // 渲染标签
   const renderTags = () => {
     if (!tags || tags.length === 0) return null;
-    
+
     return (
       <View style={styles.tagsContainer}>
         {tags.slice(0, 3).map((tag, index) => (
@@ -98,7 +98,7 @@ const PostItem = ({
             </Text>
           </View>
         ))}
-        
+
         {tags.length > 3 && (
           <Text
             variant="caption"
@@ -111,7 +111,7 @@ const PostItem = ({
       </View>
     );
   };
-  
+
   return (
     <TouchableOpacity
       style={[
@@ -151,7 +151,7 @@ const PostItem = ({
             </Text>
           </View>
         </TouchableOpacity>
-        
+
         {is_featured && (
           <View
             style={[
@@ -170,7 +170,7 @@ const PostItem = ({
           </View>
         )}
       </View>
-      
+
       {/* 帖子内容 */}
       <View style={styles.content}>
         <Text
@@ -181,7 +181,7 @@ const PostItem = ({
         >
           {title}
         </Text>
-        
+
         {excerpt ? (
           <Text
             variant="body"
@@ -200,7 +200,7 @@ const PostItem = ({
           </View>
         )}
       </View>
-      
+
       {/* 帖子底部 */}
       <View style={styles.footer}>
         <View style={styles.metaContainer}>
@@ -221,10 +221,10 @@ const PostItem = ({
               </Text>
             </View>
           )}
-          
+
           {renderTags()}
         </View>
-        
+
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -243,7 +243,7 @@ const PostItem = ({
               {like_count || 0}
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onCommentPress}
@@ -261,7 +261,7 @@ const PostItem = ({
               {comment_count || 0}
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onSharePress}
@@ -280,81 +280,117 @@ const PostItem = ({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 8,
+    borderRadius: 16,
     marginHorizontal: 16,
     marginTop: 16,
     overflow: 'hidden',
-    elevation: 2,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   userContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#fff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   userInfo: {
-    marginLeft: 12,
+    marginLeft: 14,
   },
   featuredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   featuredText: {
-    marginLeft: 4,
+    marginLeft: 6,
+    fontWeight: '600',
   },
   content: {
-    padding: 12,
-    paddingTop: 0,
+    padding: 16,
+    paddingTop: 8,
   },
   title: {
-    marginBottom: 8,
+    marginBottom: 12,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 26,
   },
   excerpt: {
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 15,
+    opacity: 0.85,
   },
   markdownContainer: {
-    maxHeight: 100,
+    maxHeight: 120,
     overflow: 'hidden',
+    marginTop: 4,
   },
   footer: {
-    padding: 12,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingTop: 12,
   },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    flexWrap: 'wrap',
   },
   categoryContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginBottom: 6,
   },
   categoryColor: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   categoryText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -362,29 +398,46 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tagChip: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginRight: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginRight: 6,
+    marginBottom: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   tagText: {
-    fontSize: 10,
+    fontSize: 12,
+    fontWeight: '600',
   },
   moreTagsText: {
-    marginLeft: 4,
-    fontSize: 10,
+    marginLeft: 6,
+    fontSize: 12,
+    opacity: 0.7,
   },
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.03)',
+    paddingTop: 12,
+    marginTop: 4,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 16,
+    marginLeft: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   actionText: {
-    marginLeft: 4,
+    marginLeft: 6,
+    fontWeight: '500',
   },
 });
 

@@ -111,3 +111,20 @@ export const AI_ENDPOINTS = {
   GENERATE_MIND_MAP: `${API_BASE_URL}/ai/generate-mind-map`,
   MEETING_SUMMARY: `${API_BASE_URL}/ai/meeting-summary`,
 };
+
+// 群组相关
+export const GROUPS_ENDPOINTS = {
+  BASE: `${API_BASE_URL}/groups`,
+  DETAIL: (id) => `${API_BASE_URL}/groups/${id}`,
+  GENERATE_JOIN_CODE: (id) => `${API_BASE_URL}/groups/${id}/generate_join_code`,
+  JOIN_BY_CODE: `${API_BASE_URL}/groups/join_by_code`,
+  INVITE: (id) => `${API_BASE_URL}/groups/${id}/invite`,
+  MEMBERS: (id) => `${API_BASE_URL}/groups/${id}/members`,
+  LEAVE: (id) => `${API_BASE_URL}/groups/${id}/leave`,
+  INVITATIONS: `${API_BASE_URL}/invitations`,
+  ACCEPT_INVITATION: (id) => `${API_BASE_URL}/invitations/${id}/accept`,
+  REJECT_INVITATION: (id) => `${API_BASE_URL}/invitations/${id}/reject`,
+  SHARED_SCREENS: `${API_BASE_URL}/shared-screens`,
+  JOIN_SCREEN_SHARE: (id) => `${API_BASE_URL}/shared-screens/${id}/join`,
+  END_SCREEN_SHARE: (id) => `${API_BASE_URL}/shared-screens/${id}/end`,
+};

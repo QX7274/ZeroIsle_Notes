@@ -19,7 +19,7 @@ import {
   syncOfflineNotes,
   importNote
 } from '../store/slices/notesSlice';
-import DocumentPicker from '@react-native-documents/picker';
+import { pick, types } from '@react-native-documents/picker';
 import ImagePicker from 'react-native-image-picker';
 import { NoteList, NoteEditor, NoteDetail } from '../components/notes';
 import { Button } from '../components/common';
@@ -27,6 +27,8 @@ import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { offlineStorageService } from '../services/offlineStorage';
 import NoteToolbar from '../components/note/NoteToolbar';
+import OfflineAIToolbar from '../components/note/OfflineAIToolbar';
+import HandwritingRecognizer from '../components/note/HandwritingRecognizer';
 
 const NoteScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
@@ -52,6 +54,7 @@ const NoteScreen = ({ navigation, route }) => {
   const [activeTool, setActiveTool] = useState('pen');
   const [activeColor, setActiveColor] = useState('#000000');
   const [activeStrokeWidth, setActiveStrokeWidth] = useState(2);
+  const [showHandwritingRecognizer, setShowHandwritingRecognizer] = useState(false);
 
   // 初始化
   useEffect(() => {
@@ -319,29 +322,34 @@ const NoteScreen = ({ navigation, route }) => {
   const importPDF = async () => {
     try {
       // 使用文档选择器选择PDF文件
-      const res = await DocumentPicker.pick({
-        type: [DocumentPicker.types.pdf],
+      const results = await pick({
+        type: [types.pdf],
+        allowMultiSelection: false,
       });
 
-      // 创建FormData对象
-      const formData = new FormData();
-      formData.append('file', {
-        uri: res[0].uri,
-        type: res[0].type,
-        name: res[0].name,
-      });
-      formData.append('type', 'pdf');
+      if (results && results.length > 0) {
+        const file = results[0];
 
-      // 调用导入API
-      const result = await dispatch(importNote(formData)).unwrap();
+        // 创建FormData对象
+        const formData = new FormData();
+        formData.append('file', {
+          uri: file.uri,
+          type: file.type,
+          name: file.name,
+        });
+        formData.append('type', 'pdf');
 
-      // 导入成功后查看笔记
-      if (result) {
-        handleViewNote(result);
-        ToastAndroid.show('PDF导入成功', ToastAndroid.SHORT);
+        // 调用导入API
+        const result = await dispatch(importNote(formData)).unwrap();
+
+        // 导入成功后查看笔记
+        if (result) {
+          handleViewNote(result);
+          ToastAndroid.show('PDF导入成功', ToastAndroid.SHORT);
+        }
       }
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) {
+      if (err.code !== 'DOCUMENT_PICKER_CANCELED') {
         console.error('导入PDF错误:', err);
         Alert.alert('导入失败', err.message || '请稍后重试');
       }
@@ -352,29 +360,34 @@ const NoteScreen = ({ navigation, route }) => {
   const importWord = async () => {
     try {
       // 使用文档选择器选择Word文件
-      const res = await DocumentPicker.pick({
-        type: [DocumentPicker.types.docx, DocumentPicker.types.doc],
+      const results = await pick({
+        type: [types.docx, types.doc],
+        allowMultiSelection: false,
       });
 
-      // 创建FormData对象
-      const formData = new FormData();
-      formData.append('file', {
-        uri: res[0].uri,
-        type: res[0].type,
-        name: res[0].name,
-      });
-      formData.append('type', 'word');
+      if (results && results.length > 0) {
+        const file = results[0];
 
-      // 调用导入API
-      const result = await dispatch(importNote(formData)).unwrap();
+        // 创建FormData对象
+        const formData = new FormData();
+        formData.append('file', {
+          uri: file.uri,
+          type: file.type,
+          name: file.name,
+        });
+        formData.append('type', 'word');
 
-      // 导入成功后查看笔记
-      if (result) {
-        handleViewNote(result);
-        ToastAndroid.show('Word文档导入成功', ToastAndroid.SHORT);
+        // 调用导入API
+        const result = await dispatch(importNote(formData)).unwrap();
+
+        // 导入成功后查看笔记
+        if (result) {
+          handleViewNote(result);
+          ToastAndroid.show('Word文档导入成功', ToastAndroid.SHORT);
+        }
       }
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) {
+      if (err.code !== 'DOCUMENT_PICKER_CANCELED') {
         console.error('导入Word错误:', err);
         Alert.alert('导入失败', err.message || '请稍后重试');
       }
@@ -464,13 +477,50 @@ const NoteScreen = ({ navigation, route }) => {
     setSelectedText(text);
   };
 
+  // 处理手写识别
+  const handleShowHandwritingRecognizer = () => {
+    setShowHandwritingRecognizer(true);
+  };
+
+  // 处理手写识别结果
+  const handleHandwritingRecognized = (text) => {
+    if (selectedNote && view === 'edit') {
+      // 将识别的文本插入到笔记中
+      const updatedNote = {
+        ...selectedNote,
+        content: selectedNote.content + '\n\n' + text
+      };
+      setSelectedNote(updatedNote);
+      ToastAndroid.show('手写文本已插入', ToastAndroid.SHORT);
+    }
+
+    // 关闭手写识别器
+    setShowHandwritingRecognizer(false);
+  };
+
   // 处理AI处理结果
   const handleAIProcessResult = (result, toolId) => {
     // 根据工具类型处理结果
     switch (toolId) {
       case 'translate':
-        Alert.alert('翻译结果', result);
+        // 显示翻译结果
+        Alert.alert('翻译结果', result, [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '替换原文',
+            onPress: () => {
+              if (selectedNote && view === 'edit' && selectedText) {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content.replace(selectedText, result)
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
         break;
+
       case 'code_recognition':
         // 将识别的代码插入到笔记中
         if (selectedNote && view === 'edit') {
@@ -479,29 +529,164 @@ const NoteScreen = ({ navigation, route }) => {
             content: selectedNote.content + '\n\n```\n' + result + '\n```'
           };
           setSelectedNote(updatedNote);
+          ToastAndroid.show('代码已插入', ToastAndroid.SHORT);
         }
         break;
+
       case 'summarize':
-        Alert.alert('摘要', result);
+        // 显示摘要结果
+        Alert.alert('摘要', result, [
+          { text: '关闭', style: 'cancel' },
+          {
+            text: '插入笔记',
+            onPress: () => {
+              if (selectedNote && view === 'edit') {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content + '\n\n### 摘要\n' + result
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
         break;
+
       case 'extract_keywords':
-        Alert.alert('关键词', result);
+        // 显示关键词结果
+        Alert.alert('关键词', result, [
+          { text: '关闭', style: 'cancel' },
+          {
+            text: '添加为标签',
+            onPress: () => {
+              if (selectedNote && view === 'edit') {
+                // 将关键词添加为标签
+                const keywords = result.split(/[,，、\s]+/).filter(k => k.trim());
+                const updatedNote = {
+                  ...selectedNote,
+                  tags: [...(selectedNote.tags || []), ...keywords]
+                };
+                setSelectedNote(updatedNote);
+                ToastAndroid.show('已添加为标签', ToastAndroid.SHORT);
+              }
+            }
+          }
+        ]);
         break;
+
       case 'explain':
-        Alert.alert('解释', result);
+        // 显示解释结果
+        Alert.alert('解释', result, [
+          { text: '关闭', style: 'cancel' },
+          {
+            text: '插入笔记',
+            onPress: () => {
+              if (selectedNote && view === 'edit') {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content + '\n\n### 解释\n' + result
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
         break;
+
       case 'rewrite':
-        // 将改写的文本插入到笔记中
-        if (selectedNote && view === 'edit') {
-          const updatedNote = {
-            ...selectedNote,
-            content: selectedNote.content.replace(selectedText, result)
-          };
-          setSelectedNote(updatedNote);
-        }
+        // 显示改写结果并提供替换选项
+        Alert.alert('改写结果', result, [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '替换原文',
+            onPress: () => {
+              if (selectedNote && view === 'edit' && selectedText) {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content.replace(selectedText, result)
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
         break;
+
+      case 'grammar':
+        // 显示语法检查结果
+        Alert.alert('语法检查', result, [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '应用修改',
+            onPress: () => {
+              if (selectedNote && view === 'edit' && selectedText) {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content.replace(selectedText, result)
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
+        break;
+
+      case 'simplify':
+        // 显示简化结果
+        Alert.alert('简化结果', result, [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '替换原文',
+            onPress: () => {
+              if (selectedNote && view === 'edit' && selectedText) {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content.replace(selectedText, result)
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
+        break;
+
+      case 'math_formula':
+        // 显示数学公式识别结果
+        Alert.alert('数学公式识别结果', result, [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '插入LaTeX',
+            onPress: () => {
+              if (selectedNote && view === 'edit') {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content + '\n\n$$\n' + result + '\n$$'
+                };
+                setSelectedNote(updatedNote);
+                ToastAndroid.show('LaTeX公式已插入', ToastAndroid.SHORT);
+              }
+            }
+          }
+        ]);
+        break;
+
       default:
-        Alert.alert('AI处理结果', result);
+        // 处理其他工具的结果
+        Alert.alert('AI处理结果', result, [
+          { text: '关闭', style: 'cancel' },
+          {
+            text: '插入笔记',
+            onPress: () => {
+              if (selectedNote && view === 'edit') {
+                const updatedNote = {
+                  ...selectedNote,
+                  content: selectedNote.content + '\n\n' + result
+                };
+                setSelectedNote(updatedNote);
+              }
+            }
+          }
+        ]);
     }
   };
 
@@ -670,27 +855,70 @@ const NoteScreen = ({ navigation, route }) => {
   if (view === 'edit') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* 工具栏 */}
-        <NoteToolbar
-          onToolChange={handleToolChange}
-          onColorChange={handleColorChange}
-          onStrokeWidthChange={handleStrokeWidthChange}
-          onAIProcessResult={handleAIProcessResult}
-          selectedText={selectedText}
-          isEditMode={true}
-        />
+        <View style={styles.editorHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackToList}
+          >
+            <Icon name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
 
-        <NoteEditor
-          note={selectedNote}
-          onSave={handleSaveNote}
-          onCancel={handleBackToList}
-          categories={categories}
-          tags={tags}
-          loading={isLoading}
-          activeTool={activeTool}
-          activeColor={activeColor}
-          activeStrokeWidth={activeStrokeWidth}
-          onTextSelection={handleTextSelection}
+          <Text
+            variant="heading"
+            level="h6"
+            style={styles.editorTitle}
+          >
+            {selectedNote?.title || '新建笔记'}
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.saveButton, { backgroundColor: colors.primary }]}
+            onPress={() => handleSaveNote(selectedNote)}
+          >
+            <Icon name="save" size={20} color="#fff" />
+            <Text variant="body" size="small" color="white" style={styles.saveButtonText}>
+              保存
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 工具栏 */}
+        <View style={styles.toolbarsContainer}>
+          <NoteToolbar
+            onToolChange={handleToolChange}
+            onColorChange={handleColorChange}
+            onStrokeWidthChange={handleStrokeWidthChange}
+            onAIProcessResult={handleAIProcessResult}
+            selectedText={selectedText}
+            isEditMode={true}
+          />
+
+          {/* 离线AI工具栏 */}
+          <OfflineAIToolbar
+            onRecognizeHandwriting={handleShowHandwritingRecognizer}
+          />
+        </View>
+
+        <View style={styles.editorContent}>
+          <NoteEditor
+            note={selectedNote}
+            onSave={handleSaveNote}
+            onCancel={handleBackToList}
+            categories={categories}
+            tags={tags}
+            loading={isLoading}
+            activeTool={activeTool}
+            activeColor={activeColor}
+            activeStrokeWidth={activeStrokeWidth}
+            onTextSelection={handleTextSelection}
+          />
+        </View>
+
+        {/* 手写识别器 */}
+        <HandwritingRecognizer
+          visible={showHandwritingRecognizer}
+          onClose={() => setShowHandwritingRecognizer(false)}
+          onRecognized={handleHandwritingRecognized}
         />
       </View>
     );
@@ -723,8 +951,8 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
+    bottom: 24,
+    right: 24,
     flexDirection: 'column',
     alignItems: 'flex-end',
   },
@@ -735,49 +963,102 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   addButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowRadius: 6,
   },
   addButtonInner: {
     width: '100%',
     height: '100%',
-    borderRadius: 28,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   createOptionsContainer: {
     position: 'absolute',
-    bottom: 72,
+    bottom: 76,
     right: 0,
-    width: 160,
-    borderRadius: 12,
-    padding: 8,
-    elevation: 4,
+    width: 180,
+    borderRadius: 16,
+    padding: 12,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
   },
   createOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 10,
+    marginVertical: 2,
   },
   createOptionText: {
     marginLeft: 12,
+    fontWeight: '500',
+  },
+  // 编辑器样式
+  editorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    backgroundColor: '#fff',
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
+  editorTitle: {
+    flex: 1,
+    marginLeft: 16,
+    fontSize: 18,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  saveButtonText: {
+    marginLeft: 8,
+    fontWeight: 'bold',
+  },
+  toolbarsContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  editorContent: {
+    flex: 1,
   },
 });
 

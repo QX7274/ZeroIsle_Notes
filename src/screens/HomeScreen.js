@@ -369,17 +369,32 @@ const HomeScreen = ({ navigation }) => {
 
       {/* 头部区域 */}
       <View style={styles.header}>
-        <Text
-          variant="heading"
-          level="h5"
-          style={styles.headerTitle}
-        >
-          零屿笔记
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: `${colors.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 12,
+          }}>
+            <Icon name="document-text" size={22} color={colors.primary} />
+          </View>
+          <Text
+            variant="heading"
+            level="h4"
+            style={styles.headerTitle}
+          >
+            零屿笔记
+          </Text>
+        </View>
       </View>
 
       {/* 搜索栏 */}
-      <HomeSearchBar onSearch={handleSearch} />
+      <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+        <HomeSearchBar onSearch={handleSearch} />
+      </View>
 
       {/* 排序控件 */}
       <SortControl
@@ -598,107 +613,154 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   headerTitle: {
     flex: 1,
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   listContainer: {
-    padding: 16
+    padding: 20
   },
   columnWrapper: {
     justifyContent: 'space-between'
   },
   noteItem: {
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    elevation: 2,
-    width: Dimensions.get('window').width / 2 - 24,
-    margin: 4
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    width: Dimensions.get('window').width / 2 - 30,
+    margin: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   noteTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 8,
-    marginBottom: 4
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 12,
+    marginBottom: 8,
+    lineHeight: 24,
   },
   noteContent: {
-    fontSize: 14,
-    marginBottom: 8
+    fontSize: 15,
+    marginBottom: 12,
+    lineHeight: 22,
   },
   noteFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.03)',
   },
   noteDate: {
-    fontSize: 12
+    fontSize: 13,
+    opacity: 0.7,
+    fontWeight: '500',
   },
   deleteButton: {
-    padding: 4
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,0,0,0.08)',
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // 封面样式
   coverContainer: {
-    height: 120,
-    borderRadius: 4,
-    backgroundColor: '#F5F5F5',
+    height: 160,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.02)',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   coverImage: {
     width: '100%',
-    height: 120,
-    borderRadius: 4
+    height: 160,
+    borderRadius: 16
   },
   coverText: {
-    marginTop: 8,
-    fontSize: 14
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '600',
   },
   coverContent: {
-    padding: 8,
-    fontSize: 12,
-    lineHeight: 18
+    padding: 16,
+    fontSize: 14,
+    lineHeight: 22,
+    opacity: 0.9,
   },
   buttonContainer: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
+    right: 24,
+    bottom: 24,
     flexDirection: 'column',
   },
   addButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.27,
-    shadowRadius: 4.65,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     position: 'relative',
     zIndex: 1,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
   },
   addButtonInner: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   addButtonPulse: {
     position: 'absolute',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     opacity: 0.6,
     zIndex: -1,
+    // 添加动画效果
+    animationName: 'pulse',
+    animationDuration: '2s',
+    animationIterationCount: 'infinite',
   },
   // 加载指示器样式
   loaderContainer: {
@@ -709,114 +771,157 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 999,
+    backdropFilter: 'blur(5px)',
   },
   // 空状态样式
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 30,
+    paddingVertical: 50,
   },
   // 创建选项弹出菜单样式
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    backdropFilter: 'blur(5px)',
   },
   createOptionsContainer: {
-    width: '80%',
-    borderRadius: 12,
-    padding: 16,
-    elevation: 5,
+    width: '90%',
+    borderRadius: 24,
+    padding: 24,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   createOptionsTitle: {
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   createOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    marginBottom: 4,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.03)',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   createOptionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   createOptionContent: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 4,
   },
   createOptionText: {
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '700',
+    marginBottom: 6,
+    fontSize: 18,
   },
   createOptionDescription: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.8,
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 32,
+    fontWeight: '800',
+    marginTop: 24,
+    marginBottom: 16,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 22,
+    marginBottom: 40,
+    lineHeight: 28,
+    opacity: 0.8,
+    paddingHorizontal: 30,
   },
   // AI助手卡片样式
   aiAssistantCard: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 16,
-    elevation: 2,
+    width: '90%',
+    padding: 24,
+    borderRadius: 24,
+    marginTop: 30,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.03)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   aiAssistantHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 20,
   },
   aiAssistantTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    marginLeft: 16,
+    letterSpacing: -0.5,
   },
   aiAssistantDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+    opacity: 0.9,
   },
   aiAssistantButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
     alignSelf: 'flex-start',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   aiAssistantButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginRight: 4,
+    fontSize: 16,
+    fontWeight: '700',
+    marginRight: 8,
   }
 });
 

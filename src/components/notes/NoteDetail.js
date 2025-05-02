@@ -35,10 +35,10 @@ const NoteDetail = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [showFullContent, setShowFullContent] = useState(false);
-  
+
   // 处理分享
   const handleShare = async () => {
     try {
@@ -50,23 +50,23 @@ const NoteDetail = ({
       console.error('分享失败:', error);
     }
   };
-  
+
   // 处理导出
   const handleExport = () => {
     // 导出功能实现
   };
-  
+
   // 处理链接点击
   const handleLinkPress = (url) => {
     Linking.openURL(url).catch(err => {
       console.error('无法打开链接:', err);
     });
   };
-  
+
   // 渲染标签
   const renderTags = () => {
     if (!note.tags || note.tags.length === 0) return null;
-    
+
     return (
       <View style={styles.tagsContainer}>
         {note.tags.map(tag => (
@@ -89,11 +89,11 @@ const NoteDetail = ({
       </View>
     );
   };
-  
+
   // 渲染相关笔记
   const renderRelatedNotes = () => {
     if (!relatedNotes || relatedNotes.length === 0) return null;
-    
+
     return (
       <View style={styles.relatedNotesContainer}>
         <Text
@@ -104,7 +104,7 @@ const NoteDetail = ({
         >
           相关笔记
         </Text>
-        
+
         {relatedNotes.map(relatedNote => (
           <Card
             key={relatedNote.id}
@@ -120,7 +120,7 @@ const NoteDetail = ({
             >
               {relatedNote.title}
             </Text>
-            
+
             {relatedNote.content && (
               <Text
                 variant="body"
@@ -137,17 +137,17 @@ const NoteDetail = ({
       </View>
     );
   };
-  
+
   // 渲染笔记内容
   const renderContent = () => {
     if (!note.content) return null;
-    
+
     const contentToShow = showFullContent
       ? note.content
       : note.content.length > 500
         ? `${note.content.substring(0, 500)}...`
         : note.content;
-    
+
     return (
       <>
         <Text
@@ -157,7 +157,7 @@ const NoteDetail = ({
         >
           {contentToShow}
         </Text>
-        
+
         {note.content.length > 500 && (
           <TouchableOpacity
             style={styles.showMoreButton}
@@ -175,7 +175,7 @@ const NoteDetail = ({
       </>
     );
   };
-  
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
@@ -187,7 +187,7 @@ const NoteDetail = ({
           >
             {note.title}
           </Text>
-          
+
           <View style={styles.metaContainer}>
             {note.category && (
               <View style={[
@@ -203,7 +203,7 @@ const NoteDetail = ({
                 </Text>
               </View>
             )}
-            
+
             <Text
               variant="body"
               size="small"
@@ -213,17 +213,17 @@ const NoteDetail = ({
               {formatDate(note.updated_at || note.created_at)}
             </Text>
           </View>
-          
+
           {renderTags()}
         </View>
-        
+
         <Card style={styles.contentCard}>
           {renderContent()}
         </Card>
-        
+
         {renderRelatedNotes()}
       </ScrollView>
-      
+
       <View style={[
         styles.actionBar,
         { backgroundColor: colors.card }
@@ -234,7 +234,7 @@ const NoteDetail = ({
         >
           <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        
+
         <View style={styles.actionGroup}>
           {onEdit && (
             <TouchableOpacity
@@ -244,21 +244,21 @@ const NoteDetail = ({
               <Icon name="edit" size={24} color={colors.primary} />
             </TouchableOpacity>
           )}
-          
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={handleShare}
           >
             <Icon name="share" size={24} color={colors.text} />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={handleExport}
           >
             <Icon name="file-download" size={24} color={colors.text} />
           </TouchableOpacity>
-          
+
           {onDelete && (
             <TouchableOpacity
               style={styles.actionButton}
@@ -281,78 +281,137 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 16,
+    padding: 20,
   },
   noteTitle: {
-    marginBottom: 16,
+    marginBottom: 20,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 32,
   },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginRight: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    marginRight: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   dateText: {
     marginTop: 4,
+    fontSize: 14,
+    opacity: 0.7,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: 12,
   },
   tagItem: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 10,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   contentCard: {
-    margin: 16,
+    margin: 20,
     marginTop: 0,
-    padding: 16,
+    padding: 20,
+    borderRadius: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   noteContent: {
-    lineHeight: 24,
+    lineHeight: 26,
+    fontSize: 16,
   },
   showMoreButton: {
-    marginTop: 16,
+    marginTop: 20,
     alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   relatedNotesContainer: {
-    padding: 16,
+    padding: 20,
     paddingTop: 0,
   },
   relatedNotesTitle: {
-    marginBottom: 12,
+    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
   },
   relatedNoteCard: {
-    marginBottom: 12,
-    padding: 12,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   relatedNoteExcerpt: {
-    marginTop: 4,
+    marginTop: 8,
+    lineHeight: 22,
+    opacity: 0.8,
   },
   actionBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 8,
+    padding: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.01)',
   },
   actionGroup: {
     flexDirection: 'row',
   },
   actionButton: {
-    padding: 8,
-    marginHorizontal: 4,
+    padding: 10,
+    marginHorizontal: 6,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
 });
 

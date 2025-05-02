@@ -23,7 +23,7 @@ const Canvas = ({ elements, onContentChange, onElementSelect }) => {
         return element;
       });
       onContentChange(newElements);
-      analyticsService.trackCanvasAction('move_element', { 
+      analyticsService.trackCanvasAction('move_element', {
         elementId: selectedElement.id,
         elementType: selectedElement.type,
       });
@@ -47,7 +47,7 @@ const Canvas = ({ elements, onContentChange, onElementSelect }) => {
         return element;
       });
       onContentChange(newElements);
-      analyticsService.trackCanvasAction('scale_element', { 
+      analyticsService.trackCanvasAction('scale_element', {
         elementId: selectedElement.id,
         elementType: selectedElement.type,
       });
@@ -68,7 +68,7 @@ const Canvas = ({ elements, onContentChange, onElementSelect }) => {
         return element;
       });
       onContentChange(newElements);
-      analyticsService.trackCanvasAction('rotate_element', { 
+      analyticsService.trackCanvasAction('rotate_element', {
         elementId: selectedElement.id,
         elementType: selectedElement.type,
       });
@@ -201,6 +201,16 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
+    backgroundColor: 'rgba(245,245,250,0.5)',
+    borderRadius: 16,
+    margin: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   canvas: {
     width: screenWidth * 2,
@@ -208,10 +218,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -screenHeight / 2,
     left: -screenWidth / 2,
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
   element: {
     position: 'absolute',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
 });
 
-export default Canvas; 
+export default Canvas;

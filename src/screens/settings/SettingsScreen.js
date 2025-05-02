@@ -23,15 +23,15 @@ const SettingsScreen = ({ navigation }) => {
   const { theme, setTheme } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取设置
   const settings = useSelector(state => state.settings);
   const user = useSelector(state => state.auth.user);
-  
+
   // 本地状态
   const [appVersion, setAppVersion] = useState('');
   const [offlineStatus, setOfflineStatus] = useState(offlineStorageService.getStatus());
-  
+
   // 获取应用版本
   useEffect(() => {
     const getVersion = async () => {
@@ -39,10 +39,10 @@ const SettingsScreen = ({ navigation }) => {
       const buildNumber = await DeviceInfo.getBuildNumber();
       setAppVersion(`${version} (${buildNumber})`);
     };
-    
+
     getVersion();
   }, []);
-  
+
   // 监听离线存储服务状态变化
   useEffect(() => {
     const unsubscribe = offlineStorageService.addListener(event => {
@@ -50,26 +50,26 @@ const SettingsScreen = ({ navigation }) => {
         setOfflineStatus(offlineStorageService.getStatus());
       }
     });
-    
+
     return () => unsubscribe();
   }, []);
-  
+
   // 更新设置
   const updateSetting = (key, value) => {
     const newSettings = { ...settings, [key]: value };
     dispatch(updateSettings(newSettings));
-    
+
     // 特殊处理主题
     if (key === 'theme') {
       setTheme(value);
     }
-    
+
     // 特殊处理离线模式
     if (key === 'offlineMode') {
       offlineStorageService.setOfflineMode(value);
     }
   };
-  
+
   // 处理重置设置
   const handleResetSettings = () => {
     Alert.alert(
@@ -92,7 +92,7 @@ const SettingsScreen = ({ navigation }) => {
       ]
     );
   };
-  
+
   // 渲染设置项
   const renderSettingItem = ({ icon, title, description, onPress, value, type = 'navigate' }) => (
     <TouchableOpacity
@@ -103,7 +103,7 @@ const SettingsScreen = ({ navigation }) => {
       <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
         <Icon name={icon} size={24} color={colors.primary} />
       </View>
-      
+
       <View style={styles.settingInfo}>
         <Text
           variant="body"
@@ -112,7 +112,7 @@ const SettingsScreen = ({ navigation }) => {
         >
           {title}
         </Text>
-        
+
         {description && (
           <Text
             variant="caption"
@@ -122,11 +122,11 @@ const SettingsScreen = ({ navigation }) => {
           </Text>
         )}
       </View>
-      
+
       {type === 'navigate' && (
         <Icon name="chevron-right" size={24} color={colors.text} />
       )}
-      
+
       {type === 'switch' && (
         <Switch
           value={value}
@@ -135,7 +135,7 @@ const SettingsScreen = ({ navigation }) => {
           thumbColor={value ? colors.primary : colors.card}
         />
       )}
-      
+
       {type === 'value' && (
         <Text
           variant="body"
@@ -147,7 +147,7 @@ const SettingsScreen = ({ navigation }) => {
       )}
     </TouchableOpacity>
   );
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -160,7 +160,7 @@ const SettingsScreen = ({ navigation }) => {
           >
             账户
           </Text>
-          
+
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {user ? (
               <TouchableOpacity
@@ -181,7 +181,7 @@ const SettingsScreen = ({ navigation }) => {
                     {user.email || '未设置邮箱'}
                   </Text>
                 </View>
-                
+
                 <Icon name="chevron-right" size={24} color={colors.text} />
               </TouchableOpacity>
             ) : (
@@ -203,13 +203,13 @@ const SettingsScreen = ({ navigation }) => {
                     点击登录或注册
                   </Text>
                 </View>
-                
+
                 <Icon name="chevron-right" size={24} color={colors.text} />
               </TouchableOpacity>
             )}
           </View>
         </View>
-        
+
         {/* 外观设置 */}
         <View style={styles.section}>
           <Text
@@ -219,28 +219,28 @@ const SettingsScreen = ({ navigation }) => {
           >
             外观
           </Text>
-          
+
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {renderSettingItem({
               icon: 'palette',
               title: '主题',
-              description: settings.theme === 'light' ? '浅色' : 
+              description: settings.theme === 'light' ? '浅色' :
                           settings.theme === 'dark' ? '深色' : '跟随系统',
               onPress: () => navigation.navigate('ThemeSettings'),
               type: 'navigate',
             })}
-            
+
             {renderSettingItem({
               icon: 'format-size',
               title: '字体大小',
-              description: settings.fontSize === 'small' ? '小' : 
+              description: settings.fontSize === 'small' ? '小' :
                           settings.fontSize === 'medium' ? '中' : '大',
               onPress: () => navigation.navigate('FontSettings'),
               type: 'navigate',
             })}
           </View>
         </View>
-        
+
         {/* 数据设置 */}
         <View style={styles.section}>
           <Text
@@ -250,7 +250,7 @@ const SettingsScreen = ({ navigation }) => {
           >
             数据
           </Text>
-          
+
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {renderSettingItem({
               icon: 'cloud-off',
@@ -259,7 +259,7 @@ const SettingsScreen = ({ navigation }) => {
               onPress: () => navigation.navigate('OfflineData'),
               type: 'navigate',
             })}
-            
+
             {renderSettingItem({
               icon: 'save',
               title: '自动保存',
@@ -268,7 +268,7 @@ const SettingsScreen = ({ navigation }) => {
               value: settings.autoSave,
               type: 'switch',
             })}
-            
+
             {renderSettingItem({
               icon: 'backup',
               title: '备份与恢复',
@@ -278,7 +278,7 @@ const SettingsScreen = ({ navigation }) => {
             })}
           </View>
         </View>
-        
+
         {/* 通知设置 */}
         <View style={styles.section}>
           <Text
@@ -288,7 +288,7 @@ const SettingsScreen = ({ navigation }) => {
           >
             通知
           </Text>
-          
+
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {renderSettingItem({
               icon: 'notifications',
@@ -299,7 +299,7 @@ const SettingsScreen = ({ navigation }) => {
             })}
           </View>
         </View>
-        
+
         {/* 关于 */}
         <View style={styles.section}>
           <Text
@@ -309,7 +309,7 @@ const SettingsScreen = ({ navigation }) => {
           >
             关于
           </Text>
-          
+
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {renderSettingItem({
               icon: 'info',
@@ -317,14 +317,14 @@ const SettingsScreen = ({ navigation }) => {
               onPress: () => navigation.navigate('About'),
               type: 'navigate',
             })}
-            
+
             {renderSettingItem({
               icon: 'help',
               title: '帮助与反馈',
               onPress: () => navigation.navigate('Help'),
               type: 'navigate',
             })}
-            
+
             {renderSettingItem({
               icon: 'new-releases',
               title: '版本',
@@ -334,7 +334,7 @@ const SettingsScreen = ({ navigation }) => {
             })}
           </View>
         </View>
-        
+
         {/* 重置设置 */}
         <TouchableOpacity
           style={[styles.resetButton, { backgroundColor: colors.error + '20' }]}
@@ -361,28 +361,34 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: 20,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 30,
   },
   sectionTitle: {
-    marginBottom: 8,
-    marginLeft: 8,
+    marginBottom: 12,
+    marginLeft: 12,
+    fontSize: 18,
+    fontWeight: '700',
   },
   sectionContent: {
-    borderRadius: 8,
+    borderRadius: 16,
     overflow: 'hidden',
-    elevation: 2,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   profileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   profileInfo: {
     flex: 1,
@@ -390,17 +396,22 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 20,
+    elevation: 2,
+    shadowColor: '#4361EE',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   settingInfo: {
     flex: 1,
@@ -409,12 +420,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 32,
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 40,
+    marginHorizontal: 20,
+    elevation: 4,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.1)',
   },
   resetButtonText: {
-    marginLeft: 8,
+    marginLeft: 12,
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
 

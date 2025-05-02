@@ -27,16 +27,16 @@ const NoteDetailScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
   const { note } = route.params || {};
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [noteData, setNoteData] = useState(null);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
   const [annotations, setAnnotations] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const contentRef = useRef(null);
   const scrollViewRef = useRef(null);
-  
+
   // 绘图画布
   const drawingCanvas = DrawingCanvas({
     width: Dimensions.get('window').width,
@@ -56,22 +56,22 @@ const NoteDetailScreen = ({ route, navigation }) => {
       handleScreenshotTaken(uri);
     },
   });
-  
+
   useEffect(() => {
     if (note && note.id) {
       loadNoteDetail(note.id);
     }
   }, [note]);
-  
+
   // 加载笔记详情
   const loadNoteDetail = async (noteId) => {
     try {
       setIsLoading(true);
       const response = await notesApi.getById(noteId);
-      
+
       if (response.success) {
         setNoteData(response.data);
-        
+
         // 加载注释
         if (response.data.annotations) {
           setAnnotations(response.data.annotations);
@@ -86,28 +86,28 @@ const NoteDetailScreen = ({ route, navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 保存笔记
   const saveNote = async () => {
     try {
       setIsLoading(true);
-      
+
       // 更新笔记数据，包括注释
       const updatedNote = {
         ...noteData,
         annotations,
       };
-      
+
       // 调用API保存笔记
       const response = await notesApi.update(noteData.id, updatedNote);
-      
+
       if (response.success) {
         // 更新Redux状态
         dispatch(updateNote({
           id: noteData.id,
           noteData: updatedNote,
         }));
-        
+
         ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
       } else {
         throw new Error(response.message || '保存失败');
@@ -119,17 +119,17 @@ const NoteDetailScreen = ({ route, navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 处理截图
   const handleScreenshotTaken = async (uri) => {
     try {
       // 创建截图笔记
       const fileName = `screenshot_${Date.now()}.png`;
       const newPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      
+
       // 复制截图到应用目录
       await RNFS.copyFile(uri, newPath);
-      
+
       // 创建新笔记
       const screenshotNote = {
         title: `截图 ${new Date().toLocaleString()}`,
@@ -139,10 +139,10 @@ const NoteDetailScreen = ({ route, navigation }) => {
           imagePath: newPath,
         },
       };
-      
+
       // 保存截图笔记
       const response = await notesApi.create(screenshotNote);
-      
+
       if (response.success) {
         ToastAndroid.show('截图已保存为新笔记', ToastAndroid.SHORT);
       } else {
@@ -153,15 +153,15 @@ const NoteDetailScreen = ({ route, navigation }) => {
       Alert.alert('错误', '保存截图失败');
     }
   };
-  
+
   // 渲染PDF文档
   const renderPDF = () => {
     if (!noteData || !noteData.metadata || !noteData.metadata.pdfPath) {
       return null;
     }
-    
+
     const source = { uri: noteData.metadata.pdfPath };
-    
+
     return (
       <View style={styles.pdfContainer}>
         <Pdf
@@ -175,13 +175,13 @@ const NoteDetailScreen = ({ route, navigation }) => {
       </View>
     );
   };
-  
+
   // 渲染图片
   const renderImage = () => {
     if (!noteData || !noteData.metadata || !noteData.metadata.imagePath) {
       return null;
     }
-    
+
     return (
       <Image
         source={{ uri: noteData.metadata.imagePath }}
@@ -190,11 +190,11 @@ const NoteDetailScreen = ({ route, navigation }) => {
       />
     );
   };
-  
+
   // 渲染文本内容
   const renderTextContent = () => {
     if (!noteData) return null;
-    
+
     return (
       <View style={styles.textContainer}>
         <Text variant="heading" level="h1" style={styles.title}>
@@ -206,11 +206,11 @@ const NoteDetailScreen = ({ route, navigation }) => {
       </View>
     );
   };
-  
+
   // 渲染画布内容
   const renderCanvasContent = () => {
     if (!noteData || noteData.type !== 'canvas') return null;
-    
+
     return (
       <View style={styles.canvasContainer}>
         {/* 这里可以渲染画布内容 */}
@@ -218,16 +218,16 @@ const NoteDetailScreen = ({ route, navigation }) => {
       </View>
     );
   };
-  
+
   // 渲染注释
   const renderAnnotations = () => {
     if (!annotations || annotations.length === 0) return null;
-    
+
     // 只渲染当前页的注释
     const currentPageAnnotations = annotations.filter(
       (annotation) => annotation.page === currentPage
     );
-    
+
     return (
       <View style={styles.annotationsContainer}>
         {currentPageAnnotations.map((annotation) => (
@@ -238,7 +238,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
       </View>
     );
   };
-  
+
   // 渲染加载状态
   if (isLoading && !noteData) {
     return (
@@ -247,7 +247,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
       </View>
     );
   }
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 绘图工具栏 */}
@@ -264,7 +264,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
           onClear={drawingCanvas.handleClear}
         />
       )}
-      
+
       {/* 内容区域 */}
       <ScrollView
         ref={scrollViewRef}
@@ -277,15 +277,15 @@ const NoteDetailScreen = ({ route, navigation }) => {
           {noteData && noteData.type === 'image' && renderImage()}
           {noteData && (noteData.type === 'note' || !noteData.type) && renderTextContent()}
           {noteData && noteData.type === 'canvas' && renderCanvasContent()}
-          
+
           {/* 绘图画布 */}
           {showDrawingTools && drawingCanvas.render()}
-          
+
           {/* 注释 */}
           {renderAnnotations()}
         </View>
       </ScrollView>
-      
+
       {/* 底部工具栏 */}
       <View style={[styles.bottomBar, { backgroundColor: colors.card }]}>
         <TouchableOpacity
@@ -301,7 +301,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
             {showDrawingTools ? '隐藏绘图' : '显示绘图'}
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.bottomBarButton}
           onPress={saveNote}
@@ -328,33 +328,72 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    padding: 16,
+    padding: 20,
   },
   textContainer: {
     flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   title: {
-    marginBottom: 16,
+    marginBottom: 20,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 32,
   },
   content: {
-    lineHeight: 24,
+    lineHeight: 26,
+    fontSize: 16,
   },
   pdfContainer: {
     flex: 1,
     height: Dimensions.get('window').height - 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   pdf: {
     flex: 1,
-    width: Dimensions.get('window').width - 32,
+    width: Dimensions.get('window').width - 40,
     height: Dimensions.get('window').height - 200,
+    borderRadius: 16,
   },
   image: {
     width: '100%',
     height: Dimensions.get('window').height - 200,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   canvasContainer: {
     flex: 1,
     height: Dimensions.get('window').height - 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   annotationsContainer: {
     position: 'absolute',
@@ -371,17 +410,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 56,
+    height: 64,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
   bottomBarButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    marginHorizontal: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   bottomBarButtonText: {
-    marginLeft: 8,
+    marginLeft: 10,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

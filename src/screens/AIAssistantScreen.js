@@ -470,19 +470,50 @@ const AIAssistantScreen = ({ navigation }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text
-          variant="heading"
-          level="h4"
-          style={styles.headerTitle}
-        >
-          AI助手
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: `${colors.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 12,
+          }}>
+            <Icon name="smart-toy" size={20} color={colors.primary} />
+          </View>
+          <Text
+            variant="heading"
+            level="h4"
+            style={styles.headerTitle}
+          >
+            AI助手
+          </Text>
+        </View>
         <View style={styles.headerButtons}>
-          <TouchableOpacity style={styles.headerButton} onPress={handleClearChatHistory}>
-            <Icon name="delete" size={24} color={colors.text} />
+          <TouchableOpacity
+            style={[
+              styles.headerButton,
+              {
+                backgroundColor: `${colors.error}10`,
+              }
+            ]}
+            onPress={handleClearChatHistory}
+            activeOpacity={0.7}
+          >
+            <Icon name="delete" size={20} color={colors.error} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={handleOpenSettings}>
-            <Icon name="settings" size={24} color={colors.text} />
+          <TouchableOpacity
+            style={[
+              styles.headerButton,
+              {
+                backgroundColor: `${colors.primary}10`,
+              }
+            ]}
+            onPress={handleOpenSettings}
+            activeOpacity={0.7}
+          >
+            <Icon name="settings" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -490,20 +521,71 @@ const AIAssistantScreen = ({ navigation }) => {
       {renderAISelector()}
 
       {/* AI引擎选择器 - 放在顶部 */}
-      <View style={[styles.aiSelectorContainer, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+      <View style={[
+        styles.aiSelectorContainer,
+        {
+          borderBottomColor: colors.border,
+          backgroundColor: `${colors.primary}05`,
+          paddingHorizontal: 20,
+          paddingVertical: 14,
+        }
+      ]}>
+        <View style={styles.aiSelectorHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: `${colors.primary}15`,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 10,
+            }}>
+              <Icon name="smart-toy" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.aiSelectorLabel, { color: colors.text }]}>
+              选择AI助手
+            </Text>
+          </View>
+        </View>
         <TouchableOpacity
-          style={[styles.aiSelectorButton, { borderColor: colors.border }]}
+          style={[
+            styles.aiSelectorButton,
+            {
+              borderColor: `${colors.primary}30`,
+              backgroundColor: colors.card,
+              marginTop: 8,
+              elevation: 2,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+            }
+          ]}
           onPress={() => setShowAISelector(true)}
+          activeOpacity={0.7}
         >
-          <Icon name="smart-toy" size={22} color={colors.primary} style={styles.aiSelectorIcon} />
-          <Text
-            variant="body"
-            size="medium"
-            style={styles.aiSelectorText}
-          >
-            {aiEngineOptions.find(option => option.id === aiEngine)?.name || '选择AI引擎'}
-          </Text>
-          <Icon name="arrow-drop-down" size={24} color={colors.text} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: `${colors.primary}15`,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 12,
+            }}>
+              <Icon name="smart-toy" size={16} color={colors.primary} />
+            </View>
+            <Text
+              variant="body"
+              size="medium"
+              style={[styles.aiSelectorText, { fontWeight: '500' }]}
+            >
+              {aiEngineOptions.find(option => option.id === aiEngine)?.name || '选择AI引擎'}
+            </Text>
+          </View>
+          <Icon name="keyboard-arrow-down" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -561,74 +643,108 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   headerTitle: {
-    marginLeft: 8,
+    marginLeft: 10,
+    fontSize: 24,
+    fontWeight: '700',
   },
   headerButtons: {
     flexDirection: 'row',
   },
   headerButton: {
     marginLeft: 16,
-    padding: 4,
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   errorBanner: {
-    padding: 8,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,0,0,0.1)',
+    backgroundColor: 'rgba(255,0,0,0.05)',
   },
   messagesList: {
-    padding: 16,
+    padding: 20,
     flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    height: 200,
+    padding: 30,
+    height: 350,
   },
   // AI选择器相关样式
   aiSelectorContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.01)',
   },
   aiSelectorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   aiSelectorLabel: {
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '600',
   },
   aiSettingsButton: {
-    padding: 4,
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   aiSelectorButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    elevation: 1,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  aiSelectorIcon: {
+    marginRight: 10,
   },
   aiSelectorText: {
     flex: 1,
+    fontWeight: '600',
+    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -636,25 +752,37 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     maxHeight: '70%',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   modalTitle: {
-    marginBottom: 16,
+    marginBottom: 24,
     textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
   },
   aiOptionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
 });
 

@@ -35,32 +35,32 @@ const ChatMessage = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [showActions, setShowActions] = useState(false);
-  
+
   // 是否为用户消息
   const isUser = message.sender === 'user';
-  
+
   // 复制消息
   const handleCopy = () => {
     Clipboard.setString(message.text);
-    
+
     if (Platform.OS === 'android') {
       ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
     } else {
       Alert.alert('提示', '已复制到剪贴板');
     }
-    
+
     setShowActions(false);
   };
-  
+
   // 重试消息
   const handleRetry = () => {
     onRetry && onRetry(message);
     setShowActions(false);
   };
-  
+
   // 渲染消息内容
   const renderContent = () => {
     // 如果是错误消息
@@ -79,7 +79,7 @@ const ChatMessage = ({
         </View>
       );
     }
-    
+
     // 如果启用了Markdown渲染且不是用户消息
     if (markdownEnabled && !isUser && !message.isStreaming) {
       return (
@@ -163,7 +163,7 @@ const ChatMessage = ({
         </Markdown>
       );
     }
-    
+
     // 普通文本
     return (
       <Text
@@ -175,7 +175,7 @@ const ChatMessage = ({
       </Text>
     );
   };
-  
+
   return (
     <View style={[
       styles.container,
@@ -185,42 +185,66 @@ const ChatMessage = ({
         styles.messageContainer,
         isUser ? [
           styles.userMessage,
-          { backgroundColor: colors.primary }
+          {
+            backgroundColor: colors.primary,
+            borderWidth: 0,
+          }
         ] : [
           styles.assistantMessage,
-          { backgroundColor: colors.card }
+          {
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: `${colors.border}80`,
+          }
         ],
       ]}>
         {renderContent()}
-        
+
         {message.isStreaming && (
           <View style={styles.streamingIndicator}>
+            <View style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: colors.primary,
+              marginRight: 6,
+              opacity: 0.7,
+            }} />
             <Text
               variant="body"
               size="small"
               color="hint"
+              style={{ fontStyle: 'italic' }}
             >
               正在输入...
             </Text>
           </View>
         )}
       </View>
-      
+
       {!isUser && !message.isStreaming && (
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[
+              styles.actionButton,
+              { backgroundColor: `${colors.primary}10` }
+            ]}
             onPress={handleCopy}
+            activeOpacity={0.7}
           >
-            <Icon name="content-copy" size={20} color={colors.text} />
+            <Icon name="content-copy" size={16} color={colors.primary} />
           </TouchableOpacity>
-          
+
           {message.isError && onRetry && (
             <TouchableOpacity
-              style={styles.actionButton}
+              style={[
+                styles.actionButton,
+                { backgroundColor: `${colors.error}10` }
+              ]}
               onPress={handleRetry}
+              activeOpacity={0.7}
             >
-              <Icon name="refresh" size={20} color={colors.text} />
+              <Icon name="refresh" size={16} color={colors.error} />
             </TouchableOpacity>
           )}
         </View>
@@ -231,8 +255,8 @@ const ChatMessage = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
-    maxWidth: '85%',
+    marginVertical: 10,
+    maxWidth: '88%',
   },
   userContainer: {
     alignSelf: 'flex-end',
@@ -241,9 +265,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   messageContainer: {
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 20,
+    padding: 14,
     minWidth: 60,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   userMessage: {
     borderTopRightRadius: 4,
@@ -252,27 +281,38 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
   },
   messageText: {
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 15,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 4,
   },
   errorText: {
-    marginLeft: 8,
+    marginLeft: 10,
+    lineHeight: 20,
   },
   streamingIndicator: {
-    marginTop: 8,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    marginTop: 4,
-    marginLeft: 8,
+    marginTop: 6,
+    marginLeft: 10,
   },
   actionButton: {
-    padding: 4,
-    marginRight: 8,
+    padding: 6,
+    marginRight: 10,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
