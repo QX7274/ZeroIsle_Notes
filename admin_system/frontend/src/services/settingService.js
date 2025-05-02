@@ -146,6 +146,17 @@ export const getActiveAnnouncements = async () => {
   }
 };
 
+// 获取公告统计信息
+export const getAnnouncementStats = async () => {
+  try {
+    const response = await api.get('/settings/announcements/stats/');
+    return response.data;
+  } catch (error) {
+    console.error('获取公告统计信息错误:', error);
+    throw error;
+  }
+};
+
 // 同步系统设置
 export const syncSettings = async (options = {}) => {
   try {
@@ -257,6 +268,21 @@ export const createFullBackup = async (backupData = {}) => {
     return response.data;
   } catch (error) {
     console.error('创建完整备份错误:', error);
+    throw error;
+  }
+};
+
+// 导入备份
+export const importBackup = async (formData) => {
+  try {
+    const response = await api.post('/settings/backups/import_backup/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('导入备份错误:', error);
     throw error;
   }
 };

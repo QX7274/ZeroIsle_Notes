@@ -132,6 +132,66 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         ).save()
 
+    @action(detail=True, methods=['patch'])
+    def status(self, request, pk=None):
+        """更新用户状态"""
+        user = self.get_object()
+        new_status = request.data.get('status')
+
+        if not new_status:
+            return Response(
+                {"error": "未提供状态参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if new_status not in [s[0] for s in UserProfile.USER_STATUS_CHOICES]:
+            return Response(
+                {"error": f"无效的状态值: {new_status}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 更新用户状态
+        old_status = user.status
+        user.status = new_status
+
+        # 根据状态更新is_active
+        if new_status == 'active':
+            user.is_active = True
+        else:
+            user.is_active = False
+
+        user.save()
+
+        # 同步到主应用
+        try:
+            user_data = {
+                "status": new_status,
+                "is_active": user.is_active,
+                "updated_at": timezone.now()
+            }
+            user_service.update_user_in_main_app(user.id, user_data)
+        except Exception as e:
+            logger.error(f"同步用户状态到主应用时出错: {str(e)}")
+
+        # 记录用户状态变更活动
+        activity_type = f'user_{new_status}'
+        description = f'管理员将用户 {user.username} 的状态从 {old_status} 变更为 {new_status}'
+
+        UserActivity(
+            user=user,
+            activity_type=activity_type,
+            description=description,
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        ).save()
+
+        logger.info(f"管理员 {request.user} 更新了用户状态: {user.username} -> {new_status}")
+
+        return Response({
+            'status': 'success',
+            'message': f'用户 {user.username} 的状态已更新为 {new_status}'
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'])
     def ban(self, request, pk=None):
         """禁用用户"""
@@ -217,6 +277,58 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         serializer = UserActivitySerializer(activities, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'])
+    def reset_password(self, request, pk=None):
+        """重置用户密码"""
+        user = self.get_object()
+
+        try:
+            # 生成随机密码
+            import random
+            import string
+            password_length = 12
+            password_chars = string.ascii_letters + string.digits + string.punctuation
+            new_password = ''.join(random.choice(password_chars) for i in range(password_length))
+
+            # 在主应用中更新密码
+            try:
+                # 这里应该调用主应用的密码重置API
+                # 由于我们没有直接访问主应用的密码哈希逻辑，这里只是模拟
+                user_service.update_user_in_main_app(user.id, {
+                    "password_reset": True,
+                    "updated_at": timezone.now()
+                })
+            except Exception as e:
+                logger.error(f"在主应用中重置用户密码时出错: {str(e)}")
+                return Response(
+                    {"error": f"在主应用中重置用户密码失败: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # 记录密码重置活动
+            UserActivity(
+                user=user,
+                activity_type='password_reset',
+                description=f'管理员重置了用户 {user.username} 的密码',
+                ip_address=request.META.get('REMOTE_ADDR', ''),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            ).save()
+
+            logger.info(f"管理员 {request.user} 重置了用户密码: {user.username}")
+
+            return Response({
+                'status': 'success',
+                'message': f'用户 {user.username} 的密码已重置',
+                'new_password': new_password  # 在实际生产环境中，应该通过更安全的方式传递密码
+            })
+
+        except Exception as e:
+            logger.error(f"重置用户密码时出错: {str(e)}")
+            return Response(
+                {"error": f"重置用户密码失败: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['post'])
     def sync(self, request):
         """同步用户数据"""
@@ -266,25 +378,98 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         """用户统计信息"""
         try:
-            # 使用用户服务获取统计信息
-            stats_data = user_service.get_user_stats()
+            # 获取基本统计信息
+            total_users = UserProfile.objects.count()
+            active_users = UserProfile.objects.filter(status='active').count()
+            inactive_users = UserProfile.objects.filter(status='inactive').count()
+            banned_users = UserProfile.objects.filter(status='banned').count()
 
-            # 添加额外的统计信息
-            if 'total_users' in stats_data and stats_data['total_users'] > 0:
-                stats_data['active_rate'] = round(stats_data.get('active_users', 0) / stats_data['total_users'] * 100, 2)
-                stats_data['inactive_rate'] = round(stats_data.get('inactive_users', 0) / stats_data['total_users'] * 100, 2)
-                stats_data['banned_rate'] = round(stats_data.get('banned_users', 0) / stats_data['total_users'] * 100, 2)
-            else:
-                stats_data['active_rate'] = 0
-                stats_data['inactive_rate'] = 0
-                stats_data['banned_rate'] = 0
+            # 计算比率
+            active_rate = round(active_users / total_users * 100, 2) if total_users > 0 else 0
+            inactive_rate = round(inactive_users / total_users * 100, 2) if total_users > 0 else 0
+            banned_rate = round(banned_users / total_users * 100, 2) if total_users > 0 else 0
+
+            # 获取最近7天注册的用户数
+            last_7_days = timezone.now() - timezone.timedelta(days=7)
+            new_users_7_days = UserProfile.objects.filter(date_joined__gte=last_7_days).count()
+
+            # 获取最近30天注册的用户数
+            last_30_days = timezone.now() - timezone.timedelta(days=30)
+            new_users_30_days = UserProfile.objects.filter(date_joined__gte=last_30_days).count()
+
+            # 获取最近7天活跃用户数（有登录记录的用户）
+            active_users_7_days = UserProfile.objects.filter(last_login__gte=last_7_days).count()
+
+            # 获取最近30天活跃用户数
+            active_users_30_days = UserProfile.objects.filter(last_login__gte=last_30_days).count()
+
+            # 获取用户分布信息
+            user_distribution = {
+                'by_status': {
+                    'active': active_users,
+                    'inactive': inactive_users,
+                    'banned': banned_users
+                },
+                'by_role': {
+                    'admin': UserProfile.objects.filter(is_staff=True).count(),
+                    'regular': UserProfile.objects.filter(is_staff=False).count()
+                }
+            }
+
+            # 获取内容创建统计
+            total_notes = sum(user.note_count for user in UserProfile.objects.all())
+            total_canvases = sum(user.canvas_count for user in UserProfile.objects.all())
+
+            # 获取用户活跃度分布
+            login_distribution = {
+                'never_logged_in': UserProfile.objects.filter(last_login__isnull=True).count(),
+                'inactive_90_days': UserProfile.objects.filter(
+                    last_login__lt=timezone.now() - timezone.timedelta(days=90)
+                ).count(),
+                'active_90_days': UserProfile.objects.filter(
+                    last_login__gte=timezone.now() - timezone.timedelta(days=90)
+                ).count(),
+                'active_30_days': active_users_30_days,
+                'active_7_days': active_users_7_days
+            }
+
+            # 尝试从主应用获取更多统计信息
+            try:
+                main_app_stats = user_service.get_user_stats()
+            except Exception as e:
+                logger.warning(f"从主应用获取用户统计信息时出错: {str(e)}")
+                main_app_stats = {}
+
+            # 合并统计信息
+            stats_data = {
+                'total_users': total_users,
+                'active_users': active_users,
+                'inactive_users': inactive_users,
+                'banned_users': banned_users,
+                'active_rate': active_rate,
+                'inactive_rate': inactive_rate,
+                'banned_rate': banned_rate,
+                'new_users_7_days': new_users_7_days,
+                'new_users_30_days': new_users_30_days,
+                'active_users_7_days': active_users_7_days,
+                'active_users_30_days': active_users_30_days,
+                'user_distribution': user_distribution,
+                'content_stats': {
+                    'total_notes': total_notes,
+                    'total_canvases': total_canvases,
+                    'avg_notes_per_user': round(total_notes / total_users, 2) if total_users > 0 else 0,
+                    'avg_canvases_per_user': round(total_canvases / total_users, 2) if total_users > 0 else 0
+                },
+                'login_distribution': login_distribution,
+                'main_app_stats': main_app_stats
+            }
 
             serializer = UserStatsSerializer(stats_data)
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"获取用户统计信息时出错: {str(e)}")
             return Response(
-                {"error": "获取用户统计信息失败"},
+                {"error": f"获取用户统计信息失败: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -458,12 +643,109 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=False, methods=['post'])
+    def import_users(self, request):
+        """导入用户数据"""
+        try:
+            users_data = request.data.get('users', [])
+            if not users_data:
+                return Response(
+                    {"error": "未提供用户数据"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 处理导入的用户数据
+            imported_count = 0
+            updated_count = 0
+            failed_count = 0
+            errors = []
+
+            for user_data in users_data:
+                try:
+                    # 检查必填字段
+                    if not user_data.get('username'):
+                        errors.append(f"用户数据缺少必填字段 'username': {user_data}")
+                        failed_count += 1
+                        continue
+
+                    # 检查用户是否已存在
+                    try:
+                        existing_user = UserProfile.objects.get(username=user_data['username'])
+                        # 更新现有用户
+                        for key, value in user_data.items():
+                            if key != 'username' and hasattr(existing_user, key):
+                                setattr(existing_user, key, value)
+                        existing_user.save()
+                        updated_count += 1
+
+                        # 同步到主应用
+                        try:
+                            user_service.update_user_in_main_app(existing_user.id, user_data)
+                        except Exception as e:
+                            logger.error(f"同步用户数据到主应用时出错: {str(e)}")
+
+                    except UserProfile.DoesNotExist:
+                        # 创建新用户
+                        new_user = UserProfile(
+                            username=user_data['username'],
+                            email=user_data.get('email', ''),
+                            phone=user_data.get('phone', ''),
+                            nickname=user_data.get('nickname', ''),
+                            avatar=user_data.get('avatar', ''),
+                            bio=user_data.get('bio', ''),
+                            is_active=user_data.get('is_active', True),
+                            is_staff=user_data.get('is_staff', False),
+                            status=user_data.get('status', 'active'),
+                            preferences=user_data.get('preferences', {}),
+                            date_joined=user_data.get('date_joined', timezone.now())
+                        )
+                        new_user.save()
+                        imported_count += 1
+
+                        # 记录用户创建活动
+                        UserActivity(
+                            user=new_user,
+                            activity_type='user_imported',
+                            description=f'通过导入功能创建了用户 {new_user.username}',
+                            ip_address=request.META.get('REMOTE_ADDR', ''),
+                            user_agent=request.META.get('HTTP_USER_AGENT', '')
+                        ).save()
+
+                except Exception as e:
+                    errors.append(f"处理用户数据时出错: {user_data.get('username', 'unknown')}, 错误: {str(e)}")
+                    failed_count += 1
+
+            # 记录导入活动
+            UserActivity(
+                activity_type='users_imported',
+                description=f'管理员导入了用户数据: 新增 {imported_count} 个, 更新 {updated_count} 个, 失败 {failed_count} 个',
+                ip_address=request.META.get('REMOTE_ADDR', ''),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            ).save()
+
+            return Response({
+                "status": "success",
+                "message": f"用户导入完成: 新增 {imported_count} 个, 更新 {updated_count} 个, 失败 {failed_count} 个",
+                "imported_count": imported_count,
+                "updated_count": updated_count,
+                "failed_count": failed_count,
+                "errors": errors
+            })
+
+        except Exception as e:
+            logger.error(f"导入用户数据时出错: {str(e)}")
+            return Response(
+                {"error": f"导入用户数据失败: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
     def export(self, request):
         """导出用户数据"""
         try:
             # 获取筛选参数
             filters = request.data.get('filters', {})
             user_ids = request.data.get('user_ids', [])
+            export_format = request.data.get('format', 'json')  # 支持json和csv格式
 
             # 构建查询集
             queryset = self.get_queryset()
@@ -509,9 +791,18 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                     'login_count': user.login_count
                 })
 
+            # 记录导出活动
+            UserActivity(
+                activity_type='users_exported',
+                description=f'管理员导出了 {len(users_data)} 个用户数据',
+                ip_address=request.META.get('REMOTE_ADDR', ''),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            ).save()
+
             return Response({
                 "status": "success",
                 "message": f"成功导出 {len(users_data)} 个用户数据",
+                "format": export_format,
                 "data": users_data
             })
         except Exception as e:

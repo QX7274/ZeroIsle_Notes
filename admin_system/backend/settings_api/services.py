@@ -4,7 +4,7 @@ import shutil
 import zipfile
 import tempfile
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.utils import timezone
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -914,6 +914,85 @@ class BackupService:
             return {
                 'status': 'error',
                 'message': f"获取备份信息失败: {str(e)}"
+            }
+
+    def import_backup(self, backup_file, name, description, created_by):
+        """导入备份"""
+        try:
+            # 创建临时目录
+            temp_dir = tempfile.mkdtemp()
+
+            try:
+                # 保存上传的文件
+                file_path = os.path.join(temp_dir, backup_file.name)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in backup_file.chunks():
+                        destination.write(chunk)
+
+                # 验证备份文件
+                try:
+                    with zipfile.ZipFile(file_path, 'r') as zipf:
+                        # 检查是否包含元数据文件
+                        if 'metadata.json' not in zipf.namelist():
+                            raise ValueError("无效的备份文件：缺少元数据文件")
+
+                        # 解压元数据文件
+                        zipf.extract('metadata.json', temp_dir)
+
+                        # 读取元数据
+                        metadata_file = os.path.join(temp_dir, 'metadata.json')
+                        with open(metadata_file, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+
+                        # 检查元数据
+                        if 'backup_type' not in metadata:
+                            raise ValueError("无效的备份文件：元数据缺少备份类型")
+
+                        if 'collections' not in metadata:
+                            raise ValueError("无效的备份文件：元数据缺少集合信息")
+                except zipfile.BadZipFile:
+                    raise ValueError("无效的备份文件：不是有效的ZIP文件")
+
+                # 创建备份目标路径
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                backup_filename = f"imported_backup_{timestamp}.zip"
+                backup_path = os.path.join(self.backup_dir, backup_filename)
+
+                # 复制备份文件到备份目录
+                shutil.copy2(file_path, backup_path)
+
+                # 获取文件大小
+                file_size = os.path.getsize(backup_path)
+
+                # 创建备份记录
+                from .models import SystemBackup
+                backup = SystemBackup(
+                    name=name,
+                    description=description,
+                    backup_type=metadata.get('backup_type', 'full'),
+                    status='completed',
+                    file_path=backup_path,
+                    file_size=file_size,
+                    created_by=created_by,
+                    completed_at=timezone.now()
+                )
+                backup.save()
+
+                return {
+                    'status': 'success',
+                    'message': '备份导入成功',
+                    'backup_id': str(backup.id)
+                }
+
+            finally:
+                # 清理临时目录
+                shutil.rmtree(temp_dir)
+
+        except Exception as e:
+            logger.error(f"导入备份失败: {str(e)}")
+            return {
+                'status': 'error',
+                'message': f"导入备份失败: {str(e)}"
             }
 
 # 创建备份服务单例

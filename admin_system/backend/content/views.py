@@ -436,13 +436,19 @@ class NoteViewSet(viewsets.ModelViewSet):
 
             # 按笔记类型统计
             note_types = {}
-            for note_type, _ in Note.NOTE_TYPE_CHOICES:
-                note_types[note_type] = Note.objects.filter(note_type=note_type).count()
+            for note_type, note_type_display in Note.NOTE_TYPE_CHOICES:
+                note_types[note_type] = {
+                    'count': Note.objects.filter(note_type=note_type).count(),
+                    'display': note_type_display
+                }
 
             # 按状态统计
             note_status = {}
-            for status, _ in Note.NOTE_STATUS_CHOICES:
-                note_status[status] = Note.objects.filter(status=status).count()
+            for status, status_display in Note.NOTE_STATUS_CHOICES:
+                note_status[status] = {
+                    'count': Note.objects.filter(status=status).count(),
+                    'display': status_display
+                }
 
             # 按公开状态统计
             public_notes = Note.objects.filter(is_public=True).count()
@@ -451,6 +457,37 @@ class NoteViewSet(viewsets.ModelViewSet):
             # 统计最近一周的笔记数量
             one_week_ago = timezone.now() - timezone.timedelta(days=7)
             recent_notes = Note.objects.filter(created_at__gte=one_week_ago).count()
+
+            # 统计今日新增笔记
+            today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_new_notes = Note.objects.filter(created_at__gte=today).count()
+
+            # 统计最近30天的笔记增长趋势
+            from collections import defaultdict
+            growth_data = []
+            thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+            recent_notes_by_day = Note.objects.filter(created_at__gte=thirty_days_ago)
+
+            # 按日期分组统计
+            notes_by_date = defaultdict(int)
+            for note in recent_notes_by_day:
+                date_str = note.created_at.strftime('%Y-%m-%d')
+                notes_by_date[date_str] += 1
+
+            # 生成最近30天的日期列表
+            date_list = []
+            current_date = thirty_days_ago
+            while current_date <= timezone.now():
+                date_str = current_date.strftime('%Y-%m-%d')
+                date_list.append(date_str)
+                current_date += timezone.timedelta(days=1)
+
+            # 生成增长数据
+            for date_str in date_list:
+                growth_data.append({
+                    'date': date_str,
+                    'count': notes_by_date.get(date_str, 0)
+                })
 
             # 统计最活跃的分类
             from django.db.models import Count
@@ -466,16 +503,66 @@ class NoteViewSet(viewsets.ModelViewSet):
                     'note_count': category.note_count
                 })
 
+            # 统计最活跃的标签
+            top_tags = Tag.objects.annotate(
+                note_count=Count('note')
+            ).order_by('-note_count')[:5]
+
+            top_tags_data = []
+            for tag in top_tags:
+                top_tags_data.append({
+                    'id': str(tag.id),
+                    'name': tag.name,
+                    'note_count': tag.note_count
+                })
+
+            # 统计浏览量、点赞数和评论数最多的笔记
+            top_viewed_notes = Note.objects.order_by('-view_count')[:5]
+            top_liked_notes = Note.objects.order_by('-like_count')[:5]
+            top_commented_notes = Note.objects.order_by('-comment_count')[:5]
+
+            top_viewed_notes_data = []
+            for note in top_viewed_notes:
+                top_viewed_notes_data.append({
+                    'id': str(note.id),
+                    'title': note.title,
+                    'view_count': note.view_count
+                })
+
+            top_liked_notes_data = []
+            for note in top_liked_notes:
+                top_liked_notes_data.append({
+                    'id': str(note.id),
+                    'title': note.title,
+                    'like_count': note.like_count
+                })
+
+            top_commented_notes_data = []
+            for note in top_commented_notes:
+                top_commented_notes_data.append({
+                    'id': str(note.id),
+                    'title': note.title,
+                    'comment_count': note.comment_count
+                })
+
             return Response({
                 'status': 'success',
                 'data': {
                     'total_notes': total_notes,
+                    'published_notes': note_status.get('published', {}).get('count', 0),
+                    'draft_notes': note_status.get('draft', {}).get('count', 0),
+                    'today_new_notes': today_new_notes,
                     'note_types': note_types,
                     'note_status': note_status,
                     'public_notes': public_notes,
                     'private_notes': private_notes,
                     'recent_notes': recent_notes,
-                    'top_categories': top_categories_data
+                    'growth_data': growth_data,
+                    'top_categories': top_categories_data,
+                    'top_tags': top_tags_data,
+                    'top_viewed_notes': top_viewed_notes_data,
+                    'top_liked_notes': top_liked_notes_data,
+                    'top_commented_notes': top_commented_notes_data
                 }
             })
         except Exception as e:
@@ -526,6 +613,65 @@ class NoteViewSet(viewsets.ModelViewSet):
             logger.error(f"同步笔记数据时出错: {str(e)}")
             return Response(
                 {"error": f"同步笔记数据失败: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def batch_update_status(self, request):
+        """批量更新笔记状态"""
+        try:
+            note_ids = request.data.get('note_ids', [])
+            new_status = request.data.get('status')
+
+            if not note_ids:
+                return Response(
+                    {"error": "未提供笔记ID列表"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not new_status or new_status not in [s[0] for s in Note.NOTE_STATUS_CHOICES]:
+                return Response(
+                    {"error": f"无效的状态值: {new_status}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 批量更新笔记状态
+            updated_count = 0
+            for note_id in note_ids:
+                try:
+                    note = Note.objects.get(id=note_id)
+                    old_status = note.status
+                    note.status = new_status
+                    note.updated_at = timezone.now()
+                    note.save()
+
+                    # 同步到主应用
+                    try:
+                        note_data = {
+                            "status": new_status,
+                            "updated_at": timezone.now()
+                        }
+                        content_service.update_note_in_main_app(note.id, note_data)
+                    except Exception as e:
+                        logger.error(f"同步笔记状态到主应用时出错: {str(e)}")
+
+                    logger.info(f"管理员 {request.user} 将笔记 {note.title} 的状态从 {old_status} 更新为 {new_status}")
+                    updated_count += 1
+                except Note.DoesNotExist:
+                    logger.warning(f"笔记不存在: {note_id}")
+                except Exception as e:
+                    logger.error(f"更新笔记状态时出错: {str(e)}")
+
+            status_display = dict(Note.NOTE_STATUS_CHOICES).get(new_status, new_status)
+            return Response({
+                "status": "success",
+                "message": f"成功将 {updated_count} 个笔记状态更新为 {status_display}",
+                "updated_count": updated_count
+            })
+        except Exception as e:
+            logger.error(f"批量更新笔记状态时出错: {str(e)}")
+            return Response(
+                {"error": f"批量更新笔记状态失败: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

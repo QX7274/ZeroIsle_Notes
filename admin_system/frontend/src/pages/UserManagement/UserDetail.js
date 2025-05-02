@@ -16,6 +16,7 @@ import {
   Row,
   Col,
   Statistic,
+  Modal,
 } from 'antd';
 import {
   UserOutlined,
@@ -29,8 +30,9 @@ import {
   FileTextOutlined,
   TagOutlined,
   CommentOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
-import { getUserDetail, updateUserStatus, deleteUser } from '../../services/userService';
+import { getUserDetail, updateUserStatus, deleteUser, resetUserPassword } from '../../services/userService';
 import { getUserNotes, getUserComments } from '../../services/contentService';
 
 const { Title, Text } = Typography;
@@ -39,14 +41,14 @@ const { TabPane } = Tabs;
 const UserDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [user, setUser] = useState(null);
   const [notes, setNotes] = useState([]);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notesLoading, setNotesLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  
+
   // 获取用户详情
   const fetchUserDetail = async () => {
     try {
@@ -60,7 +62,7 @@ const UserDetail = () => {
       setLoading(false);
     }
   };
-  
+
   // 获取用户笔记
   const fetchUserNotes = async () => {
     try {
@@ -74,7 +76,7 @@ const UserDetail = () => {
       setNotesLoading(false);
     }
   };
-  
+
   // 获取用户评论
   const fetchUserComments = async () => {
     try {
@@ -88,11 +90,11 @@ const UserDetail = () => {
       setCommentsLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchUserDetail();
   }, [id]);
-  
+
   // 处理标签页切换
   const handleTabChange = (key) => {
     if (key === '2' && notes.length === 0) {
@@ -101,7 +103,7 @@ const UserDetail = () => {
       fetchUserComments();
     }
   };
-  
+
   // 处理更新用户状态
   const handleUpdateStatus = async (status) => {
     try {
@@ -113,7 +115,7 @@ const UserDetail = () => {
       message.error('更新用户状态失败，请稍后重试');
     }
   };
-  
+
   // 处理删除用户
   const handleDelete = async () => {
     try {
@@ -125,7 +127,32 @@ const UserDetail = () => {
       message.error('删除用户失败，请稍后重试');
     }
   };
-  
+
+  // 处理重置密码
+  const handleResetPassword = async () => {
+    try {
+      const result = await resetUserPassword(id);
+      if (result.new_password) {
+        // 显示新密码
+        Modal.success({
+          title: '密码重置成功',
+          content: (
+            <div>
+              <p>用户 {user.username} 的密码已重置。</p>
+              <p>新密码: <Text copyable strong>{result.new_password}</Text></p>
+              <p>请妥善保管此密码，并通知用户尽快修改。</p>
+            </div>
+          ),
+        });
+      } else {
+        message.success('密码重置成功，系统已发送新密码到用户邮箱');
+      }
+    } catch (error) {
+      console.error('重置密码失败:', error);
+      message.error('重置密码失败，请稍后重试');
+    }
+  };
+
   // 笔记表格列
   const noteColumns = [
     {
@@ -167,7 +194,7 @@ const UserDetail = () => {
       key: 'updatedAt',
     },
   ];
-  
+
   // 评论表格列
   const commentColumns = [
     {
@@ -190,7 +217,7 @@ const UserDetail = () => {
       key: 'createdAt',
     },
   ];
-  
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -199,7 +226,7 @@ const UserDetail = () => {
       </div>
     );
   }
-  
+
   if (!user) {
     return (
       <div className="not-found-container">
@@ -210,7 +237,7 @@ const UserDetail = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="user-detail-container">
       <Card>
@@ -227,6 +254,15 @@ const UserDetail = () => {
             >
               编辑
             </Button>
+            <Popconfirm
+              title="确定要重置该用户的密码吗？"
+              description="重置后将生成一个新的随机密码"
+              onConfirm={handleResetPassword}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button icon={<KeyOutlined />}>重置密码</Button>
+            </Popconfirm>
             {user.status === 'active' ? (
               <Popconfirm
                 title="确定要禁用该用户吗？"
@@ -261,7 +297,7 @@ const UserDetail = () => {
             </Popconfirm>
           </Space>
         </div>
-        
+
         <Row gutter={24} style={{ marginBottom: 24 }}>
           <Col span={6}>
             <Card bordered={false} style={{ textAlign: 'center' }}>
@@ -299,7 +335,7 @@ const UserDetail = () => {
             />
           </Col>
         </Row>
-        
+
         <Tabs defaultActiveKey="1" onChange={handleTabChange}>
           <TabPane tab="基本信息" key="1">
             <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 2, sm: 1, xs: 1 }}>
@@ -340,7 +376,7 @@ const UserDetail = () => {
               </Descriptions.Item>
             </Descriptions>
           </TabPane>
-          
+
           <TabPane tab="笔记列表" key="2">
             <Table
               columns={noteColumns}
@@ -350,7 +386,7 @@ const UserDetail = () => {
               pagination={{ pageSize: 5 }}
             />
           </TabPane>
-          
+
           <TabPane tab="评论列表" key="3">
             <Table
               columns={commentColumns}

@@ -152,6 +152,17 @@ export const batchDeleteUsers = async (userIds) => {
   }
 };
 
+// 导入用户数据
+export const importUsers = async (usersData) => {
+  try {
+    const response = await api.post('/users/profiles/import_users/', { users: usersData });
+    return response.data;
+  } catch (error) {
+    console.error('导入用户数据错误:', error);
+    throw error;
+  }
+};
+
 // 导出用户数据
 export const exportUsers = async (filters = {}, userIds = []) => {
   try {

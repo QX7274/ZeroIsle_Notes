@@ -58,6 +58,17 @@ export const exportAdminLogs = async (params) => {
     // 打开新窗口下载
     window.open(url, '_blank');
 
+    // 记录导出历史
+    try {
+      await api.post('/logs/export-history/', {
+        log_type: 'admin',
+        format: params.format || 'csv',
+        filter_params: params
+      });
+    } catch (historyError) {
+      console.error('记录导出历史错误:', historyError);
+    }
+
     return { status: 'success' };
   } catch (error) {
     console.error('导出管理员操作日志错误:', error);
@@ -97,6 +108,17 @@ export const exportSystemLogs = async (params) => {
     // 打开新窗口下载
     window.open(url, '_blank');
 
+    // 记录导出历史
+    try {
+      await api.post('/logs/export-history/', {
+        log_type: 'system',
+        format: params.format || 'csv',
+        filter_params: params
+      });
+    } catch (historyError) {
+      console.error('记录导出历史错误:', historyError);
+    }
+
     return { status: 'success' };
   } catch (error) {
     console.error('导出系统日志错误:', error);
@@ -111,6 +133,39 @@ export const syncAdminLogs = async (options = {}) => {
     return response.data;
   } catch (error) {
     console.error('同步管理员操作日志错误:', error);
+    throw error;
+  }
+};
+
+// 获取日志导出历史
+export const getExportHistory = async (params = {}) => {
+  try {
+    const response = await api.get('/logs/export-history/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('获取日志导出历史错误:', error);
+    throw error;
+  }
+};
+
+// 删除日志导出历史
+export const deleteExportHistory = async (id) => {
+  try {
+    const response = await api.delete(`/logs/export-history/${id}/`);
+    return response.data;
+  } catch (error) {
+    console.error('删除日志导出历史错误:', error);
+    throw error;
+  }
+};
+
+// 获取导出统计数据
+export const getExportStats = async () => {
+  try {
+    const response = await api.get('/logs/export-history/stats/');
+    return response.data;
+  } catch (error) {
+    console.error('获取导出统计数据错误:', error);
     throw error;
   }
 };

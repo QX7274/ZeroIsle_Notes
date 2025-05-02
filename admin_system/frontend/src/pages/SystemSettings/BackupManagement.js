@@ -18,7 +18,8 @@ import {
   Divider,
   Alert,
   Progress,
-  Typography
+  Typography,
+  Upload
 } from 'antd';
 import {
   PlusOutlined,
@@ -32,7 +33,9 @@ import {
   InfoCircleOutlined,
   SearchOutlined,
   DatabaseOutlined,
-  SettingOutlined
+  SettingOutlined,
+  UploadOutlined,
+  InboxOutlined
 } from '@ant-design/icons';
 import { PageHeader } from '../../components/common';
 import {
@@ -45,7 +48,8 @@ import {
   getBackupInfo,
   createFullBackup,
   createDataBackup,
-  createSettingsBackup
+  createSettingsBackup,
+  importBackup
 } from '../../services/settingService';
 import moment from 'dayjs';
 
@@ -55,13 +59,16 @@ const { Title, Text } = Typography;
 
 const BackupManagement = () => {
   const [form] = Form.useForm();
+  const [importForm] = Form.useForm();
   const [backups, setBackups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [importModalVisible, setImportModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [currentBackup, setCurrentBackup] = useState(null);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [restoreInProgress, setRestoreInProgress] = useState(false);
+  const [importFile, setImportFile] = useState(null);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -157,9 +164,80 @@ const BackupManagement = () => {
     setModalVisible(true);
   };
 
+  // 打开导入备份模态框
+  const showImportModal = () => {
+    importForm.resetFields();
+    setImportFile(null);
+    setImportModalVisible(true);
+  };
+
   // 关闭模态框
   const handleCancel = () => {
     setModalVisible(false);
+  };
+
+  // 关闭导入模态框
+  const handleImportCancel = () => {
+    setImportModalVisible(false);
+    setImportFile(null);
+  };
+
+  // 处理文件上传前的检查
+  const beforeUpload = (file) => {
+    // 检查文件类型
+    const isZip = file.type === 'application/zip' ||
+                 file.type === 'application/x-zip-compressed' ||
+                 file.name.endsWith('.zip');
+
+    if (!isZip) {
+      message.error('只支持上传ZIP格式的备份文件!');
+      return Upload.LIST_IGNORE;
+    }
+
+    // 检查文件大小
+    const isLt100M = file.size / 1024 / 1024 < 100;
+    if (!isLt100M) {
+      message.error('文件大小不能超过100MB!');
+      return Upload.LIST_IGNORE;
+    }
+
+    // 保存文件
+    setImportFile(file);
+    return false; // 阻止自动上传
+  };
+
+  // 处理导入备份
+  const handleImportBackup = async () => {
+    if (!importFile) {
+      message.error('请先选择要导入的备份文件');
+      return;
+    }
+
+    try {
+      setBackupInProgress(true);
+
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('backup_file', importFile);
+      formData.append('name', importFile.name);
+      formData.append('description', '导入的备份文件');
+
+      // 调用API导入备份
+      const response = await importBackup(formData);
+
+      if (response.status === 'success') {
+        message.success(response.message || '备份导入成功');
+        setImportModalVisible(false);
+        fetchBackups();
+      } else {
+        message.error(response.message || '备份导入失败');
+      }
+    } catch (error) {
+      console.error('导入备份错误:', error);
+      message.error('导入备份失败，请稍后重试');
+    } finally {
+      setBackupInProgress(false);
+    }
   };
 
   // 提交表单
@@ -167,7 +245,7 @@ const BackupManagement = () => {
     try {
       const values = await form.validateFields();
       setBackupInProgress(true);
-      
+
       let response;
       if (values.backup_type === 'full') {
         response = await createFullBackup(values);
@@ -178,7 +256,7 @@ const BackupManagement = () => {
       } else {
         response = await createBackup(values);
       }
-      
+
       message.success('备份创建成功');
       setModalVisible(false);
       fetchBackups();
@@ -359,7 +437,7 @@ const BackupManagement = () => {
               onClick={() => handleViewDetail(record)}
             />
           </Tooltip>
-          
+
           {record.status === 'completed' && (
             <>
               <Tooltip title="下载备份">
@@ -369,7 +447,7 @@ const BackupManagement = () => {
                   onClick={() => handleDownload(record)}
                 />
               </Tooltip>
-              
+
               <Tooltip title="恢复备份">
                 <Button
                   type="text"
@@ -380,7 +458,7 @@ const BackupManagement = () => {
               </Tooltip>
             </>
           )}
-          
+
           <Tooltip title="删除">
             <Popconfirm
               title="确定要删除这个备份吗？"
@@ -411,6 +489,14 @@ const BackupManagement = () => {
           { title: '备份管理' }
         ]}
         extra={[
+          <Button
+            key="import"
+            icon={<UploadOutlined />}
+            onClick={showImportModal}
+            style={{ marginRight: 8 }}
+          >
+            导入备份
+          </Button>,
           <Button
             key="create"
             type="primary"
@@ -529,7 +615,7 @@ const BackupManagement = () => {
 
       <Modal
         title="创建备份"
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={handleCancel}
         onOk={handleSubmit}
         confirmLoading={backupInProgress}
@@ -549,7 +635,7 @@ const BackupManagement = () => {
               onChange={(value) => {
                 let name = '';
                 let description = '';
-                
+
                 if (value === 'full') {
                   name = `完整备份 ${moment().format('YYYY-MM-DD HH:mm:ss')}`;
                   description = '手动创建的完整备份';
@@ -566,7 +652,7 @@ const BackupManagement = () => {
                   name = `内容备份 ${moment().format('YYYY-MM-DD HH:mm:ss')}`;
                   description = '手动创建的内容备份';
                 }
-                
+
                 form.setFieldsValue({
                   name,
                   description
@@ -607,7 +693,7 @@ const BackupManagement = () => {
 
       <Modal
         title="备份详情"
-        visible={detailModalVisible}
+        open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={[
           <Button
@@ -731,6 +817,64 @@ const BackupManagement = () => {
             </Row>
           </div>
         )}
+      </Modal>
+
+      {/* 导入备份模态框 */}
+      <Modal
+        title="导入备份"
+        open={importModalVisible}
+        onCancel={handleImportCancel}
+        onOk={handleImportBackup}
+        confirmLoading={backupInProgress}
+        width={600}
+      >
+        <Alert
+          message="导入说明"
+          description="请上传之前从系统导出的备份文件（ZIP格式）。导入后，您可以查看备份详情或恢复备份。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+
+        <Form
+          form={importForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="备份文件"
+            required
+          >
+            <Upload.Dragger
+              name="backup_file"
+              beforeUpload={beforeUpload}
+              showUploadList={false}
+              accept=".zip"
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+              <p className="ant-upload-hint">
+                支持ZIP格式的备份文件，文件大小不超过100MB
+              </p>
+            </Upload.Dragger>
+
+            {importFile && (
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <Tag color="blue" icon={<UploadOutlined />}>
+                  已选择文件: {importFile.name}
+                </Tag>
+              </div>
+            )}
+          </Form.Item>
+
+          <Alert
+            message="警告"
+            description="导入备份后，您需要手动恢复备份才能使其生效。恢复备份将覆盖当前数据，请谨慎操作。"
+            type="warning"
+            showIcon
+          />
+        </Form>
       </Modal>
     </div>
   );

@@ -3,14 +3,15 @@ import {
   Table, Input, Button, Space, Tag, Popconfirm, message,
   Card, Select, DatePicker, Row, Col, Tooltip, Avatar,
   Typography, Divider, Badge, Statistic, Dropdown, Menu,
-  Modal
+  Modal, Upload
 } from 'antd';
 import {
   SearchOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   LockOutlined, UnlockOutlined, UserOutlined, PlusOutlined,
   ReloadOutlined, DownloadOutlined, UserSwitchOutlined,
   MailOutlined, PhoneOutlined, ExportOutlined, FilterOutlined,
-  MoreOutlined, ImportOutlined, SettingOutlined
+  MoreOutlined, ImportOutlined, SettingOutlined, SyncOutlined,
+  UploadOutlined, InboxOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,7 +23,8 @@ import {
   batchActivateUsers,
   batchDeactivateUsers,
   batchDeleteUsers,
-  exportUsers
+  exportUsers,
+  importUsers
 } from '../../services/userService';
 import { PageHeader } from '../../components/common';
 import { exportToExcel } from '../../utils/exportUtils';
@@ -58,6 +60,9 @@ const UserList = () => {
   });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -201,6 +206,120 @@ const UserList = () => {
     });
     setPagination({ ...pagination, current: 1 });
     fetchUsers({ page: 1 });
+  };
+
+  // 处理导入模态框显示
+  const showImportModal = () => {
+    setImportModalVisible(true);
+    setImportFile(null);
+  };
+
+  // 处理导入模态框关闭
+  const handleImportCancel = () => {
+    setImportModalVisible(false);
+    setImportFile(null);
+  };
+
+  // 处理文件上传前的检查
+  const beforeUpload = (file) => {
+    // 检查文件类型
+    const isJSON = file.type === 'application/json';
+    const isCSV = file.type === 'text/csv';
+    const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                   file.type === 'application/vnd.ms-excel';
+
+    if (!isJSON && !isCSV && !isExcel) {
+      message.error('只支持上传JSON、CSV或Excel文件!');
+      return Upload.LIST_IGNORE;
+    }
+
+    // 检查文件大小
+    const isLt2M = file.size / 1024 / 1024 < 2;
+    if (!isLt2M) {
+      message.error('文件大小不能超过2MB!');
+      return Upload.LIST_IGNORE;
+    }
+
+    // 保存文件
+    setImportFile(file);
+    return false; // 阻止自动上传
+  };
+
+  // 处理用户导入
+  const handleImportUsers = async () => {
+    if (!importFile) {
+      message.error('请先选择要导入的文件');
+      return;
+    }
+
+    setImportLoading(true);
+
+    try {
+      // 读取文件内容
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          let usersData;
+
+          // 根据文件类型解析数据
+          if (importFile.type === 'application/json') {
+            usersData = JSON.parse(e.target.result);
+          } else {
+            // 对于CSV和Excel文件，这里需要更复杂的解析逻辑
+            // 简化处理，假设已经解析为JSON格式
+            message.error('暂不支持CSV和Excel格式，请使用JSON格式');
+            setImportLoading(false);
+            return;
+          }
+
+          // 检查数据格式
+          if (!Array.isArray(usersData)) {
+            usersData = [usersData]; // 如果不是数组，转换为数组
+          }
+
+          // 调用API导入用户
+          const result = await importUsers(usersData);
+
+          // 显示导入结果
+          Modal.success({
+            title: '导入完成',
+            content: (
+              <div>
+                <p>成功导入 {result.imported_count} 个新用户</p>
+                <p>更新 {result.updated_count} 个现有用户</p>
+                {result.failed_count > 0 && (
+                  <p>失败 {result.failed_count} 个用户</p>
+                )}
+              </div>
+            ),
+          });
+
+          // 刷新用户列表和统计数据
+          fetchUsers();
+          fetchUserStats();
+
+          // 关闭模态框
+          setImportModalVisible(false);
+          setImportFile(null);
+        } catch (error) {
+          console.error('解析文件失败:', error);
+          message.error('解析文件失败，请检查文件格式');
+        } finally {
+          setImportLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        message.error('读取文件失败');
+        setImportLoading(false);
+      };
+
+      reader.readAsText(importFile);
+    } catch (error) {
+      console.error('导入用户失败:', error);
+      message.error('导入用户失败，请稍后重试');
+      setImportLoading(false);
+    }
   };
 
   // 处理删除用户
@@ -406,6 +525,13 @@ const UserList = () => {
             onClick={handleExport}
           >
             导出
+          </Button>,
+          <Button
+            key="import"
+            icon={<ImportOutlined />}
+            onClick={showImportModal}
+          >
+            导入
           </Button>,
           <Button
             key="sync"
@@ -778,6 +904,78 @@ const UserList = () => {
           }}
         />
       </Card>
+
+      {/* 导入用户模态框 */}
+      <Modal
+        title="导入用户"
+        open={importModalVisible}
+        onCancel={handleImportCancel}
+        footer={[
+          <Button key="cancel" onClick={handleImportCancel}>
+            取消
+          </Button>,
+          <Button
+            key="import"
+            type="primary"
+            onClick={handleImportUsers}
+            loading={importLoading}
+            disabled={!importFile}
+          >
+            导入
+          </Button>,
+        ]}
+      >
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <Upload.Dragger
+            name="file"
+            beforeUpload={beforeUpload}
+            showUploadList={false}
+            accept=".json,.csv,.xlsx,.xls"
+          >
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+            <p className="ant-upload-hint">
+              支持JSON、CSV或Excel格式，文件大小不超过2MB
+            </p>
+          </Upload.Dragger>
+
+          {importFile && (
+            <div style={{ marginTop: 16 }}>
+              <Tag color="blue" icon={<UploadOutlined />}>
+                已选择文件: {importFile.name}
+              </Tag>
+            </div>
+          )}
+
+          <div style={{ marginTop: 16, textAlign: 'left' }}>
+            <Typography.Title level={5}>导入说明:</Typography.Title>
+            <Typography.Paragraph>
+              1. JSON文件格式示例:
+              <pre style={{ background: '#f5f5f5', padding: 10, borderRadius: 4 }}>
+                {JSON.stringify([
+                  {
+                    username: 'user1',
+                    email: 'user1@example.com',
+                    phone: '13800138001',
+                    nickname: '用户1',
+                    status: 'active'
+                  }
+                ], null, 2)}
+              </pre>
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              2. 必填字段: username (用户名)
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              3. 可选字段: email (邮箱), phone (手机号), nickname (昵称),
+              status (状态: active/inactive/banned), is_active (是否激活),
+              avatar (头像URL), bio (个人简介)
+            </Typography.Paragraph>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

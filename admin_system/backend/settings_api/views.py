@@ -489,6 +489,95 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                 'message': f"发送通知失败: {str(e)}"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """获取公告统计信息"""
+        try:
+            # 统计公告总数
+            total_announcements = Announcement.objects.count()
+
+            # 按状态统计
+            draft_count = Announcement.objects.filter(status='draft').count()
+            published_count = Announcement.objects.filter(status='published').count()
+            expired_count = Announcement.objects.filter(status='expired').count()
+
+            # 统计当前有效的公告数量
+            now = timezone.now()
+            active_count = Announcement.objects.filter(
+                status='published',
+                start_time__lte=now,
+                end_time__gte=now
+            ).count()
+
+            # 统计最近一周的公告数量
+            one_week_ago = timezone.now() - timezone.timedelta(days=7)
+            recent_announcements = Announcement.objects.filter(created_at__gte=one_week_ago).count()
+
+            # 统计今日新增公告
+            today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_new_announcements = Announcement.objects.filter(created_at__gte=today).count()
+
+            # 统计最近30天的公告增长趋势
+            from collections import defaultdict
+            growth_data = []
+            thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+            recent_announcements_by_day = Announcement.objects.filter(created_at__gte=thirty_days_ago)
+
+            # 按日期分组统计
+            announcements_by_date = defaultdict(int)
+            for announcement in recent_announcements_by_day:
+                date_str = announcement.created_at.strftime('%Y-%m-%d')
+                announcements_by_date[date_str] += 1
+
+            # 生成最近30天的日期列表
+            date_list = []
+            current_date = thirty_days_ago
+            while current_date <= timezone.now():
+                date_str = current_date.strftime('%Y-%m-%d')
+                date_list.append(date_str)
+                current_date += timezone.timedelta(days=1)
+
+            # 生成增长数据
+            for date_str in date_list:
+                growth_data.append({
+                    'date': date_str,
+                    'count': announcements_by_date.get(date_str, 0)
+                })
+
+            # 统计创建者分布
+            from django.db.models import Count
+            creators = Announcement.objects.values('created_by').annotate(
+                count=Count('id')
+            ).order_by('-count')[:5]
+
+            creators_data = []
+            for creator in creators:
+                creators_data.append({
+                    'name': creator['created_by'],
+                    'count': creator['count']
+                })
+
+            return Response({
+                'status': 'success',
+                'data': {
+                    'total_announcements': total_announcements,
+                    'draft_count': draft_count,
+                    'published_count': published_count,
+                    'expired_count': expired_count,
+                    'active_count': active_count,
+                    'recent_announcements': recent_announcements,
+                    'today_new_announcements': today_new_announcements,
+                    'growth_data': growth_data,
+                    'creators_data': creators_data
+                }
+            })
+        except Exception as e:
+            logger.error(f"获取公告统计信息时出错: {str(e)}")
+            return Response(
+                {"error": f"获取公告统计信息失败: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def _send_announcement_notification(self, announcement, notification_settings):
         """发送公告通知的内部方法"""
         # 获取通知设置
@@ -646,6 +735,46 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
             return Response({
                 'status': 'error',
                 'message': f"恢复备份失败: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def import_backup(self, request):
+        """导入备份文件"""
+        try:
+            backup_file = request.FILES.get('backup_file')
+            if not backup_file:
+                return Response({
+                    'status': 'error',
+                    'message': '未提供备份文件'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            name = request.data.get('name', backup_file.name)
+            description = request.data.get('description', '导入的备份文件')
+
+            result = backup_service.import_backup(
+                backup_file=backup_file,
+                name=name,
+                description=description,
+                created_by=request.user.username
+            )
+
+            if result['status'] == 'error':
+                return Response({
+                    'status': 'error',
+                    'message': result['message']
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({
+                'status': 'success',
+                'message': '备份导入成功',
+                'backup_id': result['backup_id']
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"导入备份文件时出错: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f"导入备份文件失败: {str(e)}"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])

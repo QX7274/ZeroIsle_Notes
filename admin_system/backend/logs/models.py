@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, DateTimeField
+from mongoengine import Document, StringField, DateTimeField, DictField, IntField
 from django.utils import timezone
 
 class AdminOperationLog(Document):
@@ -56,3 +56,32 @@ class SystemLog(Document):
     def __str__(self):
         level_display = dict(self.LEVEL_CHOICES).get(self.level, self.level)
         return f"{level_display} - {self.source} - {self.timestamp}"
+
+
+class LogExportHistory(Document):
+    """日志导出历史记录"""
+    FORMAT_CHOICES = (
+        ('csv', 'CSV'),
+        ('json', 'JSON'),
+        ('excel', 'Excel'),
+    )
+
+    log_type = StringField(max_length=20, required=True, choices=[('system', '系统日志'), ('admin', '管理员日志')], verbose_name='日志类型')
+    format = StringField(max_length=10, required=True, choices=FORMAT_CHOICES, verbose_name='导出格式')
+    file_name = StringField(max_length=255, required=True, verbose_name='文件名')
+    file_size = IntField(required=False, verbose_name='文件大小(字节)')
+    record_count = IntField(required=False, default=0, verbose_name='记录数量')
+    filter_params = DictField(required=False, verbose_name='筛选参数')
+    created_by = StringField(max_length=150, required=True, verbose_name='创建者')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    download_url = StringField(required=False, verbose_name='下载链接')
+
+    meta = {
+        'collection': 'log_export_history',
+        'ordering': ['-created_at'],
+        'verbose_name': '日志导出历史',
+        'verbose_name_plural': '日志导出历史'
+    }
+
+    def __str__(self):
+        return f"{self.log_type} - {self.format} - {self.created_at}"

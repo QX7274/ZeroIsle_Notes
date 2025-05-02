@@ -350,6 +350,20 @@ export const deleteNote = async (noteId) => {
   }
 };
 
+// 批量更新笔记状态
+export const batchUpdateNoteStatus = async (noteIds, status) => {
+  try {
+    const response = await api.post('/content/notes/batch_update_status/', {
+      note_ids: noteIds,
+      status: status
+    });
+    return response.data;
+  } catch (error) {
+    console.error('批量更新笔记状态错误:', error);
+    throw error;
+  }
+};
+
 // 批量删除笔记
 export const batchDeleteNotes = async (noteIds) => {
   try {

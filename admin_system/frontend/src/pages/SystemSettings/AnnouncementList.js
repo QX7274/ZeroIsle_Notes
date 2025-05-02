@@ -20,7 +20,10 @@ import {
   Switch,
   Tabs,
   Alert,
-  Divider
+  Divider,
+  Statistic,
+  Spin,
+  Empty
 } from 'antd';
 import {
   PlusOutlined,
@@ -48,9 +51,11 @@ import {
   publishAnnouncement,
   expireAnnouncement,
   syncAnnouncements,
-  sendAnnouncementNotification
+  sendAnnouncementNotification,
+  getAnnouncementStats
 } from '../../services/settingService';
 import moment from 'dayjs';
+import ReactQuill from 'react-quill';
 
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
@@ -64,12 +69,25 @@ const AnnouncementList = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+  const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('创建公告');
   const [editingId, setEditingId] = useState(null);
   const [currentAnnouncement, setCurrentAnnouncement] = useState(null);
+  const [stats, setStats] = useState({
+    totalAnnouncements: 0,
+    draftCount: 0,
+    publishedCount: 0,
+    expiredCount: 0,
+    activeCount: 0,
+    recentAnnouncements: 0,
+    todayNewAnnouncements: 0,
+    growthData: [],
+    creatorsData: []
+  });
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -354,8 +372,48 @@ const AnnouncementList = () => {
     }
   };
 
+  // 获取公告统计数据
+  const fetchAnnouncementStats = async () => {
+    try {
+      setStatsLoading(true);
+      const response = await getAnnouncementStats();
+
+      if (response && response.status === 'success' && response.data) {
+        // 处理统计数据
+        const statsData = {
+          totalAnnouncements: response.data.total_announcements || 0,
+          draftCount: response.data.draft_count || 0,
+          publishedCount: response.data.published_count || 0,
+          expiredCount: response.data.expired_count || 0,
+          activeCount: response.data.active_count || 0,
+          recentAnnouncements: response.data.recent_announcements || 0,
+          todayNewAnnouncements: response.data.today_new_announcements || 0,
+          growthData: response.data.growth_data || [],
+          creatorsData: response.data.creators_data || []
+        };
+
+        setStats(statsData);
+      } else {
+        console.error('获取公告统计数据格式错误:', response);
+        message.error('获取公告统计数据格式错误');
+      }
+    } catch (error) {
+      console.error('获取公告统计数据失败:', error);
+      message.error('获取公告统计数据失败，请稍后重试');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // 显示统计模态框
+  const showStatsModal = () => {
+    setStatsModalVisible(true);
+    fetchAnnouncementStats();
+  };
+
   useEffect(() => {
     fetchAnnouncements();
+    fetchAnnouncementStats();
   }, []);
 
   // 表格列定义
@@ -533,6 +591,79 @@ const AnnouncementList = () => {
         ]}
       />
 
+      {/* 统计卡片 */}
+      <Row gutter={24} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card
+            className="stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={showStatsModal}
+          >
+            <Statistic
+              title="公告总数"
+              value={stats.totalAnnouncements}
+              prefix={<NotificationOutlined />}
+              suffix={
+                <Badge
+                  count={`今日 +${stats.todayNewAnnouncements}`}
+                  style={{
+                    backgroundColor: 'rgba(67, 97, 238, 0.1)',
+                    color: '#4361EE',
+                    fontWeight: 500
+                  }}
+                />
+              }
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card
+            className="stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={showStatsModal}
+          >
+            <Statistic
+              title="已发布公告"
+              value={stats.publishedCount}
+              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card
+            className="stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={showStatsModal}
+          >
+            <Statistic
+              title="草稿公告"
+              value={stats.draftCount}
+              prefix={<EditOutlined style={{ color: '#faad14' }} />}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card
+            className="stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={showStatsModal}
+          >
+            <Statistic
+              title="当前有效公告"
+              value={stats.activeCount}
+              prefix={<BellOutlined style={{ color: '#1890ff' }} />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
       <Card>
         <div className="table-filter-wrapper" style={{ marginBottom: 16 }}>
           <Row gutter={16}>
@@ -590,7 +721,7 @@ const AnnouncementList = () => {
 
       <Modal
         title={modalTitle}
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={handleCancel}
         onOk={handleSubmit}
         width={700}
@@ -613,7 +744,11 @@ const AnnouncementList = () => {
             label="公告内容"
             rules={[{ required: true, message: '请输入公告内容' }]}
           >
-            <TextArea rows={6} placeholder="请输入公告内容" />
+            <ReactQuill
+              theme="snow"
+              style={{ height: 200, marginBottom: 50 }}
+              placeholder="请输入公告内容"
+            />
           </Form.Item>
 
           <Row gutter={16}>
@@ -682,7 +817,7 @@ const AnnouncementList = () => {
       {/* 公告预览模态框 */}
       <Modal
         title="公告预览"
-        visible={previewModalVisible}
+        open={previewModalVisible}
         onCancel={() => setPreviewModalVisible(false)}
         footer={[
           <Button key="close" onClick={() => setPreviewModalVisible(false)}>
@@ -717,9 +852,10 @@ const AnnouncementList = () => {
             </div>
             <Divider />
             <div className="preview-content">
-              <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-                {currentAnnouncement.content}
-              </Paragraph>
+              <div
+                className="announcement-content"
+                dangerouslySetInnerHTML={{ __html: currentAnnouncement.content }}
+              />
             </div>
           </div>
         )}
@@ -728,7 +864,7 @@ const AnnouncementList = () => {
       {/* 通知设置模态框 */}
       <Modal
         title="通知设置"
-        visible={notificationModalVisible}
+        open={notificationModalVisible}
         onCancel={() => setNotificationModalVisible(false)}
         onOk={handleSaveNotificationSettings}
         width={700}
@@ -863,6 +999,82 @@ const AnnouncementList = () => {
             showIcon
           />
         </Form>
+      </Modal>
+
+      {/* 统计详情模态框 */}
+      <Modal
+        title="公告统计详情"
+        open={statsModalVisible}
+        onCancel={() => setStatsModalVisible(false)}
+        width={800}
+        footer={[
+          <Button key="close" onClick={() => setStatsModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        <Spin spinning={statsLoading}>
+          <div className="stats-modal-content">
+            <Divider orientation="left">基本统计</Divider>
+            <Row gutter={[24, 24]}>
+              <Col span={6}>
+                <Statistic title="公告总数" value={stats.totalAnnouncements} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="已发布公告" value={stats.publishedCount} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="草稿公告" value={stats.draftCount} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="已过期公告" value={stats.expiredCount} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="当前有效公告" value={stats.activeCount} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="最近一周新增" value={stats.recentAnnouncements} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="今日新增" value={stats.todayNewAnnouncements} />
+              </Col>
+            </Row>
+
+            <Divider orientation="left">公告创建者分布</Divider>
+            <Row gutter={[24, 24]}>
+              {(stats.creatorsData || []).map((creator) => (
+                <Col span={6} key={creator.name}>
+                  <Card size="small">
+                    <Statistic
+                      title={creator.name}
+                      value={creator.count}
+                      suffix="条公告"
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            <Divider orientation="left">最近30天公告增长趋势</Divider>
+            {stats.growthData && stats.growthData.length > 0 ? (
+              <div style={{ height: 300 }}>
+                {/* 这里可以添加图表组件，如ECharts或Recharts */}
+                <Table
+                  dataSource={stats.growthData}
+                  columns={[
+                    { title: '日期', dataIndex: 'date', key: 'date' },
+                    { title: '新增公告数', dataIndex: 'count', key: 'count' }
+                  ]}
+                  pagination={false}
+                  size="small"
+                  rowKey="date"
+                />
+              </div>
+            ) : (
+              <Empty description="暂无数据" />
+            )}
+          </div>
+        </Spin>
       </Modal>
     </div>
   );

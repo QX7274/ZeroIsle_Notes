@@ -22,6 +22,7 @@ import {
   updateNoteStatus,
   getNoteStats,
   batchDeleteNotes,
+  batchUpdateNoteStatus,
   exportNotes,
   syncNotes
 } from '../../services/contentService';
@@ -40,6 +41,7 @@ const NoteList = () => {
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
@@ -124,8 +126,33 @@ const NoteList = () => {
   const fetchNoteStats = async () => {
     try {
       setStatsLoading(true);
-      const statsData = await getNoteStats();
-      setStats(statsData);
+      const response = await getNoteStats();
+
+      if (response && response.status === 'success' && response.data) {
+        // 处理统计数据
+        const statsData = {
+          totalNotes: response.data.total_notes || 0,
+          publishedNotes: response.data.published_notes || 0,
+          draftNotes: response.data.draft_notes || 0,
+          todayNewNotes: response.data.today_new_notes || 0,
+          publicNotes: response.data.public_notes || 0,
+          privateNotes: response.data.private_notes || 0,
+          recentNotes: response.data.recent_notes || 0,
+          noteTypes: response.data.note_types || {},
+          noteStatus: response.data.note_status || {},
+          growthData: response.data.growth_data || [],
+          topCategories: response.data.top_categories || [],
+          topTags: response.data.top_tags || [],
+          topViewedNotes: response.data.top_viewed_notes || [],
+          topLikedNotes: response.data.top_liked_notes || [],
+          topCommentedNotes: response.data.top_commented_notes || []
+        };
+
+        setStats(statsData);
+      } else {
+        console.error('获取笔记统计数据格式错误:', response);
+        message.error('获取笔记统计数据格式错误');
+      }
     } catch (error) {
       console.error('获取笔记统计数据失败:', error);
       message.error('获取笔记统计数据失败，请稍后重试');
@@ -524,7 +551,12 @@ const NoteList = () => {
 
       <Row gutter={24} className="stats-row">
         <Col span={6}>
-          <Card className="content-stat-card" loading={statsLoading}>
+          <Card
+            className="content-stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={() => setStatsModalVisible(true)}
+          >
             <div className="content-stat-icon" style={{ backgroundColor: 'rgba(67, 97, 238, 0.1)' }}>
               <FileTextOutlined style={{ color: '#4361EE' }} />
             </div>
@@ -546,7 +578,12 @@ const NoteList = () => {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="content-stat-card" loading={statsLoading}>
+          <Card
+            className="content-stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={() => setStatsModalVisible(true)}
+          >
             <div className="content-stat-icon" style={{ backgroundColor: 'rgba(76, 201, 240, 0.1)' }}>
               <CheckCircleOutlined style={{ color: '#4CC9F0' }} />
             </div>
@@ -568,7 +605,12 @@ const NoteList = () => {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="content-stat-card" loading={statsLoading}>
+          <Card
+            className="content-stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={() => setStatsModalVisible(true)}
+          >
             <div className="content-stat-icon" style={{ backgroundColor: 'rgba(255, 159, 28, 0.1)' }}>
               <FileSearchOutlined style={{ color: '#FF9F1C' }} />
             </div>
@@ -590,7 +632,12 @@ const NoteList = () => {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="content-stat-card" loading={statsLoading}>
+          <Card
+            className="content-stat-card"
+            loading={statsLoading}
+            hoverable
+            onClick={() => setStatsModalVisible(true)}
+          >
             <div className="content-stat-icon" style={{ backgroundColor: 'rgba(58, 12, 163, 0.1)' }}>
               <PlusOutlined style={{ color: '#3A0CA3' }} />
             </div>
@@ -626,13 +673,18 @@ const NoteList = () => {
                   content: `确定要发布选中的 ${selectedRowKeys.length} 个笔记吗？`,
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量发布API
-                      message.success(`已成功发布 ${selectedRowKeys.length} 个笔记`);
+                      setLoading(true);
+                      const result = await batchUpdateNoteStatus(selectedRowKeys, 'published');
+                      message.success(result.message || `已成功发布 ${result.updated_count} 个笔记`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchNotes();
+                      fetchNoteStats();
                     } catch (error) {
+                      console.error('批量发布失败:', error);
                       message.error('批量发布失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -648,13 +700,18 @@ const NoteList = () => {
                   content: `确定要将选中的 ${selectedRowKeys.length} 个笔记设为草稿吗？`,
                   onOk: async () => {
                     try {
-                      // 这里应该调用批量设为草稿API
-                      message.success(`已成功将 ${selectedRowKeys.length} 个笔记设为草稿`);
+                      setLoading(true);
+                      const result = await batchUpdateNoteStatus(selectedRowKeys, 'draft');
+                      message.success(result.message || `已成功将 ${result.updated_count} 个笔记设为草稿`);
                       setSelectedRowKeys([]);
                       setSelectedRows([]);
                       fetchNotes();
+                      fetchNoteStats();
                     } catch (error) {
+                      console.error('批量设为草稿失败:', error);
                       message.error('批量设为草稿失败，请稍后重试');
+                    } finally {
+                      setLoading(false);
                     }
                   }
                 });
@@ -919,6 +976,129 @@ const NoteList = () => {
           />
         )}
       </Card>
+
+      {/* 统计详情模态框 */}
+      <Modal
+        title="笔记统计详情"
+        open={statsModalVisible}
+        onCancel={() => setStatsModalVisible(false)}
+        width={800}
+        footer={[
+          <Button key="close" onClick={() => setStatsModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        <Spin spinning={statsLoading}>
+          <div className="stats-modal-content">
+            <Divider orientation="left">基本统计</Divider>
+            <Row gutter={[24, 24]}>
+              <Col span={6}>
+                <Statistic title="总笔记数" value={stats.totalNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="已发布笔记" value={stats.publishedNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="草稿笔记" value={stats.draftNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="今日新增" value={stats.todayNewNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="公开笔记" value={stats.publicNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="私密笔记" value={stats.privateNotes} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="最近一周新增" value={stats.recentNotes} />
+              </Col>
+            </Row>
+
+            <Divider orientation="left">笔记类型分布</Divider>
+            <Row gutter={[24, 24]}>
+              {Object.entries(stats.noteTypes || {}).map(([type, data]) => (
+                <Col span={6} key={type}>
+                  <Card size="small">
+                    <Statistic
+                      title={data.display || type}
+                      value={data.count}
+                      suffix={`(${Math.round((data.count / (stats.totalNotes || 1)) * 100)}%)`}
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            <Divider orientation="left">热门分类</Divider>
+            <Row gutter={[24, 24]}>
+              {(stats.topCategories || []).map((category) => (
+                <Col span={6} key={category.id}>
+                  <Card size="small">
+                    <Statistic
+                      title={category.name}
+                      value={category.note_count}
+                      suffix="篇笔记"
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            <Divider orientation="left">热门标签</Divider>
+            <Row gutter={[24, 24]}>
+              {(stats.topTags || []).map((tag) => (
+                <Col span={6} key={tag.id}>
+                  <Card size="small">
+                    <Statistic
+                      title={tag.name}
+                      value={tag.note_count}
+                      suffix="篇笔记"
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            <Divider orientation="left">浏览量最高的笔记</Divider>
+            <Table
+              dataSource={stats.topViewedNotes || []}
+              columns={[
+                { title: '标题', dataIndex: 'title', key: 'title' },
+                { title: '浏览量', dataIndex: 'view_count', key: 'view_count' }
+              ]}
+              pagination={false}
+              size="small"
+              rowKey="id"
+            />
+
+            <Divider orientation="left">点赞数最多的笔记</Divider>
+            <Table
+              dataSource={stats.topLikedNotes || []}
+              columns={[
+                { title: '标题', dataIndex: 'title', key: 'title' },
+                { title: '点赞数', dataIndex: 'like_count', key: 'like_count' }
+              ]}
+              pagination={false}
+              size="small"
+              rowKey="id"
+            />
+
+            <Divider orientation="left">评论数最多的笔记</Divider>
+            <Table
+              dataSource={stats.topCommentedNotes || []}
+              columns={[
+                { title: '标题', dataIndex: 'title', key: 'title' },
+                { title: '评论数', dataIndex: 'comment_count', key: 'comment_count' }
+              ]}
+              pagination={false}
+              size="small"
+              rowKey="id"
+            />
+          </div>
+        </Spin>
+      </Modal>
     </div>
   );
 };

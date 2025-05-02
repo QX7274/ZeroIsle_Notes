@@ -10,10 +10,13 @@ from .serializers import AdminOperationLogSerializer, SystemLogSerializer
 from .services import log_service
 import logging
 import csv
+import io
+import xlsxwriter
 from django.http import HttpResponse
 import json
 from datetime import datetime, timedelta
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +177,66 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
                         log.get('description', ''),
                         log.get('operation_time', '')
                     ])
+
+                return response
+            elif format_type == 'excel':
+                # 创建内存文件
+                output = io.BytesIO()
+
+                # 创建Excel工作簿和工作表
+                workbook = xlsxwriter.Workbook(output)
+                worksheet = workbook.add_worksheet('管理员操作日志')
+
+                # 添加标题格式
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'bg_color': '#D9EAD3',
+                    'border': 1
+                })
+
+                # 添加单元格格式
+                cell_format = workbook.add_format({
+                    'border': 1
+                })
+
+                # 写入表头
+                headers = ['ID', '管理员用户名', 'IP地址', '模块', '操作类型', '资源ID', '描述', '操作时间']
+                for col, header in enumerate(headers):
+                    worksheet.write(0, col, header, header_format)
+
+                # 写入数据
+                for row, log in enumerate(logs, start=1):
+                    worksheet.write(row, 0, log.get('_id', ''), cell_format)
+                    worksheet.write(row, 1, log.get('admin_username', ''), cell_format)
+                    worksheet.write(row, 2, log.get('ip_address', ''), cell_format)
+                    worksheet.write(row, 3, log.get('module', ''), cell_format)
+                    worksheet.write(row, 4, log.get('action', ''), cell_format)
+                    worksheet.write(row, 5, log.get('resource_id', ''), cell_format)
+                    worksheet.write(row, 6, log.get('description', ''), cell_format)
+                    worksheet.write(row, 7, log.get('operation_time', ''), cell_format)
+
+                # 调整列宽
+                worksheet.set_column(0, 0, 24)  # ID列
+                worksheet.set_column(1, 1, 15)  # 管理员用户名列
+                worksheet.set_column(2, 2, 15)  # IP地址列
+                worksheet.set_column(3, 3, 15)  # 模块列
+                worksheet.set_column(4, 4, 10)  # 操作类型列
+                worksheet.set_column(5, 5, 15)  # 资源ID列
+                worksheet.set_column(6, 6, 40)  # 描述列
+                worksheet.set_column(7, 7, 20)  # 操作时间列
+
+                # 关闭工作簿
+                workbook.close()
+
+                # 设置文件指针到开始位置
+                output.seek(0)
+
+                # 创建响应
+                response = HttpResponse(
+                    output.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = 'attachment; filename="admin_logs.xlsx"'
 
                 return response
             elif format_type == 'json':
@@ -346,6 +409,60 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                     ])
 
                 return response
+            elif format_type == 'excel':
+                # 创建内存文件
+                output = io.BytesIO()
+
+                # 创建Excel工作簿和工作表
+                workbook = xlsxwriter.Workbook(output)
+                worksheet = workbook.add_worksheet('系统日志')
+
+                # 添加标题格式
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'bg_color': '#D9EAD3',
+                    'border': 1
+                })
+
+                # 添加单元格格式
+                cell_format = workbook.add_format({
+                    'border': 1
+                })
+
+                # 写入表头
+                headers = ['ID', '级别', '来源', '消息', '时间戳']
+                for col, header in enumerate(headers):
+                    worksheet.write(0, col, header, header_format)
+
+                # 写入数据
+                for row, log in enumerate(logs, start=1):
+                    worksheet.write(row, 0, log.get('_id', ''), cell_format)
+                    worksheet.write(row, 1, log.get('level', ''), cell_format)
+                    worksheet.write(row, 2, log.get('source', ''), cell_format)
+                    worksheet.write(row, 3, log.get('message', ''), cell_format)
+                    worksheet.write(row, 4, log.get('timestamp', ''), cell_format)
+
+                # 调整列宽
+                worksheet.set_column(0, 0, 24)  # ID列
+                worksheet.set_column(1, 1, 10)  # 级别列
+                worksheet.set_column(2, 2, 15)  # 来源列
+                worksheet.set_column(3, 3, 50)  # 消息列
+                worksheet.set_column(4, 4, 20)  # 时间戳列
+
+                # 关闭工作簿
+                workbook.close()
+
+                # 设置文件指针到开始位置
+                output.seek(0)
+
+                # 创建响应
+                response = HttpResponse(
+                    output.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = 'attachment; filename="system_logs.xlsx"'
+
+                return response
             elif format_type == 'json':
                 # 创建JSON响应
                 return Response({
@@ -364,6 +481,90 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': f'导出系统日志失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class LogExportHistoryViewSet(viewsets.ModelViewSet):
+    """日志导出历史记录视图集"""
+    queryset = LogExportHistory.objects.all()
+    serializer_class = LogExportHistorySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['log_type', 'format', 'created_by']
+    search_fields = ['file_name', 'created_by']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def create(self, request, *args, **kwargs):
+        """创建日志导出历史记录"""
+        try:
+            # 添加创建者信息
+            data = request.data.copy()
+            data['created_by'] = request.user.username
+
+            # 生成文件名
+            log_type = data.get('log_type', 'system')
+            format_type = data.get('format', 'csv')
+            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+            file_name = f"{log_type}_logs_{timestamp}.{format_type}"
+            data['file_name'] = file_name
+
+            # 创建序列化器
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+
+            # 记录管理员操作日志
+            from .models import AdminOperationLog
+            AdminOperationLog.objects.create(
+                admin_username=request.user.username,
+                ip_address=request.META.get('REMOTE_ADDR', ''),
+                module='日志管理',
+                action='export',
+                description=f'导出{log_type}日志，格式：{format_type}',
+                operation_time=timezone.now()
+            )
+
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except Exception as e:
+            logger.error(f"创建日志导出历史记录时出错: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'创建日志导出历史记录失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """导出历史统计信息"""
+        total_exports = LogExportHistory.objects.count()
+
+        # 按日志类型统计
+        log_type_stats = {}
+        log_types = LogExportHistory.objects.values_list('log_type', flat=True).distinct()
+        for log_type in log_types:
+            log_type_stats[log_type] = LogExportHistory.objects.filter(log_type=log_type).count()
+
+        # 按格式统计
+        format_stats = {}
+        formats = LogExportHistory.objects.values_list('format', flat=True).distinct()
+        for format_type in formats:
+            format_stats[format_type] = LogExportHistory.objects.filter(format=format_type).count()
+
+        # 按用户统计
+        user_stats = {}
+        users = LogExportHistory.objects.values_list('created_by', flat=True).distinct()
+        for user in users:
+            user_stats[user] = LogExportHistory.objects.filter(created_by=user).count()
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'total_exports': total_exports,
+                'log_type_stats': log_type_stats,
+                'format_stats': format_stats,
+                'user_stats': user_stats
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class LogAnalyticsView(APIView):

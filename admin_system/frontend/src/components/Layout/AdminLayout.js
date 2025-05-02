@@ -325,6 +325,14 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                   key: '/logs/analytics',
                   label: '日志分析',
                 },
+                {
+                  key: '/logs/export',
+                  label: '日志导出',
+                },
+                {
+                  key: '/logs/export-history',
+                  label: '导出历史记录',
+                },
               ],
             },
             {

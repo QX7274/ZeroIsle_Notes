@@ -4,6 +4,7 @@ import AdminLogList from './AdminLogList';
 import SystemLogList from './SystemLogList';
 import LogAnalytics from './LogAnalytics';
 import LogExport from './LogExport';
+import ExportHistory from './ExportHistory';
 import '../../styles/LogManagement.css';
 
 const LogManagement = () => {
@@ -15,6 +16,7 @@ const LogManagement = () => {
       <Route path="/system" element={<SystemLogList />} />
       <Route path="/analytics" element={<LogAnalytics />} />
       <Route path="/export" element={<LogExport />} />
+      <Route path="/export-history" element={<ExportHistory />} />
     </Routes>
   );
 };
