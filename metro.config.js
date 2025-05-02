@@ -11,7 +11,6 @@ const defaultConfig = getDefaultConfig(__dirname);
 // 自定义配置
 const config = {
   resolver: {
-    assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
   },
   transformer: {
