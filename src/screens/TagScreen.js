@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import TagManager from '../components/TagManager';
+import { TagManager } from '../components/notes';
 
 const TagScreen = ({ navigation }) => {
   const handleSelectTag = (tag) => {
@@ -22,4 +22,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TagScreen; 
+export default TagScreen;

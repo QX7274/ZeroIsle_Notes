@@ -13,11 +13,10 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch } from 'react-redux';
-import { updateNote } from '../store/slices/notesSlice';
+import { updateNote } from '../redux/slices/notesSlice';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/Ionicons';
-import DrawingToolbar from '../components/DrawingToolbar';
-import DrawingCanvas from '../components/DrawingCanvas';
+import { DrawingToolbar, DrawingCanvas } from '../components/canvas';
 import { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import Pdf from 'react-native-pdf';

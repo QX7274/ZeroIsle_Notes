@@ -2,7 +2,7 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import Sound from 'react-native-sound';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { analyticsService } from './analytics';
-import { aiService } from './aiService';
+import aiService from './ai/aiService';
 
 // 启用Sound模块的错误日志
 Sound.setCategory('Playback');

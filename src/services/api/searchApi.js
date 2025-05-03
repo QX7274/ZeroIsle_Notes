@@ -1,18 +1,18 @@
 /**
  * 搜索API服务
  */
-import instance from './interceptor';
+import apiClient from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 
 /**
  * 基础搜索
- * @param {string} query - 搜索关键词
+ * @param {string} query - 搜索关键�?
  * @param {object} params - 搜索参数
  * @returns {Promise} - 搜索结果
  */
 export const search = async (query, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.BASE, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.BASE, {
       params: {
         q: query,
         ...params
@@ -38,7 +38,7 @@ export const search = async (query, params = {}) => {
  */
 export const advancedSearch = async (searchParams) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.ADVANCED, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.ADVANCED, {
       params: searchParams
     });
     return {
@@ -56,13 +56,13 @@ export const advancedSearch = async (searchParams) => {
 
 /**
  * 语义搜索
- * @param {string} query - 搜索关键词
+ * @param {string} query - 搜索关键�?
  * @param {object} params - 搜索参数
  * @returns {Promise} - 搜索结果
  */
 export const semanticSearch = async (query, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.SEMANTIC, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.SEMANTIC, {
       params: {
         q: query,
         ...params
@@ -89,7 +89,7 @@ export const semanticSearch = async (query, params = {}) => {
  */
 export const searchByTags = async (tags, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.TAGS, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.TAGS, {
       params: {
         tags: tags.join(','),
         ...params
@@ -110,13 +110,13 @@ export const searchByTags = async (tags, params = {}) => {
 
 /**
  * 获取搜索建议
- * @param {string} query - 搜索关键词
+ * @param {string} query - 搜索关键�?
  * @param {number} limit - 限制数量
  * @returns {Promise} - 搜索建议
  */
 export const getSearchSuggestions = async (query, limit = 5) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.SUGGESTIONS, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.SUGGESTIONS, {
       params: {
         q: query,
         limit
@@ -143,7 +143,7 @@ export const getSearchSuggestions = async (query, limit = 5) => {
  */
 export const textSearch = async (query, params = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.SEARCH.TEXT, {
+    const response = await apiClient.post(API_ENDPOINTS.SEARCH.TEXT, {
       query,
       ...params
     });
@@ -168,7 +168,7 @@ export const textSearch = async (query, params = {}) => {
  */
 export const voiceSearch = async (audioBase64, params = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.SEARCH.VOICE, {
+    const response = await apiClient.post(API_ENDPOINTS.SEARCH.VOICE, {
       audio: audioBase64,
       ...params
     });
@@ -193,7 +193,7 @@ export const voiceSearch = async (audioBase64, params = {}) => {
  */
 export const imageSearch = async (imageBase64, params = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.SEARCH.IMAGE, {
+    const response = await apiClient.post(API_ENDPOINTS.SEARCH.IMAGE, {
       image: imageBase64,
       ...params
     });
@@ -217,7 +217,7 @@ export const imageSearch = async (imageBase64, params = {}) => {
  */
 export const getSearchHistory = async (limit = 10) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.SEARCH.HISTORY, {
+    const response = await apiClient.get(API_ENDPOINTS.SEARCH.HISTORY, {
       params: { limit }
     });
     return {
@@ -239,7 +239,7 @@ export const getSearchHistory = async (limit = 10) => {
  */
 export const clearSearchHistory = async () => {
   try {
-    const response = await instance.delete(API_ENDPOINTS.SEARCH.CLEAR_HISTORY);
+    const response = await apiClient.delete(API_ENDPOINTS.SEARCH.CLEAR_HISTORY);
     return {
       success: true,
       data: response.data
@@ -255,13 +255,13 @@ export const clearSearchHistory = async () => {
 
 /**
  * 知识图谱搜索
- * @param {string} query - 搜索关键词
+ * @param {string} query - 搜索关键�?
  * @param {object} params - 搜索参数
  * @returns {Promise} - 搜索结果
  */
 export const knowledgeGraphSearch = async (query, params = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.SEARCH.KNOWLEDGE_GRAPH, {
+    const response = await apiClient.post(API_ENDPOINTS.SEARCH.KNOWLEDGE_GRAPH, {
       query,
       ...params
     });

@@ -3,19 +3,17 @@
  * 定义API基础URL和各个模块的端点
  */
 
+// 从主配置文件导入API配置
+import { API_URL, API_VERSION, API_TIMEOUT } from './index';
+
 // 根据环境选择API基础URL
-export const API_BASE_URL = __DEV__
-  ? 'http://192.168.152.232:8000/api/v1'  // 使用热点网络中的IP地址
-  : 'http://localhost:8000/api/v1'; // 生产环境地址
+export const API_BASE_URL = API_URL + '/' + API_VERSION;
 
 // 调试信息
 console.log('API_BASE_URL:', API_BASE_URL);
 
-// API版本
-export const API_VERSION = 'v1';
-
 // 请求超时时间（毫秒）
-export const REQUEST_TIMEOUT = 15000;
+export const REQUEST_TIMEOUT = API_TIMEOUT;
 
 // API端点
 export const API_ENDPOINTS = {

@@ -2,13 +2,12 @@
  * 笔记AI处理服务
  * 提供笔记中AI工具的API调用
  */
-import axios from 'axios';
-import { API_URL } from '../config';
 import { analyticsService } from './analytics';
+import { aiAssistantApi } from './api/index';
 
 class NoteAIService {
   constructor() {
-    this.baseUrl = API_URL;
+    // 不再需要baseUrl，使用aiAssistantApi
   }
 
   /**
@@ -19,10 +18,7 @@ class NoteAIService {
    */
   async processText(text, tool) {
     try {
-      const response = await axios.post(`${this.baseUrl}/ai/process`, {
-        text,
-        tool,
-      });
+      const response = await aiAssistantApi.processText({ text, tool });
 
       analyticsService.trackEvent('ai_tool_used', {
         tool,
@@ -114,10 +110,7 @@ class NoteAIService {
   }
 
   /**
-   * 提取关键词
-   * @param {string} text - 要提取关键词的文本
-   * @returns {Promise<Object>} - 关键词结果
-   */
+   * 提取关键�?   * @param {string} text - 要提取关键词的文�?   * @returns {Promise<Object>} - 关键词结�?   */
   async extractKeywords(text) {
     try {
       const response = await axios.post(`${this.baseUrl}/ai/process`, {
@@ -131,7 +124,7 @@ class NoteAIService {
 
       return response.data;
     } catch (error) {
-      console.error('提取关键词失败:', error);
+      console.error('提取关键词失�?', error);
       analyticsService.trackError(error, { action: 'ai_extract_keywords' });
       throw error;
     }
@@ -188,8 +181,7 @@ class NoteAIService {
   /**
    * 识别数学公式
    * @param {string} text - 要识别的数学公式文本
-   * @returns {Promise<Object>} - 识别结果（LaTeX格式）
-   */
+   * @returns {Promise<Object>} - 识别结果（LaTeX格式�?   */
   async recognizeMathFormula(text) {
     try {
       const response = await axios.post(`${this.baseUrl}/ai/process`, {

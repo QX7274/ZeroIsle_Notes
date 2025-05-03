@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { login, clearError } from '../../store/slices/authSlice';
+import { login, clearError } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
 import { Text as Typography } from '../../components/common/Typography';
 

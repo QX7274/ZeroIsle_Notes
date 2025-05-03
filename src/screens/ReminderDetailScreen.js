@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useDispatch } from 'react-redux';
-import { updateReminder, deleteReminder } from '../store/slices/reminderSlice';
+import { updateReminder, deleteReminder } from '../redux/slices/reminderSlice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';

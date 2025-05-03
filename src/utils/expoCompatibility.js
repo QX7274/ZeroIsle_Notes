@@ -3,7 +3,7 @@
  * 提供Expo组件的替代实现，在Expo不可用时使用
  */
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import { fileService } from '../services/fileService';
 
 // 检查Expo是否可用
 export const isExpoAvailable = () => {
@@ -25,7 +25,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.readAsStringAsync(fileUri);
       } else {
-        return await RNFS.readFile(fileUri, 'utf8');
+        return await fileService.readFile(fileUri, 'utf8');
       }
     } catch (error) {
       console.error('读取文件错误:', error);
@@ -40,7 +40,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.writeAsStringAsync(fileUri, contents);
       } else {
-        return await RNFS.writeFile(fileUri, contents, 'utf8');
+        return await fileService.writeFile(fileUri, contents, 'utf8');
       }
     } catch (error) {
       console.error('写入文件错误:', error);
@@ -55,7 +55,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.deleteAsync(fileUri, options);
       } else {
-        return await RNFS.unlink(fileUri);
+        return await fileService.deleteFile(fileUri);
       }
     } catch (error) {
       console.error('删除文件错误:', error);
@@ -70,7 +70,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.getInfoAsync(fileUri, options);
       } else {
-        const fileInfo = await RNFS.stat(fileUri);
+        const fileInfo = await fileService.stat(fileUri);
         return {
           exists: true,
           isDirectory: fileInfo.isDirectory(),
@@ -95,7 +95,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.makeDirectoryAsync(dirUri, options);
       } else {
-        return await RNFS.mkdir(dirUri);
+        return await fileService.mkdir(dirUri, options);
       }
     } catch (error) {
       console.error('创建目录错误:', error);
@@ -110,7 +110,7 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.readDirectoryAsync(dirUri);
       } else {
-        return await RNFS.readDir(dirUri);
+        return await fileService.readDir(dirUri);
       }
     } catch (error) {
       console.error('读取目录错误:', error);
@@ -125,15 +125,10 @@ export const FileSystem = {
         const ExpoFileSystem = require('expo-file-system');
         return await ExpoFileSystem.downloadAsync(uri, fileUri, options);
       } else {
-        const result = await RNFS.downloadFile({
-          fromUrl: uri,
-          toFile: fileUri,
-          headers: options.headers || {},
-        }).promise;
-        
+        const filePath = await fileService.downloadFile(uri, fileUri);
         return {
-          status: result.statusCode,
-          uri: fileUri,
+          status: 200,
+          uri: filePath,
         };
       }
     } catch (error) {
@@ -143,13 +138,13 @@ export const FileSystem = {
   },
 
   // 目录常量
-  documentDirectory: Platform.OS === 'ios' 
-    ? `${RNFS.DocumentDirectoryPath}/` 
-    : `${RNFS.DocumentDirectoryPath}/`,
-  
+  documentDirectory: Platform.OS === 'ios'
+    ? `${fileService.documentDirectory}/`
+    : `${fileService.documentDirectory}/`,
+
   cacheDirectory: Platform.OS === 'ios'
-    ? `${RNFS.CachesDirectoryPath}/`
-    : `${RNFS.CachesDirectoryPath}/`,
+    ? `${fileService.cacheDirectory}/`
+    : `${fileService.cacheDirectory}/`,
 };
 
 // 加密工具兼容层
@@ -192,7 +187,7 @@ export const Crypto = {
           }
           return hash.toString(16);
         };
-        
+
         return hashCode(data);
       }
     } catch (error) {

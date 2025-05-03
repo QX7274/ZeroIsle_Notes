@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import Canvas from '../components/Canvas';
-import CanvasToolbar from '../components/CanvasToolbar';
-import StyleEditor from '../components/StyleEditor';
-import LayerManager from '../components/LayerManager';
+import { Canvas, CanvasToolbar, StyleEditor, LayerManager, DrawingToolbar, DrawingCanvas } from '../components/canvas';
 import { offlineStorageService } from '../services/offlineStorage';
 import { analyticsService } from '../services/analytics';
 import canvasApi from '../services/api/canvasApi';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { pick, types } from '@react-native-documents/picker';
-import DrawingToolbar from '../components/DrawingToolbar';
-import DrawingCanvas from '../components/DrawingCanvas';
 
 const CanvasScreen = ({ navigation, route }) => {
   const { theme } = useTheme();

@@ -33,7 +33,7 @@ import {
   selectVoiceEnabled,
   selectAiEngine,
   selectAiModel,
-} from '../store/slices/aiAssistantSlice';
+} from '../redux/slices/aiAssistantSlice';
 import { ChatMessage, ChatInput } from '../components/ai';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';

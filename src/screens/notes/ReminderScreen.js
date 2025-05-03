@@ -10,7 +10,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { remindersApi } from '../../services/api';
-import { addReminder, updateReminder, deleteReminder } from '../../store/actions/remindersActions';
+import { addReminder, updateReminder, deleteReminder } from '../../redux/actions/remindersActions';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { dateUtils } from '../../utils';
 import DateTimePicker from '@react-native-community/datetimepicker';

@@ -5,16 +5,19 @@
 import textAnalysisService from './textAnalysis';
 import translationService from './translationService';
 import mindMapService from './mindMapService';
+import aiService from './aiService';
 
 export {
   textAnalysisService,
   translationService,
-  mindMapService
+  mindMapService,
+  aiService
 };
 
 // 默认导出所有服务的集合
 export default {
   textAnalysis: textAnalysisService,
   translation: translationService,
-  mindMap: mindMapService
+  mindMap: mindMapService,
+  ai: aiService
 };

@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import CategoryManager from '../components/CategoryManager';
+import { StyleSheet } from 'react-native';
+import { CategoryManager } from '../components/notes';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CategoryScreen = ({ navigation }) => {
@@ -22,4 +22,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CategoryScreen; 
+export default CategoryScreen;

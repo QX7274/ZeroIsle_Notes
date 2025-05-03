@@ -18,17 +18,21 @@ import {
   deleteNote,
   syncOfflineNotes,
   importNote
-} from '../store/slices/notesSlice';
+} from '../redux/slices/notesSlice';
 import { pick, types } from '@react-native-documents/picker';
 import ImagePicker from 'react-native-image-picker';
-import { NoteList, NoteEditor, NoteDetail } from '../components/notes';
+import {
+  NoteList,
+  NoteEditor,
+  NoteDetail,
+  NoteToolbar,
+  OfflineAIToolbar,
+  HandwritingRecognizer
+} from '../components/notes';
 import { Button } from '../components/common';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { offlineStorageService } from '../services/offlineStorage';
-import NoteToolbar from '../components/note/NoteToolbar';
-import OfflineAIToolbar from '../components/note/OfflineAIToolbar';
-import HandwritingRecognizer from '../components/note/HandwritingRecognizer';
 
 const NoteScreen = ({ navigation, route }) => {
   const { theme } = useTheme();

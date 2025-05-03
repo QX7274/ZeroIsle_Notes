@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { register, clearError } from '../../store/slices/authSlice';
+import { register, clearError } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
 import { Text } from '../../components/common/Typography';
 import { authApi } from '../../services/api';

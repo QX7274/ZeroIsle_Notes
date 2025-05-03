@@ -6,13 +6,12 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '../context/ThemeContext';
 
 // 导入个人中心相关页面
-import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../screens/SettingsScreen';
 import ProfileSettings from '../screens/settings/ProfileSettings';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 import BindPhone from '../screens/settings/BindPhone';
 import BindEmail from '../screens/settings/BindEmail';
-import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
-import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
+import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
+import AIAssistantSettingsScreen from '../screens/settings/AIAssistantSettingsScreen';
 
 const Stack = createStackNavigator();
 
@@ -40,13 +39,8 @@ const ProfileNavigator = () => {
     >
       <Stack.Screen
         name="ProfileMain"
-        component={ProfileScreen}
-        options={{ title: '个人中心', headerShown: false }}
-      />
-      <Stack.Screen
-        name="ProfileSettings"
         component={ProfileSettings}
-        options={{ title: '个人资料', headerShown: false }}
+        options={{ title: '个人中心', headerShown: false }}
       />
       <Stack.Screen
         name="BindPhone"

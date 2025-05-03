@@ -13,8 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Text } from '../components/common/Typography';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Pdf from 'react-native-pdf';
-import DrawingToolbar from '../components/DrawingToolbar';
-import DrawingCanvas from '../components/DrawingCanvas';
+import { DrawingToolbar, DrawingCanvas } from '../components/canvas';
 import { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import { notesApi } from '../services/api';
@@ -22,16 +21,16 @@ import { notesApi } from '../services/api';
 const PDFViewerScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const { pdfUri, title } = route.params || {};
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
-  
+
   const pdfRef = useRef(null);
   const containerRef = useRef(null);
-  
+
   // 绘图画布
   const drawingCanvas = DrawingCanvas({
     width: Dimensions.get('window').width,
@@ -51,17 +50,17 @@ const PDFViewerScreen = ({ route, navigation }) => {
       handleScreenshotTaken(uri);
     },
   });
-  
+
   // 处理截图
   const handleScreenshotTaken = async (uri) => {
     try {
       // 创建截图笔记
       const fileName = `screenshot_${Date.now()}.png`;
       const newPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      
+
       // 复制截图到应用目录
       await RNFS.copyFile(uri, newPath);
-      
+
       // 创建新笔记
       const screenshotNote = {
         title: `截图 ${new Date().toLocaleString()}`,
@@ -71,10 +70,10 @@ const PDFViewerScreen = ({ route, navigation }) => {
           imagePath: newPath,
         },
       };
-      
+
       // 保存截图笔记
       const response = await notesApi.create(screenshotNote);
-      
+
       if (response.success) {
         ToastAndroid.show('截图已保存为新笔记', ToastAndroid.SHORT);
       } else {
@@ -85,15 +84,15 @@ const PDFViewerScreen = ({ route, navigation }) => {
       Alert.alert('错误', '保存截图失败');
     }
   };
-  
+
   // 保存注释
   const saveAnnotations = async () => {
     try {
       setIsLoading(true);
-      
+
       // 这里可以调用API保存注释
       // 例如：await notesApi.saveAnnotations(pdfUri, annotations);
-      
+
       ToastAndroid.show('注释已保存', ToastAndroid.SHORT);
     } catch (error) {
       console.error('保存注释失败:', error);
@@ -102,12 +101,12 @@ const PDFViewerScreen = ({ route, navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 切换绘图工具
   const toggleDrawingTools = () => {
     setShowDrawingTools(!showDrawingTools);
   };
-  
+
   // 渲染PDF文档
   const renderPDF = () => {
     if (!pdfUri) {
@@ -120,9 +119,9 @@ const PDFViewerScreen = ({ route, navigation }) => {
         </View>
       );
     }
-    
+
     const source = { uri: pdfUri };
-    
+
     return (
       <Pdf
         ref={pdfRef}
@@ -141,7 +140,7 @@ const PDFViewerScreen = ({ route, navigation }) => {
       />
     );
   };
-  
+
   // 渲染加载状态
   const renderLoader = () => {
     if (isLoading) {
@@ -153,14 +152,14 @@ const PDFViewerScreen = ({ route, navigation }) => {
     }
     return null;
   };
-  
+
   return (
-    <View 
+    <View
       ref={containerRef}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       {renderLoader()}
-      
+
       {/* 顶部工具栏 */}
       <View style={[styles.header, { backgroundColor: colors.card }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -169,11 +168,11 @@ const PDFViewerScreen = ({ route, navigation }) => {
         <View style={styles.headerButtons}>
           <TouchableOpacity
             style={[
-              styles.headerButton, 
-              { 
-                backgroundColor: showDrawingTools 
-                  ? colors.primary + '80' 
-                  : colors.primary 
+              styles.headerButton,
+              {
+                backgroundColor: showDrawingTools
+                  ? colors.primary + '80'
+                  : colors.primary
               }
             ]}
             onPress={toggleDrawingTools}
@@ -192,7 +191,7 @@ const PDFViewerScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {/* 绘图工具栏 */}
       {showDrawingTools && (
         <DrawingToolbar
@@ -207,12 +206,12 @@ const PDFViewerScreen = ({ route, navigation }) => {
           onClear={drawingCanvas.handleClear}
         />
       )}
-      
+
       {/* 内容区域 */}
       <View style={styles.contentContainer}>
         {/* PDF文档 */}
         {renderPDF()}
-        
+
         {/* 绘图画布 */}
         {showDrawingTools && (
           <View style={styles.drawingCanvasContainer}>

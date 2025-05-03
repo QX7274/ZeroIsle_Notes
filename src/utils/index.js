@@ -1,21 +1,30 @@
+/**
+ * 工具函数导出文件
+ * 集中导出所有工具函数，方便引用
+ */
 import { Platform, PermissionsAndroid } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from '../config';
+import dateUtilsModule from './dateUtils';
+import { validationUtils as validationUtilsModule } from './validationUtils';
+import * as storageService from '../services/storage';
+import EventEmitter from './eventEmitter';
 
-// 存储工具
+// 存储工具 - 从 services/storage.js 导入
 export const storage = {
   set: async (key, value) => {
     try {
-      const jsonValue = JSON.stringify(value);
-      await AsyncStorage.setItem(key, jsonValue);
+      // 使用通用的存储方法
+      await storageService.setSettings({ [key]: value });
+      return true;
     } catch (e) {
       console.error('存储错误:', e);
+      return false;
     }
   },
   get: async (key) => {
     try {
-      const jsonValue = await AsyncStorage.getItem(key);
-      return jsonValue != null ? JSON.parse(jsonValue) : null;
+      // 使用通用的获取方法
+      const settings = await storageService.getSettings();
+      return settings[key] || null;
     } catch (e) {
       console.error('读取错误:', e);
       return null;
@@ -23,42 +32,22 @@ export const storage = {
   },
   remove: async (key) => {
     try {
-      await AsyncStorage.removeItem(key);
+      // 获取当前设置，删除指定键，然后保存
+      const settings = await storageService.getSettings();
+      if (settings[key]) {
+        delete settings[key];
+        await storageService.setSettings(settings);
+      }
+      return true;
     } catch (e) {
       console.error('删除错误:', e);
+      return false;
     }
   }
 };
 
 // 日期工具
-export const dateUtils = {
-  format: (date, format = 'YYYY-MM-DD HH:mm:ss') => {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-
-    return format
-      .replace('YYYY', year)
-      .replace('MM', month)
-      .replace('DD', day)
-      .replace('HH', hours)
-      .replace('mm', minutes)
-      .replace('ss', seconds);
-  },
-  isToday: (date) => {
-    const today = new Date();
-    const d = new Date(date);
-    return (
-      d.getDate() === today.getDate() &&
-      d.getMonth() === today.getMonth() &&
-      d.getFullYear() === today.getFullYear()
-    );
-  }
-};
+export const dateUtils = dateUtilsModule;
 
 // 权限工具
 export const permissionUtils = {
@@ -79,16 +68,7 @@ export const permissionUtils = {
 };
 
 // 验证工具
-export const validationUtils = {
-  isEmail: (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  },
-  isPassword: (password) => {
-    return password.length >= 6;
-  },
-  isPhone: (phone) => {
-    const re = /^1[3-9]\d{9}$/;
-    return re.test(phone);
-  }
-};
+export const validationUtils = validationUtilsModule;
+
+// 事件发射器
+export { default as EventEmitter } from './eventEmitter';

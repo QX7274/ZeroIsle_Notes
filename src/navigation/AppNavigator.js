@@ -11,7 +11,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { navigationRef } from './navigationRef';
 
 // 导入Redux操作
-import { getProfile } from '../store/slices/authSlice';
+import { getProfile } from '../redux/slices/authSlice';
 
 // 导入组件
 import { Loading } from '../components/common';
@@ -23,7 +23,7 @@ import ReminderNavigator from './ReminderNavigator';
 
 // 导入屏幕
 import HomeScreen from '../screens/HomeScreen';
-import ReminderScreen from '../screens/ReminderScreen';
+import ReminderScreen from '../screens/notes/ReminderScreen';
 import AddReminderScreen from '../screens/AddReminderScreen';
 import ReminderDetailScreen from '../screens/ReminderDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -40,7 +40,7 @@ import SearchResultsScreen from '../screens/SearchResultsScreen';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
 import VoiceToTextScreen from '../screens/notes/VoiceToTextScreen';
 import RealtimeTranscriptionScreen from '../screens/notes/RealtimeTranscriptionScreen';
-import ApiTestComponent from '../components/ApiTestComponent';
+import { ApiTestComponent } from '../components/common';
 // 直接导入知识图谱相关组件
 import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
 import NodeDetailScreen from '../screens/knowledge/NodeDetailScreen';

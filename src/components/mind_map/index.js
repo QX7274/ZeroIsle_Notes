@@ -4,8 +4,10 @@
 
 import MindMapToolbar from './MindMapToolbar';
 import MindMapView from './MindMapView';
+import MindMap from './MindMap';
 
 export {
   MindMapToolbar,
-  MindMapView
+  MindMapView,
+  MindMap
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../utils/constants/colors';
 
 /**
@@ -8,7 +9,7 @@ import { colors } from '../../utils/constants/colors';
  * 使用D3.js在WebView中渲染交互式知识图谱
  */
 const KnowledgeGraph = ({ data, onNodeClick }) => {
-  // 使用静态颜色
+  const { theme } = useTheme();
   const webViewRef = useRef(null);
 
   // 将图数据转换为D3.js可用的格式

@@ -14,12 +14,11 @@ import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, K
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import SearchScreen from '../screens/SearchScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../screens/SettingsScreen';
 import ProfileSettings from '../screens/settings/ProfileSettings';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 import BindPhone from '../screens/settings/BindPhone';
 import BindEmail from '../screens/settings/BindEmail';
-import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
+import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 
 // 临时占位组件
 import { View, Text } from 'react-native';
@@ -67,8 +66,7 @@ const KnowledgeGraphNavigator = () => (
 // 个人中心导航堆栈
 const ProfileNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: '个人中心' }} />
-    <Stack.Screen name="ProfileSettings" component={ProfileSettings} options={{ title: '个人资料' }} />
+    <Stack.Screen name="ProfileMain" component={ProfileSettings} options={{ title: '个人中心' }} />
     <Stack.Screen name="BindPhone" component={BindPhone} options={{ title: '手机绑定' }} />
     <Stack.Screen name="BindEmail" component={BindEmail} options={{ title: '邮箱绑定' }} />
     <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{ title: '主题设置' }} />

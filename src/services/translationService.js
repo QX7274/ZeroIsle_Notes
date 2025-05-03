@@ -1,36 +1,41 @@
+/**
+ * 翻译服务
+ * 提供文本翻译功能
+ * @deprecated 请使用 src/services/ai/translationService.js
+ */
 import { analyticsService } from './analytics';
-import { apiService } from './api';
-import { aiService } from './aiService';
+import translationServiceModule from './ai/translationService';
 
+/**
+ * 翻译服务类
+ * 提供文本翻译功能
+ * @deprecated 请使用 src/services/ai/translationService.js
+ */
 class TranslationService {
   constructor() {
     this.translationHistory = [];
-    this.supportedLanguages = [
-      { code: 'zh', name: '中文' },
-      { code: 'en', name: '英语' },
-      { code: 'ja', name: '日语' },
-      { code: 'ko', name: '韩语' },
-      { code: 'fr', name: '法语' },
-      { code: 'de', name: '德语' },
-      { code: 'es', name: '西班牙语' },
-      { code: 'ru', name: '俄语' },
-    ];
+    this.supportedLanguages = Object.entries(translationServiceModule.getSupportedLanguages()).map(
+      ([code, name]) => ({ code, name })
+    );
   }
 
+  /**
+   * 翻译文本
+   * @param {string} text - 要翻译的文本
+   * @param {string} targetLang - 目标语言代码
+   * @returns {Promise<string>} - 翻译后的文本
+   */
   async translateText(text, targetLang) {
     try {
-      const response = await apiService.post('/translate', {
-        text,
-        targetLang,
-      });
-      
+      const translatedText = await translationServiceModule.translateText(text, targetLang);
+
       analyticsService.trackTranslationAction('translate', {
         textLength: text.length,
         targetLang,
       });
-      
-      this.addToHistory(text, response.data.translatedText, targetLang);
-      return response.data.translatedText;
+
+      this.addToHistory(text, translatedText, targetLang);
+      return translatedText;
     } catch (error) {
       console.error('文本翻译错误:', error);
       analyticsService.trackError(error, { action: 'translate_text' });
@@ -41,12 +46,12 @@ class TranslationService {
   async translateSelection(selectedText, targetLang) {
     try {
       const translatedText = await this.translateText(selectedText, targetLang);
-      
+
       analyticsService.trackTranslationAction('translate_selection', {
         textLength: selectedText.length,
         targetLang,
       });
-      
+
       return translatedText;
     } catch (error) {
       console.error('选中文本翻译错误:', error);
@@ -62,15 +67,15 @@ class TranslationService {
       const translatedParagraphs = await Promise.all(
         paragraphs.map(paragraph => this.translateText(paragraph, targetLang))
       );
-      
+
       const translatedText = translatedParagraphs.join('\n\n');
-      
+
       analyticsService.trackTranslationAction('translate_document', {
         textLength: text.length,
         targetLang,
         paragraphCount: paragraphs.length,
       });
-      
+
       return translatedText;
     } catch (error) {
       console.error('文档翻译错误:', error);
@@ -79,15 +84,20 @@ class TranslationService {
     }
   }
 
+  /**
+   * 检测语言
+   * @param {string} text - 要检测的文本
+   * @returns {Promise<string>} - 检测到的语言代码
+   */
   async detectLanguage(text) {
     try {
-      const response = await apiService.post('/translate/detect', { text });
-      
+      const language = await translationServiceModule.detectLanguage(text);
+
       analyticsService.trackTranslationAction('detect_language', {
         textLength: text.length,
       });
-      
-      return response.data.language;
+
+      return language;
     } catch (error) {
       console.error('语言检测错误:', error);
       analyticsService.trackError(error, { action: 'detect_language' });
@@ -102,12 +112,12 @@ class TranslationService {
       targetLang,
       timestamp: new Date().toISOString(),
     });
-    
+
     // 保持历史记录在100条以内
     if (this.translationHistory.length > 100) {
       this.translationHistory.pop();
     }
-    
+
     analyticsService.trackTranslationAction('add_to_history', {
       textLength: originalText.length,
       targetLang,
@@ -128,4 +138,4 @@ class TranslationService {
   }
 }
 
-export const translationService = new TranslationService(); 
+export const translationService = new TranslationService();

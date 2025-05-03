@@ -12,6 +12,7 @@ import EdgeEditor from './EdgeEditor';
 import TagGenerator from './TagGenerator';
 import AutoClassification from './AutoClassification';
 import KnowledgeGraphBuilder from './KnowledgeGraphBuilder';
+import KnowledgeGraph from './KnowledgeGraph';
 
 export {
   GraphVisualization,
@@ -23,6 +24,7 @@ export {
   TagGenerator,
   AutoClassification,
   KnowledgeGraphBuilder,
+  KnowledgeGraph,
 };
 
 export default {
@@ -35,4 +37,5 @@ export default {
   TagGenerator,
   AutoClassification,
   KnowledgeGraphBuilder,
+  KnowledgeGraph,
 };

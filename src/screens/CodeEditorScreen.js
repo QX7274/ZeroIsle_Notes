@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import CodeEditor from '../components/CodeEditor';
-import CodeRunner from '../components/CodeRunner';
+import { CodeEditor, CodeRunner } from '../components/code';
 import { analyticsService } from '../services/analytics';
 
 const CodeEditorScreen = () => {
@@ -92,4 +91,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CodeEditorScreen; 
+export default CodeEditorScreen;

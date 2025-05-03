@@ -355,6 +355,29 @@ export const getOfflineNotes = async () => {
   }
 };
 
+/**
+ * 根据关键词搜索笔记
+ * @param {object} params - 搜索参数
+ * @param {string} params.text - 要搜索的文本
+ * @param {Array<string>} params.keywords - 关键词数组
+ * @returns {Promise} - 搜索结果
+ */
+export const searchByKeywords = async (params) => {
+  try {
+    const response = await instance.post(`${API_ENDPOINTS.NOTES.BASE}search/`, params);
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || '搜索笔记失败',
+      error
+    };
+  }
+};
+
 const notesApi = {
   createNote,
   updateNote,
@@ -370,7 +393,8 @@ const notesApi = {
   importNote,
   saveOfflineNote,
   syncOfflineNotes,
-  getOfflineNotes
+  getOfflineNotes,
+  searchByKeywords
 };
 
 export default notesApi;
