@@ -12,6 +12,7 @@ import { colors } from '../utils/constants/colors';
 // 导入知识图谱和手写识别组件
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
+import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import SearchScreen from '../screens/SearchScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -38,9 +39,13 @@ const NotesNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
     <Stack.Screen name="NotesList" component={NoteListScreen} options={{ title: '我的笔记' }} />
     <Stack.Screen name="NoteEdit" component={NoteEditScreen} options={{ title: '编辑笔记' }} />
+    <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
     <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
+    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
   </Stack.Navigator>
 );
 
@@ -53,6 +58,9 @@ const KnowledgeGraphNavigator = () => (
     <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
+    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
   </Stack.Navigator>
 );
 

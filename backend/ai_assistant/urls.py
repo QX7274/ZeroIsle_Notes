@@ -14,6 +14,7 @@ from .views import (
 )
 from .views import *
 from . import legacy_views
+from .views.ai_process_views import process_ai
 
 # 创建路由器
 router = DefaultRouter()
@@ -38,10 +39,18 @@ legacy_urls = [
     path('reset-session/', legacy_views.reset_session, name='ai_reset_session'),
 ]
 
+# 笔记AI处理API
+note_ai_urls = [
+    path('process/', process_ai, name='ai_process'),
+]
+
 urlpatterns = [
     # API路由
     path('', include(router.urls)),
 
     # 兼容旧版API
     *legacy_urls,
+
+    # 笔记AI处理API
+    *note_ai_urls,
 ]

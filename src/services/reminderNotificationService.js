@@ -13,6 +13,9 @@ import { isNetworkConnected } from './networkService';
 const STORAGE_KEYS = {
   PENDING_REMINDERS: 'pending_reminders',
   OFFLINE_REMINDERS: 'offline_reminders',
+  ALL_REMINDERS: 'all_reminders',
+  OFFLINE_OPERATIONS: 'offline_operations',
+  LAST_SYNC_TIME: 'last_sync_time',
 };
 
 // 通知渠道ID
@@ -324,76 +327,122 @@ class ReminderNotificationService {
   }
 
   /**
-   * 同步离线创建的提醒
-   * @returns {Promise<boolean>} 是否成功
+   * 同步离线操作
+   * @returns {Promise<Object>} 同步结果
    */
   async syncOfflineReminders() {
     try {
       // 检查网络连接
       const isConnected = await isNetworkConnected();
       if (!isConnected) {
-        console.log('无网络连接，无法同步离线提醒');
-        return false;
+        console.log('无网络连接，无法同步离线操作');
+        return { success: false, message: '无网络连接', synced: 0, failed: 0 };
       }
 
-      // 获取离线提醒
-      const offlineRemindersJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-      if (!offlineRemindersJson) {
-        return true; // 没有离线提醒需要同步
+      // 获取离线操作记录
+      const operations = await this.getOfflineOperations();
+      if (!operations || operations.length === 0) {
+        console.log('没有离线操作需要同步');
+        return { success: true, message: '没有离线操作需要同步', synced: 0, failed: 0 };
       }
 
-      const offlineReminders = JSON.parse(offlineRemindersJson);
-      if (!offlineReminders.length) {
-        return true; // 没有离线提醒需要同步
-      }
+      console.log(`开始同步${operations.length}个离线操作`);
 
-      console.log(`开始同步${offlineReminders.length}个离线提醒`);
+      let synced = 0;
+      let failed = 0;
+      const failedOperations = [];
 
-      // 同步每个离线提醒
-      const syncPromises = offlineReminders.map(async (reminder) => {
+      // 按时间戳排序，确保按正确顺序处理操作
+      operations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      // 同步每个操作
+      for (const operation of operations) {
         try {
-          const result = await reminderApi.createReminder(reminder);
-          if (result.success) {
-            console.log(`成功同步提醒: ${reminder.title}`);
-            return { success: true, reminder };
+          let result;
+
+          switch (operation.operation) {
+            case 'create':
+              result = await reminderApi.createReminder(operation.data);
+              break;
+            case 'update':
+              result = await reminderApi.updateReminder(operation.data.id, operation.data);
+              break;
+            case 'delete':
+              result = await reminderApi.deleteReminder(operation.data.id);
+              break;
+            default:
+              console.warn(`未知的操作类型: ${operation.operation}`);
+              failedOperations.push(operation);
+              failed++;
+              continue;
+          }
+
+          if (result && result.success) {
+            console.log(`成功同步操作: ${operation.operation} ${operation.data.title || operation.data.id}`);
+            synced++;
+
+            // 如果是创建操作，需要更新本地通知
+            if (operation.operation === 'create' && result.data) {
+              // 取消旧的本地通知
+              if (operation.data.notificationId) {
+                await this.cancelReminderNotification(operation.data.notificationId);
+              }
+
+              // 安排新的通知
+              await this.scheduleReminderNotification(result.data);
+            }
           } else {
-            console.error(`同步提醒失败: ${reminder.title}`, result.message);
-            return { success: false, reminder };
+            console.error(`同步操作失败: ${operation.operation} ${operation.data.title || operation.data.id}`, result?.message);
+            failedOperations.push(operation);
+            failed++;
           }
         } catch (error) {
-          console.error(`同步提醒出错: ${reminder.title}`, error);
-          return { success: false, reminder };
+          console.error(`同步操作出错: ${operation.operation} ${operation.data.title || operation.data.id}`, error);
+          failedOperations.push(operation);
+          failed++;
         }
-      });
-
-      // 等待所有同步完成
-      const results = await Promise.all(syncPromises);
-
-      // 过滤出同步失败的提醒
-      const failedReminders = results
-        .filter(result => !result.success)
-        .map(result => result.reminder);
-
-      // 更新离线提醒存储
-      if (failedReminders.length > 0) {
-        await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, JSON.stringify(failedReminders));
-        console.log(`${failedReminders.length}个提醒同步失败，将在下次尝试`);
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-        console.log('所有离线提醒同步成功');
       }
 
-      analyticsService.trackEvent('sync_offline_reminders', {
-        totalCount: offlineReminders.length,
-        successCount: offlineReminders.length - failedReminders.length,
-        failedCount: failedReminders.length,
+      // 更新离线操作存储
+      if (failedOperations.length > 0) {
+        await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, JSON.stringify(failedOperations));
+        console.log(`${failedOperations.length}个操作同步失败，将在下次尝试`);
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+        console.log('所有离线操作同步成功');
+      }
+
+      // 更新最后同步时间
+      await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
+
+      // 如果有成功同步的操作，从服务器获取最新数据
+      if (synced > 0) {
+        try {
+          const response = await reminderApi.getAllReminders();
+          if (response.success) {
+            await this.saveAllReminders(response.data);
+          }
+        } catch (error) {
+          console.error('获取最新提醒数据失败:', error);
+        }
+      }
+
+      analyticsService.trackEvent('sync_offline_operations', {
+        totalCount: operations.length,
+        successCount: synced,
+        failedCount: failed,
       });
 
-      return failedReminders.length === 0;
+      return {
+        success: failed === 0,
+        message: failed === 0 ? '所有操作同步成功' : `${failed}个操作同步失败`,
+        synced,
+        failed
+      };
     } catch (error) {
-      console.error('同步离线提醒失败:', error);
-      analyticsService.trackError(error, { action: 'sync_offline_reminders' });
-      return false;
+      console.error('同步离线操作失败:', error);
+      analyticsService.trackError(error, { action: 'sync_offline_operations' });
+      return { success: false, message: error.message, synced: 0, failed: 0 };
     }
   }
 
@@ -417,6 +466,9 @@ class ReminderNotificationService {
 
       // 保存更新后的离线提醒
       await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, JSON.stringify(offlineReminders));
+
+      // 保存离线操作记录
+      await this.saveOfflineOperation('create', reminder);
 
       analyticsService.trackEvent('save_offline_reminder', {
         title: reminder.title,
@@ -442,6 +494,137 @@ class ReminderNotificationService {
       console.error('获取离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_offline_reminders' });
       return [];
+    }
+  }
+
+  /**
+   * 保存所有提醒到本地存储
+   * @param {Array} reminders 提醒列表
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async saveAllReminders(reminders) {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.ALL_REMINDERS, JSON.stringify(reminders));
+      await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
+
+      analyticsService.trackEvent('save_all_reminders', {
+        count: reminders.length,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('保存所有提醒失败:', error);
+      analyticsService.trackError(error, { action: 'save_all_reminders' });
+      return false;
+    }
+  }
+
+  /**
+   * 获取所有本地存储的提醒
+   * @returns {Promise<Array>} 提醒列表
+   */
+  async getAllReminders() {
+    try {
+      const remindersJson = await AsyncStorage.getItem(STORAGE_KEYS.ALL_REMINDERS);
+      return remindersJson ? JSON.parse(remindersJson) : [];
+    } catch (error) {
+      console.error('获取所有提醒失败:', error);
+      analyticsService.trackError(error, { action: 'get_all_reminders' });
+      return [];
+    }
+  }
+
+  /**
+   * 保存离线操作记录
+   * @param {string} operation 操作类型 ('create', 'update', 'delete')
+   * @param {Object} data 操作数据
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async saveOfflineOperation(operation, data) {
+    try {
+      // 获取现有的离线操作
+      const operationsJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+      const operations = operationsJson ? JSON.parse(operationsJson) : [];
+
+      // 添加新的操作
+      operations.push({
+        id: `${operation}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        operation,
+        data,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 保存更新后的操作记录
+      await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, JSON.stringify(operations));
+
+      return true;
+    } catch (error) {
+      console.error('保存离线操作记录失败:', error);
+      analyticsService.trackError(error, { action: 'save_offline_operation' });
+      return false;
+    }
+  }
+
+  /**
+   * 获取离线操作记录
+   * @returns {Promise<Array>} 操作记录列表
+   */
+  async getOfflineOperations() {
+    try {
+      const operationsJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+      return operationsJson ? JSON.parse(operationsJson) : [];
+    } catch (error) {
+      console.error('获取离线操作记录失败:', error);
+      analyticsService.trackError(error, { action: 'get_offline_operations' });
+      return [];
+    }
+  }
+
+  /**
+   * 清除离线操作记录
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async clearOfflineOperations() {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+      return true;
+    } catch (error) {
+      console.error('清除离线操作记录失败:', error);
+      analyticsService.trackError(error, { action: 'clear_offline_operations' });
+      return false;
+    }
+  }
+
+  /**
+   * 移除离线提醒
+   * @param {string} id 提醒ID
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async removeOfflineReminder(id) {
+    try {
+      // 获取现有的离线提醒
+      const offlineRemindersJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
+      if (!offlineRemindersJson) return true;
+
+      const offlineReminders = JSON.parse(offlineRemindersJson);
+
+      // 过滤掉要移除的提醒
+      const updatedReminders = offlineReminders.filter(reminder =>
+        reminder.id !== id && reminder.offlineId !== id
+      );
+
+      // 保存更新后的离线提醒
+      if (updatedReminders.length > 0) {
+        await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, JSON.stringify(updatedReminders));
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_REMINDERS);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('移除离线提醒失败:', error);
+      analyticsService.trackError(error, { action: 'remove_offline_reminder' });
+      return false;
     }
   }
 

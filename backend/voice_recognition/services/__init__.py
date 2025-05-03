@@ -9,3 +9,20 @@ from .baidu_asr_service import BaiduASRService
 from .transcription_service import TranscriptionService
 from .audio_service import AudioService
 from .diarization_service import DiarizationService
+from .text_processing_service import TextProcessingService
+from .voice_command_service import VoiceCommandService
+from .speaker_recognition_service import SpeakerRecognitionService
+from .realtime_transcription_service import RealtimeTranscriptionService
+
+__all__ = [
+    'WhisperService',
+    'XunfeiASRService',
+    'BaiduASRService',
+    'TranscriptionService',
+    'AudioService',
+    'DiarizationService',
+    'TextProcessingService',
+    'VoiceCommandService',
+    'SpeakerRecognitionService',
+    'RealtimeTranscriptionService',
+]

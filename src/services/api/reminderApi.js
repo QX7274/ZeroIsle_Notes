@@ -279,6 +279,133 @@ export const getReminderNotifications = async () => {
   }
 };
 
+/**
+ * 获取提醒统计信息
+ * @returns {Promise} - 统计信息
+ */
+export const getReminderStatistics = async () => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.REMINDER.STATISTICS);
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('获取提醒统计信息失败:', error);
+    return {
+      success: false,
+      message: error.message || '获取提醒统计信息失败',
+      error
+    };
+  }
+};
+
+/**
+ * 获取日历视图数据
+ * @param {number} year - 年份
+ * @param {number} month - 月份
+ * @returns {Promise} - 日历数据
+ */
+export const getCalendarData = async (year, month) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.REMINDER.CALENDAR, {
+      params: { year, month }
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('获取日历数据失败:', error);
+    return {
+      success: false,
+      message: error.message || '获取日历数据失败',
+      error
+    };
+  }
+};
+
+/**
+ * 导出提醒数据
+ * @param {Object} options - 导出选项
+ * @param {string} options.format - 导出格式 ('json' 或 'csv')
+ * @param {boolean} options.includeCompleted - 是否包含已完成的提醒
+ * @returns {Promise} - 导出数据
+ */
+export const exportReminders = async (options = {}) => {
+  try {
+    const response = await instance.get(API_ENDPOINTS.REMINDER.EXPORT, {
+      params: options,
+      responseType: 'blob'
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('导出提醒数据失败:', error);
+    return {
+      success: false,
+      message: error.message || '导出提醒数据失败',
+      error
+    };
+  }
+};
+
+/**
+ * 导入提醒数据
+ * @param {FormData} formData - 包含导入文件的表单数据
+ * @returns {Promise} - 导入结果
+ */
+export const importReminders = async (formData) => {
+  try {
+    const response = await instance.post(API_ENDPOINTS.REMINDER.IMPORT, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('导入提醒数据失败:', error);
+    return {
+      success: false,
+      message: error.message || '导入提醒数据失败',
+      error
+    };
+  }
+};
+
+/**
+ * 更新提醒的日历集成信息
+ * @param {string} id - 提醒ID
+ * @param {Object} calendarData - 日历数据
+ * @param {string} calendarData.calendar_event_id - 日历事件ID
+ * @param {string} calendarData.calendar_id - 日历ID
+ * @returns {Promise} - 更新结果
+ */
+export const updateReminderCalendarInfo = async (id, calendarData) => {
+  try {
+    const response = await instance.post(
+      `${API_ENDPOINTS.REMINDER.DETAIL(id)}calendar_integration/`,
+      calendarData
+    );
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('更新提醒日历集成信息失败:', error);
+    return {
+      success: false,
+      message: error.message || '更新提醒日历集成信息失败',
+      error
+    };
+  }
+};
+
 const reminderApi = {
   getAllReminders,
   getReminderById,
@@ -292,7 +419,12 @@ const reminderApi = {
   getTodayReminders,
   createReminderFromNote,
   toggleEnableReminder,
-  getReminderNotifications
+  getReminderNotifications,
+  getReminderStatistics,
+  getCalendarData,
+  exportReminders,
+  importReminders,
+  updateReminderCalendarInfo
 };
 
 export default reminderApi;

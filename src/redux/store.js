@@ -10,6 +10,7 @@ import authReducer from './slices/authSlice';
 import notesReducer from './slices/notesSlice';
 import uiReducer from './slices/uiSlice';
 import knowledgeGraphReducer from './slices/knowledgeGraphSlice';
+import mindMapReducer from './slices/mindMapSlice';
 import communityReducer from './slices/communitySlice';
 import searchReducer from './slices/searchSlice';
 import tagsReducer from './slices/tagsSlice';
@@ -22,6 +23,7 @@ const store = configureStore({
     notes: notesReducer,
     ui: uiReducer,
     knowledgeGraph: knowledgeGraphReducer,
+    mindMap: mindMapReducer,
     community: communityReducer,
     search: searchReducer,
     tags: tagsReducer,

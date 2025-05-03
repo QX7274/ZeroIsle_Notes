@@ -38,6 +38,8 @@ import AIAssistantScreen from '../screens/AIAssistantScreen';
 import AIAssistantSettingsScreen from '../screens/AIAssistantSettingsScreen';
 import SearchResultsScreen from '../screens/SearchResultsScreen';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
+import VoiceToTextScreen from '../screens/notes/VoiceToTextScreen';
+import RealtimeTranscriptionScreen from '../screens/notes/RealtimeTranscriptionScreen';
 import ApiTestComponent from '../components/ApiTestComponent';
 // 直接导入知识图谱相关组件
 import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
@@ -328,6 +330,22 @@ const HomeStack = () => {
           title: route.params?.title || '提醒详情',
           headerBackTitleVisible: false,
         })}
+      />
+      <Stack.Screen
+        name="VoiceToText"
+        component={VoiceToTextScreen}
+        options={{
+          title: '语音转文本',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="RealtimeTranscription"
+        component={RealtimeTranscriptionScreen}
+        options={{
+          title: '实时转写',
+          headerBackTitleVisible: false,
+        }}
       />
     </Stack.Navigator>
   );

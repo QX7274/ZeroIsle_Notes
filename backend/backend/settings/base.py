@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'code',
     'common',
     'notification',
+    'groups',
 ]
 
 # 中间件配置

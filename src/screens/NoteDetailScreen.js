@@ -304,6 +304,22 @@ const NoteDetailScreen = ({ route, navigation }) => {
 
         <TouchableOpacity
           style={styles.bottomBarButton}
+          onPress={() => {
+            // 导航到知识图谱分析页面
+            navigation.navigate('KnowledgeAnalysis', {
+              noteId: noteData?.id,
+              noteTitle: noteData?.title
+            });
+          }}
+        >
+          <Icon name="analytics-outline" size={24} color={colors.text} />
+          <Text style={[styles.bottomBarButtonText, { color: colors.text }]}>
+            知识图谱
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomBarButton}
           onPress={saveNote}
         >
           <Icon name="save-outline" size={24} color={colors.text} />

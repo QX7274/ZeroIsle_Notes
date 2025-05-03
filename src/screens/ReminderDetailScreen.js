@@ -20,6 +20,7 @@ import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../services/api';
 import { API_ENDPOINTS } from '../config/api';
+import CalendarIntegrationView from '../components/reminder/CalendarIntegrationView';
 
 const ReminderDetailScreen = ({ route, navigation }) => {
   const { id } = route.params;
@@ -57,13 +58,13 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      
+
       // 更新提醒
       const response = await api.put(API_ENDPOINTS.REMINDER.DETAIL(id), reminder);
-      
+
       // 更新Redux状态
       dispatch(updateReminder(response.data));
-      
+
       // 显示成功消息
       Alert.alert('成功', '提醒已更新', [
         { text: '确定', onPress: () => navigation.goBack() }
@@ -89,13 +90,13 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               setSaving(true);
-              
+
               // 删除提醒
               await api.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
-              
+
               // 更新Redux状态
               dispatch(deleteReminder(id));
-              
+
               // 返回上一页
               navigation.goBack();
             } catch (error) {
@@ -113,30 +114,30 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   const handleToggleComplete = async () => {
     try {
       setSaving(true);
-      
+
       // 更新提醒对象
       const updatedReminder = {
         ...reminder,
         is_completed: !reminder.is_completed,
         completed_at: !reminder.is_completed ? new Date().toISOString() : null,
       };
-      
+
       // 更新本地状态
       setReminder(updatedReminder);
-      
+
       // 更新服务器
       if (updatedReminder.is_completed) {
         await api.post(API_ENDPOINTS.REMINDER.COMPLETE(id));
       } else {
         await api.post(`${API_ENDPOINTS.REMINDER.DETAIL(id)}reopen/`);
       }
-      
+
       // 更新Redux状态
       dispatch(updateReminder(updatedReminder));
     } catch (error) {
       console.error('更新提醒状态失败:', error);
       Alert.alert('错误', '更新提醒状态失败');
-      
+
       // 恢复原始状态
       setReminder(reminder);
     } finally {
@@ -147,10 +148,10 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   // 处理日期选择
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(Platform.OS === 'ios');
-    
+
     if (selectedDate) {
       setTempDate(selectedDate);
-      
+
       if (datePickerMode === 'date') {
         // 如果是日期模式，保留原时间部分，只更新日期
         if (Platform.OS === 'android') {
@@ -263,7 +264,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             placeholder="提醒标题"
             placeholderTextColor={theme.textDisabled}
           />
-          
+
           <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>描述</Text>
           <TextInput
             style={[styles.descriptionInput, { color: theme.text, borderColor: theme.border }]}
@@ -276,7 +277,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             textAlignVertical="top"
           />
         </View>
-        
+
         {/* 日期和时间 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>日期和时间</Text>
@@ -290,7 +291,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         {/* 优先级 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>优先级</Text>
@@ -325,7 +326,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             ))}
           </View>
         </View>
-        
+
         {/* 分类 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>分类</Text>
@@ -360,7 +361,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             ))}
           </View>
         </View>
-        
+
         {/* 重复 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>重复</Text>
@@ -394,7 +395,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             ))}
           </View>
-          
+
           {reminder.frequency !== 'once' && (
             <View style={styles.repeatEndContainer}>
               <Text style={[styles.repeatEndLabel, { color: theme.textSecondary }]}>
@@ -416,7 +417,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             </View>
           )}
         </View>
-        
+
         {/* 标签 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>标签</Text>
@@ -428,7 +429,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             placeholderTextColor={theme.textDisabled}
           />
         </View>
-        
+
         {/* 开关选项 */}
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <View style={styles.switchRow}>
@@ -440,7 +441,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
               thumbColor={reminder.is_enabled ? theme.primary : '#f4f3f4'}
             />
           </View>
-          
+
           <View style={styles.switchRow}>
             <Text style={[styles.switchLabel, { color: theme.text }]}>已完成</Text>
             <Switch
@@ -452,7 +453,22 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             />
           </View>
         </View>
-        
+
+        {/* 日历集成 */}
+        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+          <CalendarIntegrationView
+            reminder={reminder}
+            onSyncComplete={(calendarData) => {
+              // 更新提醒对象
+              setReminder({
+                ...reminder,
+                calendar_event_id: calendarData.calendar_event_id,
+                calendar_id: calendarData.calendar_id,
+              });
+            }}
+          />
+        </View>
+
         {/* 操作按钮 */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
@@ -463,7 +479,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             <Icon name="delete" size={20} color="#fff" />
             <Text style={styles.buttonText}>删除</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: theme.primary }]}
             onPress={handleSave}
@@ -480,7 +496,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      
+
       {/* 日期选择器 */}
       {showDatePicker && (
         <DateTimePicker

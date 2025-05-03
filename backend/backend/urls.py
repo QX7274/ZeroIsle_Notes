@@ -61,6 +61,7 @@ urlpatterns = [
     path(f'{api_prefix}notes/', include('notes.urls')),
     path(f'{api_prefix}reminders/', include('reminder.urls')),
     path(f'{api_prefix}knowledge-graph/', include('knowledge_graph.urls')),
+    path(f'{api_prefix}mind-map/', include('mind_map.urls')),
     path(f'{api_prefix}ai-assistant/', include('ai_assistant.urls')),
     path(f'{api_prefix}voice-recognition/', include('voice_recognition.urls')),
     path(f'{api_prefix}search/', include('search.urls')),
@@ -69,6 +70,7 @@ urlpatterns = [
     path(f'{api_prefix}code/', include('code.urls')),
     path(f'{api_prefix}common/', include('common.urls')),
     path(f'{api_prefix}notifications/', include('notification.urls')),
+    path(f'{api_prefix}groups/', include('groups.urls')),
 ]
 
 # 添加媒体文件URL

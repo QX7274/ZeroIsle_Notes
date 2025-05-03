@@ -14,6 +14,17 @@ from knowledge_graph.views.mongo_views import (
     MongoKnowledgeNodeViewSet,
     MongoKnowledgeEdgeViewSet
 )
+from knowledge_graph.views.auto_classification_views import (
+    auto_classify_note,
+    suggest_tags,
+    extract_keywords,
+    find_similar_notes,
+    integrate_with_existing_notes,
+    build_knowledge_graph,
+    build_knowledge_graph_for_user,
+    analyze_note_connections,
+    suggest_related_content
+)
 
 # 创建路由器
 router = DefaultRouter()
@@ -41,6 +52,19 @@ node_urls = [
     path('<int:pk>/related/', KnowledgeNodeViewSet.as_view({'get': 'related'}), name='knowledge-node-related'),
 ]
 
+# 自动分类和知识图谱构建API路径
+auto_classification_urls = [
+    path('auto-classify/', auto_classify_note, name='auto-classify-note'),
+    path('suggest-tags/', suggest_tags, name='suggest-tags'),
+    path('extract-keywords/', extract_keywords, name='extract-keywords'),
+    path('find-similar-notes/', find_similar_notes, name='find-similar-notes'),
+    path('integrate-notes/', integrate_with_existing_notes, name='integrate-notes'),
+    path('build-graph/', build_knowledge_graph, name='build-graph'),
+    path('build-user-graph/', build_knowledge_graph_for_user, name='build-user-graph'),
+    path('analyze-connections/', analyze_note_connections, name='analyze-connections'),
+    path('suggest-related-content/', suggest_related_content, name='suggest-related-content'),
+]
+
 urlpatterns = [
     # 路由器URL
     path('', include(router.urls)),
@@ -50,6 +74,9 @@ urlpatterns = [
 
     # 节点相关URL
     path('nodes/', include(node_urls)),
+
+    # 自动分类和知识图谱构建URL
+    path('auto/', include(auto_classification_urls)),
 
     # MongoDB API URL
     path('mongo/', include(mongo_router.urls)),

@@ -244,3 +244,40 @@ class NoteViewSet(viewsets.ModelViewSet):
                 {'error': f'导入笔记失败: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['post'])
+    def append(self, request, pk=None):
+        """向笔记添加内容"""
+        try:
+            note = self.get_object()
+
+            # 检查权限
+            if note.user != request.user:
+                return Response(
+                    {"detail": "您不能编辑其他用户的笔记"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # 获取要添加的内容
+            content = request.data.get('content', '')
+            if not content:
+                return Response(
+                    {'error': '未提供内容'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 添加内容到笔记
+            note.content += f"\n\n{content}"
+            note.updated_at = timezone.now()
+            note.save()
+
+            return Response({
+                'message': '内容已添加到笔记',
+                'note_id': str(note.id)
+            })
+        except Exception as e:
+            logger.error(f"向笔记添加内容失败: {str(e)}")
+            return Response(
+                {'error': f'向笔记添加内容失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

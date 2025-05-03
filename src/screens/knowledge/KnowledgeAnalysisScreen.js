@@ -1,6 +1,7 @@
 /**
  * 知识图谱分析屏幕
  * 用于分析知识图谱结构、查找路径和相关概念
+ * 提供自动分类、知识图谱构建和分析功能
  */
 
 import React, { useState, useEffect } from 'react';
@@ -26,13 +27,21 @@ import {
 
 // 导入API服务
 import * as knowledgeGraphApi from '../../services/api/knowledgeGraphApi';
+import autoClassificationApi from '../../services/api/autoClassificationApi';
 
 // 导入常量和工具函数
 import { useTheme } from '../../context/ThemeContext';
+import { SPACING, TYPOGRAPHY } from '../../styles/constants';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
-import { PathVisualization, StructureAnalysis, RelatedConceptsView } from '../../components/knowledge';
+import {
+  PathVisualization,
+  StructureAnalysis,
+  RelatedConceptsView,
+  AutoClassification,
+  KnowledgeGraphBuilder
+} from '../../components/knowledge';
 
 /**
  * 知识图谱分析屏幕组件
@@ -53,7 +62,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   const error = useSelector(selectError);
 
   // 本地状态
-  const [activeTab, setActiveTab] = useState('structure'); // 'structure', 'path', 'concepts'
+  const [activeTab, setActiveTab] = useState('auto-classification'); // 'auto-classification', 'graph-builder', 'structure', 'path', 'concepts'
   const [toastMessage, setToastMessage] = useState('');
   const [analysisData, setAnalysisData] = useState(null);
   const [pathData, setPathData] = useState(null);
@@ -67,6 +76,10 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   const [analysisError, setAnalysisError] = useState(null);
   const [pathError, setPathError] = useState(null);
   const [conceptsError, setConceptsError] = useState(null);
+
+  // 获取路由参数
+  const noteId = route?.params?.noteId;
+  const noteTitle = route?.params?.noteTitle;
 
   // 初始化加载知识图谱数据
   useEffect(() => {
@@ -183,9 +196,42 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
       case 'concepts':
         // 相关概念需要用户选择节点后手动触发
         break;
+      case 'auto-classification':
+        // 自动分类不需要预加载数据
+        break;
+      case 'graph-builder':
+        // 知识图谱构建不需要预加载数据
+        break;
       default:
         break;
     }
+  };
+
+  // 处理标签选择
+  const handleTagsSelected = (tags) => {
+    // 导航到笔记编辑页面，并传递选中的标签
+    navigation.navigate('NoteEdit', {
+      noteId,
+      selectedTags: tags,
+    });
+  };
+
+  // 处理分类选择
+  const handleCategorySelected = (category) => {
+    // 导航到笔记编辑页面，并传递选中的分类
+    navigation.navigate('NoteEdit', {
+      noteId,
+      selectedCategory: category,
+    });
+  };
+
+  // 处理笔记选择
+  const handleNoteSelected = (note) => {
+    // 导航到笔记详情页面
+    navigation.navigate('NoteDetail', {
+      noteId: note.id,
+      title: note.title,
+    });
   };
 
   // 渲染加载状态
@@ -274,6 +320,37 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
     <View style={dynamicStyles.container}>
       {/* 选项卡 */}
       <View style={dynamicStyles.tabContainer}>
+        {/* 自动分类标签页 */}
+        <TouchableOpacity
+          style={[dynamicStyles.tab, activeTab === 'auto-classification' && dynamicStyles.activeTab]}
+          onPress={() => handleTabChange('auto-classification')}
+        >
+          <Icon
+            name="category"
+            size={24}
+            color={activeTab === 'auto-classification' ? colors.primary : colors.text}
+          />
+          <Text style={[dynamicStyles.tabText, activeTab === 'auto-classification' && dynamicStyles.activeTabText]}>
+            自动分类
+          </Text>
+        </TouchableOpacity>
+
+        {/* 知识图谱构建标签页 */}
+        <TouchableOpacity
+          style={[dynamicStyles.tab, activeTab === 'graph-builder' && dynamicStyles.activeTab]}
+          onPress={() => handleTabChange('graph-builder')}
+        >
+          <Icon
+            name="account-tree"
+            size={24}
+            color={activeTab === 'graph-builder' ? colors.primary : colors.text}
+          />
+          <Text style={[dynamicStyles.tabText, activeTab === 'graph-builder' && dynamicStyles.activeTabText]}>
+            图谱构建
+          </Text>
+        </TouchableOpacity>
+
+        {/* 结构分析标签页 */}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'structure' && dynamicStyles.activeTab]}
           onPress={() => handleTabChange('structure')}
@@ -288,6 +365,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
 
+        {/* 路径查找标签页 */}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'path' && dynamicStyles.activeTab]}
           onPress={() => handleTabChange('path')}
@@ -302,6 +380,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
 
+        {/* 相关概念标签页 */}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'concepts' && dynamicStyles.activeTab]}
           onPress={() => handleTabChange('concepts')}
@@ -319,6 +398,26 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
 
       {/* 内容区域 */}
       <View style={dynamicStyles.contentContainer}>
+        {/* 自动分类 */}
+        {activeTab === 'auto-classification' && (
+          <AutoClassification
+            noteId={noteId}
+            currentTags={[]}
+            currentCategory={null}
+            onTagsSelected={handleTagsSelected}
+            onCategorySelected={handleCategorySelected}
+            onNoteSelected={handleNoteSelected}
+          />
+        )}
+
+        {/* 知识图谱构建 */}
+        {activeTab === 'graph-builder' && (
+          <KnowledgeGraphBuilder
+            noteId={noteId}
+            onNodePress={handleNodePress}
+          />
+        )}
+
         {/* 结构分析 */}
         {activeTab === 'structure' && (
           <StructureAnalysis

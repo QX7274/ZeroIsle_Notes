@@ -24,6 +24,12 @@ from .views.mongo_auth import (
     MongoUserLoginView,
     MongoVerificationCodeView
 )
+# 导入密码重置API视图
+from .views.password_reset_api import (
+    send_email_verification,
+    send_sms_verification,
+    reset_password
+)
 
 # 创建路由器
 router = DefaultRouter()
@@ -75,6 +81,11 @@ auth_urls = [
 
     # 发送验证码
     path('send_verification_code/', MongoVerificationCodeView.as_view({'post': 'create'}), name='send-verification-code'),
+
+    # 密码重置API（供管理系统调用）
+    path('send-email-verification/', send_email_verification, name='send-email-verification'),
+    path('send-sms-verification/', send_sms_verification, name='send-sms-verification'),
+    path('reset-password/', reset_password, name='reset-password-api'),
 ]
 
 urlpatterns = [

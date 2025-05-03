@@ -9,6 +9,9 @@ import StructureAnalysis from './StructureAnalysis';
 import RelatedConceptsView from './RelatedConceptsView';
 import NodeEditor from './NodeEditor';
 import EdgeEditor from './EdgeEditor';
+import TagGenerator from './TagGenerator';
+import AutoClassification from './AutoClassification';
+import KnowledgeGraphBuilder from './KnowledgeGraphBuilder';
 
 export {
   GraphVisualization,
@@ -17,6 +20,9 @@ export {
   RelatedConceptsView,
   NodeEditor,
   EdgeEditor,
+  TagGenerator,
+  AutoClassification,
+  KnowledgeGraphBuilder,
 };
 
 export default {
@@ -26,4 +32,7 @@ export default {
   RelatedConceptsView,
   NodeEditor,
   EdgeEditor,
+  TagGenerator,
+  AutoClassification,
+  KnowledgeGraphBuilder,
 };

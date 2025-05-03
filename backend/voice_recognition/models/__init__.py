@@ -7,3 +7,4 @@ from .audio_file import AudioFile
 from .transcription import Transcription
 from .language import Language
 from .speaker import Speaker
+from .speaker_profile import SpeakerProfile, SpeakerEmbedding

@@ -4,6 +4,7 @@
 
 from rest_framework import serializers
 from .mongodb_models import Reminder, ReminderNotification
+from .models import Reminder as DjangoReminder
 
 
 class ReminderSerializer(serializers.Serializer):
@@ -35,6 +36,14 @@ class ReminderSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+
+    # 日历集成相关字段
+    calendar_event_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    calendar_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    repeat_end_date = serializers.DateTimeField(required=False, allow_null=True)
+    category = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    color = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    tags = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     # 兼容旧版API的字段
     content = serializers.CharField(source='description', required=False, allow_blank=True)
@@ -91,3 +100,54 @@ class ReminderNotificationSerializer(serializers.Serializer):
             'failed': '发送失败'
         }
         return status_map.get(obj.status, obj.status)
+
+
+class ReminderCalendarIntegrationSerializer(serializers.Serializer):
+    """
+    提醒日历集成序列化器
+    """
+    calendar_event_id = serializers.CharField(required=False, allow_null=True)
+    calendar_id = serializers.CharField(required=False, allow_null=True)
+
+
+class DjangoReminderSerializer(serializers.ModelSerializer):
+    """
+    Django提醒序列化器
+    使用Django ORM模型
+    """
+    class Meta:
+        model = DjangoReminder
+        fields = '__all__'
+        read_only_fields = ('id', 'user', 'created_at', 'updated_at')
+
+
+class CalendarEventSerializer(serializers.Serializer):
+    """
+    日历事件序列化器
+    """
+    id = serializers.CharField()
+    title = serializers.CharField()
+    notes = serializers.CharField(required=False, allow_blank=True)
+    startDate = serializers.DateTimeField()
+    endDate = serializers.DateTimeField()
+    allDay = serializers.BooleanField(default=False)
+    location = serializers.CharField(required=False, allow_blank=True)
+    url = serializers.URLField(required=False, allow_blank=True)
+    recurrenceRule = serializers.DictField(required=False)
+
+
+class CalendarSerializer(serializers.Serializer):
+    """
+    日历序列化器
+    """
+    id = serializers.CharField()
+    title = serializers.CharField()
+    color = serializers.CharField(required=False)
+    entityType = serializers.CharField()
+    source = serializers.DictField()
+    name = serializers.CharField()
+    ownerAccount = serializers.CharField(required=False, allow_blank=True)
+    allowsModifications = serializers.BooleanField(default=True)
+    allowedAvailabilities = serializers.ListField(child=serializers.CharField(), required=False)
+    isPrimary = serializers.BooleanField(default=False, required=False)
+    supportsAvailability = serializers.BooleanField(default=False, required=False)
