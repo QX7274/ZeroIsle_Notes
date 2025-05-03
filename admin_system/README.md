@@ -2,8 +2,6 @@
 
 零屿笔记管理系统是一个独立的管理工具，用于管理零屿笔记应用的用户、内容和系统设置。它提供了一个功能完善、界面美观的Web管理界面，方便管理员进行各种操作。
 
-![管理系统截图](./docs/images/dashboard.svg)
-
 ## 系统架构
 
 管理系统由以下两个主要部分组成：
@@ -184,12 +182,3 @@ http://localhost:8000/api/docs/
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 打开一个 Pull Request
 
-## 许可证
-
-[MIT](LICENSE)
-
-## 联系方式
-
-零屿团队 - admin@zeroisle.com
-
-项目链接: [https://github.com/zeroisle/admin-system](https://github.com/zeroisle/admin-system)
