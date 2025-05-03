@@ -5,7 +5,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import JoinGroup from '../../components/groups/JoinGroup';
-import { COLORS } from '../../utils/theme';
+import { COLORS } from '../../theme/modernTheme';
 
 const JoinGroupScreen = () => {
   const navigation = useNavigation();

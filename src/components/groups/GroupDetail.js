@@ -27,7 +27,7 @@ import {
   selectJoinCode,
   selectJoinCodeExpiresAt,
 } from '../../redux/slices/groupsSlice';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING, COLORS } from '../../theme/modernTheme';
 import ErrorState from '../common/ErrorState';
 import MemberList from './MemberList';
 

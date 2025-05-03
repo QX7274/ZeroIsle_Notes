@@ -16,7 +16,6 @@ import TagSelector from './TagSelector';
 import CategorySelector from './CategorySelector';
 import NoteShareDialog from './NoteShareDialog';
 import OfflineIndicator from './OfflineIndicator';
-import ApiTestComponent from './ApiTestComponent';
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -50,7 +49,6 @@ export {
   CategorySelector,
   NoteShareDialog,
   OfflineIndicator,
-  ApiTestComponent,
 
   // 现代UI组件
   GradientButton,

@@ -24,7 +24,7 @@ import {
   selectCurrentGroup,
 } from '../../redux/slices/groupsSlice';
 import { webrtcService } from '../../services/webrtcService';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING, COLORS } from '../../theme/modernTheme';
 
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();

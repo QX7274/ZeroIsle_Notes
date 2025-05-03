@@ -7,7 +7,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
 import { setCurrentGroup } from '../../redux/slices/groupsSlice';
 import GroupDetail from '../../components/groups/GroupDetail';
-import { COLORS } from '../../utils/theme';
+import { COLORS } from '../../theme/modernTheme';
 
 const GroupDetailScreen = () => {
   const route = useRoute();

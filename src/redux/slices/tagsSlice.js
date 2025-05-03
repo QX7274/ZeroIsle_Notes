@@ -3,7 +3,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import * as tagsApi from '../../services/api/tagsApi';
+import * as tagsApi from '../../services/api/tagApi';
 
 // 异步Action: 获取标签列表
 export const fetchTags = createAsyncThunk(

@@ -3,7 +3,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import apiService from '../../services/api/apiService';
+import apiClient from '../../services/api/apiClient';
 import analyticsService from '../../services/analytics/analyticsService';
 
 // 异步操作：获取思维导图列表
@@ -11,7 +11,7 @@ export const fetchMindMaps = createAsyncThunk(
   'mindMap/fetchMindMaps',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await apiService.get('/mind-map/maps/', { params });
+      const response = await apiClient.get('/mind-map/maps/', { params });
       return response.data;
     } catch (error) {
       analyticsService.trackError(error, { action: 'fetch_mind_maps' });
@@ -25,7 +25,7 @@ export const fetchMindMap = createAsyncThunk(
   'mindMap/fetchMindMap',
   async (id, { rejectWithValue }) => {
     try {
-      const response = await apiService.get(`/mind-map/maps/${id}/`);
+      const response = await apiClient.get(`/mind-map/maps/${id}/`);
       return response.data;
     } catch (error) {
       analyticsService.trackError(error, { action: 'fetch_mind_map' });
@@ -39,7 +39,7 @@ export const createMindMap = createAsyncThunk(
   'mindMap/createMindMap',
   async (data, { rejectWithValue }) => {
     try {
-      const response = await apiService.post('/mind-map/maps/', data);
+      const response = await apiClient.post('/mind-map/maps/', data);
       analyticsService.trackEvent('create_mind_map', { id: response.data.id });
       return response.data;
     } catch (error) {
@@ -54,7 +54,7 @@ export const updateMindMap = createAsyncThunk(
   'mindMap/updateMindMap',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const response = await apiService.put(`/mind-map/maps/${id}/`, data);
+      const response = await apiClient.put(`/mind-map/maps/${id}/`, data);
       analyticsService.trackEvent('update_mind_map', { id });
       return response.data;
     } catch (error) {
@@ -69,7 +69,7 @@ export const deleteMindMap = createAsyncThunk(
   'mindMap/deleteMindMap',
   async (id, { rejectWithValue }) => {
     try {
-      await apiService.delete(`/mind-map/maps/${id}/`);
+      await apiClient.delete(`/mind-map/maps/${id}/`);
       analyticsService.trackEvent('delete_mind_map', { id });
       return id;
     } catch (error) {

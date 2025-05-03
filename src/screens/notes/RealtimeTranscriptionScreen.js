@@ -27,7 +27,7 @@ import RealtimeTranscription from '../../components/voice/RealtimeTranscription'
 
 // API服务
 import * as voiceApi from '../../services/api/voiceApi';
-import * as noteApi from '../../services/api/noteApi';
+import * as noteApi from '../../services/api/notesApi';
 
 const RealtimeTranscriptionScreen = ({ navigation, route }) => {
   const { colors } = useTheme();

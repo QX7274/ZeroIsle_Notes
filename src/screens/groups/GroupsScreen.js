@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import GroupList from '../../components/groups/GroupList';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING, COLORS } from '../../theme/modernTheme';
 
 const GroupsScreen = () => {
   const navigation = useNavigation();

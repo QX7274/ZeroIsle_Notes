@@ -5,7 +5,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import ScreenShare from '../../components/groups/ScreenShare';
-import { COLORS } from '../../utils/theme';
+import { COLORS } from '../../theme/modernTheme';
 
 const ScreenShareScreen = () => {
   const route = useRoute();
