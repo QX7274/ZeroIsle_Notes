@@ -32,8 +32,9 @@ import {
   CommentOutlined,
   KeyOutlined,
 } from '@ant-design/icons';
-import { getUserDetail, updateUserStatus, deleteUser, resetUserPassword } from '../../services/userService';
+import { getUserDetail, updateUserStatus, deleteUser } from '../../services/userService';
 import { getUserNotes, getUserComments } from '../../services/contentService';
+import PasswordResetModal from '../../components/users/PasswordResetModal';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -48,6 +49,7 @@ const UserDetail = () => {
   const [loading, setLoading] = useState(true);
   const [notesLoading, setNotesLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [passwordResetModalVisible, setPasswordResetModalVisible] = useState(false);
 
   // 获取用户详情
   const fetchUserDetail = async () => {
@@ -129,28 +131,13 @@ const UserDetail = () => {
   };
 
   // 处理重置密码
-  const handleResetPassword = async () => {
-    try {
-      const result = await resetUserPassword(id);
-      if (result.new_password) {
-        // 显示新密码
-        Modal.success({
-          title: '密码重置成功',
-          content: (
-            <div>
-              <p>用户 {user.username} 的密码已重置。</p>
-              <p>新密码: <Text copyable strong>{result.new_password}</Text></p>
-              <p>请妥善保管此密码，并通知用户尽快修改。</p>
-            </div>
-          ),
-        });
-      } else {
-        message.success('密码重置成功，系统已发送新密码到用户邮箱');
-      }
-    } catch (error) {
-      console.error('重置密码失败:', error);
-      message.error('重置密码失败，请稍后重试');
-    }
+  const handleResetPassword = () => {
+    setPasswordResetModalVisible(true);
+  };
+
+  // 关闭密码重置模态框
+  const handlePasswordResetModalClose = () => {
+    setPasswordResetModalVisible(false);
   };
 
   // 笔记表格列
@@ -254,15 +241,12 @@ const UserDetail = () => {
             >
               编辑
             </Button>
-            <Popconfirm
-              title="确定要重置该用户的密码吗？"
-              description="重置后将生成一个新的随机密码"
-              onConfirm={handleResetPassword}
-              okText="确定"
-              cancelText="取消"
+            <Button
+              icon={<KeyOutlined />}
+              onClick={handleResetPassword}
             >
-              <Button icon={<KeyOutlined />}>重置密码</Button>
-            </Popconfirm>
+              重置密码
+            </Button>
             {user.status === 'active' ? (
               <Popconfirm
                 title="确定要禁用该用户吗？"
@@ -398,6 +382,15 @@ const UserDetail = () => {
           </TabPane>
         </Tabs>
       </Card>
+
+      {/* 密码重置模态框 */}
+      {user && (
+        <PasswordResetModal
+          visible={passwordResetModalVisible}
+          onCancel={handlePasswordResetModalClose}
+          user={user}
+        />
+      )}
     </div>
   );
 };

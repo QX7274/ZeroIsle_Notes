@@ -73,13 +73,46 @@ export const updateUserStatus = async (id, status) => {
   }
 };
 
-// 重置用户密码
-export const resetUserPassword = async (id) => {
+// 发送密码重置验证码
+export const sendPasswordResetCode = async (userId, resetType = 'email') => {
   try {
-    const response = await api.post(`/users/profiles/${id}/reset-password/`);
+    const response = await api.post('/users/password/reset/', {
+      user_id: userId,
+      reset_type: resetType
+    });
     return response.data;
   } catch (error) {
-    console.error('重置用户密码错误:', error);
+    console.error('发送密码重置验证码错误:', error);
+    throw error;
+  }
+};
+
+// 验证密码重置验证码
+export const verifyPasswordResetCode = async (userId, code, resetType = 'email') => {
+  try {
+    const response = await api.post('/users/password/verify-code/', {
+      user_id: userId,
+      code,
+      reset_type: resetType
+    });
+    return response.data;
+  } catch (error) {
+    console.error('验证密码重置验证码错误:', error);
+    throw error;
+  }
+};
+
+// 完成密码重置
+export const completePasswordReset = async (userId, verificationId, newPassword) => {
+  try {
+    const response = await api.post('/users/password/complete-reset/', {
+      user_id: userId,
+      verification_id: verificationId,
+      new_password: newPassword
+    });
+    return response.data;
+  } catch (error) {
+    console.error('完成密码重置错误:', error);
     throw error;
   }
 };

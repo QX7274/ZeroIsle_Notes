@@ -31,6 +31,10 @@ class UserProfile(Document):
     canvas_count = IntField(default=0, verbose_name='画布数量')
     login_count = IntField(default=0, verbose_name='登录次数')
 
+    # 密码重置相关字段
+    password_reset_at = DateTimeField(verbose_name='密码重置时间')
+    password_reset_by = StringField(max_length=150, verbose_name='密码重置管理员')
+
     meta = {
         'collection': 'users',  # 对应主软件的用户集合
         'ordering': ['-date_joined'],
@@ -81,3 +85,43 @@ class UserActivity(Document):
 
     def __str__(self):
         return f"{self.user.username} - {self.activity_type} - {self.created_at}"
+
+class VerificationCode(Document):
+    """验证码"""
+    PURPOSE_CHOICES = (
+        ('register', '注册'),
+        ('login', '登录'),
+        ('reset_password', '重置密码'),
+        ('change_phone', '变更手机号'),
+        ('change_email', '变更邮箱'),
+    )
+
+    user = ReferenceField(UserProfile, required=False, verbose_name='用户')
+    email = EmailField(sparse=True, verbose_name='邮箱')
+    phone = StringField(max_length=20, sparse=True, verbose_name='手机号')
+    code = StringField(max_length=10, required=True, verbose_name='验证码')
+    purpose = StringField(choices=PURPOSE_CHOICES, required=True, verbose_name='用途')
+    expires_at = DateTimeField(required=True, verbose_name='过期时间')
+    is_used = BooleanField(default=False, verbose_name='是否已使用')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    created_by = StringField(max_length=150, verbose_name='创建者')
+
+    meta = {
+        'collection': 'verification_codes',
+        'ordering': ['-created_at'],
+        'indexes': [
+            'user',
+            'email',
+            'phone',
+            'code',
+            'purpose',
+            'expires_at',
+            'is_used',
+            'created_at'
+        ],
+        'verbose_name': '验证码',
+        'verbose_name_plural': '验证码'
+    }
+
+    def __str__(self):
+        return f"{self.code} - {self.purpose} - {self.created_at}"
