@@ -20,7 +20,8 @@ import {
   selectGroupsError,
   clearGroupError,
 } from '../../redux/slices/groupsSlice';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
 
 const JoinGroup = () => {
   const dispatch = useDispatch();

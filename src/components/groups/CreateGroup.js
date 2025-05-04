@@ -19,7 +19,8 @@ import {
   selectGroupsLoading,
   selectGroupsError,
 } from '../../redux/slices/groupsSlice';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
 
 const CreateGroup = () => {
   const dispatch = useDispatch();

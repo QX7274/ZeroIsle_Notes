@@ -21,8 +21,8 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 
 // 导入服务
-import { offlineStorageService } from './services/offlineStorage';
-import { analyticsService } from './services/analytics';
+import { offlineStorageService } from './services/offline/offlineStorage';
+import { analyticsService } from './services/analytics/analyticsService';
 
 // 忽略特定的警告
 LogBox.ignoreLogs([

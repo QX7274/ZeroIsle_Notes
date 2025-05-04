@@ -2,7 +2,7 @@
  * 文本分析服务
  * 提供文本分析相关功能，如关键词提取、摘要生成、情感分析等
  */
-import apiService from '../api/apiService';
+import apiClient from '../api/apiClient';
 import analyticsService from '../analytics/analyticsService';
 
 /**

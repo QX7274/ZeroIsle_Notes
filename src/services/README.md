@@ -5,7 +5,6 @@
 ## 目录结构
 
 ### API服务 (`api/`)
-
 - **apiClient.js**: API客户端，提供统一的API请求客户端，处理请求拦截、响应拦截和错误处理
 - **interceptor.js**: API拦截器（已废弃，请使用apiClient.js）
 - **authApi.js**: 认证相关API
@@ -24,7 +23,6 @@
 - **index.js**: API服务索引
 
 ### AI服务 (`ai/`)
-
 - **handwritingRecognition.js**: 手写识别服务
 - **voiceRecognition.js**: 语音识别服务
 - **textAnalysis.js**: 文本分析服务
@@ -32,19 +30,70 @@
 - **aiService.js**: AI服务
 - **index.js**: AI服务索引
 
-### 其他服务
+### AI历史服务 (`ai_history/`)
+- **aiHistoryService.js**: AI历史服务，提供AI对话历史记录管理功能
 
+### 文件服务 (`file/`)
 - **fileService.js**: 文件服务，提供文件读写、复制、移动、删除等功能
+
+### 通知服务 (`notification/`)
 - **notificationService.js**: 通知服务，提供本地通知和推送通知功能
-- **analyticsService.js**: 分析服务，提供用户行为分析功能
+
+### 存储服务 (`storage/`)
 - **storageService.js**: 存储服务，提供本地存储功能
-- **syncService.js**: 同步服务，提供数据同步功能
-- **backupService.js**: 备份服务，提供数据备份和恢复功能
-- **searchService.js**: 搜索服务，提供搜索功能
-- **translationService.js**: 翻译服务，提供文本翻译功能
+
+### 网络服务 (`network/`)
+- **networkService.js**: 网络服务，提供网络状态监测、连接类型检测等功能
+
+### 音频服务 (`audio/`)
+- **audioService.js**: 音频服务，提供音频录制、播放、暂停等功能
+
+### 日历服务 (`calendar/`)
+- **calendarIntegrationService.js**: 日历集成服务，提供与设备日历集成的功能
+
+### 画布服务 (`canvas/`)
+- **canvasService.js**: 画布服务，提供画布绘制、保存、加载等功能
+
+### 代码服务 (`code/`)
+- **codeService.js**: 代码服务，提供代码编辑、高亮、运行等功能
+
+### 压缩服务 (`compression/`)
+- **compressionService.js**: 压缩服务，提供数据压缩和解压缩功能
+
+### 导出服务 (`export/`)
+- **exportService.js**: 导出服务，提供数据导出功能，支持多种格式
+
+### 群组服务 (`group/`)
 - **groupService.js**: 群组服务，提供群组管理功能
+
+### 笔记服务 (`note/`)
+- **noteAIService.js**: 笔记AI服务，提供笔记内容分析、自动标签生成等功能
+- **noteToolbarService.js**: 笔记工具栏服务，提供笔记编辑工具栏功能
+
+### 离线服务 (`offline/`)
+- **offlineAIService.js**: 离线AI服务，提供离线模式下的AI功能
+- **offlineStorage.js**: 离线存储服务，提供离线数据存储功能
+
+### 提醒服务 (`reminder/`)
+- **reminderNotificationService.js**: 提醒通知服务，提供提醒通知功能
+
+### 搜索服务 (`search/`)
+- **searchService.js**: 搜索服务，提供全文搜索功能
+
+### 认证服务 (`auth/`)
 - **thirdPartyAuth.js**: 第三方认证服务，提供第三方登录功能
-- **index.js**: 服务索引，导出所有服务
+
+### 翻译服务 (`translation/`)
+- **translationService.js**: 翻译服务，提供文本翻译功能
+
+### 文本转语音服务 (`tts/`)
+- **ttsService.js**: 文本转语音服务，提供将文本转换为语音的功能
+
+### WebRTC服务 (`webrtc/`)
+- **webrtcService.js**: WebRTC服务，提供实时音视频通信功能
+
+### WebSocket服务 (`websocket/`)
+- **websocket.js**: WebSocket服务，提供实时通信功能
 
 ## 使用方法
 

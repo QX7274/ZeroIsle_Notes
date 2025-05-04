@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import calendarIntegrationService from '../../services/calendarIntegrationService';
+import calendarIntegrationService from '../../services/calendar/calendarIntegrationService';
 
 /**
  * 日历集成视图组件

@@ -15,7 +15,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineAIService, MODEL_TYPES_EXPORT, MODEL_STATUS_EXPORT } from '../../services/offlineAIService';
+import { offlineAIService, MODEL_TYPES_EXPORT, MODEL_STATUS_EXPORT } from '../../services/offline/offlineAIService';
 
 const OfflineAIToolbar = ({ onRecognizeHandwriting }) => {
   const { theme } = useTheme();

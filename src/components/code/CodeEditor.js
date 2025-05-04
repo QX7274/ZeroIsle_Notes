@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const CodeEditor = ({ initialCode = '', language = 'javascript', onCodeChange, onLanguageChange, readOnly = false }) => {
   const [code, setCode] = useState(initialCode);
@@ -40,14 +40,14 @@ const CodeEditor = ({ initialCode = '', language = 'javascript', onCodeChange, o
   };
 
   const handleFormat = () => {
-    // 格式化代码
+    // 格式化代�?
     analyticsService.trackCodeAction('format_code', { language: selectedLanguage });
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>代码编辑器</Text>
+        <Text style={styles.title}>代码编辑�?/Text>
         <Picker
           selectedValue={selectedLanguage}
           style={styles.languagePicker}
@@ -91,7 +91,7 @@ const CodeEditor = ({ initialCode = '', language = 'javascript', onCodeChange, o
             <Text style={styles.toolbarButtonText}>复制</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.toolbarButton} onPress={handleFormat}>
-            <Text style={styles.toolbarButtonText}>格式化</Text>
+            <Text style={styles.toolbarButtonText}>格式�?/Text>
           </TouchableOpacity>
         </View>
       )}
@@ -171,3 +171,4 @@ const styles = StyleSheet.create({
 });
 
 export default CodeEditor;
+

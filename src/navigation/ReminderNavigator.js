@@ -4,9 +4,9 @@ import { useTheme } from '../context/ThemeContext';
 
 // 导入屏幕
 import ReminderScreen from '../screens/notes/ReminderScreen';
-import AddReminderScreen from '../screens/AddReminderScreen';
-import ReminderDetailScreen from '../screens/ReminderDetailScreen';
-import ReminderExportScreen from '../screens/ReminderExportScreen';
+import AddReminderScreen from '../screens/reminder/AddReminderScreen';
+import ReminderDetailScreen from '../screens/reminder/ReminderDetailScreen';
+import ReminderExportScreen from '../screens/reminder/ReminderExportScreen';
 
 const Stack = createStackNavigator();
 

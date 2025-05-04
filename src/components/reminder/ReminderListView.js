@@ -19,8 +19,8 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { loadReminders, updateReminder, deleteReminder, syncReminders } from '../../store/slices/reminderSlice';
-import reminderNotificationService from '../../services/reminderNotificationService';
+import { loadReminders, updateReminder, deleteReminder, syncReminders } from '../../redux/slices/reminderSlice';
+import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';

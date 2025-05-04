@@ -3,7 +3,7 @@
  * 提供Expo组件的替代实现，在Expo不可用时使用
  */
 import { Platform } from 'react-native';
-import { fileService } from '../services/fileService';
+import { fileService } from '../services/file/fileService';
 
 // 检查Expo是否可用
 export const isExpoAvailable = () => {

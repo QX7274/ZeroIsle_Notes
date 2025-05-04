@@ -2,7 +2,7 @@
  * 思维导图服务
  * 提供思维导图生成和处理功能
  */
-import apiService from '../api/apiService';
+import apiClient from '../api/apiClient';
 import analyticsService from '../analytics/analyticsService';
 
 /**

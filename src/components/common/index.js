@@ -16,6 +16,8 @@ import TagSelector from './TagSelector';
 import CategorySelector from './CategorySelector';
 import NoteShareDialog from './NoteShareDialog';
 import OfflineIndicator from './OfflineIndicator';
+import EmptyState from './EmptyState';
+import ErrorState from './ErrorState';
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -49,6 +51,8 @@ export {
   CategorySelector,
   NoteShareDialog,
   OfflineIndicator,
+  EmptyState,
+  ErrorState,
 
   // 现代UI组件
   GradientButton,

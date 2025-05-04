@@ -1,5 +1,5 @@
 /**
- * 应用主导航配置
+ * 应用主导航配�?
  */
 
 import React, { useEffect } from 'react';
@@ -16,37 +16,29 @@ import { getProfile } from '../redux/slices/authSlice';
 // 导入组件
 import { Loading } from '../components/common';
 
-// 导入导航器
+// 导入导航�?
 import AuthNavigator from './AuthNavigator';
 import SettingsNavigator from './SettingsNavigator';
 import ReminderNavigator from './ReminderNavigator';
 
 // 导入屏幕
-import HomeScreen from '../screens/HomeScreen';
-import ReminderScreen from '../screens/notes/ReminderScreen';
-import AddReminderScreen from '../screens/AddReminderScreen';
-import ReminderDetailScreen from '../screens/ReminderDetailScreen';
-import SettingsScreen from '../screens/settings/SettingsScreen';
-import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
-import ThemeCustomizationScreen from '../screens/ThemeCustomizationScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import GroupScreen from '../screens/GroupScreen';
-import CodeEditorScreen from '../screens/CodeEditorScreen';
-import NoteScreen from '../screens/NoteScreen';
-import CategoryScreen from '../screens/CategoryScreen';
-import AIAssistantScreen from '../screens/AIAssistantScreen';
-import AIAssistantSettingsScreen from '../screens/settings/AIAssistantSettingsScreen';
-import SearchResultsScreen from '../screens/SearchResultsScreen';
+import { HomeScreen } from '../screens/common';
+import { ReminderScreen, VoiceToTextScreen, RealtimeTranscriptionScreen } from '../screens/notes';
+import { AddReminderScreen, ReminderDetailScreen } from '../screens/reminder';
+import { SettingsScreen, ThemeSettingsScreen, AIAssistantSettingsScreen } from '../screens/settings';
+import { ThemeCustomizationScreen } from '../screens/theme';
+import { AnalyticsScreen } from '../screens/analytics';
+import { GroupScreen } from '../screens/groups';
+import { CodeEditorScreen } from '../screens/code';
+import { NoteScreen } from '../screens/notes';
+import { CategoryScreen } from '../screens/category';
+import { AIAssistantScreen } from '../screens/ai';
+import { SearchResultsScreen } from '../screens/search';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
-import VoiceToTextScreen from '../screens/notes/VoiceToTextScreen';
-import RealtimeTranscriptionScreen from '../screens/notes/RealtimeTranscriptionScreen';
 import { ApiTestComponent } from '../components/common';
-// 直接导入知识图谱相关组件
-import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
-import NodeDetailScreen from '../screens/knowledge/NodeDetailScreen';
-import EdgeEditScreen from '../screens/knowledge/EdgeEditScreen';
-import KnowledgeAnalysisScreen from '../screens/knowledge/KnowledgeAnalysisScreen';
-// 导入群组导航器
+// 导入知识图谱相关组件
+import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+// 导入群组导航�?
 import GroupsNavigator from './GroupsNavigator';
 
 const Stack = createStackNavigator();
@@ -60,7 +52,7 @@ const AppNavigator = () => {
   const dispatch = useDispatch();
   const { theme } = useTheme();
 
-  // 从Redux获取认证状态
+  // 从Redux获取认证状�?
   const { isAuthenticated, isLoading } = useSelector(state => {
     // 兼容旧的Redux结构
     if (state.auth) {
@@ -73,16 +65,16 @@ const AppNavigator = () => {
     };
   });
 
-  // 应用启动时检查认证状态
+  // 应用启动时检查认证状�?
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(getProfile());
     }
   }, [dispatch, isAuthenticated]);
 
-  // 如果正在检查认证状态，显示加载指示器
+  // 如果正在检查认证状态，显示加载指示�?
   if (isLoading) {
-    return <Loading type="fullscreen" text="加载中..." />;
+    return <Loading type="fullscreen" text="加载�?.." />;
   }
 
   return (
@@ -102,8 +94,8 @@ const AppNavigator = () => {
 };
 
 /**
- * 主标签导航
- * 包含首页、分类、社区和设置等主要功能模块
+ * 主标签导�?
+ * 包含首页、分类、社区和设置等主要功能模�?
  */
 const MainTabs = () => {
   const { theme } = useTheme();
@@ -229,7 +221,7 @@ const MainTabs = () => {
 
 /**
  * 首页堆栈导航
- * 包含首页、笔记详情、AI助手等功能
+ * 包含首页、笔记详情、AI助手等功�?
  */
 const HomeStack = () => {
   const { theme } = useTheme();

@@ -5,7 +5,7 @@
 
 import { instance } from './config';
 import { API_ENDPOINTS } from '../../utils/constants';
-import { offlineStorageService } from '../offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 
 /**
  * 获取笔记的所有注释

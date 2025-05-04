@@ -1,5 +1,5 @@
 /**
- * 帮助与反馈屏幕
+ * 帮助与反馈屏�?
  */
 import React, { useState } from 'react';
 import {
@@ -16,7 +16,7 @@ import { useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const HelpScreen = () => {
   const { theme } = useTheme();
@@ -25,7 +25,7 @@ const HelpScreen = () => {
   // 从Redux获取用户信息
   const user = useSelector(state => state.auth.user);
   
-  // 本地状态
+  // 本地状�?
   const [feedbackType, setFeedbackType] = useState('bug');
   const [feedbackContent, setFeedbackContent] = useState('');
   const [contactInfo, setContactInfo] = useState(user?.email || '');
@@ -36,28 +36,28 @@ const HelpScreen = () => {
   const faqList = [
     {
       id: 1,
-      question: '如何创建笔记？',
-      answer: '在主页点击右下角的"+"按钮，选择"新建笔记"，即可创建一个新笔记。您可以使用富文本编辑器编辑笔记内容，支持文本格式化、插入图片、添加链接等功能。',
+      question: '如何创建笔记�?,
+      answer: '在主页点击右下角�?+"按钮，选择"新建笔记"，即可创建一个新笔记。您可以使用富文本编辑器编辑笔记内容，支持文本格式化、插入图片、添加链接等功能�?,
     },
     {
       id: 2,
-      question: '如何使用知识图谱功能？',
-      answer: '在主菜单中选择"知识图谱"，您可以创建概念节点并建立它们之间的关系。点击"+"按钮添加新节点，拖动节点之间连线建立关系。您还可以通过点击节点查看详细信息和编辑属性。',
+      question: '如何使用知识图谱功能�?,
+      answer: '在主菜单中选择"知识图谱"，您可以创建概念节点并建立它们之间的关系。点�?+"按钮添加新节点，拖动节点之间连线建立关系。您还可以通过点击节点查看详细信息和编辑属性�?,
     },
     {
       id: 3,
-      question: '如何备份我的笔记？',
-      answer: '在设置中选择"备份与恢复"，点击"创建备份"按钮即可创建一个包含所有笔记和设置的备份文件。您可以将备份文件导出到其他应用或云存储服务进行保存。',
+      question: '如何备份我的笔记�?,
+      answer: '在设置中选择"备份与恢�?，点�?创建备份"按钮即可创建一个包含所有笔记和设置的备份文件。您可以将备份文件导出到其他应用或云存储服务进行保存�?,
     },
     {
       id: 4,
       question: '离线模式下可以使用哪些功能？',
-      answer: '在离线模式下，您可以创建和编辑笔记、使用基本的知识图谱功能、查看已缓存的内容等。部分需要网络连接的功能（如同步、社区功能等）在离线模式下不可用。当网络恢复后，应用会自动同步您在离线期间的更改。',
+      answer: '在离线模式下，您可以创建和编辑笔记、使用基本的知识图谱功能、查看已缓存的内容等。部分需要网络连接的功能（如同步、社区功能等）在离线模式下不可用。当网络恢复后，应用会自动同步您在离线期间的更改�?,
     },
     {
       id: 5,
-      question: '如何使用手写识别功能？',
-      answer: '在笔记编辑界面，点击工具栏中的"手写"按钮，进入手写模式。在手写区域书写内容后，系统会自动识别并转换为文本。您可以在设置中调整手写识别的灵敏度和识别模式。',
+      question: '如何使用手写识别功能�?,
+      answer: '在笔记编辑界面，点击工具栏中�?手写"按钮，进入手写模式。在手写区域书写内容后，系统会自动识别并转换为文本。您可以在设置中调整手写识别的灵敏度和识别模式�?,
     },
   ];
   
@@ -73,7 +73,7 @@ const HelpScreen = () => {
   const submitFeedback = async () => {
     // 验证输入
     if (!feedbackContent.trim()) {
-      Alert.alert('提示', '请输入反馈内容');
+      Alert.alert('提示', '请输入反馈内�?);
       return;
     }
     
@@ -99,7 +99,7 @@ const HelpScreen = () => {
       Alert.alert('提交成功', '感谢您的反馈，我们会尽快处理');
     } catch (error) {
       console.error('提交反馈失败:', error);
-      Alert.alert('提交失败', '请稍后重试');
+      Alert.alert('提交失败', '请稍后重�?);
       
       // 记录错误
       analyticsService.trackError(error, { operation: 'submit_feedback' });
@@ -119,18 +119,18 @@ const HelpScreen = () => {
     });
   };
   
-  // 发送邮件
+  // 发送邮�?
   const sendEmail = () => {
     const url = 'mailto:support@zeroislenotes.com?subject=零屿笔记使用咨询';
     openLink(url);
   };
   
-  // 切换FAQ展开状态
+  // 切换FAQ展开状�?
   const toggleFaq = (id) => {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
   
-  // 渲染FAQ项
+  // 渲染FAQ�?
   const renderFaqItem = ({ id, question, answer }) => {
     const isExpanded = expandedFaq === id;
     
@@ -210,7 +210,7 @@ const HelpScreen = () => {
               size="medium"
               style={styles.contactText}
             >
-              如果您有任何问题或需要帮助，可以通过以下方式联系我们：
+              如果您有任何问题或需要帮助，可以通过以下方式联系我们�?
             </Text>
             
             <TouchableOpacity
@@ -343,7 +343,7 @@ const HelpScreen = () => {
                   borderColor: colors.border
                 }
               ]}
-              placeholder="邮箱或其他联系方式"
+              placeholder="邮箱或其他联系方�?
               placeholderTextColor={colors.textSecondary}
               value={contactInfo}
               onChangeText={setContactInfo}
@@ -489,3 +489,4 @@ const styles = StyleSheet.create({
 });
 
 export default HelpScreen;
+

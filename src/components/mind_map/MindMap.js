@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import Svg, { Path, Circle, Text as SvgText } from 'react-native-svg';
 import { PanGestureHandler, PinchGestureHandler, State } from 'react-native-gesture-handler';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,7 +37,7 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
     const processedNodes = [rootNode];
     const processedConnections = [];
 
-    // 递归处理子节点
+    // 递归处理子节�?
     const processChildren = (parent, children, level) => {
       if (!children || children.length === 0) return;
 
@@ -136,7 +136,7 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
                 ],
               }}
             >
-              {/* 连接线 */}
+              {/* 连接�?*/}
               {connections.map((connection) => {
                 const fromNode = nodes.find(node => node.id === connection.from);
                 const toNode = nodes.find(node => node.id === connection.to);
@@ -242,3 +242,4 @@ const styles = StyleSheet.create({
 });
 
 export default MindMap;
+

@@ -15,6 +15,10 @@ const STORAGE_KEYS = {
   MARKDOWN_ENABLED: 'markdown_enabled',
 };
 
+// 选择器
+
+
+
 // 初始状态
 const initialState = {
   messages: [],
@@ -539,11 +543,12 @@ export const {
 } = aiAssistantSlice.actions;
 
 // 导出选择器
+
+
 export const selectMessages = (state) => state.aiAssistant.messages;
 export const selectIsLoading = (state) => state.aiAssistant.isLoading;
 export const selectError = (state) => state.aiAssistant.error;
-export const selectAiEngine = (state) => state.aiAssistant.aiEngine;
-export const selectAiModel = (state) => state.aiAssistant.aiModel;
+
 export const selectAvailableModels = (state) => state.aiAssistant.availableModels;
 export const selectStreamEnabled = (state) => state.aiAssistant.streamEnabled;
 export const selectVoiceEnabled = (state) => state.aiAssistant.voiceEnabled;

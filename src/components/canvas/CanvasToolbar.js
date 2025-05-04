@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const CanvasToolbar = ({ onAddText, onAddImage, onAddShape, onUndo, onRedo, onClear, onSave }) => {
   const handleAddText = () => {
@@ -63,7 +63,7 @@ const CanvasToolbar = ({ onAddText, onAddImage, onAddShape, onUndo, onRedo, onCl
         </TouchableOpacity>
         <TouchableOpacity style={styles.tool} onPress={() => handleAddShape('triangle')}>
           <Icon name="change-history" size={24} color="#333" />
-          <Text style={styles.toolText}>三角形</Text>
+          <Text style={styles.toolText}>三角�?/Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tool} onPress={() => handleAddShape('line')}>
           <Icon name="remove" size={24} color="#333" />
@@ -122,3 +122,4 @@ const styles = StyleSheet.create({
 });
 
 export default CanvasToolbar;
+

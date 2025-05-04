@@ -19,7 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Canvas } from '@shopify/react-native-skia';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import handwritingApi from '../../services/api/handwritingApi';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 import { captureRef } from 'react-native-view-shot';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 

@@ -4,7 +4,7 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
-import { offlineStorageService } from '../offlineStorage';
+import { offlineStorageService } from '../offline/offlineStorage';
 
 /**
  * 获取社区帖子列表

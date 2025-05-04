@@ -15,9 +15,9 @@ import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchGroups, selectGroups, selectGroupsLoading, selectGroupsError } from '../../redux/slices/groupsSlice';
-import { SPACING, COLORS } from '../../utils/theme';
-import EmptyState from '../common/EmptyState';
-import ErrorState from '../common/ErrorState';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
+import { EmptyState, ErrorState } from '../../components/common';
 
 const GroupList = () => {
   const dispatch = useDispatch();
@@ -51,13 +51,13 @@ const GroupList = () => {
           <Text style={styles.memberCountText}>{item.member_count}</Text>
         </View>
       </View>
-      
+
       {item.description ? (
         <Text style={styles.groupDescription} numberOfLines={2}>
           {item.description}
         </Text>
       ) : null}
-      
+
       <View style={styles.groupFooter}>
         <Text style={styles.createdAt}>
           创建于 {new Date(item.created_at).toLocaleDateString()}

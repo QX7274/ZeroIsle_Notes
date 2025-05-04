@@ -1,6 +1,6 @@
 # 零屿笔记组件目录
 
-本目录包含零屿笔记应用中使用的所有可重用组件。
+本目录包含零屿笔记应用中使用的所有可重用组件。每个子目录都有自己的README.md文件，详细说明该目录下的组件用途和使用方法。
 
 ## 目录结构
 
@@ -134,12 +134,21 @@ import { Button, Input, Card, Loading } from '../components/common';
 import { NoteList, NoteEditor } from '../components/notes';
 import { HandwritingRecognizer } from '../components/handwriting';
 import { KnowledgeGraph } from '../components/knowledge';
+import { MindMap } from '../components/mind_map';
+import { SearchBar, SearchResults } from '../components/search';
+import { RecordButton, TranscriptionResult } from '../components/voice';
+import { ChatInput, ChatMessage } from '../components/ai';
+import { GroupList, GroupDetail } from '../components/groups';
+import { ReminderListView, ReminderCalendarView } from '../components/reminder';
 
 // 使用组件
 <NoteList notes={notes} onNotePress={handleNotePress} />
 <NoteEditor note={note} onSave={handleSave} />
 <HandwritingRecognizer onRecognize={handleRecognize} />
 <KnowledgeGraph data={graphData} />
+<MindMap nodes={nodes} edges={edges} />
+<SearchBar value={query} onChangeText={setQuery} />
+<RecordButton isRecording={isRecording} onStartRecording={handleStart} />
 ```
 
 ## 组件开发规范
@@ -154,3 +163,23 @@ import { KnowledgeGraph } from '../components/knowledge';
 8. 组件应该有良好的可测试性
 9. 组件应该有良好的可维护性
 10. 组件应该有良好的可重用性
+
+## 子目录文档
+
+每个子目录都有自己的README.md文件，详细说明该目录下的组件用途和使用方法：
+
+- [通用组件 (common)](./common/README.md)
+- [AI组件 (ai)](./ai/README.md)
+- [手写识别组件 (handwriting)](./handwriting/README.md)
+- [知识图谱组件 (knowledge)](./knowledge/README.md)
+- [笔记组件 (notes)](./notes/README.md)
+- [思维导图组件 (mind_map)](./mind_map/README.md)
+- [社区组件 (community)](./community/README.md)
+- [群组组件 (groups)](./groups/README.md)
+- [语音组件 (voice)](./voice/README.md)
+- [搜索组件 (search)](./search/README.md)
+- [提醒组件 (reminder)](./reminder/README.md)
+- [布局组件 (Layout)](./Layout/README.md)
+- [首页组件 (home)](./home/README.md)
+- [画布组件 (canvas)](./canvas/README.md)
+- [代码编辑器组件 (code)](./code/README.md)

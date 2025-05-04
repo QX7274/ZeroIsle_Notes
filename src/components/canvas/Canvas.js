@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, Text, Image, Dimensions } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

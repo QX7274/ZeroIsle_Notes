@@ -2,7 +2,7 @@
  * 翻译服务
  * 提供文本翻译功能
  */
-import apiService from '../api/apiService';
+import apiClient from '../api/apiClient';
 import analyticsService from '../analytics/analyticsService';
 
 /**
@@ -39,18 +39,18 @@ class TranslationService {
    */
   async translateText(text, targetLang, sourceLang = 'auto') {
     try {
-      const response = await apiService.post('/ai/translate', {
+      const response = await apiClient.post('/ai/translate', {
         text,
         target_lang: targetLang,
         source_lang: sourceLang
       });
-      
+
       analyticsService.trackEvent('translate_text', {
         textLength: text.length,
         sourceLang,
         targetLang
       });
-      
+
       return response.data.translated_text;
     } catch (error) {
       console.error('翻译文本失败:', error);
@@ -58,7 +58,7 @@ class TranslationService {
       throw error;
     }
   }
-  
+
   /**
    * 检测语言
    * @param {string} text - 要检测的文本
@@ -66,14 +66,14 @@ class TranslationService {
    */
   async detectLanguage(text) {
     try {
-      const response = await apiService.post('/ai/detect-language', {
+      const response = await apiClient.post('/ai/detect-language', {
         text
       });
-      
+
       analyticsService.trackEvent('detect_language', {
         textLength: text.length
       });
-      
+
       return response.data.language;
     } catch (error) {
       console.error('检测语言失败:', error);
@@ -81,7 +81,7 @@ class TranslationService {
       throw error;
     }
   }
-  
+
   /**
    * 获取支持的语言列表
    * @returns {Object} - 语言代码到语言名称的映射

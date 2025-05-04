@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { Text, Avatar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { SPACING, COLORS } from '../../utils/theme';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
 
 const MemberList = ({ members, groupId }) => {
   const renderMemberItem = ({ item }) => (
@@ -28,7 +29,7 @@ const MemberList = ({ members, groupId }) => {
           style={styles.avatar}
         />
       )}
-      
+
       <View style={styles.memberInfo}>
         <Text style={styles.username}>{item.user.username}</Text>
         <View style={styles.roleContainer}>
@@ -40,7 +41,7 @@ const MemberList = ({ members, groupId }) => {
           )}
         </View>
       </View>
-      
+
       <Text style={styles.joinedAt}>
         {new Date(item.joined_at).toLocaleDateString()}
       </Text>

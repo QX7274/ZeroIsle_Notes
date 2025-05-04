@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Haptics from 'react-native-haptics'; // 确保已安装此依赖
+import * as Haptics from 'expo-haptics'; // 使用expo-haptics替代react-native-haptics
 
 /**
  * 录音按钮组件 - 增强版
@@ -114,7 +114,7 @@ const RecordButton = ({
       // 触觉反馈 - 仅在支持的设备上
       if (hapticFeedback && Platform.OS === 'ios') {
         try {
-          Haptics.trigger('impactMedium');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         } catch (error) {
           // 忽略不支持的设备错误
         }
@@ -140,7 +140,7 @@ const RecordButton = ({
       // 触觉反馈
       if (hapticFeedback && Platform.OS === 'ios') {
         try {
-          Haptics.trigger('notificationSuccess');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (error) {
           // 忽略不支持的设备错误
         }
@@ -186,7 +186,7 @@ const RecordButton = ({
 
             if (hapticFeedback && Platform.OS === 'ios') {
               try {
-                Haptics.trigger('notificationWarning');
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
               } catch (error) {
                 // 忽略不支持的设备错误
               }
@@ -221,7 +221,7 @@ const RecordButton = ({
               // 触觉反馈
               if (hapticFeedback && Platform.OS === 'ios' && timeRemaining <= 5) {
                 try {
-                  Haptics.trigger('impactLight');
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 } catch (error) {
                   // 忽略不支持的设备错误
                 }
@@ -272,7 +272,7 @@ const RecordButton = ({
     // 触觉反馈
     if (hapticFeedback && Platform.OS === 'ios' && !disabled) {
       try {
-        Haptics.trigger('impactLight');
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch (error) {
         // 忽略不支持的设备错误
       }
@@ -287,7 +287,7 @@ const RecordButton = ({
         // 长按触觉反馈
         if (hapticFeedback && Platform.OS === 'ios') {
           try {
-            Haptics.trigger('impactHeavy');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
           } catch (error) {
             // 忽略不支持的设备错误
           }

@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from './Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 
 /**
  * 离线状态指示器组件

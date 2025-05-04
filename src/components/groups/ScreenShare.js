@@ -23,8 +23,9 @@ import {
   selectGroupsError,
   selectCurrentGroup,
 } from '../../redux/slices/groupsSlice';
-import { webrtcService } from '../../services/webrtcService';
-import { SPACING, COLORS } from '../../theme/modernTheme';
+import { webrtcService } from '../../services/webrtc/webrtcService';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
 
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
@@ -92,13 +93,13 @@ const ScreenShare = ({ groupId }) => {
     }
 
     setShowStartDialog(false);
-    
+
     dispatch(createScreenShare({ groupId, title: title.trim() }))
       .unwrap()
       .then((share) => {
         setShareId(share.id);
         setRoomId(share.webrtc_room_id);
-        
+
         if (Platform.OS === 'web') {
           // 连接到WebRTC信令服务器
           webrtcService.connect(share.webrtc_room_id)
@@ -112,7 +113,7 @@ const ScreenShare = ({ groupId }) => {
             .catch((error) => {
               console.error('屏幕共享失败:', error);
               Alert.alert('屏幕共享失败', error.message || '无法启动屏幕共享');
-              
+
               // 结束共享
               dispatch(endScreenShare(share.id));
             });
@@ -131,7 +132,7 @@ const ScreenShare = ({ groupId }) => {
       .unwrap()
       .then((data) => {
         setRoomId(data.webrtc_room_id);
-        
+
         if (Platform.OS === 'web') {
           // 连接到WebRTC信令服务器
           webrtcService.connect(data.webrtc_room_id)
@@ -154,7 +155,7 @@ const ScreenShare = ({ groupId }) => {
 
   const handleEndShare = () => {
     setShowEndDialog(false);
-    
+
     if (shareId) {
       dispatch(endScreenShare(shareId))
         .unwrap()
@@ -164,7 +165,7 @@ const ScreenShare = ({ groupId }) => {
             webrtcService.stopScreenShare();
             webrtcService.disconnect();
           }
-          
+
           setIsSharing(false);
           setShareId(null);
           setRoomId(null);
@@ -180,7 +181,7 @@ const ScreenShare = ({ groupId }) => {
         webrtcService.stopScreenShare();
         webrtcService.disconnect();
       }
-      
+
       setIsSharing(false);
       setRoomId(null);
       setConnectedUsers([]);

@@ -16,7 +16,7 @@ import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 import { DEFAULT_SETTINGS } from '../../utils/constants/config';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 import DeviceInfo from 'react-native-device-info';
 
 const SettingsScreen = ({ navigation }) => {

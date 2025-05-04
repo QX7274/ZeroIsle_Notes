@@ -27,8 +27,9 @@ import {
   selectJoinCode,
   selectJoinCodeExpiresAt,
 } from '../../redux/slices/groupsSlice';
-import { SPACING, COLORS } from '../../theme/modernTheme';
-import ErrorState from '../common/ErrorState';
+import { SPACING } from '../../utils/constants/dimensions';
+import { COLORS } from '../../utils/constants/colors';
+import { ErrorState } from '../../components/common';
 import MemberList from './MemberList';
 
 const GroupDetail = ({ groupId }) => {
@@ -89,7 +90,7 @@ const GroupDetail = ({ groupId }) => {
 
   const formatExpiryTime = (dateString) => {
     if (!dateString) return '';
-    
+
     const expiryDate = new Date(dateString);
     return expiryDate.toLocaleString();
   };
@@ -130,14 +131,14 @@ const GroupDetail = ({ groupId }) => {
               {group.member_count} 位成员
             </Text>
           </View>
-          
+
           <TouchableOpacity
             style={styles.menuButton}
             onPress={() => setMenuVisible(true)}
           >
             <Icon name="dots-vertical" size={24} color={COLORS.TEXT_PRIMARY} />
           </TouchableOpacity>
-          
+
           <Menu
             visible={menuVisible}
             onDismiss={() => setMenuVisible(false)}
@@ -180,14 +181,14 @@ const GroupDetail = ({ groupId }) => {
             />
           </Menu>
         </View>
-        
+
         {group.description ? (
           <View style={styles.descriptionContainer}>
             <Text style={styles.descriptionTitle}>群组简介</Text>
             <Text style={styles.description}>{group.description}</Text>
           </View>
         ) : null}
-        
+
         <View style={styles.actionsContainer}>
           <Button
             mode="contained"
@@ -197,7 +198,7 @@ const GroupDetail = ({ groupId }) => {
           >
             屏幕共享
           </Button>
-          
+
           <Button
             mode="outlined"
             icon="refresh"
@@ -208,13 +209,13 @@ const GroupDetail = ({ groupId }) => {
             刷新
           </Button>
         </View>
-        
+
         <View style={styles.membersContainer}>
           <Text style={styles.sectionTitle}>成员列表</Text>
           <MemberList members={members} groupId={groupId} />
         </View>
       </ScrollView>
-      
+
       <Portal>
         <Dialog
           visible={joinCodeDialogVisible}
@@ -235,7 +236,7 @@ const GroupDetail = ({ groupId }) => {
             <Button onPress={handleShareJoinCode} mode="contained">分享</Button>
           </Dialog.Actions>
         </Dialog>
-        
+
         <Dialog
           visible={leaveDialogVisible}
           onDismiss={() => setLeaveDialogVisible(false)}

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { codeService } from '../../services/codeService';
-import { analyticsService } from '../../services/analytics';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 const LANGUAGE_CONFIGS = {
   javascript: {
@@ -27,52 +27,52 @@ const LANGUAGE_CONFIGS = {
   },
   python: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   java: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   cpp: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   csharp: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   php: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   ruby: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   swift: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   kotlin: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   go: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   rust: {
     inputType: 'text',
-    placeholder: '输入参数 (每行一个参数)...',
+    placeholder: '输入参数 (每行一个参�?...',
     formatInput: (input) => input.split('\n'),
   },
   typescript: {
@@ -170,7 +170,7 @@ const CodeRunner = ({ code, language }) => {
             </Text>
           ) : (
             <Text style={[styles.outputText, { color: theme.colors.text }]}>
-              {output || '无输出'}
+              {output || '无输�?}
             </Text>
           )}
         </ScrollView>
@@ -231,3 +231,4 @@ const styles = StyleSheet.create({
 });
 
 export default CodeRunner;
+

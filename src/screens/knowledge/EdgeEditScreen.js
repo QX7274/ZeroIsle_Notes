@@ -26,7 +26,7 @@ import {
   deleteEdge,
   getAllNodes,
 } from '../../redux/slices/knowledgeGraphSlice';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 
 const EdgeEditScreen = ({ route, navigation }) => {
   const { edgeId, sourceNodeId, targetNodeId } = route.params || {};

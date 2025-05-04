@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { showMessage } from '../../utils/messageUtils';
-import reminderNotificationService from '../../services/reminderNotificationService';
+import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
 // 异步操作：加载提醒事项
 export const loadReminders = createAsyncThunk(

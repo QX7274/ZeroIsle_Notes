@@ -13,12 +13,8 @@ import { colors } from '../utils/constants/colors';
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
-import SearchScreen from '../screens/SearchScreen';
-import ProfileSettings from '../screens/settings/ProfileSettings';
-import SettingsScreen from '../screens/settings/SettingsScreen';
-import BindPhone from '../screens/settings/BindPhone';
-import BindEmail from '../screens/settings/BindEmail';
-import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
+import { SearchScreen } from '../screens/search';
+import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen } from '../screens/settings';
 
 // 临时占位组件
 import { View, Text } from 'react-native';

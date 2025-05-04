@@ -8,13 +8,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { createNote, fetchNoteById, updateNote, autoSaveNote, getNoteHistory, getNoteVersion, restoreNoteVersion, saveOfflineNote, syncOfflineNotes } from '../../redux/slices/notesSlice';
 import { Button, Loading, Toast, NoteShareDialog, CategorySelector } from '../../components/common';
 import EnhancedRichTextEditor from '../../components/common/EnhancedRichTextEditor';
-import TagSelector from '../../components/notes/TagSelector';
+import TagSelector from '../../components/common/TagSelector';
 import { colors } from '../../utils/constants/colors';
 import { dimensions } from '../../utils/constants/dimensions';
 import { TIMEOUTS, DEFAULT_SETTINGS } from '../../utils/constants/config';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import * as categoriesApi from '../../services/api/categoriesApi';
-import * as tagsApi from '../../services/api/tagsApi';
+import * as categoriesApi from '../../services/api/categoryApi';
+import * as tagsApi from '../../services/api/tagApi';
 import NetInfo from '@react-native-community/netinfo';
 
 const NoteEditScreen = ({ route, navigation }) => {

@@ -17,7 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { noteAIService } from '../../services/noteAIService';
-import { aiHistoryService } from '../../services/aiHistoryService';
+import { aiHistoryService } from '../../services/ai_history/aiHistoryService';
 
 // AI工具类型
 const AI_TOOLS = [
