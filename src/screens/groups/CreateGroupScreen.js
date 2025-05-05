@@ -5,10 +5,12 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import CreateGroup from '../../components/groups/CreateGroup';
-import { COLORS } from '../../theme/modernTheme';
+import { useTheme } from '../../context/ThemeContext';
+import { COLORS } from '../../utils/constants/colors';
 
 const CreateGroupScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   return (
     <View style={styles.container}>

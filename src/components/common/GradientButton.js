@@ -5,27 +5,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { isExpoAvailable } from '../../utils/expoCompatibility';
-
-// 根据环境选择正确的LinearGradient实现
-let LinearGradient;
-try {
-  if (isExpoAvailable()) {
-    // 尝试导入expo-linear-gradient
-    LinearGradient = require('expo-linear-gradient').LinearGradient;
-  } else {
-    // 使用react-native-linear-gradient作为后备
-    LinearGradient = require('react-native-linear-gradient').default;
-  }
-} catch (error) {
-  console.error('LinearGradient导入错误:', error);
-  // 创建一个后备组件，当两个库都不可用时使用
-  LinearGradient = ({ children, colors, style }) => (
-    <View style={[style, { backgroundColor: colors[0] }]}>
-      {children}
-    </View>
-  );
-}
+import LinearGradient from 'react-native-linear-gradient';
 
 /**
  * 渐变按钮组件

@@ -7,10 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import GroupList from '../../components/groups/GroupList';
-import { SPACING, COLORS } from '../../theme/modernTheme';
+import { useTheme } from '../../context/ThemeContext';
+import { COLORS } from '../../utils/constants/colors';
 
 const GroupsScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   useEffect(() => {
     // 设置导航选项
@@ -37,7 +39,7 @@ const GroupsScreen = () => {
   return (
     <View style={styles.container}>
       <GroupList />
-      
+
       <TouchableOpacity
         style={styles.fabButton}
         onPress={() => navigation.navigate('CreateGroup')}
@@ -70,8 +72,8 @@ const styles = StyleSheet.create({
   },
   fabButton: {
     position: 'absolute',
-    right: SPACING.LARGE,
-    bottom: SPACING.LARGE + 4,
+    right: 26, // 使用固定值替代 SPACING.LARGE
+    bottom: 30, // 使用固定值替代 SPACING.LARGE + 4
     width: 64,
     height: 64,
     borderRadius: 32,

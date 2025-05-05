@@ -7,14 +7,119 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../theme';
 import { modernLightTheme, modernDarkTheme } from '../theme/modernTheme';
-import {
-  getTheme,
-  setTheme as saveTheme,
-  getThemeStyle,
-  setThemeStyle as saveThemeStyle,
-  getCustomTheme,
-  setCustomTheme as saveCustomTheme
-} from '../services/storage';
+// 确保这个导入不会导致循环依赖
+import { updateThemeColors } from '../utils/constants/colors';
+// 导入存储服务
+import { storageService } from '../services/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 定义主题存储键
+const THEME_KEYS = {
+  THEME: 'zeroislenotes_theme',
+  THEME_STYLE: 'zeroislenotes_theme_style',
+  CUSTOM_THEME: 'zeroislenotes_custom_theme',
+};
+
+// 主题存储函数
+const getTheme = async () => {
+  try {
+    // 首先尝试使用storageService
+    if (storageService && typeof storageService.getItem === 'function') {
+      const theme = await storageService.getItem(THEME_KEYS.THEME);
+      return theme || 'system';
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      const theme = await AsyncStorage.getItem(THEME_KEYS.THEME);
+      return theme || 'system';
+    }
+  } catch (error) {
+    console.error('获取主题失败:', error);
+    return 'system';
+  }
+};
+
+const saveTheme = async (theme) => {
+  try {
+    // 首先尝试使用storageService
+    if (storageService && typeof storageService.setItem === 'function') {
+      await storageService.setItem(THEME_KEYS.THEME, theme);
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      await AsyncStorage.setItem(THEME_KEYS.THEME, theme);
+    }
+    return true;
+  } catch (error) {
+    console.error('保存主题失败:', error);
+    return false;
+  }
+};
+
+const getThemeStyle = async () => {
+  try {
+    // 首先尝试使用storageService
+    if (storageService && typeof storageService.getItem === 'function') {
+      const style = await storageService.getItem(THEME_KEYS.THEME_STYLE);
+      return style || 'classic';
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      const style = await AsyncStorage.getItem(THEME_KEYS.THEME_STYLE);
+      return style || 'classic';
+    }
+  } catch (error) {
+    console.error('获取主题风格失败:', error);
+    return 'classic';
+  }
+};
+
+const saveThemeStyle = async (style) => {
+  try {
+    // 首先尝试使用storageService
+    if (storageService && typeof storageService.setItem === 'function') {
+      await storageService.setItem(THEME_KEYS.THEME_STYLE, style);
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      await AsyncStorage.setItem(THEME_KEYS.THEME_STYLE, style);
+    }
+    return true;
+  } catch (error) {
+    console.error('保存主题风格失败:', error);
+    return false;
+  }
+};
+
+const getCustomTheme = async () => {
+  try {
+    // 首先尝试使用storageService
+    let customThemeStr;
+    if (storageService && typeof storageService.getItem === 'function') {
+      customThemeStr = await storageService.getItem(THEME_KEYS.CUSTOM_THEME);
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      customThemeStr = await AsyncStorage.getItem(THEME_KEYS.CUSTOM_THEME);
+    }
+    return customThemeStr ? JSON.parse(customThemeStr) : { light: {}, dark: {} };
+  } catch (error) {
+    console.error('获取自定义主题失败:', error);
+    return { light: {}, dark: {} };
+  }
+};
+
+const saveCustomTheme = async (customTheme) => {
+  try {
+    const customThemeStr = JSON.stringify(customTheme);
+    // 首先尝试使用storageService
+    if (storageService && typeof storageService.setItem === 'function') {
+      await storageService.setItem(THEME_KEYS.CUSTOM_THEME, customThemeStr);
+    } else {
+      // 备选方案：直接使用AsyncStorage
+      await AsyncStorage.setItem(THEME_KEYS.CUSTOM_THEME, customThemeStr);
+    }
+    return true;
+  } catch (error) {
+    console.error('保存自定义主题失败:', error);
+    return false;
+  }
+};
 // 导入 lodash 的 merge 函数
 import merge from 'lodash/merge';
 
@@ -78,30 +183,58 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const loadThemeSettings = async () => {
       try {
-        // 加载主题类型（light/dark/system）
-        const savedTheme = await getTheme();
-        if (savedTheme) {
-          setThemeType(savedTheme);
-        }
+        console.log('ThemeContext: 开始加载主题设置...');
 
-        // 加载主题风格（classic/modern）
-        const savedStyle = await getThemeStyle();
-        if (savedStyle) {
-          setThemeStyle(savedStyle);
-        }
+        // 添加超时机制，避免无限等待
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('加载主题设置超时')), 5000);
+        });
 
-        // 加载自定义主题
-        const savedCustomTheme = await getCustomTheme();
-        if (savedCustomTheme) {
-          setCustomTheme(savedCustomTheme);
-        }
+        // 加载主题设置的Promise
+        const loadSettingsPromise = (async () => {
+          // 加载主题类型（light/dark/system）
+          const savedTheme = await getTheme();
+          if (savedTheme) {
+            setThemeType(savedTheme);
+            console.log('ThemeContext: 已加载主题类型:', savedTheme);
+          }
+
+          // 加载主题风格（classic/modern）
+          const savedStyle = await getThemeStyle();
+          if (savedStyle) {
+            setThemeStyle(savedStyle);
+            console.log('ThemeContext: 已加载主题风格:', savedStyle);
+          }
+
+          // 加载自定义主题
+          const savedCustomTheme = await getCustomTheme();
+          if (savedCustomTheme) {
+            setCustomTheme(savedCustomTheme);
+            console.log('ThemeContext: 已加载自定义主题');
+          }
+
+          // 立即更新全局颜色常量，确保在应用启动时就设置正确的颜色
+          const isDark = savedTheme === 'dark' || (savedTheme === 'system' && systemTheme === 'dark');
+          updateThemeColors(isDark);
+          console.log('ThemeContext: 主题颜色初始化完成，当前模式:', isDark ? '深色' : '浅色');
+
+          return true;
+        })();
+
+        // 使用Promise.race确保不会无限等待
+        await Promise.race([loadSettingsPromise, timeoutPromise]);
       } catch (error) {
-        console.error('加载主题设置失败:', error);
+        console.error('ThemeContext: 加载主题设置失败:', error);
+        console.error('ThemeContext: 使用默认主题设置');
+
+        // 使用默认设置
+        const isDark = systemTheme === 'dark';
+        updateThemeColors(isDark);
       }
     };
 
     loadThemeSettings();
-  }, []);
+  }, [systemTheme]);
 
   // 获取当前应该使用的主题模式（light/dark）
   const currentThemeMode = useMemo(() => {
@@ -124,6 +257,9 @@ export const ThemeProvider = ({ children }) => {
     const mergedTheme = merge({}, baseTheme, {
       colors: customColors
     });
+
+    // 更新全局颜色常量
+    updateThemeColors(isDark);
 
     setTheme(mergedTheme);
     setIsDarkMode(isDark);

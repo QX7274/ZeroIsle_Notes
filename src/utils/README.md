@@ -9,7 +9,7 @@
 - **index.js**: 工具函数导出文件，集中导出所有工具函数
 - **dateUtils.js**: 日期工具函数，提供日期格式化、相对时间等功能
 - **validationUtils.js**: 验证工具函数，提供表单验证功能
-- **expoCompatibility.js**: Expo兼容性工具，提供Expo组件的替代实现
+- **expoCompatibility.js**: 原生功能兼容层，提供统一的API接口，使用React Native原生功能
 - **mindMapLayoutUtils.js**: 思维导图布局工具，提供思维导图布局算法
 
 ### 常量 (`constants/`)

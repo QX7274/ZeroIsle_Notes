@@ -3,13 +3,11 @@
  */
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import ScreenShare from '../../components/groups/ScreenShare';
-import { COLORS } from '../../theme/modernTheme';
 
 const ScreenShareScreen = () => {
   const route = useRoute();
-  const navigation = useNavigation();
   const { groupId } = route.params;
 
   return (
@@ -22,7 +20,7 @@ const ScreenShareScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: theme => theme.colors.background,
   },
 });
 

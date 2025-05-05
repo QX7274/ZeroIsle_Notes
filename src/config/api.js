@@ -250,4 +250,11 @@ export const ERROR_MESSAGES = {
   [ERROR_CODES.RESOURCE_NOT_FOUND]: '资源不存在',
   [ERROR_CODES.PERMISSION_DENIED]: '权限不足',
   [ERROR_CODES.SERVER_ERROR]: '服务器错误',
+
+  // 网络错误
+  NETWORK_ERROR: '网络连接失败，请检查网络设置',
+  TIMEOUT_ERROR: '请求超时，请稍后重试',
+  CONNECTION_ERROR: '连接服务器失败，请稍后重试',
+  FORBIDDEN: '您没有权限执行此操作',
+  NOT_FOUND: '请求的资源不存在',
 };

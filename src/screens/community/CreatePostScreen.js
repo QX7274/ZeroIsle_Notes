@@ -20,7 +20,7 @@ import { Button, GradientButton } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { pick, types } from '@react-native-documents/picker';
+import DocumentPicker from 'react-native-document-picker';
 import { createPost } from '../../redux/slices/communitySlice';
 import { fetchCategories, fetchTags } from '../../store/slices/notesSlice';
 
@@ -159,10 +159,10 @@ const CreatePostScreen = ({ navigation }) => {
   // 选择文档
   const pickDocument = async (fileTypes) => {
     try {
-      const results = await pick({
+      const results = await DocumentPicker.pick({
         type: fileTypes.length > 0
-          ? fileTypes.map(type => types[type] || `application/${type}`)
-          : [types.allFiles],
+          ? fileTypes.map(type => DocumentPicker.types[type] || `application/${type}`)
+          : [DocumentPicker.types.allFiles],
         allowMultiSelection: true,
       });
 

@@ -3,24 +3,9 @@
  * 提供图像加载优化、缓存和渐进式加载
  */
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Animated, Platform, Image as RNImage } from 'react-native';
+import { View, StyleSheet, Animated, Platform, Image } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { FileSystem, Crypto, isExpoAvailable } from '../../utils/expoCompatibility';
-
-// 根据Expo可用性选择Image组件
-let Image;
-try {
-  // 尝试导入expo-image
-  if (isExpoAvailable()) {
-    Image = require('expo-image').Image;
-  } else {
-    // 使用React Native原生Image
-    Image = RNImage;
-  }
-} catch (error) {
-  // 使用React Native原生Image作为后备
-  Image = RNImage;
-}
+import { FileSystem, Crypto } from '../../utils/expoCompatibility';
 
 /**
  * 优化图像组件
@@ -151,19 +136,11 @@ const OptimizedImage = ({
     }
 
     return (
-      isExpoAvailable() ? (
-        <Image
-          source={placeholder}
-          style={[styles.image, styles.placeholder]}
-          contentFit="cover"
-        />
-      ) : (
-        <Image
-          source={placeholder}
-          style={[styles.image, styles.placeholder]}
-          resizeMode="cover"
-        />
-      )
+      <Image
+        source={placeholder}
+        style={[styles.image, styles.placeholder]}
+        resizeMode="cover"
+      />
     );
   };
 
@@ -181,45 +158,24 @@ const OptimizedImage = ({
             progressive ? { opacity: imageOpacity } : null,
           ]}
         >
-          {isExpoAvailable() ? (
-            <Image
-              source={cachedSource}
-              style={styles.image}
-              contentFit={resizeMode}
-              transition={progressive ? 300 : 0}
-              priority={priority}
-              onLoad={handleLoad}
-              onError={handleError}
-              {...props}
-            />
-          ) : (
-            <Image
-              source={cachedSource}
-              style={styles.image}
-              resizeMode={resizeMode}
-              onLoad={handleLoad}
-              onError={handleError}
-              {...props}
-            />
-          )}
+          <Image
+            source={cachedSource}
+            style={styles.image}
+            resizeMode={resizeMode}
+            onLoad={handleLoad}
+            onError={handleError}
+            {...props}
+          />
         </Animated.View>
       )}
 
       {/* 加载失败图像 */}
       {isError && fallback && (
-        isExpoAvailable() ? (
-          <Image
-            source={fallback}
-            style={styles.image}
-            contentFit="cover"
-          />
-        ) : (
-          <Image
-            source={fallback}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        )
+        <Image
+          source={fallback}
+          style={styles.image}
+          resizeMode="cover"
+        />
       )}
     </View>
   );

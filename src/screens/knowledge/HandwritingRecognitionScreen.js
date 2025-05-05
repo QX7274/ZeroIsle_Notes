@@ -38,12 +38,9 @@ const { width, height } = Dimensions.get('window');
 /**
  * 手写识别屏幕组件
  */
-const HandwritingRecognitionScreen = ({ navigation, route }) => {
+const HandwritingRecognitionScreen = ({ navigation, route, styles, colors }) => {
   const dispatch = useDispatch();
   const canvasRef = useCanvasRef();
-
-  // 获取主题颜色
-  const { colors } = useTheme();
 
   // 状态
   const [paths, setPaths] = useState([]);
@@ -511,7 +508,8 @@ const HandwritingRecognitionScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+// 创建样式表，使用闭包捕获colors变量
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -658,4 +656,15 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HandwritingRecognitionScreen;
+const HandwritingRecognitionScreenWrapper = (props) => {
+  // 获取主题颜色
+  const { colors } = useTheme();
+
+  // 创建样式
+  const styles = createStyles(colors);
+
+  // 渲染组件，传递样式和颜色
+  return <HandwritingRecognitionScreen {...props} styles={styles} colors={colors} />;
+};
+
+export default HandwritingRecognitionScreenWrapper;

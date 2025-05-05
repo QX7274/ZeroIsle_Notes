@@ -19,7 +19,7 @@ import {
   syncOfflineNotes,
   importNote
 } from '../../redux/slices/notesSlice';
-import { pick, types } from '@react-native-documents/picker';
+import DocumentPicker from 'react-native-document-picker';
 import ImagePicker from 'react-native-image-picker';
 import {
   NoteList,
@@ -326,8 +326,8 @@ const NoteScreen = ({ navigation, route }) => {
   const importPDF = async () => {
     try {
       // 使用文档选择器选择PDF文件
-      const results = await pick({
-        type: [types.pdf],
+      const results = await DocumentPicker.pick({
+        type: [DocumentPicker.types.pdf],
         allowMultiSelection: false,
       });
 
@@ -364,8 +364,8 @@ const NoteScreen = ({ navigation, route }) => {
   const importWord = async () => {
     try {
       // 使用文档选择器选择Word文件
-      const results = await pick({
-        type: [types.docx, types.doc],
+      const results = await DocumentPicker.pick({
+        type: [DocumentPicker.types.docx, DocumentPicker.types.doc],
         allowMultiSelection: false,
       });
 

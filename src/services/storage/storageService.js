@@ -15,6 +15,64 @@ const KEYS = {
   ACCESSIBILITY: 'zeroislenotes_accessibility',
 };
 
+// 通用存储方法
+const setItem = async (key, value) => {
+  try {
+    await AsyncStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error(`保存数据失败 [${key}]:`, error);
+    return false;
+  }
+};
+
+const getItem = async (key) => {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch (error) {
+    console.error(`获取数据失败 [${key}]:`, error);
+    return null;
+  }
+};
+
+const removeItem = async (key) => {
+  try {
+    await AsyncStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    console.error(`删除数据失败 [${key}]:`, error);
+    return false;
+  }
+};
+
+// 导出通用方法
+const storageService = {
+  setItem,
+  getItem,
+  removeItem,
+
+  // 以下是为了兼容性保留的方法
+  getSettings: async () => {
+    try {
+      const settings = await getItem(KEYS.SETTINGS);
+      return settings ? JSON.parse(settings) : {};
+    } catch (error) {
+      console.error('获取设置失败:', error);
+      return {};
+    }
+  },
+
+  setSettings: async (settings) => {
+    try {
+      await setItem(KEYS.SETTINGS, JSON.stringify(settings));
+      return true;
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      return false;
+    }
+  }
+};
+
 // Token 相关
 export const setToken = async (token) => {
   try {
@@ -312,3 +370,37 @@ export const getAccessibilitySettings = async () => {
     return {};
   }
 };
+
+// 将所有方法添加到storageService对象
+Object.assign(storageService, {
+  setToken,
+  getToken,
+  getTokenSync,
+  removeToken,
+  setRefreshToken,
+  getRefreshToken,
+  setUser,
+  getUser,
+  removeUser,
+  setTheme,
+  getTheme,
+  setThemeStyle,
+  getThemeStyle,
+  setCustomTheme,
+  getCustomTheme,
+  setLanguage,
+  getLanguage,
+  setSettings,
+  getSettings,
+  setRecentSearches,
+  getRecentSearches,
+  setRecentNotes,
+  getRecentNotes,
+  clearAll,
+  clearAuth,
+  setAccessibilitySettings,
+  getAccessibilitySettings
+});
+
+// 导出storageService对象
+export default storageService;

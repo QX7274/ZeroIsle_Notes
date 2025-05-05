@@ -14,9 +14,9 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
+import RNShare from 'react-native-share';
 
 const ReminderExportScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -38,14 +38,17 @@ const ReminderExportScreen = ({ navigation }) => {
       // 创建临时文件
       const fileExtension = format === 'json' ? 'json' : 'csv';
       const fileName = `reminders_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      const filePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
       // 写入文件
-      await FileSystem.writeAsStringAsync(filePath, data);
+      await RNFS.writeFile(filePath, data, 'utf8');
 
       // 分享文件
       if (Platform.OS === 'ios') {
-        await Sharing.shareAsync(filePath);
+        await RNShare.open({
+          url: `file://${filePath}`,
+          title: '导出的提醒数据',
+        });
       } else {
         await Share.share({
           title: '导出的提醒数据',
@@ -69,19 +72,18 @@ const ReminderExportScreen = ({ navigation }) => {
       setLoading(true);
 
       // 选择文件
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/json', 'text/csv', 'text/plain'],
-        copyToCacheDirectory: true,
+      const result = await DocumentPicker.pick({
+        type: [DocumentPicker.types.allFiles],
       });
 
-      if (result.canceled) {
+      if (!result || result.length === 0) {
         setLoading(false);
         return;
       }
 
       // 读取文件内容
-      const fileUri = result.assets[0].uri;
-      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+      const fileUri = result[0].uri;
+      const fileContent = await RNFS.readFile(fileUri, 'utf8');
 
       // 确定文件格式
       const fileFormat = fileUri.endsWith('.csv') ? 'csv' : 'json';

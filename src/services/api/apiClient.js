@@ -44,9 +44,21 @@ apiClient.interceptors.response.use(
   },
   error => {
     // 处理错误响应
-    if (error.response) {
+    if (error.message === 'Network Error') {
+      // 网络错误，显示中文提示
+      Alert.alert('网络连接失败', '请检查您的网络设置后重试');
+      console.error('网络连接失败:', error);
+      // 修改错误消息为中文
+      error.message = '网络连接失败，请检查网络设置';
+    } else if (error.message && error.message.includes('timeout')) {
+      // 超时错误，显示中文提示
+      Alert.alert('请求超时', '服务器响应时间过长，请稍后重试');
+      console.error('请求超时:', error);
+      // 修改错误消息为中文
+      error.message = '请求超时，请稍后重试';
+    } else if (error.response) {
       const { status, data } = error.response;
-      
+
       switch (status) {
         case 401:
           // 未授权，清除token并跳转到登录页面
@@ -59,6 +71,7 @@ apiClient.interceptors.response.use(
         case 404:
           // 资源未找到
           console.error('资源未找到:', error.config.url);
+          Alert.alert('资源不存在', ERROR_MESSAGES.NOT_FOUND);
           break;
         case 500:
           // 服务器错误
@@ -67,6 +80,18 @@ apiClient.interceptors.response.use(
         default:
           // 其他错误
           console.error(`HTTP错误 ${status}:`, data);
+          // 尝试获取错误消息
+          let errorMsg = '未知错误';
+          if (data) {
+            if (typeof data === 'string') {
+              errorMsg = data;
+            } else if (data.message) {
+              errorMsg = data.message;
+            } else if (data.error) {
+              errorMsg = data.error;
+            }
+          }
+          Alert.alert('请求失败', errorMsg);
           break;
       }
     } else if (error.request) {
@@ -75,8 +100,9 @@ apiClient.interceptors.response.use(
     } else {
       // 请求配置出错
       console.error('请求错误:', error.message);
+      Alert.alert('请求错误', error.message || '发送请求时出现错误');
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -87,10 +113,10 @@ const handleUnauthorized = async () => {
     // 清除token和用户信息
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
-    
+
     // 跳转到登录页面
     navigate('Login');
-    
+
     // 显示提示
     Alert.alert('登录已过期', '请重新登录');
   } catch (error) {

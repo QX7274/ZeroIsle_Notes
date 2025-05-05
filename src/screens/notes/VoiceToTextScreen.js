@@ -27,12 +27,12 @@ import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
-import { pick, types } from '@react-native-documents/picker';
+import DocumentPicker from 'react-native-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Haptics from 'expo-haptics';
+import { Haptics } from '../../utils/expoCompatibility';
 
 // API 服务
 import * as voiceApi from '../../services/api/voiceApi';
@@ -397,8 +397,8 @@ const VoiceToTextScreen = ({ navigation, route }) => {
         console.log('Haptics not available');
       }
 
-      const [res] = await pick({
-        type: [types.audio],
+      const [res] = await DocumentPicker.pick({
+        type: [DocumentPicker.types.audio],
       });
 
       // 提取文件名

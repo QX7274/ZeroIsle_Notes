@@ -55,19 +55,41 @@ public class NotificationModule extends ReactContextBaseJavaModule {
      * 创建通知渠道
      */
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            );
-            channel.setDescription("零屿笔记应用通知");
-            channel.enableLights(true);
-            channel.setLightColor(Color.BLUE);
-            channel.enableVibration(true);
-            
-            NotificationManager notificationManager = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
-            notificationManager.createNotificationChannel(channel);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Log.i(TAG, "开始创建通知渠道...");
+
+                NotificationManager notificationManager = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (notificationManager == null) {
+                    Log.e(TAG, "无法获取NotificationManager");
+                    return;
+                }
+
+                // 检查渠道是否已存在
+                NotificationChannel existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID);
+                if (existingChannel != null) {
+                    Log.i(TAG, "通知渠道已存在，无需重新创建");
+                    return;
+                }
+
+                NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                );
+                channel.setDescription("零屿笔记应用通知");
+                channel.enableLights(true);
+                channel.setLightColor(Color.BLUE);
+                channel.enableVibration(true);
+
+                notificationManager.createNotificationChannel(channel);
+                Log.i(TAG, "通知渠道创建成功");
+            } else {
+                Log.i(TAG, "当前Android版本不支持通知渠道");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "创建通知渠道失败: " + e.getMessage(), e);
+            // 即使创建失败，也不抛出异常，避免阻塞应用启动
         }
     }
 
@@ -84,7 +106,7 @@ public class NotificationModule extends ReactContextBaseJavaModule {
             String message = options.hasKey("message") ? options.getString("message") : "";
             int importance = options.hasKey("importance") ? options.getInt("importance") : NotificationManager.IMPORTANCE_DEFAULT;
             boolean autoCancel = !options.hasKey("autoCancel") || options.getBoolean("autoCancel");
-            
+
             // 创建通知
             NotificationCompat.Builder builder = new NotificationCompat.Builder(reactContext, CHANNEL_ID)
                 .setContentTitle(title)
@@ -92,7 +114,7 @@ public class NotificationModule extends ReactContextBaseJavaModule {
                 .setSmallIcon(R.drawable.ic_notification)
                 .setPriority(importance)
                 .setAutoCancel(autoCancel);
-            
+
             // 设置点击意图
             Intent intent = new Intent(reactContext, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -103,11 +125,11 @@ public class NotificationModule extends ReactContextBaseJavaModule {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
             builder.setContentIntent(pendingIntent);
-            
+
             // 显示通知
             NotificationManager notificationManager = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.notify(id, builder.build());
-            
+
             promise.resolve(true);
         } catch (Exception e) {
             Log.e(TAG, "Error showing notification", e);
@@ -156,7 +178,7 @@ public class NotificationModule extends ReactContextBaseJavaModule {
     public void checkNotificationPermission(Promise promise) {
         try {
             NotificationManager notificationManager = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 promise.resolve(notificationManager.areNotificationsEnabled());
             } else {

@@ -5,43 +5,77 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 import dateUtilsModule from './dateUtils';
 import { validationUtils as validationUtilsModule } from './validationUtils';
-import * as storageService from '../services/storage';
-import EventEmitter from './eventEmitter';
+import { storageService } from '../services/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import EventEmitter from './EventEmitter';
 
-// 存储工具 - 从 services/storage.js 导入
+// 存储工具 - 直接使用AsyncStorage作为备选
 export const storage = {
   set: async (key, value) => {
     try {
-      // 使用通用的存储方法
-      await storageService.setSettings({ [key]: value });
+      // 首先尝试使用storageService
+      if (storageService && typeof storageService.setItem === 'function') {
+        await storageService.setItem(key, JSON.stringify(value));
+      } else {
+        // 备选方案：直接使用AsyncStorage
+        await AsyncStorage.setItem(key, JSON.stringify(value));
+      }
       return true;
     } catch (e) {
       console.error('存储错误:', e);
-      return false;
+      // 备选方案：直接使用AsyncStorage
+      try {
+        await AsyncStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (innerError) {
+        console.error('备选存储也失败:', innerError);
+        return false;
+      }
     }
   },
   get: async (key) => {
     try {
-      // 使用通用的获取方法
-      const settings = await storageService.getSettings();
-      return settings[key] || null;
+      // 首先尝试使用storageService
+      if (storageService && typeof storageService.getItem === 'function') {
+        const value = await storageService.getItem(key);
+        return value ? JSON.parse(value) : null;
+      } else {
+        // 备选方案：直接使用AsyncStorage
+        const value = await AsyncStorage.getItem(key);
+        return value ? JSON.parse(value) : null;
+      }
     } catch (e) {
       console.error('读取错误:', e);
-      return null;
+      // 备选方案：直接使用AsyncStorage
+      try {
+        const value = await AsyncStorage.getItem(key);
+        return value ? JSON.parse(value) : null;
+      } catch (innerError) {
+        console.error('备选读取也失败:', innerError);
+        return null;
+      }
     }
   },
   remove: async (key) => {
     try {
-      // 获取当前设置，删除指定键，然后保存
-      const settings = await storageService.getSettings();
-      if (settings[key]) {
-        delete settings[key];
-        await storageService.setSettings(settings);
+      // 首先尝试使用storageService
+      if (storageService && typeof storageService.removeItem === 'function') {
+        await storageService.removeItem(key);
+      } else {
+        // 备选方案：直接使用AsyncStorage
+        await AsyncStorage.removeItem(key);
       }
       return true;
     } catch (e) {
       console.error('删除错误:', e);
-      return false;
+      // 备选方案：直接使用AsyncStorage
+      try {
+        await AsyncStorage.removeItem(key);
+        return true;
+      } catch (innerError) {
+        console.error('备选删除也失败:', innerError);
+        return false;
+      }
     }
   }
 };
@@ -71,4 +105,4 @@ export const permissionUtils = {
 export const validationUtils = validationUtilsModule;
 
 // 事件发射器
-export { default as EventEmitter } from './eventEmitter';
+export { default as EventEmitter } from './EventEmitter';

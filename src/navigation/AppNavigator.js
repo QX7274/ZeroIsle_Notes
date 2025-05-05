@@ -1,5 +1,5 @@
 /**
- * 应用主导航配�?
+ * 应用主导航配置
  */
 
 import React, { useEffect } from 'react';
@@ -16,7 +16,7 @@ import { getProfile } from '../redux/slices/authSlice';
 // 导入组件
 import { Loading } from '../components/common';
 
-// 导入导航�?
+// 导入导航
 import AuthNavigator from './AuthNavigator';
 import SettingsNavigator from './SettingsNavigator';
 import ReminderNavigator from './ReminderNavigator';
@@ -38,7 +38,7 @@ import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/
 import { ApiTestComponent } from '../components/common';
 // 导入知识图谱相关组件
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
-// 导入群组导航�?
+// 导入群组导航
 import GroupsNavigator from './GroupsNavigator';
 
 const Stack = createStackNavigator();
@@ -52,30 +52,52 @@ const AppNavigator = () => {
   const dispatch = useDispatch();
   const { theme } = useTheme();
 
-  // 从Redux获取认证状�?
+  // 从Redux获取认证状态
+  console.log('AppNavigator: 尝试获取认证状态...');
+
   const { isAuthenticated, isLoading } = useSelector(state => {
+    console.log('AppNavigator: Redux状态:', state ? '已加载' : '未加载');
+
+    // 添加更多调试信息
+    if (state) {
+      console.log('AppNavigator: Redux状态结构:', Object.keys(state).join(', '));
+      console.log('AppNavigator: auth状态:', state.auth ? '存在' : '不存在');
+      console.log('AppNavigator: user状态:', state.user ? '存在' : '不存在');
+    }
+
     // 兼容旧的Redux结构
-    if (state.auth) {
+    if (state && state.auth) {
+      console.log('AppNavigator: 使用auth状态');
       return state.auth;
     }
+
     // 兼容旧的Redux结构
+    console.log('AppNavigator: 使用user状态或默认值');
     return {
-      isAuthenticated: state.user?.isAuthenticated || false,
-      isLoading: state.user?.isLoading || false
+      isAuthenticated: state?.user?.isAuthenticated || false,
+      isLoading: state?.user?.isLoading || false
     };
   });
 
-  // 应用启动时检查认证状�?
+  console.log('AppNavigator: 认证状态:', isAuthenticated ? '已认证' : '未认证');
+  console.log('AppNavigator: 加载状态:', isLoading ? '加载中' : '已加载');
+
+  // 应用启动时检查认证状态
   useEffect(() => {
+    console.log('AppNavigator: 认证状态变化，当前状态:', isAuthenticated ? '已认证' : '未认证');
     if (isAuthenticated) {
+      console.log('AppNavigator: 尝试获取用户资料...');
       dispatch(getProfile());
     }
   }, [dispatch, isAuthenticated]);
 
-  // 如果正在检查认证状态，显示加载指示�?
+  // 如果正在检查认证状态，显示加载指示器
   if (isLoading) {
-    return <Loading type="fullscreen" text="加载�?.." />;
+    console.log('AppNavigator: 显示加载指示器...');
+    return <Loading type="fullscreen" text="加载中..." />;
   }
+
+  console.log('AppNavigator: 准备渲染导航器...');
 
   return (
     <Stack.Navigator
@@ -94,8 +116,8 @@ const AppNavigator = () => {
 };
 
 /**
- * 主标签导�?
- * 包含首页、分类、社区和设置等主要功能模�?
+ * 主标签导航器
+ * 包含首页、分类、社区和设置等主要功能模块
  */
 const MainTabs = () => {
   const { theme } = useTheme();
@@ -221,7 +243,7 @@ const MainTabs = () => {
 
 /**
  * 首页堆栈导航
- * 包含首页、笔记详情、AI助手等功�?
+ * 包含首页、笔记详情、AI助手等功能
  */
 const HomeStack = () => {
   const { theme } = useTheme();

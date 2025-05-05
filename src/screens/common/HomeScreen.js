@@ -12,7 +12,7 @@ import {
   Dimensions,
   Modal
 } from 'react-native';
-import { pick, types } from '@react-native-documents/picker';
+import DocumentPicker from 'react-native-document-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { notesApi } from '../../services/api';

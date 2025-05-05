@@ -5,24 +5,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { isExpoAvailable } from '../../utils/expoCompatibility';
-
-// 根据Expo可用性选择BlurView组件
-let BlurView = null;
-// 使用安全的方式检查Expo可用性
-const expoAvailable = isExpoAvailable();
-if (expoAvailable) {
-  try {
-    // 尝试导入expo-blur
-    const expoBlur = require('expo-blur');
-    if (expoBlur && expoBlur.BlurView) {
-      BlurView = expoBlur.BlurView;
-    }
-  } catch (error) {
-    // BlurView不可用，将在渲染时使用后备方案
-    console.log('BlurView不可用，使用后备方案:', error.message);
-  }
-}
+import { BlurView } from '@react-native-community/blur';
 
 /**
  * 玻璃拟态卡片组件
@@ -92,29 +75,32 @@ const GlassCard = ({
 
   // 渲染卡片内容
   const renderContent = () => {
-    // 在iOS上使用BlurView（如果可用）
-    if (Platform.OS === 'ios' && expoAvailable && BlurView) {
-      try {
-        return (
-          <BlurView
-            intensity={getIntensity()}
-            tint={getTint()}
-            style={[styles.blurView, { borderRadius: borderRadius || dimensions.BORDER_RADIUS.MEDIUM }]}
-          >
-            <View style={contentStyle}>{children}</View>
-          </BlurView>
-        );
-      } catch (error) {
-        console.log('渲染BlurView时出错:', error.message);
-        // 出错时使用后备方案
-      }
+    // 在iOS上使用BlurView
+    if (Platform.OS === 'ios') {
+      return (
+        <BlurView
+          style={[
+            styles.glassEffect,
+            {
+              borderRadius: borderRadius || dimensions.BORDER_RADIUS.MEDIUM,
+            },
+          ]}
+          blurType={theme.dark ? 'dark' : 'light'}
+          blurAmount={getIntensity() / 2}
+          reducedTransparencyFallbackColor={
+            theme.dark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)'
+          }
+        >
+          <View style={contentStyle}>{children}</View>
+        </BlurView>
+      );
     }
 
-    // 在Android上或BlurView不可用时使用半透明背景
+    // 在Android上使用半透明背景
     return (
       <View
         style={[
-          styles.androidFallback,
+          styles.glassEffect,
           {
             backgroundColor: theme.dark
               ? 'rgba(30, 30, 30, 0.8)'
@@ -165,11 +151,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  blurView: {
+  glassEffect: {
     overflow: 'hidden',
-  },
-  androidFallback: {
-    overflow: 'hidden',
+    // 添加额外的样式使其看起来更像毛玻璃效果
+    borderWidth: Platform.OS === 'ios' ? 0.5 : 0,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   content: {
     width: '100%',

@@ -3,7 +3,7 @@
  * 提供触感反馈功能
  */
 import { Platform } from 'react-native';
-import { Haptics, ImpactFeedbackStyle, NotificationFeedbackType, isExpoAvailable } from './expoCompatibility';
+import { Haptics, ImpactFeedbackStyle, NotificationFeedbackType } from './expoCompatibility';
 
 /**
  * 轻触反馈

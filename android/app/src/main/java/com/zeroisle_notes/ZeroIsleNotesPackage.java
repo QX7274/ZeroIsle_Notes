@@ -29,6 +29,7 @@ public class ZeroIsleNotesPackage implements ReactPackage {
         modules.add(new FileSystemModule(reactContext));
         modules.add(new HandwritingRecognitionModule(reactContext));
         modules.add(new NotificationModule(reactContext));
+        modules.add(new NotificationChannelModule(reactContext)); // 添加通知渠道模块
         modules.add(new AIAssistantModule(reactContext));
         modules.add(new BaiduAIAssistantModule(reactContext));
         modules.add(new XunfeiAIAssistantModule(reactContext));

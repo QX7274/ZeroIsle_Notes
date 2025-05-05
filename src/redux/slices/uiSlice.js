@@ -3,7 +3,7 @@
  */
 
 import { createSlice } from '@reduxjs/toolkit';
-import { DEFAULT_SETTINGS } from '../../config/index';
+import { DEFAULT_SETTINGS } from '../../utils/constants/config';
 
 // 初始状态
 const initialState = {

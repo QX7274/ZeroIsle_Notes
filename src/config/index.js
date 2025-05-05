@@ -5,7 +5,7 @@
 
 // API配置
 export const API_URL = __DEV__
-  ? 'http://10.0.2.2:8000/api'  // Android模拟器访问本机地址
+  ? 'http://192.168.154.232:8000/api'  // 热点访问地址
   : 'https://api.zeroislenotes.com/api'; // 生产环境地址
 
 export const API_VERSION = 'v1';

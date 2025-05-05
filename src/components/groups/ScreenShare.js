@@ -25,7 +25,14 @@ import {
 } from '../../redux/slices/groupsSlice';
 import { webrtcService } from '../../services/webrtc/webrtcService';
 import { SPACING } from '../../utils/constants/dimensions';
-import { COLORS } from '../../utils/constants/colors';
+// 定义颜色常量
+const COLORS = {
+  PRIMARY: '#007AFF',
+  ERROR: '#FF3B30',
+  TEXT_PRIMARY: '#000000',
+  TEXT_SECONDARY: '#8E8E93',
+  TEXT_TERTIARY: '#C7C7CC',
+};
 
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
@@ -339,7 +346,7 @@ const ScreenShare = ({ groupId }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     padding: SPACING.MEDIUM,
@@ -361,7 +368,7 @@ const styles = StyleSheet.create({
   videoContainer: {
     width: '100%',
     height: 300,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: SPACING.LARGE,
@@ -388,7 +395,7 @@ const styles = StyleSheet.create({
   unsupportedContainer: {
     width: '100%',
     height: 300,
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: SPACING.LARGE,
@@ -410,7 +417,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.LARGE,
   },
   usersContainer: {
-    backgroundColor: COLORS.SURFACE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: SPACING.MEDIUM,
     marginBottom: SPACING.LARGE,

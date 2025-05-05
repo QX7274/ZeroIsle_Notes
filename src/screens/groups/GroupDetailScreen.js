@@ -7,12 +7,14 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
 import { setCurrentGroup } from '../../redux/slices/groupsSlice';
 import GroupDetail from '../../components/groups/GroupDetail';
-import { COLORS } from '../../theme/modernTheme';
+import { useTheme } from '../../context/ThemeContext';
+import { COLORS } from '../../utils/constants/colors';
 
 const GroupDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { theme } = useTheme();
   const { groupId } = route.params;
 
   useEffect(() => {

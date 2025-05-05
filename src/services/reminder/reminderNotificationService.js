@@ -3,7 +3,7 @@
  * 处理提醒的本地通知和离线存储
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+import PushNotification from 'react-native-push-notification';
 import { Platform } from 'react-native';
 import reminderApi from '../api/reminderApi';
 import analyticsService from '../analytics/analyticsService';
@@ -37,23 +37,45 @@ class ReminderNotificationService {
     if (this.initialized) return;
 
     try {
-      // 配置通知处理
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-        }),
+      // 配置通知
+      PushNotification.configure({
+        // 当应用程序打开时收到远程通知时调用
+        onNotification: function(notification) {
+          console.log("收到通知:", notification);
+        },
+
+        // 当用户点击通知时调用
+        onAction: function(notification) {
+          console.log("用户点击通知:", notification.action);
+        },
+
+        // 当注册令牌时调用
+        onRegistrationError: function(err) {
+          console.error("注册令牌错误:", err.message);
+        },
+
+        // 是否应该在前台显示通知
+        popInitialNotification: true,
+
+        // 请求权限处理
+        requestPermissions: true,
       });
 
       // 创建通知渠道（仅Android）
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
-          name: '提醒通知',
-          importance: Notifications.AndroidImportance.HIGH,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
-        });
+        PushNotification.createChannel(
+          {
+            channelId: REMINDER_CHANNEL_ID,
+            channelName: '提醒通知',
+            channelDescription: '提醒和待办事项的通知',
+            importance: 4, // HIGH
+            vibrate: true,
+            vibration: 300,
+            playSound: true,
+            soundName: 'default',
+          },
+          (created) => console.log(`通知渠道创建${created ? '成功' : '失败'}`)
+        );
       }
 
       this.initialized = true;
@@ -70,15 +92,22 @@ class ReminderNotificationService {
    */
   async requestPermissions() {
     try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      const isGranted = status === 'granted';
+      // react-native-push-notification在configure时会自动请求权限
+      // 这里我们返回一个Promise，模拟权限请求
+      return new Promise((resolve) => {
+        PushNotification.checkPermissions((permissions) => {
+          const isGranted = Platform.OS === 'ios'
+            ? permissions.alert && permissions.badge && permissions.sound
+            : true; // Android通常默认授予权限
 
-      analyticsService.trackEvent('request_notification_permissions', {
-        status,
-        isGranted,
+          analyticsService.trackEvent('request_notification_permissions', {
+            permissions,
+            isGranted,
+          });
+
+          resolve(isGranted);
+        });
       });
-
-      return isGranted;
     } catch (error) {
       console.error('请求通知权限失败:', error);
       analyticsService.trackError(error, { action: 'request_notification_permissions' });
@@ -92,8 +121,15 @@ class ReminderNotificationService {
    */
   async checkPermissions() {
     try {
-      const { status } = await Notifications.getPermissionsAsync();
-      return status === 'granted';
+      return new Promise((resolve) => {
+        PushNotification.checkPermissions((permissions) => {
+          const isGranted = Platform.OS === 'ios'
+            ? permissions.alert && permissions.badge && permissions.sound
+            : true; // Android通常默认授予权限
+
+          resolve(isGranted);
+        });
+      });
     } catch (error) {
       console.error('检查通知权限失败:', error);
       analyticsService.trackError(error, { action: 'check_notification_permissions' });
@@ -133,44 +169,45 @@ class ReminderNotificationService {
         return null;
       }
 
-      // 准备通知内容
-      const notificationContent = {
+      // 生成通知ID
+      const notificationId = `reminder_${reminder.id || Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // 根据优先级设置通知颜色
+      let color = '#3498db'; // 默认蓝色
+
+      if (reminder.color) {
+        color = reminder.color;
+      } else if (reminder.priority === 'high') {
+        color = '#e74c3c'; // 红色
+      } else if (reminder.priority === 'medium') {
+        color = '#f39c12'; // 橙色
+      } else if (reminder.priority === 'low') {
+        color = '#2ecc71'; // 绿色
+      }
+
+      // 安排通知
+      PushNotification.localNotificationSchedule({
+        id: notificationId,
+        channelId: REMINDER_CHANNEL_ID,
         title: reminder.title,
-        body: reminder.description || '您有一个待办事项需要处理',
-        data: {
+        message: reminder.description || '您有一个待办事项需要处理',
+        date: notificationTime,
+        allowWhileIdle: true,
+        playSound: true,
+        soundName: 'default',
+        vibrate: true,
+        vibration: 300,
+        priority: 'high',
+        visibility: 'private',
+        importance: 'high',
+        color: color,
+        userInfo: {
           reminderId: reminder.id,
           type: 'reminder',
           category: reminder.category || 'other',
           priority: reminder.priority || 'medium',
           frequency: reminder.frequency || 'once'
-        },
-        sound: true,
-      };
-
-      // 根据优先级设置通知颜色（仅Android）
-      if (Platform.OS === 'android') {
-        let color = '#3498db'; // 默认蓝色
-
-        if (reminder.color) {
-          color = reminder.color;
-        } else if (reminder.priority === 'high') {
-          color = '#e74c3c'; // 红色
-        } else if (reminder.priority === 'medium') {
-          color = '#f39c12'; // 橙色
-        } else if (reminder.priority === 'low') {
-          color = '#2ecc71'; // 绿色
         }
-
-        notificationContent.color = color;
-      }
-
-      // 安排通知
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: notificationContent,
-        trigger: {
-          date: notificationTime,
-          channelId: REMINDER_CHANNEL_ID,
-        },
       });
 
       // 如果是重复提醒，安排下一次通知
@@ -279,7 +316,7 @@ class ReminderNotificationService {
    */
   async cancelReminderNotification(notificationId) {
     try {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
+      PushNotification.cancelLocalNotification(notificationId);
 
       analyticsService.trackEvent('cancel_reminder_notification', {
         notificationId,
@@ -299,7 +336,11 @@ class ReminderNotificationService {
    */
   async getAllScheduledNotifications() {
     try {
-      return await Notifications.getAllScheduledNotificationsAsync();
+      return new Promise((resolve) => {
+        PushNotification.getScheduledLocalNotifications((notifications) => {
+          resolve(notifications);
+        });
+      });
     } catch (error) {
       console.error('获取已安排的通知失败:', error);
       analyticsService.trackError(error, { action: 'get_all_scheduled_notifications' });
@@ -313,8 +354,8 @@ class ReminderNotificationService {
    */
   async clearAllNotifications() {
     try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      await Notifications.dismissAllNotificationsAsync();
+      PushNotification.cancelAllLocalNotifications();
+      PushNotification.removeAllDeliveredNotifications();
 
       analyticsService.trackEvent('clear_all_notifications');
 

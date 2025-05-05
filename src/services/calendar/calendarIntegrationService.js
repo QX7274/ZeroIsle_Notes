@@ -2,10 +2,23 @@
  * 日历集成服务
  * 提供与设备日历的集成功能
  */
-import * as Calendar from 'expo-calendar';
+import RNCalendarEvents from 'react-native-calendar-events';
 import { Platform } from 'react-native';
 import { isNetworkConnected } from './networkService';
 import analyticsService from '../analytics/analyticsService';
+
+// 定义频率常量
+const Frequency = {
+  DAILY: 'daily',
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+  YEARLY: 'yearly'
+};
+
+// 定义实体类型常量
+const EntityTypes = {
+  EVENT: 'event'
+};
 
 /**
  * 日历集成服务
@@ -24,14 +37,14 @@ class CalendarIntegrationService {
 
     try {
       // 请求日历权限
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
-      if (status !== 'granted') {
+      const status = await RNCalendarEvents.requestPermissions();
+      if (status !== 'authorized') {
         throw new Error('没有日历权限');
       }
 
       // 获取默认日历
       this.defaultCalendarId = await this._getDefaultCalendarId();
-      
+
       this.initialized = true;
       console.log('日历集成服务初始化成功');
     } catch (error) {
@@ -48,14 +61,14 @@ class CalendarIntegrationService {
   async _getDefaultCalendarId() {
     try {
       // 获取所有日历
-      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      
+      const calendars = await RNCalendarEvents.findCalendars();
+
       // 根据平台选择默认日历
       if (Platform.OS === 'ios') {
         // iOS: 选择第一个可写的iCloud或本地日历
         const defaultCalendar = calendars.find(
-          cal => cal.allowsModifications && 
-                (cal.source.name === 'iCloud' || cal.source.name === 'Default')
+          cal => cal.allowsModifications &&
+                (cal.source === 'iCloud' || cal.source === 'Default' || cal.source === 'Local')
         );
         return defaultCalendar?.id;
       } else {
@@ -77,7 +90,7 @@ class CalendarIntegrationService {
   async getCalendars() {
     try {
       await this.init();
-      return await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      return await RNCalendarEvents.findCalendars();
     } catch (error) {
       console.error('获取日历列表失败:', error);
       analyticsService.trackError(error, { action: 'get_calendars' });
@@ -94,38 +107,42 @@ class CalendarIntegrationService {
   async createCalendarEvent(reminder, calendarId = null) {
     try {
       await this.init();
-      
+
       // 使用指定的日历ID或默认日历ID
       const targetCalendarId = calendarId || this.defaultCalendarId;
       if (!targetCalendarId) {
         throw new Error('没有可用的日历');
       }
-      
+
+      const startDate = new Date(reminder.dueDate || reminder.due_date);
+      const endDate = new Date(new Date(reminder.dueDate || reminder.due_date).getTime() + 30 * 60000); // 默认30分钟
+
       // 准备事件详情
       const eventDetails = {
         title: reminder.title,
         notes: reminder.description || '',
-        startDate: new Date(reminder.dueDate || reminder.due_date),
-        endDate: new Date(new Date(reminder.dueDate || reminder.due_date).getTime() + 30 * 60000), // 默认30分钟
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        alarms: [{ relativeOffset: -15 }], // 提前15分钟提醒
+        calendarId: targetCalendarId,
+        alarms: [{ date: -15 }], // 提前15分钟提醒
       };
-      
+
       // 添加重复规则
       if (reminder.frequency && reminder.frequency !== 'once') {
         eventDetails.recurrenceRule = this._createRecurrenceRule(reminder);
       }
-      
+
       // 创建事件
-      const eventId = await Calendar.createEventAsync(targetCalendarId, eventDetails);
-      
+      const eventId = await RNCalendarEvents.saveEvent(reminder.title, eventDetails);
+
       // 记录分析数据
       analyticsService.trackEvent('create_calendar_event', {
         reminderTitle: reminder.title,
         calendarId: targetCalendarId,
         frequency: reminder.frequency,
       });
-      
+
       return eventId;
     } catch (error) {
       console.error('创建日历事件失败:', error);
@@ -143,31 +160,37 @@ class CalendarIntegrationService {
   async updateCalendarEvent(eventId, reminder) {
     try {
       await this.init();
-      
+
+      const startDate = new Date(reminder.dueDate || reminder.due_date);
+      const endDate = new Date(new Date(reminder.dueDate || reminder.due_date).getTime() + 30 * 60000); // 默认30分钟
+
       // 准备事件详情
       const eventDetails = {
         title: reminder.title,
         notes: reminder.description || '',
-        startDate: new Date(reminder.dueDate || reminder.due_date),
-        endDate: new Date(new Date(reminder.dueDate || reminder.due_date).getTime() + 30 * 60000), // 默认30分钟
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        alarms: [{ relativeOffset: -15 }], // 提前15分钟提醒
+        alarms: [{ date: -15 }], // 提前15分钟提醒
       };
-      
+
       // 添加重复规则
       if (reminder.frequency && reminder.frequency !== 'once') {
         eventDetails.recurrenceRule = this._createRecurrenceRule(reminder);
       }
-      
+
       // 更新事件
-      await Calendar.updateEventAsync(eventId, eventDetails);
-      
+      await RNCalendarEvents.saveEvent(reminder.title, {
+        ...eventDetails,
+        id: eventId
+      });
+
       // 记录分析数据
       analyticsService.trackEvent('update_calendar_event', {
         reminderTitle: reminder.title,
         eventId,
       });
-      
+
       return true;
     } catch (error) {
       console.error('更新日历事件失败:', error);
@@ -184,15 +207,15 @@ class CalendarIntegrationService {
   async deleteCalendarEvent(eventId) {
     try {
       await this.init();
-      
+
       // 删除事件
-      await Calendar.deleteEventAsync(eventId);
-      
+      await RNCalendarEvents.removeEvent(eventId);
+
       // 记录分析数据
       analyticsService.trackEvent('delete_calendar_event', {
         eventId,
       });
-      
+
       return true;
     } catch (error) {
       console.error('删除日历事件失败:', error);
@@ -211,12 +234,12 @@ class CalendarIntegrationService {
     const rule = {
       frequency: this._mapFrequency(reminder.frequency),
     };
-    
+
     // 如果有结束日期
     if (reminder.repeat_end_date) {
-      rule.endDate = new Date(reminder.repeat_end_date);
+      rule.endDate = new Date(reminder.repeat_end_date).toISOString();
     }
-    
+
     return rule;
   }
 
@@ -229,15 +252,15 @@ class CalendarIntegrationService {
   _mapFrequency(frequency) {
     switch (frequency) {
       case 'daily':
-        return Calendar.Frequency.DAILY;
+        return 'daily';
       case 'weekly':
-        return Calendar.Frequency.WEEKLY;
+        return 'weekly';
       case 'monthly':
-        return Calendar.Frequency.MONTHLY;
+        return 'monthly';
       case 'yearly':
-        return Calendar.Frequency.YEARLY;
+        return 'yearly';
       default:
-        return Calendar.Frequency.DAILY;
+        return 'daily';
     }
   }
 
@@ -250,13 +273,13 @@ class CalendarIntegrationService {
   async exportRemindersToCalendar(reminders, calendarId = null) {
     try {
       await this.init();
-      
+
       // 使用指定的日历ID或默认日历ID
       const targetCalendarId = calendarId || this.defaultCalendarId;
       if (!targetCalendarId) {
         throw new Error('没有可用的日历');
       }
-      
+
       // 导出结果
       const result = {
         total: reminders.length,
@@ -264,7 +287,7 @@ class CalendarIntegrationService {
         failed: 0,
         eventIds: [],
       };
-      
+
       // 导出每个提醒
       for (const reminder of reminders) {
         try {
@@ -280,14 +303,14 @@ class CalendarIntegrationService {
           result.failed++;
         }
       }
-      
+
       // 记录分析数据
       analyticsService.trackEvent('export_reminders_to_calendar', {
         total: result.total,
         success: result.success,
         failed: result.failed,
       });
-      
+
       return result;
     } catch (error) {
       console.error('导出提醒到日历失败:', error);
@@ -306,32 +329,32 @@ class CalendarIntegrationService {
   async importEventsFromCalendar(calendarId, startDate, endDate) {
     try {
       await this.init();
-      
+
       // 获取日历事件
-      const events = await Calendar.getEventsAsync(
-        [calendarId],
-        startDate,
-        endDate
+      const events = await RNCalendarEvents.fetchAllEvents(
+        startDate.toISOString(),
+        endDate.toISOString(),
+        [calendarId]
       );
-      
+
       // 转换为提醒
       const reminders = events.map(event => ({
         title: event.title,
         description: event.notes || '',
-        due_date: event.startDate.toISOString(),
+        due_date: event.startDate,
         frequency: this._mapCalendarFrequency(event.recurrenceRule?.frequency),
-        repeat_end_date: event.recurrenceRule?.endDate?.toISOString() || null,
+        repeat_end_date: event.recurrenceRule?.endDate || null,
         is_enabled: true,
         is_completed: false,
         calendar_event_id: event.id,
       }));
-      
+
       // 记录分析数据
       analyticsService.trackEvent('import_events_from_calendar', {
         calendarId,
         eventCount: events.length,
       });
-      
+
       return reminders;
     } catch (error) {
       console.error('从日历导入事件失败:', error);
@@ -348,15 +371,15 @@ class CalendarIntegrationService {
    */
   _mapCalendarFrequency(frequency) {
     if (!frequency) return 'once';
-    
+
     switch (frequency) {
-      case Calendar.Frequency.DAILY:
+      case 'daily':
         return 'daily';
-      case Calendar.Frequency.WEEKLY:
+      case 'weekly':
         return 'weekly';
-      case Calendar.Frequency.MONTHLY:
+      case 'monthly':
         return 'monthly';
-      case Calendar.Frequency.YEARLY:
+      case 'yearly':
         return 'yearly';
       default:
         return 'once';
