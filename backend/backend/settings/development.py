@@ -9,7 +9,7 @@ from pymongo import MongoClient
 DEBUG = True
 
 # 允许的主机
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.138.116.105', '10.0.2.2', '*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.138.116.105', '10.0.2.2', '*','192.168.154.232']
 
 # 使用base.py中的MongoDB配置
 # 直接使用PyMongo客户端进行原生操作

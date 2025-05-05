@@ -14,11 +14,12 @@ from django.utils import timezone
 from mind_map.models import MindMap, MindMapNode, MindMapEdge
 from mind_map.mongodb_models import MindMap as MongoMindMap
 from mind_map.serializers import (
-    MindMapSerializer,
     MindMapNodeSerializer,
     MindMapEdgeSerializer,
     MindMapDetailSerializer
 )
+from mind_map.serializers.serializers import MindMapSerializer
+
 from mind_map.serializers.mongo_serializers import (
     MongoMindMapSerializer,
     MongoMindMapDetailSerializer

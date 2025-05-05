@@ -11,3 +11,4 @@ from .reminder import (
     ReminderUpdateSerializer
 )
 from .reminder_notification import ReminderNotificationSerializer
+from .serializers import ReminderCalendarIntegrationSerializer

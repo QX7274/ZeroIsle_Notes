@@ -29,6 +29,7 @@ class MindMap(models.Model):
     theme = models.CharField(max_length=50, default='default')
     
     class Meta:
+        app_label = 'mind_map'
         db_table = 'mind_map'
         ordering = ['-updated_at']
         
@@ -67,6 +68,7 @@ class MindMapNode(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'mind_map'
         db_table = 'mind_map_node'
         ordering = ['order']
         
@@ -93,6 +95,7 @@ class MindMapEdge(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'mind_map'
         db_table = 'mind_map_edge'
         
     def __str__(self):
@@ -123,6 +126,7 @@ class MindMapTemplate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'mind_map'
         db_table = 'mind_map_template'
         ordering = ['type', 'title']
         

@@ -9,3 +9,10 @@ from .mongo_serializers import (
     MongoMindMapEdgeSerializer,
     MongoMindMapTemplateSerializer
 )
+
+from .serializers import (
+    MindMapNodeSerializer,
+    MindMapEdgeSerializer,
+    MindMapDetailSerializer,
+    MindMapTemplateSerializer
+)

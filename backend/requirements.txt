@@ -1,4 +1,4 @@
-# 零屿笔记后端依赖库
+ # 零屿笔记后端依赖库
 
 # Django和REST框架
 Django==4.2.20
@@ -51,6 +51,9 @@ numpy==1.24.3  # 数值计算
 scikit-learn==1.3.0  # 机器学习
 scipy==1.11.3  # 科学计算
 pandas==2.1.1  # 数据分析
+resemblyzer==0.1.3  # 说话人识别
+soundfile==0.12.1  # 音频文件读写
+faster-whisper==0.10.0  # 快速语音识别
 
 # 知识图谱
 networkx==3.1  # 图论算法
