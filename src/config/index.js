@@ -5,8 +5,8 @@
 
 // API配置
 export const API_URL = __DEV__
-  ? 'http://192.168.154.232:8000/api'  // 热点访问地址
-  : 'https://api.zeroislenotes.com/api'; // 生产环境地址
+  ? 'http://192.168.75.232:8000'  // 热点访问地址
+  : 'https://api.zeroislenotes.com'; // 生产环境地址
 
 export const API_VERSION = 'v1';
 export const API_TIMEOUT = 15000;

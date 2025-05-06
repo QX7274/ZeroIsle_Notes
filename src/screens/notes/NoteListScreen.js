@@ -7,8 +7,27 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchNotes } from '../../redux/slices/notesSlice';
 import { Button, Card, Loading } from '../../components/common';
-import { colors } from '../../utils/constants/colors';
-import { dimensions } from '../../utils/constants/dimensions';
+import { COLORS as colors } from '../../utils/constants/colors';
+// 直接导入 spacing 和 borderRadius
+import { spacing, borderRadius } from '../../utils/constants/dimensions';
+// 创建一个兼容的 dimensions 对象，确保它不会是 undefined
+const dimensions = {
+  spacing: spacing || {
+    tiny: 4,
+    small: 8,
+    medium: 16,
+    large: 24,
+    extraLarge: 32,
+    xxlarge: 48,
+  },
+  borderRadius: borderRadius || {
+    small: 4,
+    medium: 8,
+    large: 16,
+    xlarge: 24,
+    round: 999,
+  }
+};
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const NoteListScreen = ({ navigation }) => {
@@ -67,9 +86,9 @@ const NoteListScreen = ({ navigation }) => {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyText}>暂无笔记</Text>
       <Text style={styles.emptySubText}>点击下方按钮创建您的第一条笔记</Text>
-      <Button 
-        title="创建笔记" 
-        onPress={handleCreateNote} 
+      <Button
+        title="创建笔记"
+        onPress={handleCreateNote}
         style={styles.createButton}
       />
     </View>
@@ -82,7 +101,7 @@ const NoteListScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {error && <Text style={styles.errorText}>{error}</Text>}
-      
+
       <FlatList
         data={entities}
         renderItem={renderNoteItem}
@@ -92,7 +111,7 @@ const NoteListScreen = ({ navigation }) => {
         onRefresh={handleRefresh}
         ListEmptyComponent={renderEmptyList}
       />
-      
+
       <TouchableOpacity style={styles.fab} onPress={handleCreateNote}>
         <Icon name="add" size={24} color={colors.white} />
       </TouchableOpacity>

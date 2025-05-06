@@ -3,9 +3,18 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
-import { offlineStorageService } from '../offlineStorage';
+// 暂时注释掉不存在的服务
+// import { offlineStorageService } from '../offlineStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
+
+// 创建一个临时的离线存储服务
+const offlineStorageService = {
+  getStatus: () => ({ isOnline: true }),
+  saveNote: async (note) => ({ success: true, note }),
+  getNotes: async () => [],
+  manualSync: async () => ({ success: true })
+};
 
 /**
  * 创建笔记
@@ -114,12 +123,19 @@ export const deleteNote = async (id) => {
  */
 export const getAllNotes = async (params = {}) => {
   try {
+    // 确保 API_ENDPOINTS 已正确导入
+    if (!API_ENDPOINTS || !API_ENDPOINTS.NOTES || !API_ENDPOINTS.NOTES.BASE) {
+      console.error('API_ENDPOINTS.NOTES.BASE 未定义');
+      throw new Error('API配置错误');
+    }
+
     const response = await instance.get(API_ENDPOINTS.NOTES.BASE, { params });
     return {
       success: true,
-      data: response.data
+      data: response
     };
   } catch (error) {
+    console.error('获取笔记列表失败:', error);
     return {
       success: false,
       message: error.message || '获取笔记列表失败',

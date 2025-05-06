@@ -125,6 +125,9 @@ class MongoUserLoginSerializer(serializers.Serializer):
 
     def validate(self, data):
         """验证登录凭据"""
+        # 记录请求数据
+        logger.info(f"登录请求数据: {data}")
+
         # 处理统一标识符
         identifier = data.get('identifier')
         if identifier:
@@ -138,6 +141,7 @@ class MongoUserLoginSerializer(serializers.Serializer):
 
         # 至少提供一种登录方式
         if not any(key in data for key in ['username', 'email', 'phone']):
+            logger.error("登录失败: 未提供用户名、邮箱或手机号")
             raise serializers.ValidationError('请提供用户名、邮箱或手机号')
 
         # 使用验证码登录
@@ -147,6 +151,7 @@ class MongoUserLoginSerializer(serializers.Serializer):
             phone = data.get('phone')
 
             if not phone:
+                logger.error("验证码登录失败: 未提供手机号")
                 raise serializers.ValidationError('使用验证码登录时必须提供手机号')
 
             # 在开发环境中，跳过验证码验证
@@ -161,6 +166,7 @@ class MongoUserLoginSerializer(serializers.Serializer):
                 ).first()
 
                 if not verification or verification.code != verification_code:
+                    logger.error(f"验证码登录失败: 验证码无效或已过期, 手机号: {phone}")
                     raise serializers.ValidationError({'verification_code': '验证码无效或已过期'})
 
                 # 标记验证码为已使用
@@ -186,16 +192,20 @@ class MongoUserLoginSerializer(serializers.Serializer):
                 user = User.objects(email=email).first()
 
             if not user:
+                logger.error(f"验证码登录失败: 用户不存在, 手机号: {phone}, 邮箱: {email}")
                 raise serializers.ValidationError('用户不存在')
 
             if not user.is_active:
+                logger.error(f"验证码登录失败: 账号已禁用, 用户: {user.username}")
                 raise serializers.ValidationError('该账号已被禁用')
 
+            logger.info(f"验证码登录成功: 用户 {user.username}")
             data['user'] = user
             return data
 
         # 使用密码登录
         if 'password' not in data or not data.get('password'):
+            logger.error("登录失败: 未提供密码或验证码")
             raise serializers.ValidationError('请提供密码或验证码')
 
         # 尝试不同的登录方式
@@ -204,25 +214,37 @@ class MongoUserLoginSerializer(serializers.Serializer):
         phone = data.get('phone')
         password = data.get('password')
 
+        logger.info(f"密码登录尝试: 用户名: {username}, 邮箱: {email}, 手机号: {phone}")
+
         # 查找用户
         user = None
         if username:
             user = User.objects(username=username).first()
+            logger.info(f"通过用户名查找用户: {username}, 结果: {'找到' if user else '未找到'}")
         elif email:
             user = User.objects(email=email).first()
+            logger.info(f"通过邮箱查找用户: {email}, 结果: {'找到' if user else '未找到'}")
         elif phone:
             user = User.objects(phone=phone).first()
+            logger.info(f"通过手机号查找用户: {phone}, 结果: {'找到' if user else '未找到'}")
 
         if not user:
+            logger.error(f"密码登录失败: 用户不存在, 用户名: {username}, 邮箱: {email}, 手机号: {phone}")
             raise serializers.ValidationError('用户不存在')
 
         # 验证密码
-        if not check_password(password, user.password):
+        password_valid = check_password(password, user.password)
+        logger.info(f"密码验证结果: {'通过' if password_valid else '失败'}")
+
+        if not password_valid:
+            logger.error(f"密码登录失败: 密码错误, 用户: {user.username}")
             raise serializers.ValidationError('密码错误')
 
         if not user.is_active:
+            logger.error(f"密码登录失败: 账号已禁用, 用户: {user.username}")
             raise serializers.ValidationError('该账号已被禁用')
 
+        logger.info(f"密码登录成功: 用户 {user.username}")
         data['user'] = user
         return data
 

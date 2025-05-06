@@ -231,6 +231,108 @@ const userApi = {
       };
     }
   },
+
+  /**
+   * 用户名注册
+   * @param {string} username - 用户名
+   * @param {string} password - 密码
+   * @returns {Promise} - 注册结果
+   */
+  registerWithUsername: async (username, password) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, {
+        username,
+        password
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '用户名注册失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 手机号+密码注册
+   * @param {string} phone - 手机号
+   * @param {string} password - 密码
+   * @returns {Promise} - 注册结果
+   */
+  registerWithPhone: async (phone, password) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
+        phone,
+        password
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '手机号注册失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 手机号+验证码注册
+   * @param {string} phone - 手机号
+   * @param {string} code - 验证码
+   * @param {string} password - 密码
+   * @returns {Promise} - 注册结果
+   */
+  registerWithPhoneCode: async (phone, code, password) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
+        phone,
+        code,
+        password
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '手机号验证码注册失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 邮箱注册
+   * @param {string} email - 邮箱
+   * @param {string} password - 密码
+   * @returns {Promise} - 注册结果
+   */
+  registerWithEmail: async (email, password) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, {
+        email,
+        password
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '邮箱注册失败',
+        error
+      };
+    }
+  },
 };
 
 export default userApi;

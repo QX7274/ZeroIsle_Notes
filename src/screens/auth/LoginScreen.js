@@ -304,20 +304,53 @@ const LoginScreen = ({ navigation }) => {
         loginData.password = password;
 
         try {
+          console.log('开始登录请求，登录数据:', loginData);
+
           // 直接调用API而不是通过Redux
           const result = await authApi.login(loginData);
 
-          if (result && result.success) {
-            // 登录成功，更新Redux状态
-            dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
-            dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
-            dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
+          console.log('登录请求结果:', result);
+
+          if (result && result.success && result.data) {
+            console.log('登录成功，用户数据:', result.data.user);
+
+            try {
+              // 登录成功，更新Redux状态
+              dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
+              dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
+              dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
+
+              // 显式设置认证状态
+              dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+
+              // 显示成功消息
+              Alert.alert('登录成功', '欢迎回到零屿笔记！');
+
+              // 登录成功后更新Redux状态，让AppNavigator自动切换到主页
+              // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
+              console.log('登录成功，Redux状态已更新，等待AppNavigator自动切换到主页');
+            } catch (reduxError) {
+              console.error('更新Redux状态失败:', reduxError);
+
+              // 即使Redux更新失败，也尝试导航到主页
+              Alert.alert('登录成功', '欢迎回到零屿笔记！但应用状态更新失败，可能需要重新登录。');
+
+              try {
+                // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
+                console.log('登录成功，但Redux状态更新失败，尝试通过其他方式更新认证状态');
+              } catch (navError) {
+                console.error('导航失败:', navError);
+                Alert.alert('导航错误', '无法导航到主页，请重启应用。');
+              }
+            }
           } else {
             // 登录失败，显示错误信息
+            console.error('登录失败:', result);
             setError(result?.message || '登录失败，请检查用户名和密码');
           }
         } catch (error) {
           console.error('登录错误:', error);
+          console.error('错误详情:', error.response?.data || error.message);
           setError(error?.message || '登录失败，请稍后重试');
         }
       }

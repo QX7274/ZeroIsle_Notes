@@ -248,35 +248,50 @@ class MongoUserLoginView(viewsets.ViewSet):
         """
         标准登录方法
         """
-        ip_address = get_client_ip(request)
+        try:
+            logger.info(f"收到登录请求: {request.data}")
+            ip_address = get_client_ip(request)
+            logger.info(f"客户端IP: {ip_address}")
 
-        serializer = MongoUserLoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
+            serializer = MongoUserLoginSerializer(data=request.data)
+            if serializer.is_valid():
+                user = serializer.validated_data['user']
+                logger.info(f"用户验证成功: {user.username}")
 
-            # 更新最后登录信息
-            user.last_login = timezone.now()
-            user.last_login_ip = ip_address
-            user.save()
+                # 更新最后登录信息
+                user.last_login = timezone.now()
+                user.last_login_ip = ip_address
+                user.save()
+                logger.info(f"更新用户登录信息成功: {user.username}")
 
-            # 记录设备信息
-            self._record_device(request, user)
+                # 记录设备信息
+                self._record_device(request, user)
 
-            # 生成令牌
-            refresh = RefreshToken.for_user(user)
+                # 生成令牌
+                refresh = RefreshToken.for_user(user)
+                logger.info(f"生成令牌成功: {user.username}")
 
-            return Response({
-                'user': MongoUserSerializer(user).data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            })
+                # 准备响应数据
+                response_data = {
+                    'user': MongoUserSerializer(user).data,
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+                logger.info(f"登录成功，返回响应: {user.username}")
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(response_data)
+            else:
+                logger.error(f"登录验证失败: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"登录过程中发生异常: {str(e)}")
+            return Response({'error': f'登录失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
         """
         兼容旧版API
         """
+        logger.info("通过post方法调用登录")
         return self.create(request)
 
     @action(detail=False, methods=['post'])

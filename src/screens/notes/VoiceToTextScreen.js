@@ -968,16 +968,19 @@ const VoiceToTextScreen = ({ navigation, route }) => {
     };
   }, [isRecording, isPlaying]);
 
+  // 确保 colors 存在，如果不存在则使用 defaultColors
+  const safeColors = colors || defaultColors;
+
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={safeColors.background} />
 
       {/* 顶部导航栏 */}
       <Animated.View
         style={[
           styles.header,
           {
-            borderBottomColor: colors.border,
+            borderBottomColor: safeColors.border,
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }]
           }
@@ -988,10 +991,10 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icon name="arrow-left" size={24} color={colors.text} />
+          <Icon name="arrow-left" size={24} color={safeColors.text} />
         </TouchableOpacity>
 
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
+        <Text style={[styles.headerTitle, { color: safeColors.text }]}>
           语音转文本
         </Text>
 
@@ -1001,15 +1004,15 @@ const VoiceToTextScreen = ({ navigation, route }) => {
             onPress={toggleOfflineMode}
             style={[
               styles.modeButton,
-              { backgroundColor: colors.card }
+              { backgroundColor: safeColors.card }
             ]}
           >
             <Icon
               name={isOfflineMode ? "wifi-off" : "wifi"}
               size={20}
-              color={isOfflineMode ? colors.warning : colors.success}
+              color={isOfflineMode ? safeColors.warning : safeColors.success}
             />
-            <Text style={[styles.modeText, { color: isOfflineMode ? colors.warning : colors.success }]}>
+            <Text style={[styles.modeText, { color: isOfflineMode ? safeColors.warning : safeColors.success }]}>
               {isOfflineMode ? '离线' : '在线'}
             </Text>
           </TouchableOpacity>
@@ -1020,7 +1023,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
             style={styles.clearButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Icon name="delete-outline" size={24} color={colors.error || colors.danger} />
+            <Icon name="delete-outline" size={24} color={safeColors.error || safeColors.danger} />
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -1036,26 +1039,26 @@ const VoiceToTextScreen = ({ navigation, route }) => {
       >
         {/* 音频信息显示 */}
         {audioUri && (
-          <View style={[styles.audioInfoContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.audioInfoContainer, { backgroundColor: safeColors.card }]}>
             <Icon
               name={isPlaying ? "pause-circle" : "music-circle"}
               size={24}
-              color={colors.primary}
+              color={safeColors.primary}
               style={styles.audioInfoIcon}
             />
             <View style={styles.audioInfoTextContainer}>
-              <Text style={[styles.audioFileName, { color: colors.text }]} numberOfLines={1}>
+              <Text style={[styles.audioFileName, { color: safeColors.text }]} numberOfLines={1}>
                 {audioFileName || '录音文件'}
               </Text>
               {playbackDuration > 0 && (
-                <Text style={[styles.audioDuration, { color: colors.textSecondary }]}>
+                <Text style={[styles.audioDuration, { color: safeColors.textSecondary }]}>
                   {formatDuration(currentPlaybackTime)} / {formatDuration(playbackDuration)}
                 </Text>
               )}
             </View>
             {isPlaying && (
               <TouchableOpacity onPress={stopPlayback} style={styles.stopButton}>
-                <Icon name="stop-circle" size={28} color={colors.error || colors.danger} />
+                <Icon name="stop-circle" size={28} color={safeColors.error || safeColors.danger} />
               </TouchableOpacity>
             )}
           </View>
@@ -1070,12 +1073,12 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           currentTime={currentPlaybackTime}
           style={[
             styles.waveform,
-            { backgroundColor: colors.card }
+            { backgroundColor: safeColors.card }
           ]}
           gradientColors={[
-            colors.primary + '99',
-            colors.primary,
-            colors.primary + '99'
+            safeColors.primary + '99',
+            safeColors.primary,
+            safeColors.primary + '99'
           ]}
           mirrorWave={true}
           rounded={true}
@@ -1107,17 +1110,17 @@ const VoiceToTextScreen = ({ navigation, route }) => {
               disabled={isRecording}
             >
               <LinearGradient
-                colors={[colors.card, colors.background]}
+                colors={[safeColors.card, safeColors.background]}
                 style={styles.controlButtonGradient}
               >
                 <Icon
                   name="folder-open-outline"
                   size={28}
-                  color={isRecording ? colors.textSecondary : colors.primary}
+                  color={isRecording ? safeColors.textSecondary : safeColors.primary}
                 />
                 <Text style={[
                   styles.controlButtonText,
-                  { color: isRecording ? colors.textSecondary : colors.text }
+                  { color: isRecording ? safeColors.textSecondary : safeColors.text }
                 ]}>
                   选择文件
                 </Text>
@@ -1131,17 +1134,17 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 style={styles.controlIconButton}
               >
                 <LinearGradient
-                  colors={[colors.card, colors.background]}
+                  colors={[safeColors.card, safeColors.background]}
                   style={styles.controlButtonGradient}
                 >
                   <Icon
                     name={isPlaying ? "stop-circle" : "play-circle"}
                     size={28}
-                    color={isPlaying ? colors.error || colors.danger : colors.primary}
+                    color={isPlaying ? safeColors.error || safeColors.danger : safeColors.primary}
                   />
                   <Text style={[
                     styles.controlButtonText,
-                    { color: colors.text }
+                    { color: safeColors.text }
                   ]}>
                     {isPlaying ? '停止' : '播放'}
                   </Text>
@@ -1160,15 +1163,15 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 disabled={isTranscribing}
               >
                 <LinearGradient
-                  colors={[colors.card, colors.background]}
+                  colors={[safeColors.card, safeColors.background]}
                   style={styles.controlButtonGradient}
                 >
                   {isTranscribing ? (
                     <>
-                      <ActivityIndicator size="small" color={colors.primary} />
+                      <ActivityIndicator size="small" color={safeColors.primary} />
                       <Text style={[
                         styles.controlButtonText,
-                        { color: colors.textSecondary }
+                        { color: safeColors.textSecondary }
                       ]}>
                         转写中...
                       </Text>
@@ -1178,11 +1181,11 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                       <Icon
                         name="text-to-speech"
                         size={28}
-                        color={colors.primary}
+                        color={safeColors.primary}
                       />
                       <Text style={[
                         styles.controlButtonText,
-                        { color: colors.text }
+                        { color: safeColors.text }
                       ]}>
                         转写
                       </Text>
@@ -1259,9 +1262,9 @@ const VoiceToTextScreen = ({ navigation, route }) => {
             styles.toast,
             {
               backgroundColor:
-                toastMessage.type === 'error' ? colors.error || '#ff3b30' :
-                toastMessage.type === 'success' ? colors.success || '#34c759' :
-                toastMessage.type === 'warning' ? colors.warning || '#ff9500' :
+                toastMessage.type === 'error' ? safeColors.error || '#ff3b30' :
+                toastMessage.type === 'success' ? safeColors.success || '#34c759' :
+                toastMessage.type === 'warning' ? safeColors.warning || '#ff9500' :
                 'rgba(0, 0, 0, 0.7)',
               opacity: toastAnim,
               transform: [
@@ -1305,13 +1308,13 @@ const VoiceToTextScreen = ({ navigation, route }) => {
           <Pressable
             style={[
               styles.modalContent,
-              { backgroundColor: colors.card }
+              { backgroundColor: safeColors.card }
             ]}
           >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
-                <Icon name="text-box-check" size={24} color={colors.primary} style={styles.modalIcon} />
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                <Icon name="text-box-check" size={24} color={safeColors.primary} style={styles.modalIcon} />
+                <Text style={[styles.modalTitle, { color: safeColors.text }]}>
                   会议纪要
                 </Text>
               </View>
@@ -1319,7 +1322,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 onPress={() => setShowSummary(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="close" size={24} color={colors.text} />
+                <Icon name="close" size={24} color={safeColors.text} />
               </TouchableOpacity>
             </View>
 
@@ -1327,7 +1330,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
               style={styles.summaryScrollView}
               contentContainerStyle={styles.summaryScrollContent}
             >
-              <Text style={[styles.summaryText, { color: colors.text }]}>
+              <Text style={[styles.summaryText, { color: safeColors.text }]}>
                 {meetingSummary}
               </Text>
             </ScrollView>
@@ -1338,10 +1341,10 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 style={[
                   styles.modalButton,
                   styles.cancelButton,
-                  { backgroundColor: colors.border }
+                  { backgroundColor: safeColors.border }
                 ]}
               >
-                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
+                <Text style={[styles.cancelButtonText, { color: safeColors.text }]}>
                   关闭
                 </Text>
               </TouchableOpacity>
@@ -1351,7 +1354,7 @@ const VoiceToTextScreen = ({ navigation, route }) => {
                 style={[
                   styles.modalButton,
                   styles.confirmButton,
-                  { backgroundColor: colors.primary }
+                  { backgroundColor: safeColors.primary }
                 ]}
               >
                 <Icon name="content-save-outline" size={18} color="#fff" style={styles.buttonIcon} />
@@ -1367,10 +1370,27 @@ const VoiceToTextScreen = ({ navigation, route }) => {
   );
 };
 
+// 定义默认颜色，避免样式中的 colors 未定义问题
+const defaultColors = {
+  background: '#F2F2F2',
+  card: '#FFFFFF',
+  text: '#000000',
+  textSecondary: '#8E8E93',
+  border: '#E5E5EA',
+  primary: '#007AFF',
+  success: '#4CD964',
+  error: '#FF3B30',
+  danger: '#FF3B30',
+  warning: '#FFCC00',
+  info: '#32ADE6',
+  white: '#FFFFFF',
+  shadow: 'rgba(0, 0, 0, 0.1)',
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: defaultColors.background,
   },
   header: {
     flexDirection: 'row',
@@ -1531,12 +1551,12 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   saveButton: {
-    backgroundColor: colors.success,
+    backgroundColor: defaultColors.success,
     flex: 1,
     marginRight: 8,
   },
   summaryButton: {
-    backgroundColor: colors.info,
+    backgroundColor: defaultColors.info,
     flex: 1,
     marginLeft: 8,
   },
@@ -1544,7 +1564,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   actionButtonText: {
-    color: colors.white,
+    color: defaultColors.white,
     fontWeight: 'bold',
     marginLeft: 8,
     fontSize: 15,
@@ -1574,7 +1594,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   toastText: {
-    color: colors.white,
+    color: defaultColors.white,
     fontSize: 15,
     fontWeight: '500',
   },
@@ -1640,17 +1660,17 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   cancelButton: {
-    backgroundColor: colors.border,
+    backgroundColor: defaultColors.border,
   },
   cancelButtonText: {
     fontWeight: 'bold',
     fontSize: 15,
   },
   confirmButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: defaultColors.primary,
   },
   confirmButtonText: {
-    color: colors.white,
+    color: defaultColors.white,
     fontWeight: 'bold',
     fontSize: 15,
   },

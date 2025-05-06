@@ -95,17 +95,19 @@ const AppContainer = () => {
   console.log('AppContainer组件开始渲染...');
 
   // 获取认证状态
-  const { token, user } = useSelector(state => {
+  const { token, user, isAuthenticated: authState } = useSelector(state => {
     // 添加安全检查，确保state.auth存在
     if (!state || !state.auth) {
       console.warn('AppContainer: Redux状态不完整，auth状态不存在');
-      return { token: null, user: null };
+      return { token: null, user: null, isAuthenticated: false };
     }
     return state.auth;
   });
 
-  const isAuthenticated = !!token && !!user;
+  // 优先使用Redux中的isAuthenticated状态，如果不存在则根据token和user判断
+  const isAuthenticated = authState !== undefined ? authState : (!!token && !!user);
   console.log('认证状态:', isAuthenticated ? '已登录' : '未登录');
+  console.log('认证详情 - token:', !!token, 'user:', !!user, 'authState:', authState);
 
   // 使用try-catch包装useTheme调用
   let theme, isDarkMode;
@@ -113,13 +115,30 @@ const AppContainer = () => {
     console.log('尝试加载主题...');
     const themeContext = useTheme();
 
+    // 检查主题上下文是否存在
     if (!themeContext) {
-      throw new Error('主题上下文不存在');
-    }
+      console.warn('主题上下文不存在，使用默认主题');
+      theme = defaultTheme;
+      isDarkMode = false;
+    } else {
+      // 检查主题对象是否存在
+      if (!themeContext.theme || !themeContext.theme.colors) {
+        console.warn('主题对象不完整，使用默认主题');
+        theme = defaultTheme;
+      } else {
+        theme = themeContext.theme;
+      }
 
-    theme = themeContext.theme || defaultTheme;
-    isDarkMode = themeContext.isDarkMode || false;
-    console.log('主题加载成功:', theme.dark ? '深色' : '浅色');
+      // 检查isDarkMode是否存在
+      if (typeof themeContext.isDarkMode !== 'boolean') {
+        console.warn('isDarkMode不存在，默认使用浅色模式');
+        isDarkMode = false;
+      } else {
+        isDarkMode = themeContext.isDarkMode;
+      }
+
+      console.log('主题加载成功:', theme.dark ? '深色' : '浅色');
+    }
   } catch (error) {
     console.error('主题加载失败:', error.message);
     // 使用默认主题

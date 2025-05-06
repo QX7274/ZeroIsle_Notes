@@ -18,6 +18,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { notesApi } from '../../services/api';
 import { addNote, updateNote, deleteNote } from '../../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../../components/common/Typography';
 import { HomeSearchBar } from '../../components/search';
 import SortControl from '../../components/home/SortControl';
@@ -144,8 +145,15 @@ const HomeScreen = ({ navigation }) => {
   const loadNotes = async () => {
     try {
       setIsLoading(true);
-      const response = await notesApi.getAll();
-      dispatch(updateNote(response));
+      const response = await notesApi.getAllNotes();
+      console.log('获取笔记响应:', response);
+      if (response && response.success) {
+        // 这里应该使用 Redux 中的 setNotes action，而不是 updateNote
+        // 暂时注释掉，直到我们确定正确的 action
+        // dispatch(updateNote(response.data));
+      } else {
+        console.error('获取笔记失败:', response?.message || '未知错误');
+      }
     } catch (error) {
       console.error('加载笔记失败:', error);
       Alert.alert('错误', '加载笔记失败，请稍后重试');
@@ -461,7 +469,7 @@ const HomeScreen = ({ navigation }) => {
                 }}
               >
                 <View style={[styles.createOptionIcon, { backgroundColor: colors.primaryLight }]}>
-                  <Icon name="description" size={24} color={colors.primary} />
+                  <MaterialIcon name="description" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.createOptionContent}>
                   <Text
@@ -479,7 +487,7 @@ const HomeScreen = ({ navigation }) => {
                     创建一个新的文本笔记
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -490,7 +498,7 @@ const HomeScreen = ({ navigation }) => {
                 }}
               >
                 <View style={[styles.createOptionIcon, { backgroundColor: colors.secondaryLight }]}>
-                  <Icon name="format-paint" size={24} color={colors.secondary} />
+                  <MaterialIcon name="format-paint" size={24} color={colors.secondary} />
                 </View>
                 <View style={styles.createOptionContent}>
                   <Text
@@ -508,7 +516,7 @@ const HomeScreen = ({ navigation }) => {
                     创建带有丰富样式的笔记
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -519,7 +527,7 @@ const HomeScreen = ({ navigation }) => {
                 }}
               >
                 <View style={[styles.createOptionIcon, { backgroundColor: '#FFECEF' }]}>
-                  <Icon name="picture-as-pdf" size={24} color="#E53935" />
+                  <MaterialIcon name="picture-as-pdf" size={24} color="#E53935" />
                 </View>
                 <View style={styles.createOptionContent}>
                   <Text
@@ -537,7 +545,7 @@ const HomeScreen = ({ navigation }) => {
                     从设备导入PDF文档
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -548,7 +556,7 @@ const HomeScreen = ({ navigation }) => {
                 }}
               >
                 <View style={[styles.createOptionIcon, { backgroundColor: '#E3F2FD' }]}>
-                  <Icon name="article" size={24} color="#1976D2" />
+                  <MaterialIcon name="article" size={24} color="#1976D2" />
                 </View>
                 <View style={styles.createOptionContent}>
                   <Text
@@ -566,7 +574,7 @@ const HomeScreen = ({ navigation }) => {
                     从设备导入Word文档
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -577,7 +585,7 @@ const HomeScreen = ({ navigation }) => {
                 }}
               >
                 <View style={[styles.createOptionIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <Icon name="dashboard" size={24} color="#388E3C" />
+                  <MaterialIcon name="dashboard" size={24} color="#388E3C" />
                 </View>
                 <View style={styles.createOptionContent}>
                   <Text
@@ -595,7 +603,7 @@ const HomeScreen = ({ navigation }) => {
                     创建自由绘画和思维导图
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

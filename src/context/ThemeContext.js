@@ -246,23 +246,55 @@ export const ThemeProvider = ({ children }) => {
 
   // 监听主题类型和风格变化
   useEffect(() => {
-    // 确定是否为深色模式
-    const isDark = currentThemeMode === 'dark';
+    try {
+      // 确定是否为深色模式
+      const isDark = currentThemeMode === 'dark';
 
-    // 获取基础主题
-    const baseTheme = DEFAULT_THEMES[themeStyle][currentThemeMode];
+      // 获取基础主题，添加错误处理
+      let baseTheme;
+      try {
+        // 检查 themeStyle 和 currentThemeMode 是否有效
+        if (!DEFAULT_THEMES[themeStyle]) {
+          console.warn(`无效的主题风格: ${themeStyle}，使用 classic 风格`);
+          baseTheme = DEFAULT_THEMES['classic'][currentThemeMode] || lightTheme;
+        } else if (!DEFAULT_THEMES[themeStyle][currentThemeMode]) {
+          console.warn(`无效的主题模式: ${currentThemeMode}，使用 light 模式`);
+          baseTheme = DEFAULT_THEMES[themeStyle]['light'] || lightTheme;
+        } else {
+          baseTheme = DEFAULT_THEMES[themeStyle][currentThemeMode];
+        }
+      } catch (error) {
+        console.error('获取基础主题失败:', error.message);
+        baseTheme = lightTheme; // 使用默认浅色主题
+      }
 
-    // 合并自定义主题
-    const customColors = customTheme[currentThemeMode]?.colors || {};
-    const mergedTheme = merge({}, baseTheme, {
-      colors: customColors
-    });
+      // 合并自定义主题，添加错误处理
+      let mergedTheme;
+      try {
+        const customColors = customTheme[currentThemeMode]?.colors || {};
+        mergedTheme = merge({}, baseTheme, {
+          colors: customColors
+        });
+      } catch (error) {
+        console.error('合并自定义主题失败:', error.message);
+        mergedTheme = baseTheme; // 使用基础主题
+      }
 
-    // 更新全局颜色常量
-    updateThemeColors(isDark);
+      // 更新全局颜色常量，添加错误处理
+      try {
+        updateThemeColors(isDark);
+      } catch (error) {
+        console.error('更新全局颜色常量失败:', error.message);
+      }
 
-    setTheme(mergedTheme);
-    setIsDarkMode(isDark);
+      setTheme(mergedTheme);
+      setIsDarkMode(isDark);
+    } catch (error) {
+      console.error('主题更新失败:', error.message);
+      // 使用默认主题
+      setTheme(lightTheme);
+      setIsDarkMode(false);
+    }
   }, [themeStyle, currentThemeMode, customTheme]);
 
   /**
@@ -454,9 +486,47 @@ export const ThemeProvider = ({ children }) => {
  * @returns {object} 主题上下文
  */
 export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+  try {
+    const context = useContext(ThemeContext);
+    if (!context) {
+      console.warn('useTheme: 主题上下文不存在，使用默认主题');
+      // 返回默认主题，而不是抛出错误
+      return {
+        theme: lightTheme,
+        isDarkMode: false,
+        themeType: 'light',
+        themeStyle: 'classic',
+        colors: lightTheme.colors,
+        dimensions: lightTheme.dimensions,
+        typography: lightTheme.typography,
+        toggleTheme: () => {},
+        setThemeType: () => {},
+        setThemeStyle: () => {},
+        getColor: () => {},
+        updateThemeColor: () => {},
+        resetThemeColors: () => {},
+        getThemeValue: () => {},
+      };
+    }
+    return context;
+  } catch (error) {
+    console.error('useTheme: 获取主题上下文失败:', error.message);
+    // 返回默认主题，而不是抛出错误
+    return {
+      theme: lightTheme,
+      isDarkMode: false,
+      themeType: 'light',
+      themeStyle: 'classic',
+      colors: lightTheme.colors,
+      dimensions: lightTheme.dimensions,
+      typography: lightTheme.typography,
+      toggleTheme: () => {},
+      setThemeType: () => {},
+      setThemeStyle: () => {},
+      getColor: () => {},
+      updateThemeColor: () => {},
+      resetThemeColors: () => {},
+      getThemeValue: () => {},
+    };
   }
-  return context;
 };

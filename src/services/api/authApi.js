@@ -3,7 +3,7 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
-import { setToken, setRefreshToken, setUser, clearAuth } from '../storage';
+import storageService, { setToken, setRefreshToken, setUser, clearAuth } from '../storage/storageService';
 
 /**
  * 用户登录
@@ -22,12 +22,42 @@ export const login = async (loginData) => {
 
     console.log('登录请求数据:', loginData);
 
-    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN, loginData);
+    // 确保请求数据格式正确
+    const requestData = { ...loginData };
 
-    console.log('登录响应数据:', response.data);
+    // 如果没有提供identifier字段，尝试从username/email/phone中提取
+    if (!requestData.identifier) {
+      if (requestData.username) {
+        requestData.identifier = requestData.username;
+      } else if (requestData.email) {
+        requestData.identifier = requestData.email;
+      } else if (requestData.phone) {
+        requestData.identifier = requestData.phone;
+      }
+    }
+
+    console.log('处理后的登录请求数据:', requestData);
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN, requestData);
+
+    console.log('登录响应数据:', response);
+
+    // 检查响应是否为undefined
+    if (!response) {
+      console.error('登录响应为undefined');
+      return {
+        success: false,
+        message: '服务器无响应，请稍后重试'
+      };
+    }
+
+    // 检查响应数据
+    const responseData = response.data || response;
+    console.log('处理后的登录响应数据:', responseData);
 
     // 验证响应数据是否包含必要的字段
-    if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
+    if (!responseData || !responseData.access || !responseData.refresh || !responseData.user) {
+      console.error('登录响应数据格式错误:', responseData);
       return {
         success: false,
         message: '服务器返回数据格式错误，请联系管理员'
@@ -35,25 +65,74 @@ export const login = async (loginData) => {
     }
 
     // 保存令牌和用户信息
-    const { access, refresh, user } = response.data;
-    await setToken(access);
-    await setRefreshToken(refresh);
-    await setUser(user);
+    const { access, refresh, user } = responseData;
+    try {
+      // 尝试使用导入的函数
+      if (typeof setToken === 'function') {
+        await setToken(access);
+      } else if (storageService && typeof storageService.setToken === 'function') {
+        await storageService.setToken(access);
+      } else {
+        console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem('zeroislenotes_token', access);
+      }
+
+      if (typeof setRefreshToken === 'function') {
+        await setRefreshToken(refresh);
+      } else if (storageService && typeof storageService.setRefreshToken === 'function') {
+        await storageService.setRefreshToken(refresh);
+      } else {
+        console.warn('setRefreshToken 函数不可用，使用 AsyncStorage 作为备选');
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem('zeroislenotes_refresh_token', refresh);
+      }
+
+      if (typeof setUser === 'function') {
+        await setUser(user);
+      } else if (storageService && typeof storageService.setUser === 'function') {
+        await storageService.setUser(user);
+      } else {
+        console.warn('setUser 函数不可用，使用 AsyncStorage 作为备选');
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem('zeroislenotes_user', JSON.stringify(user));
+      }
+    } catch (storageError) {
+      console.error('保存认证信息时出错:', storageError);
+      // 继续执行，不要因为存储错误而中断登录流程
+    }
 
     return {
       success: true,
-      data: response.data
+      data: responseData
     };
   } catch (error) {
     console.error('登录API错误:', error);
+    console.error('错误详情:', error.response?.data || error.message);
 
     // 根据错误类型返回不同的错误消息
-    if (error.status === 401) {
-      return {
-        success: false,
-        message: '用户名或密码错误',
-        error
-      };
+    if (error.response) {
+      const { status, data } = error.response;
+
+      if (status === 401) {
+        return {
+          success: false,
+          message: '用户名或密码错误',
+          error
+        };
+      } else if (status === 404) {
+        return {
+          success: false,
+          message: '登录服务不可用，请联系管理员',
+          error
+        };
+      } else if (data && data.error) {
+        return {
+          success: false,
+          message: data.error,
+          error
+        };
+      }
     }
 
     return {
@@ -133,24 +212,96 @@ export const registerWithUsername = async (userData) => {
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, userData);
 
-    console.log('用户名注册响应数据:', response.data);
+    console.log('用户名注册响应数据:', response);
+
+    // 检查响应是否有效
+    if (!response) {
+      console.error('注册响应为undefined');
+      return {
+        success: false,
+        message: '服务器无响应，请稍后重试'
+      };
+    }
+
+    // 检查响应数据
+    const responseData = response.data;
+    console.log('处理后的注册响应数据:', responseData);
+
+    // 打印更详细的调试信息
+    console.log('response类型:', typeof response);
+    console.log('response.data类型:', typeof response.data);
+    console.log('response属性:', Object.keys(response));
+
+    // 如果response.data是undefined，尝试直接使用response
+    if (!responseData && response) {
+      console.log('尝试直接使用response作为响应数据');
+      return {
+        success: true,
+        data: response
+      };
+    }
+
+    // 如果响应数据无效，返回错误
+    if (!responseData) {
+      console.error('注册响应数据为undefined');
+      return {
+        success: false,
+        message: '服务器返回数据无效，请联系管理员'
+      };
+    }
 
     // 保存令牌和用户信息
-    if (response.data.access && response.data.refresh && response.data.user) {
-      await setToken(response.data.access);
-      await setRefreshToken(response.data.refresh);
-      await setUser(response.data.user);
+    if (responseData.access && responseData.refresh && responseData.user) {
+      try {
+        // 尝试使用导入的函数
+        if (typeof setToken === 'function') {
+          await setToken(responseData.access);
+        } else if (storageService && typeof storageService.setToken === 'function') {
+          await storageService.setToken(responseData.access);
+        } else {
+          console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          await AsyncStorage.setItem('zeroislenotes_token', responseData.access);
+        }
+
+        if (typeof setRefreshToken === 'function') {
+          await setRefreshToken(responseData.refresh);
+        } else if (storageService && typeof storageService.setRefreshToken === 'function') {
+          await storageService.setRefreshToken(responseData.refresh);
+        } else {
+          console.warn('setRefreshToken 函数不可用，使用 AsyncStorage 作为备选');
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          await AsyncStorage.setItem('zeroislenotes_refresh_token', responseData.refresh);
+        }
+
+        if (typeof setUser === 'function') {
+          await setUser(responseData.user);
+        } else if (storageService && typeof storageService.setUser === 'function') {
+          await storageService.setUser(responseData.user);
+        } else {
+          console.warn('setUser 函数不可用，使用 AsyncStorage 作为备选');
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          await AsyncStorage.setItem('zeroislenotes_user', JSON.stringify(responseData.user));
+        }
+      } catch (storageError) {
+        console.error('保存认证信息时出错:', storageError);
+        // 继续执行，不要因为存储错误而中断注册流程
+      }
+    } else {
+      console.warn('注册响应数据缺少必要字段:', responseData);
     }
 
     return {
       success: true,
-      data: response.data
+      data: responseData
     };
   } catch (error) {
     console.error('用户名注册失败:', error);
+    console.error('错误详情:', error.response?.data || error.message);
+
     return {
       success: false,
-      message: error.message || '注册失败',
+      message: error.response?.data?.detail || error.message || '注册失败',
       error
     };
   }
@@ -172,7 +323,21 @@ export const refreshToken = async (refreshToken) => {
     console.log('刷新令牌响应数据:', response.data);
 
     // 保存新的访问令牌
-    await setToken(response.data.access);
+    try {
+      // 尝试使用导入的函数
+      if (typeof setToken === 'function') {
+        await setToken(response.data.access);
+      } else if (storageService && typeof storageService.setToken === 'function') {
+        await storageService.setToken(response.data.access);
+      } else {
+        console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem('zeroislenotes_token', response.data.access);
+      }
+    } catch (storageError) {
+      console.error('保存访问令牌时出错:', storageError);
+      // 继续执行，不要因为存储错误而中断刷新流程
+    }
 
     return {
       success: true,

@@ -6,7 +6,7 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/yourusername/zeroislenotes.git
+   git clone https://github.com/qx7274/zeroislenotes.git
    cd zeroislenotes/backend
    ```
 
@@ -188,8 +188,3 @@ coverage html  # 生成HTML报告
 2. 按照requirements.txt中的确切版本安装依赖
 3. 如果必要，可以降级Django版本以兼容djongo
 
-## 联系方式
-
-如有任何问题或建议，请通过以下方式联系我们：
-- 电子邮件：support@zeroislenotes.com
-- GitHub Issues：https://github.com/yourusername/zeroislenotes/issues

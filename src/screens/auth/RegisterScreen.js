@@ -16,7 +16,12 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { register, clearError } from '../../redux/slices/authSlice';
+import {
+  register,
+  registerWithUsername,
+  registerWithEmail,
+  clearError
+} from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
 import { Text } from '../../components/common/Typography';
 import { authApi } from '../../services/api';
@@ -51,7 +56,7 @@ const RegisterScreen = ({ navigation }) => {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [registerType, setRegisterType] = useState('phone'); // 'phone' 或 'email'
+  const [registerType, setRegisterType] = useState('username'); // 'username'|'phone'|'email'
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
 
@@ -103,10 +108,9 @@ const RegisterScreen = ({ navigation }) => {
 
   // 注册
   const handleRegister = async () => {
-    // 清除错误
     setError('');
 
-    // 表单验证
+    // 通用验证
     if (!username) {
       setError('请输入用户名');
       return;
@@ -122,61 +126,76 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
-    // 手机号注册
-    if (registerType === 'phone') {
-      if (!phone || phone.length < 11) {
-        setError('请输入正确的手机号');
-        return;
+    try {
+      let result;
+
+      // 根据注册类型调用不同API
+      switch (registerType) {
+        case 'username':
+          result = await authApi.registerWithUsername({ username, password });
+          break;
+        case 'phone':
+          if (!phone || phone.length < 11) {
+            setError('请输入正确的手机号');
+            return;
+          }
+          if (!code || code.length < 4) {
+            setError('请输入验证码');
+            return;
+          }
+          result = await authApi.registerWithPhone({ phone, code, password, username });
+          break;
+        case 'email':
+          if (!email || !email.includes('@')) {
+            setError('请输入正确的邮箱');
+            return;
+          }
+          result = await authApi.registerWithEmail({ email, password, username });
+          break;
+        default:
+          setError('请选择注册方式');
+          return;
       }
 
-      if (!code || code.length < 4) {
-        setError('请输入正确的验证码');
-        return;
-      }
+      console.log('注册结果:', result);
 
-      try {
-        const result = await authApi.registerWithPhone({
-          username,
-          phone,
-          code,
-          password
-        });
+      if (result && result.success) {
+        // 注册成功，更新Redux状态
+        try {
+          dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
+          dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
+          dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
 
-        if (result.success) {
-          // 注册成功，自动登录
-          dispatch(register(result.data));
+          // 显式设置认证状态
+          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+
+          // 显示成功消息
           Alert.alert('注册成功', '欢迎加入零屿笔记！');
-        } else {
-          setError(result.message || '注册失败，请稍后重试');
-        }
-      } catch (error) {
-        setError('注册失败，请稍后重试');
-      }
-    }
-    // 邮箱注册
-    else {
-      if (!email || !email.includes('@')) {
-        setError('请输入正确的邮箱地址');
-        return;
-      }
 
-      try {
-        const result = await authApi.registerWithEmail({
-          username,
-          email,
-          password
-        });
+          // 注册成功后更新Redux状态，让AppNavigator自动切换到主页
+          // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
+          console.log('注册成功，Redux状态已更新，等待AppNavigator自动切换到主页');
+        } catch (reduxError) {
+          console.error('更新Redux状态失败:', reduxError);
 
-        if (result.success) {
-          // 注册成功，自动登录
-          dispatch(register(result.data));
-          Alert.alert('注册成功', '欢迎加入零屿笔记！');
-        } else {
-          setError(result.message || '注册失败，请稍后重试');
+          // 即使Redux更新失败，也尝试导航到主页
+          Alert.alert('注册成功', '欢迎加入零屿笔记！但应用状态更新失败，可能需要重新登录。');
+
+          try {
+            // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
+            console.log('注册成功，但Redux状态更新失败，尝试通过其他方式更新认证状态');
+          } catch (navError) {
+            console.error('导航失败:', navError);
+            Alert.alert('导航错误', '无法导航到主页，请重启应用。');
+          }
         }
-      } catch (error) {
-        setError('注册失败，请稍后重试');
+      } else {
+        // 注册失败，显示错误信息
+        setError(result?.message || '注册失败，请稍后重试');
       }
+    } catch (error) {
+      console.error('注册过程中发生错误:', error);
+      setError(error?.message || '注册失败，请稍后重试');
     }
   };
 
@@ -249,6 +268,25 @@ const RegisterScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.registerTypeButton,
+                registerType === 'username' && [
+                  styles.activeRegisterType,
+                  { borderBottomColor: colors.primary }
+                ]
+              ]}
+              onPress={() => setRegisterType('username')}
+            >
+              <Text
+                variant="body"
+                size="medium"
+                color={registerType === 'username' ? 'primary' : 'hint'}
+                bold={registerType === 'username'}
+              >
+                用户名注册
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.registerTypeButton,
                 registerType === 'phone' && [
                   styles.activeRegisterType,
                   { borderBottomColor: colors.primary }
@@ -286,7 +324,7 @@ const RegisterScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* 用户名输入框 - 两种注册方式都需要 */}
+          {/* 用户名输入框 - 所有注册方式都需要 */}
           <Input
             label="用户名"
             value={username}
@@ -370,6 +408,10 @@ const RegisterScreen = ({ navigation }) => {
             style={styles.registerButton}
             size="large"
             fullWidth
+            gradient
+            gradientColors={[colors.primary, colors.secondary]}
+            gradientStart={{x: 0, y: 0}}
+            gradientEnd={{x: 1, y: 0}}
           />
 
           <View style={styles.footer}>
@@ -460,6 +502,7 @@ const styles = StyleSheet.create({
   registerButton: {
     marginTop: 24,
     height: 50,
+    borderRadius: 25,
   },
   footer: {
     alignItems: 'center',

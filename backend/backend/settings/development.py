@@ -9,7 +9,14 @@ from pymongo import MongoClient
 DEBUG = True
 
 # 允许的主机
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.138.116.105', '10.0.2.2', '*','192.168.154.232']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.138.116.105', '10.0.2.2', '*', '192.168.154.232']
+
+# 允许所有网络接口访问
+ALLOWED_HOSTS = ['*']
+
+# 开发服务器配置
+RUNSERVERPLUS_HOST = '0.0.0.0'
+RUNSERVERPLUS_PORT = 8000
 
 # 使用base.py中的MongoDB配置
 # 直接使用PyMongo客户端进行原生操作

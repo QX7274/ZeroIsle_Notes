@@ -7,7 +7,7 @@
 import { API_URL, API_VERSION, API_TIMEOUT } from './index';
 
 // 根据环境选择API基础URL
-export const API_BASE_URL = API_URL + '/' + API_VERSION;
+export const API_BASE_URL = API_URL + '/api/' + API_VERSION;
 
 // 调试信息
 console.log('API_BASE_URL:', API_BASE_URL);

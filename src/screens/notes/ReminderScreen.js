@@ -16,7 +16,36 @@ import { dateUtils } from '../../utils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const ReminderScreen = () => {
-  const { colors } = useTheme();
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let colors;
+  try {
+    const themeContext = useTheme();
+    colors = themeContext.theme.colors;
+
+    // 如果 colors 为 undefined，使用默认值
+    if (!colors) {
+      console.warn('ReminderScreen: 主题颜色未正确加载，使用默认颜色');
+      colors = {
+        background: '#F2F2F2',
+        card: '#FFFFFF',
+        text: '#000000',
+        border: '#E5E5EA',
+        notification: '#FF3B30',
+        primary: '#007AFF'
+      };
+    }
+  } catch (error) {
+    console.error('ReminderScreen: 获取主题失败:', error.message);
+    // 使用默认颜色
+    colors = {
+      background: '#F2F2F2',
+      card: '#FFFFFF',
+      text: '#000000',
+      border: '#E5E5EA',
+      notification: '#FF3B30',
+      primary: '#007AFF'
+    };
+  }
   const dispatch = useDispatch();
   const reminders = useSelector(state => state.reminders.reminders);
   const [showDatePicker, setShowDatePicker] = useState(false);

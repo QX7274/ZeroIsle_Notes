@@ -3,14 +3,15 @@
  * 提供统一的API请求客户端，处理请求拦截、响应拦截和错误处理
  */
 import axios from 'axios';
-import { API_URL, API_TIMEOUT, ERROR_MESSAGES } from '../../config/index';
+import { API_TIMEOUT, ERROR_MESSAGES } from '../../config/index';
+import { API_BASE_URL } from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { navigate } from '../../navigation/navigationRef';
 
 // 创建axios实例
 const apiClient = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',

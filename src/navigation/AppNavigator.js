@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect } from 'react';
+import { View, Text } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -11,7 +12,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { navigationRef } from './navigationRef';
 
 // 导入Redux操作
-import { getProfile } from '../redux/slices/authSlice';
+// 注意：authSlice中没有getProfile函数，暂时注释掉
+// import { getProfile } from '../redux/slices/authSlice';
 
 // 导入组件
 import { Loading } from '../components/common';
@@ -23,14 +25,19 @@ import ReminderNavigator from './ReminderNavigator';
 
 // 导入屏幕
 import { HomeScreen } from '../screens/common';
-import { ReminderScreen, VoiceToTextScreen, RealtimeTranscriptionScreen } from '../screens/notes';
+// 直接导入 ReminderScreen 组件，避免通过索引导入
+import ReminderScreen from '../screens/notes/ReminderScreen';
+// 直接导入 VoiceToTextScreen 和 RealtimeTranscriptionScreen 组件，避免通过索引导入
+import VoiceToTextScreen from '../screens/notes/VoiceToTextScreen';
+import RealtimeTranscriptionScreen from '../screens/notes/RealtimeTranscriptionScreen';
 import { AddReminderScreen, ReminderDetailScreen } from '../screens/reminder';
 import { SettingsScreen, ThemeSettingsScreen, AIAssistantSettingsScreen } from '../screens/settings';
 import { ThemeCustomizationScreen } from '../screens/theme';
 import { AnalyticsScreen } from '../screens/analytics';
 import { GroupScreen } from '../screens/groups';
 import { CodeEditorScreen } from '../screens/code';
-import { NoteScreen } from '../screens/notes';
+// 直接导入 NoteScreen 组件，避免通过索引导入
+import NoteScreen from '../screens/notes/NoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
@@ -50,7 +57,31 @@ const Tab = createBottomTabNavigator();
  */
 const AppNavigator = () => {
   const dispatch = useDispatch();
-  const { theme } = useTheme();
+
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('AppNavigator: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('AppNavigator: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        background: '#F2F2F2',
+      }
+    };
+  }
 
   // 从Redux获取认证状态
   console.log('AppNavigator: 尝试获取认证状态...');
@@ -86,8 +117,9 @@ const AppNavigator = () => {
   useEffect(() => {
     console.log('AppNavigator: 认证状态变化，当前状态:', isAuthenticated ? '已认证' : '未认证');
     if (isAuthenticated) {
-      console.log('AppNavigator: 尝试获取用户资料...');
-      dispatch(getProfile());
+      console.log('AppNavigator: 用户已认证');
+      // 注意：authSlice中没有getProfile函数，暂时注释掉
+      // dispatch(getProfile());
     }
   }, [dispatch, isAuthenticated]);
 
@@ -120,8 +152,44 @@ const AppNavigator = () => {
  * 包含首页、分类、社区和设置等主要功能模块
  */
 const MainTabs = () => {
-  const { theme } = useTheme();
-  const { colors } = theme;
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme, colors;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('MainTabs: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          primary: '#007AFF',
+          textSecondary: '#8E8E93',
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+          border: '#E5E5EA',
+        }
+      };
+    }
+    colors = theme.colors;
+  } catch (error) {
+    console.error('MainTabs: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        primary: '#007AFF',
+        textSecondary: '#8E8E93',
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+        border: '#E5E5EA',
+      }
+    };
+    colors = theme.colors;
+  }
 
   return (
     <Tab.Navigator
@@ -246,7 +314,36 @@ const MainTabs = () => {
  * 包含首页、笔记详情、AI助手等功能
  */
 const HomeStack = () => {
-  const { theme } = useTheme();
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('HomeStack: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('HomeStack: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
 
   return (
     <Stack.Navigator
@@ -281,7 +378,16 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="Note"
-        component={NoteScreen}
+        component={NoteScreen || (() => {
+          // 如果 NoteScreen 为 undefined，提供一个备用组件
+          console.error('NoteScreen 组件未定义，使用备用组件');
+          return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 18, color: 'red' }}>笔记组件加载失败</Text>
+              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
+            </View>
+          );
+        })}
         options={({ route }) => ({
           title: route.params?.title || '笔记详情',
           headerBackTitleVisible: false,
@@ -323,7 +429,16 @@ const HomeStack = () => {
 
       <Stack.Screen
         name="Reminder"
-        component={ReminderScreen}
+        component={ReminderScreen || (() => {
+          // 如果 ReminderScreen 为 undefined，提供一个备用组件
+          console.error('ReminderScreen 组件未定义，使用备用组件');
+          return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 18, color: 'red' }}>日程管理组件加载失败</Text>
+              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
+            </View>
+          );
+        })}
         options={{
           title: '日程管理',
           headerBackTitleVisible: false,
@@ -347,7 +462,16 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="VoiceToText"
-        component={VoiceToTextScreen}
+        component={VoiceToTextScreen || (() => {
+          // 如果 VoiceToTextScreen 为 undefined，提供一个备用组件
+          console.error('VoiceToTextScreen 组件未定义，使用备用组件');
+          return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 18, color: 'red' }}>语音转文本组件加载失败</Text>
+              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
+            </View>
+          );
+        })}
         options={{
           title: '语音转文本',
           headerBackTitleVisible: false,
@@ -355,7 +479,16 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="RealtimeTranscription"
-        component={RealtimeTranscriptionScreen}
+        component={RealtimeTranscriptionScreen || (() => {
+          // 如果 RealtimeTranscriptionScreen 为 undefined，提供一个备用组件
+          console.error('RealtimeTranscriptionScreen 组件未定义，使用备用组件');
+          return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 18, color: 'red' }}>实时转写组件加载失败</Text>
+              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
+            </View>
+          );
+        })}
         options={{
           title: '实时转写',
           headerBackTitleVisible: false,
@@ -370,7 +503,36 @@ const HomeStack = () => {
  * 包含分类列表、笔记列表等功能
  */
 const CategoryStack = () => {
-  const { theme } = useTheme();
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('CategoryStack: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('CategoryStack: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
 
   return (
     <Stack.Navigator
@@ -397,7 +559,16 @@ const CategoryStack = () => {
       />
       <Stack.Screen
         name="NoteList"
-        component={NoteScreen}
+        component={NoteScreen || (() => {
+          // 如果 NoteScreen 为 undefined，提供一个备用组件
+          console.error('NoteScreen 组件未定义，使用备用组件');
+          return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 18, color: 'red' }}>笔记组件加载失败</Text>
+              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
+            </View>
+          );
+        })}
         options={({ route }) => ({
           title: route.params?.title || '笔记列表',
           headerBackTitleVisible: false,
@@ -412,7 +583,36 @@ const CategoryStack = () => {
  * 包含社区首页、帖子详情等功能
  */
 const CommunityStack = () => {
-  const { theme } = useTheme();
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('CommunityStack: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('CommunityStack: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
 
   return (
     <Stack.Navigator

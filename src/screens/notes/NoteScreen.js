@@ -35,8 +35,40 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 
 const NoteScreen = ({ navigation, route }) => {
-  const { theme } = useTheme();
-  const { colors } = theme;
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme, colors;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('NoteScreen: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          background: '#FFFFFF',
+          primary: '#007AFF',
+          error: '#FF3B30',
+          text: '#000000',
+          card: '#FFFFFF',
+        }
+      };
+    }
+    colors = theme.colors;
+  } catch (error) {
+    console.error('NoteScreen: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        background: '#FFFFFF',
+        primary: '#007AFF',
+        error: '#FF3B30',
+        text: '#000000',
+        card: '#FFFFFF',
+      }
+    };
+    colors = theme.colors;
+  }
   const dispatch = useDispatch();
 
   // 从Redux获取状态
@@ -1066,4 +1098,5 @@ const styles = StyleSheet.create({
   },
 });
 
+// 确保正确导出 NoteScreen 组件
 export default NoteScreen;
