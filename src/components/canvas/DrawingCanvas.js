@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, PanResponder, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path, Rect, Circle, Polygon, Line, Text as SvgText } from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 // 工具类型
 const TOOLS = {
@@ -201,116 +203,118 @@ const DrawingCanvas = ({
     }
   };
 
+  // 创建手势处理函数
+  const handleDrawStart = (x, y) => {
+    // 保存当前路径状态用于撤销/重做
+    setHistory([...history, paths]);
+    setRedoStack([]);
+
+    if (tool.type === TOOLS.SHAPE) {
+      // 形状绘制开始点
+      setCurrentPoints([{ x, y }]);
+    } else if (tool.type === TOOLS.ERASER) {
+      // 橡皮擦
+      const newPath = {
+        id: Date.now().toString(),
+        color: backgroundColor,
+        strokeWidth: strokeWidth * 2,
+        path: `M ${x} ${y}`,
+        points: [{ x, y }],
+        tool: TOOLS.ERASER,
+      };
+      setCurrentPath(newPath);
+      setCurrentPoints([{ x, y }]);
+    } else {
+      // 其他绘图工具
+      const newPath = {
+        id: Date.now().toString(),
+        color: color,
+        strokeWidth,
+        path: `M ${x} ${y}`,
+        points: [{ x, y }],
+        tool: tool.type,
+      };
+      setCurrentPath(newPath);
+      setCurrentPoints([{ x, y }]);
+    }
+  };
+
+  const handleDrawMove = (x, y) => {
+    if (tool.type === TOOLS.SHAPE) {
+      // 形状绘制，只需要起点和终点
+      if (currentPoints.length === 1) {
+        setCurrentPoints([...currentPoints, { x, y }]);
+      } else {
+        const newPoints = [...currentPoints];
+        newPoints[1] = { x, y };
+        setCurrentPoints(newPoints);
+      }
+    } else {
+      // 其他绘图工具
+      const newPoints = [...currentPoints, { x, y }];
+      setCurrentPoints(newPoints);
+
+      let pathString;
+      if (tool.type === TOOLS.PEN) {
+        pathString = createSmoothPathString(newPoints);
+      } else {
+        pathString = createPathString(newPoints);
+      }
+
+      setCurrentPath({
+        ...currentPath,
+        path: pathString,
+        points: newPoints,
+      });
+    }
+  };
+
+  const handleDrawEnd = () => {
+    if (tool.type === TOOLS.SHAPE && currentPoints.length >= 2) {
+      // 完成形状绘制
+      const startPoint = currentPoints[0];
+      const endPoint = currentPoints[currentPoints.length - 1];
+      const shapePath = createShapePath(startPoint, endPoint, tool.shape);
+
+      if (shapePath) {
+        const newShape = {
+          id: Date.now().toString(),
+          color: color,
+          strokeWidth,
+          shape: shapePath,
+          tool: tool.type,
+          shapeType: tool.shape,
+        };
+
+        setPaths([...paths, newShape]);
+        if (onStrokeEnd) {
+          onStrokeEnd(newShape);
+        }
+      }
+    } else if (currentPath) {
+      // 完成其他绘图
+      setPaths([...paths, currentPath]);
+      if (onStrokeEnd) {
+        onStrokeEnd(currentPath);
+      }
+    }
+
+    setCurrentPath(null);
+    setCurrentPoints([]);
+  };
+
   // 创建手势响应器
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-
-      onPanResponderGrant: (evt, gestureState) => {
-        const { locationX, locationY } = evt.nativeEvent;
-
-        // 保存当前路径状态用于撤销/重做
-        setHistory([...history, paths]);
-        setRedoStack([]);
-
-        if (tool.type === TOOLS.SHAPE) {
-          // 形状绘制开始点
-          setCurrentPoints([{ x: locationX, y: locationY }]);
-        } else if (tool.type === TOOLS.ERASER) {
-          // 橡皮擦
-          const newPath = {
-            id: Date.now().toString(),
-            color: backgroundColor,
-            strokeWidth: strokeWidth * 2,
-            path: `M ${locationX} ${locationY}`,
-            points: [{ x: locationX, y: locationY }],
-            tool: TOOLS.ERASER,
-          };
-          setCurrentPath(newPath);
-          setCurrentPoints([{ x: locationX, y: locationY }]);
-        } else {
-          // 其他绘图工具
-          const newPath = {
-            id: Date.now().toString(),
-            color: color,
-            strokeWidth,
-            path: `M ${locationX} ${locationY}`,
-            points: [{ x: locationX, y: locationY }],
-            tool: tool.type,
-          };
-          setCurrentPath(newPath);
-          setCurrentPoints([{ x: locationX, y: locationY }]);
-        }
-      },
-
-      onPanResponderMove: (evt, gestureState) => {
-        const { locationX, locationY } = evt.nativeEvent;
-
-        if (tool.type === TOOLS.SHAPE) {
-          // 形状绘制，只需要起点和终点
-          if (currentPoints.length === 1) {
-            setCurrentPoints([...currentPoints, { x: locationX, y: locationY }]);
-          } else {
-            const newPoints = [...currentPoints];
-            newPoints[1] = { x: locationX, y: locationY };
-            setCurrentPoints(newPoints);
-          }
-        } else {
-          // 其他绘图工具
-          const newPoints = [...currentPoints, { x: locationX, y: locationY }];
-          setCurrentPoints(newPoints);
-
-          let pathString;
-          if (tool.type === TOOLS.PEN) {
-            pathString = createSmoothPathString(newPoints);
-          } else {
-            pathString = createPathString(newPoints);
-          }
-
-          setCurrentPath({
-            ...currentPath,
-            path: pathString,
-            points: newPoints,
-          });
-        }
-      },
-
-      onPanResponderRelease: () => {
-        if (tool.type === TOOLS.SHAPE && currentPoints.length >= 2) {
-          // 完成形状绘制
-          const startPoint = currentPoints[0];
-          const endPoint = currentPoints[currentPoints.length - 1];
-          const shapePath = createShapePath(startPoint, endPoint, tool.shape);
-
-          if (shapePath) {
-            const newShape = {
-              id: Date.now().toString(),
-              color: color,
-              strokeWidth,
-              shape: shapePath,
-              tool: tool.type,
-              shapeType: tool.shape,
-            };
-
-            setPaths([...paths, newShape]);
-            if (onStrokeEnd) {
-              onStrokeEnd(newShape);
-            }
-          }
-        } else if (currentPath) {
-          // 完成其他绘图
-          setPaths([...paths, currentPath]);
-          if (onStrokeEnd) {
-            onStrokeEnd(currentPath);
-          }
-        }
-
-        setCurrentPath(null);
-        setCurrentPoints([]);
-      },
+  const panGesture = Gesture.Pan()
+    .runOnJS(true) // 明确指定在JS线程上运行回调
+    .onStart((event) => {
+      handleDrawStart(event.x, event.y);
     })
-  ).current;
+    .onUpdate((event) => {
+      handleDrawMove(event.x, event.y);
+    })
+    .onEnd(() => {
+      handleDrawEnd();
+    });
 
   // 渲染形状
   const renderShape = (shape) => {
@@ -475,49 +479,52 @@ const DrawingCanvas = ({
     handleClear,
     handleScreenshot,
     render: () => (
-      <View
-        ref={canvasRef}
-        style={[styles.canvas, { width, height, backgroundColor }]}
-        {...panResponder.panHandlers}
-      >
-        <Svg width="100%" height="100%">
-          {/* 已完成的路径 */}
-          {paths.map((item) => {
-            if (item.tool === TOOLS.SHAPE) {
-              return renderShape(item);
-            } else {
-              return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureDetector gesture={panGesture}>
+          <View
+            ref={canvasRef}
+            style={[styles.canvas, { width, height, backgroundColor }]}
+          >
+            <Svg width="100%" height="100%">
+              {/* 已完成的路径 */}
+              {paths.map((item) => {
+                if (item.tool === TOOLS.SHAPE) {
+                  return renderShape(item);
+                } else {
+                  return (
+                    <Path
+                      key={item.id}
+                      d={item.path}
+                      stroke={item.color}
+                      strokeWidth={item.strokeWidth}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                      strokeOpacity={item.tool === TOOLS.HIGHLIGHTER ? 0.5 : 1}
+                    />
+                  );
+                }
+              })}
+
+              {/* 当前绘制的路径 */}
+              {currentPath && (
                 <Path
-                  key={item.id}
-                  d={item.path}
-                  stroke={item.color}
-                  strokeWidth={item.strokeWidth}
+                  d={currentPath.path}
+                  stroke={currentPath.color}
+                  strokeWidth={currentPath.strokeWidth}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
-                  strokeOpacity={item.tool === TOOLS.HIGHLIGHTER ? 0.5 : 1}
+                  strokeOpacity={currentPath.tool === TOOLS.HIGHLIGHTER ? 0.5 : 1}
                 />
-              );
-            }
-          })}
+              )}
 
-          {/* 当前绘制的路径 */}
-          {currentPath && (
-            <Path
-              d={currentPath.path}
-              stroke={currentPath.color}
-              strokeWidth={currentPath.strokeWidth}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-              strokeOpacity={currentPath.tool === TOOLS.HIGHLIGHTER ? 0.5 : 1}
-            />
-          )}
-
-          {/* 当前绘制的形状 */}
-          {renderCurrentShape()}
-        </Svg>
-      </View>
+              {/* 当前绘制的形状 */}
+              {renderCurrentShape()}
+            </Svg>
+          </View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     ),
   };
 };

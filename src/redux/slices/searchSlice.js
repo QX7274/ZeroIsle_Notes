@@ -15,9 +15,9 @@ export const search = createAsyncThunk(
       if (searchData.mode === 'text') {
         response = await searchApi.textSearch(searchData.query, searchData.options);
       } else if (searchData.mode === 'voice') {
-        response = await searchApi.voiceSearch(searchData.audioUri, searchData.options);
+        response = await searchApi.voiceSearch(searchData.audioBase64, searchData.options);
       } else if (searchData.mode === 'image') {
-        response = await searchApi.imageSearch(searchData.imageUri, searchData.options);
+        response = await searchApi.imageSearch(searchData.imageBase64, searchData.options);
       } else {
         throw new Error('不支持的搜索模式');
       }

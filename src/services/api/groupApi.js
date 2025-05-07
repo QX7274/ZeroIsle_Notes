@@ -1,8 +1,8 @@
 /**
  * 群组API服务
  */
-import { apiRequest } from './apiRequest';
-import { API_ENDPOINTS } from '../../utils/constants/apiEndpoints';
+import instance from './interceptor';
+import { API_ENDPOINTS } from '../../config/api';
 
 /**
  * 获取用户的群组列表
@@ -10,7 +10,7 @@ import { API_ENDPOINTS } from '../../utils/constants/apiEndpoints';
  */
 export const getUserGroups = async () => {
   try {
-    const response = await apiRequest.get(API_ENDPOINTS.GROUPS.BASE);
+    const response = await instance.get(API_ENDPOINTS.GROUPS.BASE);
     return {
       success: true,
       data: response.data
@@ -31,7 +31,7 @@ export const getUserGroups = async () => {
  */
 export const getGroupDetail = async (groupId) => {
   try {
-    const response = await apiRequest.get(`${API_ENDPOINTS.GROUPS.DETAIL(groupId)}`);
+    const response = await instance.get(`${API_ENDPOINTS.GROUPS.DETAIL(groupId)}`);
     return {
       success: true,
       data: response.data
@@ -52,7 +52,7 @@ export const getGroupDetail = async (groupId) => {
  */
 export const createGroup = async (groupData) => {
   try {
-    const response = await apiRequest.post(API_ENDPOINTS.GROUPS.BASE, groupData);
+    const response = await instance.post(API_ENDPOINTS.GROUPS.BASE, groupData);
     return {
       success: true,
       data: response.data
@@ -74,7 +74,7 @@ export const createGroup = async (groupData) => {
  */
 export const updateGroup = async (groupId, groupData) => {
   try {
-    const response = await apiRequest.patch(
+    const response = await instance.patch(
       API_ENDPOINTS.GROUPS.DETAIL(groupId),
       groupData
     );
@@ -98,7 +98,7 @@ export const updateGroup = async (groupId, groupData) => {
  */
 export const deleteGroup = async (groupId) => {
   try {
-    await apiRequest.delete(API_ENDPOINTS.GROUPS.DETAIL(groupId));
+    await instance.delete(API_ENDPOINTS.GROUPS.DETAIL(groupId));
     return {
       success: true
     };
@@ -119,7 +119,7 @@ export const deleteGroup = async (groupId) => {
  */
 export const generateJoinCode = async (groupId, expiresIn = 30) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.GENERATE_JOIN_CODE(groupId),
       { expires_in: expiresIn }
     );
@@ -143,7 +143,7 @@ export const generateJoinCode = async (groupId, expiresIn = 30) => {
  */
 export const joinGroupByCode = async (joinCode) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.JOIN_BY_CODE,
       { join_code: joinCode }
     );
@@ -168,7 +168,7 @@ export const joinGroupByCode = async (joinCode) => {
  */
 export const inviteUserToGroup = async (groupId, userId) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.INVITE(groupId),
       { user_id: userId }
     );
@@ -192,7 +192,7 @@ export const inviteUserToGroup = async (groupId, userId) => {
  */
 export const getGroupMembers = async (groupId) => {
   try {
-    const response = await apiRequest.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId));
+    const response = await instance.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId));
     return {
       success: true,
       data: response.data
@@ -213,7 +213,7 @@ export const getGroupMembers = async (groupId) => {
  */
 export const leaveGroup = async (groupId) => {
   try {
-    const response = await apiRequest.post(API_ENDPOINTS.GROUPS.LEAVE(groupId));
+    const response = await instance.post(API_ENDPOINTS.GROUPS.LEAVE(groupId));
     return {
       success: true,
       data: response.data
@@ -233,7 +233,7 @@ export const leaveGroup = async (groupId) => {
  */
 export const getGroupInvitations = async () => {
   try {
-    const response = await apiRequest.get(API_ENDPOINTS.GROUPS.INVITATIONS);
+    const response = await instance.get(API_ENDPOINTS.GROUPS.INVITATIONS);
     return {
       success: true,
       data: response.data
@@ -254,7 +254,7 @@ export const getGroupInvitations = async () => {
  */
 export const acceptGroupInvitation = async (invitationId) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.ACCEPT_INVITATION(invitationId)
     );
     return {
@@ -277,7 +277,7 @@ export const acceptGroupInvitation = async (invitationId) => {
  */
 export const rejectGroupInvitation = async (invitationId) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.REJECT_INVITATION(invitationId)
     );
     return {
@@ -301,7 +301,7 @@ export const rejectGroupInvitation = async (invitationId) => {
  */
 export const createScreenShare = async (groupId, title) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.SHARED_SCREENS,
       { group_id: groupId, title }
     );
@@ -324,7 +324,7 @@ export const createScreenShare = async (groupId, title) => {
  */
 export const getScreenShares = async () => {
   try {
-    const response = await apiRequest.get(API_ENDPOINTS.GROUPS.SHARED_SCREENS);
+    const response = await instance.get(API_ENDPOINTS.GROUPS.SHARED_SCREENS);
     return {
       success: true,
       data: response.data
@@ -345,7 +345,7 @@ export const getScreenShares = async () => {
  */
 export const joinScreenShare = async (shareId) => {
   try {
-    const response = await apiRequest.get(
+    const response = await instance.get(
       API_ENDPOINTS.GROUPS.JOIN_SCREEN_SHARE(shareId)
     );
     return {
@@ -368,7 +368,7 @@ export const joinScreenShare = async (shareId) => {
  */
 export const endScreenShare = async (shareId) => {
   try {
-    const response = await apiRequest.post(
+    const response = await instance.post(
       API_ENDPOINTS.GROUPS.END_SCREEN_SHARE(shareId)
     );
     return {

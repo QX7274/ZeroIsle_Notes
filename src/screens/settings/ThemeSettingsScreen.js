@@ -15,32 +15,32 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 
 const ThemeSettingsScreen = ({ navigation }) => {
-  const { theme, setTheme } = useTheme();
+  const { theme, setThemeType } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取设置
   const settings = useSelector(state => state.settings);
-  
+
   // 主题选项
   const themeOptions = [
     { value: 'light', label: '浅色', icon: 'wb-sunny' },
     { value: 'dark', label: '深色', icon: 'nights-stay' },
     { value: 'system', label: '跟随系统', icon: 'settings-system-daydream' },
   ];
-  
+
   // 更新主题
   const updateTheme = (value) => {
     const newSettings = { ...settings, theme: value };
     dispatch(updateSettings(newSettings));
-    setTheme(value);
+    setThemeType(value);
     navigation.goBack();
   };
-  
+
   // 渲染主题选项
   const renderThemeOption = ({ value, label, icon }) => {
     const isSelected = settings.theme === value;
-    
+
     return (
       <TouchableOpacity
         key={value}
@@ -54,9 +54,9 @@ const ThemeSettingsScreen = ({ navigation }) => {
         <View
           style={[
             styles.themePreview,
-            { 
-              backgroundColor: value === 'light' ? '#FFFFFF' : 
-                             value === 'dark' ? '#121212' : 
+            {
+              backgroundColor: value === 'light' ? '#FFFFFF' :
+                             value === 'dark' ? '#121212' :
                              '#F5F5F5'
             }
           ]}
@@ -65,22 +65,22 @@ const ThemeSettingsScreen = ({ navigation }) => {
             <View
               style={[
                 styles.previewStatusBar,
-                { 
-                  backgroundColor: value === 'light' ? '#F5F5F5' : 
-                                 value === 'dark' ? '#1E1E1E' : 
+                {
+                  backgroundColor: value === 'light' ? '#F5F5F5' :
+                                 value === 'dark' ? '#1E1E1E' :
                                  '#E0E0E0'
                 }
               ]}
             />
           </View>
-          
+
           <View style={styles.previewContent}>
             <View
               style={[
                 styles.previewText,
-                { 
-                  backgroundColor: value === 'light' ? '#E0E0E0' : 
-                                 value === 'dark' ? '#333333' : 
+                {
+                  backgroundColor: value === 'light' ? '#E0E0E0' :
+                                 value === 'dark' ? '#333333' :
                                  '#CCCCCC'
                 }
               ]}
@@ -88,17 +88,17 @@ const ThemeSettingsScreen = ({ navigation }) => {
             <View
               style={[
                 styles.previewText,
-                { 
+                {
                   width: '70%',
-                  backgroundColor: value === 'light' ? '#E0E0E0' : 
-                                 value === 'dark' ? '#333333' : 
+                  backgroundColor: value === 'light' ? '#E0E0E0' :
+                                 value === 'dark' ? '#333333' :
                                  '#CCCCCC'
                 }
               ]}
             />
           </View>
         </View>
-        
+
         <View style={styles.themeInfo}>
           <Icon
             name={icon}
@@ -113,7 +113,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
           >
             {label}
           </Text>
-          
+
           {isSelected && (
             <Icon name="check-circle" size={20} color={colors.primary} />
           )}
@@ -121,7 +121,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
       </TouchableOpacity>
     );
   };
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -133,11 +133,11 @@ const ThemeSettingsScreen = ({ navigation }) => {
         >
           选择应用的主题外观
         </Text>
-        
+
         <View style={styles.themeOptions}>
           {themeOptions.map(renderThemeOption)}
         </View>
-        
+
         <Text
           variant="caption"
           color="hint"

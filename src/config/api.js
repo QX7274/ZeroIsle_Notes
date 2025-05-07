@@ -38,6 +38,8 @@ export const API_ENDPOINTS = {
     BIND_PHONE: '/auth/bind/phone/',
     BIND_WECHAT: '/auth/bind/wechat/',
     BIND_QQ: '/auth/bind/qq/',
+    UNBIND_WECHAT: '/auth/unbind/wechat/',
+    UNBIND_QQ: '/auth/unbind/qq/',
   },
 
   // 笔记相关
@@ -51,6 +53,10 @@ export const API_ENDPOINTS = {
     HISTORY: (id) => `/notes/${id}/history/`,
     EXPORT: '/notes/export/',
     IMPORT: '/notes/import/',
+    IMPORT_PDF: '/notes/import/pdf/',
+    IMPORT_WORD: '/notes/import/word/',
+    IMPORT_IMAGE: '/notes/import/image/',
+    IMPORT_TEXT: '/notes/import/text/',
   },
 
   // 知识图谱相关
@@ -214,6 +220,23 @@ export const API_ENDPOINTS = {
     ELEMENT_DETAIL: (id) => `/canvas/elements/${id}/`,
     EXPORT: (id) => `/canvas/canvases/${id}/export/`,
     IMPORT: '/canvas/import/',
+  },
+
+  // 群组相关
+  GROUPS: {
+    BASE: '/groups/',
+    DETAIL: (id) => `/groups/${id}/`,
+    MEMBERS: (id) => `/groups/${id}/members/`,
+    INVITE: (id) => `/groups/${id}/invite/`,
+    LEAVE: (id) => `/groups/${id}/leave/`,
+    GENERATE_JOIN_CODE: (id) => `/groups/${id}/generate-join-code/`,
+    JOIN_BY_CODE: '/groups/join-by-code/',
+    INVITATIONS: '/groups/invitations/',
+    ACCEPT_INVITATION: (id) => `/groups/invitations/${id}/accept/`,
+    REJECT_INVITATION: (id) => `/groups/invitations/${id}/reject/`,
+    SHARED_SCREENS: '/groups/shared-screens/',
+    JOIN_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/join/`,
+    END_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/end/`,
   },
 };
 

@@ -1,13 +1,15 @@
 /**
  * API客户端
  * 提供统一的API请求客户端，处理请求拦截、响应拦截和错误处理
+ * 支持离线模式和数据同步
  */
 import axios from 'axios';
 import { API_TIMEOUT, ERROR_MESSAGES } from '../../config/index';
 import { API_BASE_URL } from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
-import { navigate } from '../../navigation/navigationRef';
+import { Alert, Platform, ToastAndroid } from 'react-native';
+import { navigationRef } from '../../navigation/navigationRef';
+import NetInfo from '@react-native-community/netinfo';
 
 // 创建axios实例
 const apiClient = axios.create({
@@ -19,17 +21,81 @@ const apiClient = axios.create({
   }
 });
 
+// 检查网络连接状态
+const checkNetworkConnection = async () => {
+  try {
+    const state = await NetInfo.fetch();
+    return state.isConnected;
+  } catch (error) {
+    console.error('检查网络连接失败:', error);
+    return false;
+  }
+};
+
+// 保存离线请求
+const saveOfflineRequest = async (config) => {
+  try {
+    // 获取当前离线请求队列
+    const offlineQueueJson = await AsyncStorage.getItem('offline_queue');
+    const offlineQueue = offlineQueueJson ? JSON.parse(offlineQueueJson) : [];
+
+    // 添加新的请求到队列
+    offlineQueue.push({
+      url: config.url,
+      method: config.method,
+      data: config.data,
+      params: config.params,
+      timestamp: new Date().toISOString()
+    });
+
+    // 保存更新后的队列
+    await AsyncStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
+
+    // 显示提示
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('请求已保存，将在网络恢复时发送', ToastAndroid.SHORT);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('保存离线请求失败:', error);
+    return false;
+  }
+};
+
 // 请求拦截器
 apiClient.interceptors.request.use(
   async config => {
     try {
+      // 添加认证令牌
       const token = await AsyncStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+
+      // 检查网络连接
+      const isConnected = await checkNetworkConnection();
+
+      // 如果没有网络连接且请求方法不是GET，保存请求到离线队列
+      if (!isConnected && config.method !== 'get') {
+        console.log('无网络连接，保存请求到离线队列:', config.url);
+        await saveOfflineRequest(config);
+
+        // 抛出自定义错误，中断请求
+        throw {
+          isOfflineError: true,
+          message: '无网络连接，请求已保存到离线队列'
+        };
+      }
     } catch (error) {
-      console.error('获取token失败:', error);
+      // 如果是离线错误，直接抛出
+      if (error.isOfflineError) {
+        return Promise.reject(error);
+      }
+
+      console.error('请求拦截器错误:', error);
     }
+
     return config;
   },
   error => {
@@ -43,20 +109,77 @@ apiClient.interceptors.response.use(
     // 直接返回响应数据
     return response.data;
   },
-  error => {
+  async error => {
+    // 处理离线错误
+    if (error.isOfflineError) {
+      console.log('离线错误，请求已保存到队列');
+      // 返回一个模拟的成功响应，避免应用崩溃
+      return Promise.resolve({
+        data: {
+          offline: true,
+          message: '当前处于离线模式，请求已保存',
+          timestamp: new Date().toISOString()
+        },
+        status: 200,
+        statusText: 'OK (Offline)',
+        headers: {},
+        config: error.config || {}
+      });
+    }
+
     // 处理错误响应
     if (error.message === 'Network Error') {
       // 网络错误，显示中文提示
-      Alert.alert('网络连接失败', '请检查您的网络设置后重试');
       console.error('网络连接失败:', error);
       // 修改错误消息为中文
       error.message = '网络连接失败，请检查网络设置';
+
+      // 不显示弹窗，避免频繁弹窗打扰用户
+      // 而是在返回的错误对象中添加标记，让调用方决定如何处理
+      error.isNetworkError = true;
+
+      // 检查是否有本地缓存数据
+      if (error.config && error.config.url) {
+        const cacheKey = `cache_${error.config.url}`;
+        try {
+          // 使用await获取缓存数据
+          const cachedData = await AsyncStorage.getItem(cacheKey);
+          if (cachedData) {
+            console.log('使用缓存数据:', error.config.url);
+            try {
+              // 安全解析JSON
+              const parsedData = JSON.parse(cachedData);
+              return Promise.resolve({
+                data: parsedData,
+                status: 200,
+                statusText: 'OK (Cached)',
+                headers: {},
+                config: error.config
+              });
+            } catch (parseError) {
+              console.error('解析缓存数据失败:', parseError);
+              // 如果解析失败，返回原始字符串
+              return Promise.resolve({
+                data: { raw: cachedData },
+                status: 200,
+                statusText: 'OK (Cached, Unparsed)',
+                headers: {},
+                config: error.config
+              });
+            }
+          }
+        } catch (cacheError) {
+          console.error('读取缓存数据失败:', cacheError);
+        }
+      }
     } else if (error.message && error.message.includes('timeout')) {
       // 超时错误，显示中文提示
-      Alert.alert('请求超时', '服务器响应时间过长，请稍后重试');
       console.error('请求超时:', error);
       // 修改错误消息为中文
       error.message = '请求超时，请稍后重试';
+
+      // 添加超时标记
+      error.isTimeoutError = true;
     } else if (error.response) {
       const { status, data } = error.response;
 
@@ -111,19 +234,200 @@ apiClient.interceptors.response.use(
 // 处理未授权错误
 const handleUnauthorized = async () => {
   try {
+    console.log('处理未授权错误: 清除token和用户信息');
     // 清除token和用户信息
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('refresh_token');
 
-    // 跳转到登录页面
-    navigate('Login');
+    // 设置一个标志，表示认证已过期
+    await AsyncStorage.setItem('auth_expired', 'true');
 
     // 显示提示
     Alert.alert('登录已过期', '请重新登录');
+
+    // 使用setTimeout确保Alert显示后再执行导航
+    setTimeout(() => {
+      // 使用reset方法重置整个导航状态
+      console.log('重置导航到登录页面');
+      if (navigationRef.current) {
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Auth' }],
+        });
+      }
+    }, 500);
   } catch (error) {
     console.error('处理未授权错误失败:', error);
   }
 };
+
+// 添加缓存方法
+apiClient.cache = async (url, data, expirationMinutes = 60) => {
+  try {
+    const cacheKey = `cache_${url}`;
+    const cacheData = {
+      data,
+      expiration: Date.now() + expirationMinutes * 60 * 1000
+    };
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    return true;
+  } catch (error) {
+    console.error('缓存数据失败:', error);
+    return false;
+  }
+};
+
+// 获取缓存方法
+apiClient.getCache = async (url) => {
+  try {
+    const cacheKey = `cache_${url}`;
+    const cacheJson = await AsyncStorage.getItem(cacheKey);
+
+    if (!cacheJson) return null;
+
+    const cache = JSON.parse(cacheJson);
+
+    // 检查缓存是否过期
+    if (cache.expiration && cache.expiration < Date.now()) {
+      // 缓存已过期，删除并返回null
+      await AsyncStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    return cache.data;
+  } catch (error) {
+    console.error('获取缓存数据失败:', error);
+    return null;
+  }
+};
+
+// 清除缓存方法
+apiClient.clearCache = async (url) => {
+  try {
+    if (url) {
+      // 清除特定URL的缓存
+      const cacheKey = `cache_${url}`;
+      await AsyncStorage.removeItem(cacheKey);
+    } else {
+      // 清除所有缓存
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter(key => key.startsWith('cache_'));
+      await AsyncStorage.multiRemove(cacheKeys);
+    }
+    return true;
+  } catch (error) {
+    console.error('清除缓存失败:', error);
+    return false;
+  }
+};
+
+// 获取离线队列
+apiClient.getOfflineQueue = async () => {
+  try {
+    const queueJson = await AsyncStorage.getItem('offline_queue');
+    return queueJson ? JSON.parse(queueJson) : [];
+  } catch (error) {
+    console.error('获取离线队列失败:', error);
+    return [];
+  }
+};
+
+// 清空离线队列
+apiClient.clearOfflineQueue = async () => {
+  try {
+    await AsyncStorage.removeItem('offline_queue');
+    return true;
+  } catch (error) {
+    console.error('清空离线队列失败:', error);
+    return false;
+  }
+};
+
+// 处理离线队列
+apiClient.processOfflineQueue = async () => {
+  try {
+    // 检查网络连接
+    const isConnected = await checkNetworkConnection();
+    if (!isConnected) {
+      console.log('无网络连接，无法处理离线队列');
+      return false;
+    }
+
+    // 获取离线队列
+    const queue = await apiClient.getOfflineQueue();
+    if (!queue || queue.length === 0) {
+      console.log('离线队列为空');
+      return true;
+    }
+
+    console.log(`开始处理离线队列，共 ${queue.length} 个请求`);
+
+    // 显示处理开始提示
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(`正在处理 ${queue.length} 个离线请求...`, ToastAndroid.SHORT);
+    }
+
+    // 处理每个离线请求
+    const results = [];
+    for (const request of queue) {
+      try {
+        const { url, method, data, params } = request;
+
+        // 发送请求
+        const response = await apiClient({
+          url,
+          method,
+          data,
+          params
+        });
+
+        results.push({
+          request,
+          success: true,
+          response
+        });
+      } catch (error) {
+        console.error('处理离线请求失败:', error);
+        results.push({
+          request,
+          success: false,
+          error: error.message || '未知错误'
+        });
+      }
+    }
+
+    // 过滤出失败的请求
+    const failedRequests = results.filter(result => !result.success).map(result => result.request);
+
+    // 更新离线队列，只保留失败的请求
+    await AsyncStorage.setItem('offline_queue', JSON.stringify(failedRequests));
+
+    // 显示处理结果提示
+    const successCount = results.length - failedRequests.length;
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(
+        `离线请求处理完成: ${successCount}/${results.length} 个请求成功`,
+        ToastAndroid.SHORT
+      );
+    }
+
+    console.log(`离线队列处理完成: ${successCount}/${results.length} 个请求成功`);
+
+    return true;
+  } catch (error) {
+    console.error('处理离线队列失败:', error);
+    return false;
+  }
+};
+
+// 设置网络状态监听
+NetInfo.addEventListener(state => {
+  // 当网络连接恢复时，尝试处理离线队列
+  if (state.isConnected) {
+    apiClient.processOfflineQueue();
+  }
+});
 
 // 导出API客户端
 export default apiClient;

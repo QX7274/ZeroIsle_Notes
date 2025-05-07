@@ -333,6 +333,88 @@ const userApi = {
       };
     }
   },
+
+  /**
+   * 绑定微信
+   * @param {object} data - 绑定数据
+   * @returns {Promise} - 绑定结果
+   */
+  bindWechat: async (data) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.BIND_WECHAT, data);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '绑定微信失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 解绑微信
+   * @returns {Promise} - 解绑结果
+   */
+  unbindWechat: async () => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_WECHAT);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '解绑微信失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 绑定QQ
+   * @param {object} data - 绑定数据
+   * @returns {Promise} - 绑定结果
+   */
+  bindQQ: async (data) => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.BIND_QQ, data);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '绑定QQ失败',
+        error
+      };
+    }
+  },
+
+  /**
+   * 解绑QQ
+   * @returns {Promise} - 解绑结果
+   */
+  unbindQQ: async () => {
+    try {
+      const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_QQ);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '解绑QQ失败',
+        error
+      };
+    }
+  },
 };
 
 export default userApi;

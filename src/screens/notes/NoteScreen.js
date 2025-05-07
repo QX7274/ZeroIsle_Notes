@@ -12,13 +12,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchNotes,
   fetchCategories,
-  fetchTags,
   createNote,
   updateNote,
   deleteNote,
   syncOfflineNotes,
   importNote
 } from '../../redux/slices/notesSlice';
+import { fetchTags } from '../../redux/slices/tagsSlice';
 import DocumentPicker from 'react-native-document-picker';
 import ImagePicker from 'react-native-image-picker';
 import {
@@ -365,18 +365,32 @@ const NoteScreen = ({ navigation, route }) => {
 
       if (results && results.length > 0) {
         const file = results[0];
+        console.log('选择的PDF文件:', file);
+
+        // 检查文件是否有效
+        if (!file.uri) {
+          throw new Error('无效的文件URI');
+        }
 
         // 创建FormData对象
         const formData = new FormData();
-        formData.append('file', {
-          uri: file.uri,
-          type: file.type,
-          name: file.name,
-        });
+
+        // 确保文件对象包含所有必要的属性
+        const fileObj = {
+          uri: file.uri || file.fileCopyUri,
+          type: file.type || 'application/pdf',
+          name: file.name || `document_${Date.now()}.pdf`,
+        };
+
+        console.log('准备添加到FormData的文件对象:', fileObj);
+        formData.append('file', fileObj);
         formData.append('type', 'pdf');
+
+        console.log('准备导入PDF，FormData:', formData);
 
         // 调用导入API
         const result = await dispatch(importNote(formData)).unwrap();
+        console.log('PDF导入结果:', result);
 
         // 导入成功后查看笔记
         if (result) {
@@ -403,18 +417,32 @@ const NoteScreen = ({ navigation, route }) => {
 
       if (results && results.length > 0) {
         const file = results[0];
+        console.log('选择的Word文件:', file);
+
+        // 检查文件是否有效
+        if (!file.uri) {
+          throw new Error('无效的文件URI');
+        }
 
         // 创建FormData对象
         const formData = new FormData();
-        formData.append('file', {
-          uri: file.uri,
-          type: file.type,
-          name: file.name,
-        });
+
+        // 确保文件对象包含所有必要的属性
+        const fileObj = {
+          uri: file.uri || file.fileCopyUri,
+          type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          name: file.name || `document_${Date.now()}.docx`,
+        };
+
+        console.log('准备添加到FormData的文件对象:', fileObj);
+        formData.append('file', fileObj);
         formData.append('type', 'word');
+
+        console.log('准备导入Word，FormData:', formData);
 
         // 调用导入API
         const result = await dispatch(importNote(formData)).unwrap();
+        console.log('Word导入结果:', result);
 
         // 导入成功后查看笔记
         if (result) {
@@ -727,7 +755,7 @@ const NoteScreen = ({ navigation, route }) => {
   };
 
   // 渲染加载状态
-  if (isLoading && notes.length === 0) {
+  if (isLoading && (!notes || notes.length === 0)) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -736,7 +764,7 @@ const NoteScreen = ({ navigation, route }) => {
   }
 
   // 渲染错误状态
-  if (error && notes.length === 0) {
+  if (error && (!notes || notes.length === 0)) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>

@@ -1,11 +1,10 @@
 /**
- * 首页搜索栏组件
+ * 社区搜索栏组件
  */
 import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   Modal,
 } from 'react-native';
@@ -16,27 +15,22 @@ import { Text } from '../common/Typography';
 import MultiModalSearch from './MultiModalSearch';
 
 /**
- * 首页搜索栏组件
+ * 社区搜索栏组件
  * 点击后展开多模态搜索组件
  */
-const HomeSearchBar = ({ onSearch }) => {
+const CommunitySearchBar = ({ onSearch }) => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const [showSearch, setShowSearch] = useState(false);
 
   // 处理搜索结果
-  const handleSearchResult = (results, query, options = {}) => {
+  const handleSearchResult = (results) => {
     setShowSearch(false);
-    onSearch?.(results, query, options);
+    onSearch?.(results);
 
-    // 如果有结果，导航到搜索结果页面
+    // 如果有结果，导航到社区搜索结果页面
     if (results && results.length > 0) {
-      navigation.navigate('SearchResults', {
-        results,
-        query,
-        searchMode: options.searchMode || 'text',
-        isOfflineSearch: options.isOfflineSearch || false
-      });
+      navigation.navigate('CommunitySearch', { results });
     }
   };
 
@@ -70,7 +64,7 @@ const HomeSearchBar = ({ onSearch }) => {
           color="textSecondary"
           style={styles.placeholder}
         >
-          搜索笔记、标签、内容...
+          搜索帖子、用户、标签...
         </Text>
       </TouchableOpacity>
 
@@ -84,6 +78,7 @@ const HomeSearchBar = ({ onSearch }) => {
           <MultiModalSearch
             onSearch={handleSearchResult}
             onCancel={() => setShowSearch(false)}
+            searchScope="community"
           />
         </View>
       </Modal>
@@ -118,4 +113,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeSearchBar;
+export default CommunitySearchBar;

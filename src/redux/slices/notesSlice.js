@@ -17,7 +17,7 @@ export const fetchNotes = createAsyncThunk(
   'notes/fetchNotes',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await notesApi.getNotes(params);
+      const response = await notesApi.getAllNotes(params);
       return response;
     } catch (error) {
       return rejectWithValue(error.message || '获取笔记列表失败');
@@ -43,8 +43,28 @@ export const createNote = createAsyncThunk(
   'notes/createNote',
   async (noteData, { rejectWithValue }) => {
     try {
-      const response = await notesApi.createNote(noteData);
-      return response;
+      // 优先尝试保存到本地
+      const offlineNote = {
+        ...noteData,
+        isOffline: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await offlineStorageService.saveOfflineNote(offlineNote);
+
+      // 尝试同步到云端
+      try {
+        const response = await notesApi.createNote(noteData);
+        // 同步成功后更新本地状态
+        await offlineStorageService.updateOfflineNote(offlineNote.id, {
+          ...response,
+          isOffline: false
+        });
+        return response;
+      } catch (error) {
+        // 网络错误时仅返回本地保存的笔记
+        return offlineNote;
+      }
     } catch (error) {
       return rejectWithValue(error.message || '创建笔记失败');
     }
@@ -173,10 +193,61 @@ export const syncOfflineNotes = createAsyncThunk(
   'notes/syncOfflineNotes',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await notesApi.syncOfflineNotes();
-      return response;
+      // 获取所有离线笔记
+      const offlineNotes = await offlineStorageService.getAllOfflineNotes();
+      let syncedCount = 0;
+
+      // 批量同步离线笔记
+      for (const note of offlineNotes) {
+        try {
+          // 根据笔记ID判断是创建还是更新
+          const response = note.id
+            ? await notesApi.updateNote(note.id, note)
+            : await notesApi.createNote(note);
+
+          // 同步成功后更新本地状态
+          await offlineStorageService.updateOfflineNote(note.id, {
+            ...response,
+            isOffline: false
+          });
+          syncedCount++;
+        } catch (error) {
+          console.error(`同步笔记(ID: ${note.id})失败:`, error);
+        }
+      }
+
+      return { synced: syncedCount, total: offlineNotes.length };
     } catch (error) {
       return rejectWithValue(error.message || '同步离线笔记失败');
+    }
+  }
+);
+
+// 异步Action: 导入笔记
+export const importNote = createAsyncThunk(
+  'notes/importNote',
+  async (formData, { rejectWithValue }) => {
+    try {
+      const response = await notesApi.importNote(formData);
+      if (!response.success) {
+        throw new Error(response.message || '导入笔记失败');
+      }
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.message || '导入笔记失败');
+    }
+  }
+);
+
+// 异步Action: 获取笔记分类
+export const fetchCategories = createAsyncThunk(
+  'notes/fetchCategories',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await notesApi.getNoteCategories();
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || '获取笔记分类失败');
     }
   }
 );
@@ -189,6 +260,11 @@ const initialState = notesAdapter.getInitialState({
   handwritingResult: null,
   handwritingIsLoading: false,
   handwritingError: null,
+  categories: {
+    items: [],
+    isLoading: false,
+    error: null
+  },
   filters: {
     category: null,
     tags: [],
@@ -255,6 +331,19 @@ const notesSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    // 设置笔记列表（用于批量更新）
+    setNotes: (state, action) => {
+      state.isLoading = false;
+      state.error = null;
+
+      // 清空现有笔记
+      notesAdapter.removeAll(state);
+
+      // 添加新笔记
+      if (Array.isArray(action.payload)) {
+        notesAdapter.addMany(state, action.payload);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -276,7 +365,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 获取单个笔记
       .addCase(fetchNoteById.pending, (state) => {
         state.isLoading = true;
@@ -291,7 +380,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 创建笔记
       .addCase(createNote.pending, (state) => {
         state.isLoading = true;
@@ -306,7 +395,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 更新笔记
       .addCase(updateNote.pending, (state) => {
         state.isLoading = true;
@@ -324,7 +413,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 删除笔记
       .addCase(deleteNote.pending, (state) => {
         state.isLoading = true;
@@ -341,7 +430,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 手写识别
       .addCase(recognizeHandwriting.pending, (state) => {
         state.handwritingIsLoading = true;
@@ -355,7 +444,7 @@ const notesSlice = createSlice({
         state.handwritingIsLoading = false;
         state.handwritingError = action.payload;
       })
-      
+
       // 上传图片
       .addCase(uploadImage.pending, (state) => {
         state.imageUpload.isLoading = true;
@@ -369,7 +458,7 @@ const notesSlice = createSlice({
         state.imageUpload.isLoading = false;
         state.imageUpload.error = action.payload;
       })
-      
+
       // 自动保存笔记
       .addCase(autoSaveNote.pending, (state) => {
         state.autoSave.isLoading = true;
@@ -393,7 +482,7 @@ const notesSlice = createSlice({
         state.autoSave.isLoading = false;
         state.autoSave.error = action.payload;
       })
-      
+
       // 获取笔记历史版本列表
       .addCase(getNoteHistory.pending, (state) => {
         state.history.isLoading = true;
@@ -407,7 +496,7 @@ const notesSlice = createSlice({
         state.history.isLoading = false;
         state.history.error = action.payload;
       })
-      
+
       // 获取笔记特定历史版本
       .addCase(getNoteVersion.pending, (state) => {
         state.history.isLoading = true;
@@ -421,7 +510,7 @@ const notesSlice = createSlice({
         state.history.isLoading = false;
         state.history.error = action.payload;
       })
-      
+
       // 恢复笔记到特定历史版本
       .addCase(restoreNoteVersion.pending, (state) => {
         state.isLoading = true;
@@ -441,7 +530,7 @@ const notesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 保存离线笔记
       .addCase(saveOfflineNote.pending, (state) => {
         state.offline.isLoading = true;
@@ -461,7 +550,7 @@ const notesSlice = createSlice({
         state.offline.isLoading = false;
         state.offline.error = action.payload;
       })
-      
+
       // 同步离线笔记
       .addCase(syncOfflineNotes.pending, (state) => {
         state.offline.isLoading = true;
@@ -476,6 +565,51 @@ const notesSlice = createSlice({
       .addCase(syncOfflineNotes.rejected, (state, action) => {
         state.offline.isLoading = false;
         state.offline.error = action.payload;
+      })
+
+      // 获取笔记分类
+      .addCase(fetchCategories.pending, (state) => {
+        state.categories.isLoading = true;
+        state.categories.error = null;
+      })
+      .addCase(fetchCategories.fulfilled, (state, action) => {
+        state.categories.isLoading = false;
+        state.categories.items = action.payload.data || [];
+      })
+      .addCase(fetchCategories.rejected, (state, action) => {
+        state.categories.isLoading = false;
+        state.categories.error = action.payload;
+      })
+
+      // 导入笔记
+      .addCase(importNote.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(importNote.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // 添加导入的笔记到状态
+        const note = {
+          ...action.payload,
+          id: action.payload.note_id || action.payload.id
+        };
+
+        console.log('导入笔记成功，添加到Redux状态:', note);
+
+        // 使用upsertOne而不是addOne，以防止ID冲突
+        notesAdapter.upsertOne(state, note);
+
+        // 更新当前笔记
+        state.currentNote = note;
+
+        // 增加未同步计数
+        if (note.is_offline || note.isOffline) {
+          state.offline.unsyncedCount += 1;
+        }
+      })
+      .addCase(importNote.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
@@ -488,6 +622,7 @@ export const {
   clearFilters,
   clearHandwritingResult,
   clearError,
+  setNotes,
 } = notesSlice.actions;
 
 // 导出Selectors

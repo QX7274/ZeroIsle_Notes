@@ -136,7 +136,13 @@ const ReminderListView = ({ navigation }) => {
 
           // 显示错误消息
           if (Platform.OS === 'android') {
-            ToastAndroid.show('无法连接到服务器，使用本地数据', ToastAndroid.SHORT);
+            if (error.isNetworkError) {
+              ToastAndroid.show('网络连接失败，使用本地数据', ToastAndroid.SHORT);
+            } else if (error.isTimeoutError) {
+              ToastAndroid.show('服务器响应超时，使用本地数据', ToastAndroid.SHORT);
+            } else {
+              ToastAndroid.show('无法连接到服务器，使用本地数据', ToastAndroid.SHORT);
+            }
           }
         } finally {
           setSyncing(false);

@@ -42,9 +42,15 @@ import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
-import { ApiTestComponent } from '../components/common';
+import ApiTest from '../screens/community/ApiTest';
+import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 // 导入知识图谱相关组件
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+// 导入画布组件
+import CanvasScreen from '../screens/canvas/CanvasScreen';
+// 导入文件查看器组件
+import PDFViewer from '../screens/viewers/PDFViewer';
+import DocViewer from '../screens/viewers/DocViewer';
 // 导入群组导航
 import GroupsNavigator from './GroupsNavigator';
 
@@ -428,6 +434,15 @@ const HomeStack = () => {
       />
 
       <Stack.Screen
+        name="Canvas"
+        component={CanvasScreen}
+        options={{
+          title: '无限画布',
+          headerBackTitleVisible: false,
+        }}
+      />
+
+      <Stack.Screen
         name="Reminder"
         component={ReminderScreen || (() => {
           // 如果 ReminderScreen 为 undefined，提供一个备用组件
@@ -493,6 +508,24 @@ const HomeStack = () => {
           title: '实时转写',
           headerBackTitleVisible: false,
         }}
+      />
+
+      {/* 文件查看器组件 */}
+      <Stack.Screen
+        name="PDFViewer"
+        component={PDFViewer}
+        options={({ route }) => ({
+          title: route.params?.title || 'PDF查看器',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="DocViewer"
+        component={DocViewer}
+        options={({ route }) => ({
+          title: route.params?.title || '文档查看器',
+          headerBackTitleVisible: false,
+        })}
       />
     </Stack.Navigator>
   );
@@ -647,7 +680,7 @@ const CommunityStack = () => {
       />
       <Stack.Screen
         name="ApiTest"
-        component={ApiTestComponent}
+        component={ApiTest}
         options={{
           title: 'API测试',
           headerBackTitleVisible: false,
@@ -659,6 +692,14 @@ const CommunityStack = () => {
         options={{
           title: '创建帖子',
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CommunitySearch"
+        component={CommunitySearchScreen}
+        options={{
+          title: '社区搜索',
+          headerBackTitleVisible: false,
         }}
       />
     </Stack.Navigator>

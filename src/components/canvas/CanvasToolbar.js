@@ -3,39 +3,90 @@ import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { analyticsService } from '../../services/analytics/analyticsService';
 
-const CanvasToolbar = ({ onAddText, onAddImage, onAddShape, onUndo, onRedo, onClear, onSave }) => {
+const CanvasToolbar = ({ onAddElement, onUndo, onRedo, onSave, canUndo, canRedo }) => {
   const handleAddText = () => {
-    onAddText();
+    if (onAddElement) {
+      const newElement = {
+        id: Date.now().toString(),
+        type: 'text',
+        content: '双击编辑文本',
+        x: 100,
+        y: 100,
+        scale: 1,
+        rotation: 0,
+        color: '#000000',
+        fontSize: 16,
+      };
+      onAddElement(newElement);
+    }
     analyticsService.trackCanvasAction('add_text');
   };
 
   const handleAddImage = () => {
-    onAddImage();
+    // 这里应该打开图片选择器，但为了简化，我们先创建一个占位图像元素
+    if (onAddElement) {
+      const newElement = {
+        id: Date.now().toString(),
+        type: 'image',
+        content: 'https://via.placeholder.com/150',
+        x: 100,
+        y: 100,
+        scale: 1,
+        rotation: 0,
+        width: 150,
+        height: 150,
+      };
+      onAddElement(newElement);
+    }
     analyticsService.trackCanvasAction('add_image');
   };
 
   const handleAddShape = (shapeType) => {
-    onAddShape(shapeType);
+    if (onAddElement) {
+      const newElement = {
+        id: Date.now().toString(),
+        type: 'shape',
+        shapeType: shapeType,
+        x: 100,
+        y: 100,
+        scale: 1,
+        rotation: 0,
+        color: '#000000',
+        width: 100,
+        height: 100,
+      };
+      onAddElement(newElement);
+    }
     analyticsService.trackCanvasAction('add_shape', { shapeType });
   };
 
   const handleUndo = () => {
-    onUndo();
+    if (onUndo) {
+      onUndo();
+    }
     analyticsService.trackCanvasAction('undo');
   };
 
   const handleRedo = () => {
-    onRedo();
+    if (onRedo) {
+      onRedo();
+    }
     analyticsService.trackCanvasAction('redo');
   };
 
   const handleClear = () => {
-    onClear();
+    // 清空画布功能可以通过添加一个空元素数组来实现
+    if (onAddElement) {
+      // 这里我们发送一个特殊的清空信号
+      onAddElement({ type: 'clear' });
+    }
     analyticsService.trackCanvasAction('clear');
   };
 
   const handleSave = () => {
-    onSave();
+    if (onSave) {
+      onSave();
+    }
     analyticsService.trackCanvasAction('save');
   };
 
@@ -63,7 +114,7 @@ const CanvasToolbar = ({ onAddText, onAddImage, onAddShape, onUndo, onRedo, onCl
         </TouchableOpacity>
         <TouchableOpacity style={styles.tool} onPress={() => handleAddShape('triangle')}>
           <Icon name="change-history" size={24} color="#333" />
-          <Text style={styles.toolText}>三角�?/Text>
+          <Text style={styles.toolText}>三角形</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tool} onPress={() => handleAddShape('line')}>
           <Icon name="remove" size={24} color="#333" />

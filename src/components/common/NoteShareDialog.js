@@ -2,7 +2,7 @@
  * 笔记分享对话框组件
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Switch, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Button, Toast } from './';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -13,6 +13,9 @@ import { useTheme } from '@react-navigation/native';
 import { dimensions } from '../../utils/constants/dimensions';
 
 const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
+  // 创建一个引用，用于存储Modal的dismiss方法
+  const modalRef = useRef(null);
+
   // 获取主题颜色
   const { colors } = useTheme();
 
@@ -465,12 +468,31 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
     );
   };
 
+  // 安全关闭对话框
+  const safeClose = () => {
+    try {
+      if (modalRef.current && modalRef.current.dismiss) {
+        modalRef.current.dismiss();
+      }
+      if (onClose) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('关闭对话框时出错:', error);
+      // 如果dismiss方法失败，仍然尝试调用onClose
+      if (onClose) {
+        onClose();
+      }
+    }
+  };
+
   return (
     <Modal
+      ref={modalRef}
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={safeClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
@@ -478,7 +500,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
             <Text style={styles.modalTitle}>
               {showExistingShares ? '分享管理' : '分享笔记'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={safeClose} style={styles.closeButton}>
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>

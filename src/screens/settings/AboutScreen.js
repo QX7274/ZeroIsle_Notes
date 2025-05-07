@@ -83,7 +83,7 @@ const AboutScreen = () => {
         {/* 应用信息 */}
         <View style={styles.appInfoContainer}>
           <Image
-            source={require('../../assets/images/app-icon.png')}
+            source={require('../../assets/images/logo.png')}
             style={styles.appIcon}
             resizeMode="contain"
           />
@@ -112,7 +112,7 @@ const AboutScreen = () => {
             center
             style={styles.copyright}
           >
-            © 2023 零屿笔记团队. 保留所有权利.
+            © 2025 零屿笔记团队. 保留所有权利.
           </Text>
         </View>
         

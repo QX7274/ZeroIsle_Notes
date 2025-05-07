@@ -406,6 +406,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
           >
             找到 {filteredResults.length} 个结果
             {filteredResults.length !== results.length && ` (已过滤，共 ${results.length} 个)`}
+            {route.params?.isOfflineSearch && ' (离线搜索)'}
           </Text>
         </View>
       )}

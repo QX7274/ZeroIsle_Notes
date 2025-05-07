@@ -9,15 +9,18 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Linking,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
+import { logout } from '../../redux/slices/authSlice';
 import { DEFAULT_SETTINGS } from '../../utils/constants/config';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 import DeviceInfo from 'react-native-device-info';
+import { cacheService } from '../../services/cache/cacheService';
 
 const SettingsScreen = ({ navigation }) => {
   const { theme, setTheme } = useTheme();
@@ -31,8 +34,11 @@ const SettingsScreen = ({ navigation }) => {
   // 本地状态
   const [appVersion, setAppVersion] = useState('');
   const [offlineStatus, setOfflineStatus] = useState(offlineStorageService.getStatus());
+  const [cacheSize, setCacheSize] = useState('0 MB');
+  const [isCleaningCache, setIsCleaningCache] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
-  // 获取应用版本
+  // 获取应用版本和缓存大小
   useEffect(() => {
     const getVersion = async () => {
       const version = await DeviceInfo.getVersion();
@@ -40,7 +46,20 @@ const SettingsScreen = ({ navigation }) => {
       setAppVersion(`${version} (${buildNumber})`);
     };
 
+    const getCacheSize = async () => {
+      try {
+        const size = await cacheService.getCacheSize();
+        // 转换为MB并保留1位小数
+        const sizeInMB = (size / (1024 * 1024)).toFixed(1);
+        setCacheSize(`${sizeInMB} MB`);
+      } catch (error) {
+        console.error('获取缓存大小失败:', error);
+        setCacheSize('未知');
+      }
+    };
+
     getVersion();
+    getCacheSize();
   }, []);
 
   // 监听离线存储服务状态变化
@@ -48,6 +67,14 @@ const SettingsScreen = ({ navigation }) => {
     const unsubscribe = offlineStorageService.addListener(event => {
       if (['connectionChange', 'offlineModeChange'].includes(event.type)) {
         setOfflineStatus(offlineStorageService.getStatus());
+        // 当网络恢复时，同步本地存储的个人简介
+        if (event.type === 'connectionChange' && !event.isOffline) {
+          const localProfile = offlineStorageService.getLocalProfile();
+          if (localProfile) {
+            dispatch(updateSettings({ ...settings, profile: localProfile }));
+            offlineStorageService.syncProfile(localProfile);
+          }
+        }
       }
     });
 
@@ -68,6 +95,88 @@ const SettingsScreen = ({ navigation }) => {
     if (key === 'offlineMode') {
       offlineStorageService.setOfflineMode(value);
     }
+
+    // 处理个人简介离线编辑
+    if (key === 'profile') {
+      if (offlineStorageService.getStatus().isOffline) {
+        // 离线状态下保存到本地存储
+        offlineStorageService.saveLocalProfile(value);
+      } else {
+        // 在线状态下同步到云端
+        offlineStorageService.syncProfile(value);
+      }
+    }
+  };
+
+  // 处理清理缓存
+  const handleClearCache = async () => {
+    Alert.alert(
+      '清理缓存',
+      '确定要清理应用缓存吗？这将删除临时文件和图片缓存，但不会影响您的笔记数据。',
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+        {
+          text: '清理',
+          onPress: async () => {
+            setIsCleaningCache(true);
+            try {
+              const success = await cacheService.clearCache();
+              if (success) {
+                // 更新缓存大小显示
+                const size = await cacheService.getCacheSize();
+                const sizeInMB = (size / (1024 * 1024)).toFixed(1);
+                setCacheSize(`${sizeInMB} MB`);
+                Alert.alert('成功', '缓存已清理');
+              } else {
+                Alert.alert('失败', '清理缓存失败，请稍后重试');
+              }
+            } catch (error) {
+              console.error('清理缓存出错:', error);
+              Alert.alert('错误', '清理缓存时发生错误');
+            } finally {
+              setIsCleaningCache(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 处理检查更新
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const updateInfo = await cacheService.checkForUpdates();
+
+      if (updateInfo.hasUpdate) {
+        Alert.alert(
+          '发现新版本',
+          `有新版本可用: ${updateInfo.version}\n是否立即更新？`,
+          [
+            {
+              text: '取消',
+              style: 'cancel',
+            },
+            {
+              text: '更新',
+              onPress: () => {
+                Linking.openURL(updateInfo.url);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('检查更新', '您当前使用的已经是最新版本');
+      }
+    } catch (error) {
+      console.error('检查更新出错:', error);
+      Alert.alert('错误', '检查更新时发生错误，请稍后重试');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
   };
 
   // 处理重置设置
@@ -86,6 +195,29 @@ const SettingsScreen = ({ navigation }) => {
             dispatch(updateSettings(DEFAULT_SETTINGS));
             setTheme(DEFAULT_SETTINGS.theme);
             offlineStorageService.setOfflineMode(DEFAULT_SETTINGS.offlineMode);
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
+  // 处理退出登录
+  const handleLogout = () => {
+    Alert.alert(
+      '退出登录',
+      '确定要退出当前账号吗？',
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+        {
+          text: '退出',
+          onPress: () => {
+            dispatch(logout());
+            // 退出登录后，导航会自动切换到登录页面
+            Alert.alert('提示', '已成功退出登录');
           },
           style: 'destructive',
         },
@@ -163,27 +295,71 @@ const SettingsScreen = ({ navigation }) => {
 
           <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
             {user ? (
-              <TouchableOpacity
-                style={styles.profileItem}
-                onPress={() => navigation.navigate('Profile')}
-              >
-                <View style={styles.profileInfo}>
-                  <Text
-                    variant="heading"
-                    level="h6"
-                  >
-                    {user.username || '未设置用户名'}
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="hint"
-                  >
-                    {user.email || '未设置邮箱'}
-                  </Text>
-                </View>
+              <>
+                <TouchableOpacity
+                  style={styles.profileItem}
+                  onPress={() => navigation.navigate('Profile')}
+                >
+                  <View style={styles.profileInfo}>
+                    <Text
+                      variant="heading"
+                      level="h6"
+                    >
+                      {user.username || '未设置用户名'}
+                    </Text>
+                    <Text
+                      variant="caption"
+                      color="hint"
+                    >
+                      {user.email || '未设置邮箱'}
+                    </Text>
+                  </View>
 
-                <Icon name="chevron-right" size={24} color={colors.text} />
-              </TouchableOpacity>
+                  <Icon name="chevron-right" size={24} color={colors.text} />
+                </TouchableOpacity>
+
+                {/* 账号绑定选项 */}
+                {renderSettingItem({
+                  icon: 'phone-android',
+                  title: '手机绑定',
+                  description: user.phone ? `已绑定: ${user.phone}` : '未绑定',
+                  onPress: () => navigation.navigate('BindPhone'),
+                  type: 'navigate',
+                })}
+
+                {renderSettingItem({
+                  icon: 'email',
+                  title: '邮箱绑定',
+                  description: user.email ? `已绑定: ${user.email}` : '未绑定',
+                  onPress: () => navigation.navigate('BindEmail'),
+                  type: 'navigate',
+                })}
+
+                {renderSettingItem({
+                  icon: 'wechat',
+                  title: '微信绑定',
+                  description: user.wechat_openid ? '已绑定' : '未绑定',
+                  onPress: () => navigation.navigate('BindWechat'),
+                  type: 'navigate',
+                })}
+
+                {renderSettingItem({
+                  icon: 'chat',
+                  title: 'QQ绑定',
+                  description: user.qq_openid ? '已绑定' : '未绑定',
+                  onPress: () => navigation.navigate('BindQQ'),
+                  type: 'navigate',
+                })}
+
+                {/* 退出登录按钮 */}
+                {renderSettingItem({
+                  icon: 'logout',
+                  title: '退出登录',
+                  description: '退出当前账号',
+                  onPress: handleLogout,
+                  type: 'navigate',
+                })}
+              </>
             ) : (
               <TouchableOpacity
                 style={styles.profileItem}
@@ -276,6 +452,14 @@ const SettingsScreen = ({ navigation }) => {
               onPress: () => navigation.navigate('BackupRestore'),
               type: 'navigate',
             })}
+
+            {renderSettingItem({
+              icon: 'cleaning-services',
+              title: '清理缓存',
+              description: `当前缓存大小: ${cacheSize}`,
+              onPress: handleClearCache,
+              type: 'navigate',
+            })}
           </View>
         </View>
 
@@ -331,6 +515,14 @@ const SettingsScreen = ({ navigation }) => {
               value: appVersion,
               onPress: () => {},
               type: 'value',
+            })}
+
+            {renderSettingItem({
+              icon: 'system-update',
+              title: '检查更新',
+              description: isCheckingUpdate ? '正在检查...' : '检查是否有新版本可用',
+              onPress: handleCheckUpdate,
+              type: 'navigate',
             })}
           </View>
         </View>

@@ -76,12 +76,15 @@ const Canvas = ({ elements, onContentChange, onElementSelect }) => {
   }, [selectedElement, elements, onContentChange]);
 
   const panGesture = Gesture.Pan()
+    .runOnJS(true)
     .onUpdate(handlePan);
 
   const scaleGesture = Gesture.Pinch()
+    .runOnJS(true)
     .onUpdate(handleScale);
 
   const rotateGesture = Gesture.Rotation()
+    .runOnJS(true)
     .onUpdate(handleRotate);
 
   const composed = Gesture.Simultaneous(panGesture, scaleGesture, rotateGesture);

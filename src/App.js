@@ -28,6 +28,7 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
+import { offlineDataService } from './services/storage';
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
@@ -185,6 +186,20 @@ const AppContainer = () => {
         });
         initPromises.push(notificationPromise);
 
+        // 初始化离线数据服务
+        const offlineDataPromise = new Promise(async (resolve) => {
+          try {
+            console.log('正在初始化离线数据服务...');
+            offlineDataService.initialize();
+            console.log('离线数据服务初始化成功');
+            resolve(true);
+          } catch (error) {
+            console.warn('离线数据服务初始化失败，但应用将继续运行:', error);
+            resolve(false);
+          }
+        });
+        initPromises.push(offlineDataPromise);
+
         // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
         const timeoutPromise = new Promise(resolve => {
           setTimeout(() => {
@@ -212,6 +227,18 @@ const AppContainer = () => {
     setTimeout(() => {
       initServices();
     }, 0);
+
+    // 清理函数，在组件卸载时执行
+    return () => {
+      console.log('正在清理服务...');
+      // 销毁离线数据服务
+      try {
+        offlineDataService.destroy();
+        console.log('离线数据服务已销毁');
+      } catch (error) {
+        console.error('销毁离线数据服务失败:', error);
+      }
+    };
   }, []);
 
   // 监听主题变化，更新状态栏

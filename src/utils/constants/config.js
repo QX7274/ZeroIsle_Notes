@@ -23,6 +23,8 @@ export const STORAGE_KEYS = {
   KNOWLEDGE_GRAPH_CACHE: 'knowledge_graph_cache',
   COMMUNITY_CACHE: 'community_cache',
   BACKUP_INFO: 'backup_info',
+  CATEGORIES: 'categories',
+  FILE_PREVIEWS: 'file_previews',
 };
 
 // 默认设置
@@ -72,3 +74,14 @@ export const NOTIFICATION_CHANNELS = {
   COMMUNITY: 'community_channel',
   UPDATE: 'update_channel',
 };
+
+// 缓存键
+export const CACHE_KEYS = [
+  'cache_images',
+  'cache_notes_preview',
+  'cache_search_history',
+  'cache_recent_notes',
+  'temp_draft_notes',
+  'temp_image_uploads',
+  'temp_search_results',
+];

@@ -5,6 +5,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { userApi } from '../../services/api';
 import { storage } from '../../utils';
+import { navigate } from '../../navigation/navigationRef';
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -171,6 +172,18 @@ export const logout = createAsyncThunk(
     try {
       await storage.remove('token');
       await storage.remove('user');
+
+      // 使用setTimeout确保Redux状态更新后再导航
+      setTimeout(() => {
+        // 使用reset方法重置整个导航状态
+        if (navigationRef.current) {
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'Auth' }],
+          });
+        }
+      }, 100);
+
       return null;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -401,6 +414,9 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
+        state.isAuthenticated = false;
+        console.log('Redux: 用户已登出，认证状态已重置');
       })
       .addCase(logout.rejected, (state, action) => {
         state.loading = false;

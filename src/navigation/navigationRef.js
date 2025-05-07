@@ -12,14 +12,24 @@ export const navigationRef = createRef();
  * 导航到指定屏幕
  * @param {string} name - 路由名称
  * @param {object} params - 路由参数
+ * @param {object} options - 导航选项，如 reset
  */
-export function navigate(name, params) {
+export function navigate(name, params, options = {}) {
   if (navigationRef.current) {
-    navigationRef.current.navigate(name, params);
+    if (options.reset) {
+      // 如果需要重置导航堆栈
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name, params }],
+      });
+    } else {
+      // 正常导航
+      navigationRef.current.navigate(name, params);
+    }
   } else {
     // 如果导航引用不可用，将导航操作保存到队列中
     // 这在应用启动时可能会发生
-    getNavigationQueue().push({ name, params });
+    getNavigationQueue().push({ name, params, options });
   }
 }
 
@@ -42,6 +52,16 @@ export function reset(state) {
   }
 }
 
+/**
+ * 重置导航根状态
+ * @param {object} state - 新的导航状态
+ */
+export function resetRoot(state) {
+  if (navigationRef.current) {
+    navigationRef.current.resetRoot(state);
+  }
+}
+
 // 导航队列，用于存储应用启动前的导航操作
 let navigationQueue = [];
 
@@ -58,8 +78,8 @@ export function getNavigationQueue() {
  */
 export function processNavigationQueue() {
   if (navigationRef.current && navigationQueue.length > 0) {
-    navigationQueue.forEach(({ name, params }) => {
-      navigate(name, params);
+    navigationQueue.forEach(({ name, params, options }) => {
+      navigate(name, params, options);
     });
     navigationQueue = [];
   }
@@ -90,6 +110,7 @@ export default {
   navigate,
   goBack,
   reset,
+  resetRoot,
   getNavigationQueue,
   processNavigationQueue,
   getCurrentRoute,

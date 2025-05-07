@@ -9,8 +9,8 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { remindersApi } from '../../services/api';
-import { addReminder, updateReminder, deleteReminder } from '../../redux/actions/remindersActions';
+import { reminderApi } from '../../services/api';
+import { addReminder, updateReminder, deleteReminder } from '../../redux/slices/reminderSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { dateUtils } from '../../utils';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -57,7 +57,7 @@ const ReminderScreen = () => {
 
   const loadReminders = async () => {
     try {
-      const response = await remindersApi.getAll();
+      const response = await reminderApi.getAllReminders();
       dispatch(updateReminder(response));
     } catch (error) {
       console.error('加载提醒失败:', error);
@@ -74,10 +74,10 @@ const ReminderScreen = () => {
       try {
         const reminderData = {
           title: '新提醒',
-          date: date.toISOString(),
-          isEnabled: true
+          due_date: date.toISOString(),
+          is_enabled: true
         };
-        const newReminder = await remindersApi.create(reminderData);
+        const newReminder = await reminderApi.createReminder(reminderData);
         dispatch(addReminder(newReminder));
       } catch (error) {
         console.error('创建提醒失败:', error);
@@ -87,9 +87,9 @@ const ReminderScreen = () => {
 
   const handleToggleReminder = async (reminder) => {
     try {
-      const updatedReminder = await remindersApi.update(reminder.id, {
+      const updatedReminder = await reminderApi.updateReminder(reminder.id, {
         ...reminder,
-        isEnabled: !reminder.isEnabled
+        is_enabled: !reminder.is_enabled
       });
       dispatch(updateReminder(updatedReminder));
     } catch (error) {
@@ -99,7 +99,7 @@ const ReminderScreen = () => {
 
   const handleDeleteReminder = async (id) => {
     try {
-      await remindersApi.delete(id);
+      await reminderApi.deleteReminder(id);
       dispatch(deleteReminder(id));
     } catch (error) {
       console.error('删除提醒失败:', error);
@@ -113,12 +113,12 @@ const ReminderScreen = () => {
           {item.title}
         </Text>
         <Text style={[styles.reminderDate, { color: colors.text }]}>
-          {dateUtils.format(new Date(item.date))}
+          {dateUtils.format(new Date(item.due_date || item.dueDate || item.date))}
         </Text>
       </View>
       <View style={styles.reminderActions}>
         <Switch
-          value={item.isEnabled}
+          value={item.is_enabled || item.isEnabled}
           onValueChange={() => handleToggleReminder(item)}
           trackColor={{ false: colors.border, true: colors.primary }}
         />

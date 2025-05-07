@@ -18,6 +18,7 @@ import NoteShareDialog from './NoteShareDialog';
 import OfflineIndicator from './OfflineIndicator';
 import EmptyState from './EmptyState';
 import ErrorState from './ErrorState';
+import ApiTestComponent from './ApiTestComponent';
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -53,6 +54,7 @@ export {
   OfflineIndicator,
   EmptyState,
   ErrorState,
+  ApiTestComponent,
 
   // 现代UI组件
   GradientButton,

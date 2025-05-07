@@ -86,25 +86,25 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.cardBackground }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
       <TouchableOpacity
         style={styles.header}
         onPress={() => setExpanded(!expanded)}
       >
-        <Text style={[styles.title, { color: theme.text }]}>样式编辑器</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>样式编辑器</Text>
         <Icon
           name={expanded ? 'chevron-up' : 'chevron-down'}
           size={20}
-          color={theme.text}
+          color={theme.colors.text}
         />
       </TouchableOpacity>
       {expanded && (
         <ScrollView style={styles.content}>
           {/* 颜色选择器 */}
           <View style={styles.styleRow}>
-            <Text style={[styles.styleLabel, { color: theme.text }]}>颜色</Text>
+            <Text style={[styles.styleLabel, { color: theme.colors.text }]}>颜色</Text>
             <ColorPicker
-              color={color}
+              selectedColor={color}
               onColorChange={handleColorChange}
             />
           </View>
@@ -113,7 +113,7 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
           {selectedElement.type === 'text' && (
             <>
               <View style={styles.styleRow}>
-                <Text style={[styles.styleLabel, { color: theme.text }]}>字体大小</Text>
+                <Text style={[styles.styleLabel, { color: theme.colors.text }]}>字体大小</Text>
                 <View style={styles.sliderContainer}>
                   <Slider
                     style={styles.slider}
@@ -122,35 +122,35 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
                     step={1}
                     value={fontSize}
                     onValueChange={handleFontSizeChange}
-                    minimumTrackTintColor={theme.primary}
+                    minimumTrackTintColor={theme.colors.primary}
                     maximumTrackTintColor="#ccc"
                   />
-                  <Text style={[styles.sliderValue, { color: theme.text }]}>{fontSize}</Text>
+                  <Text style={[styles.sliderValue, { color: theme.colors.text }]}>{fontSize}</Text>
                 </View>
               </View>
 
               <View style={styles.styleRow}>
-                <Text style={[styles.styleLabel, { color: theme.text }]}>字体粗细</Text>
+                <Text style={[styles.styleLabel, { color: theme.colors.text }]}>字体粗细</Text>
                 <View style={styles.buttonGroup}>
                   <TouchableOpacity
                     style={[
                       styles.styleButton,
-                      fontWeight === 'normal' && { backgroundColor: theme.primary },
+                      fontWeight === 'normal' && { backgroundColor: theme.colors.primary },
                     ]}
                     onPress={() => handleFontWeightChange('normal')}
                   >
-                    <Text style={[styles.buttonText, { color: fontWeight === 'normal' ? '#fff' : theme.text }]}>
+                    <Text style={[styles.buttonText, { color: fontWeight === 'normal' ? '#fff' : theme.colors.text }]}>
                       正常
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
                       styles.styleButton,
-                      fontWeight === 'bold' && { backgroundColor: theme.primary },
+                      fontWeight === 'bold' && { backgroundColor: theme.colors.primary },
                     ]}
                     onPress={() => handleFontWeightChange('bold')}
                   >
-                    <Text style={[styles.buttonText, { color: fontWeight === 'bold' ? '#fff' : theme.text }]}>
+                    <Text style={[styles.buttonText, { color: fontWeight === 'bold' ? '#fff' : theme.colors.text }]}>
                       粗体
                     </Text>
                   </TouchableOpacity>
@@ -161,7 +161,7 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
 
           {/* 通用样式 */}
           <View style={styles.styleRow}>
-            <Text style={[styles.styleLabel, { color: theme.text }]}>不透明度</Text>
+            <Text style={[styles.styleLabel, { color: theme.colors.text }]}>不透明度</Text>
             <View style={styles.sliderContainer}>
               <Slider
                 style={styles.slider}
@@ -170,16 +170,16 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
                 step={0.01}
                 value={opacity}
                 onValueChange={handleOpacityChange}
-                minimumTrackTintColor={theme.primary}
+                minimumTrackTintColor={theme.colors.primary}
                 maximumTrackTintColor="#ccc"
               />
-              <Text style={[styles.sliderValue, { color: theme.text }]}>{Math.round(opacity * 100)}%</Text>
+              <Text style={[styles.sliderValue, { color: theme.colors.text }]}>{Math.round(opacity * 100)}%</Text>
             </View>
           </View>
 
           {/* 边框样式 */}
           <View style={styles.styleRow}>
-            <Text style={[styles.styleLabel, { color: theme.text }]}>边框宽度</Text>
+            <Text style={[styles.styleLabel, { color: theme.colors.text }]}>边框宽度</Text>
             <View style={styles.sliderContainer}>
               <Slider
                 style={styles.slider}
@@ -188,25 +188,25 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
                 step={1}
                 value={borderWidth}
                 onValueChange={handleBorderWidthChange}
-                minimumTrackTintColor={theme.primary}
+                minimumTrackTintColor={theme.colors.primary}
                 maximumTrackTintColor="#ccc"
               />
-              <Text style={[styles.sliderValue, { color: theme.text }]}>{borderWidth}</Text>
+              <Text style={[styles.sliderValue, { color: theme.colors.text }]}>{borderWidth}</Text>
             </View>
           </View>
 
           {borderWidth > 0 && (
             <View style={styles.styleRow}>
-              <Text style={[styles.styleLabel, { color: theme.text }]}>边框颜色</Text>
+              <Text style={[styles.styleLabel, { color: theme.colors.text }]}>边框颜色</Text>
               <ColorPicker
-                color={borderColor}
+                selectedColor={borderColor}
                 onColorChange={handleBorderColorChange}
               />
             </View>
           )}
 
           <View style={styles.styleRow}>
-            <Text style={[styles.styleLabel, { color: theme.text }]}>圆角</Text>
+            <Text style={[styles.styleLabel, { color: theme.colors.text }]}>圆角</Text>
             <View style={styles.sliderContainer}>
               <Slider
                 style={styles.slider}
@@ -215,19 +215,19 @@ const StyleEditor = ({ selectedElement, onStyleChange }) => {
                 step={1}
                 value={borderRadius}
                 onValueChange={handleBorderRadiusChange}
-                minimumTrackTintColor={theme.primary}
+                minimumTrackTintColor={theme.colors.primary}
                 maximumTrackTintColor="#ccc"
               />
-              <Text style={[styles.sliderValue, { color: theme.text }]}>{borderRadius}</Text>
+              <Text style={[styles.sliderValue, { color: theme.colors.text }]}>{borderRadius}</Text>
             </View>
           </View>
 
           {/* 背景颜色（对形状和文本有效） */}
           {(selectedElement.type === 'shape' || selectedElement.type === 'text') && (
             <View style={styles.styleRow}>
-              <Text style={[styles.styleLabel, { color: theme.text }]}>背景颜色</Text>
+              <Text style={[styles.styleLabel, { color: theme.colors.text }]}>背景颜色</Text>
               <ColorPicker
-                color={backgroundColor}
+                selectedColor={backgroundColor}
                 onColorChange={handleBackgroundColorChange}
               />
             </View>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, Switch, Picker } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { categoryApi } from '../../services/api/categoryApi';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
@@ -454,16 +455,16 @@ const CategoryManager = ({ onSelectCategory }) => {
   const filteredCategories = categories
     .filter(category => {
       const matchesSearch = category.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesEmptyFilter = filterOptions.showEmpty || 
+      const matchesEmptyFilter = filterOptions.showEmpty ||
         (statistics.find(s => s.category_id === category.id)?.note_count || 0) > 0;
       return matchesSearch && matchesEmptyFilter;
     })
     .sort((a, b) => {
       const aCount = statistics.find(s => s.category_id === a.id)?.note_count || 0;
       const bCount = statistics.find(s => s.category_id === b.id)?.note_count || 0;
-      
+
       if (filterOptions.sortBy === 'name') {
-        return filterOptions.sortOrder === 'asc' 
+        return filterOptions.sortOrder === 'asc'
           ? a.name.localeCompare(b.name)
           : b.name.localeCompare(a.name);
       } else {
@@ -528,9 +529,9 @@ const CategoryManager = ({ onSelectCategory }) => {
             keyExtractor={item => item.category_id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={[styles.suggestionItem, { 
+                style={[styles.suggestionItem, {
                   backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border 
+                  borderColor: theme.colors.border
                 }]}
                 onPress={() => handleApplySuggestion(item.category_id)}
               >
@@ -586,9 +587,9 @@ const CategoryManager = ({ onSelectCategory }) => {
             keyExtractor={item => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={[styles.categoryItem, { 
+                style={[styles.categoryItem, {
                   backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border 
+                  borderColor: theme.colors.border
                 }]}
                 onPress={() => handleBatchCategorize(item.id)}
               >
@@ -624,7 +625,7 @@ const CategoryManager = ({ onSelectCategory }) => {
           <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
             分类统计
           </Text>
-          
+
           <View style={styles.statisticsSection}>
             <Text style={[styles.statisticsTitle, { color: theme.colors.text }]}>
               总体统计
@@ -732,20 +733,20 @@ const CategoryManager = ({ onSelectCategory }) => {
               <TouchableOpacity
                 style={[
                   styles.filterOption,
-                  { 
-                    backgroundColor: filterOptions.sortBy === 'name' 
-                      ? theme.colors.primary 
-                      : theme.colors.surface 
+                  {
+                    backgroundColor: filterOptions.sortBy === 'name'
+                      ? theme.colors.primary
+                      : theme.colors.surface
                   }
                 ]}
                 onPress={() => setFilterOptions({ ...filterOptions, sortBy: 'name' })}
               >
                 <Text style={[
                   styles.filterOptionText,
-                  { 
-                    color: filterOptions.sortBy === 'name' 
-                      ? '#fff' 
-                      : theme.colors.text 
+                  {
+                    color: filterOptions.sortBy === 'name'
+                      ? '#fff'
+                      : theme.colors.text
                   }
                 ]}>
                   按名称
@@ -754,20 +755,20 @@ const CategoryManager = ({ onSelectCategory }) => {
               <TouchableOpacity
                 style={[
                   styles.filterOption,
-                  { 
-                    backgroundColor: filterOptions.sortBy === 'count' 
-                      ? theme.colors.primary 
-                      : theme.colors.surface 
+                  {
+                    backgroundColor: filterOptions.sortBy === 'count'
+                      ? theme.colors.primary
+                      : theme.colors.surface
                   }
                 ]}
                 onPress={() => setFilterOptions({ ...filterOptions, sortBy: 'count' })}
               >
                 <Text style={[
                   styles.filterOptionText,
-                  { 
-                    color: filterOptions.sortBy === 'count' 
-                      ? '#fff' 
-                      : theme.colors.text 
+                  {
+                    color: filterOptions.sortBy === 'count'
+                      ? '#fff'
+                      : theme.colors.text
                   }
                 ]}>
                   按笔记数
@@ -784,20 +785,20 @@ const CategoryManager = ({ onSelectCategory }) => {
               <TouchableOpacity
                 style={[
                   styles.filterOption,
-                  { 
-                    backgroundColor: filterOptions.sortOrder === 'asc' 
-                      ? theme.colors.primary 
-                      : theme.colors.surface 
+                  {
+                    backgroundColor: filterOptions.sortOrder === 'asc'
+                      ? theme.colors.primary
+                      : theme.colors.surface
                   }
                 ]}
                 onPress={() => setFilterOptions({ ...filterOptions, sortOrder: 'asc' })}
               >
                 <Text style={[
                   styles.filterOptionText,
-                  { 
-                    color: filterOptions.sortOrder === 'asc' 
-                      ? '#fff' 
-                      : theme.colors.text 
+                  {
+                    color: filterOptions.sortOrder === 'asc'
+                      ? '#fff'
+                      : theme.colors.text
                   }
                 ]}>
                   升序
@@ -806,20 +807,20 @@ const CategoryManager = ({ onSelectCategory }) => {
               <TouchableOpacity
                 style={[
                   styles.filterOption,
-                  { 
-                    backgroundColor: filterOptions.sortOrder === 'desc' 
-                      ? theme.colors.primary 
-                      : theme.colors.surface 
+                  {
+                    backgroundColor: filterOptions.sortOrder === 'desc'
+                      ? theme.colors.primary
+                      : theme.colors.surface
                   }
                 ]}
                 onPress={() => setFilterOptions({ ...filterOptions, sortOrder: 'desc' })}
               >
                 <Text style={[
                   styles.filterOptionText,
-                  { 
-                    color: filterOptions.sortOrder === 'desc' 
-                      ? '#fff' 
-                      : theme.colors.text 
+                  {
+                    color: filterOptions.sortOrder === 'desc'
+                      ? '#fff'
+                      : theme.colors.text
                   }
                 ]}>
                   降序
@@ -836,20 +837,20 @@ const CategoryManager = ({ onSelectCategory }) => {
               <TouchableOpacity
                 style={[
                   styles.toggleButton,
-                  { 
-                    backgroundColor: filterOptions.showEmpty 
-                      ? theme.colors.primary 
-                      : theme.colors.surface 
+                  {
+                    backgroundColor: filterOptions.showEmpty
+                      ? theme.colors.primary
+                      : theme.colors.surface
                   }
                 ]}
                 onPress={() => setFilterOptions({ ...filterOptions, showEmpty: !filterOptions.showEmpty })}
               >
                 <Text style={[
                   styles.toggleText,
-                  { 
-                    color: filterOptions.showEmpty 
-                      ? '#fff' 
-                      : theme.colors.text 
+                  {
+                    color: filterOptions.showEmpty
+                      ? '#fff'
+                      : theme.colors.text
                   }
                 ]}>
                   {filterOptions.showEmpty ? '是' : '否'}
@@ -894,10 +895,10 @@ const CategoryManager = ({ onSelectCategory }) => {
           </TouchableOpacity>
 
           <TextInput
-            style={[styles.importInput, { 
+            style={[styles.importInput, {
               color: theme.colors.text,
               borderColor: theme.colors.border,
-              backgroundColor: theme.colors.surface 
+              backgroundColor: theme.colors.surface
             }]}
             placeholder="粘贴分类数据..."
             placeholderTextColor={theme.colors.secondary}
@@ -1106,9 +1107,9 @@ const CategoryManager = ({ onSelectCategory }) => {
             data={members}
             keyExtractor={item => item.user_id.toString()}
             renderItem={({ item }) => (
-              <View style={[styles.memberItem, { 
+              <View style={[styles.memberItem, {
                 backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border 
+                borderColor: theme.colors.border
               }]}>
                 <View style={styles.memberInfo}>
                   <Text style={[styles.memberName, { color: theme.colors.text }]}>
@@ -1204,10 +1205,10 @@ const CategoryManager = ({ onSelectCategory }) => {
 
       <View style={styles.searchContainer}>
         <TextInput
-          style={[styles.searchInput, { 
+          style={[styles.searchInput, {
             color: theme.colors.text,
             borderColor: theme.colors.border,
-            backgroundColor: theme.colors.surface 
+            backgroundColor: theme.colors.surface
           }]}
           placeholder="搜索分类..."
           placeholderTextColor={theme.colors.secondary}
@@ -1237,10 +1238,10 @@ const CategoryManager = ({ onSelectCategory }) => {
               {selectedCategory ? '编辑分类' : '新建分类'}
             </Text>
             <TextInput
-              style={[styles.input, { 
+              style={[styles.input, {
                 color: theme.colors.text,
                 borderColor: theme.colors.border,
-                backgroundColor: theme.colors.surface 
+                backgroundColor: theme.colors.surface
               }]}
               placeholder="输入分类名称"
               placeholderTextColor={theme.colors.secondary}

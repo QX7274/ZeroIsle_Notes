@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
@@ -172,7 +173,10 @@ const ProfileSettings = ({ navigation }) => {
                       style={styles.avatar}
                     />
                   ) : (
-                    <Icon name="person" size={60} color={colors.primary} />
+                    <Image
+                      source={defaultAvatar}
+                      style={styles.avatar}
+                    />
                   )}
                   <View style={[styles.editIconContainer, { backgroundColor: colors.primary }]}>
                     <Icon name="edit" size={16} color="#fff" />
@@ -227,6 +231,14 @@ const ProfileSettings = ({ navigation }) => {
               loading={isLoading}
               style={styles.submitButton}
             />
+
+            <TouchableOpacity
+              style={[styles.settingsButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Icon name="settings" size={20} color="#fff" style={styles.settingsIcon} />
+              <Text style={styles.settingsButtonText}>应用设置</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -303,6 +315,21 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 8,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  settingsIcon: {
+    marginRight: 8,
+  },
+  settingsButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

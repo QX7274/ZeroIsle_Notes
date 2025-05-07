@@ -22,7 +22,8 @@ import * as Haptics from '../../utils/haptics';
 import { launchImageLibrary } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
 import { createPost } from '../../redux/slices/communitySlice';
-import { fetchCategories, fetchTags } from '../../store/slices/notesSlice';
+import { fetchCategories } from '../../redux/slices/notesSlice';
+import { fetchTags } from '../../redux/slices/tagsSlice';
 
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();

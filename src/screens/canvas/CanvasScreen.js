@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Alert, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Alert, TouchableOpacity, Text, ActivityIndicator, Dimensions } from'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Canvas, CanvasToolbar, StyleEditor, LayerManager, DrawingToolbar, DrawingCanvas } from '../../components/canvas';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
-import { analyticsService } from '../../services/analytics/analyticsService';
+import analyticsService from '../../services/analytics/analyticsService';
 import canvasApi from '../../services/api/canvasApi';
-import Icon from 'react-native-vector-icons/Ionicons';
-import { pick, types } from '@react-native-documents/picker';
+import Icon from'react-native-vector-icons/Ionicons';
+import DocumentPicker, { types } from'react-native-document-picker';
 
 const CanvasScreen = ({ navigation, route }) => {
-  const { theme } = useTheme();
+  const { theme, colors } = useTheme();
   const [elements, setElements] = useState([]);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
@@ -21,12 +21,19 @@ const CanvasScreen = ({ navigation, route }) => {
 
   // 初始化绘图画布
   const drawingCanvas = DrawingCanvas({
-    width: '100%',
-    height: 300,
-    backgroundColor: 'transparent',
+    width: Dimensions.get('window').width - 16,
+    height: 400,
+    backgroundColor: 'white',
     onStrokeEnd: (path) => {
       // 可以将绘图路径保存到画布元素中
       console.log('绘图路径:', path);
+      // 将绘图路径添加到元素数组中
+      const newElement = {
+        id: Date.now().toString(),
+        type: 'path',
+        ...path
+      };
+      handleAddElement(newElement);
     },
     onScreenshotTaken: (uri) => {
       // 处理截图
@@ -35,7 +42,7 @@ const CanvasScreen = ({ navigation, route }) => {
   });
 
   useEffect(() => {
-    analyticsService.trackScreenView('canvas');
+    analyticsService.trackScreen('canvas');
 
     // 检查是否有传入的画布ID
     if (route.params?.canvasId) {
@@ -77,7 +84,7 @@ const CanvasScreen = ({ navigation, route }) => {
         setElements(savedCanvas.elements || []);
         setHistory([savedCanvas.elements || []]);
       } else {
-        // 如果没有本地存储的画布，创建一个新的
+        // 如果没有本地存储的画布，创建一个新的画布
         createNewCanvas();
       }
     } catch (error) {
@@ -103,7 +110,7 @@ const CanvasScreen = ({ navigation, route }) => {
     setElements(newElements);
     setHistory(prev => [...prev, newElements]);
     setFuture([]);
-    analyticsService.trackCanvasAction('update', { elementCount: newElements.length });
+    analyticsService.trackUserAction('canvas_update', { elementCount: newElements.length });
   }, []);
 
   const handleStyleChange = useCallback((style) => {
@@ -115,7 +122,7 @@ const CanvasScreen = ({ navigation, route }) => {
         return element;
       });
       handleContentChange(newElements);
-      analyticsService.trackCanvasAction('style_change', {
+      analyticsService.trackUserAction('canvas_style_change', {
         elementId: selectedElement.id,
         elementType: selectedElement.type,
         style,
@@ -125,7 +132,7 @@ const CanvasScreen = ({ navigation, route }) => {
 
   const handleElementSelect = useCallback((element) => {
     setSelectedElement(element);
-    analyticsService.trackCanvasAction('select_element', {
+    analyticsService.trackUserAction('canvas_select_element', {
       elementId: element.id,
       elementType: element.type,
     });
@@ -133,7 +140,7 @@ const CanvasScreen = ({ navigation, route }) => {
 
   const handleLayerOrderChange = useCallback((newElements) => {
     handleContentChange(newElements);
-    analyticsService.trackCanvasAction('layer_order_change', {
+    analyticsService.trackUserAction('canvas_layer_order_change', {
       elementCount: newElements.length,
     });
   }, [handleContentChange]);
@@ -145,7 +152,7 @@ const CanvasScreen = ({ navigation, route }) => {
       setFuture(prev => [current, ...prev]);
       setHistory(newHistory);
       setElements(newHistory[newHistory.length - 1]);
-      analyticsService.trackCanvasAction('undo');
+      analyticsService.trackUserAction('canvas_undo');
     }
   }, [history]);
 
@@ -156,7 +163,7 @@ const CanvasScreen = ({ navigation, route }) => {
       setHistory(prev => [...prev, next]);
       setFuture(newFuture);
       setElements(next);
-      analyticsService.trackCanvasAction('redo');
+      analyticsService.trackUserAction('canvas_redo');
     }
   }, [future]);
 
@@ -189,7 +196,7 @@ const CanvasScreen = ({ navigation, route }) => {
         }
       }
 
-      analyticsService.trackCanvasAction('save', { elementCount: elements.length });
+      analyticsService.trackUserAction('canvas_save', { elementCount: elements.length });
       Alert.alert('成功', '画布已保存');
     } catch (error) {
       console.error('保存画布失败:', error);
@@ -214,7 +221,7 @@ const CanvasScreen = ({ navigation, route }) => {
 
       if (response.success) {
         Alert.alert('成功', '画布已导出');
-        analyticsService.trackCanvasAction('export', { canvasId, format: 'json' });
+        analyticsService.trackUserAction('canvas_export', { canvasId, format: 'json' });
       } else {
         throw new Error(response.message || '导出画布失败');
       }
@@ -230,7 +237,7 @@ const CanvasScreen = ({ navigation, route }) => {
   const handleImport = async () => {
     try {
       // 选择文件
-      const results = await pick({
+      const results = await DocumentPicker.pick({
         type: [types.json],
         allowMultiSelection: false,
       });
@@ -254,13 +261,13 @@ const CanvasScreen = ({ navigation, route }) => {
           // 导入成功，加载新画布
           loadCanvasById(response.data.canvas_id);
           Alert.alert('成功', '画布导入成功');
-          analyticsService.trackCanvasAction('import', { format: 'json' });
+          analyticsService.trackUserAction('canvas_import', { format: 'json' });
         } else {
           throw new Error(response.message || '导入画布失败');
         }
       }
     } catch (error) {
-      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
+      if (error.code!== 'DOCUMENT_PICKER_CANCELED') {
         console.error('导入画布失败:', error);
         analyticsService.trackError(error, { action: 'import_canvas' });
         Alert.alert('错误', '导入画布失败，请稍后重试');
@@ -271,126 +278,142 @@ const CanvasScreen = ({ navigation, route }) => {
   };
 
   const handleAddElement = useCallback((newElement) => {
+    if (newElement?.type === 'clear') {
+      setElements([]);
+      setHistory(prev => [...prev, []]);
+      setFuture([]);
+      return;
+    }
+
     setElements(prev => [...prev, newElement]);
-    setHistory(prev => [...prev, [...elements, newElement]]);
+    setHistory(prev => [...prev, [...prev, newElement]]);
     setFuture([]);
-  }, [elements]);
+  }, []);
+
+  // 切换绘图工具显示状态的函数
+  const toggleDrawingTools = () => {
+    setShowDrawingTools(!showDrawingTools);
+  };
 
   // 渲染加载指示器
   const renderLoader = () => {
     if (isLoading) {
       return (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       );
     }
     return null;
   };
 
-  // 切换绘图工具
-  const toggleDrawingTools = () => {
-    setShowDrawingTools(!showDrawingTools);
-  };
+  function renderCanvas() {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        {renderLoader()}
+        {/* 顶部工具栏 */}
+        <View style={[styles.header, { backgroundColor: theme.card }]}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            {canvasTitle}
+          </Text>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: theme.primary }]}
+              onPress={handleImport}
+            >
+              <Icon name="cloud-download-outline" size={20} color={theme.onPrimary} />
+              <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>导入</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: theme.primary }]}
+              onPress={handleExport}
+            >
+              <Icon name="cloud-upload-outline" size={20} color={theme.onPrimary} />
+              <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>导出</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.headerButton,
+                {
+                  backgroundColor: showDrawingTools
+                   ? theme.primary + '80'
+                    : theme.primary
+                }
+              ]}
+              onPress={toggleDrawingTools}
+            >
+              <Icon name="brush-outline" size={20} color={theme.onPrimary} />
+              <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>
+                {showDrawingTools? '隐藏绘图' : '绘图'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 绘图工具栏 */}
+        {showDrawingTools && (
+          <DrawingToolbar
+            onToolChange={drawingCanvas.handleToolChange}
+            onColorChange={drawingCanvas.handleColorChange}
+            onStrokeWidthChange={drawingCanvas.handleStrokeWidthChange}
+            onUndo={drawingCanvas.handleUndo}
+            onRedo={drawingCanvas.handleRedo}
+            canUndo={drawingCanvas.canUndo}
+            canRedo={drawingCanvas.canRedo}
+            onScreenshot={drawingCanvas.handleScreenshot}
+            onClear={drawingCanvas.handleClear}
+          />
+        )}
+
+        {/* 绘图画布或普通画布 */}
+        {showDrawingTools? (
+          <View style={styles.drawingCanvasContainer}>
+            {drawingCanvas.render()}
+          </View>
+        ) : (
+          <Canvas
+            elements={elements}
+            onContentChange={handleContentChange}
+            onElementSelect={handleElementSelect}
+          />
+        )}
+
+        {/* 工具栏 */}
+        {!showDrawingTools && (
+          <CanvasToolbar
+            onAddElement={handleAddElement}
+            onSave={handleSave}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={history.length > 1}
+            canRedo={future.length > 0}
+          />
+        )}
+
+        {/* 样式编辑器 */}
+        {selectedElement &&!showDrawingTools && (
+          <StyleEditor
+            selectedElement={selectedElement}
+            onStyleChange={handleStyleChange}
+          />
+        )}
+
+        {/* 图层管理 */}
+        {!showDrawingTools && (
+          <LayerManager
+            elements={elements}
+            selectedElement={selectedElement}
+            onElementSelect={handleElementSelect}
+            onLayerOrderChange={handleLayerOrderChange}
+          />
+        )}
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {renderLoader()}
-
-      {/* 顶部工具栏 */}
-      <View style={[styles.header, { backgroundColor: theme.card }]}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          {canvasTitle}
-        </Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: theme.primary }]}
-            onPress={handleImport}
-          >
-            <Icon name="cloud-download-outline" size={20} color={theme.onPrimary} />
-            <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>导入</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: theme.primary }]}
-            onPress={handleExport}
-          >
-            <Icon name="cloud-upload-outline" size={20} color={theme.onPrimary} />
-            <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>导出</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.headerButton,
-              {
-                backgroundColor: showDrawingTools
-                  ? theme.primary + '80'
-                  : theme.primary
-              }
-            ]}
-            onPress={toggleDrawingTools}
-          >
-            <Icon name="brush-outline" size={20} color={theme.onPrimary} />
-            <Text style={[styles.headerButtonText, { color: theme.onPrimary }]}>
-              {showDrawingTools ? '隐藏绘图' : '绘图'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 绘图工具栏 */}
-      {showDrawingTools && (
-        <DrawingToolbar
-          onToolChange={drawingCanvas.handleToolChange}
-          onColorChange={drawingCanvas.handleColorChange}
-          onStrokeWidthChange={drawingCanvas.handleStrokeWidthChange}
-          onUndo={drawingCanvas.handleUndo}
-          onRedo={drawingCanvas.handleRedo}
-          canUndo={drawingCanvas.canUndo}
-          canRedo={drawingCanvas.canRedo}
-          onScreenshot={drawingCanvas.handleScreenshot}
-          onClear={drawingCanvas.handleClear}
-        />
-      )}
-
-      {/* 绘图画布或普通画布 */}
-      {showDrawingTools ? (
-        drawingCanvas.render()
-      ) : (
-        <Canvas
-          elements={elements}
-          onContentChange={handleContentChange}
-          onElementSelect={handleElementSelect}
-        />
-      )}
-
-      {/* 工具栏 */}
-      {!showDrawingTools && (
-        <CanvasToolbar
-          onAddElement={handleAddElement}
-          onSave={handleSave}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          canUndo={history.length > 1}
-          canRedo={future.length > 0}
-        />
-      )}
-
-      {/* 样式编辑器 */}
-      {selectedElement && !showDrawingTools && (
-        <StyleEditor
-          selectedElement={selectedElement}
-          onStyleChange={handleStyleChange}
-        />
-      )}
-
-      {/* 图层管理器 */}
-      {!showDrawingTools && (
-        <LayerManager
-          elements={elements}
-          selectedElement={selectedElement}
-          onElementSelect={handleElementSelect}
-          onLayerOrderChange={handleLayerOrderChange}
-        />
-      )}
+    <View style={styles.container}>
+      {renderCanvas()}
     </View>
   );
 };
@@ -409,6 +432,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 999,
+  },
+  drawingCanvasContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',

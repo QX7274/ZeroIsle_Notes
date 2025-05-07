@@ -78,10 +78,10 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
 
   // 初始化聚焦
   useEffect(() => {
-    if (searchMode === 'text' && searchInputRef.current) {
+    if (reduxSearchMode === 'text' && searchInputRef.current) {
       setTimeout(() => searchInputRef.current?.focus(), 100);
     }
-  }, [searchMode]);
+  }, [reduxSearchMode]);
 
   // 清理资源
   useEffect(() => {
@@ -113,7 +113,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
     } catch (err) {
-      setError('无法开始录音: ' + err.message);
+      setLocalError('无法开始录音: ' + err.message);
     }
   };
 
@@ -132,13 +132,13 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
 
       if (recordingDuration < 1) {
         recordingPathRef.current = '';
-        setError('录音时间太短');
+        setLocalError('录音时间太短');
         return;
       }
 
       handleSearch();
     } catch (err) {
-      setError('录音失败: ' + err.message);
+      setLocalError('录音失败: ' + err.message);
     }
   };
 
@@ -180,7 +180,14 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
       const resultAction = await dispatch(search(searchData));
 
       if (search.fulfilled.match(resultAction)) {
-        onSearch?.(resultAction.payload);
+        // 检查是否是离线搜索结果
+        const isOfflineSearch = resultAction.payload?.isOfflineSearch || false;
+
+        // 将搜索结果和离线状态传递给回调函数
+        onSearch?.(resultAction.payload?.results || resultAction.payload, searchQuery, {
+          isOfflineSearch,
+          searchMode: reduxSearchMode
+        });
       }
     } catch (err) {
       setLocalError(err.message || '搜索失败');
@@ -244,7 +251,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
         setTimeout(handleSearch, 500);
       }
     } catch (err) {
-      setError('选择图片失败: ' + err.message);
+      setLocalError('选择图片失败: ' + err.message);
     }
   };
 

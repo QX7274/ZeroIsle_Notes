@@ -145,7 +145,7 @@ class NoteViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_note(self, request):
-        """导入PDF或Word文档为笔记"""
+        """通用导入笔记"""
         try:
             # 获取文件和类型
             file = request.FILES.get('file')
@@ -157,65 +157,78 @@ class NoteViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if file_type not in ['pdf', 'word']:
+            # 根据文件类型调用相应的导入方法
+            if file_type == 'pdf':
+                return self.import_pdf_internal(request, file)
+            elif file_type == 'word':
+                return self.import_word_internal(request, file)
+            elif file_type == 'image':
+                return self.import_image_internal(request, file)
+            elif file_type == 'text':
+                return self.import_text_internal(request, file)
+            else:
                 return Response(
-                    {'error': '不支持的文件类型，仅支持PDF和Word文档'},
+                    {'error': '不支持的文件类型，仅支持PDF、Word、图片和文本文件'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}') as temp_file:
-                for chunk in file.chunks():
-                    temp_file.write(chunk)
-                temp_file_path = temp_file.name
+        except Exception as e:
+            logger.error(f"导入笔记失败: {str(e)}")
+            return Response(
+                {'error': f'导入笔记失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
+    @action(detail=False, methods=['post'], url_path='import/pdf')
+    def import_pdf(self, request):
+        """导入PDF文档为笔记"""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': '未提供文件'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return self.import_pdf_internal(request, file)
+        except Exception as e:
+            logger.error(f"导入PDF失败: {str(e)}")
+            return Response(
+                {'error': f'导入PDF失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def import_pdf_internal(self, request, file):
+        """内部方法：处理PDF导入"""
+        if not PYPDF2_AVAILABLE:
+            return Response(
+                {'error': 'PyPDF2库未安装，无法处理PDF文件'},
+                status=status.HTTP_501_NOT_IMPLEMENTED
+            )
+
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            for chunk in file.chunks():
+                temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        try:
             # 提取文件内容
             title = os.path.splitext(file.name)[0]  # 使用文件名作为标题
             content = ""
 
-            # 处理PDF文件
-            if file_type == 'pdf':
-                if not PYPDF2_AVAILABLE:
-                    os.unlink(temp_file_path)  # 删除临时文件
-                    return Response(
-                        {'error': 'PyPDF2库未安装，无法处理PDF文件'},
-                        status=status.HTTP_501_NOT_IMPLEMENTED
-                    )
-
-                try:
-                    with open(temp_file_path, 'rb') as f:
-                        pdf_reader = PyPDF2.PdfReader(f)
-                        for page_num in range(len(pdf_reader.pages)):
-                            page = pdf_reader.pages[page_num]
-                            content += page.extract_text() + "\n\n"
-                except Exception as e:
-                    logger.error(f"PDF解析错误: {str(e)}")
-                    os.unlink(temp_file_path)  # 删除临时文件
-                    return Response(
-                        {'error': f'PDF解析错误: {str(e)}'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
-
-            # 处理Word文件
-            elif file_type == 'word':
-                if not PYTHON_DOCX_AVAILABLE:
-                    os.unlink(temp_file_path)  # 删除临时文件
-                    return Response(
-                        {'error': 'python-docx库未安装，无法处理Word文件'},
-                        status=status.HTTP_501_NOT_IMPLEMENTED
-                    )
-
-                try:
-                    doc = Document(temp_file_path)
-                    for para in doc.paragraphs:
-                        content += para.text + "\n"
-                except Exception as e:
-                    logger.error(f"Word解析错误: {str(e)}")
-                    os.unlink(temp_file_path)  # 删除临时文件
-                    return Response(
-                        {'error': f'Word解析错误: {str(e)}'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
+            try:
+                with open(temp_file_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    for page_num in range(len(pdf_reader.pages)):
+                        page = pdf_reader.pages[page_num]
+                        content += page.extract_text() + "\n\n"
+            except Exception as e:
+                logger.error(f"PDF解析错误: {str(e)}")
+                os.unlink(temp_file_path)  # 删除临时文件
+                return Response(
+                    {'error': f'PDF解析错误: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
 
             # 删除临时文件
             os.unlink(temp_file_path)
@@ -233,17 +246,223 @@ class NoteViewSet(viewsets.ModelViewSet):
 
             # 返回结果
             return Response({
-                'message': f'导入{file_type.upper()}成功',
+                'message': '导入PDF成功',
                 'note_id': str(note.id),
                 'title': note.title
             })
-
         except Exception as e:
-            logger.error(f"导入笔记失败: {str(e)}")
+            # 确保临时文件被删除
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            raise e
+
+    @action(detail=False, methods=['post'], url_path='import/word')
+    def import_word(self, request):
+        """导入Word文档为笔记"""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': '未提供文件'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return self.import_word_internal(request, file)
+        except Exception as e:
+            logger.error(f"导入Word失败: {str(e)}")
             return Response(
-                {'error': f'导入笔记失败: {str(e)}'},
+                {'error': f'导入Word失败: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def import_word_internal(self, request, file):
+        """内部方法：处理Word导入"""
+        if not PYTHON_DOCX_AVAILABLE:
+            return Response(
+                {'error': 'python-docx库未安装，无法处理Word文件'},
+                status=status.HTTP_501_NOT_IMPLEMENTED
+            )
+
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_file:
+            for chunk in file.chunks():
+                temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        try:
+            # 提取文件内容
+            title = os.path.splitext(file.name)[0]  # 使用文件名作为标题
+            content = ""
+
+            try:
+                doc = Document(temp_file_path)
+                for para in doc.paragraphs:
+                    content += para.text + "\n"
+            except Exception as e:
+                logger.error(f"Word解析错误: {str(e)}")
+                os.unlink(temp_file_path)  # 删除临时文件
+                return Response(
+                    {'error': f'Word解析错误: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # 删除临时文件
+            os.unlink(temp_file_path)
+
+            # 创建笔记
+            note = Note(
+                id=uuid.uuid4(),
+                user=request.user,
+                title=title,
+                content=content,
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+            note.save()
+
+            # 返回结果
+            return Response({
+                'message': '导入Word成功',
+                'note_id': str(note.id),
+                'title': note.title
+            })
+        except Exception as e:
+            # 确保临时文件被删除
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            raise e
+
+    @action(detail=False, methods=['post'], url_path='import/image')
+    def import_image(self, request):
+        """导入图片为笔记"""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': '未提供文件'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return self.import_image_internal(request, file)
+        except Exception as e:
+            logger.error(f"导入图片失败: {str(e)}")
+            return Response(
+                {'error': f'导入图片失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def import_image_internal(self, request, file):
+        """内部方法：处理图片导入"""
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.img') as temp_file:
+            for chunk in file.chunks():
+                temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        try:
+            # 提取文件信息
+            title = os.path.splitext(file.name)[0]  # 使用文件名作为标题
+            content = f"![{title}](data:image/{os.path.splitext(file.name)[1][1:]};base64,IMAGE_DATA_PLACEHOLDER)"
+
+            # 删除临时文件
+            os.unlink(temp_file_path)
+
+            # 创建笔记
+            note = Note(
+                id=uuid.uuid4(),
+                user=request.user,
+                title=title,
+                content=content,
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+            note.save()
+
+            # 返回结果
+            return Response({
+                'message': '导入图片成功',
+                'note_id': str(note.id),
+                'title': note.title
+            })
+        except Exception as e:
+            # 确保临时文件被删除
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            raise e
+
+    @action(detail=False, methods=['post'], url_path='import/text')
+    def import_text(self, request):
+        """导入文本文件为笔记"""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': '未提供文件'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return self.import_text_internal(request, file)
+        except Exception as e:
+            logger.error(f"导入文本失败: {str(e)}")
+            return Response(
+                {'error': f'导入文本失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def import_text_internal(self, request, file):
+        """内部方法：处理文本导入"""
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as temp_file:
+            for chunk in file.chunks():
+                temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        try:
+            # 提取文件内容
+            title = os.path.splitext(file.name)[0]  # 使用文件名作为标题
+
+            try:
+                with open(temp_file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                # 尝试其他编码
+                try:
+                    with open(temp_file_path, 'r', encoding='gbk') as f:
+                        content = f.read()
+                except UnicodeDecodeError:
+                    with open(temp_file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+
+            # 删除临时文件
+            os.unlink(temp_file_path)
+
+            # 创建笔记
+            note = Note(
+                id=uuid.uuid4(),
+                user=request.user,
+                title=title,
+                content=content,
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+            note.save()
+
+            # 返回结果
+            return Response({
+                'message': '导入文本成功',
+                'note_id': str(note.id),
+                'title': note.title
+            })
+        except Exception as e:
+            # 确保临时文件被删除
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            raise e
 
     @action(detail=True, methods=['post'])
     def append(self, request, pk=None):

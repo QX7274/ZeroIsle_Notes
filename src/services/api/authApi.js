@@ -877,6 +877,78 @@ export const bindQQ = async (code, token = null) => {
 };
 
 /**
+ * 解绑微信
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 解绑结果
+ */
+export const unbindWechat = async (token = null) => {
+  try {
+    console.log('解绑微信请求');
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_WECHAT, {}, config);
+
+    console.log('解绑微信响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('解绑微信失败:', error);
+    return {
+      success: false,
+      message: error.message || '解绑微信失败',
+      error
+    };
+  }
+};
+
+/**
+ * 解绑QQ
+ * @param {string} token - 访问令牌（可选）
+ * @returns {Promise} - 解绑结果
+ */
+export const unbindQQ = async (token = null) => {
+  try {
+    console.log('解绑QQ请求');
+
+    // 准备请求配置
+    const config = {};
+    if (token) {
+      config.headers = {
+        Authorization: `Bearer ${token}`
+      };
+    }
+
+    // 发送请求
+    const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_QQ, {}, config);
+
+    console.log('解绑QQ响应数据:', response.data);
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('解绑QQ失败:', error);
+    return {
+      success: false,
+      message: error.message || '解绑QQ失败',
+      error
+    };
+  }
+};
+
+/**
  * 用户登出
  * @returns {Promise} - 登出结果
  */
@@ -916,6 +988,8 @@ const authApi = {
   bindPhone,
   bindWechat,
   bindQQ,
+  unbindWechat,
+  unbindQQ,
   logout
 };
 

@@ -14,7 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 import { Button } from '../../components/common';
 
 const OfflineDataScreen = ({ navigation }) => {

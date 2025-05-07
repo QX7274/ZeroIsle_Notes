@@ -1,5 +1,5 @@
 /**
- * 备份与恢复屏�?
+ * 备份与恢复屏�?
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -29,10 +29,10 @@ const BackupRestoreScreen = ({ navigation }) => {
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
 
-  // 从Redux获取状�?
+  // 从Redux获取状�?
   const user = useSelector(state => state.auth.user);
 
-  // 本地状�?
+  // 本地状�?
   const [backups, setBackups] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
@@ -51,7 +51,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       const backupInfoJson = await AsyncStorage.getItem(STORAGE_KEYS.BACKUP_INFO);
       const backupInfo = backupInfoJson ? JSON.parse(backupInfoJson) : [];
 
-      // 检查备份文件是否存�?
+      // 检查备份文件是否存�?
       const validBackups = [];
       for (const backup of backupInfo) {
         try {
@@ -60,7 +60,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             validBackups.push(backup);
           }
         } catch (error) {
-          console.error('检查备份文件失�?', error);
+          console.error('检查备份文件失败:', error);
         }
       }
 
@@ -73,7 +73,7 @@ const BackupRestoreScreen = ({ navigation }) => {
     }
   };
 
-  // 请求存储权限（仅Android�?
+  // 请求存储权限（仅Android需要）
   const requestStoragePermission = async () => {
     if (Platform.OS !== 'android') return true;
 
@@ -101,7 +101,7 @@ const BackupRestoreScreen = ({ navigation }) => {
     // 请求存储权限
     const hasPermission = await requestStoragePermission();
     if (!hasPermission) {
-      Alert.alert('权限被拒�?, '无法创建备份，因为存储权限被拒绝');
+      Alert.alert('权限被拒绝', '无法创建备份，因为存储权限被拒绝');
       return;
     }
 
@@ -110,7 +110,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       // 获取所有存储键
       const keys = await AsyncStorage.getAllKeys();
 
-      // 过滤需要备份的�?
+      // 过滤需要备份的键
       const keysToBackup = keys.filter(key =>
         key.startsWith('notes_') ||
         key.startsWith('tags_') ||
@@ -119,7 +119,7 @@ const BackupRestoreScreen = ({ navigation }) => {
         key === STORAGE_KEYS.SETTINGS
       );
 
-      // 获取所有数�?
+      // 获取所有数据
       const data = {};
       for (const key of keysToBackup) {
         const value = await AsyncStorage.getItem(key);
@@ -128,7 +128,7 @@ const BackupRestoreScreen = ({ navigation }) => {
         }
       }
 
-      // 创建备份文件�?
+      // 创建备份文件名
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `zeroislenotes_backup_${timestamp}.json`;
 
@@ -222,7 +222,7 @@ const BackupRestoreScreen = ({ navigation }) => {
               await offlineStorageService.clearOfflineData();
 
               // 显示成功提示
-              Alert.alert('恢复成功', '备份已成功恢复，应用将重新启�?);
+              Alert.alert('恢复成功', '备份已成功恢复，应用将重新启动');
 
               // 记录分析事件
               analyticsService.trackEvent('backup_restored', {
@@ -230,7 +230,7 @@ const BackupRestoreScreen = ({ navigation }) => {
                 backup_timestamp: backup.timestamp,
               });
 
-              // 重启应用（实际应用中可能需要使用特定的重启机制�?
+              // 重启应用（实际应用中可能需要使用特定的重启机制）
               // 这里简单地返回到主屏幕
               navigation.reset({
                 index: 0,
@@ -262,7 +262,7 @@ const BackupRestoreScreen = ({ navigation }) => {
 
       // 验证文件类型
       if (!file.name.endsWith('.json')) {
-        Alert.alert('错误', '请选择有效的备份文�?(.json)');
+        Alert.alert('错误', '请选择有效的备份文件 (.json)');
         return;
       }
 
@@ -275,15 +275,15 @@ const BackupRestoreScreen = ({ navigation }) => {
       try {
         const backupData = JSON.parse(content);
         if (!backupData.version || !backupData.timestamp || !backupData.data) {
-          throw new Error('无效的备份文件格�?);
+          throw new Error('无效的备份文件格式');
         }
       } catch (error) {
-        Alert.alert('错误', '无效的备份文件格�?);
+        Alert.alert('错误', '无效的备份文件格式');
         setIsLoading(false);
         return;
       }
 
-      // 复制文件到备份目�?
+      // 复制文件到备份目录
       const backupDir = Platform.OS === 'android'
         ? `${RNFS.ExternalDirectoryPath}/backups`
         : `${RNFS.DocumentDirectoryPath}/backups`;
@@ -316,7 +316,7 @@ const BackupRestoreScreen = ({ navigation }) => {
       await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
 
       // 显示成功提示
-      Alert.alert('导入成功', '备份文件已成功导�?);
+      Alert.alert('导入成功', '备份文件已成功导入');
 
       // 记录分析事件
       analyticsService.trackEvent('backup_imported', {
@@ -343,7 +343,7 @@ const BackupRestoreScreen = ({ navigation }) => {
   const deleteBackup = async (backup) => {
     Alert.alert(
       '删除备份',
-      '确定要删除此备份吗？此操作无法撤销�?,
+      '确定要删除此备份吗？此操作无法撤销。',
       [
         {
           text: '取消',
@@ -389,23 +389,23 @@ const BackupRestoreScreen = ({ navigation }) => {
   const exportBackup = async (backup) => {
     // 这里可以实现导出备份到其他应用的功能
     // 例如使用Share API或DocumentPicker
-    Alert.alert('导出备份', '此功能尚未实�?);
+    Alert.alert('导出备份', '此功能尚未实现');
   };
 
-  // 格式化文件大�?
+  // 格式化文件大小
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // 格式化日�?
+  // 格式化日期
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
 
-  // 渲染备份�?
+  // 渲染备份项
   const renderBackupItem = (backup) => (
     <View
       key={backup.id}
@@ -420,7 +420,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             bold
             style={styles.backupName}
           >
-            {backup.imported ? '导入的备�? : '本地备份'}
+            {backup.imported ? '导入的备份' : '本地备份'}
           </Text>
         </View>
 
@@ -428,7 +428,7 @@ const BackupRestoreScreen = ({ navigation }) => {
           variant="caption"
           color="hint"
         >
-          创建�? {formatDate(backup.timestamp)}
+          创建时间: {formatDate(backup.timestamp)}
         </Text>
 
         <Text
@@ -509,7 +509,7 @@ const BackupRestoreScreen = ({ navigation }) => {
                 color="hint"
                 style={styles.loadingText}
               >
-                加载备份�?..
+                加载备份中..
               </Text>
             </View>
           ) : backups.length === 0 ? (
@@ -527,7 +527,7 @@ const BackupRestoreScreen = ({ navigation }) => {
                 variant="caption"
                 color="hint"
               >
-                点击"创建备份"按钮创建您的第一个备�?
+                点击"创建备份"按钮创建您的第一个备份
               </Text>
             </View>
           ) : (
@@ -552,7 +552,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             color="hint"
             style={styles.infoText}
           >
-            备份包含您的笔记、标签、分类和应用设置。备份不包含账户信息和云端同步数据�?
+            备份包含您的笔记、标签、分类和应用设置。备份不包含账户信息和云端同步数据。
           </Text>
 
           <Text
@@ -561,7 +561,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             color="hint"
             style={styles.infoText}
           >
-            建议定期创建备份，以防数据丢失。您可以将备份导出到其他应用或云存储服务进行额外保护�?
+            建议定期创建备份，以防数据丢失。您可以将备份导出到其他应用或云存储服务进行额外保护。
           </Text>
 
           <Text
@@ -570,7 +570,7 @@ const BackupRestoreScreen = ({ navigation }) => {
             color="hint"
             style={styles.infoText}
           >
-            恢复备份将覆盖当前的所有数据，此操作无法撤销�?
+            恢复备份将覆盖当前的所有数据，此操作无法撤销。请谨慎操作。
           </Text>
         </View>
       </ScrollView>

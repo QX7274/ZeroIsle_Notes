@@ -47,6 +47,7 @@ export const COLORS = {
   // 添加默认的文本和边框颜色
   TEXT_PRIMARY: '#000000', // 默认使用亮模式文本色
   TEXT_SECONDARY: '#8E8E93', // 默认使用亮模式次要文本色
+  TEXT_TERTIARY: '#C7C7CC', // 第三级文本颜色，更浅
   BORDER: '#E5E5EA', // 默认使用亮模式边框色
   DIVIDER: '#C7C7CC', // 默认使用亮模式分隔线色
   SURFACE: '#FFFFFF', // 默认使用亮模式表面色
@@ -66,6 +67,8 @@ export const getThemeColor = (colorKey, isDarkMode) => {
       return isDarkMode ? COLORS.TEXT_PRIMARY_DARK : COLORS.TEXT_PRIMARY_LIGHT;
     case 'TEXT_SECONDARY':
       return isDarkMode ? COLORS.TEXT_SECONDARY_DARK : COLORS.TEXT_SECONDARY_LIGHT;
+    case 'TEXT_TERTIARY':
+      return isDarkMode ? COLORS.TEXT_SECONDARY_DARK : COLORS.TEXT_TERTIARY;
     case 'BORDER':
       return isDarkMode ? COLORS.BORDER_DARK : COLORS.BORDER_LIGHT;
     case 'DIVIDER':
@@ -82,6 +85,7 @@ export const updateThemeColors = (isDarkMode) => {
   // 更新文本色
   COLORS.TEXT_PRIMARY = isDarkMode ? COLORS.TEXT_PRIMARY_DARK : COLORS.TEXT_PRIMARY_LIGHT;
   COLORS.TEXT_SECONDARY = isDarkMode ? COLORS.TEXT_SECONDARY_DARK : COLORS.TEXT_SECONDARY_LIGHT;
+  COLORS.TEXT_TERTIARY = isDarkMode ? COLORS.TEXT_SECONDARY_DARK : COLORS.TEXT_TERTIARY;
   // 更新边框色
   COLORS.BORDER = isDarkMode ? COLORS.BORDER_DARK : COLORS.BORDER_LIGHT;
   COLORS.DIVIDER = isDarkMode ? COLORS.DIVIDER_DARK : COLORS.DIVIDER_LIGHT;

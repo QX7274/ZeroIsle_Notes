@@ -133,12 +133,12 @@ const styles = StyleSheet.create({
     padding: SPACING.MEDIUM,
     marginBottom: SPACING.MEDIUM,
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: COLORS.TEXT_PRIMARY,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: 'rgba(0,0,0,0.03)', // 轻微的边框颜色
   },
   groupHeader: {
     flexDirection: 'row',
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   memberCount: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: 'rgba(0,0,0,0.03)', // 轻微的背景色
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: SPACING.SMALL,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: 'rgba(0,0,0,0.05)', // 轻微的边框颜色
   },
   createdAt: {
     fontSize: 12,

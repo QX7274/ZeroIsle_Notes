@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button, Card } from '../../components/common';
 import { SPACING } from '../../utils/constants/dimensions';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
+import { CommunitySearchBar } from '../../components/search';
 
 /**
  * 社区屏幕组件
@@ -243,13 +244,16 @@ const CommunityScreen = ({ navigation }) => {
           >
             <Icon name="code" size={24} color={theme.text} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => navigation.navigate('CommunitySearch')}
-          >
-            <Icon name="search" size={24} color={theme.text} />
-          </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <CommunitySearchBar onSearch={(results) => {
+          // 处理搜索结果
+          if (results && results.length > 0) {
+            navigation.navigate('CommunitySearch', { results });
+          }
+        }} />
       </View>
 
       <View style={styles.categoriesContainer}>
@@ -361,6 +365,10 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.02)',
+  },
+  searchContainer: {
+    paddingHorizontal: SPACING.MEDIUM,
+    marginVertical: SPACING.SMALL,
   },
   categoriesContainer: {
     paddingHorizontal: SPACING.MEDIUM,

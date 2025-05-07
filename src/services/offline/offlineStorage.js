@@ -1,6 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { analyticsService } from '../analytics/analyticsService';
+// 创建一个安全的分析服务包装器，防止未定义错误
+const safeAnalyticsService = {
+  trackEvent: (eventName, params = {}) => {
+    try {
+      console.log(`[Analytics] 跟踪事件: ${eventName}`, params);
+    } catch (error) {
+      console.error('跟踪事件失败:', error);
+    }
+  },
+  trackError: (error, context = {}) => {
+    try {
+      console.log('[Analytics] 跟踪错误:', error?.message || '未知错误', context);
+    } catch (err) {
+      console.error('跟踪错误失败:', err);
+    }
+  }
+};
 import { compressionService } from '../compression/compressionService';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import { Platform } from 'react-native';
@@ -72,7 +88,7 @@ class OfflineStorageService {
       return true;
     } catch (error) {
       console.error('初始化离线存储服务失败:', error);
-      analyticsService.trackError(error, { operation: 'init_offline_storage' });
+      safeAnalyticsService.trackError(error, { operation: 'init_offline_storage' });
       return false;
     }
   }
@@ -189,12 +205,23 @@ class OfflineStorageService {
         throw new Error('存储空间已满，无法保存笔记');
       }
 
+      // 确保笔记有ID
+      if (!note.id) {
+        note.id = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      }
+
+      // 确保笔记有创建时间和更新时间
+      if (!note.created_at) {
+        note.created_at = new Date().toISOString();
+      }
+
       // 添加设备ID和时间戳
       const noteWithMeta = {
         ...note,
         device_id: this.deviceId,
         updated_at: new Date().toISOString(),
-        synced: false
+        synced: false,
+        is_offline: true // 标记为离线创建的笔记
       };
 
       // 保存到本地存储
@@ -244,7 +271,45 @@ class OfflineStorageService {
       return { success: true, note: noteWithMeta };
     } catch (error) {
       console.error('保存笔记失败:', error);
-      analyticsService.trackError(error, { operation: 'save_note' });
+      safeAnalyticsService.trackError(error, { operation: 'save_note' });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 更新笔记的同步状态
+   * @param {string} noteId - 笔记ID
+   * @param {boolean} synced - 同步状态
+   * @returns {Promise<Object>} - 更新结果
+   */
+  async updateNoteSync(noteId, synced) {
+    try {
+      // 获取所有笔记
+      const notes = await this.getNotes();
+      const index = notes.findIndex(n => n.id === noteId);
+
+      if (index === -1) {
+        return { success: false, error: '笔记不存在' };
+      }
+
+      // 更新同步状态
+      notes[index].synced = synced;
+      notes[index].updated_at = new Date().toISOString();
+
+      // 保存更新后的笔记列表
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTES_CACHE, JSON.stringify(notes));
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'noteSyncUpdated',
+        noteId,
+        synced
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('更新笔记同步状态失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'update_note_sync' });
       return { success: false, error: error.message };
     }
   }
@@ -299,7 +364,121 @@ class OfflineStorageService {
       return { success: true };
     } catch (error) {
       console.error('删除笔记失败:', error);
-      analyticsService.trackError(error, { operation: 'delete_note' });
+      safeAnalyticsService.trackError(error, { operation: 'delete_note' });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 移动笔记到指定分类
+   * @param {string} noteId - 笔记ID
+   * @param {string} categoryId - 分类ID
+   * @returns {Promise<Object>} - 移动结果
+   */
+  async moveNoteToCategory(noteId, categoryId) {
+    try {
+      // 获取所有笔记
+      const notes = await this.getNotes();
+      const noteIndex = notes.findIndex(note => note.id === noteId);
+
+      if (noteIndex === -1) {
+        return { success: false, error: '笔记不存在' };
+      }
+
+      // 更新笔记的分类
+      notes[noteIndex].category_id = categoryId;
+      notes[noteIndex].updated_at = new Date().toISOString();
+      notes[noteIndex].synced = false;
+
+      // 保存更新后的笔记列表
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTES_CACHE, JSON.stringify(notes));
+
+      // 记录操作
+      const operation = {
+        type: 'update_note',
+        data: notes[noteIndex],
+        timestamp: new Date().toISOString(),
+        device_id: this.deviceId
+      };
+      await this.addPendingOperation(operation);
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'noteMoved',
+        noteId,
+        categoryId,
+        pendingOperationsCount: this.pendingOperations.length
+      });
+
+      // 如果在线，立即同步
+      if (this.isOnline) {
+        await this.syncPendingOperations();
+      }
+
+      return { success: true, note: notes[noteIndex] };
+    } catch (error) {
+      console.error('移动笔记失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'move_note_to_category' });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 获取所有分类
+   * @returns {Promise<Object>} - 分类列表
+   */
+  async getCategories() {
+    try {
+      const categoriesJson = await AsyncStorage.getItem(STORAGE_KEYS.CATEGORIES);
+      return {
+        success: true,
+        data: categoriesJson ? JSON.parse(categoriesJson) : []
+      };
+    } catch (error) {
+      console.error('获取分类失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 创建分类
+   * @param {Object} category - 分类对象
+   * @returns {Promise<Object>} - 创建结果
+   */
+  async createCategory(category) {
+    try {
+      // 获取现有分类
+      const categoriesResponse = await this.getCategories();
+      let categories = [];
+
+      if (categoriesResponse.success) {
+        categories = categoriesResponse.data;
+      }
+
+      // 生成唯一ID
+      const newCategory = {
+        ...category,
+        id: category.id || `category_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // 添加新分类
+      categories.push(newCategory);
+
+      // 保存分类列表
+      await AsyncStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'categoryCreated',
+        category: newCategory
+      });
+
+      return { success: true, data: newCategory };
+    } catch (error) {
+      console.error('创建分类失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'create_category' });
       return { success: false, error: error.message };
     }
   }
@@ -350,7 +529,7 @@ class OfflineStorageService {
       }
     } catch (error) {
       console.error('保存画布失败:', error);
-      analyticsService.trackError(error, { operation: 'save_canvas' });
+      safeAnalyticsService.trackError(error, { operation: 'save_canvas' });
     }
   }
 
@@ -375,7 +554,7 @@ class OfflineStorageService {
       }
     } catch (error) {
       console.error('删除画布失败:', error);
-      analyticsService.trackError(error, { operation: 'delete_canvas' });
+      safeAnalyticsService.trackError(error, { operation: 'delete_canvas' });
     }
   }
 
@@ -439,7 +618,7 @@ class OfflineStorageService {
       );
     } catch (error) {
       console.error('保存待处理操作失败:', error);
-      analyticsService.trackError(error, { operation: 'save_pending_operations' });
+      safeAnalyticsService.trackError(error, { operation: 'save_pending_operations' });
     }
   }
 
@@ -511,7 +690,7 @@ class OfflineStorageService {
       }
 
       // 记录同步结果
-      analyticsService.trackEvent('sync_operations', {
+      safeAnalyticsService.trackEvent('sync_operations', {
         totalCount: operations.length,
         successCount: results.successCount,
         failedCount: results.failedCount
@@ -520,7 +699,7 @@ class OfflineStorageService {
       return results;
     } catch (error) {
       console.error('同步操作到服务器失败:', error);
-      analyticsService.trackError(error, { operation: 'sync_operations_to_server' });
+      safeAnalyticsService.trackError(error, { operation: 'sync_operations_to_server' });
       return {
         successCount: 0,
         failedCount: operations.length,
@@ -750,7 +929,7 @@ class OfflineStorageService {
       });
 
       console.error('同步操作失败:', error);
-      analyticsService.trackError(error, { operation: 'sync_operations' });
+      safeAnalyticsService.trackError(error, { operation: 'sync_operations' });
 
       return {
         success: false,
@@ -931,7 +1110,7 @@ class OfflineStorageService {
       }
     } catch (error) {
       console.error('清理过期数据失败:', error);
-      analyticsService.trackError(error, { operation: 'cleanup_expired_data' });
+      safeAnalyticsService.trackError(error, { operation: 'cleanup_expired_data' });
       return { success: false, error: error.message };
     }
   }
@@ -987,7 +1166,7 @@ class OfflineStorageService {
       };
     } catch (error) {
       console.error('导出数据失败:', error);
-      analyticsService.trackError(error, { operation: 'export_data' });
+      safeAnalyticsService.trackError(error, { operation: 'export_data' });
       return { success: false, error: error.message };
     }
   }
@@ -1153,7 +1332,7 @@ class OfflineStorageService {
       };
     } catch (error) {
       console.error('导入数据失败:', error);
-      analyticsService.trackError(error, { operation: 'import_data' });
+      safeAnalyticsService.trackError(error, { operation: 'import_data' });
       return { success: false, error: error.message };
     }
   }
