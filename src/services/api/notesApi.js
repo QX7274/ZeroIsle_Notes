@@ -7,6 +7,7 @@ import { offlineStorageService } from '../offline/offlineStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import NetInfo from '@react-native-community/netinfo';
+import { dataService } from '../database';
 
 // 使用导入的离线存储服务
 
@@ -17,51 +18,31 @@ import NetInfo from '@react-native-community/netinfo';
  */
 export const createNote = async (note) => {
   try {
-    // 生成临时ID
-    const tempId = 'temp_' + Date.now();
+    // 确保数据服务已初始化
+    await dataService.init();
 
-    // 创建本地笔记对象
-    const localNote = {
-      ...note,
-      id: tempId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      is_synced: false
-    };
+    // 使用数据服务创建笔记
+    const createdNote = await dataService.createNote(note);
 
-    // 优先保存到本地存储
-    const saveResult = await offlineStorageService.saveNote(localNote);
-
-    if (!saveResult.success) {
-      throw new Error(saveResult.error || '保存本地笔记失败');
+    // 同时保存到旧的离线存储，以保持兼容性
+    try {
+      const localNote = {
+        ...createdNote,
+        is_synced: false
+      };
+      await offlineStorageService.saveNote(localNote);
+    } catch (offlineError) {
+      console.log('保存到旧的离线存储失败，但SQLite保存成功', offlineError);
     }
 
-    // 检查网络状态
-    const status = offlineStorageService.getStatus();
-
-    // 如果在线，尝试联网创建笔记（但不影响本地创建的结果）
-    if (status.isOnline) {
-      try {
-        // 异步发送到服务器，不等待结果
-        instance.post(API_ENDPOINTS.NOTES.BASE, note).then(response => {
-          console.log('网络创建笔记成功:', response.data);
-          // 更新本地笔记的同步状态
-          offlineStorageService.updateNoteSync(tempId, true);
-        }).catch(networkError => {
-          console.log('网络创建笔记失败，但本地保存成功', networkError);
-        });
-      } catch (networkError) {
-        console.log('网络创建笔记失败，但本地保存成功', networkError);
-      }
-    }
-
-    // 返回本地创建的结果
+    // 返回创建的结果
     return {
       success: true,
-      data: saveResult.note,
+      data: createdNote,
       isOffline: true
     };
   } catch (error) {
+    console.error('创建笔记失败:', error);
     return {
       success: false,
       message: error.message || '创建笔记失败',
@@ -78,12 +59,29 @@ export const createNote = async (note) => {
  */
 export const updateNote = async (id, note) => {
   try {
-    const response = await instance.put(API_ENDPOINTS.NOTES.DETAIL(id), note);
+    // 确保数据服务已初始化
+    await dataService.init();
+
+    // 使用数据服务更新笔记
+    const updatedNote = await dataService.updateNote(id, note);
+
+    // 同时更新旧的离线存储，以保持兼容性
+    try {
+      const localNote = {
+        ...updatedNote,
+        is_synced: false
+      };
+      await offlineStorageService.updateNote(id, localNote);
+    } catch (offlineError) {
+      console.log('更新旧的离线存储失败，但SQLite更新成功', offlineError);
+    }
+
     return {
       success: true,
-      data: response.data
+      data: updatedNote
     };
   } catch (error) {
+    console.error('更新笔记失败:', error);
     return {
       success: false,
       message: error.message || '更新笔记失败',
@@ -99,11 +97,24 @@ export const updateNote = async (id, note) => {
  */
 export const deleteNote = async (id) => {
   try {
-    await instance.delete(API_ENDPOINTS.NOTES.DETAIL(id));
+    // 确保数据服务已初始化
+    await dataService.init();
+
+    // 使用数据服务删除笔记（软删除）
+    await dataService.deleteNote(id);
+
+    // 同时从旧的离线存储中删除，以保持兼容性
+    try {
+      await offlineStorageService.deleteNote(id);
+    } catch (offlineError) {
+      console.log('从旧的离线存储删除失败，但SQLite删除成功', offlineError);
+    }
+
     return {
       success: true
     };
   } catch (error) {
+    console.error('删除笔记失败:', error);
     return {
       success: false,
       message: error.message || '删除笔记失败',
@@ -119,62 +130,52 @@ export const deleteNote = async (id) => {
  */
 export const getAllNotes = async (params = {}) => {
   try {
+    // 确保数据服务已初始化
+    await dataService.init();
+
     // 检查网络状态
     const networkStatus = await NetInfo.fetch();
-    const isOffline = !networkStatus.isConnected;
+    const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
 
-    if (isOffline) {
-      console.log('离线模式：从本地存储获取笔记');
-      // 离线模式：从本地存储获取笔记
-      return await getOfflineNotes();
-    }
+    // 从SQLite获取笔记
+    const notes = await dataService.getNotes(params);
+    console.log(`从SQLite获取到${notes.length}条笔记`);
 
-    // 确保 API_ENDPOINTS 已正确导入
-    if (!API_ENDPOINTS || !API_ENDPOINTS.NOTES || !API_ENDPOINTS.NOTES.BASE) {
-      console.error('API_ENDPOINTS.NOTES.BASE 未定义');
-      throw new Error('API配置错误');
-    }
-
-    // 在线模式：从服务器获取笔记
-    console.log('在线模式：从服务器获取笔记');
-    const response = await instance.get(API_ENDPOINTS.NOTES.BASE, { params });
-
-    // 将在线笔记保存到本地存储
-    if (response && response.data) {
+    // 如果在线，尝试从服务器获取最新数据并同步
+    if (isOnline) {
       try {
-        // 获取当前离线笔记
-        const offlineNotes = await offlineStorageService.getNotes();
-
-        // 合并在线笔记和离线笔记
-        const mergedNotes = [...response.data];
-
-        // 保存合并后的笔记到本地存储
-        for (const note of mergedNotes) {
-          if (!offlineNotes.find(n => n.id === note.id)) {
-            await offlineStorageService.saveNote({
-              ...note,
-              synced: true
-            });
+        console.log('在线模式：尝试从服务器获取最新笔记');
+        // 异步从服务器获取数据，不等待结果
+        instance.get(API_ENDPOINTS.NOTES.BASE, { params }).then(async response => {
+          if (response && response.data) {
+            console.log(`从服务器获取到${response.data.length}条笔记`);
+            // 触发同步服务进行数据同步
+            await dataService.syncNotes(response.data);
           }
-        }
-      } catch (err) {
-        console.error('保存在线笔记到本地存储失败:', err);
+        }).catch(networkError => {
+          console.log('从服务器获取笔记失败，使用本地数据', networkError);
+        });
+      } catch (networkError) {
+        console.log('从服务器获取笔记失败，使用本地数据', networkError);
       }
+    } else {
+      console.log('离线模式：仅使用本地SQLite数据');
     }
 
     return {
       success: true,
-      data: response.data
+      data: notes,
+      isOffline: !isOnline
     };
   } catch (error) {
     console.error('获取笔记列表失败:', error);
 
-    // 网络错误时尝试从本地存储获取
+    // 尝试从旧的离线存储获取
     try {
-      console.log('网络错误，尝试从本地存储获取笔记');
+      console.log('SQLite获取失败，尝试从旧的离线存储获取笔记');
       return await getOfflineNotes();
     } catch (offlineError) {
-      console.error('从本地存储获取笔记失败:', offlineError);
+      console.error('从旧的离线存储获取笔记也失败:', offlineError);
       return {
         success: false,
         message: error.message || '获取笔记列表失败',
@@ -191,17 +192,55 @@ export const getAllNotes = async (params = {}) => {
  */
 export const getNoteById = async (id) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.NOTES.DETAIL(id));
+    // 确保数据服务已初始化
+    await dataService.init();
+
+    // 从SQLite获取笔记详情
+    const note = await dataService.getNote(id);
+
+    // 检查网络状态
+    const networkStatus = await NetInfo.fetch();
+    const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+
+    // 如果在线，尝试从服务器获取最新数据
+    if (isOnline) {
+      try {
+        // 异步从服务器获取数据，不等待结果
+        instance.get(API_ENDPOINTS.NOTES.DETAIL(id)).then(async response => {
+          if (response && response.data) {
+            // 更新本地数据
+            await dataService.updateNote(id, response.data);
+          }
+        }).catch(networkError => {
+          console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
+        });
+      } catch (networkError) {
+        console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
+      }
+    }
+
     return {
       success: true,
-      data: response.data
+      data: note,
+      isOffline: !isOnline
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取笔记详情失败',
-      error
-    };
+    console.error('获取笔记详情失败:', error);
+
+    // 尝试从服务器获取
+    try {
+      const response = await instance.get(API_ENDPOINTS.NOTES.DETAIL(id));
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (serverError) {
+      return {
+        success: false,
+        message: error.message || '获取笔记详情失败',
+        error
+      };
+    }
   }
 };
 

@@ -1,0 +1,1007 @@
+/**
+ * 数据存储服务
+ * 提供各种数据模型的CRUD操作
+ */
+import uuid from 'react-native-uuid';
+import sqliteService, { TABLES } from './sqliteService';
+import syncService from './syncService';
+import NetInfo from '@react-native-community/netinfo';
+import { apiService } from '../api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/**
+ * 数据存储服务
+ */
+class DataService {
+  constructor() {
+    this.isInitialized = false;
+    this.currentUser = null;
+  }
+
+  /**
+   * 初始化数据服务
+   * @returns {Promise<void>}
+   */
+  async init() {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      // 初始化SQLite服务
+      await sqliteService.init();
+
+      // 初始化同步服务
+      await syncService.init();
+
+      this.isInitialized = true;
+      console.log('数据服务初始化成功');
+    } catch (error) {
+      console.error('数据服务初始化失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 设置当前用户
+   * @param {object} user - 用户对象
+   */
+  setCurrentUser(user) {
+    this.currentUser = user;
+
+    // 记录当前活跃用户
+    if (user && user.id) {
+      this.saveActiveUser(user.id);
+    }
+  }
+
+  /**
+   * 保存活跃用户ID
+   * @param {string} userId - 用户ID
+   */
+  async saveActiveUser(userId) {
+    try {
+      await AsyncStorage.setItem('active_user_id', userId);
+    } catch (error) {
+      console.error('保存活跃用户ID失败:', error);
+    }
+  }
+
+  /**
+   * 获取活跃用户ID
+   * @returns {Promise<string>} 用户ID
+   */
+  async getActiveUserId() {
+    try {
+      return await AsyncStorage.getItem('active_user_id');
+    } catch (error) {
+      console.error('获取活跃用户ID失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取当前用户ID
+   * @returns {string} 用户ID
+   */
+  getCurrentUserId() {
+    return this.currentUser?.id;
+  }
+
+  /**
+   * 检查网络连接
+   * @returns {Promise<boolean>} 是否连接
+   */
+  async isConnected() {
+    const netInfo = await NetInfo.fetch();
+    return netInfo.isConnected && netInfo.isInternetReachable;
+  }
+
+  /**
+   * 创建用户
+   * @param {object} userData - 用户数据
+   * @returns {Promise<object>} 创建的用户
+   */
+  async createUser(userData) {
+    try {
+      await this.init();
+
+      const now = new Date().toISOString();
+      const userId = userData.id || uuid.v4();
+
+      const user = {
+        id: userId,
+        username: userData.username,
+        email: userData.email || null,
+        phone: userData.phone || null,
+        password: userData.password || null,
+        first_name: userData.first_name || '',
+        last_name: userData.last_name || '',
+        nickname: userData.nickname || '',
+        avatar: userData.avatar || null,
+        bio: userData.bio || '',
+        is_active: userData.is_active || 1,
+        is_staff: userData.is_staff || 0,
+        date_joined: userData.date_joined || now,
+        last_login: userData.last_login || now,
+        wechat_openid: userData.wechat_openid || null,
+        wechat_unionid: userData.wechat_unionid || null,
+        wechat_avatar: userData.wechat_avatar || null,
+        qq_openid: userData.qq_openid || null,
+        qq_avatar: userData.qq_avatar || null,
+        preferences: JSON.stringify(userData.preferences || {}),
+        created_at: now,
+        updated_at: now,
+        is_synced: 0
+      };
+
+      // 保存到本地数据库
+      const columns = Object.keys(user);
+      const placeholders = columns.map(() => '?').join(', ');
+      const values = columns.map(col => user[col]);
+
+      await sqliteService.executeSql(
+        `INSERT INTO ${TABLES.USERS} (${columns.join(', ')}) VALUES (${placeholders})`,
+        values
+      );
+
+      // 尝试同步到服务器
+      const isConnected = await this.isConnected();
+      if (isConnected) {
+        try {
+          // 直接调用API创建用户
+          const response = await apiService.post('/users', userData);
+
+          // 更新本地记录为已同步
+          await sqliteService.executeSql(
+            `UPDATE ${TABLES.USERS} SET is_synced = 1 WHERE id = ?`,
+            [userId]
+          );
+
+          return response.data;
+        } catch (error) {
+          console.error('同步用户到服务器失败:', error);
+          // 添加到离线队列
+          await syncService.addOfflineOperation('insert', TABLES.USERS, userId, user);
+        }
+      } else {
+        // 添加到离线队列
+        await syncService.addOfflineOperation('insert', TABLES.USERS, userId, user);
+      }
+
+      // 返回本地创建的用户
+      return { ...user, preferences: JSON.parse(user.preferences) };
+    } catch (error) {
+      console.error('创建用户失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取用户
+   * @param {string} userId - 用户ID
+   * @returns {Promise<object>} 用户对象
+   */
+  async getUser(userId) {
+    try {
+      await this.init();
+
+      // 从本地数据库获取
+      const result = await sqliteService.executeSql(
+        `SELECT * FROM ${TABLES.USERS} WHERE id = ?`,
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error(`找不到用户: ${userId}`);
+      }
+
+      const user = result.rows.item(0);
+
+      // 解析JSON字段
+      return {
+        ...user,
+        preferences: JSON.parse(user.preferences || '{}')
+      };
+    } catch (error) {
+      console.error(`获取用户失败 (ID: ${userId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 更新用户
+   * @param {string} userId - 用户ID
+   * @param {object} userData - 用户数据
+   * @returns {Promise<object>} 更新后的用户
+   */
+  async updateUser(userId, userData) {
+    try {
+      await this.init();
+
+      // 检查用户是否存在
+      const existingUser = await this.getUser(userId);
+      if (!existingUser) {
+        throw new Error(`找不到用户: ${userId}`);
+      }
+
+      const now = new Date().toISOString();
+
+      // 准备更新数据
+      const updateData = { ...userData, updated_at: now, is_synced: 0 };
+
+      // 处理JSON字段
+      if (updateData.preferences) {
+        updateData.preferences = JSON.stringify(updateData.preferences);
+      }
+
+      // 构建更新语句
+      const columns = Object.keys(updateData);
+      const setClause = columns.map(col => `${col} = ?`).join(', ');
+      const values = [...columns.map(col => updateData[col]), userId];
+
+      // 更新本地数据库
+      await sqliteService.executeSql(
+        `UPDATE ${TABLES.USERS} SET ${setClause} WHERE id = ?`,
+        values
+      );
+
+      // 尝试同步到服务器
+      const isConnected = await this.isConnected();
+      if (isConnected) {
+        try {
+          // 直接调用API更新用户
+          const response = await apiService.put(`/users/${userId}`, userData);
+
+          // 更新本地记录为已同步
+          await sqliteService.executeSql(
+            `UPDATE ${TABLES.USERS} SET is_synced = 1 WHERE id = ?`,
+            [userId]
+          );
+
+          return response.data;
+        } catch (error) {
+          console.error('同步用户更新到服务器失败:', error);
+          // 添加到离线队列
+          await syncService.addOfflineOperation('update', TABLES.USERS, userId, updateData);
+        }
+      } else {
+        // 添加到离线队列
+        await syncService.addOfflineOperation('update', TABLES.USERS, userId, updateData);
+      }
+
+      // 返回更新后的用户
+      return await this.getUser(userId);
+    } catch (error) {
+      console.error(`更新用户失败 (ID: ${userId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建笔记
+   * @param {object} noteData - 笔记数据
+   * @returns {Promise<object>} 创建的笔记
+   */
+  async createNote(noteData) {
+    try {
+      await this.init();
+
+      const userId = this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('未设置当前用户');
+      }
+
+      const now = new Date().toISOString();
+      const noteId = noteData.id || uuid.v4();
+
+      const note = {
+        id: noteId,
+        user_id: userId,
+        title: noteData.title,
+        content: noteData.content || '',
+        category_id: noteData.category_id || null,
+        is_favorite: noteData.is_favorite || 0,
+        is_encrypted: noteData.is_encrypted || 0,
+        encryption_key: noteData.encryption_key || null,
+        is_public: noteData.is_public || 0,
+        is_deleted: noteData.is_deleted || 0,
+        created_at: now,
+        updated_at: now,
+        is_synced: 0
+      };
+
+      // 保存到本地数据库
+      const columns = Object.keys(note);
+      const placeholders = columns.map(() => '?').join(', ');
+      const values = columns.map(col => note[col]);
+
+      await sqliteService.executeSql(
+        `INSERT INTO ${TABLES.NOTES} (${columns.join(', ')}) VALUES (${placeholders})`,
+        values
+      );
+
+      // 处理标签
+      if (noteData.tags && Array.isArray(noteData.tags)) {
+        for (const tagId of noteData.tags) {
+          await sqliteService.executeSql(
+            `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, is_synced) VALUES (?, ?, ?, ?)`,
+            [noteId, tagId, now, 0]
+          );
+        }
+      }
+
+      // 尝试同步到服务器
+      const isConnected = await this.isConnected();
+      if (isConnected) {
+        try {
+          // 直接调用API创建笔记
+          const response = await apiService.post('/notes', {
+            ...noteData,
+            id: noteId,
+            user_id: userId
+          });
+
+          // 更新本地记录为已同步
+          await sqliteService.executeSql(
+            `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
+            [noteId]
+          );
+
+          // 更新标签关联为已同步
+          if (noteData.tags && Array.isArray(noteData.tags)) {
+            await sqliteService.executeSql(
+              `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
+              [noteId]
+            );
+          }
+
+          return response.data;
+        } catch (error) {
+          console.error('同步笔记到服务器失败:', error);
+          // 添加到离线队列
+          await syncService.addOfflineOperation('insert', TABLES.NOTES, noteId, note);
+        }
+      } else {
+        // 添加到离线队列
+        await syncService.addOfflineOperation('insert', TABLES.NOTES, noteId, note);
+      }
+
+      // 返回本地创建的笔记
+      return note;
+    } catch (error) {
+      console.error('创建笔记失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取笔记
+   * @param {string} noteId - 笔记ID
+   * @returns {Promise<object>} 笔记对象
+   */
+  async getNote(noteId) {
+    try {
+      await this.init();
+
+      // 从本地数据库获取
+      const result = await sqliteService.executeSql(
+        `SELECT * FROM ${TABLES.NOTES} WHERE id = ?`,
+        [noteId]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error(`找不到笔记: ${noteId}`);
+      }
+
+      const note = result.rows.item(0);
+
+      // 获取标签
+      const tagsResult = await sqliteService.executeSql(
+        `SELECT tag_id FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
+        [noteId]
+      );
+
+      const tags = [];
+      for (let i = 0; i < tagsResult.rows.length; i++) {
+        tags.push(tagsResult.rows.item(i).tag_id);
+      }
+
+      return { ...note, tags };
+    } catch (error) {
+      console.error(`获取笔记失败 (ID: ${noteId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取用户的所有笔记
+   * @param {object} options - 查询选项
+   * @returns {Promise<Array>} 笔记列表
+   */
+  async getNotes(options = {}) {
+    try {
+      await this.init();
+
+      const userId = options.userId || this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('未设置用户ID');
+      }
+
+      // 构建查询条件
+      let query = `SELECT * FROM ${TABLES.NOTES} WHERE user_id = ? AND is_deleted = 0`;
+      const params = [userId];
+
+      if (options.categoryId) {
+        query += ' AND category_id = ?';
+        params.push(options.categoryId);
+      }
+
+      if (options.isFavorite) {
+        query += ' AND is_favorite = 1';
+      }
+
+      // 排序
+      query += ' ORDER BY updated_at DESC';
+
+      // 分页
+      if (options.limit) {
+        query += ' LIMIT ?';
+        params.push(options.limit);
+
+        if (options.offset) {
+          query += ' OFFSET ?';
+          params.push(options.offset);
+        }
+      }
+
+      // 执行查询
+      const result = await sqliteService.executeSql(query, params);
+
+      // 处理结果
+      const notes = [];
+      for (let i = 0; i < result.rows.length; i++) {
+        const note = result.rows.item(i);
+
+        // 获取标签
+        const tagsResult = await sqliteService.executeSql(
+          `SELECT tag_id FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
+          [note.id]
+        );
+
+        const tags = [];
+        for (let j = 0; j < tagsResult.rows.length; j++) {
+          tags.push(tagsResult.rows.item(j).tag_id);
+        }
+
+        notes.push({ ...note, tags });
+      }
+
+      return notes;
+    } catch (error) {
+      console.error('获取笔记列表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 更新笔记
+   * @param {string} noteId - 笔记ID
+   * @param {object} noteData - 笔记数据
+   * @returns {Promise<object>} 更新后的笔记
+   */
+  async updateNote(noteId, noteData) {
+    try {
+      await this.init();
+
+      // 检查笔记是否存在
+      const existingNote = await this.getNote(noteId);
+      if (!existingNote) {
+        throw new Error(`找不到笔记: ${noteId}`);
+      }
+
+      const now = new Date().toISOString();
+
+      // 准备更新数据
+      const updateData = { ...noteData, updated_at: now, is_synced: 0 };
+      delete updateData.id; // 不更新ID
+      delete updateData.user_id; // 不更新用户ID
+      delete updateData.created_at; // 不更新创建时间
+      delete updateData.tags; // 单独处理标签
+
+      // 构建更新语句
+      const columns = Object.keys(updateData);
+      const setClause = columns.map(col => `${col} = ?`).join(', ');
+      const values = [...columns.map(col => updateData[col]), noteId];
+
+      // 更新本地数据库
+      await sqliteService.executeSql(
+        `UPDATE ${TABLES.NOTES} SET ${setClause} WHERE id = ?`,
+        values
+      );
+
+      // 处理标签
+      if (noteData.tags && Array.isArray(noteData.tags)) {
+        // 删除现有标签关联
+        await sqliteService.executeSql(
+          `DELETE FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
+          [noteId]
+        );
+
+        // 添加新标签关联
+        for (const tagId of noteData.tags) {
+          await sqliteService.executeSql(
+            `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, is_synced) VALUES (?, ?, ?, ?)`,
+            [noteId, tagId, now, 0]
+          );
+        }
+      }
+
+      // 尝试同步到服务器
+      const isConnected = await this.isConnected();
+      if (isConnected) {
+        try {
+          // 直接调用API更新笔记
+          const response = await apiService.put(`/notes/${noteId}`, {
+            ...noteData,
+            id: noteId
+          });
+
+          // 更新本地记录为已同步
+          await sqliteService.executeSql(
+            `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
+            [noteId]
+          );
+
+          // 更新标签关联为已同步
+          if (noteData.tags && Array.isArray(noteData.tags)) {
+            await sqliteService.executeSql(
+              `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
+              [noteId]
+            );
+          }
+
+          return response.data;
+        } catch (error) {
+          console.error('同步笔记更新到服务器失败:', error);
+          // 添加到离线队列
+          await syncService.addOfflineOperation('update', TABLES.NOTES, noteId, {
+            ...updateData,
+            tags: noteData.tags
+          });
+        }
+      } else {
+        // 添加到离线队列
+        await syncService.addOfflineOperation('update', TABLES.NOTES, noteId, {
+          ...updateData,
+          tags: noteData.tags
+        });
+      }
+
+      // 返回更新后的笔记
+      return await this.getNote(noteId);
+    } catch (error) {
+      console.error(`更新笔记失败 (ID: ${noteId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除笔记（软删除）
+   * @param {string} noteId - 笔记ID
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async deleteNote(noteId) {
+    try {
+      await this.init();
+
+      const now = new Date().toISOString();
+
+      // 软删除（更新is_deleted标志）
+      await sqliteService.executeSql(
+        `UPDATE ${TABLES.NOTES} SET is_deleted = 1, updated_at = ?, is_synced = 0 WHERE id = ?`,
+        [now, noteId]
+      );
+
+      // 尝试同步到服务器
+      const isConnected = await this.isConnected();
+      if (isConnected) {
+        try {
+          // 直接调用API删除笔记
+          await apiService.delete(`/notes/${noteId}`);
+
+          // 更新本地记录为已同步
+          await sqliteService.executeSql(
+            `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
+            [noteId]
+          );
+        } catch (error) {
+          console.error('同步笔记删除到服务器失败:', error);
+          // 添加到离线队列
+          await syncService.addOfflineOperation('delete', TABLES.NOTES, noteId);
+        }
+      } else {
+        // 添加到离线队列
+        await syncService.addOfflineOperation('delete', TABLES.NOTES, noteId);
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`删除笔记失败 (ID: ${noteId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 切换用户
+   * @param {object} newUser - 新用户对象
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async switchUser(newUser) {
+    try {
+      await this.init();
+
+      // 设置当前用户
+      this.setCurrentUser(newUser);
+
+      // 预加载用户数据
+      await this.preloadUserData(newUser.id);
+
+      console.log(`已切换到用户: ${newUser.username} (${newUser.id})`);
+      return true;
+    } catch (error) {
+      console.error('切换用户失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 预加载用户数据
+   * @param {string} userId - 用户ID
+   * @returns {Promise<void>}
+   */
+  async preloadUserData(userId) {
+    try {
+      // 预加载常用数据以提高性能
+      const preloadPromises = [
+        this.getCategories({ userId }),
+        this.getTags({ userId }),
+        this.getSettings({ userId }),
+        // 可以添加其他需要预加载的数据
+      ];
+
+      await Promise.all(preloadPromises);
+      console.log(`用户 ${userId} 数据预加载完成`);
+    } catch (error) {
+      console.error(`预加载用户数据失败 (ID: ${userId}):`, error);
+      // 不抛出异常，因为这不是关键操作
+    }
+  }
+
+  /**
+   * 获取分类列表
+   * @param {object} options - 查询选项
+   * @returns {Promise<Array>} 分类列表
+   */
+  async getCategories(options = {}) {
+    try {
+      await this.init();
+
+      const userId = options.userId || this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('未设置用户ID');
+      }
+
+      // 构建查询条件
+      let query = `SELECT * FROM ${TABLES.CATEGORIES} WHERE user_id = ? AND is_deleted = 0`;
+      const params = [userId];
+
+      if (options.parentId) {
+        query += ' AND parent_id = ?';
+        params.push(options.parentId);
+      } else if (options.parentId === null) {
+        query += ' AND parent_id IS NULL';
+      }
+
+      // 排序
+      query += ' ORDER BY sort_order ASC, name ASC';
+
+      // 执行查询
+      const result = await sqliteService.executeSql(query, params);
+
+      // 处理结果
+      const categories = [];
+      for (let i = 0; i < result.rows.length; i++) {
+        categories.push(result.rows.item(i));
+      }
+
+      return categories;
+    } catch (error) {
+      console.error('获取分类列表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取标签列表
+   * @param {object} options - 查询选项
+   * @returns {Promise<Array>} 标签列表
+   */
+  async getTags(options = {}) {
+    try {
+      await this.init();
+
+      const userId = options.userId || this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('未设置用户ID');
+      }
+
+      // 构建查询条件
+      let query = `SELECT * FROM ${TABLES.TAGS} WHERE user_id = ?`;
+      const params = [userId];
+
+      if (options.search) {
+        query += ' AND name LIKE ?';
+        params.push(`%${options.search}%`);
+      }
+
+      // 排序
+      query += ' ORDER BY usage_count DESC, name ASC';
+
+      // 分页
+      if (options.limit) {
+        query += ' LIMIT ?';
+        params.push(options.limit);
+
+        if (options.offset) {
+          query += ' OFFSET ?';
+          params.push(options.offset);
+        }
+      }
+
+      // 执行查询
+      const result = await sqliteService.executeSql(query, params);
+
+      // 处理结果
+      const tags = [];
+      for (let i = 0; i < result.rows.length; i++) {
+        tags.push(result.rows.item(i));
+      }
+
+      return tags;
+    } catch (error) {
+      console.error('获取标签列表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取设置列表
+   * @param {object} options - 查询选项
+   * @returns {Promise<object>} 设置对象
+   */
+  async getSettings(options = {}) {
+    try {
+      await this.init();
+
+      const userId = options.userId || this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('未设置用户ID');
+      }
+
+      // 构建查询条件
+      let query = `SELECT * FROM ${TABLES.SETTINGS} WHERE user_id = ?`;
+      const params = [userId];
+
+      if (options.key) {
+        query += ' AND key = ?';
+        params.push(options.key);
+      }
+
+      // 执行查询
+      const result = await sqliteService.executeSql(query, params);
+
+      // 处理结果
+      const settings = {};
+      for (let i = 0; i < result.rows.length; i++) {
+        const setting = result.rows.item(i);
+        settings[setting.key] = setting.value;
+      }
+
+      return settings;
+    } catch (error) {
+      console.error('获取设置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 清理用户数据
+   * @param {string} userId - 用户ID
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async cleanUserData(userId) {
+    try {
+      await this.init();
+
+      // 开始事务
+      await sqliteService.executeSql('BEGIN TRANSACTION');
+
+      // 删除用户的所有数据
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.NOTES} WHERE user_id = ?`, [userId]);
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.CATEGORIES} WHERE user_id = ?`, [userId]);
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.TAGS} WHERE user_id = ?`, [userId]);
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.REMINDERS} WHERE user_id = ?`, [userId]);
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.SETTINGS} WHERE user_id = ?`, [userId]);
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.FILES} WHERE user_id = ?`, [userId]);
+
+      // 删除用户本身
+      await sqliteService.executeSql(`DELETE FROM ${TABLES.USERS} WHERE id = ?`, [userId]);
+
+      // 提交事务
+      await sqliteService.executeSql('COMMIT');
+
+      console.log(`用户 ${userId} 数据清理完成`);
+      return true;
+    } catch (error) {
+      // 回滚事务
+      await sqliteService.executeSql('ROLLBACK');
+      console.error(`清理用户数据失败 (ID: ${userId}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 同步笔记
+   * @param {Array} serverNotes - 服务器笔记数据
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async syncNotes(serverNotes) {
+    try {
+      await this.init();
+
+      if (!Array.isArray(serverNotes) || serverNotes.length === 0) {
+        console.log('没有服务器笔记数据需要同步');
+        return true;
+      }
+
+      console.log(`开始同步${serverNotes.length}条服务器笔记数据`);
+
+      const now = new Date().toISOString();
+      const userId = this.getCurrentUserId();
+
+      for (const serverNote of serverNotes) {
+        try {
+          // 检查笔记是否已存在
+          const existingNoteResult = await sqliteService.executeSql(
+            `SELECT * FROM ${TABLES.NOTES} WHERE id = ?`,
+            [serverNote.id]
+          );
+
+          if (existingNoteResult.rows.length > 0) {
+            // 笔记已存在，更新
+            const existingNote = existingNoteResult.rows.item(0);
+
+            // 比较版本号和更新时间，只有服务器版本更新才更新本地
+            const localVersion = existingNote.version || 1;
+            const serverVersion = serverNote.version || 1;
+            const localUpdatedAt = new Date(existingNote.updated_at);
+            const serverUpdatedAt = new Date(serverNote.updated_at);
+
+            if (serverVersion > localVersion || (serverVersion === localVersion && serverUpdatedAt > localUpdatedAt)) {
+              console.log(`服务器笔记更新，同步笔记 ID: ${serverNote.id}`);
+
+              // 准备更新数据
+              const updateData = {
+                title: serverNote.title,
+                content: serverNote.content,
+                summary: serverNote.summary,
+                category_id: serverNote.category_id,
+                is_favorite: serverNote.is_favorite || 0,
+                is_encrypted: serverNote.is_encrypted || 0,
+                encryption_key: serverNote.encryption_key,
+                is_public: serverNote.is_public || 0,
+                view_count: serverNote.view_count || 0,
+                edit_count: serverNote.edit_count || 0,
+                last_viewed_at: serverNote.last_viewed_at,
+                updated_at: serverNote.updated_at,
+                version: serverVersion,
+                is_synced: 1,
+                last_sync_at: now
+              };
+
+              // 构建更新语句
+              const columns = Object.keys(updateData);
+              const setClause = columns.map(col => `${col} = ?`).join(', ');
+              const values = [...columns.map(col => updateData[col]), serverNote.id];
+
+              // 更新笔记
+              await sqliteService.executeSql(
+                `UPDATE ${TABLES.NOTES} SET ${setClause} WHERE id = ?`,
+                values
+              );
+
+              // 处理标签
+              if (serverNote.tags && Array.isArray(serverNote.tags)) {
+                // 删除现有标签关联
+                await sqliteService.executeSql(
+                  `DELETE FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
+                  [serverNote.id]
+                );
+
+                // 添加新标签关联
+                for (const tagId of serverNote.tags) {
+                  await sqliteService.executeSql(
+                    `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, version, is_synced, last_sync_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [serverNote.id, tagId, now, 1, 1, now]
+                  );
+                }
+              }
+            } else {
+              console.log(`本地笔记更新，不同步服务器数据 ID: ${serverNote.id}`);
+            }
+          } else {
+            // 笔记不存在，创建新笔记
+            console.log(`创建新笔记 ID: ${serverNote.id}`);
+
+            const note = {
+              id: serverNote.id,
+              user_id: userId,
+              title: serverNote.title,
+              content: serverNote.content || '',
+              summary: serverNote.summary || '',
+              category_id: serverNote.category_id || null,
+              is_favorite: serverNote.is_favorite || 0,
+              is_encrypted: serverNote.is_encrypted || 0,
+              encryption_key: serverNote.encryption_key || null,
+              is_public: serverNote.is_public || 0,
+              is_deleted: serverNote.is_deleted || 0,
+              view_count: serverNote.view_count || 0,
+              edit_count: serverNote.edit_count || 0,
+              last_viewed_at: serverNote.last_viewed_at || null,
+              created_at: serverNote.created_at || now,
+              updated_at: serverNote.updated_at || now,
+              version: serverNote.version || 1,
+              is_synced: 1,
+              last_sync_at: now
+            };
+
+            // 保存到本地数据库
+            const columns = Object.keys(note);
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = columns.map(col => note[col]);
+
+            await sqliteService.executeSql(
+              `INSERT INTO ${TABLES.NOTES} (${columns.join(', ')}) VALUES (${placeholders})`,
+              values
+            );
+
+            // 处理标签
+            if (serverNote.tags && Array.isArray(serverNote.tags)) {
+              for (const tagId of serverNote.tags) {
+                await sqliteService.executeSql(
+                  `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, version, is_synced, last_sync_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                  [serverNote.id, tagId, now, 1, 1, now]
+                );
+              }
+            }
+          }
+        } catch (noteError) {
+          console.error(`同步笔记失败 ID: ${serverNote.id}:`, noteError);
+          // 继续处理下一条笔记
+        }
+      }
+
+      console.log('笔记同步完成');
+      return true;
+    } catch (error) {
+      console.error('同步笔记失败:', error);
+      return false;
+    }
+  }
+}
+
+// 创建单例
+const dataService = new DataService();
+
+export default dataService;

@@ -30,7 +30,10 @@ import { websocket } from './websocket';
 import { aiHistoryService } from './ai_history';
 import { analyticsService } from './analytics/analyticsService';
 
-// 导出所有服�?
+// 导入数据库服务
+import { sqliteService, syncService, dataService, TABLES } from './database';
+
+// 导出所有服务
 export {
   // API服务
   api,
@@ -102,9 +105,15 @@ export {
 
   // 分析服务
   analyticsService,
+
+  // 数据库服务
+  sqliteService,
+  syncService,
+  dataService,
+  TABLES,
 };
 
-// 导出API服务的各个模�?
+// 导出API服务的各个模�?
 export const {
   auth: authApi,
   notes: notesApi,

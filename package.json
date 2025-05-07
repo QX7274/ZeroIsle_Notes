@@ -67,6 +67,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-share": "^12.0.9",
     "react-native-sound": "^0.11.2",
+    "react-native-sqlite-storage": "^6.0.1",
     "react-native-svg": "15.8.0",
     "react-native-svg-transformer": "^1.5.0",
     "react-native-syntax-highlighter": "^2.1.0",

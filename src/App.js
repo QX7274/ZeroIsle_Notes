@@ -29,6 +29,7 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
+import { dataService, syncService, sqliteService } from './services/database';
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
@@ -200,6 +201,34 @@ const AppContainer = () => {
         });
         initPromises.push(offlineDataPromise);
 
+        // 初始化SQLite数据库服务
+        const sqlitePromise = new Promise(async (resolve) => {
+          try {
+            console.log('正在初始化SQLite数据库服务...');
+            await dataService.init();
+            console.log('SQLite数据库服务初始化成功');
+            resolve(true);
+          } catch (error) {
+            console.warn('SQLite数据库服务初始化失败，但应用将继续运行:', error);
+            resolve(false);
+          }
+        });
+        initPromises.push(sqlitePromise);
+
+        // 初始化数据同步服务
+        const syncPromise = new Promise(async (resolve) => {
+          try {
+            console.log('正在初始化数据同步服务...');
+            await syncService.init();
+            console.log('数据同步服务初始化成功');
+            resolve(true);
+          } catch (error) {
+            console.warn('数据同步服务初始化失败，但应用将继续运行:', error);
+            resolve(false);
+          }
+        });
+        initPromises.push(syncPromise);
+
         // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
         const timeoutPromise = new Promise(resolve => {
           setTimeout(() => {
@@ -237,6 +266,14 @@ const AppContainer = () => {
         console.log('离线数据服务已销毁');
       } catch (error) {
         console.error('销毁离线数据服务失败:', error);
+      }
+
+      // 关闭SQLite数据库连接
+      try {
+        sqliteService.close();
+        console.log('SQLite数据库连接已关闭');
+      } catch (error) {
+        console.error('关闭SQLite数据库连接失败:', error);
       }
     };
   }, []);
