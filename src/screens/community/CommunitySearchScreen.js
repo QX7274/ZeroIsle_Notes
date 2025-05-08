@@ -22,7 +22,8 @@ import {
 import {
   MultiModalSearch,
   SearchResults,
-  SearchHistory
+  SearchHistory,
+  UnifiedSearchBar
 } from '../../components/search';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -35,29 +36,29 @@ const CommunitySearchScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const { colors } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取状态
   const results = useSelector(selectSearchResults);
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
-  
+
   // 本地状态
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const initialQuery = route.params?.query || '';
-  
+
   // 清理搜索结果
   useEffect(() => {
     return () => {
       dispatch(clearSearchResults());
     };
   }, [dispatch]);
-  
+
   // 处理搜索
   const handleSearch = (searchResults) => {
     setSearchPerformed(true);
     setShowHistory(false);
-    
+
     // 如果搜索成功，添加到搜索历史
     if (searchResults && searchResults.query) {
       dispatch(addToSearchHistory({
@@ -66,12 +67,12 @@ const CommunitySearchScreen = ({ navigation, route }) => {
       }));
     }
   };
-  
+
   // 处理取消
   const handleCancel = () => {
     navigation.goBack();
   };
-  
+
   // 处理搜索结果点击
   const handleResultPress = (item) => {
     // 根据结果类型导航到不同页面
@@ -83,7 +84,7 @@ const CommunitySearchScreen = ({ navigation, route }) => {
       navigation.navigate('Community', { tag: item.name });
     }
   };
-  
+
   // 处理历史记录项点击
   const handleHistoryItemPress = (historyItem) => {
     // 使用历史记录中的查询进行搜索
@@ -97,12 +98,12 @@ const CommunitySearchScreen = ({ navigation, route }) => {
     setSearchPerformed(true);
     setShowHistory(false);
   };
-  
+
   // 过滤社区相关结果
-  const communityResults = results.filter(item => 
+  const communityResults = results.filter(item =>
     item.type === 'post' || item.type === 'user' || item.type === 'tag'
   );
-  
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -111,7 +112,9 @@ const CommunitySearchScreen = ({ navigation, route }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <View style={styles.searchContainer}>
-          <MultiModalSearch
+          <UnifiedSearchBar
+            searchScope="community"
+            resultScreenName="CommunitySearch"
             onSearch={handleSearch}
             onCancel={handleCancel}
             initialQuery={initialQuery}

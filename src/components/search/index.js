@@ -8,6 +8,7 @@ import CommunitySearchBar from './CommunitySearchBar';
 import SearchResults from './SearchResults';
 import SearchSuggestions from './SearchSuggestions';
 import SearchHistory from './SearchHistory';
+import UnifiedSearchBar from './UnifiedSearchBar';
 
 export {
   MultiModalSearch,
@@ -17,6 +18,7 @@ export {
   SearchResults,
   SearchSuggestions,
   SearchHistory,
+  UnifiedSearchBar,
 };
 
 export default {
@@ -27,4 +29,5 @@ export default {
   SearchResults,
   SearchSuggestions,
   SearchHistory,
+  UnifiedSearchBar,
 };

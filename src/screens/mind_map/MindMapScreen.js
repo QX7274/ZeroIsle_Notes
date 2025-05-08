@@ -19,7 +19,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
-import { Button, EmptyState, SearchBar } from '../../components/common';
+import { Button, EmptyState } from '../../components/common';
+import { UnifiedSearchBar } from '../../components/search';
 import apiService from '../../services/api/apiService';
 import analyticsService from '../../services/analytics/analyticsService';
 
@@ -337,11 +338,15 @@ const MindMapScreen = () => {
       {/* 头部 */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>思维导图</Text>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+        <UnifiedSearchBar
+          searchScope="mind_map"
           placeholder="搜索思维导图..."
           style={styles.searchBar}
+          onSearch={(results) => {
+            if (results && results.length > 0) {
+              setMindMaps(results);
+            }
+          }}
         />
       </View>
 

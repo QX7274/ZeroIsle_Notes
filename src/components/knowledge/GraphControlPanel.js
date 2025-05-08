@@ -5,12 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   Switch,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { SPACING } from '../../utils/constants/dimensions';
+import { UnifiedSearchBar } from '../../components/search';
 
 /**
  * 知识图谱控制面板组件
@@ -89,23 +89,16 @@ const GraphControlPanel = ({
         <ScrollView style={styles.content}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>搜索</Text>
           <View style={styles.searchContainer}>
-            <TextInput
-              style={[
-                styles.searchInput,
-                { color: theme.text, borderColor: theme.border },
-              ]}
+            <UnifiedSearchBar
+              searchScope="knowledge_graph"
               placeholder="搜索节点..."
-              placeholderTextColor={theme.textSecondary}
-              value={searchText}
-              onChangeText={setSearchText}
-              onSubmitEditing={handleSearch}
+              style={styles.searchBar}
+              onSearch={(results) => {
+                if (onSearch && results && results.length > 0) {
+                  onSearch(results);
+                }
+              }}
             />
-            <TouchableOpacity
-              style={[styles.searchButton, { backgroundColor: theme.primary }]}
-              onPress={handleSearch}
-            >
-              <Icon name="search" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
 
           <Text style={[styles.sectionTitle, { color: theme.text }]}>过滤器</Text>
@@ -256,23 +249,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.SMALL,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginBottom: SPACING.MEDIUM,
   },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: SPACING.SMALL,
-  },
-  searchButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 4,
-    marginLeft: SPACING.SMALL,
-    alignItems: 'center',
-    justifyContent: 'center',
+  searchBar: {
+    marginVertical: 0,
   },
   filterContainer: {
     marginVertical: SPACING.SMALL,

@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { CategoryManager } from '../../components/notes';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CategorySearchBar } from '../../components/search';
+import { UnifiedSearchBar } from '../../components/search';
 
 const CategoryScreen = ({ navigation }) => {
   const handleSelectCategory = (category) => {
@@ -20,7 +20,11 @@ const CategoryScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.searchContainer}>
-        <CategorySearchBar onSearch={handleSearch} />
+        <UnifiedSearchBar
+          searchScope="category"
+          resultScreenName="SearchResults"
+          onSearch={handleSearch}
+        />
       </View>
       <CategoryManager onSelectCategory={handleSelectCategory} />
     </SafeAreaView>

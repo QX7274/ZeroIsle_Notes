@@ -64,71 +64,85 @@
 - 显示搜索补全
 - 支持建议点击
 
+### UnifiedSearchBar
+
+统一搜索栏组件，整合了HomeSearchBar、CategorySearchBar和CommunitySearchBar的功能。
+
+**主要功能**：
+- 支持不同搜索范围（首页、分类、社区）
+- 自动适配不同场景的占位文本
+- 自动导航到对应的搜索结果页面
+- 支持自定义样式和回调函数
+- 集成多模态搜索功能
+
 ## 使用方法
 
-```javascript
-import { SearchBar, SearchResults, SearchFilters } from '../components/search';
+### 使用统一搜索栏
 
-function SearchScreen() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [filters, setFilters] = useState({
-    type: 'all',
-    dateRange: null,
-    tags: [],
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    
-    setIsLoading(true);
-    try {
-      const searchResults = await searchApi.search(query, filters);
-      setResults(searchResults);
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setIsLoading(false);
-    }
+```javascript
+import { UnifiedSearchBar, SearchResults } from '../components/search';
+
+function HomeScreen() {
+  const handleSearch = (results, query, options) => {
+    console.log('搜索结果:', results);
+    console.log('搜索关键词:', query);
+    console.log('搜索选项:', options);
   };
-  
+
   return (
     <View style={styles.container}>
-      <SearchBar
-        value={query}
-        onChangeText={setQuery}
-        onSubmit={handleSearch}
-        placeholder="搜索笔记、标签、内容..."
+      <UnifiedSearchBar
+        searchScope="home"
+        resultScreenName="SearchResults"
+        onSearch={handleSearch}
       />
-      
-      <SearchFilters
-        filters={filters}
-        onFiltersChange={setFilters}
-      />
-      
-      <SearchResults
-        results={results}
-        query={query}
-        isLoading={isLoading}
-        onResultPress={handleResultPress}
-      />
+
+      {/* 其他内容 */}
     </View>
   );
 }
 
-function MultiModalSearchScreen() {
-  const [searchMode, setSearchMode] = useState('text');
+function CommunityScreen() {
+  const handleSearch = (results) => {
+    if (results && results.length > 0) {
+      navigation.navigate('CommunitySearch', { results });
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <UnifiedSearchBar
+        searchScope="community"
+        resultScreenName="CommunitySearch"
+        onSearch={handleSearch}
+      />
+
+      {/* 其他内容 */}
+    </View>
+  );
+}
+```
+
+### 使用多模态搜索
+
+```javascript
+import { MultiModalSearch, SearchResults } from '../components/search';
+
+function SearchScreen() {
   const [results, setResults] = useState([]);
-  
+
+  const handleSearch = (searchResults, query, options) => {
+    setResults(searchResults);
+  };
+
   return (
     <View style={styles.container}>
       <MultiModalSearch
-        mode={searchMode}
-        onModeChange={setSearchMode}
+        searchScope="home"
         onSearch={handleSearch}
+        onCancel={() => navigation.goBack()}
       />
-      
+
       <SearchResults
         results={results}
         onResultPress={handleResultPress}

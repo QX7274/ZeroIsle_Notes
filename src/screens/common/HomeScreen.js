@@ -20,7 +20,7 @@ import { setNotes as setNotesAction, deleteNote, selectAllNotes } from '../../re
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../../components/common/Typography';
-import { HomeSearchBar } from '../../components/search';
+import { UnifiedSearchBar } from '../../components/search';
 import SortControl from '../../components/home/SortControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OfflineIndicator from '../../components/common/OfflineIndicator';
@@ -874,7 +874,11 @@ const HomeScreen = ({ navigation }) => {
 
       {/* 搜索栏 */}
       <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-        <HomeSearchBar onSearch={handleSearch} />
+        <UnifiedSearchBar
+          searchScope="home"
+          resultScreenName="SearchResults"
+          onSearch={handleSearch}
+        />
       </View>
 
       {/* 排序控件 */}

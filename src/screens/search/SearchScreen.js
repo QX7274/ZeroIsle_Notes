@@ -19,7 +19,8 @@ import {
 import {
   MultiModalSearch,
   SearchResults,
-  SearchHistory
+  SearchHistory,
+  UnifiedSearchBar
 } from '../../components/search';
 
 /**
@@ -103,7 +104,9 @@ const SearchScreen = ({ navigation, route }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <View style={styles.searchContainer}>
-          <MultiModalSearch
+          <UnifiedSearchBar
+            searchScope="home"
+            resultScreenName="SearchResults"
             onSearch={handleSearch}
             onCancel={handleCancel}
             initialQuery={initialQuery}

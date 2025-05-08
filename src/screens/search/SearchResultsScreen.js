@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { HomeSearchBar } from '../../components/search';
+import { UnifiedSearchBar } from '../../components/search';
 import SearchFilters from '../../components/search/SearchFilters';
 import SearchHistory from '../../components/search/SearchHistory';
 
@@ -342,7 +342,9 @@ const SearchResultsScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      <HomeSearchBar
+      <UnifiedSearchBar
+        searchScope="home"
+        resultScreenName="SearchResults"
         initialQuery={currentQuery}
         onSearch={handleSearch}
         onFocus={() => setShowHistory(true)}

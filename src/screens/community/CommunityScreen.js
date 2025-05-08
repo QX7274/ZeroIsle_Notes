@@ -16,7 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button, Card } from '../../components/common';
 import { SPACING } from '../../utils/constants/dimensions';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
-import { CommunitySearchBar } from '../../components/search';
+import { UnifiedSearchBar } from '../../components/search';
 
 /**
  * 社区屏幕组件
@@ -248,12 +248,16 @@ const CommunityScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.searchContainer}>
-        <CommunitySearchBar onSearch={(results) => {
-          // 处理搜索结果
-          if (results && results.length > 0) {
-            navigation.navigate('CommunitySearch', { results });
-          }
-        }} />
+        <UnifiedSearchBar
+          searchScope="community"
+          resultScreenName="CommunitySearch"
+          onSearch={(results) => {
+            // 处理搜索结果
+            if (results && results.length > 0) {
+              navigation.navigate('CommunitySearch', { results });
+            }
+          }}
+        />
       </View>
 
       <View style={styles.categoriesContainer}>

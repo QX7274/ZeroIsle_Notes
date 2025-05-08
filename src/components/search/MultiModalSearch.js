@@ -1,3 +1,7 @@
+/**
+ * 多模态搜索组件
+ * 支持文本、语音和图像搜索
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -9,6 +13,7 @@ import {
   Image,
   Platform,
   PermissionsAndroid,
+  Animated,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -26,7 +31,20 @@ import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
 import SearchSuggestions from './SearchSuggestions';
 
-const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
+/**
+ * 多模态搜索组件
+ * @param {Object} props - 组件属性
+ * @param {Function} props.onSearch - 搜索回调函数
+ * @param {Function} props.onCancel - 取消回调函数
+ * @param {string} props.initialQuery - 初始搜索关键词
+ * @param {string} props.searchScope - 搜索范围，可选值：'home', 'category', 'community'
+ */
+const MultiModalSearch = ({
+  onSearch,
+  onCancel,
+  initialQuery = '',
+  searchScope = 'home'
+}) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
@@ -152,6 +170,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
     try {
       const searchData = {
         mode: reduxSearchMode,
+        scope: searchScope,
       };
 
       switch (reduxSearchMode) {
@@ -186,7 +205,8 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
         // 将搜索结果和离线状态传递给回调函数
         onSearch?.(resultAction.payload?.results || resultAction.payload, searchQuery, {
           isOfflineSearch,
-          searchMode: reduxSearchMode
+          searchMode: reduxSearchMode,
+          searchScope: searchScope
         });
       }
     } catch (err) {
@@ -262,6 +282,24 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // 根据搜索范围获取占位文本
+  const getPlaceholderText = () => {
+    switch (searchScope) {
+      case 'home':
+        return '搜索笔记、标签、内容...';
+      case 'category':
+        return '搜索分类、标签、内容...';
+      case 'community':
+        return '搜索帖子、用户、标签...';
+      case 'mind_map':
+        return '搜索思维导图...';
+      case 'knowledge_graph':
+        return '搜索知识节点...';
+      default:
+        return '搜索...';
+    }
+  };
+
   // 渲染文本搜索
   const renderTextSearch = () => (
     <View style={styles.textSearchContainer}>
@@ -275,7 +313,7 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
             backgroundColor: colors.card,
           }
         ]}
-        placeholder="搜索笔记、标签、内容..."
+        placeholder={getPlaceholderText()}
         placeholderTextColor={colors.textSecondary}
         value={searchQuery}
         onChangeText={(text) => {
@@ -512,35 +550,40 @@ const MultiModalSearch = ({ onSearch, onCancel, initialQuery = '' }) => {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    elevation: 6,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
   cancelButton: {
     padding: 10,
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   searchModeButtons: {
     flex: 1,
@@ -548,15 +591,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchModeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginHorizontal: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    marginHorizontal: 10,
+    borderRadius: 8,
   },
   activeSearchModeButton: {
     borderBottomWidth: 3,
   },
   searchContainer: {
-    padding: 20,
+    padding: 24,
   },
   textSearchContainer: {
     flexDirection: 'row',
@@ -564,49 +608,50 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: 54,
+    height: 56,
     borderWidth: 1,
-    borderRadius: 27,
-    paddingHorizontal: 20,
+    borderRadius: 28,
+    paddingHorizontal: 22,
     fontSize: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  searchButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    marginLeft: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontWeight: '400',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 4,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  searchButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginLeft: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   voiceSearchContainer: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 28,
   },
   recordingInfo: {
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 16,
+    marginBottom: 28,
+    padding: 18,
+    borderRadius: 18,
     backgroundColor: 'rgba(0,0,0,0.02)',
     width: '100%',
     alignItems: 'center',
-    elevation: 2,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
   },
@@ -615,22 +660,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   recordButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   imageSearchContainer: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 28,
   },
   imageSourceButtons: {
     flexDirection: 'row',
@@ -638,22 +683,22 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   imageSourceButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderRadius: 16,
+    paddingHorizontal: 26,
+    paddingVertical: 22,
+    borderRadius: 18,
     alignItems: 'center',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.25)',
     width: '45%',
   },
   imageSourceButtonText: {
     color: '#FFFFFF',
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -661,14 +706,14 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    marginTop: 20,
-    elevation: 4,
+    marginTop: 24,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
   },
@@ -678,41 +723,42 @@ const styles = StyleSheet.create({
   },
   removeImageButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: 14,
+    right: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    elevation: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,59,48,0.05)',
-    elevation: 2,
+    padding: 18,
+    marginHorizontal: 24,
+    marginBottom: 24,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,59,48,0.06)',
+    elevation: 3,
     shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     borderWidth: 1,
-    borderColor: 'rgba(255,59,48,0.1)',
+    borderColor: 'rgba(255,59,48,0.12)',
   },
   errorText: {
-    marginLeft: 12,
+    marginLeft: 14,
     fontSize: 15,
+    fontWeight: '500',
     color: '#FF3B30',
   },
 });

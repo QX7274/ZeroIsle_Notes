@@ -17,6 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../common';
+import { UnifiedSearchBar } from '../search';
 import { createEdge, updateEdge } from '../../redux/slices/knowledgeGraphSlice';
 
 /**
@@ -42,7 +43,7 @@ const EdgeEditor = ({
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
   const { isLoading } = useSelector(state => state.knowledgeGraph);
-  
+
   // 关系状态
   const [sourceId, setSourceId] = useState('');
   const [targetId, setTargetId] = useState('');
@@ -54,7 +55,7 @@ const EdgeEditor = ({
   const [showTargetSelector, setShowTargetSelector] = useState(false);
   const [filteredNodes, setFilteredNodes] = useState([]);
   const [searchText, setSearchText] = useState('');
-  
+
   // 初始化状态
   useEffect(() => {
     if (edge) {
@@ -74,14 +75,14 @@ const EdgeEditor = ({
       setWeight('1.0');
     }
   }, [edge, visible, sourceNode, targetNode]);
-  
+
   // 过滤节点
   useEffect(() => {
     if (showSourceSelector || showTargetSelector) {
       if (!searchText) {
         setFilteredNodes(nodes);
       } else {
-        const filtered = nodes.filter(node => 
+        const filtered = nodes.filter(node =>
           node.title.toLowerCase().includes(searchText.toLowerCase()) ||
           node.description?.toLowerCase().includes(searchText.toLowerCase())
         );
@@ -89,24 +90,24 @@ const EdgeEditor = ({
       }
     }
   }, [nodes, searchText, showSourceSelector, showTargetSelector]);
-  
+
   // 处理保存
   const handleSave = async () => {
     if (!sourceId) {
       Alert.alert('提示', '请选择源节点');
       return;
     }
-    
+
     if (!targetId) {
       Alert.alert('提示', '请选择目标节点');
       return;
     }
-    
+
     if (sourceId === targetId) {
       Alert.alert('提示', '源节点和目标节点不能相同');
       return;
     }
-    
+
     try {
       const edgeData = {
         source: sourceId,
@@ -116,7 +117,7 @@ const EdgeEditor = ({
         description: description.trim(),
         weight: parseFloat(weight) || 1.0,
       };
-      
+
       let result;
       if (edge?.id) {
         // 更新关系
@@ -128,13 +129,13 @@ const EdgeEditor = ({
         // 创建关系
         result = await dispatch(createEdge(edgeData)).unwrap();
       }
-      
+
       onSave && onSave(result);
     } catch (error) {
       Alert.alert('错误', error.message || '保存关系失败');
     }
   };
-  
+
   // 关系类型选项
   const edgeTypes = [
     { value: 'related', label: '相关' },
@@ -146,7 +147,7 @@ const EdgeEditor = ({
     { value: 'follows', label: '后于' },
     { value: 'custom', label: '自定义' },
   ];
-  
+
   // 获取关系类型颜色
   const getEdgeTypeColor = (edgeType) => {
     switch (edgeType) {
@@ -161,13 +162,13 @@ const EdgeEditor = ({
       default: return colors.primary;
     }
   };
-  
+
   // 获取节点名称
   const getNodeTitle = (nodeId) => {
     const node = nodes.find(n => n.id === nodeId);
     return node ? node.title : '未选择';
   };
-  
+
   // 获取节点类型颜色
   const getNodeTypeColor = (nodeType) => {
     switch (nodeType) {
@@ -182,12 +183,12 @@ const EdgeEditor = ({
       default: return colors.primary;
     }
   };
-  
+
   // 渲染节点选择器
   const renderNodeSelector = (isSource) => {
     const title = isSource ? '选择源节点' : '选择目标节点';
     const currentId = isSource ? sourceId : targetId;
-    
+
     return (
       <Modal
         visible={isSource ? showSourceSelector : showTargetSelector}
@@ -205,7 +206,7 @@ const EdgeEditor = ({
               >
                 {title}
               </Text>
-              
+
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => isSource ? setShowSourceSelector(false) : setShowTargetSelector(false)}
@@ -213,18 +214,20 @@ const EdgeEditor = ({
                 <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.searchContainer}>
-              <Icon name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
-                value={searchText}
-                onChangeText={setSearchText}
+              <UnifiedSearchBar
+                searchScope="knowledge_graph"
                 placeholder="搜索节点"
-                placeholderTextColor={colors.textSecondary}
+                style={styles.searchBar}
+                onSearch={(results) => {
+                  if (results && results.length > 0) {
+                    setFilteredNodes(results);
+                  }
+                }}
               />
             </View>
-            
+
             <ScrollView style={styles.nodesList}>
               {filteredNodes.length === 0 ? (
                 <Text
@@ -293,7 +296,7 @@ const EdgeEditor = ({
       </Modal>
     );
   };
-  
+
   return (
     <Modal
       visible={visible}
@@ -311,7 +314,7 @@ const EdgeEditor = ({
             >
               {edge?.id ? '编辑关系' : '创建关系'}
             </Text>
-            
+
             <TouchableOpacity
               style={styles.closeButton}
               onPress={onCancel}
@@ -319,7 +322,7 @@ const EdgeEditor = ({
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.content}>
             <View style={styles.formGroup}>
               <Text
@@ -356,7 +359,7 @@ const EdgeEditor = ({
                 <Icon name="arrow-drop-down" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -392,7 +395,7 @@ const EdgeEditor = ({
                 <Icon name="arrow-drop-down" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -430,7 +433,7 @@ const EdgeEditor = ({
                 ))}
               </View>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -451,7 +454,7 @@ const EdgeEditor = ({
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -475,7 +478,7 @@ const EdgeEditor = ({
                 textAlignVertical="top"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -498,7 +501,7 @@ const EdgeEditor = ({
               />
             </View>
           </ScrollView>
-          
+
           <View style={styles.footer}>
             <Button
               title="取消"
@@ -515,7 +518,7 @@ const EdgeEditor = ({
           </View>
         </View>
       </View>
-      
+
       {renderNodeSelector(true)}
       {renderNodeSelector(false)}
     </Modal>
@@ -654,19 +657,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
-  searchIcon: {
-    marginHorizontal: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
+  searchBar: {
+    marginVertical: 0,
   },
   nodesList: {
     padding: 8,
