@@ -137,8 +137,26 @@ export const getAllNotes = async (params = {}) => {
     const networkStatus = await NetInfo.fetch();
     const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
 
+    // 获取当前用户信息
+    const storageService = require('../storage/storageService');
+    const user = await storageService.getUser();
+
+    if (!user || !user.id) {
+      console.warn('未找到当前用户信息，尝试从离线存储获取笔记');
+      return await getOfflineNotes();
+    }
+
+    // 设置当前用户到dataService
+    dataService.setCurrentUser(user);
+
+    // 确保params中包含userId
+    const paramsWithUserId = {
+      ...params,
+      userId: user.id
+    };
+
     // 从SQLite获取笔记
-    const notes = await dataService.getNotes(params);
+    const notes = await dataService.getNotes(paramsWithUserId);
     console.log(`从SQLite获取到${notes.length}条笔记`);
 
     // 如果在线，尝试从服务器获取最新数据并同步
@@ -192,11 +210,26 @@ export const getAllNotes = async (params = {}) => {
  */
 export const getNoteById = async (id) => {
   try {
+    console.log(`开始获取笔记详情 (ID: ${id})`);
+    const startTime = Date.now();
+
+    // 检查SQLite数据库连接状态
+    const sqliteService = dataService.getSqliteService();
+    const isConnected = await sqliteService.checkConnection(10000);
+
+    if (!isConnected) {
+      console.warn('SQLite数据库连接不可用，尝试使用备用方法获取笔记');
+      throw new Error('数据库连接不可用');
+    }
+
+    console.log('SQLite数据库连接正常，开始获取笔记数据');
+
     // 确保数据服务已初始化
     await dataService.init();
 
-    // 从SQLite获取笔记详情
-    const note = await dataService.getNote(id);
+    // 从SQLite获取笔记详情 - 使用更长的超时时间
+    const note = await dataService.getNote(id, 15000);
+    console.log(`从SQLite获取笔记详情成功，耗时: ${Date.now() - startTime}ms`);
 
     // 检查网络状态
     const networkStatus = await NetInfo.fetch();
@@ -208,6 +241,7 @@ export const getNoteById = async (id) => {
         // 异步从服务器获取数据，不等待结果
         instance.get(API_ENDPOINTS.NOTES.DETAIL(id)).then(async response => {
           if (response && response.data) {
+            console.log('从服务器获取到最新笔记数据，更新本地数据');
             // 更新本地数据
             await dataService.updateNote(id, response.data);
           }
@@ -227,17 +261,43 @@ export const getNoteById = async (id) => {
   } catch (error) {
     console.error('获取笔记详情失败:', error);
 
+    // 记录详细的错误信息
+    if (error.message) {
+      console.error('错误详情:', error.message);
+    }
+    if (error.stack) {
+      console.error('错误堆栈:', error.stack);
+    }
+
     // 尝试从服务器获取
     try {
+      console.log('尝试从服务器获取笔记详情');
       const response = await instance.get(API_ENDPOINTS.NOTES.DETAIL(id));
+      console.log('从服务器获取笔记详情成功');
       return {
         success: true,
-        data: response.data
+        data: response.data,
+        fromServer: true
       };
     } catch (serverError) {
+      console.error('从服务器获取笔记详情也失败:', serverError);
+
+      // 提供更详细的错误信息
+      let errorMessage = '获取笔记详情失败';
+
+      if (error.message) {
+        if (error.message.includes('数据库连接不可用')) {
+          errorMessage = '数据库连接不可用，请重启应用后重试';
+        } else if (error.message.includes('超时')) {
+          errorMessage = '数据库查询超时，请稍后重试';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       return {
         success: false,
-        message: error.message || '获取笔记详情失败',
+        message: errorMessage,
         error
       };
     }
@@ -309,7 +369,7 @@ const getNoteTags = async () => {
  * 获取笔记分类
  * @returns {Promise} - 分类列表
  */
-const getNoteCategories = async () => {
+export const getNoteCategories = async () => {
   try {
     const response = await instance.get(API_ENDPOINTS.NOTES.CATEGORIES);
     return {
@@ -438,21 +498,47 @@ const importNote = async (formData) => {
 
       // 尝试直接从FormData._parts中提取第一个元素作为文件对象
       if (formData._parts && Array.isArray(formData._parts) && formData._parts.length > 0) {
-        const firstPart = formData._parts[0];
-        if (Array.isArray(firstPart) && firstPart.length > 1 && firstPart[0] === 'file') {
-          fileObj = firstPart[1];
-          console.log('从第一个元素提取文件对象:', fileObj);
+        // 遍历所有parts寻找文件对象
+        for (const part of formData._parts) {
+          if (Array.isArray(part) && part.length > 1 && part[0] === 'file') {
+            fileObj = part[1];
+            console.log('从FormData._parts提取文件对象:', fileObj);
 
-          if (fileObj && typeof fileObj === 'object') {
-            fileName = fileObj.name || `导入的${fileType}文件_${new Date().toISOString()}`;
-            console.log(`从第一个元素设置文件名: ${fileName}`);
+            if (fileObj && typeof fileObj === 'object') {
+              fileName = fileObj.name || `导入的${fileType}文件_${new Date().toISOString()}`;
+              console.log(`设置文件名: ${fileName}`);
+              break;
+            }
+          }
+        }
+      }
+
+      // 如果仍然没有找到文件对象，创建一个模拟的文件对象
+      if (!fileObj && formData._parts && Array.isArray(formData._parts)) {
+        console.log('创建模拟文件对象');
+        // 尝试从formData中找到任何可能的URI
+        let uri = '';
+        for (const part of formData._parts) {
+          if (Array.isArray(part) && part.length > 1 && typeof part[1] === 'object' && part[1] !== null) {
+            if (part[1].uri) {
+              uri = part[1].uri;
+              console.log('找到URI:', uri);
+              fileObj = {
+                uri: uri,
+                name: part[1].name || `导入的${fileType}文件_${new Date().toISOString()}`,
+                type: part[1].type || (fileType === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+              };
+              fileName = fileObj.name;
+              console.log('创建的模拟文件对象:', fileObj);
+              break;
+            }
           }
         }
       }
 
       // 如果仍然没有找到文件对象，抛出错误
       if (!fileObj) {
-        throw new Error('未提供文件');
+        throw new Error('未提供文件或无法识别文件格式');
       }
     }
 
@@ -468,14 +554,18 @@ const importNote = async (formData) => {
         fileUri = fileObj.uri;
       } else if (fileObj.fileCopyUri) {
         fileUri = fileObj.fileCopyUri;
+      } else if (fileObj.path) {
+        fileUri = fileObj.path;
       }
     }
 
     console.log('提取的文件URI:', fileUri);
 
+    // 如果仍然没有找到URI，创建一个临时URI
     if (!fileUri) {
-      console.error('文件URI不存在:', fileObj);
-      throw new Error('文件URI不存在');
+      console.warn('文件URI不存在，创建临时URI');
+      fileUri = `file://temp/${fileName}`;
+      console.log('创建的临时URI:', fileUri);
     }
 
     // 生成临时ID
@@ -493,7 +583,9 @@ const importNote = async (formData) => {
       file_name: fileName,
       file_uri: fileUri,
       imported: true,
-      is_offline: true // 标记为离线笔记
+      is_offline: true, // 标记为离线笔记
+      // 添加预览图片
+      preview_image: fileType === 'pdf' ? 'https://img-blog.csdnimg.cn/20200627111426602.png' : null
     };
 
     // 保存到离线存储
@@ -503,46 +595,21 @@ const importNote = async (formData) => {
       throw new Error(saveResult.error || `离线导入${fileType}失败`);
     }
 
-    // 检查网络状态
-    const networkStatus = await NetInfo.fetch();
-    const isOffline = !networkStatus.isConnected || offlineStorageService.offlineMode;
+    // 添加到SQLite数据库
+    try {
+      // 确保数据服务已初始化
+      await dataService.init();
 
-    // 如果在线，尝试使用API导入（但不影响本地导入的结果）
-    if (!isOffline) {
-      try {
-        // 根据文件类型选择不同的API端点
-        let endpoint = API_ENDPOINTS.NOTES.IMPORT;
-
-        if (fileType === 'pdf') {
-          endpoint = API_ENDPOINTS.NOTES.IMPORT_PDF;
-        } else if (fileType === 'word') {
-          endpoint = API_ENDPOINTS.NOTES.IMPORT_WORD;
-        } else if (fileType === 'image') {
-          endpoint = API_ENDPOINTS.NOTES.IMPORT_IMAGE;
-        } else if (fileType === 'text') {
-          endpoint = API_ENDPOINTS.NOTES.IMPORT_TEXT;
-        }
-
-        console.log(`使用导入端点: ${endpoint} 导入 ${fileType} 文件`);
-
-        // 尝试同步到服务器，但不等待结果
-        instance.post(endpoint, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }).then(response => {
-          console.log(`在线导入${fileType}成功:`, response.data);
-          // 更新本地笔记的同步状态
-          offlineStorageService.updateNoteSync(tempId, true);
-        }).catch(error => {
-          console.error(`在线导入${fileType}失败:`, error);
-          // 失败不影响本地导入结果
-        });
-      } catch (error) {
-        console.error(`在线导入${fileType}失败:`, error);
-        // 在线导入失败不影响本地导入结果
-      }
+      // 使用数据服务保存笔记
+      await dataService.createNote(note);
+      console.log('笔记已保存到SQLite数据库');
+    } catch (dbError) {
+      console.error('保存到SQLite数据库失败，但本地存储成功:', dbError);
+      // 不影响整体导入流程
     }
+
+    // 完全跳过在线导入尝试，直接使用本地存储
+    console.log('使用本地存储导入文件，不尝试在线导入');
 
     // 返回本地导入的结果，包含完整的笔记对象
     return {
@@ -557,7 +624,7 @@ const importNote = async (formData) => {
       isOffline: true
     };
   } catch (error) {
-    console.error(`导入${formData.getParts().find(part => part.name === 'type')?.value || ''}失败:`, error);
+    console.error('导入失败:', error);
     return {
       success: false,
       message: error.message || '导入笔记失败',

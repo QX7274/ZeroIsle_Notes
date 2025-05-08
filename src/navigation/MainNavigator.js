@@ -12,6 +12,7 @@ import { colors } from '../utils/constants/colors';
 // 导入知识图谱和手写识别组件
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
+import { InfiniteCanvasScreen, InfiniteCanvasListScreen } from '../screens/canvas';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import { SearchScreen } from '../screens/search';
 import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen } from '../screens/settings';
@@ -38,7 +39,15 @@ const NotesNavigator = () => (
     <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
-    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="InfiniteCanvasList" component={InfiniteCanvasListScreen} options={{ title: '我的草稿' }} />
+    <Stack.Screen name="InfiniteCanvas" component={InfiniteCanvasScreen} options={{ title: '无限草稿' }} />
+  </Stack.Navigator>
+);
+
+// 思维导图导航堆栈
+const MindMapNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="MindMapList" component={MindMapScreen} options={{ title: '思维导图' }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
     <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
   </Stack.Navigator>
@@ -72,7 +81,7 @@ const ProfileNavigator = () => (
 
 /**
  * 主功能导航器
- * 使用底部标签导航，包含笔记、知识图谱和设置等主要功能模块
+ * 使用底部标签导航，包含笔记、思维导图、知识图谱和设置等主要功能模块
  */
 const MainNavigator = () => {
   const theme = useSelector(selectTheme);
@@ -97,6 +106,16 @@ const MainNavigator = () => {
           title: '笔记',
           tabBarIcon: ({ color, size }) => (
             <Text style={{ color, fontSize: size }}>📝</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="MindMap"
+        component={MindMapNavigator}
+        options={{
+          title: '思维导图',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size }}>🧠</Text>
           ),
         }}
       />

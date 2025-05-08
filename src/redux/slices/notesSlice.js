@@ -3,8 +3,8 @@
  */
 
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
-import * as notesApi from '../../services/api/notesApi';
-import { TIMEOUTS } from '../../utils/constants/config';
+import notesApi from '../../services/api/notesApi';
+import { offlineStorageService } from '../../services/offline/offlineStorage';
 
 // 创建实体适配器，用于规范化状态
 const notesAdapter = createEntityAdapter({
@@ -229,11 +229,30 @@ export const importNote = createAsyncThunk(
   async (formData, { rejectWithValue }) => {
     try {
       const response = await notesApi.importNote(formData);
+
+      // 检查响应是否成功
       if (!response.success) {
+        console.log('导入笔记API返回失败，但继续处理本地导入:', response);
+
+        // 如果有数据，即使API返回失败也继续处理
+        if (response.data) {
+          console.log('使用本地导入的数据:', response.data);
+          return response.data;
+        }
+
         throw new Error(response.message || '导入笔记失败');
       }
+
       return response.data;
     } catch (error) {
+      console.error('导入笔记异常:', error);
+
+      // 如果有错误对象中包含数据，尝试使用它
+      if (error.response && error.response.data) {
+        console.log('尝试从错误响应中提取数据:', error.response.data);
+        return error.response.data;
+      }
+
       return rejectWithValue(error.message || '导入笔记失败');
     }
   }
@@ -306,6 +325,18 @@ const notesSlice = createSlice({
   name: 'notes',
   initialState,
   reducers: {
+    // 添加单个笔记
+    addNote: notesAdapter.addOne,
+    // 添加多个笔记
+    addNotes: notesAdapter.addMany,
+    // 更新单个笔记
+    updateOneNote: notesAdapter.updateOne,
+    // 更新多个笔记
+    updateNotes: notesAdapter.updateMany,
+    // 删除单个笔记
+    removeNote: notesAdapter.removeOne,
+    // 删除多个笔记
+    removeNotes: notesAdapter.removeMany,
     // 设置当前笔记
     setCurrentNote: (state, action) => {
       state.currentNote = action.payload;
@@ -588,6 +619,13 @@ const notesSlice = createSlice({
       })
       .addCase(importNote.fulfilled, (state, action) => {
         state.isLoading = false;
+
+        // 检查action.payload是否存在
+        if (!action.payload) {
+          console.error('导入笔记成功但没有返回数据');
+          return;
+        }
+
         // 添加导入的笔记到状态
         const note = {
           ...action.payload,
@@ -595,6 +633,22 @@ const notesSlice = createSlice({
         };
 
         console.log('导入笔记成功，添加到Redux状态:', note);
+
+        // 确保笔记有ID
+        if (!note.id) {
+          console.error('导入的笔记没有ID，生成临时ID');
+          note.id = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+        }
+
+        // 确保笔记有标题
+        if (!note.title && note.file_name) {
+          note.title = note.file_name.split('.')[0];
+        }
+
+        // 确保笔记有预览图片
+        if (!note.preview_image && note.file_type === 'pdf') {
+          note.preview_image = 'https://img-blog.csdnimg.cn/20200627111426602.png';
+        }
 
         // 使用upsertOne而不是addOne，以防止ID冲突
         notesAdapter.upsertOne(state, note);
@@ -610,6 +664,32 @@ const notesSlice = createSlice({
       .addCase(importNote.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+
+        // 即使API请求失败，也尝试从错误中提取数据
+        if (action.error && action.error.response && action.error.response.data) {
+          try {
+            const errorData = action.error.response.data;
+            console.log('从错误响应中提取数据:', errorData);
+
+            // 如果有笔记数据，添加到状态
+            if (errorData.note || errorData.data) {
+              const noteData = errorData.note || errorData.data;
+              const note = {
+                ...noteData,
+                id: noteData.note_id || noteData.id || ('temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11)),
+                is_offline: true,
+                isOffline: true
+              };
+
+              console.log('从错误中提取的笔记数据:', note);
+
+              // 添加到状态
+              notesAdapter.upsertOne(state, note);
+            }
+          } catch (extractError) {
+            console.error('从错误中提取数据失败:', extractError);
+          }
+        }
       });
   },
 });
@@ -650,4 +730,5 @@ export const selectHistoryState = (state) => state.notes.history;
 export const selectOfflineState = (state) => state.notes.offline;
 
 // 导出Reducer
+
 export default notesSlice.reducer;

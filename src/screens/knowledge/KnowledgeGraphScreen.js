@@ -258,12 +258,12 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   };
 
   // 渲染加载状态
-  if (isLoading && nodes.length === 0) {
+  if (isLoading && (!nodes || nodes.length === 0)) {
     return <Loading text="加载知识图谱中..." />;
   }
 
   // 渲染错误状态
-  if (error && nodes.length === 0) {
+  if (error && (!nodes || nodes.length === 0)) {
     return (
       <View style={styles.errorContainer}>
         <Icon name="error-outline" size={50} color={colors.error} />
@@ -274,7 +274,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   }
 
   // 渲染空状态
-  if (nodes.length === 0) {
+  if (!nodes || nodes.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Icon name="bubble-chart" size={80} color={colors.textSecondary} />

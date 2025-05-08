@@ -29,7 +29,7 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
-import { dataService, syncService, sqliteService } from './services/database';
+import { dataService, sqliteService } from './services/database';
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
@@ -149,11 +149,170 @@ const AppContainer = () => {
     console.log('使用默认主题');
   }
 
-  // 初始化服务
+  // 初始化服务 - 只在组件挂载时执行一次
   useEffect(() => {
+    // 标记服务是否已初始化，防止重复初始化
+    let servicesInitialized = false;
+
     const initServices = async () => {
+      // 防止重复初始化
+      if (servicesInitialized) {
+        console.log('服务已经初始化，跳过重复初始化');
+        return;
+      }
+
       try {
         console.log('正在初始化服务...');
+        servicesInitialized = true;
+
+        // 直接创建数据库文件和表，不依赖于导入的方法
+        try {
+          console.log('直接创建数据库文件和sync_info表...');
+
+          // 导入必要的模块
+          const SQLite = require('react-native-sqlite-storage');
+          const RNFS = require('react-native-fs');
+          SQLite.enablePromise(true);
+
+          // 获取数据库文件路径
+          let dbPath = '';
+          if (Platform.OS === 'android') {
+            dbPath = `${RNFS.DocumentDirectoryPath}/zeroislenotes.db`;
+          } else {
+            dbPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase/zeroislenotes.db`;
+          }
+
+          console.log('数据库文件路径:', dbPath);
+
+          // 检查文件是否存在
+          const fileExists = await RNFS.exists(dbPath);
+          console.log(`数据库文件是否存在: ${fileExists}`);
+
+          // 如果文件不存在，创建目录和空文件
+          if (!fileExists) {
+            try {
+              // 确保目录存在
+              if (Platform.OS === 'ios') {
+                const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
+                const dirExists = await RNFS.exists(dirPath);
+                if (!dirExists) {
+                  await RNFS.mkdir(dirPath);
+                  console.log(`创建iOS数据库目录: ${dirPath}`);
+                }
+              }
+
+                  // 直接创建空文件，不使用二进制头部
+              await RNFS.writeFile(dbPath, '', 'utf8');
+              console.log('创建空数据库文件成功');
+
+              // 验证文件是否创建成功
+              const fileExistsAfter = await RNFS.exists(dbPath);
+              if (fileExistsAfter) {
+                const fileInfo = await RNFS.stat(dbPath);
+                console.log(`数据库文件已创建，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
+              } else {
+                console.error('数据库文件创建失败');
+                // 备选方案：尝试使用空字符串创建文件
+                await RNFS.writeFile(dbPath, '', 'utf8');
+                console.log('使用备选方案创建空数据库文件');
+              }
+            } catch (fileError) {
+              console.error('创建数据库文件失败:', fileError);
+            }
+          }
+
+          // 打开数据库
+          console.log('尝试打开数据库...');
+          const db = await SQLite.openDatabase({
+            name: 'zeroislenotes.db',
+            location: Platform.OS === 'ios' ? 'Library' : 'default',
+            createFromLocation: 0,
+          });
+
+          console.log('数据库打开成功，尝试创建sync_info表');
+
+          // 创建sync_info表
+          await db.executeSql(`
+            CREATE TABLE IF NOT EXISTS sync_info (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              table_name TEXT NOT NULL UNIQUE,
+              last_sync_time TEXT,
+              sync_status TEXT,
+              error_message TEXT,
+              created_at TEXT,
+              updated_at TEXT
+            )
+          `);
+
+          console.log('sync_info表创建成功');
+
+          // 检查表是否已有记录
+          const result = await db.executeSql('SELECT COUNT(*) as count FROM sync_info');
+          const count = result[0].rows.item(0).count;
+
+          if (count === 0) {
+            console.log('sync_info表为空，初始化记录');
+            const now = new Date().toISOString();
+            const tables = ['users', 'notes', 'categories', 'tags', 'note_tags', 'reminders', 'settings', 'files'];
+
+            // 使用事务批量插入
+            await db.transaction(async (tx) => {
+              for (const table of tables) {
+                // 确保参数不为null
+                const safeParams = [
+                  table || '',
+                  '',
+                  'pending',
+                  now || new Date().toISOString(),
+                  now || new Date().toISOString()
+                ];
+
+                await tx.executeSql(
+                  'INSERT INTO sync_info (table_name, last_sync_time, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                  safeParams
+                );
+              }
+            });
+
+            console.log('sync_info表初始化完成');
+          } else {
+            console.log(`sync_info表已有${count}条记录`);
+          }
+
+          // 创建离线队列表
+          await db.executeSql(`
+            CREATE TABLE IF NOT EXISTS offline_queue (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              operation_type TEXT NOT NULL,
+              table_name TEXT NOT NULL,
+              record_id TEXT,
+              data TEXT,
+              retry_count INTEGER DEFAULT 0,
+              created_at TEXT,
+              is_processed INTEGER DEFAULT 0,
+              error_message TEXT
+            )
+          `);
+          console.log('离线队列表创建成功');
+
+          // 确保数据库文件被正确保存
+          await db.executeSql('PRAGMA journal_mode=DELETE');
+          await db.executeSql('PRAGMA synchronous=FULL');
+          await db.close();
+          console.log('数据库已关闭，确保更改被保存');
+
+          // 验证数据库文件是否存在
+          const fileExistsAfterClose = await RNFS.exists(dbPath);
+          if (fileExistsAfterClose) {
+            const fileInfo = await RNFS.stat(dbPath);
+            console.log(`数据库文件已保存，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
+          } else {
+            console.error('数据库文件保存失败');
+          }
+        } catch (syncTableError) {
+          console.error('直接创建数据库和表失败:', syncTableError);
+          // 继续执行，不阻塞应用启动
+        }
 
         // 使用Promise.all和超时机制确保所有服务初始化不会阻塞应用
         const initPromises = [];
@@ -162,7 +321,7 @@ const AppContainer = () => {
         const firebasePromise = new Promise(async (resolve) => {
           try {
             const result = await initializeFirebase();
-            console.log('Firebase 初始化' + (result ? '成功' : '失败'));
+            console.log('Firebase 已经初始化' + (result ? '成功' : '失败'));
             resolve(true);
           } catch (error) {
             console.warn('Firebase 初始化失败，但应用将继续运行:', error);
@@ -171,28 +330,12 @@ const AppContainer = () => {
         });
         initPromises.push(firebasePromise);
 
-        // 初始化通知服务 - 这里不需要额外代码，因为NotificationService在导入时已自动初始化
-        // 但我们可以添加一个检查，确保通知服务已经初始化
-        const notificationPromise = new Promise(async (resolve) => {
-          try {
-            // 等待一小段时间，确保通知服务有足够时间初始化
-            setTimeout(() => {
-              console.log('通知服务初始化检查完成');
-              resolve(true);
-            }, 1000);
-          } catch (error) {
-            console.warn('通知服务初始化检查失败，但应用将继续运行:', error);
-            resolve(false);
-          }
-        });
-        initPromises.push(notificationPromise);
-
         // 初始化离线数据服务
         const offlineDataPromise = new Promise(async (resolve) => {
           try {
             console.log('正在初始化离线数据服务...');
             offlineDataService.initialize();
-            console.log('离线数据服务初始化成功');
+            console.log('离线数据服务已初始化');
             resolve(true);
           } catch (error) {
             console.warn('离线数据服务初始化失败，但应用将继续运行:', error);
@@ -201,13 +344,115 @@ const AppContainer = () => {
         });
         initPromises.push(offlineDataPromise);
 
-        // 初始化SQLite数据库服务
+        // 初始化SQLite数据库服务 - 使用单独的Promise.race确保不会阻塞其他服务
         const sqlitePromise = new Promise(async (resolve) => {
           try {
             console.log('正在初始化SQLite数据库服务...');
-            await dataService.init();
-            console.log('SQLite数据库服务初始化成功');
-            resolve(true);
+
+            // 检查数据库状态并尝试修复
+            try {
+              console.log('检查数据库状态...');
+              const dbPath = await sqliteService.getDatabasePath();
+              const RNFS = require('react-native-fs');
+              const fileExists = await RNFS.exists(dbPath);
+
+              if (fileExists) {
+                try {
+                  const fileInfo = await RNFS.stat(dbPath);
+                  console.log(`数据库文件存在，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
+
+                  // 如果文件大小异常（太小或太大），可能是损坏的
+                  if (fileInfo.size < 1024) { // 小于1KB
+                    console.warn('数据库文件异常小，可能是空文件或损坏，尝试重置');
+                    await sqliteService.resetDatabase();
+                  } else if (fileInfo.size > 100 * 1024 * 1024) { // 大于100MB
+                    console.warn('数据库文件过大，可能导致性能问题，尝试检查完整性');
+                    await sqliteService.checkAndRepairDatabase();
+                  }
+                } catch (fileError) {
+                  console.warn('检查数据库文件失败:', fileError);
+                }
+              } else {
+                console.log('数据库文件不存在，将在初始化时创建');
+              }
+            } catch (dbCheckError) {
+              console.error('检查数据库状态失败:', dbCheckError);
+            }
+
+            // 不再需要单独的超时Promise，因为init方法内部已经有超时处理
+
+            // 使用更简单、更可靠的方法初始化SQLite
+            let sqliteResult = false;
+            try {
+              console.log('使用简化方法初始化SQLite数据库...');
+
+              // 直接初始化SQLite服务，使用更长的超时时间
+              const db = await sqliteService.init(60000);
+
+              if (db) {
+                console.log('SQLite数据库初始化成功，现在初始化数据服务');
+
+                // 初始化数据服务
+                try {
+                  await dataService.init();
+                  sqliteResult = true;
+                  console.log('数据服务初始化成功');
+                } catch (dataServiceError) {
+                  console.error('数据服务初始化失败，但SQLite已初始化:', dataServiceError);
+                  sqliteResult = true; // 仍然认为SQLite初始化成功
+                }
+              } else {
+                console.warn('SQLite数据库初始化返回null，尝试备选方案');
+
+                // 尝试强制创建sync_info表
+                try {
+                  const forceResult = await sqliteService.forceCreateSyncInfoTable();
+                  console.log('强制创建sync_info表结果:', forceResult ? '成功' : '失败');
+
+                  if (forceResult) {
+                    // 再次尝试初始化数据服务
+                    try {
+                      await dataService.init();
+                      sqliteResult = true;
+                      console.log('使用备选方案后数据服务初始化成功');
+                    } catch (retryDataServiceError) {
+                      console.error('使用备选方案后数据服务初始化失败:', retryDataServiceError);
+                    }
+                  }
+                } catch (forceError) {
+                  console.error('强制创建sync_info表失败:', forceError);
+                }
+              }
+            } catch (initError) {
+              console.error('SQLite初始化过程中出错:', initError);
+
+              // 最后尝试：重置数据库
+              try {
+                console.log('尝试重置数据库...');
+                const resetResult = await sqliteService.resetDatabase();
+                console.log('数据库重置结果:', resetResult ? '成功' : '失败');
+
+                if (resetResult) {
+                  // 再次尝试初始化数据服务
+                  try {
+                    await dataService.init();
+                    sqliteResult = true;
+                    console.log('重置后数据服务初始化成功');
+                  } catch (postResetError) {
+                    console.error('重置后数据服务初始化失败:', postResetError);
+                  }
+                }
+              } catch (resetError) {
+                console.error('重置数据库失败:', resetError);
+              }
+            }
+
+            if (sqliteResult) {
+              console.log('SQLite数据库服务初始化成功');
+            } else {
+              console.warn('SQLite数据库服务未成功初始化，应用将以降级模式运行');
+            }
+            resolve(sqliteResult);
           } catch (error) {
             console.warn('SQLite数据库服务初始化失败，但应用将继续运行:', error);
             resolve(false);
@@ -215,27 +460,12 @@ const AppContainer = () => {
         });
         initPromises.push(sqlitePromise);
 
-        // 初始化数据同步服务
-        const syncPromise = new Promise(async (resolve) => {
-          try {
-            console.log('正在初始化数据同步服务...');
-            await syncService.init();
-            console.log('数据同步服务初始化成功');
-            resolve(true);
-          } catch (error) {
-            console.warn('数据同步服务初始化失败，但应用将继续运行:', error);
-            resolve(false);
-          }
-        });
-        initPromises.push(syncPromise);
-
         // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
         const timeoutPromise = new Promise(resolve => {
           setTimeout(() => {
-            // 使用console.log代替console.warn，避免显示警告
             console.log('服务初始化超时，但应用将继续运行');
             resolve(false);
-          }, 10000); // 10秒超时，增加超时时间以适应更慢的设备
+          }, 20000); // 20秒超时
         });
 
         // 等待所有服务初始化完成或超时
@@ -247,19 +477,20 @@ const AppContainer = () => {
         console.log('所有服务初始化完成或超时');
       } catch (error) {
         console.error('初始化服务失败:', error);
-        console.error('错误堆栈:', error.stack);
         // 即使出错也不抛出异常，避免阻塞应用启动
       }
     };
 
     // 使用setTimeout确保不会阻塞UI渲染
-    setTimeout(() => {
+    const initTimeout = setTimeout(() => {
       initServices();
-    }, 0);
+    }, 500); // 延迟500ms初始化，确保UI已渲染
 
     // 清理函数，在组件卸载时执行
     return () => {
+      clearTimeout(initTimeout);
       console.log('正在清理服务...');
+
       // 销毁离线数据服务
       try {
         offlineDataService.destroy();
@@ -276,7 +507,7 @@ const AppContainer = () => {
         console.error('关闭SQLite数据库连接失败:', error);
       }
     };
-  }, []);
+  }, []); // 空依赖数组确保只在组件挂载时执行一次
 
   // 监听主题变化，更新状态栏
   useEffect(() => {

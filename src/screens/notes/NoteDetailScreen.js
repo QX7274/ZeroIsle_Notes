@@ -16,7 +16,7 @@ import { useDispatch } from 'react-redux';
 import { updateNote } from '../../redux/slices/notesSlice';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { DrawingToolbar, DrawingCanvas } from '../../components/canvas';
+import { DrawingToolbar, InfiniteDrawingCanvas } from '../../components/canvas';
 import { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import Pdf from 'react-native-pdf';
@@ -37,7 +37,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
   const scrollViewRef = useRef(null);
 
   // 绘图画布
-  const drawingCanvas = DrawingCanvas({
+  const drawingCanvas = InfiniteDrawingCanvas({
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height - 200,
     backgroundColor: 'transparent',
@@ -66,7 +66,21 @@ const NoteDetailScreen = ({ route, navigation }) => {
   const loadNoteDetail = async (noteId) => {
     try {
       setIsLoading(true);
-      const response = await notesApi.getById(noteId);
+      console.log(`开始加载笔记详情 (ID: ${noteId})`);
+      const startTime = Date.now();
+
+      // 设置加载超时
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('笔记加载超时，请稍后重试'));
+        }, 20000); // 20秒超时
+      });
+
+      // 使用Promise.race实现超时控制
+      const responsePromise = notesApi.getById(noteId);
+      const response = await Promise.race([responsePromise, timeoutPromise]);
+
+      console.log(`笔记详情加载完成，耗时: ${Date.now() - startTime}ms`);
 
       if (response.success) {
         setNoteData(response.data);
@@ -80,7 +94,21 @@ const NoteDetailScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error('加载笔记详情失败:', error);
-      Alert.alert('错误', '加载笔记详情失败');
+
+      // 提供更详细的错误信息
+      let errorMessage = '加载笔记详情失败';
+
+      if (error.message) {
+        if (error.message.includes('超时')) {
+          errorMessage = '笔记加载超时，可能是数据库操作耗时较长。请稍后重试。';
+        } else if (error.message.includes('数据库')) {
+          errorMessage = '数据库操作失败，请重启应用后重试。';
+        } else {
+          errorMessage = `加载失败: ${error.message}`;
+        }
+      }
+
+      Alert.alert('错误', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -239,10 +267,18 @@ const NoteDetailScreen = ({ route, navigation }) => {
   };
 
   // 渲染加载状态
-  if (isLoading && !noteData) {
+  if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            正在加载笔记...
+          </Text>
+          <Text style={[styles.loadingSubText, { color: colors.text }]}>
+            首次加载可能需要较长时间
+          </Text>
+        </View>
       </View>
     );
   }
@@ -334,6 +370,24 @@ const NoteDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  loadingSubText: {
+    fontSize: 14,
+    marginTop: 10,
+    opacity: 0.7,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,

@@ -19,6 +19,7 @@ import OfflineIndicator from './OfflineIndicator';
 import EmptyState from './EmptyState';
 import ErrorState from './ErrorState';
 import ApiTestComponent from './ApiTestComponent';
+import SearchBar from './SearchBar';
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -55,6 +56,7 @@ export {
   EmptyState,
   ErrorState,
   ApiTestComponent,
+  SearchBar,
 
   // 现代UI组件
   GradientButton,

@@ -54,7 +54,7 @@
     "react-native-event-source": "^1.1.0",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
-    "react-native-image-picker": "^8.2.0",
+    "react-native-image-picker": "^8.2.1",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-markdown-display": "^7.0.2",
     "react-native-paper": "^5.12.3",
@@ -72,6 +72,7 @@
     "react-native-svg-transformer": "^1.5.0",
     "react-native-syntax-highlighter": "^2.1.0",
     "react-native-tts": "^4.1.0",
+    "react-native-uuid": "^2.0.3",
     "react-native-vector-icons": "^10.0.3",
     "react-native-view-shot": "^4.0.3",
     "react-native-webview": "^13.13.5",
@@ -123,5 +124,13 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "react-native": {
+    "android": {
+      "packageName": "com.zeroisle_notes"
+    },
+    "ios": {
+      "bundleIdentifier": "com.zeroisle.notes"
+    }
   }
 }

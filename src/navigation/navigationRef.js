@@ -16,19 +16,52 @@ export const navigationRef = createRef();
  */
 export function navigate(name, params, options = {}) {
   if (navigationRef.current) {
-    if (options.reset) {
-      // 如果需要重置导航堆栈
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name, params }],
-      });
-    } else {
-      // 正常导航
-      navigationRef.current.navigate(name, params);
+    try {
+      if (options.reset) {
+        // 如果需要重置导航堆栈
+        console.log(`尝试重置导航到: ${name}`);
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name, params }],
+        });
+      } else {
+        // 正常导航
+        console.log(`尝试导航到: ${name}`);
+        navigationRef.current.navigate(name, params);
+      }
+    } catch (error) {
+      console.error(`导航到 ${name} 失败:`, error);
+
+      // 尝试备选方法
+      try {
+        console.log(`尝试备选导航方法到: ${name}`);
+        if (options.reset) {
+          // 如果reset失败，尝试使用dispatch
+          navigationRef.current.dispatch({
+            type: 'RESET',
+            payload: {
+              index: 0,
+              routes: [{ name, params }],
+            },
+          });
+        } else {
+          // 如果navigate失败，尝试使用dispatch
+          navigationRef.current.dispatch({
+            type: 'NAVIGATE',
+            payload: {
+              name,
+              params,
+            },
+          });
+        }
+      } catch (backupError) {
+        console.error(`备选导航方法到 ${name} 也失败:`, backupError);
+      }
     }
   } else {
     // 如果导航引用不可用，将导航操作保存到队列中
     // 这在应用启动时可能会发生
+    console.log(`导航引用不可用，将导航到 ${name} 添加到队列`);
     getNavigationQueue().push({ name, params, options });
   }
 }
@@ -48,7 +81,25 @@ export function goBack() {
  */
 export function reset(state) {
   if (navigationRef.current) {
-    navigationRef.current.reset(state);
+    try {
+      console.log('尝试重置导航状态');
+      navigationRef.current.reset(state);
+    } catch (error) {
+      console.error('重置导航状态失败:', error);
+
+      // 尝试备选方法
+      try {
+        console.log('尝试使用dispatch重置导航状态');
+        navigationRef.current.dispatch({
+          type: 'RESET',
+          payload: state,
+        });
+      } catch (backupError) {
+        console.error('备选重置导航状态方法也失败:', backupError);
+      }
+    }
+  } else {
+    console.warn('navigationRef.current不存在，无法重置导航状态');
   }
 }
 
@@ -58,7 +109,26 @@ export function reset(state) {
  */
 export function resetRoot(state) {
   if (navigationRef.current) {
-    navigationRef.current.resetRoot(state);
+    try {
+      console.log('尝试重置导航根状态');
+      // 尝试使用reset方法代替resetRoot
+      navigationRef.current.reset(state);
+    } catch (error) {
+      console.error('重置导航根状态失败:', error);
+
+      // 尝试备选方法
+      try {
+        console.log('尝试使用dispatch重置导航根状态');
+        navigationRef.current.dispatch({
+          type: 'RESET',
+          payload: state,
+        });
+      } catch (backupError) {
+        console.error('备选重置导航根状态方法也失败:', backupError);
+      }
+    }
+  } else {
+    console.warn('navigationRef.current不存在，无法重置导航根状态');
   }
 }
 

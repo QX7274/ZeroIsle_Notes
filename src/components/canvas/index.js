@@ -2,30 +2,41 @@
  * 画布组件索引
  */
 
-import Canvas from './Canvas';
+// 组件导入
 import CanvasToolbar from './CanvasToolbar';
 import LayerManager from './LayerManager';
 import StyleEditor from './StyleEditor';
-import DrawingCanvas from './DrawingCanvas';
 import DrawingToolbar from './DrawingToolbar';
 import CanvasElement from './CanvasElement';
+import InfiniteCanvas from './InfiniteCanvas';
+import InfiniteDrawingCanvas from './InfiniteDrawingCanvas';
+import InfiniteCanvasAdapter from './InfiniteCanvasAdapter';
 
+// 导出所有组件
 export {
-  Canvas,
+  // 核心组件
   CanvasToolbar,
   LayerManager,
   StyleEditor,
-  DrawingCanvas,
   DrawingToolbar,
-  CanvasElement
+  CanvasElement,
+
+  // 无限画布组件
+  InfiniteCanvas,
+  InfiniteDrawingCanvas,
+  InfiniteCanvasAdapter
 };
 
 export default {
-  Canvas,
+  // 核心组件
   CanvasToolbar,
   LayerManager,
   StyleEditor,
-  DrawingCanvas,
   DrawingToolbar,
-  CanvasElement
+  CanvasElement,
+
+  // 无限画布组件
+  InfiniteCanvas,
+  InfiniteDrawingCanvas,
+  InfiniteCanvasAdapter
 };

@@ -49,6 +49,17 @@
 - **GraphControls.js**: 图控制组件，用于控制知识图谱
 - **AutoClassification.js**: 自动分类组件，提供自动分类功能
 
+### 画布相关组件 (`canvas/`)
+
+- **InfiniteCanvas.js**: 无限画布组件，提供基于SVG的高性能无限画布功能
+- **InfiniteDrawingCanvas.js**: 无限绘图画布组件，提供绘图功能
+- **InfiniteCanvasAdapter.js**: 无限画布适配器组件，提供元素管理功能
+- **CanvasToolbar.js**: 画布工具栏组件，提供各种绘图工具和操作按钮
+- **DrawingToolbar.js**: 绘图工具栏组件，提供绘图相关工具
+- **LayerManager.js**: 图层管理器组件，用于管理画布上的图层
+- **StyleEditor.js**: 样式编辑器组件，用于编辑元素的样式
+- **CanvasElement.js**: 画布元素组件，用于在画布上渲染各种元素
+
 ### 笔记相关组件 (`notes/`)
 
 - **NoteList.js**: 笔记列表组件，用于显示笔记列表

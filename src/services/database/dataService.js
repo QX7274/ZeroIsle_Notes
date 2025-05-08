@@ -19,27 +19,52 @@ class DataService {
   }
 
   /**
+   * 获取SQLite服务实例
+   * @returns {object} SQLite服务实例
+   */
+  getSqliteService() {
+    return sqliteService;
+  }
+
+  /**
    * 初始化数据服务
    * @returns {Promise<void>}
    */
   async init() {
+    // 防止重复初始化
     if (this.isInitialized) {
+      console.log('数据服务已经初始化，跳过重复初始化');
       return;
     }
 
-    try {
-      // 初始化SQLite服务
-      await sqliteService.init();
-
-      // 初始化同步服务
-      await syncService.init();
-
-      this.isInitialized = true;
-      console.log('数据服务初始化成功');
-    } catch (error) {
-      console.error('数据服务初始化失败:', error);
-      throw error;
+    // 防止并发初始化
+    if (this._initPromise) {
+      console.log('数据服务正在初始化中，等待完成...');
+      return this._initPromise;
     }
+
+    // 创建初始化Promise
+    this._initPromise = (async () => {
+      try {
+        // 初始化SQLite服务
+        await sqliteService.init();
+
+        // 初始化同步服务
+        await syncService.init();
+
+        this.isInitialized = true;
+        console.log('数据服务初始化成功');
+      } catch (error) {
+        console.error('数据服务初始化失败:', error);
+        this.isInitialized = false;
+        throw error;
+      } finally {
+        // 清除初始化Promise
+        this._initPromise = null;
+      }
+    })();
+
+    return this._initPromise;
   }
 
   /**
@@ -112,23 +137,23 @@ class DataService {
       const user = {
         id: userId,
         username: userData.username,
-        email: userData.email || null,
-        phone: userData.phone || null,
-        password: userData.password || null,
+        email: userData.email || '',
+        phone: userData.phone || '',
+        password: userData.password || '',
         first_name: userData.first_name || '',
         last_name: userData.last_name || '',
         nickname: userData.nickname || '',
-        avatar: userData.avatar || null,
+        avatar: userData.avatar || '',
         bio: userData.bio || '',
         is_active: userData.is_active || 1,
         is_staff: userData.is_staff || 0,
         date_joined: userData.date_joined || now,
         last_login: userData.last_login || now,
-        wechat_openid: userData.wechat_openid || null,
-        wechat_unionid: userData.wechat_unionid || null,
-        wechat_avatar: userData.wechat_avatar || null,
-        qq_openid: userData.qq_openid || null,
-        qq_avatar: userData.qq_avatar || null,
+        wechat_openid: userData.wechat_openid || '',
+        wechat_unionid: userData.wechat_unionid || '',
+        wechat_avatar: userData.wechat_avatar || '',
+        qq_openid: userData.qq_openid || '',
+        qq_avatar: userData.qq_avatar || '',
         preferences: JSON.stringify(userData.preferences || {}),
         created_at: now,
         updated_at: now,
@@ -300,10 +325,10 @@ class DataService {
         user_id: userId,
         title: noteData.title,
         content: noteData.content || '',
-        category_id: noteData.category_id || null,
+        category_id: noteData.category_id || '',
         is_favorite: noteData.is_favorite || 0,
         is_encrypted: noteData.is_encrypted || 0,
-        encryption_key: noteData.encryption_key || null,
+        encryption_key: noteData.encryption_key || '',
         is_public: noteData.is_public || 0,
         is_deleted: noteData.is_deleted || 0,
         created_at: now,
@@ -378,17 +403,38 @@ class DataService {
   /**
    * 获取笔记
    * @param {string} noteId - 笔记ID
+   * @param {number} timeout - 查询超时时间（毫秒）
    * @returns {Promise<object>} 笔记对象
    */
-  async getNote(noteId) {
+  async getNote(noteId, timeout = 15000) {
     try {
-      await this.init();
+      console.log(`开始获取笔记 (ID: ${noteId})`);
+      const startTime = Date.now();
 
-      // 从本地数据库获取
+      // 确保数据库已初始化
+      await this.init();
+      console.log(`数据库初始化检查完成，耗时: ${Date.now() - startTime}ms`);
+
+      // 检查数据库连接状态
+      if (!sqliteService.isInitialized || !sqliteService.database) {
+        console.warn('数据库未初始化或连接不可用，尝试重新初始化');
+        await sqliteService.init(timeout);
+
+        // 如果仍然未初始化，抛出错误
+        if (!sqliteService.isInitialized || !sqliteService.database) {
+          throw new Error('数据库连接不可用，无法获取笔记');
+        }
+      }
+
+      // 从本地数据库获取笔记 - 使用更长的超时时间
+      console.log(`开始查询笔记数据 (ID: ${noteId})`);
+      const queryStartTime = Date.now();
       const result = await sqliteService.executeSql(
         `SELECT * FROM ${TABLES.NOTES} WHERE id = ?`,
-        [noteId]
+        [noteId],
+        timeout
       );
+      console.log(`笔记数据查询完成，耗时: ${Date.now() - queryStartTime}ms`);
 
       if (result.rows.length === 0) {
         throw new Error(`找不到笔记: ${noteId}`);
@@ -396,20 +442,41 @@ class DataService {
 
       const note = result.rows.item(0);
 
-      // 获取标签
+      // 获取标签 - 使用单独的超时设置
+      console.log(`开始查询笔记标签 (ID: ${noteId})`);
+      const tagsStartTime = Date.now();
       const tagsResult = await sqliteService.executeSql(
         `SELECT tag_id FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
-        [noteId]
+        [noteId],
+        5000 // 标签查询使用较短的超时时间
       );
+      console.log(`笔记标签查询完成，耗时: ${Date.now() - tagsStartTime}ms`);
 
       const tags = [];
       for (let i = 0; i < tagsResult.rows.length; i++) {
         tags.push(tagsResult.rows.item(i).tag_id);
       }
 
+      console.log(`笔记获取成功 (ID: ${noteId})，总耗时: ${Date.now() - startTime}ms`);
       return { ...note, tags };
     } catch (error) {
       console.error(`获取笔记失败 (ID: ${noteId}):`, error);
+
+      // 如果是超时错误，提供更详细的诊断信息
+      if (error.message && error.message.includes('超时')) {
+        console.error('笔记加载超时，可能的原因：数据库文件过大、查询复杂或设备资源不足');
+
+        // 尝试执行简单查询来检查数据库连接
+        try {
+          await sqliteService.executeSql('SELECT 1', [], 3000);
+          console.log('数据库连接仍然有效，但笔记查询超时');
+        } catch (testError) {
+          console.error('数据库连接测试失败，可能需要重新初始化数据库:', testError);
+          // 标记数据库需要重新初始化
+          sqliteService.isInitialized = false;
+        }
+      }
+
       throw error;
     }
   }

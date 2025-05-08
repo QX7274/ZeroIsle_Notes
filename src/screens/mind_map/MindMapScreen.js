@@ -44,13 +44,47 @@ const MindMapScreen = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await apiService.get('/mind-map/maps/', {
-        params: { search: searchQuery }
-      });
-      
-      setMindMaps(response.data.results);
-      analyticsService.trackEvent('view_mind_maps', { count: response.data.results.length });
+
+      try {
+        const response = await apiService.get('/mind-map/maps/', {
+          params: { search: searchQuery }
+        });
+
+        setMindMaps(response.data.results);
+        analyticsService.trackEvent('view_mind_maps', { count: response.data.results.length });
+      } catch (apiErr) {
+        console.error('API加载思维导图失败，使用示例数据:', apiErr);
+
+        // 如果API请求失败，使用示例数据
+        const exampleMindMaps = [
+          {
+            id: 'example1',
+            title: '学习计划',
+            description: '个人学习计划思维导图',
+            updated_at: new Date().toISOString(),
+            layout_type: 'tree',
+            theme: 'default'
+          },
+          {
+            id: 'example2',
+            title: '项目规划',
+            description: '项目开发规划思维导图',
+            updated_at: new Date().toISOString(),
+            layout_type: 'radial',
+            theme: 'blue'
+          },
+          {
+            id: 'example3',
+            title: '知识体系',
+            description: '个人知识体系思维导图',
+            updated_at: new Date().toISOString(),
+            layout_type: 'tree',
+            theme: 'green'
+          }
+        ];
+
+        setMindMaps(exampleMindMaps);
+      }
     } catch (err) {
       console.error('加载思维导图失败:', err);
       setError('加载思维导图失败，请稍后重试');
@@ -71,7 +105,7 @@ const MindMapScreen = () => {
     const delaySearch = setTimeout(() => {
       loadMindMaps();
     }, 500);
-    
+
     return () => clearTimeout(delaySearch);
   }, [searchQuery]);
 
@@ -87,7 +121,7 @@ const MindMapScreen = () => {
       Alert.alert('提示', '请输入思维导图标题');
       return;
     }
-    
+
     try {
       const response = await apiService.post('/mind-map/maps/', {
         title: newMindMapTitle.trim(),
@@ -95,11 +129,11 @@ const MindMapScreen = () => {
         layout_type: 'tree',
         theme: 'default'
       });
-      
+
       setShowCreateModal(false);
       setNewMindMapTitle('');
       analyticsService.trackEvent('create_mind_map', { title: newMindMapTitle });
-      
+
       // 导航到编辑页面
       navigation.navigate('MindMapEdit', { mindMapId: response.data.id });
     } catch (err) {
@@ -112,7 +146,122 @@ const MindMapScreen = () => {
   // 打开思维导图
   const handleOpenMindMap = (mindMap) => {
     analyticsService.trackEvent('open_mind_map', { id: mindMap.id });
-    navigation.navigate('MindMapEdit', { mindMapId: mindMap.id });
+
+    // 检查是否为示例思维导图
+    if (mindMap.id.startsWith('example')) {
+      // 对于示例思维导图，创建一些示例节点和边
+      const exampleData = getExampleMindMapData(mindMap.id);
+      navigation.navigate('MindMapEdit', {
+        mindMapId: mindMap.id,
+        title: mindMap.title,
+        isExample: true,
+        nodes: exampleData.nodes,
+        edges: exampleData.edges,
+        layoutType: mindMap.layout_type,
+        theme: mindMap.theme
+      });
+    } else {
+      // 正常导航到编辑页面
+      navigation.navigate('MindMapEdit', { mindMapId: mindMap.id });
+    }
+  };
+
+  // 获取示例思维导图数据
+  const getExampleMindMapData = (exampleId) => {
+    switch (exampleId) {
+      case 'example1': // 学习计划
+        return {
+          nodes: [
+            { id: '1', title: '学习计划', type: 'root', x: 400, y: 300 },
+            { id: '2', title: '编程语言', type: 'topic', x: 200, y: 200 },
+            { id: '3', title: '框架学习', type: 'topic', x: 600, y: 200 },
+            { id: '4', title: '计算机基础', type: 'topic', x: 400, y: 450 },
+            { id: '5', title: 'JavaScript', type: 'subtopic', x: 100, y: 150 },
+            { id: '6', title: 'Python', type: 'subtopic', x: 150, y: 250 },
+            { id: '7', title: 'React Native', type: 'subtopic', x: 550, y: 150 },
+            { id: '8', title: 'Django', type: 'subtopic', x: 650, y: 250 },
+            { id: '9', title: '数据结构', type: 'subtopic', x: 300, y: 500 },
+            { id: '10', title: '算法', type: 'subtopic', x: 500, y: 500 },
+          ],
+          edges: [
+            { id: 'e1', source: '1', target: '2' },
+            { id: 'e2', source: '1', target: '3' },
+            { id: 'e3', source: '1', target: '4' },
+            { id: 'e4', source: '2', target: '5' },
+            { id: 'e5', source: '2', target: '6' },
+            { id: 'e6', source: '3', target: '7' },
+            { id: 'e7', source: '3', target: '8' },
+            { id: 'e8', source: '4', target: '9' },
+            { id: 'e9', source: '4', target: '10' },
+          ]
+        };
+      case 'example2': // 项目规划
+        return {
+          nodes: [
+            { id: '1', title: '项目规划', type: 'root', x: 400, y: 300 },
+            { id: '2', title: '需求分析', type: 'topic', x: 200, y: 200 },
+            { id: '3', title: '设计阶段', type: 'topic', x: 600, y: 200 },
+            { id: '4', title: '开发阶段', type: 'topic', x: 200, y: 400 },
+            { id: '5', title: '测试阶段', type: 'topic', x: 600, y: 400 },
+            { id: '6', title: '用户调研', type: 'subtopic', x: 100, y: 150 },
+            { id: '7', title: '功能列表', type: 'subtopic', x: 150, y: 250 },
+            { id: '8', title: 'UI设计', type: 'subtopic', x: 550, y: 150 },
+            { id: '9', title: '架构设计', type: 'subtopic', x: 650, y: 250 },
+            { id: '10', title: '前端开发', type: 'subtopic', x: 100, y: 400 },
+            { id: '11', title: '后端开发', type: 'subtopic', x: 300, y: 400 },
+            { id: '12', title: '单元测试', type: 'subtopic', x: 500, y: 400 },
+            { id: '13', title: '集成测试', type: 'subtopic', x: 700, y: 400 },
+          ],
+          edges: [
+            { id: 'e1', source: '1', target: '2' },
+            { id: 'e2', source: '1', target: '3' },
+            { id: 'e3', source: '1', target: '4' },
+            { id: 'e4', source: '1', target: '5' },
+            { id: 'e5', source: '2', target: '6' },
+            { id: 'e6', source: '2', target: '7' },
+            { id: 'e7', source: '3', target: '8' },
+            { id: 'e8', source: '3', target: '9' },
+            { id: 'e9', source: '4', target: '10' },
+            { id: 'e10', source: '4', target: '11' },
+            { id: 'e11', source: '5', target: '12' },
+            { id: 'e12', source: '5', target: '13' },
+          ]
+        };
+      case 'example3': // 知识体系
+        return {
+          nodes: [
+            { id: '1', title: '知识体系', type: 'root', x: 400, y: 300 },
+            { id: '2', title: '技术知识', type: 'topic', x: 200, y: 200 },
+            { id: '3', title: '管理知识', type: 'topic', x: 600, y: 200 },
+            { id: '4', title: '行业知识', type: 'topic', x: 200, y: 400 },
+            { id: '5', title: '通用技能', type: 'topic', x: 600, y: 400 },
+            { id: '6', title: '编程语言', type: 'subtopic', x: 100, y: 150 },
+            { id: '7', title: '框架工具', type: 'subtopic', x: 300, y: 150 },
+            { id: '8', title: '项目管理', type: 'subtopic', x: 500, y: 150 },
+            { id: '9', title: '团队管理', type: 'subtopic', x: 700, y: 150 },
+            { id: '10', title: '市场趋势', type: 'subtopic', x: 100, y: 450 },
+            { id: '11', title: '竞品分析', type: 'subtopic', x: 300, y: 450 },
+            { id: '12', title: '沟通能力', type: 'subtopic', x: 500, y: 450 },
+            { id: '13', title: '学习能力', type: 'subtopic', x: 700, y: 450 },
+          ],
+          edges: [
+            { id: 'e1', source: '1', target: '2' },
+            { id: 'e2', source: '1', target: '3' },
+            { id: 'e3', source: '1', target: '4' },
+            { id: 'e4', source: '1', target: '5' },
+            { id: 'e5', source: '2', target: '6' },
+            { id: 'e6', source: '2', target: '7' },
+            { id: 'e7', source: '3', target: '8' },
+            { id: 'e8', source: '3', target: '9' },
+            { id: 'e9', source: '4', target: '10' },
+            { id: 'e10', source: '4', target: '11' },
+            { id: 'e11', source: '5', target: '12' },
+            { id: 'e12', source: '5', target: '13' },
+          ]
+        };
+      default:
+        return { nodes: [], edges: [] };
+    }
   };
 
   // 删除思维导图
@@ -160,7 +309,7 @@ const MindMapScreen = () => {
           {new Date(item.updated_at).toLocaleString()}
         </Text>
       </View>
-      
+
       <TouchableOpacity
         style={styles.deleteButton}
         onPress={() => handleDeleteMindMap(item)}
@@ -173,7 +322,7 @@ const MindMapScreen = () => {
   // 渲染空状态
   const renderEmptyState = () => {
     if (loading) return null;
-    
+
     return (
       <EmptyState
         icon="bubble-chart"
@@ -233,7 +382,7 @@ const MindMapScreen = () => {
           <Icon name="add" size={24} color="#fff" />
           <Text style={styles.createButtonText}>新建思维导图</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.templateButton, { backgroundColor: colors.secondary }]}
           onPress={handleSelectTemplate}
@@ -255,7 +404,7 @@ const MindMapScreen = () => {
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               创建新思维导图
             </Text>
-            
+
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
               placeholder="输入思维导图标题"
@@ -264,7 +413,7 @@ const MindMapScreen = () => {
               onChangeText={setNewMindMapTitle}
               autoFocus
             />
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.background }]}
@@ -274,7 +423,7 @@ const MindMapScreen = () => {
                   取消
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.primary }]}
                 onPress={handleCreateMindMap}

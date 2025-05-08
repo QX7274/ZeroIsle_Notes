@@ -9,7 +9,7 @@ import { handleUnauthorizedError } from '../auth/authUtils';
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: `${API_URL}/${API_VERSION}`,
+  baseURL: `${API_URL}/api/${API_VERSION}`,
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
@@ -17,18 +17,21 @@ const api = axios.create({
   },
 });
 
+// 调试信息
+console.log('API服务baseURL:', `${API_URL}/api/${API_VERSION}`);
+
 // 请求拦截器
 api.interceptors.request.use(
   async (config) => {
     // 从AsyncStorage获取token
-    const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || 
+    const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
                   await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-    
+
     // 如果有token，添加到请求头
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     return config;
   },
   (error) => {
@@ -46,18 +49,18 @@ api.interceptors.response.use(
     // 处理错误
     if (error.response) {
       const { status, data } = error.response;
-      
+
       // 处理401未授权错误
       if (status === 401) {
         console.log('API响应401未授权错误');
         await handleUnauthorizedError();
       }
-      
+
       // 处理404资源未找到错误
       if (status === 404) {
         console.error('资源未找到:', error.config.url);
       }
-      
+
       // 处理500服务器错误
       if (status >= 500) {
         console.error('服务器错误:', data);
@@ -69,7 +72,7 @@ api.interceptors.response.use(
       // 请求配置错误
       console.error('API请求配置错误:', error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );

@@ -5,12 +5,13 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
+import DeviceInfo from 'react-native-device-info';
 import { CACHE_KEYS } from '../../utils/constants/config';
 
 class CacheService {
   constructor() {
-    this.cacheDir = Platform.OS === 'ios' 
-      ? RNFS.CachesDirectoryPath 
+    this.cacheDir = Platform.OS === 'ios'
+      ? RNFS.CachesDirectoryPath
       : RNFS.CachesDirectoryPath;
     this.tempDir = RNFS.TemporaryDirectoryPath;
     this.listeners = [];
@@ -25,26 +26,26 @@ class CacheService {
       // 获取文件缓存大小
       const cacheDirStats = await RNFS.readDir(this.cacheDir);
       const tempDirStats = await RNFS.readDir(this.tempDir);
-      
+
       // 计算文件缓存大小
       let cacheSize = 0;
-      
+
       for (const file of cacheDirStats) {
         if (file.isFile()) {
           cacheSize += file.size;
         }
       }
-      
+
       for (const file of tempDirStats) {
         if (file.isFile()) {
           cacheSize += file.size;
         }
       }
-      
+
       // 获取AsyncStorage缓存大小（估计值）
       const keys = await AsyncStorage.getAllKeys();
       let asyncStorageSize = 0;
-      
+
       for (const key of keys) {
         if (key.startsWith('cache_') || key.startsWith('temp_')) {
           const value = await AsyncStorage.getItem(key);
@@ -53,7 +54,7 @@ class CacheService {
           }
         }
       }
-      
+
       return cacheSize + asyncStorageSize;
     } catch (error) {
       console.error('获取缓存大小失败:', error);
@@ -70,40 +71,40 @@ class CacheService {
       // 清理文件缓存
       const cacheDirStats = await RNFS.readDir(this.cacheDir);
       const tempDirStats = await RNFS.readDir(this.tempDir);
-      
+
       const deletePromises = [];
-      
+
       // 删除缓存目录中的文件
       for (const file of cacheDirStats) {
         if (file.isFile() && !file.name.includes('important')) {
           deletePromises.push(RNFS.unlink(file.path));
         }
       }
-      
+
       // 删除临时目录中的文件
       for (const file of tempDirStats) {
         if (file.isFile()) {
           deletePromises.push(RNFS.unlink(file.path));
         }
       }
-      
+
       await Promise.all(deletePromises);
-      
+
       // 清理AsyncStorage缓存
       const keys = await AsyncStorage.getAllKeys();
-      const cacheKeys = keys.filter(key => 
-        key.startsWith('cache_') || 
-        key.startsWith('temp_') || 
+      const cacheKeys = keys.filter(key =>
+        key.startsWith('cache_') ||
+        key.startsWith('temp_') ||
         CACHE_KEYS.includes(key)
       );
-      
+
       if (cacheKeys.length > 0) {
         await AsyncStorage.multiRemove(cacheKeys);
       }
-      
+
       // 通知监听器
       this._notifyListeners({ type: 'cacheCleared' });
-      
+
       return true;
     } catch (error) {
       console.error('清理缓存失败:', error);
@@ -117,17 +118,22 @@ class CacheService {
    */
   async checkForUpdates() {
     try {
+      // 检查 DeviceInfo 是否可用
+      if (!DeviceInfo || typeof DeviceInfo.getVersion !== 'function') {
+        throw new Error('DeviceInfo 不可用');
+      }
+
       // 获取当前版本
       const currentVersion = await DeviceInfo.getVersion();
-      
+
       // 模拟API请求获取最新版本
       // 实际应用中应该从服务器获取
       const latestVersion = '1.1.0'; // 模拟最新版本
       const updateUrl = 'https://zeroislenotes.com/download'; // 模拟下载链接
-      
+
       // 比较版本号
       const hasUpdate = this._compareVersions(latestVersion, currentVersion) > 0;
-      
+
       return {
         hasUpdate,
         version: latestVersion,
@@ -137,7 +143,7 @@ class CacheService {
       console.error('检查更新失败:', error);
       return {
         hasUpdate: false,
-        version: '',
+        version: '1.0.0', // 提供默认版本号
         url: ''
       };
     }
@@ -152,15 +158,15 @@ class CacheService {
   _compareVersions(v1, v2) {
     const parts1 = v1.split('.').map(Number);
     const parts2 = v2.split('.').map(Number);
-    
+
     for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
       const part1 = parts1[i] || 0;
       const part2 = parts2[i] || 0;
-      
+
       if (part1 > part2) return 1;
       if (part1 < part2) return -1;
     }
-    
+
     return 0;
   }
 

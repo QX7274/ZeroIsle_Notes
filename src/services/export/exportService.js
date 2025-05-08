@@ -19,18 +19,18 @@ class ExportService {
           fontName: 'Times New Roman',
         });
 
-      // 将内容分行处�?
+      // 将内容分行处理
       const lines = content.split('\n');
-      let yPosition = 750; // 从标题下方开�?
+      let yPosition = 750; // 从标题下方开始写入内容
 
       for (const line of lines) {
         if (line.trim() === '') {
-          // 空行，增加一些间�?
+          // 空行，增加一些间距
           yPosition -= 20;
           continue;
         }
 
-        // 绘制文本�?
+        // 绘制文本
         page.drawText(line, {
           x: 50,
           y: yPosition,
@@ -38,8 +38,8 @@ class ExportService {
           fontSize: 12,
           fontName: 'Times New Roman',
         });
-
-        yPosition -= 20; // 行间�?
+        yPosition -= 20; // 行间距
+        yPosition -= 20; // 行间距
 
         // 如果到达页面底部，可以在这里添加新页面的逻辑
         if (yPosition < 50) {
@@ -53,7 +53,7 @@ class ExportService {
       const fileName = `${title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       const filePath = `${docsDir}/${fileName}`;
 
-      // 创建PDF文档并写�?
+      // 创建PDF文档并写入
       const pdfPath = await PDFDocument
         .create(filePath)
         .addPages(page)

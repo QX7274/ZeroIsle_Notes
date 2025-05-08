@@ -46,8 +46,10 @@ import ApiTest from '../screens/community/ApiTest';
 import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 // 导入知识图谱相关组件
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+// 导入思维导图相关组件
+import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 // 导入画布组件
-import CanvasScreen from '../screens/canvas/CanvasScreen';
+import { CanvasScreen, InfiniteCanvasScreen } from '../screens/canvas';
 // 导入文件查看器组件
 import PDFViewer from '../screens/viewers/PDFViewer';
 import DocViewer from '../screens/viewers/DocViewer';
@@ -215,6 +217,10 @@ const MainTabs = () => {
             iconName = 'forum';
           } else if (route.name === 'GroupsStack') {
             iconName = 'groups';
+          } else if (route.name === 'MindMapStack') {
+            iconName = 'account-tree';
+          } else if (route.name === 'KnowledgeGraph') {
+            iconName = 'bubble-chart';
           } else if (route.name === 'Profile') {
             iconName = 'person';
           }
@@ -300,6 +306,24 @@ const MainTabs = () => {
           headerShown: false,
           title: '群组',
           tabBarLabel: '群组',
+        }}
+      />
+      <Tab.Screen
+        name="MindMapStack"
+        component={MindMapStack}
+        options={{
+          headerShown: false,
+          title: '思维导图',
+          tabBarLabel: '思维导图',
+        }}
+      />
+      <Tab.Screen
+        name="KnowledgeGraph"
+        component={KnowledgeGraphStack}
+        options={{
+          headerShown: false,
+          title: '知识图谱',
+          tabBarLabel: '知识图谱',
         }}
       />
       <Tab.Screen
@@ -409,6 +433,30 @@ const HomeStack = () => {
         }}
       />
       <Stack.Screen
+        name="MindMap"
+        component={MindMapScreen}
+        options={{
+          title: '思维导图',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="MindMapEdit"
+        component={MindMapEditScreen}
+        options={{
+          title: '编辑思维导图',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="MindMapTemplate"
+        component={MindMapTemplateScreen}
+        options={{
+          title: '思维导图模板',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
         name="NodeDetail"
         component={NodeDetailScreen}
         options={({ route }) => ({
@@ -438,6 +486,14 @@ const HomeStack = () => {
         component={CanvasScreen}
         options={{
           title: '无限画布',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="InfiniteCanvas"
+        component={InfiniteCanvasScreen}
+        options={{
+          title: '无限草稿',
           headerBackTitleVisible: false,
         }}
       />
@@ -612,6 +668,93 @@ const CategoryStack = () => {
 };
 
 /**
+ * 知识图谱堆栈导航
+ * 包含知识图谱主页、节点详情等功能
+ */
+const KnowledgeGraphStack = () => {
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('KnowledgeGraphStack: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('KnowledgeGraphStack: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="KnowledgeGraphMain"
+        component={KnowledgeGraphScreen}
+        options={{ title: '知识图谱' }}
+      />
+      <Stack.Screen
+        name="NodeDetail"
+        component={NodeDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '节点详情',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="EdgeEdit"
+        component={EdgeEditScreen}
+        options={({ route }) => ({
+          title: route.params?.edgeId ? '编辑关系' : '创建关系',
+          headerBackTitleVisible: false,
+        })}
+      />
+      <Stack.Screen
+        name="KnowledgeAnalysis"
+        component={KnowledgeAnalysisScreen}
+        options={{
+          title: '知识分析',
+          headerBackTitleVisible: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+/**
  * 社区堆栈导航
  * 包含社区首页、帖子详情等功能
  */
@@ -699,6 +842,85 @@ const CommunityStack = () => {
         component={CommunitySearchScreen}
         options={{
           title: '社区搜索',
+          headerBackTitleVisible: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+/**
+ * 思维导图堆栈导航
+ * 包含思维导图列表、编辑和模板等功能
+ */
+const MindMapStack = () => {
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('MindMapStack: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('MindMapStack: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="MindMapList"
+        component={MindMapScreen}
+        options={{ title: '思维导图' }}
+      />
+      <Stack.Screen
+        name="MindMapEdit"
+        component={MindMapEditScreen}
+        options={{
+          title: '编辑思维导图',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="MindMapTemplate"
+        component={MindMapTemplateScreen}
+        options={{
+          title: '思维导图模板',
           headerBackTitleVisible: false,
         }}
       />

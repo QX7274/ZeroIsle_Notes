@@ -13,7 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Pdf from 'react-native-pdf';
-import { DrawingToolbar, DrawingCanvas } from '../../components/canvas';
+import { DrawingToolbar, InfiniteDrawingCanvas } from '../../components/canvas';
 import { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import { notesApi } from '../../services/api';
@@ -32,7 +32,7 @@ const PDFViewerScreen = ({ route, navigation }) => {
   const containerRef = useRef(null);
 
   // 绘图画布
-  const drawingCanvas = DrawingCanvas({
+  const drawingCanvas = InfiniteDrawingCanvas({
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height - 120,
     backgroundColor: 'transparent',

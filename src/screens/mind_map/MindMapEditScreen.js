@@ -35,7 +35,7 @@ const MindMapEditScreen = () => {
   const route = useRoute();
   const { colors } = useTheme();
   const styles = getStyles(colors);
-  const { mindMapId } = route.params || {};
+  const { mindMapId, title: routeTitle, isExample, nodes: routeNodes, edges: routeEdges, layoutType: routeLayoutType, theme: routeTheme } = route.params || {};
 
   // 状态
   const [mindMap, setMindMap] = useState(null);
@@ -99,12 +99,20 @@ const MindMapEditScreen = () => {
 
   // 首次加载
   useEffect(() => {
-    if (mindMapId) {
+    if (isExample && routeNodes && routeEdges) {
+      // 处理示例数据
+      setTitle(routeTitle || '示例思维导图');
+      setNodes(routeNodes);
+      setEdges(routeEdges);
+      setLayoutType(routeLayoutType || 'tree');
+      setTheme(routeTheme || 'default');
+      setLoading(false);
+    } else if (mindMapId) {
       loadMindMap();
     } else {
       setLoading(false);
     }
-  }, [mindMapId]);
+  }, [mindMapId, isExample, routeNodes, routeEdges]);
 
   // 保存思维导图
   const saveMindMap = async () => {
@@ -115,6 +123,50 @@ const MindMapEditScreen = () => {
 
     try {
       setSaving(true);
+
+      // 如果是示例思维导图，提示用户
+      if (isExample) {
+        Alert.alert(
+          '保存示例思维导图',
+          '您正在编辑示例思维导图。是否要将其保存为新的思维导图？',
+          [
+            { text: '取消', style: 'cancel', onPress: () => setSaving(false) },
+            {
+              text: '保存',
+              onPress: async () => {
+                try {
+                  const mindMapData = {
+                    title: title.trim(),
+                    description: description.trim(),
+                    layout_type: layoutType,
+                    theme: theme,
+                    data: {
+                      nodes,
+                      edges
+                    }
+                  };
+
+                  // 创建新思维导图
+                  const response = await apiService.post('/mind-map/maps/', mindMapData);
+                  navigation.setParams({
+                    mindMapId: response.data.id,
+                    isExample: false
+                  });
+                  showToastMessage('思维导图已创建');
+                  analyticsService.trackEvent('save_mind_map', { id: response.data.id, from_example: true });
+                } catch (err) {
+                  console.error('保存思维导图失败:', err);
+                  Alert.alert('错误', '保存思维导图失败，请稍后重试');
+                  analyticsService.trackError(err, { action: 'save_mind_map' });
+                } finally {
+                  setSaving(false);
+                }
+              }
+            }
+          ]
+        );
+        return;
+      }
 
       const mindMapData = {
         title: title.trim(),
@@ -129,7 +181,7 @@ const MindMapEditScreen = () => {
 
       let response;
 
-      if (mindMapId) {
+      if (mindMapId && !isExample) {
         // 更新现有思维导图
         response = await apiService.put(`/mind-map/maps/${mindMapId}/`, mindMapData);
         showToastMessage('思维导图已保存');

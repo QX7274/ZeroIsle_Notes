@@ -4,8 +4,7 @@
  * 支持离线模式和数据同步
  */
 import axios from 'axios';
-import { API_TIMEOUT, ERROR_MESSAGES } from '../../config/index';
-import { API_BASE_URL } from '../../config/api';
+import { API_URL, API_VERSION, API_TIMEOUT, ERROR_MESSAGES, STORAGE_KEYS } from '../../config/index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform, ToastAndroid } from 'react-native';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -13,13 +12,16 @@ import NetInfo from '@react-native-community/netinfo';
 
 // 创建axios实例
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_URL}/api/${API_VERSION}`,
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   }
 });
+
+// 调试信息
+console.log('API客户端初始化，baseURL:', `${API_URL}/api/${API_VERSION}`);
 
 // 检查网络连接状态
 const checkNetworkConnection = async () => {
@@ -67,10 +69,24 @@ const saveOfflineRequest = async (config) => {
 apiClient.interceptors.request.use(
   async config => {
     try {
-      // 添加认证令牌
-      const token = await AsyncStorage.getItem('token');
+      // 添加认证令牌 - 尝试从多个可能的存储位置获取
+      let token = await AsyncStorage.getItem('auth_token');
+
+      // 如果第一个位置没有找到，尝试其他位置
+      if (!token) {
+        token = await AsyncStorage.getItem('token');
+      }
+
+      // 如果还没找到，尝试从Redux存储的键获取
+      if (!token) {
+        token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      }
+
       if (token) {
+        console.log('API请求添加认证令牌');
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.warn('未找到认证令牌，请求将以未认证状态发送');
       }
 
       // 检查网络连接
@@ -237,7 +253,9 @@ const handleUnauthorized = async () => {
     console.log('处理未授权错误: 清除token和用户信息');
     // 清除token和用户信息
     await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('auth_token');
     await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('user_info');
     await AsyncStorage.removeItem('refresh_token');
 
     // 设置一个标志，表示认证已过期
@@ -248,13 +266,27 @@ const handleUnauthorized = async () => {
 
     // 使用setTimeout确保Alert显示后再执行导航
     setTimeout(() => {
-      // 使用reset方法重置整个导航状态
+      // 使用reset方法重置导航状态
       console.log('重置导航到登录页面');
       if (navigationRef.current) {
-        navigationRef.current.reset({
-          index: 0,
-          routes: [{ name: 'Auth' }],
-        });
+        try {
+          // 使用reset方法代替resetRoot方法
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'Auth' }],
+          });
+        } catch (navError) {
+          console.error('导航重置失败，尝试备选方法:', navError);
+
+          // 备选方法：使用navigate
+          try {
+            navigationRef.current.navigate('Auth');
+          } catch (navError2) {
+            console.error('导航到Auth失败:', navError2);
+          }
+        }
+      } else {
+        console.error('navigationRef.current不存在，无法执行导航');
       }
     }, 500);
   } catch (error) {

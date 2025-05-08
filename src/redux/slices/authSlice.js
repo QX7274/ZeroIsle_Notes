@@ -5,7 +5,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { userApi } from '../../services/api';
 import { storage } from '../../utils';
-import { navigate } from '../../navigation/navigationRef';
+import { navigate, navigationRef } from '../../navigation/navigationRef';
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -175,9 +175,9 @@ export const logout = createAsyncThunk(
 
       // 使用setTimeout确保Redux状态更新后再导航
       setTimeout(() => {
-        // 使用reset方法重置整个导航状态
+        // 使用resetRoot方法重置整个导航状态
         if (navigationRef.current) {
-          navigationRef.current.reset({
+          navigationRef.current.resetRoot({
             index: 0,
             routes: [{ name: 'Auth' }],
           });

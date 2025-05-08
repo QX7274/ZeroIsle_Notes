@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View, Animated, Pressable } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import * as Animations from '../../utils/animations';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 /**
  * 通用按钮组件
@@ -19,7 +20,7 @@ import * as Animations from '../../utils/animations';
  * @param {boolean} fullWidth - 是否占满宽度
  * @param {object} style - 自定义样式
  * @param {object} textStyle - 文字自定义样式
- * @param {element} icon - 按钮图标（React元素）
+ * @param {element|string} icon - 按钮图标（React元素或图标名称字符串）
  * @param {string} iconPosition - 图标位置：left, right
  * @param {object} iconStyle - 图标容器自定义样式
  * @param {string} animation - 动画类型：none, fade, scale, bounce
@@ -318,23 +319,41 @@ const Button = ({
       );
     }
 
+    // 渲染图标
+    const renderIcon = () => {
+      // 如果图标是字符串，使用Icon组件渲染
+      if (typeof icon === 'string') {
+        return (
+          <Icon
+            name={icon}
+            size={iconSize}
+            color={disabled ? colors.textDisabled : iconColor}
+          />
+        );
+      }
+
+      // 如果图标是React元素，使用cloneElement添加属性
+      if (icon && React.isValidElement(icon)) {
+        return React.cloneElement(icon, {
+          size: icon.props.size || iconSize,
+          color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+        });
+      }
+
+      return null;
+    };
+
     return (
       <>
         {icon && iconPosition === 'left' && (
           <View style={[styles.iconContainer, { marginRight: title ? 8 : 0 }, iconStyle]}>
-            {React.cloneElement(icon, {
-              size: icon.props.size || iconSize,
-              color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
-            })}
+            {renderIcon()}
           </View>
         )}
         {title && <Text style={buttonTextStyle}>{title}</Text>}
         {icon && iconPosition === 'right' && (
           <View style={[styles.iconContainer, { marginLeft: title ? 8 : 0 }, iconStyle]}>
-            {React.cloneElement(icon, {
-              size: icon.props.size || iconSize,
-              color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
-            })}
+            {renderIcon()}
           </View>
         )}
       </>

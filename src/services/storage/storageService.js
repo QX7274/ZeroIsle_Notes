@@ -17,30 +17,57 @@ const KEYS = {
 
 // 通用存储方法
 const setItem = async (key, value) => {
+  // 防御性检查：确保key不为undefined
+  if (key === undefined || key === null) {
+    console.error('存储错误: 键不能为undefined或null');
+    return false;
+  }
+
+  // 确保key是字符串
+  const safeKey = String(key);
+
   try {
-    await AsyncStorage.setItem(key, value);
+    await AsyncStorage.setItem(safeKey, value);
     return true;
   } catch (error) {
-    console.error(`保存数据失败 [${key}]:`, error);
+    console.error(`保存数据失败 [${safeKey}]:`, error);
     return false;
   }
 };
 
 const getItem = async (key) => {
+  // 防御性检查：确保key不为undefined
+  if (key === undefined || key === null) {
+    console.error('读取错误: 键不能为undefined或null');
+    return null;
+  }
+
+  // 确保key是字符串
+  const safeKey = String(key);
+
   try {
-    return await AsyncStorage.getItem(key);
+    return await AsyncStorage.getItem(safeKey);
   } catch (error) {
-    console.error(`获取数据失败 [${key}]:`, error);
+    console.error(`获取数据失败 [${safeKey}]:`, error);
     return null;
   }
 };
 
 const removeItem = async (key) => {
+  // 防御性检查：确保key不为undefined
+  if (key === undefined || key === null) {
+    console.error('删除错误: 键不能为undefined或null');
+    return false;
+  }
+
+  // 确保key是字符串
+  const safeKey = String(key);
+
   try {
-    await AsyncStorage.removeItem(key);
+    await AsyncStorage.removeItem(safeKey);
     return true;
   } catch (error) {
-    console.error(`删除数据失败 [${key}]:`, error);
+    console.error(`删除数据失败 [${safeKey}]:`, error);
     return false;
   }
 };

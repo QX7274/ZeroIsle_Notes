@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert, TouchableOpacity, Text, ActivityIndicator, Dimensions } from'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { Canvas, CanvasToolbar, StyleEditor, LayerManager, DrawingToolbar, DrawingCanvas } from '../../components/canvas';
+import {
+  CanvasToolbar,
+  StyleEditor,
+  LayerManager,
+  DrawingToolbar,
+  InfiniteCanvasAdapter,
+  InfiniteDrawingCanvas
+} from '../../components/canvas';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 import analyticsService from '../../services/analytics/analyticsService';
 import canvasApi from '../../services/api/canvasApi';
@@ -20,7 +27,7 @@ const CanvasScreen = ({ navigation, route }) => {
   const [showDrawingTools, setShowDrawingTools] = useState(false);
 
   // 初始化绘图画布
-  const drawingCanvas = DrawingCanvas({
+  const drawingCanvas = InfiniteDrawingCanvas({
     width: Dimensions.get('window').width - 16,
     height: 400,
     backgroundColor: 'white',
@@ -371,7 +378,7 @@ const CanvasScreen = ({ navigation, route }) => {
             {drawingCanvas.render()}
           </View>
         ) : (
-          <Canvas
+          <InfiniteCanvasAdapter
             elements={elements}
             onContentChange={handleContentChange}
             onElementSelect={handleElementSelect}

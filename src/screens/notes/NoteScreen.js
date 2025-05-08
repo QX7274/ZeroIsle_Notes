@@ -380,6 +380,8 @@ const NoteScreen = ({ navigation, route }) => {
           uri: file.uri || file.fileCopyUri,
           type: file.type || 'application/pdf',
           name: file.name || `document_${Date.now()}.pdf`,
+          size: file.size || 0,
+          path: file.path || file.uri,
         };
 
         console.log('准备添加到FormData的文件对象:', fileObj);
@@ -432,6 +434,8 @@ const NoteScreen = ({ navigation, route }) => {
           uri: file.uri || file.fileCopyUri,
           type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           name: file.name || `document_${Date.now()}.docx`,
+          size: file.size || 0,
+          path: file.path || file.uri,
         };
 
         console.log('准备添加到FormData的文件对象:', fileObj);
@@ -477,6 +481,8 @@ const NoteScreen = ({ navigation, route }) => {
         uri: res.assets[0].uri,
         type: res.assets[0].type,
         name: res.assets[0].fileName,
+        size: res.assets[0].fileSize || 0,
+        path: res.assets[0].uri,
       });
       formData.append('type', 'image');
 

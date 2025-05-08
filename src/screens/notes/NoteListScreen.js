@@ -56,6 +56,11 @@ const NoteListScreen = ({ navigation }) => {
     navigation.navigate('NoteEdit', { isNew: true });
   };
 
+  // 打开无限草稿
+  const handleOpenInfiniteCanvas = () => {
+    navigation.navigate('InfiniteCanvasList');
+  };
+
   // 查看笔记详情
   const handleViewNote = (note) => {
     navigation.navigate('NoteDetail', { noteId: note.id });
@@ -112,9 +117,22 @@ const NoteListScreen = ({ navigation }) => {
         ListEmptyComponent={renderEmptyList}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={handleCreateNote}>
-        <Icon name="add" size={24} color={colors.white} />
-      </TouchableOpacity>
+      {/* 悬浮按钮 */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={[styles.fab, styles.secondaryFab, { backgroundColor: colors.secondary }]}
+          onPress={handleOpenInfiniteCanvas}
+        >
+          <Icon name="brush" size={22} color={colors.white} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={handleCreateNote}
+        >
+          <Icon name="add" size={24} color={colors.white} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -183,10 +201,13 @@ const styles = StyleSheet.create({
   createButton: {
     marginTop: dimensions.spacing.medium,
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     right: dimensions.spacing.large,
     bottom: dimensions.spacing.large,
+    alignItems: 'center',
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -198,6 +219,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+  },
+  secondaryFab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginBottom: dimensions.spacing.medium,
   },
   errorText: {
     color: colors.error,

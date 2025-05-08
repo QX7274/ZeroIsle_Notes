@@ -191,6 +191,18 @@ const LoginScreen = ({ navigation }) => {
 
           if (result.success) {
             dispatch(login(result.data));
+
+            // 同步用户信息到SQLite
+            try {
+              // 动态导入用户同步服务
+              const userSyncService = require('../../services/database/userSyncService').default;
+              await userSyncService.ensureUserInSQLite(result.data.user);
+              console.log('手机验证码注册用户信息已同步到SQLite数据库');
+            } catch (syncError) {
+              console.error('同步手机验证码注册用户信息到SQLite失败:', syncError);
+              // 继续处理，不阻止注册流程
+            }
+
             Alert.alert('注册成功', '欢迎加入零屿笔记！');
           } else {
             setError(result.message || '注册失败，请稍后重试');
@@ -229,6 +241,18 @@ const LoginScreen = ({ navigation }) => {
               dispatch({ type: 'auth/setUserInfo', payload: loginResult.data.user });
               dispatch({ type: 'auth/setAuthToken', payload: loginResult.data.access });
               dispatch({ type: 'auth/setAuthRefreshToken', payload: loginResult.data.refresh });
+
+              // 同步用户信息到SQLite
+              try {
+                // 动态导入用户同步服务
+                const userSyncService = require('../../services/database/userSyncService').default;
+                await userSyncService.ensureUserInSQLite(loginResult.data.user);
+                console.log('注册用户信息已同步到SQLite数据库');
+              } catch (syncError) {
+                console.error('同步注册用户信息到SQLite失败:', syncError);
+                // 继续处理，不阻止注册流程
+              }
+
               Alert.alert('注册成功', '欢迎加入零屿笔记！');
             } else {
               // 如果登录失败，仍然显示注册成功，但提示用户手动登录
@@ -275,6 +299,17 @@ const LoginScreen = ({ navigation }) => {
             dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
             dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
             dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
+
+            // 同步用户信息到SQLite
+            try {
+              // 动态导入用户同步服务
+              const userSyncService = require('../../services/database/userSyncService').default;
+              await userSyncService.ensureUserInSQLite(result.data.user);
+              console.log('验证码登录用户信息已同步到SQLite数据库');
+            } catch (syncError) {
+              console.error('同步验证码登录用户信息到SQLite失败:', syncError);
+              // 继续处理，不阻止登录流程
+            }
           } else {
             setError(result?.message || '登录失败，请检查验证码');
           }
@@ -322,6 +357,17 @@ const LoginScreen = ({ navigation }) => {
 
               // 显式设置认证状态
               dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+
+              // 同步用户信息到SQLite
+              try {
+                // 动态导入用户同步服务
+                const userSyncService = require('../../services/database/userSyncService').default;
+                await userSyncService.ensureUserInSQLite(result.data.user);
+                console.log('用户信息已同步到SQLite数据库');
+              } catch (syncError) {
+                console.error('同步用户信息到SQLite失败:', syncError);
+                // 继续处理，不阻止登录流程
+              }
 
               // 显示成功消息
               Alert.alert('登录成功', '欢迎回到零屿笔记！');
@@ -382,6 +428,17 @@ const LoginScreen = ({ navigation }) => {
         dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
         dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
         dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
+
+        // 同步用户信息到SQLite
+        try {
+          // 动态导入用户同步服务
+          const userSyncService = require('../../services/database/userSyncService').default;
+          await userSyncService.ensureUserInSQLite(result.data.user);
+          console.log(`${type}登录用户信息已同步到SQLite数据库`);
+        } catch (syncError) {
+          console.error(`同步${type}登录用户信息到SQLite失败:`, syncError);
+          // 继续处理，不阻止登录流程
+        }
       } else {
         setError(result?.message || `${type === 'wechat' ? '微信' : 'QQ'}登录失败`);
       }

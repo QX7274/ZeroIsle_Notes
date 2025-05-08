@@ -13,8 +13,9 @@ import {
   Dimensions,
   Platform,
   PixelRatio,
+  TouchableOpacity,
 } from 'react-native';
-import Svg, { G, Circle, Rect, Path, Text as SvgText, Line, Defs, Marker } from 'react-native-svg';
+import Svg, { G, Circle, Rect, Path, Text as SvgText, Line, Defs, Marker, Pattern } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
 import mindMapLayoutUtils from '../../utils/mindMapLayoutUtils';
 
@@ -639,10 +640,10 @@ const MindMapView = forwardRef(({
         {/* 节点形状 */}
         {nodeStyle.shape === 'rectangle' ? (
           <Rect
-            x={position.x - nodeWidth / 2}
-            y={position.y - nodeHeight / 2}
-            width={nodeWidth}
-            height={nodeHeight}
+            x={validateTransform(position.x - nodeWidth / 2)}
+            y={validateTransform(position.y - nodeHeight / 2)}
+            width={validateTransform(nodeWidth)}
+            height={validateTransform(nodeHeight)}
             rx={8}
             ry={8}
             fill={nodeStyle.fill}
@@ -652,9 +653,9 @@ const MindMapView = forwardRef(({
           />
         ) : nodeStyle.shape === 'ellipse' ? (
           <Circle
-            cx={position.x}
-            cy={position.y}
-            r={nodeWidth / 2}
+            cx={validateTransform(position.x)}
+            cy={validateTransform(position.y)}
+            r={validateTransform(nodeWidth / 2)}
             fill={nodeStyle.fill}
             stroke={nodeStyle.stroke}
             strokeWidth={isDragged ? 3 : 2}
@@ -662,10 +663,10 @@ const MindMapView = forwardRef(({
           />
         ) : nodeStyle.shape === 'diamond' ? (
           <Path
-            d={`M ${position.x} ${position.y - nodeHeight / 2}
-               L ${position.x + nodeWidth / 2} ${position.y}
-               L ${position.x} ${position.y + nodeHeight / 2}
-               L ${position.x - nodeWidth / 2} ${position.y} Z`}
+            d={`M ${validateTransform(position.x)} ${validateTransform(position.y - nodeHeight / 2)}
+               L ${validateTransform(position.x + nodeWidth / 2)} ${validateTransform(position.y)}
+               L ${validateTransform(position.x)} ${validateTransform(position.y + nodeHeight / 2)}
+               L ${validateTransform(position.x - nodeWidth / 2)} ${validateTransform(position.y)} Z`}
             fill={nodeStyle.fill}
             stroke={nodeStyle.stroke}
             strokeWidth={isDragged ? 3 : 2}
@@ -674,10 +675,10 @@ const MindMapView = forwardRef(({
         ) : (
           // 默认为圆角矩形
           <Rect
-            x={position.x - nodeWidth / 2}
-            y={position.y - nodeHeight / 2}
-            width={nodeWidth}
-            height={nodeHeight}
+            x={validateTransform(position.x - nodeWidth / 2)}
+            y={validateTransform(position.y - nodeHeight / 2)}
+            width={validateTransform(nodeWidth)}
+            height={validateTransform(nodeHeight)}
             rx={8}
             ry={8}
             fill={nodeStyle.fill}
@@ -689,8 +690,8 @@ const MindMapView = forwardRef(({
 
         {/* 节点文本 */}
         <SvgText
-          x={position.x}
-          y={position.y}
+          x={validateTransform(position.x)}
+          y={validateTransform(position.y)}
           fontSize={nodeStyle.fontSize}
           fontWeight={nodeStyle.fontWeight}
           fill={nodeStyle.textColor}
@@ -703,8 +704,8 @@ const MindMapView = forwardRef(({
         {/* 如果有子节点且被折叠，显示展开指示器 */}
         {node.is_collapsed && (
           <Circle
-            cx={position.x + nodeWidth / 2 - 10}
-            cy={position.y + nodeHeight / 2 - 10}
+            cx={validateTransform(position.x + nodeWidth / 2 - 10)}
+            cy={validateTransform(position.y + nodeHeight / 2 - 10)}
             r={8}
             fill={nodeStyle.stroke}
             stroke="#ffffff"
@@ -736,10 +737,10 @@ const MindMapView = forwardRef(({
       return (
         <G key={edge.id}>
           <Line
-            x1={sourcePosition.x}
-            y1={sourcePosition.y}
-            x2={targetPosition.x}
-            y2={targetPosition.y}
+            x1={validateTransform(sourcePosition.x)}
+            y1={validateTransform(sourcePosition.y)}
+            x2={validateTransform(targetPosition.x)}
+            y2={validateTransform(targetPosition.y)}
             stroke={edgeStyle.stroke}
             strokeWidth={edgeStyle.strokeWidth}
             strokeDasharray={edgeStyle.strokeDasharray}
@@ -748,8 +749,8 @@ const MindMapView = forwardRef(({
           {/* 如果有标签，显示在边的中间 */}
           {edge.label && (
             <SvgText
-              x={(sourcePosition.x + targetPosition.x) / 2}
-              y={(sourcePosition.y + targetPosition.y) / 2 - 10}
+              x={validateTransform((sourcePosition.x + targetPosition.x) / 2)}
+              y={validateTransform((sourcePosition.y + targetPosition.y) / 2 - 10)}
               fontSize={12}
               fill={edgeStyle.stroke}
               textAnchor="middle"
@@ -768,9 +769,9 @@ const MindMapView = forwardRef(({
       const controlPointX = (sourcePosition.x + targetPosition.x) / 2;
       const controlPointY = (sourcePosition.y + targetPosition.y) / 2 - distance / 3;
 
-      const path = `M ${sourcePosition.x} ${sourcePosition.y}
-                   Q ${controlPointX} ${controlPointY}
-                   ${targetPosition.x} ${targetPosition.y}`;
+      const path = `M ${validateTransform(sourcePosition.x)} ${validateTransform(sourcePosition.y)}
+                   Q ${validateTransform(controlPointX)} ${validateTransform(controlPointY)}
+                   ${validateTransform(targetPosition.x)} ${validateTransform(targetPosition.y)}`;
 
       return (
         <G key={edge.id}>
@@ -785,8 +786,8 @@ const MindMapView = forwardRef(({
           {/* 如果有标签，显示在曲线的控制点附近 */}
           {edge.label && (
             <SvgText
-              x={controlPointX}
-              y={controlPointY - 10}
+              x={validateTransform(controlPointX)}
+              y={validateTransform(controlPointY - 10)}
               fontSize={12}
               fill={edgeStyle.stroke}
               textAnchor="middle"
@@ -844,7 +845,7 @@ const MindMapView = forwardRef(({
     // 绘制箭头
     return (
       <Path
-        d={`M ${arrowTip.x} ${arrowTip.y} L ${arrowLeft.x} ${arrowLeft.y} L ${arrowRight.x} ${arrowRight.y} Z`}
+        d={`M ${validateTransform(arrowTip.x)} ${validateTransform(arrowTip.y)} L ${validateTransform(arrowLeft.x)} ${validateTransform(arrowLeft.y)} L ${validateTransform(arrowRight.x)} ${validateTransform(arrowRight.y)} Z`}
         fill={style.stroke}
         stroke={style.stroke}
       />
@@ -1043,9 +1044,18 @@ const MindMapView = forwardRef(({
     ]
   };
 
+  // 确保转换值是有效的数字
+  const validateTransform = (value) => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return 0;
+    }
+    return value;
+  };
+
   // 添加缩放指示器
   const renderZoomIndicator = () => {
-    const zoomPercentage = Math.round(scale._value * 100);
+    const scaleValue = scale._value || 1;
+    const zoomPercentage = Math.round(scaleValue * 100);
     return (
       <View style={styles.zoomIndicator}>
         <Text style={styles.zoomText}>{zoomPercentage}%</Text>
@@ -1134,19 +1144,19 @@ const MindMapView = forwardRef(({
           activeOpacity={0.7}
         >
           <Svg
-            width={actualMinimapWidth}
-            height={actualMinimapHeight}
-            viewBox={`0 0 ${width * 3} ${height * 3}`}
+            width={validateTransform(actualMinimapWidth)}
+            height={validateTransform(actualMinimapHeight)}
+            viewBox={`0 0 ${validateTransform(width * 3)} ${validateTransform(height * 3)}`}
           >
             {/* 迷你地图背景 */}
             <Rect
-              width={width * 3}
-              height={height * 3}
+              width={validateTransform(width * 3)}
+              height={validateTransform(height * 3)}
               fill={colors.background}
               opacity={0.5}
             />
 
-            <G transform={`scale(${minimapScale})`}>
+            <G transform={`scale(${validateTransform(minimapScale)})`}>
               {/* 渲染简化的边 */}
               {edges.map(edge => {
                 const sourcePosition = nodePositions[edge.source];
@@ -1192,10 +1202,10 @@ const MindMapView = forwardRef(({
 
             {/* 当前视口 */}
             <Rect
-              x={viewportMinimapX}
-              y={viewportMinimapY}
-              width={viewportMinimapWidth}
-              height={viewportMinimapHeight}
+              x={validateTransform(viewportMinimapX)}
+              y={validateTransform(viewportMinimapY)}
+              width={validateTransform(viewportMinimapWidth)}
+              height={validateTransform(viewportMinimapHeight)}
               fill="rgba(0, 120, 255, 0.2)"
               stroke={colors.primary}
               strokeWidth={1.5}
@@ -1246,13 +1256,15 @@ const MindMapView = forwardRef(({
     if (!SHOW_GRID) return null;
 
     // 根据缩放级别调整网格大小
-    const gridSize = Math.max(20, Math.min(60, 40 / scale._value));
+    const scaleValue = scale._value || 1;
+    const gridSize = Math.max(20, Math.min(60, 40 / scaleValue));
+    const validGridSize = validateTransform(gridSize);
 
     return (
       <Defs>
-        <Pattern id="grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
+        <Pattern id="grid" width={validGridSize} height={validGridSize} patternUnits="userSpaceOnUse">
           <Path
-            d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+            d={`M ${validGridSize} 0 L 0 0 0 ${validGridSize}`}
             fill="none"
             stroke={colors.mode === 'dark' ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
             strokeWidth="1"
@@ -1299,15 +1311,23 @@ const MindMapView = forwardRef(({
         style={[styles.mindMapContainer, animatedStyle]}
         {...panResponder.panHandlers}
       >
-        <Svg width={width * 3} height={height * 3} viewBox={`0 0 ${width * 3} ${height * 3}`}>
+        <Svg
+          width={width * 3}
+          height={height * 3}
+          viewBox={`0 0 ${validateTransform(width * 3)} ${validateTransform(height * 3)}`}
+        >
           {/* 添加网格背景 */}
           {renderGridBackground()}
-          {SHOW_GRID && <Rect width={width * 3} height={height * 3} fill="url(#grid)" />}
+          {SHOW_GRID && <Rect
+            width={validateTransform(width * 3)}
+            height={validateTransform(height * 3)}
+            fill="url(#grid)"
+          />}
 
           {/* 添加中心点标记 */}
           <Circle
-            cx={width * 1.5}
-            cy={height * 1.5}
+            cx={validateTransform(width * 1.5)}
+            cy={validateTransform(height * 1.5)}
             r={5}
             fill="rgba(0, 0, 0, 0.1)"
             stroke="rgba(0, 0, 0, 0.2)"

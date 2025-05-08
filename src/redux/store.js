@@ -13,7 +13,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // 导入reducers
 import authReducer from './slices/authSlice';
 import notesReducer from './slices/notesSlice';
-import noteReducer from './slices/noteSlice';
 import uiReducer from './slices/uiSlice';
 import knowledgeGraphReducer from './slices/knowledgeGraphSlice';
 import mindMapReducer from './slices/mindMapSlice';
@@ -52,7 +51,6 @@ const configureAppStore = () => {
     const rootReducer = combineReducers({
       auth: authReducer,
       notes: notesReducer,
-      note: noteReducer,
       ui: uiReducer,
       knowledgeGraph: knowledgeGraphReducer,
       mindMap: mindMapReducer,

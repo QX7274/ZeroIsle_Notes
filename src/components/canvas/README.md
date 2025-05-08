@@ -4,15 +4,39 @@
 
 ## 组件列表
 
-### CanvasView
+### InfiniteCanvas
 
-主画布视图组件，提供无限画布的核心功能。
+无限画布组件，提供基于SVG的高性能无限画布功能。
 
 **主要功能**：
 - 支持无限缩放和平移
-- 支持多种绘图工具
+- 支持多种绘图工具（笔、荧光笔、橡皮擦等）
+- 支持多种形状工具（直线、矩形、圆形、三角形、箭头）
+- 支持文本和图片
 - 支持图层管理
-- 支持撤销和重做
+- 支持撤销/重做功能
+- 支持自动保存功能
+- 支持导出为图片
+
+### InfiniteDrawingCanvas
+
+无限绘图画布组件，提供与旧DrawingCanvas兼容的接口，但使用新的InfiniteCanvas实现。
+
+**主要功能**：
+- 提供与DrawingCanvas兼容的API
+- 支持多种绘图工具
+- 支持形状绘制
+- 支持截图功能
+
+### InfiniteCanvasAdapter
+
+无限画布适配器组件，提供与旧Canvas兼容的接口，但使用新的InfiniteCanvas实现。
+
+**主要功能**：
+- 提供与Canvas兼容的API
+- 支持元素管理
+- 支持内容变更回调
+- 支持元素选择
 
 ### CanvasToolbar
 
@@ -56,26 +80,49 @@
 
 ## 使用方法
 
+### 使用InfiniteCanvas
+
 ```javascript
-import { CanvasView, CanvasToolbar, LayerManager } from '../components/canvas';
+import { InfiniteCanvas } from '../components/canvas';
+
+function InfiniteCanvasScreen() {
+  return (
+    <View style={styles.container}>
+      <InfiniteCanvas
+        canvasId="my-canvas"
+        onContentChange={handleContentChange}
+        onSave={handleSave}
+      />
+    </View>
+  );
+}
+```
+
+### 使用InfiniteCanvasAdapter
+
+```javascript
+import {
+  CanvasToolbar,
+  InfiniteCanvasAdapter,
+  LayerManager
+} from '../components/canvas';
 
 function CanvasScreen() {
   const [selectedTool, setSelectedTool] = useState('pen');
-  const [layers, setLayers] = useState([]);
-  
+  const [elements, setElements] = useState([]);
+
   return (
     <View style={styles.container}>
       <CanvasToolbar
         selectedTool={selectedTool}
         onToolChange={setSelectedTool}
       />
-      
-      <CanvasView
-        tool={selectedTool}
-        layers={layers}
-        onLayersChange={setLayers}
+
+      <InfiniteCanvasAdapter
+        elements={elements}
+        onContentChange={setElements}
       />
-      
+
       <LayerManager
         layers={layers}
         onLayersChange={setLayers}

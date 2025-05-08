@@ -51,9 +51,9 @@ export const STORAGE_KEYS = {
   HANDWRITING_HISTORY: 'handwriting_history',
   TOKEN: 'token',
   USER: 'user',
-  SETTINGS: 'settings',
   RECENT_NOTES: 'recent_notes',
-  REMINDERS: 'reminders'
+  REMINDERS: 'reminders',
+  CHAT_HISTORY: 'chat_history'
 };
 
 // 通知渠道

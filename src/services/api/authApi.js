@@ -38,6 +38,64 @@ export const login = async (loginData) => {
 
     console.log('处理后的登录请求数据:', requestData);
 
+    // 检查网络连接
+    const NetInfo = require('@react-native-community/netinfo').default;
+    const networkState = await NetInfo.fetch();
+
+    if (!networkState.isConnected) {
+      console.log('网络未连接，尝试离线登录');
+
+      // 检查是否有离线用户
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const offlineUserJson = await AsyncStorage.getItem('offline_user');
+
+      if (offlineUserJson) {
+        const offlineUser = JSON.parse(offlineUserJson);
+
+        // 检查用户名和密码是否匹配
+        if (
+          (requestData.username && requestData.username === offlineUser.username) ||
+          (requestData.identifier && requestData.identifier === offlineUser.username)
+        ) {
+          console.log('离线模式：使用本地用户登录', offlineUser.username);
+
+          // 创建模拟响应
+          const mockResponse = {
+            user: offlineUser,
+            access: `mock_token_${Date.now()}`,
+            refresh: `mock_refresh_${Date.now()}`
+          };
+
+          // 设置离线模式
+          await AsyncStorage.setItem('is_offline_mode', 'true');
+
+          // 保存令牌和用户信息
+          await setToken(mockResponse.access);
+          await setRefreshToken(mockResponse.refresh);
+          await setUser(offlineUser);
+
+          return {
+            success: true,
+            data: mockResponse,
+            offline: true
+          };
+        } else {
+          return {
+            success: false,
+            message: '用户名或密码错误',
+            offline: true
+          };
+        }
+      } else {
+        return {
+          success: false,
+          message: '离线模式下未找到用户，请先在有网络连接时注册',
+          offline: true
+        };
+      }
+    }
+
+    // 如果网络已连接，尝试正常登录
     const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN, requestData);
 
     console.log('登录响应数据:', response);
@@ -209,9 +267,59 @@ export const register = async (userData) => {
 export const registerWithUsername = async (userData) => {
   try {
     console.log('用户名注册请求数据:', userData);
+    console.log('用户名注册端点:', API_ENDPOINTS.AUTH.REGISTER_USERNAME);
 
+    // 打印完整的API URL
+    console.log('完整API URL:', `${instance.defaults.baseURL}${API_ENDPOINTS.AUTH.REGISTER_USERNAME}`);
+
+    // 检查网络连接
+    const NetInfo = require('@react-native-community/netinfo').default;
+    const networkState = await NetInfo.fetch();
+
+    if (!networkState.isConnected) {
+      console.log('网络未连接，使用离线模式');
+
+      // 创建模拟用户数据
+      const mockUser = {
+        id: `local_${Date.now()}`,
+        username: userData.username,
+        email: '',
+        phone: '',
+        is_active: true,
+        is_staff: false,
+        date_joined: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+        profile: {
+          avatar: null,
+          bio: '',
+          location: '',
+          website: '',
+        }
+      };
+
+      // 创建模拟响应
+      const mockResponse = {
+        user: mockUser,
+        access: `mock_token_${Date.now()}`,
+        refresh: `mock_refresh_${Date.now()}`
+      };
+
+      // 保存到本地存储
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem('offline_user', JSON.stringify(mockUser));
+      await AsyncStorage.setItem('is_offline_mode', 'true');
+
+      console.log('离线模式：创建了本地用户', mockUser.username);
+
+      return {
+        success: true,
+        data: mockResponse,
+        offline: true
+      };
+    }
+
+    // 如果网络已连接，尝试正常注册
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, userData);
-
     console.log('用户名注册响应数据:', response);
 
     // 检查响应是否有效
