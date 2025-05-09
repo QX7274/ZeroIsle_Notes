@@ -141,19 +141,19 @@ const ProfileSettings = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
+          <Text
+            variant="h2"
+            size="large"
+            style={[styles.headerTitle, { marginLeft: 0 }]}
+          >
+            个人资料
+          </Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
             <Icon name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text
-            variant="h2"
-            size="large"
-            style={styles.headerTitle}
-          >
-            个人资料
-          </Text>
         </View>
 
         <View style={styles.content}>
@@ -258,13 +258,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
+    justifyContent: 'space-between',
   },
   backButton: {
     padding: 8,
-    marginRight: 16,
+    marginLeft: 16,
   },
   headerTitle: {
-    flex: 1,
+    flex: 0,
   },
   content: {
     flex: 1,

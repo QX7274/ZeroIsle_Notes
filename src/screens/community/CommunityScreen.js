@@ -236,15 +236,6 @@ const CommunityScreen = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>社区</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => navigation.navigate('ApiTest')}
-          >
-            <Icon name="code" size={24} color={theme.text} />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.searchContainer}>
@@ -265,17 +256,17 @@ const CommunityScreen = ({ navigation }) => {
           <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.primary }]}>
             <Text style={[styles.categoryText, { color: '#FFFFFF' }]}>全部</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.categoryText, { color: theme.text }]}>笔记模板</Text>
+          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
+            <Text style={[styles.categoryText, { color: theme.primary }]}>笔记模板</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.categoryText, { color: theme.text }]}>学习资料</Text>
+          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
+            <Text style={[styles.categoryText, { color: theme.primary }]}>学习资料</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.categoryText, { color: theme.text }]}>使用技巧</Text>
+          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
+            <Text style={[styles.categoryText, { color: theme.primary }]}>使用技巧</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.categoryText, { color: theme.text }]}>知识图谱</Text>
+          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
+            <Text style={[styles.categoryText, { color: theme.primary }]}>知识图谱</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -315,10 +306,11 @@ const CommunityScreen = ({ navigation }) => {
       />
 
       <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: theme.primary }]}
+        style={[styles.fabButton, { backgroundColor: '#2196F3' }]}
         onPress={() => navigation.navigate('CreatePost')}
       >
-        <Icon name="add" size={24} color="#FFFFFF" />
+        <Icon name="add" size={28} color="#FFFFFF" />
+        <Text style={styles.fabButtonText}>发布</Text>
       </TouchableOpacity>
     </View>
   );
@@ -342,7 +334,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#ffffff',
   },
   headerTitle: {
     fontSize: 28,
@@ -356,7 +348,7 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 12,
     marginLeft: 14,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: '#ffffff',
     borderRadius: 22,
     width: 44,
     height: 44,
@@ -368,7 +360,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
+    borderColor: '#2196F3',
   },
   searchContainer: {
     paddingHorizontal: SPACING.MEDIUM,
@@ -379,7 +371,13 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.MEDIUM,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.03)',
+    borderBottomColor: '#2196F3',
+    backgroundColor: '#ffffff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   categoryButton: {
     paddingHorizontal: SPACING.LARGE,
@@ -392,7 +390,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#2196F3',
+    backgroundColor: '#ffffff',
   },
   categoryText: {
     fontSize: 16,
@@ -412,8 +411,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
   },
   postHeader: {
     flexDirection: 'row',
@@ -422,7 +421,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.MEDIUM,
     paddingBottom: SPACING.MEDIUM,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#e0e0e0',
   },
   authorContainer: {
     flexDirection: 'row',
@@ -481,7 +480,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#2196F3',
+    backgroundColor: '#ffffff',
   },
   tagText: {
     fontSize: 14,
@@ -492,14 +492,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: SPACING.MEDIUM,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: '#e0e0e0',
     marginTop: SPACING.MEDIUM,
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: SPACING.LARGE,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 24,
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
+    borderColor: '#2196F3',
   },
   statText: {
     fontSize: 14,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.LARGE,
-    backgroundColor: 'rgba(0,0,0,0.02)',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     marginTop: SPACING.MEDIUM,
     elevation: 2,
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#2196F3',
   },
   footerText: {
     marginLeft: SPACING.MEDIUM,
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: SPACING.XLARGE,
     marginTop: SPACING.XLARGE + 10,
-    backgroundColor: 'rgba(0,0,0,0.01)',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     marginHorizontal: SPACING.LARGE,
     elevation: 2,
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#2196F3',
   },
   emptyText: {
     fontSize: 18,
@@ -579,9 +579,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: SPACING.LARGE,
     bottom: SPACING.LARGE + 4,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 120,
+    height: 50,
+    borderRadius: 25,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -589,8 +590,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
-    borderWidth: 3,
+    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.9)',
+  },
+  fabButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });
 

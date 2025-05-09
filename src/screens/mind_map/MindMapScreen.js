@@ -337,7 +337,6 @@ const MindMapScreen = () => {
     <View style={styles.container}>
       {/* 头部 */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>思维导图</Text>
         <UnifiedSearchBar
           searchScope="mind_map"
           placeholder="搜索思维导图..."

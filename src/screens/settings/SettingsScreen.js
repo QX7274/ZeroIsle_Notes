@@ -10,6 +10,8 @@ import {
   Switch,
   Alert,
   Linking,
+  Animated,
+  Pressable,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -225,60 +227,152 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  // 获取图标颜色
+  const getIconColor = (iconName) => {
+    // 为不同类型的图标设置不同的颜色
+    switch (iconName) {
+      // 账户相关
+      case 'phone-android': return '#4CAF50'; // 绿色
+      case 'email': return '#2196F3'; // 蓝色
+      case 'wechat': return '#09BB07'; // 微信绿
+      case 'chat': return '#12B7F5'; // QQ蓝
+      case 'logout': return '#F44336'; // 红色
+      case 'person': return '#9C27B0'; // 紫色
+
+      // 外观相关
+      case 'palette': return '#673AB7'; // 深紫色
+      case 'format-size': return '#3F51B5'; // 靛蓝色
+
+      // 数据相关
+      case 'cloud-off': return '#FF9800'; // 橙色
+      case 'save': return '#00BCD4'; // 青色
+      case 'backup': return '#3F51B5'; // 靛蓝色
+      case 'cleaning-services': return '#607D8B'; // 蓝灰色
+
+      // 通知相关
+      case 'notifications': return '#E91E63'; // 粉红色
+
+      // 关于相关
+      case 'info': return '#795548'; // 棕色
+      case 'help': return '#009688'; // 蓝绿色
+      case 'new-releases': return '#FF5722'; // 深橙色
+      case 'system-update': return '#4CAF50'; // 绿色
+
+      // 默认颜色
+      default: return colors.primary;
+    }
+  };
+
+  // 获取图标样式 - 所有图标使用相同的基础样式
+  const getIconStyle = () => {
+    return styles.iconContainer;
+  };
+
   // 渲染设置项
-  const renderSettingItem = ({ icon, title, description, onPress, value, type = 'navigate' }) => (
-    <TouchableOpacity
-      style={styles.settingItem}
-      onPress={onPress}
-      disabled={type === 'switch'}
-    >
-      <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
-        <Icon name={icon} size={24} color={colors.primary} />
-      </View>
+  const renderSettingItem = ({ icon, title, description, onPress, value, type = 'navigate' }) => {
+    // 创建动画值
+    const [scaleAnim] = useState(new Animated.Value(1));
 
-      <View style={styles.settingInfo}>
-        <Text
-          variant="body"
-          size="medium"
-          bold
-        >
-          {title}
-        </Text>
+    // 处理按下效果
+    const handlePressIn = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 0.97,
+        friction: 5,
+        tension: 300,
+        useNativeDriver: true,
+      }).start();
+    };
 
-        {description && (
-          <Text
-            variant="caption"
-            color="hint"
-          >
-            {description}
-          </Text>
-        )}
-      </View>
+    // 处理释放效果
+    const handlePressOut = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 400,
+        useNativeDriver: true,
+      }).start();
+    };
 
-      {type === 'navigate' && (
-        <Icon name="chevron-right" size={24} color={colors.text} />
-      )}
+    // 获取图标颜色
+    const iconColor = getIconColor(icon);
 
-      {type === 'switch' && (
-        <Switch
-          value={value}
-          onValueChange={onPress}
-          trackColor={{ false: colors.border, true: colors.primary + '80' }}
-          thumbColor={value ? colors.primary : colors.card}
-        />
-      )}
+    return (
+      <Pressable
+        onPress={type !== 'switch' ? onPress : undefined}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={type === 'switch'}
+        style={({ pressed }) => [
+          styles.settingItem,
+          {
+            backgroundColor: pressed ? colors.card + '80' : colors.card,
+            borderLeftWidth: 3,
+            borderLeftColor: pressed ? iconColor : 'transparent',
+          }
+        ]}
+      >
+        <Animated.View style={{
+          transform: [{ scale: scaleAnim }],
+          flexDirection: 'row',
+          alignItems: 'center',
+          flex: 1,
+        }}>
+          <View style={[
+            styles.settingIcon,
+            {
+              backgroundColor: iconColor + '15',
+            }
+          ]}>
+            <Icon name={icon} size={24} color={iconColor} />
+          </View>
 
-      {type === 'value' && (
-        <Text
-          variant="body"
-          size="small"
-          color="hint"
-        >
-          {value}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
+          <View style={styles.settingInfo}>
+            <Text
+              variant="body"
+              size="medium"
+              bold
+            >
+              {title}
+            </Text>
+
+            {description && (
+              <Text
+                variant="caption"
+                color="hint"
+              >
+                {description}
+              </Text>
+            )}
+          </View>
+
+          {type === 'navigate' && (
+            <Icon name="chevron-right" size={24} color={colors.text} />
+          )}
+
+          {type === 'switch' && (
+            <Switch
+              value={value}
+              onValueChange={onPress}
+              trackColor={{ false: colors.border, true: iconColor + '80' }}
+              thumbColor={value ? iconColor : colors.card}
+              ios_backgroundColor={colors.border}
+              style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
+            />
+          )}
+
+          {type === 'value' && (
+            <Text
+              variant="body"
+              size="small"
+              color="hint"
+            >
+              {value}
+            </Text>
+          )}
+        </Animated.View>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -528,11 +622,18 @@ const SettingsScreen = ({ navigation }) => {
         </View>
 
         {/* 重置设置 */}
-        <TouchableOpacity
-          style={[styles.resetButton, { backgroundColor: colors.error + '20' }]}
+        <Pressable
+          style={({ pressed }) => [
+            styles.resetButton,
+            {
+              backgroundColor: pressed ? colors.error + '30' : colors.error + '15',
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            }
+          ]}
           onPress={handleResetSettings}
+          android_ripple={{ color: colors.error + '20', borderless: false }}
         >
-          <Icon name="restore" size={20} color={colors.error} />
+          <Icon name="restore" size={24} color={colors.error} />
           <Text
             variant="body"
             size="medium"
@@ -541,7 +642,7 @@ const SettingsScreen = ({ navigation }) => {
           >
             重置所有设置
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -595,15 +696,14 @@ const styles = StyleSheet.create({
   settingIcon: {
     width: 44,
     height: 44,
-    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 20,
-    elevation: 2,
-    shadowColor: '#4361EE',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderRadius: 10,
+  },
+  // 基础图标容器样式
+  iconContainer: {
+    // 保留一个空的样式对象，以便代码结构保持一致
   },
   settingInfo: {
     flex: 1,
@@ -615,6 +715,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 16,
     marginBottom: 40,
+    marginTop: 20,
     marginHorizontal: 20,
     elevation: 4,
     shadowColor: '#FF3B30',
@@ -622,12 +723,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,59,48,0.1)',
+    borderColor: 'rgba(255,59,48,0.2)',
   },
   resetButtonText: {
     marginLeft: 12,
     fontWeight: '600',
     fontSize: 16,
+    letterSpacing: 0.5,
   },
 });
 

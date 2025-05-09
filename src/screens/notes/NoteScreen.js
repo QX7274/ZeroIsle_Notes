@@ -250,34 +250,95 @@ const NoteScreen = ({ navigation, route }) => {
   // 保存笔记
   const handleSaveNote = async (note) => {
     try {
+      console.log('开始保存笔记:', note.title);
+
       if (note.id) {
         // 更新笔记
-        await dispatch(updateNote({
-          id: note.id,
-          noteData: note,
-        })).unwrap();
+        console.log('更新现有笔记:', note.id);
+        try {
+          const result = await dispatch(updateNote({
+            id: note.id,
+            noteData: note,
+          })).unwrap();
 
-        // 更新成功后返回详情页
-        handleViewNote(note);
+          console.log('笔记更新成功:', result);
+
+          // 更新成功后返回详情页
+          handleViewNote(note);
+
+          // 显示成功提示
+          ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+        } catch (updateError) {
+          console.error('更新笔记失败:', updateError);
+
+          // 即使更新失败，也尝试返回详情页，避免用户卡在编辑页面
+          handleViewNote(note);
+
+          // 显示错误提示
+          Alert.alert('保存提示', '笔记已本地保存，但同步到服务器失败，将在网络恢复后自动同步');
+        }
       } else {
-        // 创建笔记
-        const result = await dispatch(createNote(note)).unwrap();
+        // 创建新笔记
+        console.log('创建新笔记');
 
-        // 创建成功后返回详情页
-        if (result) {
-          handleViewNote(result);
+        try {
+          // 添加额外的错误处理和日志
+          const actionResult = await dispatch(createNote(note));
+          console.log('创建笔记action结果:', actionResult);
 
-          // 如果是离线创建的笔记，显示提示
-          if (result.isOffline) {
-            ToastAndroid.show('笔记已离线保存，将在网络恢复后同步', ToastAndroid.LONG);
+          // 检查是否有错误
+          if (actionResult.error) {
+            throw new Error(actionResult.error.message || '创建笔记失败');
           }
-        } else {
-          // 返回列表页
-          handleBackToList();
+
+          // 解包结果
+          const result = actionResult.payload;
+          console.log('创建笔记成功，结果:', result);
+
+          // 创建成功后返回详情页
+          if (result && (result.data || result)) {
+            const noteData = result.data || result;
+            handleViewNote(noteData);
+
+            // 显示成功提示
+            ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+
+            // 如果是离线创建的笔记，显示额外提示
+            if (result.isOffline || noteData.isOffline) {
+              ToastAndroid.show('笔记已离线保存，将在网络恢复后同步', ToastAndroid.LONG);
+            }
+          } else {
+            console.warn('创建笔记成功但返回结果为空');
+            // 返回列表页
+            handleBackToList();
+
+            // 显示通用成功提示
+            ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+          }
+        } catch (createError) {
+          console.error('创建笔记失败:', createError);
+
+          // 显示错误，但不阻止用户继续操作
+          Alert.alert(
+            '保存提示',
+            '笔记创建过程中遇到问题，但已尝试本地保存。请检查笔记列表。',
+            [
+              {
+                text: '确定',
+                onPress: () => handleBackToList() // 返回列表页
+              }
+            ]
+          );
         }
       }
     } catch (error) {
-      Alert.alert('错误', error.message || '保存笔记失败');
+      console.error('保存笔记过程中发生错误:', error);
+
+      // 显示错误提示
+      Alert.alert('错误', error.message || '保存笔记失败，请重试');
+
+      // 即使出错，也尝试返回列表页，避免用户卡在编辑页面
+      handleBackToList();
     }
   };
 

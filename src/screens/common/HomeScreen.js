@@ -9,8 +9,7 @@ import {
   ToastAndroid,
   Platform,
   Image,
-  Dimensions,
-  Modal
+  Dimensions
 } from 'react-native';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,14 +17,15 @@ import { useDispatch, useSelector } from 'react-redux';
 import { notesApi } from '../../services/api';
 import { setNotes as setNotesAction, deleteNote, selectAllNotes } from '../../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../../components/common/Typography';
 import { UnifiedSearchBar } from '../../components/search';
 import SortControl from '../../components/home/SortControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OfflineIndicator from '../../components/common/OfflineIndicator';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
+import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
 import NetInfo from '@react-native-community/netinfo';
+import { CreateContentModal } from '../../components/common';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -56,6 +56,9 @@ const HomeScreen = ({ navigation }) => {
 
         // 初始化离线存储服务
         await offlineStorageService.init();
+
+        // 初始化无限画布存储
+        await infiniteCanvasStorage.initTables();
 
         // 加载笔记
         await loadNotes();
@@ -929,174 +932,16 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.addButtonPulse} />
         </TouchableOpacity>
 
-        {/* 创建选项弹出菜单 */}
-        <Modal
+        {/* 创建内容弹窗 */}
+        <CreateContentModal
           visible={showCreateOptions}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowCreateOptions(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowCreateOptions(false)}
-          >
-            <View style={[styles.createOptionsContainer, { backgroundColor: colors.card }]}>
-              <Text
-                variant="heading"
-                level="h6"
-                style={styles.createOptionsTitle}
-              >
-                创建内容
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.createOption, { borderBottomColor: colors.border }]}
-                onPress={() => {
-                  setShowCreateOptions(false);
-                  navigation.navigate('Note', { note: null, type: 'text' });
-                }}
-              >
-                <View style={[styles.createOptionIcon, { backgroundColor: colors.primaryLight }]}>
-                  <MaterialIcon name="description" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.createOptionContent}>
-                  <Text
-                    variant="body"
-                    size="medium"
-                    style={styles.createOptionText}
-                  >
-                    新建笔记
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="textSecondary"
-                    style={styles.createOptionDescription}
-                  >
-                    创建一个新的文本笔记
-                  </Text>
-                </View>
-                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.createOption, { borderBottomColor: colors.border }]}
-                onPress={() => {
-                  setShowCreateOptions(false);
-                  navigation.navigate('Note', { note: null, type: 'styled' });
-                }}
-              >
-                <View style={[styles.createOptionIcon, { backgroundColor: colors.secondaryLight }]}>
-                  <MaterialIcon name="format-paint" size={24} color={colors.secondary} />
-                </View>
-                <View style={styles.createOptionContent}>
-                  <Text
-                    variant="body"
-                    size="medium"
-                    style={styles.createOptionText}
-                  >
-                    样式笔记
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="textSecondary"
-                    style={styles.createOptionDescription}
-                  >
-                    创建带有丰富样式的笔记
-                  </Text>
-                </View>
-                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.createOption, { borderBottomColor: colors.border }]}
-                onPress={() => {
-                  setShowCreateOptions(false);
-                  importPDF();
-                }}
-              >
-                <View style={[styles.createOptionIcon, { backgroundColor: '#FFECEF' }]}>
-                  <MaterialIcon name="picture-as-pdf" size={24} color="#E53935" />
-                </View>
-                <View style={styles.createOptionContent}>
-                  <Text
-                    variant="body"
-                    size="medium"
-                    style={styles.createOptionText}
-                  >
-                    导入PDF
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="textSecondary"
-                    style={styles.createOptionDescription}
-                  >
-                    从设备导入PDF文档
-                  </Text>
-                </View>
-                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.createOption, { borderBottomColor: colors.border }]}
-                onPress={() => {
-                  setShowCreateOptions(false);
-                  importWord();
-                }}
-              >
-                <View style={[styles.createOptionIcon, { backgroundColor: '#E3F2FD' }]}>
-                  <MaterialIcon name="article" size={24} color="#1976D2" />
-                </View>
-                <View style={styles.createOptionContent}>
-                  <Text
-                    variant="body"
-                    size="medium"
-                    style={styles.createOptionText}
-                  >
-                    导入Word
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="textSecondary"
-                    style={styles.createOptionDescription}
-                  >
-                    从设备导入Word文档
-                  </Text>
-                </View>
-                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.createOption}
-                onPress={() => {
-                  setShowCreateOptions(false);
-                  navigation.navigate('Canvas');
-                }}
-              >
-                <View style={[styles.createOptionIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <MaterialIcon name="dashboard" size={24} color="#388E3C" />
-                </View>
-                <View style={styles.createOptionContent}>
-                  <Text
-                    variant="body"
-                    size="medium"
-                    style={styles.createOptionText}
-                  >
-                    无限画布
-                  </Text>
-                  <Text
-                    variant="caption"
-                    color="textSecondary"
-                    style={styles.createOptionDescription}
-                  >
-                    创建自由绘画和思维导图
-                  </Text>
-                </View>
-                <MaterialIcon name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setShowCreateOptions(false)}
+          onCreateNote={() => navigation.navigate('Note', { note: null, type: 'text' })}
+          onCreateLinedNote={() => navigation.navigate('Note', { note: null, type: 'lined' })}
+          onImportPDF={importPDF}
+          onImportWord={importWord}
+          onCreateCanvas={() => navigation.navigate('Canvas')}
+        />
       </View>
     </View>
   );

@@ -20,16 +20,18 @@ const GroupsScreen = () => {
       headerRight: () => (
         <View style={styles.headerButtons}>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={[styles.headerButton, { backgroundColor: '#2196F3' }]}
             onPress={() => navigation.navigate('JoinGroup')}
           >
-            <Icon name="account-plus" size={24} color={COLORS.TEXT_PRIMARY} />
+            <Icon name="account-plus" size={22} color="#FFFFFF" />
+            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>加入</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={[styles.headerButton, { backgroundColor: '#2196F3' }]}
             onPress={() => navigation.navigate('CreateGroup')}
           >
-            <Icon name="plus" size={24} color={COLORS.TEXT_PRIMARY} />
+            <Icon name="plus" size={22} color="#FFFFFF" />
+            <Text style={styles.buttonText}>创建</Text>
           </TouchableOpacity>
         </View>
       ),
@@ -39,14 +41,6 @@ const GroupsScreen = () => {
   return (
     <View style={styles.container}>
       <GroupList />
-
-      <TouchableOpacity
-        style={styles.fabButton}
-        onPress={() => navigation.navigate('CreateGroup')}
-        activeOpacity={0.8}
-      >
-        <Icon name="plus" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -61,14 +55,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerButton: {
-    padding: 10,
-    marginLeft: 12,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginLeft: 10,
     borderRadius: 20,
-    width: 40,
-    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 4,
   },
   fabButton: {
     position: 'absolute',

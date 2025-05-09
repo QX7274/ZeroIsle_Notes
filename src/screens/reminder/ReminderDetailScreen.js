@@ -14,7 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import { updateReminder, deleteReminder } from '../../redux/slices/reminderSlice';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -147,17 +147,25 @@ const ReminderDetailScreen = ({ route, navigation }) => {
 
   // 处理日期选择
   const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    try {
+      // 如果没有选择日期，直接返回
+      if (!selectedDate) return;
 
-    if (selectedDate) {
+      // 更新临时日期
       setTempDate(selectedDate);
 
       if (datePickerMode === 'date') {
         // 如果是日期模式，保留原时间部分，只更新日期
-        if (Platform.OS === 'android') {
-          setDatePickerMode('time');
-          setShowDatePicker(true);
-        }
+        // 在选择完日期后，显示时间选择器
+        // 使用更长的延迟时间，确保前一个选择器已完全关闭
+        setTimeout(() => {
+          try {
+            setDatePickerMode('time');
+            setShowDatePicker(true);
+          } catch (err) {
+            console.warn('打开时间选择器失败:', err);
+          }
+        }, 500);
       } else {
         // 如果是时间模式，合并日期和时间
         const newDate = new Date(selectedDate);
@@ -166,6 +174,10 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           due_date: newDate.toISOString(),
         });
       }
+    } catch (error) {
+      console.error('处理日期选择错误:', error);
+      // 确保选择器关闭
+      setShowDatePicker(false);
     }
   };
 
@@ -497,16 +509,19 @@ const ReminderDetailScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-      {/* 日期选择器 */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={tempDate}
-          mode={datePickerMode}
-          is24Hour={true}
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
+      {/* 安全日期选择器 */}
+      <SafeDateTimePicker
+        value={tempDate}
+        mode={datePickerMode}
+        is24Hour={true}
+        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+        onChange={handleDateChange}
+        minimumDate={new Date()}
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        onError={(error) => console.log('DateTimePicker error:', error)}
+        testID="dateTimePicker"
+      />
     </View>
   );
 };

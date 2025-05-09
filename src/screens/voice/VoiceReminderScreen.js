@@ -33,10 +33,10 @@ const VoiceReminderScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const { colors } = theme;
   const dispatch = useDispatch();
-  
+
   // 获取路由参数
   const { noteId } = route.params || {};
-  
+
   // 状态管理
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -52,11 +52,11 @@ const VoiceReminderScreen = ({ navigation, route }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
-  
+
   // 引用
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
   const durationTimerRef = useRef(null);
-  
+
   // 清理函数
   useEffect(() => {
     return () => {
@@ -67,7 +67,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       audioRecorderPlayer.removeRecordBackListener();
     };
   }, []);
-  
+
   // 请求录音权限
   const requestAudioPermission = async () => {
     if (Platform.OS === 'android') {
@@ -77,7 +77,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         ]);
-        
+
         if (
           grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED &&
           grants[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED &&
@@ -96,14 +96,14 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       return true; // iOS会自动请求权限
     }
   };
-  
+
   // 显示提示
   const displayToast = (message) => {
     setToastMessage(message);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
-  
+
   // 开始录音
   const startRecording = async () => {
     try {
@@ -111,41 +111,41 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       if (!hasPermission) {
         return;
       }
-      
+
       const path = Platform.select({
         ios: `${RNFS.LibraryDirectoryPath}/voice_reminder.m4a`,
         android: `${RNFS.ExternalDirectoryPath}/voice_reminder_${Date.now()}.mp3`,
       });
-      
+
       await audioRecorderPlayer.startRecorder(path);
       audioRecorderPlayer.addRecordBackListener(() => {});
-      
+
       setRecordingPath(path);
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       durationTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-      
+
       displayToast('开始录音...');
     } catch (error) {
       console.error('开始录音失败:', error);
       displayToast(`录音失败: ${error.message}`);
     }
   };
-  
+
   // 停止录音
   const stopRecording = async () => {
     try {
       clearInterval(durationTimerRef.current);
       const path = await audioRecorderPlayer.stopRecorder();
       audioRecorderPlayer.removeRecordBackListener();
-      
+
       setIsRecording(false);
       setAudioUri(`file://${path}`);
       displayToast('录音已完成');
-      
+
       // 自动开始转写
       transcribeAudio(`file://${path}`);
     } catch (error) {
@@ -153,7 +153,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       displayToast('停止录音失败');
     }
   };
-  
+
   // 播放录音
   const playRecording = async () => {
     try {
@@ -161,7 +161,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
         displayToast('没有录音文件');
         return;
       }
-      
+
       await audioRecorderPlayer.startPlayer(audioUri);
       audioRecorderPlayer.addPlayBackListener((e) => {
         if (e.current_position === e.duration) {
@@ -173,14 +173,14 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       displayToast('播放录音失败');
     }
   };
-  
+
   // 转写音频
   const transcribeAudio = async (uri) => {
     if (!uri) {
       displayToast('没有录音文件');
       return;
     }
-    
+
     try {
       // 检查网络连接
       const netInfo = await NetInfo.fetch();
@@ -188,15 +188,15 @@ const VoiceReminderScreen = ({ navigation, route }) => {
         displayToast('需要网络连接');
         return;
       }
-      
+
       setIsTranscribing(true);
-      
+
       // 读取音频文件
       const fileContent = await RNFS.readFile(uri.replace('file://', ''), 'base64');
-      
+
       // 调用转写API
       const result = await voiceApi.transcribeFromRecording(fileContent);
-      
+
       if (result.success) {
         setTranscribedText(result.text);
         // 如果标题为空，使用转写文本的前20个字符作为标题
@@ -214,44 +214,62 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       setIsTranscribing(false);
     }
   };
-  
+
   // 处理日期变更
   const handleDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || date;
+    // 在Android上，当用户点击取消时，event.type可能为'dismissed'
+    if (Platform.OS === 'android' && event.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+
+    // 无论如何都关闭日期选择器
     setShowDatePicker(false);
-    
-    // 保持时间不变，只更新日期
-    const newDate = new Date(currentDate);
-    newDate.setHours(date.getHours(), date.getMinutes());
-    setDate(newDate);
+
+    // 只有当用户选择了日期时才更新
+    if (selectedDate) {
+      // 保持时间不变，只更新日期
+      const newDate = new Date(selectedDate);
+      newDate.setHours(date.getHours(), date.getMinutes());
+      setDate(newDate);
+    }
   };
-  
+
   // 处理时间变更
   const handleTimeChange = (event, selectedTime) => {
-    const currentTime = selectedTime || date;
+    // 在Android上，当用户点击取消时，event.type可能为'dismissed'
+    if (Platform.OS === 'android' && event.type === 'dismissed') {
+      setShowTimePicker(false);
+      return;
+    }
+
+    // 无论如何都关闭时间选择器
     setShowTimePicker(false);
-    
-    // 保持日期不变，只更新时间
-    const newDate = new Date(date);
-    newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-    setDate(newDate);
+
+    // 只有当用户选择了时间时才更新
+    if (selectedTime) {
+      // 保持日期不变，只更新时间
+      const newDate = new Date(date);
+      newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      setDate(newDate);
+    }
   };
-  
+
   // 创建提醒
   const createReminder = async () => {
     if (!title.trim()) {
       displayToast('请输入提醒标题');
       return;
     }
-    
+
     if (date <= new Date()) {
       displayToast('提醒时间必须是未来时间');
       return;
     }
-    
+
     try {
       setIsSubmitting(true);
-      
+
       const reminderData = {
         title: title.trim(),
         content: transcribedText,
@@ -259,16 +277,16 @@ const VoiceReminderScreen = ({ navigation, route }) => {
         note_id: noteId || null,
         use_voice: useVoiceReminder,
       };
-      
+
       // 如果有音频文件且启用了语音提醒
       if (audioUri && useVoiceReminder) {
         const audioContent = await RNFS.readFile(audioUri.replace('file://', ''), 'base64');
         reminderData.audio_content = audioContent;
       }
-      
+
       // 调用创建提醒API
       const result = await reminderApi.createReminder(reminderData);
-      
+
       if (result.success) {
         displayToast('提醒创建成功');
         setTimeout(() => {
@@ -284,7 +302,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       setIsSubmitting(false);
     }
   };
-  
+
   // 格式化日期
   const formatDate = (date) => {
     return date.toLocaleDateString('zh-CN', {
@@ -293,7 +311,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       day: 'numeric',
     });
   };
-  
+
   // 格式化时间
   const formatTime = (date) => {
     return date.toLocaleTimeString('zh-CN', {
@@ -301,14 +319,14 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       minute: '2-digit',
     });
   };
-  
+
   // 格式化录音时长
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -333,11 +351,11 @@ const VoiceReminderScreen = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView style={styles.contentContainer}>
           <View style={[styles.formSection, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>提醒内容</Text>
-            
+
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>标题</Text>
               <TextInput
@@ -348,10 +366,10 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
-            
+
             <View style={styles.recordingContainer}>
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>录音</Text>
-              
+
               <View style={styles.recordingControls}>
                 {isRecording ? (
                   <TouchableOpacity
@@ -372,7 +390,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                     <Text style={styles.recordButtonText}>录音</Text>
                   </TouchableOpacity>
                 )}
-                
+
                 {audioUri && !isRecording && (
                   <TouchableOpacity
                     style={[styles.playButton, { backgroundColor: colors.secondary }]}
@@ -384,10 +402,10 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 )}
               </View>
             </View>
-            
+
             <View style={styles.transcriptionContainer}>
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>转写内容</Text>
-              
+
               {isTranscribing ? (
                 <View style={styles.loadingContainer}>
                   <Loading size="small" />
@@ -411,10 +429,10 @@ const VoiceReminderScreen = ({ navigation, route }) => {
               )}
             </View>
           </View>
-          
+
           <View style={[styles.formSection, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>提醒时间</Text>
-            
+
             <TouchableOpacity
               style={styles.datePickerButton}
               onPress={() => setShowDatePicker(true)}
@@ -424,7 +442,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 {formatDate(date)}
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.datePickerButton}
               onPress={() => setShowTimePicker(true)}
@@ -434,7 +452,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 {formatTime(date)}
               </Text>
             </TouchableOpacity>
-            
+
             {showDatePicker && (
               <DateTimePicker
                 value={date}
@@ -443,7 +461,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 onChange={handleDateChange}
               />
             )}
-            
+
             {showTimePicker && (
               <DateTimePicker
                 value={date}
@@ -453,10 +471,10 @@ const VoiceReminderScreen = ({ navigation, route }) => {
               />
             )}
           </View>
-          
+
           <View style={[styles.formSection, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>提醒方式</Text>
-            
+
             <View style={styles.switchContainer}>
               <Text style={[styles.switchLabel, { color: colors.text }]}>
                 使用语音提醒
@@ -468,7 +486,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
                 thumbColor={useVoiceReminder ? colors.primaryLight : '#f4f3f4'}
               />
             </View>
-            
+
             {useVoiceReminder && (
               <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
                 启用后，系统将在提醒时播放您录制的语音内容
@@ -476,11 +494,11 @@ const VoiceReminderScreen = ({ navigation, route }) => {
             )}
           </View>
         </ScrollView>
-        
+
         {showToast && (
           <Toast message={toastMessage} />
         )}
-        
+
         {isSubmitting && (
           <View style={styles.loadingOverlay}>
             <Loading size="large" />

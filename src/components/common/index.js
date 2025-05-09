@@ -20,6 +20,8 @@ import EmptyState from './EmptyState';
 import ErrorState from './ErrorState';
 import ApiTestComponent from './ApiTestComponent';
 import SearchBar from './SearchBar';
+import IconButton from './IconButton';
+import CreateContentModal from './CreateContentModal';
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -57,6 +59,8 @@ export {
   ErrorState,
   ApiTestComponent,
   SearchBar,
+  IconButton,
+  CreateContentModal,
 
   // 现代UI组件
   GradientButton,
