@@ -143,14 +143,32 @@ const ChatInput = ({
               size={24}
               color={colors.card}
             />
+            <Text
+              variant="body"
+              size="small"
+              color="card"
+              style={styles.buttonText}
+            >
+              录音中
+            </Text>
             <View style={[styles.recordingPulse, { borderColor: colors.card }]} />
           </View>
         ) : (
-          <Icon
-            name="mic"
-            size={24}
-            color={colors.card}
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Icon
+              name="mic"
+              size={24}
+              color={colors.card}
+            />
+            <Text
+              variant="body"
+              size="small"
+              color="card"
+              style={styles.buttonText}
+            >
+              语音
+            </Text>
+          </View>
         )}
       </TouchableOpacity>
     );
@@ -180,7 +198,17 @@ const ChatInput = ({
         disabled={isDisabled}
         activeOpacity={0.7}
       >
-        <Icon name="send" size={24} color={colors.card} />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Icon name="send" size={24} color={colors.card} />
+          <Text
+            variant="body"
+            size="small"
+            color="card"
+            style={styles.buttonText}
+          >
+            发送
+          </Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -277,6 +305,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
+    minWidth: 90,
   },
   buttonText: {
     marginLeft: 6,

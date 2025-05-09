@@ -34,7 +34,7 @@ import {
   selectAiEngine,
   selectAiModel,
 } from '../../redux/slices/aiAssistantSlice';
-import { ChatMessage, ChatInput } from '../../components/ai';
+import { ChatMessage, ChatInput, ChatHistorySidebar } from '../../components/ai';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AIAssistantModule from '../../native/AIAssistantModule';
@@ -67,12 +67,12 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 本地状态
   const [inputText, setInputText] = useState('');
-  const [showQuickActions, setShowQuickActions] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState('00:00');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showAISelector, setShowAISelector] = useState(false);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(Date.now().toString());
 
   // AI引擎选项
   const aiEngineOptions = [
@@ -81,7 +81,6 @@ const AIAssistantScreen = ({ navigation }) => {
     { id: AIAssistantModule.ENGINE_ZHIPU, name: '智谱ChatGLM' },
     { id: AIAssistantModule.ENGINE_QIANFAN, name: '千帆大模型' },
     { id: AIAssistantModule.ENGINE_MOONSHOT, name: 'Moonshot AI' },
-    { id: AIAssistantModule.ENGINE_LOCAL, name: '本地引擎' },
   ];
 
   // 引用
@@ -99,7 +98,7 @@ const AIAssistantScreen = ({ navigation }) => {
 
     // 监听键盘显示隐藏事件
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
-      setShowQuickActions(false);
+      // 键盘显示时的处理逻辑
     });
 
     return () => {
@@ -137,6 +136,9 @@ const AIAssistantScreen = ({ navigation }) => {
       message: messageText,
       history: chatHistory,
     }));
+
+    // 保存聊天历史到当前会话
+    dispatch(saveChatHistory(currentSessionId));
   };
 
   // 处理重试
@@ -160,69 +162,34 @@ const AIAssistantScreen = ({ navigation }) => {
     dispatch(cancelCurrentStream());
   };
 
-  // 清空聊天历史
-  const handleClearChatHistory = () => {
-    Alert.alert(
-      '确认',
-      '确定要清空聊天历史吗？',
-      [
-        {
-          text: '取消',
-          style: 'cancel',
-        },
-        {
-          text: '确定',
-          onPress: () => {
-            // 重置会话
-            dispatch(resetSession());
-            // 清空本地消息
-            dispatch(clearMessages());
-            // 保存聊天历史
-            dispatch(saveChatHistory());
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  // 创建新对话
+  const handleCreateNewChat = () => {
+    // 创建新会话ID
+    const newSessionId = Date.now().toString();
+    setCurrentSessionId(newSessionId);
+
+    // 重置会话
+    dispatch(resetSession());
+    // 清空本地消息
+    dispatch(clearMessages());
+    // 保存聊天历史
+    dispatch(saveChatHistory(newSessionId));
   };
 
-  // 打开设置
-  const handleOpenSettings = () => {
-    navigation.navigate('AIAssistantSettings');
-  };
-
-  // 复制消息内容
-  const handleCopyMessage = async (text) => {
-    try {
-      Clipboard.setString(text);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
-      } else {
-        Alert.alert('提示', '已复制到剪贴板');
+  // 处理消息复制
+  const handleMessageAction = (action, text) => {
+    if (action === 'copy') {
+      try {
+        Clipboard.setString(text);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('已复制到剪贴板', ToastAndroid.SHORT);
+        } else {
+          Alert.alert('提示', '已复制到剪贴板');
+        }
+      } catch (error) {
+        console.error('复制到剪贴板失败:', error);
+        Alert.alert('错误', '复制到剪贴板失败');
       }
-    } catch (error) {
-      console.error('复制到剪贴板失败:', error);
-      Alert.alert('错误', '复制到剪贴板失败');
-    }
-    setSelectedMessageId(null);
-    setShowQuickActions(false);
-  };
-
-  // 显示/隐藏快捷操作
-  const toggleQuickActions = (messageId) => {
-    if (selectedMessageId === messageId) {
-      setSelectedMessageId(null);
-      setShowQuickActions(false);
-    } else {
-      setSelectedMessageId(messageId);
-      setShowQuickActions(true);
-
-      // 动画效果
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
     }
   };
 
@@ -409,14 +376,21 @@ const AIAssistantScreen = ({ navigation }) => {
           onPress={() => setShowAISelector(false)}
         >
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text
-              variant="body"
-              size="large"
-              bold
-              style={styles.modalTitle}
-            >
-              选择AI引擎
-            </Text>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20
+            }}>
+              <Icon name="smart-toy" size={24} color={colors.primary} style={{ marginRight: 10 }} />
+              <Text
+                variant="heading"
+                level="h4"
+                style={styles.modalTitle}
+              >
+                选择AI引擎
+              </Text>
+            </View>
 
             <FlatList
               data={aiEngineOptions}
@@ -426,22 +400,41 @@ const AIAssistantScreen = ({ navigation }) => {
                   style={[
                     styles.aiOptionItem,
                     {
-                      backgroundColor: item.id === aiEngine ? colors.primary + '20' : 'transparent',
-                      borderBottomColor: colors.border
+                      backgroundColor: colors.card,
+                      borderBottomColor: colors.border,
+                      borderLeftWidth: item.id === aiEngine ? 3 : 0,
+                      borderLeftColor: colors.primary,
+                      borderWidth: 1,
+                      borderColor: item.id === aiEngine ? colors.primary : `${colors.primary}30`,
                     }
                   ]}
                   onPress={() => handleSelectEngine(item.id)}
                 >
-                  <Text
-                    variant="body"
-                    size="medium"
-                    color={item.id === aiEngine ? 'primary' : 'text'}
-                    bold={item.id === aiEngine}
-                  >
-                    {item.name}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.card,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                      borderWidth: 1,
+                      borderColor: colors.primary,
+                    }}>
+                      <Icon name="smart-toy" size={18} color={colors.primary} />
+                    </View>
+                    <Text
+                      variant="body"
+                      size="medium"
+                      color={item.id === aiEngine ? 'primary' : 'text'}
+                      bold={item.id === aiEngine}
+                    >
+                      {item.name}
+                    </Text>
+                  </View>
                   {item.id === aiEngine && (
-                    <Icon name="check" size={20} color={colors.primary} />
+                    <Icon name="check-circle" size={24} color={colors.primary} />
                   )}
                 </TouchableOpacity>
               )}
@@ -469,7 +462,10 @@ const AIAssistantScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, {
+        borderBottomColor: colors.border,
+        paddingTop: 24, // 增加顶部内边距，使标题往下移
+      }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{
             width: 36,
@@ -495,25 +491,39 @@ const AIAssistantScreen = ({ navigation }) => {
             style={[
               styles.headerButton,
               {
-                backgroundColor: `${colors.error}10`,
+                backgroundColor: showHistorySidebar ? colors.primary : '#ffffff',
+                flexDirection: 'row',
+                paddingHorizontal: 0,
+                width: 80,
+                height: 36,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.primary,
+                elevation: 3,
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 3,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingBottom: 2, // 向上微调文字位置
               }
             ]}
-            onPress={handleClearChatHistory}
+            onPress={() => setShowHistorySidebar(!showHistorySidebar)}
             activeOpacity={0.7}
           >
-            <Icon name="delete" size={20} color={colors.error} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.headerButton,
-              {
-                backgroundColor: `${colors.primary}10`,
-              }
-            ]}
-            onPress={handleOpenSettings}
-            activeOpacity={0.7}
-          >
-            <Icon name="settings" size={20} color={colors.primary} />
+            <Text
+              variant="body"
+              size="small"
+              color={showHistorySidebar ? "card" : "primary"}
+              style={{
+                fontWeight: '600',
+                lineHeight: 18, // 调整行高
+                marginTop: -7, // 向上移动文字
+              }}
+            >
+              历史记录
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -525,62 +535,50 @@ const AIAssistantScreen = ({ navigation }) => {
         styles.aiSelectorContainer,
         {
           borderBottomColor: colors.border,
-          backgroundColor: `${colors.primary}05`,
+          backgroundColor: colors.background,
           paddingHorizontal: 20,
-          paddingVertical: 14,
+          paddingVertical: 8, // 减少垂直内边距
         }
       ]}>
-        <View style={styles.aiSelectorHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: `${colors.primary}15`,
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginRight: 10,
-            }}>
-              <Icon name="smart-toy" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.aiSelectorLabel, { color: colors.text }]}>
-              选择AI助手
-            </Text>
-          </View>
-        </View>
+
         <TouchableOpacity
           style={[
             styles.aiSelectorButton,
             {
-              borderColor: `${colors.primary}30`,
-              backgroundColor: colors.card,
-              marginTop: 8,
-              elevation: 2,
-              shadowColor: '#000',
+              borderColor: colors.primary,
+              borderWidth: 1,
+              backgroundColor: '#ffffff',
+              marginTop: 4, // 减少顶部边距
+              elevation: 3,
+              shadowColor: colors.primary,
               shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
+              shadowOpacity: 0.15,
               shadowRadius: 4,
+              borderRadius: 24,
             }
           ]}
           onPress={() => setShowAISelector(true)}
           activeOpacity={0.7}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
             <View style={{
               width: 28,
               height: 28,
               borderRadius: 14,
-              backgroundColor: `${colors.primary}15`,
+              backgroundColor: '#ffffff',
               justifyContent: 'center',
               alignItems: 'center',
               marginRight: 12,
+              borderWidth: 1,
+              borderColor: colors.primary,
             }}>
               <Icon name="smart-toy" size={16} color={colors.primary} />
             </View>
             <Text
               variant="body"
               size="medium"
-              style={[styles.aiSelectorText, { fontWeight: '500' }]}
+              color="text"
+              style={[styles.aiSelectorText, { fontWeight: '600' }]}
             >
               {aiEngineOptions.find(option => option.id === aiEngine)?.name || '选择AI引擎'}
             </Text>
@@ -631,6 +629,36 @@ const AIAssistantScreen = ({ navigation }) => {
         isRecording={isRecording}
         onCancel={handleCancel}
       />
+
+      {/* 历史记录侧边栏遮罩层 */}
+      {showHistorySidebar && (
+        <TouchableOpacity
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 999,
+          }}
+          activeOpacity={1}
+          onPress={() => setShowHistorySidebar(false)}
+        />
+      )}
+
+      {/* 历史记录侧边栏 */}
+      <ChatHistorySidebar
+        visible={showHistorySidebar}
+        onClose={() => setShowHistorySidebar(false)}
+        onSelectSession={(sessionId) => {
+          setCurrentSessionId(sessionId);
+          dispatch(loadChatHistory(sessionId));
+          setShowHistorySidebar(false);
+        }}
+        colors={colors}
+        currentSessionId={currentSessionId}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -644,7 +672,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 24, // 增加顶部内边距
+    paddingBottom: 16,
     borderBottomWidth: 1,
     elevation: 3,
     shadowColor: '#000',
@@ -665,7 +694,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.03)',
-    width: 40,
+    minWidth: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
@@ -695,27 +724,26 @@ const styles = StyleSheet.create({
   // AI选择器相关样式
   aiSelectorContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 10, // 减少垂直内边距
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
-    backgroundColor: 'rgba(0,0,0,0.01)',
   },
   aiSelectorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   aiSelectorLabel: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   aiSettingsButton: {
-    padding: 10,
+    padding: 8, // 减少内边距
     borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.03)',
-    width: 40,
-    height: 40,
+    width: 36, // 减小尺寸
+    height: 36, // 减小尺寸
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -723,24 +751,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
     borderWidth: 1,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: '#ffffff',
   },
   aiSelectorIcon: {
-    marginRight: 10,
+    marginRight: 8, // 减少右边距
   },
   aiSelectorText: {
     flex: 1,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15, // 减小字体大小
   },
   modalOverlay: {
     flex: 1,
@@ -765,8 +793,9 @@ const styles = StyleSheet.create({
   modalTitle: {
     marginBottom: 24,
     textAlign: 'center',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
+    color: '#333',
   },
   aiOptionItem: {
     flexDirection: 'row',
@@ -774,15 +803,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    marginBottom: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.02)',
-    elevation: 2,
+    marginBottom: 10,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
 });
 

@@ -32,7 +32,7 @@ const initialState = {
   messages: [],
   isLoading: false,
   error: null,
-  aiEngine: 'local', // local, openai, baidu, xunfei, zhipu
+  aiEngine: 'baidu', // baidu, xunfei, zhipu, qianfan, moonshot
   aiModel: '',
   availableModels: [],
   streamEnabled: true,
@@ -261,12 +261,42 @@ export const saveSettings = createAsyncThunk(
 // 异步操作：加载聊天历史
 export const loadChatHistory = createAsyncThunk(
   'aiAssistant/loadChatHistory',
-  async (_, { rejectWithValue }) => {
+  async (sessionId, { rejectWithValue }) => {
     try {
       const savedHistory = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
 
       if (savedHistory) {
-        return JSON.parse(savedHistory);
+        const historyObj = JSON.parse(savedHistory);
+
+        // 如果提供了会话ID，加载特定会话
+        if (sessionId && historyObj[sessionId]) {
+          return historyObj[sessionId];
+        }
+        // 如果没有提供会话ID或会话不存在，创建新会话
+        else {
+          // 添加欢迎消息
+          const welcomeMessage = {
+            id: Date.now().toString(),
+            text: '你好！我是零屿笔记的AI助手，有什么可以帮助你的吗？',
+            sender: 'assistant',
+            timestamp: new Date().toISOString(),
+          };
+
+          // 如果没有历史记录对象，创建一个新的
+          if (!historyObj || typeof historyObj !== 'object') {
+            const newHistory = {};
+            const newSessionId = sessionId || Date.now().toString();
+            newHistory[newSessionId] = [welcomeMessage];
+            await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
+            return [welcomeMessage];
+          }
+
+          // 创建新会话
+          const newSessionId = sessionId || Date.now().toString();
+          historyObj[newSessionId] = [welcomeMessage];
+          await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+          return [welcomeMessage];
+        }
       } else {
         // 添加欢迎消息
         const welcomeMessage = {
@@ -276,7 +306,12 @@ export const loadChatHistory = createAsyncThunk(
           timestamp: new Date().toISOString(),
         };
 
-        await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify([welcomeMessage]));
+        // 创建新的历史记录对象
+        const newHistory = {};
+        const newSessionId = sessionId || Date.now().toString();
+        newHistory[newSessionId] = [welcomeMessage];
+
+        await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
         return [welcomeMessage];
       }
     } catch (error) {
@@ -288,11 +323,34 @@ export const loadChatHistory = createAsyncThunk(
 // 异步操作：保存聊天历史
 export const saveChatHistory = createAsyncThunk(
   'aiAssistant/saveChatHistory',
-  async (_, { getState, rejectWithValue }) => {
+  async (sessionId, { getState, rejectWithValue }) => {
     try {
       const { messages } = getState().aiAssistant;
-      await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(messages));
-      return messages;
+      const currentSessionId = sessionId || Date.now().toString();
+
+      // 获取现有历史记录
+      const savedHistory = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      let historyObj = {};
+
+      if (savedHistory) {
+        try {
+          historyObj = JSON.parse(savedHistory);
+          // 确保historyObj是一个对象
+          if (typeof historyObj !== 'object' || historyObj === null) {
+            historyObj = {};
+          }
+        } catch (e) {
+          console.error('解析历史记录失败:', e);
+          historyObj = {};
+        }
+      }
+
+      // 更新当前会话的消息
+      historyObj[currentSessionId] = messages;
+
+      // 保存更新后的历史记录
+      await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+      return { sessionId: currentSessionId, messages };
     } catch (error) {
       return rejectWithValue(error.message || '保存聊天历史失败');
     }

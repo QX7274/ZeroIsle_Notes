@@ -24,7 +24,7 @@ const STORAGE_KEYS = {
 
 const AIAssistantSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const [aiEngine, setAiEngine] = useState(AIAssistantModule.ENGINE_LOCAL);
+  const [aiEngine, setAiEngine] = useState(AIAssistantModule.ENGINE_BAIDU);
   const [baiduApiKey, setBaiduApiKey] = useState('');
   const [baiduSecretKey, setBaiduSecretKey] = useState('');
   const [isConfiguring, setIsConfiguring] = useState(false);
@@ -41,15 +41,15 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       const savedEngine = await AsyncStorage.getItem(STORAGE_KEYS.AI_ENGINE);
       const savedApiKey = await AsyncStorage.getItem(STORAGE_KEYS.BAIDU_API_KEY);
       const savedSecretKey = await AsyncStorage.getItem(STORAGE_KEYS.BAIDU_SECRET_KEY);
-      
+
       if (savedEngine) {
         setAiEngine(savedEngine);
       }
-      
+
       if (savedApiKey) {
         setBaiduApiKey(savedApiKey);
       }
-      
+
       if (savedSecretKey) {
         setBaiduSecretKey(savedSecretKey);
       }
@@ -64,7 +64,7 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       await AsyncStorage.setItem(STORAGE_KEYS.AI_ENGINE, aiEngine);
       await AsyncStorage.setItem(STORAGE_KEYS.BAIDU_API_KEY, baiduApiKey);
       await AsyncStorage.setItem(STORAGE_KEYS.BAIDU_SECRET_KEY, baiduSecretKey);
-      
+
       Alert.alert('成功', '设置已保存');
     } catch (error) {
       console.error('保存AI助手设置失败:', error);
@@ -78,20 +78,20 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       Alert.alert('错误', '请输入百度AI的API密钥和Secret密钥');
       return;
     }
-    
+
     setIsConfiguring(true);
     setConfigStatus('正在配置百度AI...');
-    
+
     try {
       const result = await AIAssistantModule.configureBaiduAI({
         apiKey: baiduApiKey,
         secretKey: baiduSecretKey,
       });
-      
+
       setConfigStatus('配置成功！访问令牌已获取。');
       setAiEngine(AIAssistantModule.ENGINE_BAIDU);
       await AsyncStorage.setItem(STORAGE_KEYS.AI_ENGINE, AIAssistantModule.ENGINE_BAIDU);
-      
+
       Alert.alert('成功', '百度AI配置成功');
     } catch (error) {
       console.error('配置百度AI失败:', error);
@@ -116,23 +116,12 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Text style={[styles.title, { color: theme.colors.text }]}>AI助手设置</Text>
-      
+
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>AI引擎选择</Text>
-        
-        <View style={styles.option}>
-          <Text style={[styles.optionText, { color: theme.colors.text }]}>使用本地AI引擎</Text>
-          <Switch
-            value={aiEngine === AIAssistantModule.ENGINE_LOCAL}
-            onValueChange={(value) => {
-              if (value) {
-                setAiEngine(AIAssistantModule.ENGINE_LOCAL);
-              }
-            }}
-            trackColor={{ false: '#767577', true: theme.colors.primary }}
-          />
-        </View>
-        
+
+
+
         <View style={styles.option}>
           <Text style={[styles.optionText, { color: theme.colors.text }]}>使用百度AI引擎</Text>
           <Switch
@@ -150,13 +139,13 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           />
         </View>
       </View>
-      
+
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>百度AI配置</Text>
-        
+
         <Text style={[styles.label, { color: theme.colors.text }]}>API密钥</Text>
         <TextInput
-          style={[styles.input, { 
+          style={[styles.input, {
             color: theme.colors.text,
             backgroundColor: theme.colors.card,
             borderColor: theme.colors.border,
@@ -166,10 +155,10 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           placeholder="输入百度AI的API密钥"
           placeholderTextColor={theme.colors.text + '80'}
         />
-        
+
         <Text style={[styles.label, { color: theme.colors.text }]}>Secret密钥</Text>
         <TextInput
-          style={[styles.input, { 
+          style={[styles.input, {
             color: theme.colors.text,
             backgroundColor: theme.colors.card,
             borderColor: theme.colors.border,
@@ -180,7 +169,7 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           placeholderTextColor={theme.colors.text + '80'}
           secureTextEntry
         />
-        
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.colors.primary }]}
           onPress={configureBaiduAI}
@@ -192,14 +181,14 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
             <Text style={styles.buttonText}>配置百度AI</Text>
           )}
         </TouchableOpacity>
-        
+
         {configStatus ? (
           <Text style={[styles.statusText, { color: theme.colors.text }]}>
             {configStatus}
           </Text>
         ) : null}
       </View>
-      
+
       <View style={styles.section}>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.colors.primary }]}
@@ -207,7 +196,7 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
         >
           <Text style={styles.buttonText}>测试AI助手</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.colors.primary, marginTop: 10 }]}
           onPress={saveSettings}
@@ -215,10 +204,10 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>保存设置</Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.section}>
         <Text style={[styles.note, { color: theme.colors.text }]}>
-          注意：本地AI引擎提供基础的对话功能，不需要网络连接。百度AI引擎提供更高级的对话能力，但需要网络连接和API密钥。
+          注意：百度AI引擎提供高级的对话能力，需要网络连接和API密钥。
         </Text>
       </View>
     </ScrollView>
