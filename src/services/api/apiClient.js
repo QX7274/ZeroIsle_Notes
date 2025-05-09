@@ -92,16 +92,45 @@ apiClient.interceptors.request.use(
       // 检查网络连接
       const isConnected = await checkNetworkConnection();
 
-      // 如果没有网络连接且请求方法不是GET，保存请求到离线队列
-      if (!isConnected && config.method !== 'get') {
-        console.log('无网络连接，保存请求到离线队列:', config.url);
-        await saveOfflineRequest(config);
+      // 如果没有网络连接，处理离线逻辑
+      if (!isConnected) {
+        console.log('无网络连接，处理离线逻辑:', config.url);
 
-        // 抛出自定义错误，中断请求
-        throw {
-          isOfflineError: true,
-          message: '无网络连接，请求已保存到离线队列'
-        };
+        // 对于非GET请求，保存到离线队列
+        if (config.method !== 'get') {
+          await saveOfflineRequest(config);
+        }
+
+        // 检查是否有离线模式标记
+        const offlineMode = config.headers['X-Offline-Mode'] === 'true';
+
+        // 如果请求明确标记为离线模式，或者是修改操作，抛出自定义错误
+        if (offlineMode || config.method !== 'get') {
+          throw {
+            isOfflineError: true,
+            message: '无网络连接，请求已保存到离线队列',
+            config
+          };
+        }
+
+        // 对于GET请求，尝试从缓存获取数据
+        if (config.method === 'get') {
+          const cacheKey = `cache_${config.url}`;
+          try {
+            const cachedData = await AsyncStorage.getItem(cacheKey);
+            if (cachedData) {
+              console.log('使用缓存数据:', config.url);
+              // 添加标记，表示这是缓存数据
+              config.headers['X-From-Cache'] = 'true';
+            } else {
+              console.log('无缓存数据，继续请求:', config.url);
+              // 添加标记，表示这是离线请求
+              config.headers['X-Offline-Request'] = 'true';
+            }
+          } catch (cacheError) {
+            console.error('读取缓存数据失败:', cacheError);
+          }
+        }
       }
     } catch (error) {
       // 如果是离线错误，直接抛出
@@ -128,18 +157,54 @@ apiClient.interceptors.response.use(
   async error => {
     // 处理离线错误
     if (error.isOfflineError) {
-      console.log('离线错误，请求已保存到队列');
-      // 返回一个模拟的成功响应，避免应用崩溃
+      console.log('离线错误，请求已保存到队列或使用本地数据');
+
+      // 获取请求配置
+      const config = error.config || {};
+
+      // 检查是否是GET请求
+      if (config.method === 'get') {
+        // 尝试从缓存获取数据
+        const cacheKey = `cache_${config.url}`;
+        try {
+          const cachedDataJson = await AsyncStorage.getItem(cacheKey);
+          if (cachedDataJson) {
+            console.log('使用缓存数据响应离线GET请求:', config.url);
+            try {
+              const cachedData = JSON.parse(cachedDataJson);
+              return Promise.resolve({
+                data: cachedData.data || cachedData,
+                status: 200,
+                statusText: 'OK (Offline Cache)',
+                headers: { 'X-From-Cache': 'true' },
+                config,
+                offline: true,
+                fromCache: true
+              });
+            } catch (parseError) {
+              console.error('解析缓存数据失败:', parseError);
+            }
+          }
+        } catch (cacheError) {
+          console.error('读取缓存数据失败:', cacheError);
+        }
+      }
+
+      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的成功响应
       return Promise.resolve({
         data: {
           offline: true,
-          message: '当前处于离线模式，请求已保存',
-          timestamp: new Date().toISOString()
+          message: '当前处于离线模式，请求已保存或使用本地数据',
+          timestamp: new Date().toISOString(),
+          success: true,  // 添加success标志，使其与正常响应格式一致
+          method: config.method,
+          url: config.url
         },
         status: 200,
         statusText: 'OK (Offline)',
         headers: {},
-        config: error.config || {}
+        config,
+        offline: true
       });
     }
 
@@ -154,6 +219,60 @@ apiClient.interceptors.response.use(
       // 而是在返回的错误对象中添加标记，让调用方决定如何处理
       error.isNetworkError = true;
 
+      // 直接使用与离线错误相同的处理逻辑
+      console.log('网络错误，使用离线模式处理');
+
+      // 获取请求配置
+      const config = error.config || {};
+
+      // 检查是否是GET请求
+      if (config.method === 'get') {
+        // 尝试从缓存获取数据
+        const cacheKey = `cache_${config.url}`;
+        try {
+          // 使用await获取缓存数据
+          const cachedDataJson = await AsyncStorage.getItem(cacheKey);
+          if (cachedDataJson) {
+            console.log('使用缓存数据响应网络错误的GET请求:', config.url);
+            try {
+              // 安全解析JSON
+              const cachedData = JSON.parse(cachedDataJson);
+              return Promise.resolve({
+                data: cachedData.data || cachedData,
+                status: 200,
+                statusText: 'OK (Offline Cache)',
+                headers: { 'X-From-Cache': 'true' },
+                config,
+                offline: true,
+                fromCache: true
+              });
+            } catch (parseError) {
+              console.error('解析缓存数据失败:', parseError);
+            }
+          }
+        } catch (cacheError) {
+          console.error('读取缓存数据失败:', cacheError);
+        }
+      }
+
+      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的成功响应
+      return Promise.resolve({
+        data: {
+          offline: true,
+          message: '当前处于离线模式，请求已保存或使用本地数据',
+          timestamp: new Date().toISOString(),
+          success: true,  // 添加success标志，使其与正常响应格式一致
+          method: config.method,
+          url: config.url
+        },
+        status: 200,
+        statusText: 'OK (Offline)',
+        headers: {},
+        config,
+        offline: true
+      });
+
+      /* 以下代码被上面的逻辑替代
       // 检查是否有本地缓存数据
       if (error.config && error.config.url) {
         const cacheKey = `cache_${error.config.url}`;
@@ -188,6 +307,7 @@ apiClient.interceptors.response.use(
           console.error('读取缓存数据失败:', cacheError);
         }
       }
+      */
     } else if (error.message && error.message.includes('timeout')) {
       // 超时错误，显示中文提示
       console.error('请求超时:', error);

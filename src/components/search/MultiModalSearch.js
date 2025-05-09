@@ -23,6 +23,7 @@ import {
   selectSearchMode,
   selectIsLoading,
   selectError,
+  addToSearchHistory,
 } from '../../redux/slices/searchSlice';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -30,6 +31,7 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
 import SearchSuggestions from './SearchSuggestions';
+import SearchHistory from './SearchHistory';
 
 /**
  * 多模态搜索组件
@@ -61,6 +63,7 @@ const MultiModalSearch = ({
   const [selectedImage, setSelectedImage] = useState(null);
   const [localError, setLocalError] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
 
   // 引用
   const searchInputRef = useRef(null);
@@ -208,6 +211,13 @@ const MultiModalSearch = ({
           searchMode: reduxSearchMode,
           searchScope: searchScope
         });
+
+        // 保存搜索历史
+        dispatch(addToSearchHistory({
+          query: searchQuery,
+          mode: reduxSearchMode,
+          scope: searchScope
+        }));
       }
     } catch (err) {
       setLocalError(err.message || '搜索失败');
@@ -218,6 +228,14 @@ const MultiModalSearch = ({
   const handleSuggestionPress = (suggestion) => {
     setSearchQuery(suggestion);
     setShowSuggestions(false);
+    setTimeout(() => handleSearch(), 100);
+  };
+
+  // 处理历史记录点击
+  const handleHistoryItemPress = (query, mode) => {
+    setSearchQuery(query);
+    dispatch(setSearchMode(mode || 'text'));
+    setShowHistory(false);
     setTimeout(() => handleSearch(), 100);
   };
 
@@ -248,6 +266,29 @@ const MultiModalSearch = ({
     }
   };
 
+  // 检查相机权限
+  const checkCameraPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: '相机权限申请',
+            message: '需要访问您的相机以拍照',
+            buttonNeutral: '稍后询问',
+            buttonNegative: '取消',
+            buttonPositive: '确定',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
   // 选择图片
   const selectImage = async (source) => {
     const options = {
@@ -259,6 +300,15 @@ const MultiModalSearch = ({
     };
 
     try {
+      // 如果是相机，先检查权限
+      if (source === 'camera') {
+        const hasPermission = await checkCameraPermission();
+        if (!hasPermission) {
+          setLocalError('相机权限被拒绝，请在设置中开启权限');
+          return;
+        }
+      }
+
       const result = source === 'camera'
         ? await launchCamera(options)
         : await launchImageLibrary(options);
@@ -271,7 +321,8 @@ const MultiModalSearch = ({
         setTimeout(handleSearch, 500);
       }
     } catch (err) {
-      setLocalError('选择图片失败: ' + err.message);
+      console.error('图片选择错误:', err);
+      setLocalError('选择图片失败: ' + (err.message || '未知错误'));
     }
   };
 
@@ -376,7 +427,7 @@ const MultiModalSearch = ({
             color="hint"
             center
           >
-            点击麦克风图标开始录音
+            点击开始录音
           </Text>
         )}
       </View>
@@ -452,14 +503,14 @@ const MultiModalSearch = ({
       ) : (
         <View style={styles.imageSourceButtons}>
           <TouchableOpacity
-            style={[styles.imageSourceButton, { backgroundColor: colors.primary }]}
+            style={[styles.imageSourceButton]}
             onPress={() => selectImage('camera')}
           >
-            <Icon name="camera-alt" size={24} color="#FFFFFF" />
+            <Icon name="camera-alt" size={28} color="#2196F3" />
             <Text
               variant="body"
-              size="small"
-              color="card"
+              size="medium"
+              color="primary"
               center
               style={styles.imageSourceButtonText}
             >
@@ -467,14 +518,14 @@ const MultiModalSearch = ({
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.imageSourceButton, { backgroundColor: colors.primary }]}
+            style={[styles.imageSourceButton]}
             onPress={() => selectImage('gallery')}
           >
-            <Icon name="photo-library" size={24} color="#FFFFFF" />
+            <Icon name="photo-library" size={28} color="#2196F3" />
             <Text
               variant="body"
-              size="small"
-              color="card"
+              size="medium"
+              color="primary"
               center
               style={styles.imageSourceButtonText}
             >
@@ -503,6 +554,10 @@ const MultiModalSearch = ({
               key={mode}
               style={[
                 styles.searchModeButton,
+                {
+                  backgroundColor: reduxSearchMode === mode ? `${colors.primary}20` : '#ffffff',
+                  borderColor: colors.primary
+                },
                 reduxSearchMode === mode && [
                   styles.activeSearchModeButton,
                   { borderBottomColor: colors.primary },
@@ -511,14 +566,30 @@ const MultiModalSearch = ({
               onPress={() => switchSearchMode(mode)}
               disabled={isLoading}
             >
-              <Icon
-                name={
-                  mode === 'text' ? 'search' :
-                  mode === 'voice' ? 'mic' : 'image-search'
-                }
-                size={24}
-                color={reduxSearchMode === mode ? colors.primary : colors.textSecondary}
-              />
+              <View style={{ marginBottom: 2 }}>
+                <Icon
+                  name={
+                    mode === 'text' ? 'search' :
+                    mode === 'voice' ? 'mic' : 'image-search'
+                  }
+                  size={22}
+                  color={reduxSearchMode === mode ? colors.primary : colors.text}
+                />
+              </View>
+              <Text
+                variant="body"
+                size="medium" // 改为中等大小
+                color={reduxSearchMode === mode ? "primary" : "text"}
+                style={{
+                  textAlign: 'center',
+                  marginTop: -20, // 确保文字在正中
+                  width: '100%', // 确保文字占满整个宽度
+                  paddingBottom: 0, // 移除底部边距
+                  fontWeight: '500' // 增加字体粗细
+                }}
+              >
+                {mode === 'text' ? '文本' : mode === 'voice' ? '语音' : '图像'}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -528,6 +599,17 @@ const MultiModalSearch = ({
         {reduxSearchMode === 'text' && renderTextSearch()}
         {reduxSearchMode === 'voice' && renderVoiceSearch()}
         {reduxSearchMode === 'image' && renderImageSearch()}
+
+        {/* 搜索历史 */}
+        {reduxSearchMode === 'text' && !searchQuery && showHistory && (
+          <View style={styles.historyContainer}>
+            <SearchHistory
+              onHistoryItemPress={handleHistoryItemPress}
+              visible={true}
+              searchScope={searchScope}
+            />
+          </View>
+        )}
       </View>
 
       {error && (
@@ -561,15 +643,17 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#2196F3',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
+    backgroundColor: '#ffffff',
+    minHeight: 60, // 减小高度
   },
   cancelButton: {
     padding: 10,
@@ -578,26 +662,44 @@ const styles = StyleSheet.create({
     height: 42,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: '#ffffff',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#2196F3',
   },
   searchModeButtons: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   searchModeButton: {
-    paddingHorizontal: 22,
-    paddingVertical: 14,
-    marginHorizontal: 10,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center', // 居中对齐
+    minWidth: 60,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    height: 45, // 增加高度
   },
   activeSearchModeButton: {
     borderBottomWidth: 3,
+    backgroundColor: '#E3F2FD',
+    borderWidth: 1,
+    borderColor: '#2196F3',
   },
   searchContainer: {
     padding: 24,
@@ -641,10 +743,10 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
   },
   recordingInfo: {
-    marginBottom: 28,
-    padding: 18,
+    marginBottom: 20,
+    padding: 14,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.02)',
+    backgroundColor: '#ffffff',
     width: '100%',
     alignItems: 'center',
     elevation: 3,
@@ -653,16 +755,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 3,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#2196F3',
   },
   recordingText: {
     fontSize: 16,
     fontWeight: '500',
   },
   recordButton: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -671,7 +773,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: '#2196F3',
   },
   imageSearchContainer: {
     alignItems: 'center',
@@ -683,24 +785,29 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   imageSourceButton: {
-    paddingHorizontal: 26,
-    paddingVertical: 22,
-    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 16,
     alignItems: 'center',
-    elevation: 6,
+    justifyContent: 'space-evenly', // 均匀分布子元素
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: '#2196F3',
     width: '45%',
+    backgroundColor: '#ffffff',
+    height: 90, // 减小高度
   },
   imageSourceButtonText: {
-    color: '#FFFFFF',
-    marginTop: 12,
-    fontSize: 15,
+    color: '#2196F3',
+    marginTop: 5, // 减小顶部边距
+    fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+    width: '100%', // 确保文字占满整个宽度
   },
   selectedImageContainer: {
     position: 'relative',
@@ -760,6 +867,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#FF3B30',
+  },
+  historyContainer: {
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    maxHeight: 300,
   },
 });
 

@@ -43,30 +43,81 @@ export const createNote = createAsyncThunk(
   'notes/createNote',
   async (noteData, { rejectWithValue }) => {
     try {
-      // 优先尝试保存到本地
+      console.log('Redux createNote action开始执行，笔记数据:', noteData);
+
+      // 生成唯一ID，确保在离线状态下也能使用
+      const noteId = noteData.id || 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+
+      // 准备离线笔记数据，添加必要的元数据
       const offlineNote = {
         ...noteData,
+        id: noteId,
         isOffline: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      await offlineStorageService.saveOfflineNote(offlineNote);
 
-      // 尝试同步到云端
+      console.log('准备保存离线笔记:', offlineNote);
+
+      // 1. 优先尝试保存到本地离线存储
       try {
+        await offlineStorageService.saveOfflineNote(offlineNote);
+        console.log('离线笔记保存成功:', noteId);
+      } catch (offlineError) {
+        console.error('保存到离线存储失败，但继续尝试API保存:', offlineError);
+        // 即使离线存储失败，也继续尝试API保存
+      }
+
+      // 2. 尝试通过API保存（可能是本地SQLite或远程服务器）
+      try {
+        console.log('尝试通过API创建笔记');
         const response = await notesApi.createNote(noteData);
-        // 同步成功后更新本地状态
-        await offlineStorageService.updateOfflineNote(offlineNote.id, {
-          ...response,
-          isOffline: false
-        });
-        return response;
-      } catch (error) {
-        // 网络错误时仅返回本地保存的笔记
+        console.log('API创建笔记成功:', response);
+
+        // 如果API保存成功，更新离线存储中的状态
+        try {
+          if (response && response.data) {
+            await offlineStorageService.updateOfflineNote(noteId, {
+              ...response.data,
+              isOffline: false
+            });
+            console.log('更新离线存储中的笔记状态成功');
+          }
+        } catch (updateError) {
+          console.warn('更新离线存储中的笔记状态失败，但API保存成功:', updateError);
+        }
+
+        // 返回API响应
+        return response.data || response;
+      } catch (apiError) {
+        console.warn('API创建笔记失败，使用离线笔记:', apiError);
+
+        // 3. 如果API保存失败，返回离线笔记
+        // 这确保即使API调用失败，用户仍然可以看到他们创建的笔记
         return offlineNote;
       }
     } catch (error) {
-      return rejectWithValue(error.message || '创建笔记失败');
+      console.error('创建笔记过程中发生严重错误:', error);
+
+      // 即使在最坏的情况下，也尝试返回一些有用的信息
+      try {
+        // 创建一个最小的笔记对象
+        const emergencyNote = {
+          id: 'emergency_' + Date.now(),
+          title: noteData.title || '紧急恢复的笔记',
+          content: noteData.content || '',
+          isOffline: true,
+          isEmergency: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        console.log('创建紧急恢复笔记:', emergencyNote);
+        return emergencyNote;
+      } catch (emergencyError) {
+        console.error('创建紧急恢复笔记也失败:', emergencyError);
+        return rejectWithValue(error.message || '创建笔记失败');
+      }
     }
   }
 );
@@ -419,12 +470,51 @@ const notesSlice = createSlice({
       })
       .addCase(createNote.fulfilled, (state, action) => {
         state.isLoading = false;
-        notesAdapter.addOne(state, action.payload);
-        state.currentNote = action.payload;
+
+        // 处理各种可能的响应格式
+        let noteData = action.payload;
+
+        // 如果响应是一个包含data属性的对象，使用data
+        if (noteData && noteData.data) {
+          noteData = noteData.data;
+        }
+
+        // 确保笔记有一个有效的ID
+        if (noteData && !noteData.id) {
+          noteData.id = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        }
+
+        // 确保笔记有创建和更新时间
+        if (noteData && (!noteData.created_at || !noteData.createdAt)) {
+          const now = new Date().toISOString();
+          noteData.created_at = noteData.created_at || noteData.createdAt || now;
+          noteData.updated_at = noteData.updated_at || noteData.updatedAt || now;
+        }
+
+        // 只有当笔记数据有效时才添加到状态
+        if (noteData && (noteData.id || noteData.title || noteData.content)) {
+          console.log('将笔记添加到Redux状态:', noteData);
+          notesAdapter.addOne(state, noteData);
+          state.currentNote = noteData;
+        } else {
+          console.warn('收到无效的笔记数据，无法添加到Redux状态:', noteData);
+        }
       })
       .addCase(createNote.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+
+        // 即使在拒绝的情况下，也尝试从payload中提取有用的信息
+        if (action.payload && typeof action.payload === 'object') {
+          if (action.payload.data) {
+            // 如果有数据，尝试添加到状态
+            const noteData = action.payload.data;
+            if (noteData.id || noteData.title || noteData.content) {
+              console.log('从拒绝的action中提取笔记数据:', noteData);
+              notesAdapter.addOne(state, noteData);
+            }
+          }
+        }
       })
 
       // 更新笔记

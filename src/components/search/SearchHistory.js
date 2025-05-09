@@ -1,7 +1,7 @@
 /**
  * 搜索历史组件
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -24,28 +24,41 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
  * 搜索历史组件
  * @param {Function} onHistoryItemPress - 点击历史项回调
  * @param {boolean} visible - 是否可见
+ * @param {string} searchScope - 搜索范围，可选值：'home', 'category', 'community'
  */
-const SearchHistory = ({ onHistoryItemPress, visible = true }) => {
+const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home' }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取状态
   const searchHistory = useSelector(selectSearchHistory);
   const isLoading = useSelector(selectIsLoading);
-  
-  // 组件挂载时获取搜索历史
+
+  // 本地状态
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  // 使用本地存储的历史记录，避免每次都从服务器加载
   useEffect(() => {
-    if (visible) {
-      dispatch(fetchSearchHistory());
+    if (visible && !isInitialized) {
+      try {
+        // 使用本地存储的历史记录，避免不必要的网络请求
+        const localHistory = { scope: searchScope, limit: 5, useLocalOnly: true };
+        dispatch(fetchSearchHistory(localHistory));
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('获取搜索历史失败:', error);
+        setLocalError('获取搜索历史失败');
+      }
     }
-  }, [visible, dispatch]);
-  
+  }, [visible, dispatch, searchScope, isInitialized]);
+
   // 如果不可见，不显示
   if (!visible) {
     return null;
   }
-  
+
   // 清除搜索历史
   const handleClearHistory = () => {
     Alert.alert(
@@ -65,7 +78,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true }) => {
       { cancelable: true }
     );
   };
-  
+
   // 渲染历史项
   const renderHistoryItem = ({ item }) => (
     <TouchableOpacity
@@ -103,7 +116,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true }) => {
       </Text>
     </TouchableOpacity>
   );
-  
+
   // 如果没有历史记录
   if (!searchHistory || searchHistory.length === 0) {
     return (
@@ -122,7 +135,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true }) => {
       </View>
     );
   }
-  
+
   // 渲染历史列表
   return (
     <View style={[
@@ -152,7 +165,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true }) => {
           </Text>
         </TouchableOpacity>
       </View>
-      
+
       <FlatList
         data={searchHistory}
         renderItem={renderHistoryItem}
@@ -173,19 +186,19 @@ const formatTime = (timestamp) => {
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
-  
+
   if (diffDay > 0) {
     return diffDay === 1 ? '昨天' : `${diffDay}天前`;
   }
-  
+
   if (diffHour > 0) {
     return `${diffHour}小时前`;
   }
-  
+
   if (diffMin > 0) {
     return `${diffMin}分钟前`;
   }
-  
+
   return '刚刚';
 };
 

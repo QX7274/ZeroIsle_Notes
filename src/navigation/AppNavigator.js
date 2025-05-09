@@ -202,44 +202,80 @@ const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
+        tabBarIcon: ({ color, focused }) => {
           let iconName;
+          let iconStyle = { marginBottom: 2 };
 
-          if (route.name === 'HomeStack') {
-            iconName = 'home';
-          } else if (route.name === 'CategoryStack') {
-            iconName = 'folder';
-          } else if (route.name === 'ReminderStack') {
-            iconName = 'event-note';
-          } else if (route.name === 'AIAssistant') {
-            iconName = 'smart-toy';
-          } else if (route.name === 'CommunityStack') {
-            iconName = 'forum';
-          } else if (route.name === 'GroupsStack') {
-            iconName = 'groups';
-          } else if (route.name === 'MindMapStack') {
-            iconName = 'account-tree';
-          } else if (route.name === 'KnowledgeGraph') {
-            iconName = 'bubble-chart';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
+          // 使用简洁明了的图标
+          switch (route.name) {
+            case 'HomeStack':
+              iconName = 'home'; // 首页
+              break;
+            case 'AIAssistant':
+              iconName = 'smart-toy'; // AI助手
+              break;
+            case 'MindMapStack':
+              iconName = 'account-tree'; // 思维导图
+              break;
+            case 'KnowledgeGraph':
+              iconName = 'bubble-chart'; // 知识图谱
+              break;
+            case 'Profile':
+              iconName = 'person'; // 我的
+              break;
+            // 保留其他图标定义，以便将来可能重新启用
+            case 'CategoryStack':
+              iconName = 'category'; // 分类
+              break;
+            case 'ReminderStack':
+              iconName = 'event'; // 日程
+              break;
+            case 'CommunityStack':
+              iconName = 'chat'; // 社区
+              break;
+            case 'GroupsStack':
+              iconName = 'people'; // 群组
+              break;
+            default:
+              iconName = 'circle';
+              break;
           }
 
-          return <Icon name={iconName} size={size} color={color} />;
+          return (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={iconName} size={22} color={color} style={iconStyle} />
+              {focused && (
+                <View
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: color,
+                    marginTop: 2
+                  }}
+                />
+              )}
+            </View>
+          );
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          elevation: 8,
+          elevation: 4,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: -3 },
+          shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
-          shadowRadius: 3,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
+          shadowRadius: 2,
+          height: 50,
+          paddingBottom: 2,
+          paddingTop: 2,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '400',
+          marginBottom: 2,
         },
         headerStyle: {
           backgroundColor: colors.card,
@@ -284,8 +320,9 @@ const MainTabs = () => {
       />
       <Tab.Screen
         name="AIAssistant"
-        component={AIAssistantScreen}
+        component={AIAssistantNavigator}
         options={{
+          headerShown: false,
           title: 'AI助手',
           tabBarLabel: 'AI助手',
         }}
@@ -331,8 +368,8 @@ const MainTabs = () => {
         component={SettingsNavigator}
         options={{
           headerShown: false,
-          title: '个人中心',
-          tabBarLabel: '个人中心',
+          title: '我的',
+          tabBarLabel: '我的',
         }}
       />
     </Tab.Navigator>
@@ -924,6 +961,70 @@ const MindMapStack = () => {
           headerBackTitleVisible: false,
         }}
       />
+    </Stack.Navigator>
+  );
+};
+
+/**
+ * AI助手导航堆栈
+ * 包含AI助手主页和聊天历史等功能
+ */
+const AIAssistantNavigator = () => {
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('AIAssistantNavigator: 主题未正确加载，使用默认主题');
+      theme = {
+        colors: {
+          card: '#FFFFFF',
+          shadow: 'rgba(0, 0, 0, 0.1)',
+          text: '#000000',
+          background: '#F2F2F2',
+        }
+      };
+    }
+  } catch (error) {
+    console.error('AIAssistantNavigator: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      colors: {
+        card: '#FFFFFF',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        text: '#000000',
+        background: '#F2F2F2',
+      }
+    };
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen
+        name="AIAssistantMain"
+        component={AIAssistantScreen}
+        options={{ headerShown: false }}
+      />
+
     </Stack.Navigator>
   );
 };

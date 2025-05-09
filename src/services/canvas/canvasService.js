@@ -1,5 +1,6 @@
 import { analyticsService } from '../analytics/analyticsService';
-import { offlineStorage } from '../offline/offlineStorage';
+import infiniteCanvasStorage from '../offline/infiniteCanvasStorage';
+import { offlineStorageService } from '../offline/offlineStorage';
 
 class CanvasService {
   constructor() {
@@ -30,7 +31,7 @@ class CanvasService {
 
   async loadCanvas(canvasId) {
     try {
-      const canvas = await offlineStorage.getCanvas(canvasId);
+      const canvas = await infiniteCanvasStorage.getCanvas(canvasId);
       if (canvas) {
         this.canvasData = canvas;
         this.undoStack = [];
@@ -53,7 +54,11 @@ class CanvasService {
       }
 
       this.canvasData.updatedAt = new Date().toISOString();
-      await offlineStorage.saveCanvas(this.canvasData);
+      await infiniteCanvasStorage.saveCanvas(this.canvasData);
+
+      // 同时保存到offlineStorageService以保持兼容性
+      await offlineStorageService.saveCanvas(this.canvasData);
+
       analyticsService.trackCanvasAction('save', { canvasId: this.canvasData.id });
     } catch (error) {
       console.error('保存画布错误:', error);
@@ -69,7 +74,7 @@ class CanvasService {
 
     this.undoStack.push(JSON.stringify(this.canvasData.elements));
     this.redoStack = [];
-    
+
     this.canvasData.elements.push({
       ...element,
       id: Date.now().toString(),
@@ -84,7 +89,7 @@ class CanvasService {
   updateElement(elementId, updates) {
     if (!this.canvasData) {
       throw new Error('没有活动的画布');
-    } 
+    }
 
     this.undoStack.push(JSON.stringify(this.canvasData.elements));
     this.redoStack = [];
@@ -149,12 +154,12 @@ class CanvasService {
 
       // 这里需要实现实际的导出逻辑
       const imageData = await this._renderCanvasToImage();
-      
+
       analyticsService.trackCanvasAction('export', {
         canvasId: this.canvasData.id,
         format: 'image'
       });
-      
+
       return imageData;
     } catch (error) {
       console.error('导出画布错误:', error);

@@ -303,17 +303,35 @@ export const imageSearch = async (imageBase64, params = {}) => {
 /**
  * 获取搜索历史
  * @param {number} limit - 限制数量
+ * @param {string} scope - 搜索范围，可选值：'home', 'category', 'community'
  * @returns {Promise} - 搜索历史
  */
-export const getSearchHistory = async (limit = 10) => {
+export const getSearchHistory = async (limit = 10, scope = 'home') => {
   try {
-    const response = await apiClient.get(API_ENDPOINTS.SEARCH.HISTORY, {
-      params: { limit }
-    });
-    return {
-      success: true,
-      data: response.data
-    };
+    // 尝试在线获取搜索历史
+    try {
+      const response = await apiClient.get(API_ENDPOINTS.SEARCH.HISTORY, {
+        params: { limit, scope }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (onlineError) {
+      console.log('在线获取搜索历史失败，尝试从本地获取:', onlineError.message);
+
+      // 从本地存储获取搜索历史
+      const { offlineStorageService } = require('../../services/offline/offlineStorage');
+      const history = await offlineStorageService.getSearchHistory(scope);
+
+      return {
+        success: true,
+        data: {
+          history: history.slice(0, limit),
+          isOfflineHistory: true
+        }
+      };
+    }
   } catch (error) {
     return {
       success: false,

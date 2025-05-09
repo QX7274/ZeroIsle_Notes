@@ -52,9 +52,9 @@ const StructureAnalysis = ({
   // 渲染加载状态
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>正在分析知识结构...</Text>
+        <Text style={[styles.loadingText, { color: colors.text }]}>正在分析知识结构...</Text>
       </View>
     );
   }
@@ -62,9 +62,9 @@ const StructureAnalysis = ({
   // 渲染错误状态
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Icon name="error-outline" size={50} color={colors.error} />
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       </View>
     );
   }
@@ -72,10 +72,10 @@ const StructureAnalysis = ({
   // 渲染空状态
   if (!analysis) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Icon name="bubble-chart" size={50} color={colors.textLight} />
-        <Text style={styles.emptyText}>暂无分析数据</Text>
-        <Text style={styles.emptySubText}>请先创建更多知识节点和连接</Text>
+        <Text style={[styles.emptyText, { color: colors.text }]}>暂无分析数据</Text>
+        <Text style={[styles.emptySubText, { color: colors.textLight }]}>请先创建更多知识节点和连接</Text>
       </View>
     );
   }
@@ -221,29 +221,47 @@ const StructureAnalysis = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 选项卡 */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { borderBottomColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'central' && styles.activeTab]}
+          style={[
+            styles.tab,
+            activeTab === 'central' && styles.activeTab,
+            activeTab === 'central' && { borderBottomColor: colors.primary }
+          ]}
           onPress={() => setActiveTab('central')}
         >
-          <Text style={[styles.tabText, activeTab === 'central' && styles.activeTabText]}>
+          <Text style={[
+            styles.tabText,
+            { color: colors.text },
+            activeTab === 'central' && styles.activeTabText,
+            activeTab === 'central' && { color: colors.primary }
+          ]}>
             中心节点
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'components' && styles.activeTab]}
+          style={[
+            styles.tab,
+            activeTab === 'components' && styles.activeTab,
+            activeTab === 'components' && { borderBottomColor: colors.primary }
+          ]}
           onPress={() => setActiveTab('components')}
         >
-          <Text style={[styles.tabText, activeTab === 'components' && styles.activeTabText]}>
+          <Text style={[
+            styles.tabText,
+            { color: colors.text },
+            activeTab === 'components' && styles.activeTabText,
+            activeTab === 'components' && { color: colors.primary }
+          ]}>
             连通分量
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* 可视化区域 */}
-      <View style={styles.visualizationContainer}>
+      <View style={[styles.visualizationContainer, { backgroundColor: colors.card }]}>
         {activeTab === 'central' ? renderCentralNodesVisualization() : renderComponentsVisualization()}
       </View>
 
@@ -251,49 +269,64 @@ const StructureAnalysis = ({
       <ScrollView style={styles.detailsContainer}>
         {activeTab === 'central' ? (
           <View>
-            <Text style={styles.detailsTitle}>中心节点分析</Text>
-            <Text style={styles.detailsDescription}>
+            <Text style={[styles.detailsTitle, { color: colors.text }]}>中心节点分析</Text>
+            <Text style={[styles.detailsDescription, { color: colors.textLight }]}>
               中心节点是知识图谱中连接最多的节点，它们在知识网络中起到枢纽作用。
             </Text>
             {analysis.central_nodes && analysis.central_nodes.length > 0 ? (
               analysis.central_nodes.map((item, index) => (
                 <TouchableOpacity
                   key={`central-detail-${index}`}
-                  style={styles.nodeItem}
+                  style={[
+                    styles.nodeItem,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border
+                    }
+                  ]}
                   onPress={() => onNodePress && onNodePress(item.node)}
                 >
                   <View
                     style={[styles.nodeTypeIndicator, { backgroundColor: getNodeColorByType(item.node.type) }]}
                   />
                   <View style={styles.nodeItemContent}>
-                    <Text style={styles.nodeItemTitle}>{item.node.title}</Text>
-                    <Text style={styles.nodeItemType}>
+                    <Text style={[styles.nodeItemTitle, { color: colors.text }]}>{item.node.title}</Text>
+                    <Text style={[styles.nodeItemType, { color: colors.textLight }]}>
                       {item.node.type === 'note' ? '笔记' :
                         item.node.type === 'tag' ? '标签' :
                           item.node.type === 'category' ? '分类' : '概念'}
                     </Text>
                   </View>
-                  <View style={styles.degreeIndicator}>
-                    <Text style={styles.degreeText}>{item.degree}</Text>
+                  <View style={[styles.degreeIndicator, { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.degreeText, { color: colors.white }]}>{item.degree}</Text>
                   </View>
                 </TouchableOpacity>
               ))
             ) : (
-              <Text style={styles.emptyListText}>暂无中心节点数据</Text>
+              <Text style={[styles.emptyListText, { color: colors.textLight }]}>暂无中心节点数据</Text>
             )}
           </View>
         ) : (
           <View>
-            <Text style={styles.detailsTitle}>连通分量分析</Text>
-            <Text style={styles.detailsDescription}>
+            <Text style={[styles.detailsTitle, { color: colors.text }]}>连通分量分析</Text>
+            <Text style={[styles.detailsDescription, { color: colors.textLight }]}>
               连通分量是知识图谱中相互连接的节点集合，不同连通分量之间没有连接。
             </Text>
             {analysis.components && analysis.components.length > 0 ? (
               analysis.components.map((component, index) => (
-                <View key={`component-detail-${index}`} style={styles.componentItem}>
-                  <View style={styles.componentHeader}>
-                    <Text style={styles.componentTitle}>连通分量 {index + 1}</Text>
-                    <Text style={styles.componentSize}>{component.size} 个节点</Text>
+                <View
+                  key={`component-detail-${index}`}
+                  style={[
+                    styles.componentItem,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border
+                    }
+                  ]}
+                >
+                  <View style={[styles.componentHeader, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.componentTitle, { color: colors.text }]}>连通分量 {index + 1}</Text>
+                    <Text style={[styles.componentSize, { color: colors.primary }]}>{component.size} 个节点</Text>
                   </View>
                   <View style={styles.componentNodes}>
                     {component.nodes.slice(0, 3).map((node, nodeIndex) => (
@@ -305,17 +338,19 @@ const StructureAnalysis = ({
                         <View
                           style={[styles.nodeTypeIndicator, { backgroundColor: getNodeColorByType(node.type) }]}
                         />
-                        <Text style={styles.componentNodeTitle}>{node.title}</Text>
+                        <Text style={[styles.componentNodeTitle, { color: colors.text }]}>{node.title}</Text>
                       </TouchableOpacity>
                     ))}
                     {component.nodes.length > 3 && (
-                      <Text style={styles.moreNodesText}>还有 {component.nodes.length - 3} 个节点...</Text>
+                      <Text style={[styles.moreNodesText, { color: colors.textLight }]}>
+                        还有 {component.nodes.length - 3} 个节点...
+                      </Text>
                     )}
                   </View>
                 </View>
               ))
             ) : (
-              <Text style={styles.emptyListText}>暂无连通分量数据</Text>
+              <Text style={[styles.emptyListText, { color: colors.textLight }]}>暂无连通分量数据</Text>
             )}
           </View>
         )}
@@ -327,7 +362,6 @@ const StructureAnalysis = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   centerContainer: {
     flex: 1,
@@ -338,30 +372,25 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: colors.text,
   },
   errorText: {
     marginTop: 10,
     fontSize: 16,
-    color: colors.error,
     textAlign: 'center',
   },
   emptyText: {
     marginTop: 10,
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
   },
   emptySubText: {
     marginTop: 5,
     fontSize: 14,
-    color: colors.textLight,
     textAlign: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   tab: {
     flex: 1,
@@ -370,20 +399,16 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
-    color: colors.text,
   },
   activeTabText: {
-    color: colors.primary,
     fontWeight: 'bold',
   },
   visualizationContainer: {
     height: 300,
     padding: 10,
-    backgroundColor: colors.card,
   },
   emptyVisualization: {
     flex: 1,
@@ -392,7 +417,6 @@ const styles = StyleSheet.create({
   },
   emptyVisualizationText: {
     fontSize: 14,
-    color: colors.textLight,
     fontStyle: 'italic',
   },
   detailsContainer: {
@@ -402,23 +426,19 @@ const styles = StyleSheet.create({
   detailsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
     marginBottom: 5,
   },
   detailsDescription: {
     fontSize: 14,
-    color: colors.textLight,
     marginBottom: 15,
   },
   nodeItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: colors.card,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   nodeTypeIndicator: {
     width: 16,
@@ -432,40 +452,33 @@ const styles = StyleSheet.create({
   nodeItemTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: colors.text,
   },
   nodeItemType: {
     fontSize: 12,
-    color: colors.textLight,
     marginTop: 2,
   },
   degreeIndicator: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   degreeText: {
-    color: colors.white,
     fontWeight: 'bold',
     fontSize: 14,
   },
   emptyListText: {
     fontSize: 14,
-    color: colors.textLight,
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 20,
   },
   componentItem: {
     padding: 12,
-    backgroundColor: colors.card,
     borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   componentHeader: {
     flexDirection: 'row',
@@ -474,16 +487,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 5,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   componentTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: colors.text,
   },
   componentSize: {
     fontSize: 12,
-    color: colors.primary,
     fontWeight: 'bold',
   },
   componentNodes: {
@@ -496,11 +506,9 @@ const styles = StyleSheet.create({
   },
   componentNodeTitle: {
     fontSize: 13,
-    color: colors.text,
   },
   moreNodesText: {
     fontSize: 12,
-    color: colors.textLight,
     fontStyle: 'italic',
     marginTop: 5,
   },

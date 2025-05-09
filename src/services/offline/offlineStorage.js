@@ -19,7 +19,7 @@ const safeAnalyticsService = {
 };
 import { compressionService } from '../compression/compressionService';
 import { STORAGE_KEYS } from '../../utils/constants/config';
-import { Platform } from 'react-native';
+// import { Platform } from 'react-native'; // 未使用，已注释
 import DeviceInfo from 'react-native-device-info';
 
 class OfflineStorageService {
@@ -207,7 +207,7 @@ class OfflineStorageService {
 
       // 确保笔记有ID
       if (!note.id) {
-        note.id = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        note.id = 'note_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
       }
 
       // 确保笔记有创建时间和更新时间
@@ -263,9 +263,9 @@ class OfflineStorageService {
         pendingOperationsCount: this.pendingOperations.length
       });
 
-      // 如果在线，立即同步
+      // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
-        await this.syncPendingOperations();
+        this.trySyncInBackground();
       }
 
       return { success: true, note: noteWithMeta };
@@ -356,9 +356,9 @@ class OfflineStorageService {
         pendingOperationsCount: this.pendingOperations.length
       });
 
-      // 如果在线，立即同步
+      // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
-        await this.syncPendingOperations();
+        this.trySyncInBackground();
       }
 
       return { success: true };
@@ -410,9 +410,9 @@ class OfflineStorageService {
         pendingOperationsCount: this.pendingOperations.length
       });
 
-      // 如果在线，立即同步
+      // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
-        await this.syncPendingOperations();
+        this.trySyncInBackground();
       }
 
       return { success: true, note: notes[noteIndex] };
@@ -458,7 +458,7 @@ class OfflineStorageService {
       // 生成唯一ID
       const newCategory = {
         ...category,
-        id: category.id || `category_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: category.id || `category_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -503,17 +503,98 @@ class OfflineStorageService {
     }
   }
 
+  /**
+   * 获取搜索历史记录
+   * @param {string} scope - 搜索范围，可选值：'home', 'category', 'community'
+   * @returns {Promise<Array>} - 搜索历史记录
+   */
+  async getSearchHistory(scope = 'home') {
+    try {
+      // 从本地存储获取搜索历史
+      const historyKey = `${STORAGE_KEYS.SEARCH_HISTORY}_${scope}`;
+      const historyJson = await AsyncStorage.getItem(historyKey);
+      const history = historyJson ? JSON.parse(historyJson) : [];
+
+      return history;
+    } catch (error) {
+      console.error('获取搜索历史失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 保存搜索历史记录
+   * @param {string} query - 搜索关键词
+   * @param {string} type - 搜索类型，如 'text', 'voice', 'image'
+   * @param {string} scope - 搜索范围，可选值：'home', 'category', 'community'
+   * @returns {Promise<boolean>} - 是否保存成功
+   */
+  async saveSearchHistory(query, type = 'text', scope = 'home') {
+    try {
+      if (!query) return false;
+
+      // 从本地存储获取搜索历史
+      const historyKey = `${STORAGE_KEYS.SEARCH_HISTORY}_${scope}`;
+      const historyJson = await AsyncStorage.getItem(historyKey);
+      const history = historyJson ? JSON.parse(historyJson) : [];
+
+      // 检查是否已存在相同的查询
+      const existingIndex = history.findIndex(item =>
+        item.query.toLowerCase() === query.toLowerCase() && item.type === type
+      );
+
+      // 如果存在，移除旧记录
+      if (existingIndex !== -1) {
+        history.splice(existingIndex, 1);
+      }
+
+      // 添加新记录到开头
+      history.unshift({
+        query,
+        type,
+        timestamp: new Date().toISOString()
+      });
+
+      // 限制历史记录数量为20条
+      const limitedHistory = history.slice(0, 20);
+
+      // 保存到本地存储
+      await AsyncStorage.setItem(historyKey, JSON.stringify(limitedHistory));
+
+      return true;
+    } catch (error) {
+      console.error('保存搜索历史失败:', error);
+      return false;
+    }
+  }
+
   async saveCanvas(canvas) {
     try {
+      if (!canvas || !canvas.id) {
+        throw new Error('无效的画布数据');
+      }
+
       // 保存到本地存储
       const canvases = await this.getCanvases();
       const index = canvases.findIndex(c => c.id === canvas.id);
+
+      // 确保画布有创建时间和更新时间
+      if (!canvas.createdAt) {
+        canvas.createdAt = new Date().toISOString();
+      }
+
+      // 更新时间戳
+      canvas.updatedAt = new Date().toISOString();
+
+      // 更新或添加画布
       if (index >= 0) {
         canvases[index] = canvas;
       } else {
         canvases.push(canvas);
       }
-      await AsyncStorage.setItem('canvases', JSON.stringify(canvases));
+
+      // 使用正确的存储键名 STORAGE_KEYS.CANVAS_CACHE
+      await AsyncStorage.setItem(STORAGE_KEYS.CANVAS_CACHE, JSON.stringify(canvases));
 
       // 记录操作
       const operation = {
@@ -523,22 +604,35 @@ class OfflineStorageService {
       };
       await this.addPendingOperation(operation);
 
-      // 如果在线，立即同步
+      // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
-        await this.syncPendingOperations();
+        this.trySyncInBackground();
       }
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'canvasSaved',
+        canvas,
+      });
+
+      return { success: true, canvas };
     } catch (error) {
       console.error('保存画布失败:', error);
       safeAnalyticsService.trackError(error, { operation: 'save_canvas' });
+      return { success: false, error: error.message };
     }
   }
 
   async deleteCanvas(canvasId) {
     try {
+      if (!canvasId) {
+        throw new Error('无效的画布ID');
+      }
+
       // 从本地存储中删除
       const canvases = await this.getCanvases();
       const filteredCanvases = canvases.filter(c => c.id !== canvasId);
-      await AsyncStorage.setItem('canvases', JSON.stringify(filteredCanvases));
+      await AsyncStorage.setItem(STORAGE_KEYS.CANVAS_CACHE, JSON.stringify(filteredCanvases));
 
       // 记录操作
       const operation = {
@@ -548,19 +642,28 @@ class OfflineStorageService {
       };
       await this.addPendingOperation(operation);
 
-      // 如果在线，立即同步
+      // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
-        await this.syncPendingOperations();
+        this.trySyncInBackground();
       }
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'canvasDeleted',
+        canvasId
+      });
+
+      return { success: true };
     } catch (error) {
       console.error('删除画布失败:', error);
       safeAnalyticsService.trackError(error, { operation: 'delete_canvas' });
+      return { success: false, error: error.message };
     }
   }
 
   async getCanvases() {
     try {
-      const canvasesJson = await AsyncStorage.getItem('canvases');
+      const canvasesJson = await AsyncStorage.getItem(STORAGE_KEYS.CANVAS_CACHE);
       return canvasesJson ? JSON.parse(canvasesJson) : [];
     } catch (error) {
       console.error('获取画布失败:', error);
@@ -599,6 +702,48 @@ class OfflineStorageService {
     }
   }
 
+  /**
+   * 获取指定ID的画布 (兼容方法，与getCanvasById功能相同)
+   * @param {string} canvasId - 画布ID
+   * @returns {Promise<Object|null>} - 画布对象或null
+   */
+  async getCanvas(canvasId) {
+    try {
+      // 防御性检查：确保canvasId不为null或undefined
+      if (!canvasId) {
+        console.warn('offlineStorageService.getCanvas: canvasId为null或undefined');
+        return null;
+      }
+
+      // 使用安全的参数值
+      const safeCanvasId = String(canvasId || '');
+
+      // 确保getCanvasById方法存在
+      if (typeof this.getCanvasById === 'function') {
+        try {
+          return await this.getCanvasById(safeCanvasId);
+        } catch (getByIdError) {
+          console.error(`offlineStorageService.getCanvasById调用失败:`, getByIdError);
+          // 继续执行，尝试备选方案
+        }
+      } else {
+        console.error('offlineStorageService.getCanvasById方法未定义，尝试备选方案');
+      }
+
+      // 备选方案：直接从存储中获取
+      try {
+        const canvases = await this.getCanvases();
+        return canvases.find(canvas => canvas.id === safeCanvasId) || null;
+      } catch (fallbackError) {
+        console.error(`备选方案获取画布失败:`, fallbackError);
+        return null;
+      }
+    } catch (error) {
+      console.error(`offlineStorageService.getCanvas错误:`, error);
+      return null;
+    }
+  }
+
   async addPendingOperation(operation) {
     this.pendingOperations.push(operation);
     await this.savePendingOperations();
@@ -628,7 +773,7 @@ class OfflineStorageService {
       this.pendingOperations = operationsJson ? JSON.parse(operationsJson) : [];
     } catch (error) {
       console.error('加载待处理操作失败:', error);
-      analyticsService.trackError(error, { operation: 'load_pending_operations' });
+      safeAnalyticsService.trackError(error, { operation: 'load_pending_operations' });
       this.pendingOperations = [];
     }
   }
@@ -867,6 +1012,143 @@ class OfflineStorageService {
     };
   }
 
+  /**
+   * 安全地尝试同步操作，不阻塞当前流程
+   * 用于替代直接调用syncPendingOperations的场景
+   */
+  trySyncInBackground() {
+    // 使用setTimeout将同步操作放到下一个事件循环，避免阻塞当前操作
+    setTimeout(() => {
+      if (this.isOnline && this.pendingOperations.length > 0) {
+        this.syncPendingOperations().catch(err => {
+          console.warn('后台同步操作失败，将在下次联网时重试:', err);
+        });
+      }
+    }, 0);
+  }
+
+  /**
+   * 保存离线笔记 - 专门为Redux createNote action设计
+   * @param {Object} note - 笔记对象
+   * @returns {Promise<Object>} - 保存结果
+   */
+  async saveOfflineNote(note) {
+    try {
+      console.log('保存离线笔记:', note.id || '新笔记');
+
+      // 确保笔记有ID
+      if (!note.id) {
+        note.id = 'note_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+        console.log('为离线笔记生成ID:', note.id);
+      }
+
+      // 确保笔记有创建时间和更新时间
+      const now = new Date().toISOString();
+      if (!note.created_at && !note.createdAt) {
+        note.created_at = now;
+        note.createdAt = now;
+      }
+      if (!note.updated_at && !note.updatedAt) {
+        note.updated_at = now;
+        note.updatedAt = now;
+      }
+
+      // 添加设备ID和离线标记
+      const noteWithMeta = {
+        ...note,
+        device_id: this.deviceId,
+        synced: false,
+        is_offline: true,
+        is_synced: false
+      };
+
+      // 保存到本地存储
+      const notes = await this.getNotes();
+      const index = notes.findIndex(n => n.id === note.id);
+
+      if (index >= 0) {
+        notes[index] = noteWithMeta;
+      } else {
+        notes.push(noteWithMeta);
+      }
+
+      // 保存笔记
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTES_CACHE, JSON.stringify(notes));
+
+      // 记录操作
+      const operation = {
+        type: 'save_note',
+        data: noteWithMeta,
+        timestamp: now,
+        device_id: this.deviceId
+      };
+      await this.addPendingOperation(operation);
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'noteSaved',
+        note: noteWithMeta,
+        pendingOperationsCount: this.pendingOperations.length
+      });
+
+      console.log('离线笔记保存成功:', noteWithMeta.id);
+      return noteWithMeta;
+    } catch (error) {
+      console.error('保存离线笔记失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'save_offline_note' });
+      throw error; // 重新抛出错误，让调用者处理
+    }
+  }
+
+  /**
+   * 更新离线笔记 - 专门为Redux createNote action设计
+   * @param {string} noteId - 笔记ID
+   * @param {Object} updatedNote - 更新的笔记数据
+   * @returns {Promise<Object>} - 更新结果
+   */
+  async updateOfflineNote(noteId, updatedNote) {
+    try {
+      console.log('更新离线笔记:', noteId);
+
+      // 获取所有笔记
+      const notes = await this.getNotes();
+      const index = notes.findIndex(n => n.id === noteId);
+
+      if (index === -1) {
+        console.warn('要更新的离线笔记不存在:', noteId);
+        return null;
+      }
+
+      // 更新笔记
+      const now = new Date().toISOString();
+      const updatedNoteWithMeta = {
+        ...notes[index],
+        ...updatedNote,
+        updated_at: now,
+        updatedAt: now,
+        device_id: this.deviceId
+      };
+
+      notes[index] = updatedNoteWithMeta;
+
+      // 保存更新后的笔记列表
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTES_CACHE, JSON.stringify(notes));
+
+      // 通知监听器
+      this.notifyListeners({
+        type: 'noteUpdated',
+        note: updatedNoteWithMeta
+      });
+
+      console.log('离线笔记更新成功:', noteId);
+      return updatedNoteWithMeta;
+    } catch (error) {
+      console.error('更新离线笔记失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'update_offline_note' });
+      throw error; // 重新抛出错误，让调用者处理
+    }
+  }
+
   async syncPendingOperations() {
     // 如果不在线或没有待处理操作，则返回
     if (!this.isOnline || this.pendingOperations.length === 0) {
@@ -973,7 +1255,7 @@ class OfflineStorageService {
       return { success: true };
     } catch (error) {
       console.error('清除离线数据失败:', error);
-      analyticsService.trackError(error, { operation: 'clear_offline_data' });
+      safeAnalyticsService.trackError(error, { operation: 'clear_offline_data' });
       return { success: false, error: error.message };
     }
   }
@@ -985,9 +1267,8 @@ class OfflineStorageService {
     // 启动新定时器
     this.timer = setInterval(() => {
       if (this.isOnline && this.pendingOperations.length > 0) {
-        this.syncPendingOperations().catch(error => {
-          console.error('自动同步失败:', error);
-        });
+        // 使用trySyncInBackground代替直接调用syncPendingOperations
+        this.trySyncInBackground();
       }
     }, this.syncInterval);
   }

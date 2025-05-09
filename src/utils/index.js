@@ -7,7 +7,7 @@ import dateUtilsModule from './dateUtils';
 import { validationUtils as validationUtilsModule } from './validationUtils';
 import { storageService } from '../services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import EventEmitter from './EventEmitter';
+import EventEmitter from './eventEmitter';
 
 // 存储工具 - 直接使用AsyncStorage作为备选
 export const storage = {
@@ -132,4 +132,4 @@ export const permissionUtils = {
 export const validationUtils = validationUtilsModule;
 
 // 事件发射器
-export { default as EventEmitter } from './EventEmitter';
+export { default as EventEmitter } from './eventEmitter';

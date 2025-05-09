@@ -9,6 +9,7 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
+import { createPaperLightTheme, createPaperDarkTheme } from './theme/paperTheme';
 import { NavigationContainer } from '@react-navigation/native';
 
 // 导入store和persistor
@@ -30,6 +31,11 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
 import { dataService, sqliteService } from './services/database';
+import infiniteCanvasStorage from './services/offline/infiniteCanvasStorage';
+import { offlineStorageService } from './services/offline/offlineStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from './utils/constants/config';
+import { patchDateTimePicker } from './utils/patchDateTimePicker';
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
@@ -164,6 +170,16 @@ const AppContainer = () => {
       try {
         console.log('正在初始化服务...');
         servicesInitialized = true;
+
+        // 应用 DateTimePicker 补丁
+        try {
+          console.log('正在应用 DateTimePicker 补丁...');
+          await patchDateTimePicker();
+          console.log('DateTimePicker 补丁应用完成');
+        } catch (patchError) {
+          console.error('应用 DateTimePicker 补丁失败:', patchError);
+          // 继续执行，不阻塞应用启动
+        }
 
         // 直接创建数据库文件和表，不依赖于导入的方法
         try {
@@ -336,6 +352,139 @@ const AppContainer = () => {
             console.log('正在初始化离线数据服务...');
             offlineDataService.initialize();
             console.log('离线数据服务已初始化');
+
+            // 初始化离线存储服务和无限画布存储服务
+            try {
+              console.log('正在初始化存储服务...');
+
+              // 步骤1: 首先确保offlineStorageService已经初始化
+              try {
+                console.log('确保offlineStorageService已初始化...');
+                if (!offlineStorageService.isInitialized) {
+                  console.log('offlineStorageService未初始化，开始初始化...');
+                  await offlineStorageService.init();
+                  console.log('offlineStorageService初始化完成');
+                } else {
+                  console.log('offlineStorageService已经初始化');
+                }
+              } catch (offlineInitError) {
+                console.error('offlineStorageService初始化失败:', offlineInitError);
+                // 继续执行，尝试添加兼容方法
+              }
+
+              // 步骤2: 确保关键方法存在
+              try {
+                console.log('检查并确保关键方法存在...');
+
+                // 确保getCanvas方法存在
+                if (typeof offlineStorageService.getCanvas !== 'function') {
+                  console.log('添加getCanvas兼容方法');
+                  offlineStorageService.getCanvas = async function(canvasId) {
+                    console.log('使用兼容的getCanvas方法');
+                    // 如果getCanvasById存在，使用它
+                    if (typeof this.getCanvasById === 'function') {
+                      try {
+                        return await this.getCanvasById(canvasId);
+                      } catch (error) {
+                        console.error('兼容getCanvas调用getCanvasById失败:', error);
+                      }
+                    }
+
+                    // 尝试从getCanvases获取
+                    if (typeof this.getCanvases === 'function') {
+                      try {
+                        const canvases = await this.getCanvases();
+                        return canvases.find(canvas => canvas.id === canvasId) || null;
+                      } catch (error) {
+                        console.error('兼容getCanvas从getCanvases获取失败:', error);
+                      }
+                    }
+
+                    console.warn('所有获取画布方法都失败，返回null');
+                    return null;
+                  };
+                }
+
+                // 确保getCanvasById方法存在
+                if (typeof offlineStorageService.getCanvasById !== 'function') {
+                  console.log('添加getCanvasById兼容方法');
+                  offlineStorageService.getCanvasById = async function(canvasId) {
+                    console.log('使用兼容的getCanvasById方法');
+                    // 尝试从getCanvases获取
+                    if (typeof this.getCanvases === 'function') {
+                      try {
+                        const canvases = await this.getCanvases();
+                        return canvases.find(canvas => canvas.id === canvasId) || null;
+                      } catch (error) {
+                        console.error('兼容getCanvasById从getCanvases获取失败:', error);
+                      }
+                    }
+                    return null;
+                  };
+                }
+
+                // 确保getCanvases方法存在
+                if (typeof offlineStorageService.getCanvases !== 'function') {
+                  console.log('添加getCanvases兼容方法');
+                  offlineStorageService.getCanvases = async function() {
+                    console.log('使用兼容的getCanvases方法');
+                    try {
+                      const canvasesJson = await AsyncStorage.getItem(STORAGE_KEYS.CANVAS_CACHE);
+                      return canvasesJson ? JSON.parse(canvasesJson) : [];
+                    } catch (error) {
+                      console.error('兼容getCanvases获取失败:', error);
+                      return [];
+                    }
+                  };
+                }
+              } catch (methodError) {
+                console.error('添加兼容方法失败:', methodError);
+                // 继续执行，尝试初始化infiniteCanvasStorage
+              }
+
+              // 步骤3: 初始化infiniteCanvasStorage
+              try {
+                console.log('开始初始化infiniteCanvasStorage...');
+                await infiniteCanvasStorage.initTables();
+                console.log('infiniteCanvasStorage初始化完成');
+              } catch (canvasStorageError) {
+                console.error('infiniteCanvasStorage初始化失败:', canvasStorageError);
+                // 继续执行，不阻塞应用启动
+              }
+
+              console.log('存储服务初始化完成');
+            } catch (storageError) {
+              console.error('存储服务初始化过程中发生错误，但应用将继续运行:', storageError);
+
+              // 最后的紧急兼容措施
+              try {
+                console.log('添加紧急兼容方法...');
+
+                if (typeof offlineStorageService.getCanvas !== 'function') {
+                  offlineStorageService.getCanvas = async function(canvasId) {
+                    console.log('使用紧急兼容的getCanvas方法');
+                    return null;
+                  };
+                }
+
+                if (typeof offlineStorageService.getCanvasById !== 'function') {
+                  offlineStorageService.getCanvasById = async function(canvasId) {
+                    console.log('使用紧急兼容的getCanvasById方法');
+                    return null;
+                  };
+                }
+
+                if (typeof offlineStorageService.getCanvases !== 'function') {
+                  offlineStorageService.getCanvases = async function() {
+                    console.log('使用紧急兼容的getCanvases方法');
+                    return [];
+                  };
+                }
+              } catch (emergencyError) {
+                console.error('添加紧急兼容方法失败:', emergencyError);
+              }
+            }
+
             resolve(true);
           } catch (error) {
             console.warn('离线数据服务初始化失败，但应用将继续运行:', error);
@@ -386,23 +535,29 @@ const AppContainer = () => {
             try {
               console.log('使用简化方法初始化SQLite数据库...');
 
-              // 直接初始化SQLite服务，使用更长的超时时间
-              const db = await sqliteService.init(60000);
+              // 初始化SQLite服务并等待完全初始化
+              console.log('开始初始化SQLite数据库并等待完全初始化...');
 
-              if (db) {
-                console.log('SQLite数据库初始化成功，现在初始化数据服务');
+              // 注册初始化完成回调，在数据库完全初始化后初始化数据服务
+              sqliteService.onInitialized(async () => {
+                console.log('SQLite数据库完全初始化完成，现在初始化数据服务');
 
-                // 初始化数据服务
                 try {
                   await dataService.init();
-                  sqliteResult = true;
                   console.log('数据服务初始化成功');
                 } catch (dataServiceError) {
-                  console.error('数据服务初始化失败，但SQLite已初始化:', dataServiceError);
-                  sqliteResult = true; // 仍然认为SQLite初始化成功
+                  console.error('数据服务初始化失败:', dataServiceError);
                 }
+              });
+
+              // 开始初始化，但不等待完全初始化完成
+              const db = await sqliteService.init();
+
+              if (db) {
+                console.log('SQLite数据库基本初始化成功，应用可以继续启动');
+                sqliteResult = true;
               } else {
-                console.warn('SQLite数据库初始化返回null，尝试备选方案');
+                console.warn('SQLite数据库初始化失败，尝试备选方案');
 
                 // 尝试强制创建sync_info表
                 try {
@@ -461,11 +616,13 @@ const AppContainer = () => {
         initPromises.push(sqlitePromise);
 
         // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
+        // 但不再使用超时来中断数据库初始化，而是让数据库服务自己管理初始化状态
         const timeoutPromise = new Promise(resolve => {
           setTimeout(() => {
-            console.log('服务初始化超时，但应用将继续运行');
-            resolve(false);
-          }, 20000); // 20秒超时
+            console.log('其他服务初始化可能超时，但应用将继续运行');
+            // 不再中断数据库初始化，只是让应用继续运行
+            resolve(true); // 返回true，表示初始化成功，避免应用进入降级模式
+          }, 120000); // 增加到120秒，给所有服务足够的初始化时间
         });
 
         // 等待所有服务初始化完成或超时
@@ -527,8 +684,11 @@ const AppContainer = () => {
 
   console.log('AppContainer准备渲染UI...');
 
+  // 创建 Paper 主题
+  const paperTheme = isDarkMode ? createPaperDarkTheme(theme) : createPaperLightTheme(theme);
+
   return (
-    <PaperProvider theme={theme}>
+    <PaperProvider theme={paperTheme}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.colors.background}

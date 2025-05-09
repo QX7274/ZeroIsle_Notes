@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Alert } from 'react-native';
+import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Alert, ActivityIndicator } from 'react-native';
 import Svg, { G, Path, Rect, Circle, Line, Polygon, Text as SvgText, Image as SvgImage, Defs, Pattern } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -13,6 +13,7 @@ import { captureRef } from 'react-native-view-shot';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
+import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
 import analyticsService from '../../services/analytics/analyticsService';
 
 // 常量定义
@@ -103,7 +104,7 @@ const InfiniteCanvas = ({
   const loadCanvas = async (id) => {
     try {
       setIsLoading(true);
-      const canvas = await offlineStorageService.getCanvas(id);
+      const canvas = await infiniteCanvasStorage.getCanvas(id);
       if (canvas) {
         setElements(canvas.elements || []);
         setLayers(canvas.layers || [{ id: 'default', name: '默认图层', visible: true, locked: false }]);
@@ -168,6 +169,10 @@ const InfiniteCanvas = ({
         updatedAt: new Date().toISOString(),
       };
 
+      // 保存到无限画布存储
+      await infiniteCanvasStorage.saveCanvas(canvasData);
+
+      // 同时保存到offlineStorageService以保持兼容性
       await offlineStorageService.saveCanvas(canvasData);
 
       if (onSave) {

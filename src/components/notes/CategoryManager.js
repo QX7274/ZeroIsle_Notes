@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { categoryApi } from '../../services/api/categoryApi';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
+import { IconButton } from '../common';
+import { Text } from '../common/Typography';
 
-const CategoryManager = ({ onSelectCategory }) => {
+const CategoryManager = React.forwardRef(({
+  onSelectCategory,
+  onCategoriesLoaded,
+  filteredCategories: externalFilteredCategories
+}, ref) => {
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
   const [statistics, setStatistics] = useState([]);
@@ -28,7 +34,7 @@ const CategoryManager = ({ onSelectCategory }) => {
     recentActivity: [],
   });
   const { theme } = useTheme();
-  const [searchQuery, setSearchQuery] = useState('');
+  // 搜索查询现在由父组件处理
   const [filterOptions, setFilterOptions] = useState({
     sortBy: 'name',
     sortOrder: 'asc',
@@ -72,6 +78,13 @@ const CategoryManager = ({ onSelectCategory }) => {
     loadTags();
     loadRoles();
   }, []);
+
+  // 当分类加载完成时，通知父组件
+  useEffect(() => {
+    if (categories.length > 0 && onCategoriesLoaded) {
+      onCategoriesLoaded(categories);
+    }
+  }, [categories, onCategoriesLoaded]);
 
   const loadCategories = async () => {
     try {
@@ -454,10 +467,9 @@ const CategoryManager = ({ onSelectCategory }) => {
 
   const filteredCategories = categories
     .filter(category => {
-      const matchesSearch = category.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesEmptyFilter = filterOptions.showEmpty ||
         (statistics.find(s => s.category_id === category.id)?.note_count || 0) > 0;
-      return matchesSearch && matchesEmptyFilter;
+      return matchesEmptyFilter;
     })
     .sort((a, b) => {
       const aCount = statistics.find(s => s.category_id === a.id)?.note_count || 0;
@@ -1148,79 +1160,61 @@ const CategoryManager = ({ onSelectCategory }) => {
     </Modal>
   );
 
+  // 暴露方法给父组件
+  React.useImperativeHandle(ref, () => ({
+    setModalVisible
+  }));
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>分类管理</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          <IconButton
+            icon="file-upload"
+            text="导入"
+            size="small"
             onPress={() => setImportModalVisible(true)}
-          >
-            <Icon name="file-upload" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          />
+          <IconButton
+            icon="file-download"
+            text="导出"
+            size="small"
             onPress={() => setExportModalVisible(true)}
-          >
-            <Icon name="file-download" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          />
+          <IconButton
+            icon="filter-list"
+            text="筛选"
+            size="small"
             onPress={() => setFilterModalVisible(true)}
-          >
-            <Icon name="filter-list" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          />
+          <IconButton
+            icon="analytics"
+            text="统计"
+            size="small"
             onPress={() => setStatisticsModalVisible(true)}
-          >
-            <Icon name="analytics" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          />
+          <IconButton
+            icon={isBatchMode ? "check-box" : "check-box-outline-blank"}
+            text="批量"
+            size="small"
             onPress={handleToggleBatchMode}
-          >
-            <Icon name={isBatchMode ? "check-box" : "check-box-outline-blank"} size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          />
+          <IconButton
+            icon="auto-fix-high"
+            text="自动"
+            size="small"
             onPress={handleAutoCategorize}
             disabled={isAutoCategorizing}
-          >
-            {isAutoCategorizing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Icon name="auto-fix-high" size={24} color="#fff" />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => setModalVisible(true)}
-          >
-            <Icon name="add" size={24} color="#fff" />
-          </TouchableOpacity>
+          />
         </View>
       </View>
 
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={[styles.searchInput, {
-            color: theme.colors.text,
-            borderColor: theme.colors.border,
-            backgroundColor: theme.colors.surface
-          }]}
-          placeholder="搜索分类..."
-          placeholderTextColor={theme.colors.secondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+
 
       {isBatchMode && renderBatchActions()}
 
       <FlatList
-        data={filteredCategories}
+        data={externalFilteredCategories || filteredCategories}
         renderItem={renderCategoryItem}
         keyExtractor={item => item.id.toString()}
         style={styles.list}
@@ -1275,7 +1269,8 @@ const CategoryManager = ({ onSelectCategory }) => {
       {renderMemberModal()}
     </View>
   );
-};
+},
+)
 
 const styles = StyleSheet.create({
   container: {
@@ -1284,26 +1279,30 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
   headerActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 4,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   list: {
     flex: 1,
@@ -1464,11 +1463,21 @@ const styles = StyleSheet.create({
   searchContainer: {
     padding: 16,
   },
-  searchInput: {
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 40,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    paddingVertical: 0,
   },
   filterSection: {
     marginBottom: 16,

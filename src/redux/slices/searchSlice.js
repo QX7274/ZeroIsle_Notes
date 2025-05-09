@@ -11,13 +11,18 @@ export const search = createAsyncThunk(
   async (searchData, { rejectWithValue }) => {
     try {
       let response;
+      // 确保 options 包含 scope 参数
+      const options = {
+        ...searchData.options,
+        scope: searchData.scope || 'home'
+      };
 
       if (searchData.mode === 'text') {
-        response = await searchApi.textSearch(searchData.query, searchData.options);
+        response = await searchApi.textSearch(searchData.query, options);
       } else if (searchData.mode === 'voice') {
-        response = await searchApi.voiceSearch(searchData.audioBase64, searchData.options);
+        response = await searchApi.voiceSearch(searchData.audioBase64, options);
       } else if (searchData.mode === 'image') {
-        response = await searchApi.imageSearch(searchData.imageBase64, searchData.options);
+        response = await searchApi.imageSearch(searchData.imageBase64, options);
       } else {
         throw new Error('不支持的搜索模式');
       }
@@ -34,9 +39,15 @@ export const knowledgeGraphSearch = createAsyncThunk(
   'search/knowledgeGraphSearch',
   async (searchData, { rejectWithValue }) => {
     try {
+      // 确保 options 包含 scope 参数
+      const options = {
+        ...searchData.options,
+        scope: searchData.scope || 'home'
+      };
+
       const response = await searchApi.knowledgeGraphSearch(
         searchData.query,
-        searchData.options
+        options
       );
       return response.data;
     } catch (error) {
@@ -48,16 +59,46 @@ export const knowledgeGraphSearch = createAsyncThunk(
 // 获取搜索历史异步Action
 export const fetchSearchHistory = createAsyncThunk(
   'search/fetchSearchHistory',
-  async (limit = 10, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const response = await searchApi.getSearchHistory(limit);
+      const { limit = 10, scope = 'home', useLocalOnly = false } = params;
+
+      // 如果指定使用本地历史记录，直接返回当前状态中的历史记录
+      if (useLocalOnly) {
+        const state = getState();
+        const currentHistory = state.search.searchHistory || [];
+        // 过滤当前范围的历史记录
+        const filteredHistory = currentHistory.filter(item =>
+          !item.scope || item.scope === scope
+        ).slice(0, limit);
+
+        return {
+          history: filteredHistory,
+          isLocalData: true
+        };
+      }
+
+      // 否则从API获取历史记录
+      const response = await searchApi.getSearchHistory(limit, scope);
       if (response.success) {
         return response.data;
       } else {
         return rejectWithValue(response.message || '获取搜索历史失败');
       }
     } catch (error) {
-      return rejectWithValue(error.message || '获取搜索历史失败');
+      console.error('获取搜索历史失败:', error);
+      // 出错时尝试使用本地历史记录
+      try {
+        const state = getState();
+        const currentHistory = state.search.searchHistory || [];
+        return {
+          history: currentHistory.slice(0, limit),
+          isLocalData: true,
+          error: error.message
+        };
+      } catch (fallbackError) {
+        return rejectWithValue(error.message || '获取搜索历史失败');
+      }
     }
   }
 );
@@ -134,7 +175,7 @@ const searchSlice = createSlice({
 
     // 添加到搜索历史
     addToSearchHistory: (state, action) => {
-      const { query, mode, timestamp } = action.payload;
+      const { query, mode, timestamp, scope = 'home' } = action.payload;
 
       // 避免重复
       const existingIndex = state.searchHistory.findIndex(
@@ -147,15 +188,25 @@ const searchSlice = createSlice({
       }
 
       // 添加到开头
-      state.searchHistory.unshift({
+      const newItem = {
         query,
         mode,
         timestamp: timestamp || new Date().toISOString(),
-      });
+      };
+
+      state.searchHistory.unshift(newItem);
 
       // 限制历史记录数量
       if (state.searchHistory.length > 100) {
         state.searchHistory = state.searchHistory.slice(0, 100);
+      }
+
+      // 保存到本地存储
+      try {
+        const { offlineStorageService } = require('../../services/offline/offlineStorage');
+        offlineStorageService.saveSearchHistory(query, mode, scope);
+      } catch (error) {
+        console.error('保存搜索历史到本地失败:', error);
       }
     },
 
@@ -237,6 +288,7 @@ const searchSlice = createSlice({
             payload: {
               query: action.meta.arg.query,
               mode: action.meta.arg.mode || 'text',
+              scope: action.meta.arg.scope || 'home',
             },
           });
 
@@ -265,6 +317,7 @@ const searchSlice = createSlice({
             payload: {
               query: action.meta.arg.query,
               mode: 'knowledge',
+              scope: action.meta.arg.scope || 'home',
             },
           });
 

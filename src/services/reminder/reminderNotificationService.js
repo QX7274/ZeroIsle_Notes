@@ -138,6 +138,29 @@ class ReminderNotificationService {
   }
 
   /**
+   * 取消提醒通知
+   * @param {string} reminderId 提醒ID
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async cancelReminderNotification(reminderId) {
+    try {
+      await this.init();
+
+      // 生成通知ID
+      const notificationId = `reminder_${reminderId}`;
+
+      // 取消通知
+      PushNotification.cancelLocalNotification(notificationId);
+
+      console.log('已取消提醒通知:', notificationId);
+      return true;
+    } catch (error) {
+      console.error('取消提醒通知失败:', error);
+      return false;
+    }
+  }
+
+  /**
    * 安排提醒通知
    * @param {Object} reminder 提醒对象
    * @returns {Promise<string>} 通知ID

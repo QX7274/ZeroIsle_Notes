@@ -18,24 +18,94 @@ import { dataService } from '../database';
  */
 export const createNote = async (note) => {
   try {
-    // 确保数据服务已初始化
-    await dataService.init();
+    console.log('开始创建笔记:', note.title);
 
-    // 使用数据服务创建笔记
-    const createdNote = await dataService.createNote(note);
+    // 生成唯一ID，确保在离线状态下也能使用
+    const noteId = note.id || 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
 
-    // 同时保存到旧的离线存储，以保持兼容性
+    // 准备笔记数据，添加必要的元数据
+    const now = new Date().toISOString();
+    const noteWithMeta = {
+      ...note,
+      id: noteId,
+      created_at: now,
+      updated_at: now,
+      is_synced: false,
+      is_offline: true  // 标记为离线创建
+    };
+
+    // 1. 优先保存到本地SQLite数据库
+    let createdNote = null;
     try {
-      const localNote = {
-        ...createdNote,
-        is_synced: false
-      };
-      await offlineStorageService.saveNote(localNote);
-    } catch (offlineError) {
-      console.log('保存到旧的离线存储失败，但SQLite保存成功', offlineError);
+      // 确保数据服务已初始化，但设置较短的超时时间
+      await dataService.init();
+
+      // 使用数据服务创建笔记
+      createdNote = await dataService.createNote(noteWithMeta);
+      console.log('SQLite保存笔记成功:', createdNote.id);
+    } catch (sqliteError) {
+      console.error('SQLite保存笔记失败，尝试使用备用存储:', sqliteError);
+      // SQLite失败时，不抛出错误，继续尝试其他存储方式
     }
 
-    // 返回创建的结果
+    // 2. 同时保存到旧的离线存储，以保持兼容性
+    try {
+      // 使用已创建的笔记或原始笔记数据
+      const localNote = createdNote || noteWithMeta;
+
+      await offlineStorageService.saveNote(localNote);
+      console.log('离线存储保存笔记成功:', localNote.id);
+
+      // 如果SQLite保存失败，使用离线存储的结果
+      if (!createdNote) {
+        createdNote = localNote;
+      }
+    } catch (offlineError) {
+      console.error('离线存储保存笔记失败:', offlineError);
+
+      // 如果两种存储都失败，且没有创建笔记，则抛出错误
+      if (!createdNote) {
+        throw new Error('所有存储方式都失败，无法创建笔记');
+      }
+    }
+
+    // 3. 在后台尝试同步到服务器，但不阻塞UI
+    setTimeout(async () => {
+      try {
+        // 检查网络状态
+        const networkStatus = await NetInfo.fetch();
+        const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+
+        if (isOnline) {
+          console.log('尝试在后台同步笔记到服务器:', noteId);
+
+          // 设置请求头，标记为离线模式，这样即使请求失败也不会影响用户体验
+          const headers = { 'X-Offline-Mode': 'true' };
+
+          // 发送API请求，但不等待结果
+          apiClient.post('/notes', createdNote, { headers })
+            .then(response => {
+              console.log('笔记同步到服务器成功:', response);
+
+              // 更新本地记录为已同步
+              dataService.updateNote(noteId, {
+                ...createdNote,
+                is_synced: true,
+                server_id: response.id || response.data?.id || noteId
+              }).catch(err => console.warn('更新本地笔记同步状态失败:', err));
+            })
+            .catch(err => {
+              console.warn('后台同步笔记失败，将在下次联网时重试:', err);
+            });
+        } else {
+          console.log('当前离线，笔记将在下次联网时同步');
+        }
+      } catch (syncError) {
+        console.warn('后台同步过程出错:', syncError);
+      }
+    }, 0);
+
+    // 立即返回创建的结果，不等待同步
     return {
       success: true,
       data: createdNote,

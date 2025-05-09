@@ -7,6 +7,7 @@ import sqliteService, { TABLES } from './sqliteService';
 import syncService from './syncService';
 import NetInfo from '@react-native-community/netinfo';
 import { apiService } from '../api';
+import apiClient from '../api/apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
@@ -356,41 +357,68 @@ class DataService {
         }
       }
 
-      // 尝试同步到服务器
-      const isConnected = await this.isConnected();
-      if (isConnected) {
+      // 添加到离线队列，无论是否在线
+      await syncService.addOfflineOperation('insert', TABLES.NOTES, noteId, note);
+
+      // 在后台尝试同步到服务器，不阻塞当前操作
+      setTimeout(async () => {
         try {
-          // 直接调用API创建笔记
-          const response = await apiService.post('/notes', {
-            ...noteData,
-            id: noteId,
-            user_id: userId
-          });
-
-          // 更新本地记录为已同步
-          await sqliteService.executeSql(
-            `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
-            [noteId]
-          );
-
-          // 更新标签关联为已同步
-          if (noteData.tags && Array.isArray(noteData.tags)) {
-            await sqliteService.executeSql(
-              `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
-              [noteId]
-            );
+          // 检查网络状态，但不阻塞创建过程
+          let isOnline = false;
+          try {
+            const networkStatus = await NetInfo.fetch();
+            isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+            console.log('网络状态:', isOnline ? '在线' : '离线');
+          } catch (netError) {
+            console.warn('检查网络状态失败，默认为离线模式:', netError);
           }
 
-          return response.data;
+          if (isOnline) {
+            try {
+              console.log('尝试在后台同步笔记到服务器:', noteId);
+
+              // 设置请求头，标记为离线模式，这样即使请求失败也不会影响用户体验
+              const headers = { 'X-Offline-Mode': 'true' };
+
+              // 使用apiClient而不是apiService，以便利用我们的离线错误处理
+              const response = await apiClient.post('/notes', {
+                ...noteData,
+                id: noteId,
+                user_id: userId
+              }, { headers });
+
+              // 只有在确认成功后才更新本地记录
+              if (response && !response.offline) {
+                // 更新本地记录为已同步
+                await sqliteService.executeSql(
+                  `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
+                  [noteId]
+                );
+
+                // 更新标签关联为已同步
+                if (noteData.tags && Array.isArray(noteData.tags)) {
+                  await sqliteService.executeSql(
+                    `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
+                    [noteId]
+                  );
+                }
+
+                console.log('笔记已成功同步到服务器:', noteId);
+              } else {
+                console.log('服务器返回离线响应，笔记将在下次联网时同步');
+              }
+            } catch (error) {
+              // 不要显示错误，只记录日志
+              console.warn('后台同步笔记失败，将在下次联网时重试:', error);
+            }
+          } else {
+            console.log('当前离线，笔记将在下次联网时同步');
+          }
         } catch (error) {
-          console.error('同步笔记到服务器失败:', error);
-          // 添加到离线队列
-          await syncService.addOfflineOperation('insert', TABLES.NOTES, noteId, note);
+          // 不要显示错误，只记录日志
+          console.warn('后台同步过程出错:', error);
         }
-      } else {
-        // 添加到离线队列
-        await syncService.addOfflineOperation('insert', TABLES.NOTES, noteId, note);
-      }
+      }, 0);
 
       // 返回本地创建的笔记
       return note;

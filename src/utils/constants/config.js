@@ -25,6 +25,7 @@ export const STORAGE_KEYS = {
   BACKUP_INFO: 'backup_info',
   CATEGORIES: 'categories',
   FILE_PREVIEWS: 'file_previews',
+  SEARCH_HISTORY: 'search_history',
 };
 
 // 默认设置

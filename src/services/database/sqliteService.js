@@ -48,28 +48,75 @@ class SQLiteService {
   constructor() {
     this.database = null;
     this.isInitialized = false;
+    this.isFullyInitialized = false; // 标记数据库是否完全初始化（包括所有表和索引）
+    this.isInitializing = false; // 标记数据库是否正在初始化
     this.DB_VERSION = 1; // 当前数据库版本
+
+    // 操作队列 - 存储在初始化完成前的所有数据库操作
+    this.operationQueue = [];
+
+    // 初始化完成的回调函数
+    this.initCallbacks = [];
+  }
+
+  /**
+   * 注册初始化完成回调
+   * 当数据库完全初始化后，会调用这个回调函数
+   * @param {Function} callback - 初始化完成后的回调函数
+   */
+  onInitialized(callback) {
+    if (typeof callback !== 'function') {
+      console.warn('onInitialized: 回调必须是函数');
+      return;
+    }
+
+    if (this.isFullyInitialized) {
+      // 如果数据库已经完全初始化，立即调用回调
+      callback();
+    } else {
+      // 否则，将回调添加到队列中
+      this.initCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * 等待数据库完全初始化
+   * @returns {Promise<SQLite.SQLiteDatabase>} 数据库实例
+   */
+  async waitForInit() {
+    if (this.isFullyInitialized) {
+      return this.database;
+    }
+
+    return new Promise((resolve) => {
+      this.onInitialized(() => {
+        resolve(this.database);
+      });
+    });
   }
 
   /**
    * 初始化数据库
-   * @param {number} timeout - 初始化超时时间（毫秒）
+   * @param {number} timeout - 初始化超时时间（毫秒），仅用于日志显示，不再用于实际超时控制
    * @returns {Promise<SQLite.SQLiteDatabase>} 数据库实例
    */
-  async init(timeout = 60000) { // 增加默认超时时间到60秒
-    // 防止重复初始化
-    if (this.isInitialized && this.database) {
-      console.log('SQLite数据库已经初始化，跳过重复初始化');
+  async init(timeout = 120000) { // timeout参数保留，但不再用于超时控制
+    // 如果数据库已完全初始化，直接返回
+    if (this.isFullyInitialized && this.database) {
       return this.database;
     }
 
-    // 防止并发初始化
-    if (this._initPromise) {
-      console.log('SQLite数据库正在初始化中，等待完成...');
-      return this._initPromise;
+    // 如果数据库正在初始化，等待初始化完成
+    if (this.isInitializing) {
+      console.log('数据库正在初始化中，等待完成...');
+      return this.waitForInit();
     }
 
-    console.log(`开始SQLite数据库初始化，超时时间: ${timeout}ms`);
+    // 标记为正在初始化
+    this.isInitializing = true;
+
+    // 输出初始化日志
+    console.log('开始SQLite数据库完全初始化...');
 
     // 检查数据库文件是否存在
     try {
@@ -96,12 +143,9 @@ class SQLiteService {
       console.warn('检查数据库文件失败:', fileError);
     }
 
-    // 创建初始化Promise
-    this._initPromise = (async () => {
-      try {
-        const startTime = Date.now();
-
-        // 简化初始化过程，只做最基本的操作
+    // 创建初始化Promise并执行完整初始化
+    try {
+      const startTime = Date.now();
 
         // 1. 确保数据库文件存在且可访问
         try {
@@ -143,14 +187,22 @@ class SQLiteService {
           // 继续尝试打开数据库
         }
 
-        // 2. 打开数据库 - 简单直接
-        console.log('尝试打开数据库...');
+        // 2. 打开数据库 - 使用优化的设置
+        if (__DEV__) console.log('尝试打开数据库...');
         this.database = await SQLite.openDatabase({
           name: DB_NAME,
           location: DB_LOCATION,
           createFromLocation: 0,
         });
-        console.log(`SQLite数据库打开成功，耗时: ${Date.now() - startTime}ms`);
+
+        // 优化PRAGMA设置，提高性能
+        await this.database.executeSql('PRAGMA journal_mode = WAL;'); // 使用WAL模式提高写入性能
+        await this.database.executeSql('PRAGMA synchronous = NORMAL;'); // 降低同步级别，提高性能
+        await this.database.executeSql('PRAGMA cache_size = 10000;'); // 增加缓存大小
+        await this.database.executeSql('PRAGMA temp_store = MEMORY;'); // 临时表存储在内存中
+        await this.database.executeSql('PRAGMA locking_mode = EXCLUSIVE;'); // 独占锁定模式
+
+        if (__DEV__) console.log(`SQLite数据库打开成功，耗时: ${Date.now() - startTime}ms`);
 
         // 3. 执行简单查询验证连接
         try {
@@ -160,110 +212,213 @@ class SQLiteService {
           console.error('数据库连接测试失败，尝试创建基本表结构:', testError);
         }
 
-        // 4. 确保sync_info表存在 - 这是最关键的表
+        // 4. 使用事务创建核心表 - 这些表是应用必须的
         try {
-          console.log('确保sync_info表存在...');
-          await this.database.executeSql(`
-            CREATE TABLE IF NOT EXISTS ${TABLES.SYNC_INFO} (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              table_name TEXT NOT NULL UNIQUE,
-              last_sync_time TEXT,
-              sync_status TEXT,
-              error_message TEXT,
-              created_at TEXT,
-              updated_at TEXT
-            )
-          `);
-          console.log('sync_info表创建或验证成功');
+          if (__DEV__) console.log('开始创建核心表...');
 
-          // 检查表是否有记录
+          // 使用事务批量创建核心表，提高效率
+          await this.database.transaction(async (tx) => {
+            // 创建sync_info表 - 最关键的表
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.SYNC_INFO} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_name TEXT NOT NULL UNIQUE,
+                last_sync_time TEXT,
+                sync_status TEXT,
+                error_message TEXT,
+                created_at TEXT,
+                updated_at TEXT
+              )
+            `);
+
+            // 创建users表 - 用户信息表
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.USERS} (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                email TEXT,
+                phone TEXT,
+                password TEXT,
+                nickname TEXT,
+                avatar TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                version INTEGER DEFAULT 1,
+                is_synced INTEGER DEFAULT 0,
+                last_sync_at TEXT
+              )
+            `);
+
+            // 创建notes表 - 笔记表
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.NOTES} (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT,
+                summary TEXT,
+                category_id TEXT,
+                is_favorite INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT,
+                version INTEGER DEFAULT 1,
+                is_synced INTEGER DEFAULT 0,
+                last_sync_at TEXT
+              )
+            `);
+
+            // 创建categories表 - 分类表
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.CATEGORIES} (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                color TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                version INTEGER DEFAULT 1,
+                is_synced INTEGER DEFAULT 0,
+                last_sync_at TEXT
+              )
+            `);
+
+            // 创建tags表 - 标签表
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.TAGS} (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                color TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                version INTEGER DEFAULT 1,
+                is_synced INTEGER DEFAULT 0,
+                last_sync_at TEXT
+              )
+            `);
+
+            // 创建离线队列表 - 用于离线操作
+            await tx.executeSql(`
+              CREATE TABLE IF NOT EXISTS ${TABLES.OFFLINE_QUEUE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,
+                table_name TEXT NOT NULL,
+                record_id TEXT,
+                data TEXT,
+                retry_count INTEGER DEFAULT 0,
+                created_at TEXT,
+                is_processed INTEGER DEFAULT 0,
+                error_message TEXT
+              )
+            `);
+          });
+
+          // 初始化sync_info表记录
           const result = await this.database.executeSql(`SELECT COUNT(*) as count FROM ${TABLES.SYNC_INFO}`);
-          const count = result[0].rows.item(0).count;
+          const count = result[0].rows.length > 0 ? result[0].rows.item(0).count : 0;
 
           if (count === 0) {
-            console.log('sync_info表为空，初始化基本记录');
             const now = new Date().toISOString();
             const tables = ['users', 'notes', 'categories', 'tags'];
 
-            // 单条插入，避免事务复杂性
-            for (const table of tables) {
-              try {
-                const safeParams = [
-                  table || '',
-                  '',
-                  'pending',
-                  now || new Date().toISOString(),
-                  now || new Date().toISOString()
-                ];
-
-                await this.database.executeSql(
+            // 使用事务批量插入记录
+            await this.database.transaction(async (tx) => {
+              for (const table of tables) {
+                await tx.executeSql(
                   `INSERT OR IGNORE INTO ${TABLES.SYNC_INFO} (table_name, last_sync_time, sync_status, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?)`,
-                  safeParams
+                  [table, '', 'pending', now, now]
                 );
-              } catch (insertError) {
-                console.warn(`插入${table}记录失败:`, insertError);
-                // 继续处理其他表
               }
-            }
-          } else {
-            console.log(`sync_info表已有${count}条记录`);
+            });
           }
-        } catch (syncTableError) {
-          console.error('创建sync_info表失败:', syncTableError);
+
+          if (__DEV__) console.log('核心表创建完成');
+        } catch (coreTablesError) {
+          console.error('创建核心表失败:', coreTablesError);
           // 这是关键错误，但我们仍然标记为初始化成功，让应用能继续运行
         }
 
-        // 标记为初始化成功
+        // 标记为基本初始化成功
         this.isInitialized = true;
-        console.log(`SQLite数据库基本初始化成功，总耗时: ${Date.now() - startTime}ms`);
+        console.log(`SQLite数据库基本初始化成功，耗时: ${Date.now() - startTime}ms`);
 
-        // 在后台继续完成其他表的创建
-        setTimeout(() => {
-          this.completeInitializationInBackground().catch(error => {
-            console.warn('后台完成初始化失败:', error);
-          });
-        }, 1000);
+        // 立即完成所有表的创建，但索引创建放在后面
+        console.log('开始完成所有表的创建...');
 
-        return this.database;
+        try {
+          // 创建重要表
+          await this.createImportantTables();
+          console.log('重要表创建完成');
+
+          // 创建功能表
+          await this.createFeatureTables();
+          console.log('功能表创建完成');
+
+          // 创建索引 - 这个方法会自动检查表是否存在，并在创建核心索引后标记为完全初始化
+          await this.createIndexes();
+
+          // 数据库优化放在索引创建的延迟任务中执行
+          console.log(`SQLite数据库初始化成功，总耗时: ${Date.now() - startTime}ms`);
+
+          return this.database;
+        } catch (fullInitError) {
+          console.error('完成表创建失败:', fullInitError);
+
+          // 即使表创建失败，也标记为完全初始化，让应用可以继续运行
+          console.log('尽管出现错误，仍然标记数据库为完全初始化状态');
+          this.isFullyInitialized = true;
+          this.processOperationQueue();
+          this.notifyInitCallbacks();
+
+          return this.database;
+        }
       } catch (error) {
         console.error('SQLite数据库初始化失败:', error);
         this.isInitialized = false;
+        this.isInitializing = false;
         this.database = null;
         throw error;
-      } finally {
-        // 清除初始化Promise
-        this._initPromise = null;
       }
-    })();
 
-    // 添加超时控制，但更宽松
-    const timeoutPromise = new Promise((resolve) => {
-      setTimeout(() => {
-        console.warn(`SQLite数据库初始化超过${timeout}ms，但将继续在后台完成`);
-        // 不再拒绝Promise，而是返回当前数据库状态
-        if (this.database && this.isInitialized) {
-          resolve(this.database);
-        } else {
-          // 标记为降级模式，但仍然返回可能的部分初始化数据库
-          this._initTimedOut = true;
-          this.isInitialized = true; // 标记为已初始化，即使是降级模式
-          resolve(this.database || null);
-        }
-      }, timeout);
-    });
+  }
 
-    try {
-      // 使用Promise.race，但两个Promise都不会reject
-      const result = await Promise.race([this._initPromise, timeoutPromise]);
-      return result;
-    } catch (error) {
-      console.error('SQLite初始化出错，应用将以降级模式运行:', error);
-      this._initTimedOut = true;
-      this.isInitialized = true; // 标记为已初始化，即使是降级模式
+  /**
+   * 处理操作队列中的所有操作
+   * @private
+   */
+  processOperationQueue() {
+    console.log(`处理操作队列，共${this.operationQueue.length}个操作`);
 
-      // 返回null而不是抛出异常，让应用可以继续运行
-      return this.database || null;
+    while (this.operationQueue.length > 0) {
+      const operation = this.operationQueue.shift();
+      try {
+        // 执行操作并解析Promise
+        operation.resolve(operation.execute());
+      } catch (error) {
+        // 如果操作执行失败，拒绝Promise
+        operation.reject(error);
+      }
+    }
+  }
+
+  /**
+   * 通知所有初始化完成回调
+   * @private
+   */
+  notifyInitCallbacks() {
+    console.log(`通知初始化完成回调，共${this.initCallbacks.length}个回调`);
+
+    // 调用所有回调并清空回调列表
+    while (this.initCallbacks.length > 0) {
+      const callback = this.initCallbacks.shift();
+      try {
+        callback();
+      } catch (error) {
+        console.error('执行初始化完成回调失败:', error);
+      }
     }
   }
 
@@ -474,39 +629,53 @@ class SQLiteService {
    */
   async completeInitializationInBackground() {
     try {
-      console.log('开始在后台完成数据库初始化...');
+      if (__DEV__) console.log('开始在后台完成数据库初始化...');
 
       if (!this.database) {
         console.error('数据库实例不存在，无法完成后台初始化');
         return;
       }
 
-      // 1. 创建用户表 - 确保用户表首先被创建
-      try {
-        console.log('在后台创建用户表...');
+      // 将表分为两组：重要表和功能表
+      await this.createImportantTables();
 
-        await this.database.executeSql(`
-          CREATE TABLE IF NOT EXISTS ${TABLES.USERS} (
+      // 延迟创建功能表，让应用先稳定运行
+      setTimeout(() => {
+        this.createFeatureTables().catch(error => {
+          console.warn('创建功能表失败:', error);
+        });
+      }, 10000); // 延迟10秒创建功能表
+
+      // 延迟创建索引，索引创建是CPU密集型操作
+      setTimeout(() => {
+        this.createIndexes().catch(error => {
+          console.warn('创建索引失败:', error);
+        });
+      }, 20000); // 延迟20秒创建索引
+
+      if (__DEV__) console.log('后台数据库初始化任务已安排');
+    } catch (error) {
+      console.error('安排后台初始化任务失败:', error);
+    }
+  }
+
+  /**
+   * 创建重要表 - 这些表对应用的基本功能很重要，但不是核心表
+   * @returns {Promise<void>}
+   */
+  async createImportantTables() {
+    try {
+      if (__DEV__) console.log('开始创建重要表...');
+
+      // 使用事务批量创建重要表
+      await this.database.transaction(async (tx) => {
+        // 创建设置表
+        await tx.executeSql(`
+          CREATE TABLE IF NOT EXISTS ${TABLES.SETTINGS} (
             id TEXT PRIMARY KEY,
-            username TEXT NOT NULL UNIQUE,
-            email TEXT,
-            phone TEXT,
-            password TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            nickname TEXT,
-            avatar TEXT,
-            bio TEXT,
-            is_active INTEGER DEFAULT 1,
-            is_staff INTEGER DEFAULT 0,
-            date_joined TEXT,
-            last_login TEXT,
-            wechat_openid TEXT,
-            wechat_unionid TEXT,
-            wechat_avatar TEXT,
-            qq_openid TEXT,
-            qq_avatar TEXT,
-            preferences TEXT,
+            user_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT,
             created_at TEXT,
             updated_at TEXT,
             version INTEGER DEFAULT 1,
@@ -514,154 +683,79 @@ class SQLiteService {
             last_sync_at TEXT
           )
         `);
-        console.log(`表 ${TABLES.USERS} 创建成功`);
-      } catch (userTableError) {
-        console.error('创建用户表失败:', userTableError);
-        // 继续执行其他初始化步骤
-      }
 
-      // 2. 创建离线队列表
-      try {
-        await this.database.executeSql(`
-          CREATE TABLE IF NOT EXISTS ${TABLES.OFFLINE_QUEUE} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_type TEXT NOT NULL,
-            table_name TEXT NOT NULL,
-            record_id TEXT,
-            data TEXT,
-            retry_count INTEGER DEFAULT 0,
+        // 创建文件表
+        await tx.executeSql(`
+          CREATE TABLE IF NOT EXISTS ${TABLES.FILES} (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            note_id TEXT,
+            name TEXT NOT NULL,
+            path TEXT NOT NULL,
+            type TEXT NOT NULL,
+            size INTEGER,
+            mime_type TEXT,
+            is_uploaded INTEGER DEFAULT 0,
+            remote_url TEXT,
             created_at TEXT,
-            is_processed INTEGER DEFAULT 0,
-            error_message TEXT
+            updated_at TEXT,
+            version INTEGER DEFAULT 1,
+            is_synced INTEGER DEFAULT 0,
+            last_sync_at TEXT
           )
         `);
-        console.log('离线队列表创建成功');
-      } catch (queueTableError) {
-        console.error('创建离线队列表失败:', queueTableError);
-      }
 
-      // 3. 创建其他基本表
-      try {
-        console.log('在后台创建其他必要的表...');
+        // 创建笔记标签关联表
+        await tx.executeSql(`
+          CREATE TABLE IF NOT EXISTS ${TABLES.NOTE_TAGS} (
+            note_id TEXT,
+            tag_id TEXT,
+            created_at TEXT,
+            version INTEGER DEFAULT 1,
+            is_synced INTEGER DEFAULT 0,
+            last_sync_at TEXT,
+            PRIMARY KEY (note_id, tag_id)
+          )
+        `);
 
-        const basicTables = [
-          {
-            name: TABLES.NOTES,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.NOTES} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                title TEXT NOT NULL,
-                content TEXT,
-                summary TEXT,
-                category_id TEXT,
-                is_favorite INTEGER DEFAULT 0,
-                is_encrypted INTEGER DEFAULT 0,
-                encryption_key TEXT,
-                is_public INTEGER DEFAULT 0,
-                is_deleted INTEGER DEFAULT 0,
-                view_count INTEGER DEFAULT 0,
-                edit_count INTEGER DEFAULT 0,
-                last_viewed_at TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `
-          },
-          {
-            name: TABLES.TAGS,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.TAGS} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                color TEXT,
-                usage_count INTEGER DEFAULT 0,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `
-          },
-          {
-            name: TABLES.CATEGORIES,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.CATEGORIES} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT,
-                parent_id TEXT,
-                color TEXT,
-                icon TEXT,
-                sort_order INTEGER DEFAULT 0,
-                is_deleted INTEGER DEFAULT 0,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `
-          },
-          {
-            name: TABLES.SETTINGS,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.SETTINGS} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                key TEXT NOT NULL,
-                value TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `
-          },
-          {
-            name: TABLES.FILES,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.FILES} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                note_id TEXT,
-                name TEXT NOT NULL,
-                path TEXT NOT NULL,
-                type TEXT NOT NULL,
-                size INTEGER,
-                mime_type TEXT,
-                is_uploaded INTEGER DEFAULT 0,
-                remote_url TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `
-          },
-          {
-            name: TABLES.NOTE_TAGS,
-            sql: `
-              CREATE TABLE IF NOT EXISTS ${TABLES.NOTE_TAGS} (
-                note_id TEXT,
-                tag_id TEXT,
-                created_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT,
-                PRIMARY KEY (note_id, tag_id)
-              )
-            `
-          },
-          // 知识图谱节点表
+        // 创建提醒表
+        await tx.executeSql(`
+          CREATE TABLE IF NOT EXISTS ${TABLES.REMINDERS} (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            note_id TEXT,
+            title TEXT NOT NULL,
+            description TEXT,
+            due_date TEXT,
+            is_completed INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT,
+            version INTEGER DEFAULT 1,
+            is_synced INTEGER DEFAULT 0,
+            last_sync_at TEXT
+          )
+        `);
+      });
+
+      if (__DEV__) console.log('重要表创建完成');
+    } catch (error) {
+      console.error('创建重要表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建功能表 - 这些表只在特定功能使用时才需要
+   * @returns {Promise<void>}
+   */
+  async createFeatureTables() {
+    try {
+      if (__DEV__) console.log('开始创建功能表...');
+
+      // 定义功能表组，按功能分组
+      const featureGroups = {
+        // 知识图谱相关表
+        knowledgeGraph: [
           {
             name: TABLES.KNOWLEDGE_NODES,
             sql: `
@@ -685,7 +779,6 @@ class SQLiteService {
               )
             `
           },
-          // 知识图谱边表
           {
             name: TABLES.KNOWLEDGE_EDGES,
             sql: `
@@ -707,7 +800,6 @@ class SQLiteService {
               )
             `
           },
-          // 知识图谱表
           {
             name: TABLES.KNOWLEDGE_GRAPHS,
             sql: `
@@ -726,8 +818,11 @@ class SQLiteService {
                 last_sync_at TEXT
               )
             `
-          },
-          // AI助手对话表
+          }
+        ],
+
+        // AI助手相关表
+        aiAssistant: [
           {
             name: TABLES.AI_CONVERSATIONS,
             sql: `
@@ -746,7 +841,6 @@ class SQLiteService {
               )
             `
           },
-          // AI助手消息表
           {
             name: TABLES.AI_MESSAGES,
             sql: `
@@ -764,8 +858,11 @@ class SQLiteService {
                 last_sync_at TEXT
               )
             `
-          },
-          // 社区帖子表
+          }
+        ],
+
+        // 社区相关表
+        community: [
           {
             name: TABLES.COMMUNITY_POSTS,
             sql: `
@@ -791,7 +888,6 @@ class SQLiteService {
               )
             `
           },
-          // 社区评论表
           {
             name: TABLES.COMMUNITY_COMMENTS,
             sql: `
@@ -811,8 +907,11 @@ class SQLiteService {
                 last_sync_at TEXT
               )
             `
-          },
-          // 搜索历史表
+          }
+        ],
+
+        // 搜索相关表
+        search: [
           {
             name: TABLES.SEARCH_HISTORY,
             sql: `
@@ -830,7 +929,6 @@ class SQLiteService {
               )
             `
           },
-          // 搜索索引表
           {
             name: TABLES.SEARCH_INDEX,
             sql: `
@@ -849,67 +947,153 @@ class SQLiteService {
               )
             `
           }
-        ];
+        ]
+      };
 
-        for (const table of basicTables) {
-          try {
-            await this.database.executeSql(table.sql);
-            console.log(`表 ${table.name} 创建成功`);
-          } catch (tableError) {
-            console.warn(`创建表 ${table.name} 失败:`, tableError);
-            // 继续创建其他表
-          }
+      // 为每个功能组创建表
+      for (const [feature, tables] of Object.entries(featureGroups)) {
+        try {
+          // 使用事务批量创建每个功能组的表
+          await this.database.transaction(async (tx) => {
+            for (const table of tables) {
+              await tx.executeSql(table.sql);
+            }
+          });
+
+          if (__DEV__) console.log(`${feature}功能表创建完成`);
+        } catch (error) {
+          console.warn(`创建${feature}功能表失败:`, error);
+          // 继续创建其他功能组的表
         }
-      } catch (tablesError) {
-        console.error('在后台创建表失败:', tablesError);
-        // 继续执行其他初始化步骤
       }
 
-      // 4. 创建基本索引
-      try {
-        console.log('在后台创建基本索引...');
-
-        const basicIndexes = [
-          `CREATE INDEX IF NOT EXISTS idx_users_username ON ${TABLES.USERS} (username)`,
-          `CREATE INDEX IF NOT EXISTS idx_users_email ON ${TABLES.USERS} (email)`,
-          `CREATE INDEX IF NOT EXISTS idx_users_phone ON ${TABLES.USERS} (phone)`,
-          `CREATE INDEX IF NOT EXISTS idx_notes_user_id ON ${TABLES.NOTES} (user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_notes_is_deleted ON ${TABLES.NOTES} (is_deleted)`,
-          `CREATE INDEX IF NOT EXISTS idx_tags_user_id ON ${TABLES.TAGS} (user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_categories_user_id ON ${TABLES.CATEGORIES} (user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_settings_user_id ON ${TABLES.SETTINGS} (user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_settings_key ON ${TABLES.SETTINGS} (key)`,
-          `CREATE INDEX IF NOT EXISTS idx_files_user_id ON ${TABLES.FILES} (user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)`
-        ];
-
-        for (const indexSql of basicIndexes) {
-          try {
-            await this.database.executeSql(indexSql);
-          } catch (indexError) {
-            console.warn('创建索引失败:', indexError);
-            // 继续创建其他索引
-          }
-        }
-      } catch (indexesError) {
-        console.error('在后台创建索引失败:', indexesError);
-      }
-
-      // 5. 检查数据库表是否都创建成功
-      try {
-        const tables = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
-        const tableNames = [];
-        for (let i = 0; i < tables[0].rows.length; i++) {
-          tableNames.push(tables[0].rows.item(i).name);
-        }
-        console.log('数据库中的表:', tableNames.join(', '));
-      } catch (checkError) {
-        console.error('检查数据库表失败:', checkError);
-      }
-
-      console.log('后台数据库初始化完成');
+      if (__DEV__) console.log('所有功能表创建完成');
     } catch (error) {
-      console.error('后台完成数据库初始化失败:', error);
+      console.error('创建功能表失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 检查表是否存在
+   * @param {string} tableName - 表名
+   * @returns {Promise<boolean>} 表是否存在
+   * @private
+   */
+  async _checkTableExists(tableName) {
+    try {
+      const result = await this.database.executeSql(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [tableName]
+      );
+      return result[0].rows.length > 0;
+    } catch (error) {
+      console.warn(`检查表 ${tableName} 是否存在失败:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 创建索引以提高查询性能
+   * @returns {Promise<void>}
+   */
+  async createIndexes() {
+    try {
+      if (__DEV__) console.log('开始创建索引...');
+
+      // 获取所有存在的表
+      const tablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
+      const existingTables = [];
+      for (let i = 0; i < tablesResult[0].rows.length; i++) {
+        existingTables.push(tablesResult[0].rows.item(i).name);
+      }
+
+      console.log('现有表:', existingTables.join(', '));
+
+      // 定义核心表索引 - 这些索引对基本功能很重要
+      const coreIndexes = [
+        { table: TABLES.USERS, sql: `CREATE INDEX IF NOT EXISTS idx_users_username ON ${TABLES.USERS} (username)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_user_id ON ${TABLES.NOTES} (user_id)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_is_deleted ON ${TABLES.NOTES} (is_deleted)` },
+        { table: TABLES.CATEGORIES, sql: `CREATE INDEX IF NOT EXISTS idx_categories_user_id ON ${TABLES.CATEGORIES} (user_id)` },
+        { table: TABLES.TAGS, sql: `CREATE INDEX IF NOT EXISTS idx_tags_user_id ON ${TABLES.TAGS} (user_id)` }
+      ];
+
+      // 定义次要索引 - 这些索引可以提高性能，但不是必须的
+      const secondaryIndexes = [
+        { table: TABLES.USERS, sql: `CREATE INDEX IF NOT EXISTS idx_users_email ON ${TABLES.USERS} (email)` },
+        { table: TABLES.USERS, sql: `CREATE INDEX IF NOT EXISTS idx_users_phone ON ${TABLES.USERS} (phone)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_category_id ON ${TABLES.NOTES} (category_id)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_is_favorite ON ${TABLES.NOTES} (is_favorite)` },
+        { table: TABLES.SETTINGS, sql: `CREATE INDEX IF NOT EXISTS idx_settings_user_id ON ${TABLES.SETTINGS} (user_id)` },
+        { table: TABLES.SETTINGS, sql: `CREATE INDEX IF NOT EXISTS idx_settings_key ON ${TABLES.SETTINGS} (key)` },
+        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_user_id ON ${TABLES.FILES} (user_id)` },
+        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)` },
+        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)` },
+        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)` }
+      ];
+
+      // 先创建核心索引，只为存在的表创建索引
+      for (const index of coreIndexes) {
+        if (existingTables.includes(index.table)) {
+          try {
+            await this.database.executeSql(index.sql);
+          } catch (error) {
+            console.warn(`创建核心索引失败 (${index.table}):`, error);
+          }
+        } else {
+          console.log(`跳过创建索引，表 ${index.table} 不存在`);
+        }
+      }
+
+      if (__DEV__) console.log('核心索引创建完成');
+
+      // 立即标记为完全初始化，不再等待次要索引
+      this.isFullyInitialized = true;
+
+      // 处理操作队列中的所有操作
+      this.processOperationQueue();
+
+      // 调用所有初始化完成回调
+      this.notifyInitCallbacks();
+
+      // 延迟创建次要索引，但不影响应用正常使用
+      setTimeout(async () => {
+        try {
+          // 再次检查表是否存在，因为可能在此期间创建了新表
+          const updatedTablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
+          const updatedExistingTables = [];
+          for (let i = 0; i < updatedTablesResult[0].rows.length; i++) {
+            updatedExistingTables.push(updatedTablesResult[0].rows.item(i).name);
+          }
+
+          for (const index of secondaryIndexes) {
+            if (updatedExistingTables.includes(index.table)) {
+              try {
+                await this.database.executeSql(index.sql);
+              } catch (error) {
+                console.warn(`创建次要索引失败 (${index.table}):`, error);
+              }
+            } else {
+              console.log(`跳过创建索引，表 ${index.table} 不存在`);
+            }
+          }
+
+          if (__DEV__) console.log('次要索引创建完成');
+
+          // 优化数据库
+          await this.optimizeDatabase();
+        } catch (error) {
+          console.warn('创建次要索引或优化数据库失败:', error);
+        }
+      }, 5000); // 延迟5秒创建次要索引
+
+    } catch (error) {
+      console.error('创建索引失败:', error);
+      // 即使索引创建失败，也标记为完全初始化
+      this.isFullyInitialized = true;
+      this.processOperationQueue();
+      this.notifyInitCallbacks();
     }
   }
 
@@ -962,15 +1146,26 @@ class SQLiteService {
    */
   async optimizeDatabase() {
     try {
-      // 执行VACUUM操作以优化数据库大小
+      if (__DEV__) console.log('开始优化数据库...');
+
+      // 使用事务执行优化操作
+      await this.database.transaction(async (tx) => {
+        // 设置优化参数
+        await tx.executeSql("PRAGMA optimize;"); // 自动优化
+        await tx.executeSql("PRAGMA auto_vacuum = INCREMENTAL;"); // 增量式自动整理
+        await tx.executeSql("PRAGMA mmap_size = 268435456;"); // 使用内存映射 (256MB)
+        await tx.executeSql("PRAGMA page_size = 8192;"); // 增加页面大小，减少I/O操作
+
+        // 分析数据库以优化查询性能
+        await tx.executeSql("ANALYZE;");
+      });
+
+      // 执行VACUUM操作以优化数据库大小 (不放在事务中，因为VACUUM会隐式提交事务)
       await this.executeSql("VACUUM;");
 
-      // 分析数据库以优化查询性能
-      await this.executeSql("ANALYZE;");
-
-      console.log('数据库优化完成');
+      if (__DEV__) console.log('数据库优化完成');
     } catch (error) {
-      console.error('数据库优化失败:', error);
+      console.warn('数据库优化失败:', error);
       // 不抛出异常，因为这不是关键操作
     }
   }
@@ -1269,72 +1464,51 @@ class SQLiteService {
     if (!this.isInitialized || !this.database) {
       console.warn('数据库未初始化，尝试初始化数据库');
       try {
-        await this.init(timeout);
-
-        // 如果初始化后仍未成功，尝试创建一个新的数据库连接
-        if (!this.isInitialized || !this.database) {
-          console.warn('初始化失败，尝试直接创建数据库连接');
-
-          try {
-            const SQLite = require('react-native-sqlite-storage');
-            SQLite.enablePromise(true);
-
-            this.database = await SQLite.openDatabase({
-              name: 'zeroislenotes.db',
-              location: Platform.OS === 'ios' ? 'Library' : 'default',
-              createFromLocation: 0,
-            });
-
-            this.isInitialized = true;
-            console.log('直接创建数据库连接成功');
-          } catch (directOpenError) {
-            console.error('直接创建数据库连接失败:', directOpenError);
-            throw new Error('数据库未初始化且无法自动初始化');
-          }
-        }
+        await this.init();
       } catch (error) {
-        console.error('自动初始化数据库失败:', error);
-
-        // 如果是sync_info表查询，尝试创建表
-        if (query.includes('sync_info') && query.includes('SELECT')) {
-          console.warn('查询sync_info表失败，尝试创建表');
-
-          try {
-            // 直接使用SQLite API创建表
-            const SQLite = require('react-native-sqlite-storage');
-            SQLite.enablePromise(true);
-
-            const db = await SQLite.openDatabase({
-              name: 'zeroislenotes.db',
-              location: Platform.OS === 'ios' ? 'Library' : 'default',
-              createFromLocation: 0,
-            });
-
-            await db.executeSql(`
-              CREATE TABLE IF NOT EXISTS sync_info (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                table_name TEXT NOT NULL UNIQUE,
-                last_sync_time TEXT,
-                sync_status TEXT,
-                error_message TEXT,
-                created_at TEXT,
-                updated_at TEXT
-              )
-            `);
-
-            console.log('直接创建sync_info表成功');
-
-            // 使用创建的连接
-            this.database = db;
-            this.isInitialized = true;
-          } catch (createTableError) {
-            console.error('直接创建sync_info表失败:', createTableError);
-            throw new Error('数据库未初始化且无法创建必要的表');
-          }
-        } else {
-          throw new Error('数据库未初始化且无法自动初始化');
-        }
+        console.error('数据库初始化失败:', error);
+        throw new Error('数据库未初始化且无法自动初始化');
       }
+    }
+
+    // 如果数据库正在初始化但尚未完全初始化，将操作添加到队列
+    if (!this.isFullyInitialized) {
+      console.log('数据库尚未完全初始化，将SQL操作添加到队列:', query);
+
+      return new Promise((resolve, reject) => {
+        // 将操作添加到队列
+        this.operationQueue.push({
+          execute: () => {
+            try {
+              return this._executeSql(query, params, timeout, retryCount);
+            } catch (error) {
+              reject(error);
+              throw error; // 确保错误被传播
+            }
+          },
+          resolve,
+          reject
+        });
+      });
+    }
+
+    // 如果数据库已完全初始化，直接执行操作
+    return this._executeSql(query, params, timeout, retryCount);
+  }
+
+  /**
+   * 内部执行SQL查询的方法
+   * @private
+   * @param {string} query - SQL查询语句
+   * @param {Array} params - 查询参数
+   * @param {number} timeout - 查询超时时间（毫秒）
+   * @param {number} retryCount - 重试次数
+   * @returns {Promise<Array>} 查询结果
+   */
+  async _executeSql(query, params = [], timeout = 30000, retryCount = 3) {
+    // 确保数据库已初始化
+    if (!this.isInitialized || !this.database) {
+      throw new Error('数据库未初始化，无法执行SQL查询');
     }
 
     if (!this.database) {
@@ -1342,44 +1516,55 @@ class SQLiteService {
     }
 
     // 处理参数，确保没有undefined或null值导致绑定错误
-    const safeParams = [];
+    let safeParams = [];
 
     // 检查参数数量是否匹配查询中的占位符数量
     const placeholderCount = (query.match(/\?/g) || []).length;
 
-    // 预处理所有参数，确保没有null值
-    const processedParams = params.map(param => {
-      if (param === null || param === undefined) {
-        // 对于数字类型字段，使用0代替null
-        if (query.includes('INTEGER') || query.includes('REAL') || query.includes('NUMERIC')) {
-          return 0;
-        }
-        // 对于其他类型，使用空字符串代替null
-        return '';
-      }
-      return param;
-    });
+    // 记录原始参数信息，用于调试
+    console.log(`SQL查询占位符数量: ${placeholderCount}, 提供参数数量: ${params ? params.length : 0}`);
 
+    // 如果没有提供参数但有占位符，创建空参数数组
     if (placeholderCount > 0 && (!params || params.length === 0)) {
-      console.warn(`查询包含${placeholderCount}个占位符，但未提供参数`);
-      // 填充空参数
-      for (let i = 0; i < placeholderCount; i++) {
-        safeParams.push('');
-      }
-    } else if (placeholderCount > 0 && processedParams.length < placeholderCount) {
-      console.warn(`查询包含${placeholderCount}个占位符，但只提供了${processedParams.length}个参数`);
-      // 复制提供的参数
-      for (let i = 0; i < processedParams.length; i++) {
-        safeParams.push(processedParams[i]);
-      }
-      // 填充剩余的空参数
-      for (let i = processedParams.length; i < placeholderCount; i++) {
-        safeParams.push('');
-      }
-    } else {
-      // 使用处理后的参数
-      safeParams.push(...processedParams);
+      console.warn(`查询包含${placeholderCount}个占位符，但未提供参数，使用空字符串替代`);
+      safeParams = Array(placeholderCount).fill('');
     }
+    // 如果参数数量少于占位符数量，填充缺失的参数
+    else if (placeholderCount > 0 && params.length < placeholderCount) {
+      console.warn(`查询包含${placeholderCount}个占位符，但只提供了${params.length}个参数，填充缺失参数`);
+
+      // 复制并处理已提供的参数
+      safeParams = params.map(param => {
+        if (param === null || param === undefined) {
+          return ''; // 统一使用空字符串替代null和undefined
+        }
+        return param;
+      });
+
+      // 填充缺失的参数
+      for (let i = params.length; i < placeholderCount; i++) {
+        safeParams.push('');
+      }
+    }
+    // 如果参数数量与占位符匹配或更多，处理所有参数
+    else {
+      // 预处理所有参数，确保没有null值
+      safeParams = params.map(param => {
+        if (param === null || param === undefined) {
+          return ''; // 统一使用空字符串替代null和undefined
+        }
+        return param;
+      });
+
+      // 如果参数过多，截断到占位符数量
+      if (placeholderCount > 0 && safeParams.length > placeholderCount) {
+        console.warn(`查询包含${placeholderCount}个占位符，但提供了${safeParams.length}个参数，截断多余参数`);
+        safeParams = safeParams.slice(0, placeholderCount);
+      }
+    }
+
+    // 最后检查确保没有null值
+    safeParams = safeParams.map(param => param === null ? '' : param);
 
     // 添加重试机制
     let lastError = null;
@@ -1409,8 +1594,37 @@ class SQLiteService {
         });
 
         // 使用Promise.race实现超时控制
-        const [results] = await Promise.race([queryPromise, timeoutPromise]);
-        return results;
+        try {
+          const [results] = await Promise.race([queryPromise, timeoutPromise]);
+          return results;
+        } catch (queryError) {
+          // 检查是否是绑定值错误
+          if (queryError.message && queryError.message.includes('bind value at index') && queryError.message.includes('is null')) {
+            console.error('SQL绑定值错误，尝试紧急修复参数');
+
+            // 提取错误中的索引信息
+            const indexMatch = queryError.message.match(/bind value at index (\d+)/);
+            const errorIndex = indexMatch ? parseInt(indexMatch[1], 10) : -1;
+
+            if (errorIndex > 0 && errorIndex <= safeParams.length) {
+              console.log(`问题参数索引: ${errorIndex}, 当前值: ${safeParams[errorIndex-1]}`);
+
+              // 创建新的参数数组，确保指定索引的值不为null
+              const emergencyParams = [...safeParams];
+              emergencyParams[errorIndex-1] = emergencyParams[errorIndex-1] === null ? '' : emergencyParams[errorIndex-1];
+
+              console.log('使用紧急修复参数重试查询');
+              console.log('修复后的参数:', JSON.stringify(emergencyParams));
+
+              // 直接重试查询，不经过超时控制
+              const [emergencyResults] = await this.database.executeSql(query, emergencyParams);
+              return emergencyResults;
+            }
+          }
+
+          // 如果不是绑定值错误或无法修复，重新抛出错误
+          throw queryError;
+        }
       } catch (error) {
         lastError = error;
         console.error(`执行SQL查询失败(尝试${attempt + 1}/${retryCount + 1}):`, error);
@@ -1536,6 +1750,13 @@ class SQLiteService {
       await this.database.close();
       this.database = null;
       this.isInitialized = false;
+      this.isFullyInitialized = false;
+      this.isInitializing = false;
+
+      // 清空操作队列和回调
+      this.operationQueue = [];
+      this.initCallbacks = [];
+
       console.log('SQLite数据库已关闭');
     }
   }
