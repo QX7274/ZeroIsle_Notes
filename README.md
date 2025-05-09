@@ -377,104 +377,198 @@
 项目采用模块化架构，清晰地分离了移动应用、后端服务、管理系统和文档，便于团队协作和维护。
 
 ```
-zeroislenotes/
+ZeroIsle_Notes/
 ├── android/                # Android原生代码
 ├── ios/                    # iOS原生代码
 ├── src/                    # React Native源代码
 │   ├── assets/             # 静态资源
+│   │   ├── images/         # 图片资源
+│   │   └── models/         # AI模型文件
 │   ├── components/         # 可复用组件
+│   │   ├── ai/             # AI助手相关组件
+│   │   ├── canvas/         # 画布相关组件
+│   │   ├── code/           # 代码编辑器组件
+│   │   ├── common/         # 通用UI组件
+│   │   ├── community/      # 社区相关组件
+│   │   ├── groups/         # 群组相关组件
+│   │   ├── handwriting/    # 手写识别组件
+│   │   ├── home/           # 首页相关组件
+│   │   ├── knowledge/      # 知识图谱组件
+│   │   ├── Layout/         # 布局组件
+│   │   ├── mind_map/       # 思维导图组件
+│   │   ├── notes/          # 笔记相关组件
+│   │   ├── reminder/       # 提醒相关组件
+│   │   ├── search/         # 搜索相关组件
+│   │   └── voice/          # 语音识别组件
 │   ├── config/             # 配置文件
+│   ├── constants/          # 常量定义
 │   ├── context/            # React上下文
+│   ├── hooks/              # 自定义Hooks
 │   ├── native/             # 原生模块桥接
 │   ├── navigation/         # 导航配置
 │   ├── redux/              # Redux状态管理
+│   │   ├── reducers/       # Redux reducers
+│   │   └── slices/         # Redux Toolkit切片
 │   ├── screens/            # 应用屏幕
-│   ├── services/           # API服务
+│   │   ├── ai/             # AI助手屏幕
+│   │   ├── analytics/      # 数据分析屏幕
+│   │   ├── auth/           # 认证相关屏幕
+│   │   ├── canvas/         # 画布屏幕
+│   │   ├── category/       # 分类屏幕
+│   │   ├── code/           # 代码编辑器屏幕
+│   │   ├── common/         # 通用屏幕
+│   │   ├── community/      # 社区屏幕
+│   │   ├── groups/         # 群组屏幕
+│   │   ├── knowledge/      # 知识图谱屏幕
+│   │   ├── mind_map/       # 思维导图屏幕
+│   │   ├── notes/          # 笔记屏幕
+│   │   ├── pdf/            # PDF查看器屏幕
+│   │   ├── reminder/       # 提醒屏幕
+│   │   ├── search/         # 搜索屏幕
+│   │   ├── settings/       # 设置屏幕
+│   │   ├── tag/            # 标签屏幕
+│   │   ├── theme/          # 主题设置屏幕
+│   │   ├── viewers/        # 文件查看器屏幕
+│   │   └── voice/          # 语音识别屏幕
+│   ├── services/           # 服务模块
+│   │   ├── ai/             # AI服务
+│   │   ├── ai_history/     # AI历史记录服务
+│   │   ├── analytics/      # 数据分析服务
+│   │   ├── api/            # API服务
+│   │   ├── audio/          # 音频处理服务
+│   │   ├── auth/           # 认证服务
+│   │   ├── cache/          # 缓存服务
+│   │   ├── calendar/       # 日历服务
+│   │   ├── canvas/         # 画布服务
+│   │   ├── code/           # 代码编辑器服务
+│   │   ├── compression/    # 数据压缩服务
+│   │   ├── database/       # 数据库服务
+│   │   ├── export/         # 导出服务
+│   │   ├── file/           # 文件处理服务
+│   │   ├── firebase/       # Firebase服务
+│   │   ├── group/          # 群组服务
+│   │   ├── network/        # 网络服务
+│   │   ├── note/           # 笔记服务
+│   │   ├── notification/   # 通知服务
+│   │   ├── offline/        # 离线存储服务
+│   │   ├── reminder/       # 提醒服务
+│   │   ├── search/         # 搜索服务
+│   │   ├── storage/        # 存储服务
+│   │   ├── translation/    # 翻译服务
+│   │   ├── tts/            # 文本转语音服务
+│   │   ├── utils/          # 服务工具函数
+│   │   ├── webrtc/         # WebRTC服务
+│   │   └── websocket/      # WebSocket服务
 │   ├── store/              # 状态存储
-│   └── utils/              # 工具函数
-├── backend/                # Django后端
+│   ├── styles/             # 样式定义
+│   ├── tests/              # 测试文件
+│   ├── theme/              # 主题配置
+│   ├── utils/              # 工具函数
+│   │   └── constants/      # 常量定义
+│   └── workers/            # Web Workers
+├── backend/                # 后端服务
 │   ├── ai_assistant/       # AI助手模块
-│   ├── notes/              # 笔记管理
-│   ├── knowledge_graph/    # 知识图谱
-│   │   ├── models/         # 图数据模型
-│   │   ├── services/       # 图数据服务
-│   │   ├── views/          # 图数据API
-│   │   └── utils/          # 图处理工具
-│   ├── users/              # 用户管理
-│   ├── community/          # 社区功能
-│   ├── search/             # 搜索引擎
+│   ├── backend/            # Django项目配置
 │   ├── canvas/             # 画布功能
 │   ├── code/               # 代码编辑器
-│   ├── voice_recognition/  # 语音识别
+│   ├── common/             # 公共组件
+│   ├── community/          # 社区功能
+│   ├── groups/             # 群组功能
+│   ├── knowledge_graph/    # 知识图谱
+│   ├── mind_map/           # 思维导图
+│   ├── notes/              # 笔记管理
+│   │   ├── models/         # 数据模型
+│   │   ├── mongodb_models/ # MongoDB模型
+│   │   ├── serializers/    # 序列化器
+│   │   ├── services/       # 服务
+│   │   └── views/          # API视图
+│   ├── notification/       # 通知系统
 │   ├── reminder/           # 提醒系统
-│   ├── graph_db/           # Neo4j数据库连接
-│   │   ├── connector/      # 连接管理
-│   │   ├── queries/        # Cypher查询
-│   │   └── migrations/     # 图结构迁移
+│   ├── scripts/            # 脚本文件
+│   ├── search/             # 搜索引擎
+│   ├── templates/          # HTML模板
+│   ├── tests/              # 测试文件
+│   ├── users/              # 用户管理
+│   │   ├── backends/       # 认证后端
+│   │   ├── services/       # 用户服务
+│   │   └── tests/          # 用户测试
+│   └── voice_recognition/  # 语音识别
 ├── admin_system/           # 管理系统
 │   ├── backend/            # 管理后端API
-│   │   ├── admin_backend/  # 项目配置
-│   │   ├── auth_api/       # 认证模块
-│   │   ├── users/          # 用户管理
-│   │   ├── content/        # 内容管理
-│   │   ├── settings_api/   # 系统设置
-│   │   └── logs/           # 日志模块
+│   ├── docs/               # 管理系统文档
 │   └── frontend/           # 管理前端界面
-│       ├── public/         # 静态资源
-│       └── src/            # React源代码
 ├── web/                    # 官方网站
 │   ├── css/                # 样式文件
-│   ├── js/                 # JavaScript脚本
 │   ├── images/             # 图片资源
-│   └── index.html          # 主页面
+│   └── js/                 # JavaScript脚本
 ├── Info/                   # 项目文档
 │   ├── 前端开发手册.md      # 前端开发指南
+│   ├── 前端目录结构文档.md  # 前端目录结构
+│   ├── 前端目录详细文档.md  # 前端详细文档
+│   ├── 功能模块详细说明.md  # 功能模块说明
 │   ├── 后端模型详解.md      # 后端数据模型文档
-│   ├── 功能模块详细说明.md   # 功能模块说明
-│   ├── 安装和部署指南.md     # 部署文档
-│   ├── 开发者总体指南.md     # 开发者指南
+│   ├── 后端目录结构文档.md  # 后端目录结构
+│   ├── 安装和部署指南.md    # 部署文档
+│   ├── 开发者总体指南.md    # 开发者指南
+│   ├── 开发路线图.md        # 开发路线图
 │   ├── 技术选型.md          # 技术栈说明
-│   └── 项目文档.md          # 综合项目文档
+│   ├── 用户界面设计.md      # UI设计文档
+│   ├── 项目文档.md          # 综合项目文档
+│   ├── 项目结构.md          # 项目结构概览
+│   └── 项目规划.md          # 项目规划
+├── App.tsx                 # 应用入口
+├── index.js                # 项目入口
+├── package.json            # 项目依赖
+└── tsconfig.json           # TypeScript配置
 ```
 
 ### 主要目录说明
 
 #### 📱 移动应用
 - **src/**：React Native应用源代码，包含UI组件、业务逻辑和状态管理
+  - **components/**：可复用组件，按功能模块分类
+  - **screens/**：应用屏幕，包含各个功能模块的界面
+  - **services/**：服务模块，提供API调用、数据处理等功能
+  - **redux/**：Redux状态管理，使用Redux Toolkit
+  - **navigation/**：导航配置，使用React Navigation
+  - **utils/**：工具函数和常量定义
 - **android/**：Android平台特定代码，包含原生模块和配置
 - **ios/**：iOS平台特定代码，包含原生模块和配置
 
 #### 🖥️ 后端服务
-- **backend/**：Django后端服务，提供API接口和业务逻辑处理
-  - **ai_assistant/**：AI助手模块，集成OpenAI API，提供智能对话和内容生成
+- **backend/**：后端服务，提供API接口和业务逻辑处理
+  - **ai_assistant/**：AI助手模块，集成多种AI模型，提供智能对话和内容生成
   - **notes/**：笔记管理核心模块，处理笔记的CRUD操作和版本控制
   - **knowledge_graph/**：知识图谱模块，构建和管理知识点之间的关联
-    - **models/**：图数据模型定义
-    - **services/**：图数据处理服务
-    - **views/**：图数据API接口
-    - **utils/**：图算法和工具函数
-  - **voice_recognition/**：语音识别模块，基于Whisper模型实现语音转文字
-  - **models/**：MongoDB数据模型定义，使用mongoengine ODM
-  - **db/**：MongoDB数据库连接和索引管理
-  - **graph_db/**：Neo4j图数据库服务
-    - **connector/**：Neo4j连接管理和会话池
-    - **queries/**：预定义的Cypher查询模板
-    - **migrations/**：图数据库结构迁移脚本
+  - **canvas/**：画布功能模块，支持无限画布和协作白板
+  - **users/**：用户管理模块，处理认证和用户信息
+  - **community/**：社区功能模块，支持笔记分享和互动
+  - **search/**：搜索功能模块，提供全文搜索和语义搜索
+  - **voice_recognition/**：语音识别模块，支持语音转文字
+  - **reminder/**：提醒系统模块，管理日程和提醒
 
 #### 👨‍💼 管理系统
-- **admin_system/**：独立的管理后台系统，用于内容审核和用户管理
-  - **backend/**：基于Django的管理API
-  - **frontend/**：基于React和Ant Design的管理界面
+- **admin_system/**：管理后台系统，用于内容审核和用户管理
+  - **backend/**：管理系统后端API
+  - **frontend/**：管理系统前端界面
+  - **docs/**：管理系统文档
 
 #### 🌐 官方网站
 - **web/**：项目官方网站，提供产品介绍、下载和文档入口
-  - 采用响应式设计，支持多设备访问
+  - **css/**：样式文件
+  - **js/**：JavaScript脚本
+  - **images/**：图片资源
 
 #### 📚 项目文档
 - **Info/**：详细的项目文档，包括开发指南、架构设计和API文档
-  - 面向开发者的技术文档
-  - 面向管理员的操作手册
-  - 项目规划和路线图
+  - **前端开发手册.md**：前端开发指南
+  - **后端模型详解.md**：后端数据模型文档
+  - **功能模块详细说明.md**：功能模块说明
+  - **安装和部署指南.md**：部署文档
+  - **开发者总体指南.md**：开发者指南
+  - **技术选型.md**：技术栈说明
+  - **项目结构.md**：项目结构概览
+  - **开发路线图.md**：开发路线图
 
 ## 💻 开发指南
 
