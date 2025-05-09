@@ -29,8 +29,8 @@ def validate_password_strength(value):
         raise ValidationError(_('密码必须包含至少一个字母'))
     
     # 至少包含一个特殊字符（可选）
-    # if not any(char in '!@#$%^&*()_+-=[]{}|;:,.<>?/~`' for char in value):
-    #     raise ValidationError(_('密码必须包含至少一个特殊字符'))
+    if not any(char in '!@#$%^&*()_+-=[]{}|;:,.<>?/~`' for char in value):
+        raise ValidationError(_('密码必须包含至少一个特殊字符'))
 
 def validate_username(value):
     """验证用户名"""

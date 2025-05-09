@@ -4,14 +4,10 @@
 
 import logging
 import time
-import subprocess
-import tempfile
-import os
 import re
 import difflib
-from django.conf import settings
 
-from code.utils.languages import LANGUAGE_CONFIG, get_language_extension, get_language_by_extension
+from code.utils.languages import LANGUAGE_CONFIG
 
 logger = logging.getLogger('backend')
 
@@ -34,79 +30,31 @@ class CodeService:
             dict: 运行结果
         """
         try:
-            start_time = time.time()
+            # 导入安全工具和沙箱
+            from code.utils.security import check_code_security
+            from code.utils.sandbox import run_code_in_sandbox
 
-            # 获取语言配置
-            lang_config = LANGUAGE_CONFIG.get(language.lower())
-            if not lang_config:
-                raise ValueError(f"不支持的语言: {language}")
-
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(suffix=f".{lang_config['extension']}", delete=False) as temp_file:
-                temp_file.write(code.encode('utf-8'))
-                temp_file_path = temp_file.name
-
-            # 创建输入文件（如果有输入数据）
-            input_file_path = None
-            if input_data:
-                with tempfile.NamedTemporaryFile(delete=False) as input_file:
-                    input_file.write(input_data.encode('utf-8'))
-                    input_file_path = input_file.name
-
-            # 准备命令
-            command = lang_config['run_command'].format(file=temp_file_path)
-
-            # 执行命令
-            try:
-                if input_data:
-                    with open(input_file_path, 'r') as input_file:
-                        process = subprocess.Popen(
-                            command,
-                            shell=True,
-                            stdin=input_file,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True
-                        )
-                else:
-                    process = subprocess.Popen(
-                        command,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-
-                # 设置超时时间
-                timeout = 10  # 10秒
-                output, error = process.communicate(timeout=timeout)
-
-                # 计算执行时间
-                execution_time = time.time() - start_time
-
-                # 估算内存使用（简单实现，实际应使用更准确的方法）
-                memory_usage = 0
-
-                return {
-                    'output': output,
-                    'error': error,
-                    'execution_time': execution_time,
-                    'memory_usage': memory_usage
-                }
-            except subprocess.TimeoutExpired:
-                process.kill()
+            # 检查代码安全性
+            security_check = check_code_security(code, language)
+            if not security_check['is_safe']:
                 return {
                     'output': '',
-                    'error': '执行超时',
-                    'execution_time': timeout,
-                    'memory_usage': 0
+                    'error': f"代码包含潜在的危险操作，无法执行。\n安全警告：\n" +
+                             "\n".join([f"- 第{w['line']}行: {w['message']}" for w in security_check['warnings'][:5]]),
+                    'execution_time': 0,
+                    'memory_usage': 0,
+                    'security_warnings': security_check['warnings']
                 }
-            finally:
-                # 清理临时文件
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                if input_file_path and os.path.exists(input_file_path):
-                    os.unlink(input_file_path)
+
+            # 在沙箱中运行代码
+            start_time = time.time()
+            result = run_code_in_sandbox(code, language, input_data)
+
+            # 添加执行时间（如果沙箱没有提供）
+            if not result.get('execution_time'):
+                result['execution_time'] = time.time() - start_time
+
+            return result
         except Exception as e:
             logger.error(f"运行代码失败: {e}")
             return {
@@ -264,75 +212,20 @@ class CodeService:
             dict: 格式化结果
         """
         try:
-            # 获取语言配置
-            lang_config = LANGUAGE_CONFIG.get(language.lower())
-            if not lang_config:
-                raise ValueError(f"不支持的语言: {language}")
+            # 导入格式化工具
+            from code.utils.formatters import format_code as format_code_util
 
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(suffix=f".{lang_config['extension']}", delete=False) as temp_file:
-                temp_file.write(code.encode('utf-8'))
-                temp_file_path = temp_file.name
+            # 使用格式化工具格式化代码
+            formatted_code = format_code_util(code, language, style)
 
-            # 准备格式化命令
-            format_command = lang_config.get('format_command')
-            if not format_command:
-                # 如果没有格式化命令，返回原始代码
-                return {
-                    'formatted_code': code,
-                    'language': language.lower(),
-                    'changes': 0
-                }
+            # 计算更改数量
+            changes = sum(1 for _ in difflib.ndiff(code.splitlines(), formatted_code.splitlines()) if _.startswith('+ ') or _.startswith('- '))
 
-            # 添加样式参数（如果有）
-            if style:
-                format_command = format_command.format(file=temp_file_path, style=style)
-            else:
-                format_command = format_command.format(file=temp_file_path, style='')
-
-            # 执行格式化命令
-            try:
-                process = subprocess.Popen(
-                    format_command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-
-                # 设置超时时间
-                timeout = 10  # 10秒
-                output, error = process.communicate(timeout=timeout)
-
-                # 如果有错误，返回原始代码
-                if error:
-                    logger.warning(f"格式化代码警告: {error}")
-
-                # 读取格式化后的代码
-                formatted_code = output
-                if not formatted_code and os.path.exists(temp_file_path):
-                    with open(temp_file_path, 'r', encoding='utf-8') as f:
-                        formatted_code = f.read()
-
-                # 计算更改数量
-                changes = sum(1 for _ in difflib.ndiff(code.splitlines(), formatted_code.splitlines()) if _.startswith('+ ') or _.startswith('- '))
-
-                return {
-                    'formatted_code': formatted_code,
-                    'language': language.lower(),
-                    'changes': changes
-                }
-            except subprocess.TimeoutExpired:
-                process.kill()
-                return {
-                    'formatted_code': code,
-                    'language': language.lower(),
-                    'changes': 0
-                }
-            finally:
-                # 清理临时文件
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
+            return {
+                'formatted_code': formatted_code,
+                'language': language.lower(),
+                'changes': changes
+            }
         except Exception as e:
             logger.error(f"格式化代码失败: {e}")
             return {
@@ -450,94 +343,17 @@ class CodeService:
             dict: 检查结果
         """
         try:
-            # 获取语言配置
-            lang_config = LANGUAGE_CONFIG.get(language.lower())
-            if not lang_config:
-                raise ValueError(f"不支持的语言: {language}")
+            # 导入检查工具
+            from code.utils.linters import lint_code as lint_code_util
 
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(suffix=f".{lang_config['extension']}", delete=False) as temp_file:
-                temp_file.write(code.encode('utf-8'))
-                temp_file_path = temp_file.name
+            # 使用检查工具检查代码
+            issues = lint_code_util(code, language, rules)
 
-            # 准备检查命令
-            lint_command = lang_config.get('lint_command')
-            if not lint_command:
-                # 如果没有检查命令，返回空结果
-                return {
-                    'issues': [],
-                    'language': language.lower(),
-                    'total_issues': 0
-                }
-
-            # 添加规则参数（如果有）
-            if rules:
-                rules_str = ' '.join(rules)
-                lint_command = lint_command.format(file=temp_file_path, rules=rules_str)
-            else:
-                lint_command = lint_command.format(file=temp_file_path, rules='')
-
-            # 执行检查命令
-            try:
-                process = subprocess.Popen(
-                    lint_command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-
-                # 设置超时时间
-                timeout = 10  # 10秒
-                output, error = process.communicate(timeout=timeout)
-
-                # 解析检查结果
-                issues = []
-
-                # 根据语言解析输出
-                if language.lower() == 'python':
-                    # 解析pylint输出
-                    for line in output.splitlines():
-                        match = re.match(r'(.+?):(\d+):(\d+): ([A-Z]\d+): (.+)', line)
-                        if match:
-                            file_path, line_num, col_num, code, message = match.groups()
-                            issues.append({
-                                'line': int(line_num),
-                                'column': int(col_num),
-                                'code': code,
-                                'message': message,
-                                'severity': 'warning' if code.startswith('W') else 'error' if code.startswith('E') else 'info'
-                            })
-                elif language.lower() in ['javascript', 'typescript']:
-                    # 解析eslint输出
-                    for line in output.splitlines():
-                        match = re.match(r'(.+?):(\d+):(\d+): (.+?) - (.+)', line)
-                        if match:
-                            file_path, line_num, col_num, severity, message = match.groups()
-                            issues.append({
-                                'line': int(line_num),
-                                'column': int(col_num),
-                                'code': '',
-                                'message': message,
-                                'severity': severity.lower()
-                            })
-
-                return {
-                    'issues': issues,
-                    'language': language.lower(),
-                    'total_issues': len(issues)
-                }
-            except subprocess.TimeoutExpired:
-                process.kill()
-                return {
-                    'issues': [],
-                    'language': language.lower(),
-                    'total_issues': 0
-                }
-            finally:
-                # 清理临时文件
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
+            return {
+                'issues': issues,
+                'language': language.lower(),
+                'total_issues': len(issues)
+            }
         except Exception as e:
             logger.error(f"检查代码失败: {e}")
             return {

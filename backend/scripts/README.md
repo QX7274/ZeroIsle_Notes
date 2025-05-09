@@ -1,55 +1,132 @@
-# 数据迁移和清理脚本
+# 脚本模块
 
-本目录包含用于将Django ORM数据迁移到MongoDB以及清理Django ORM相关文件的脚本。
+本目录包含零屿笔记应用的各种实用脚本，用于数据迁移、系统维护、数据库操作和其他管理任务。
 
-## 脚本说明
+## 目录结构
 
-### 1. migrate_to_mongodb.py
+- **migrate_to_mongodb.py**: 将Django ORM数据迁移到MongoDB
+- **cleanup_django_orm.py**: 清理Django ORM相关文件
+- **mongodb_init.py**: 初始化MongoDB数据库，创建必要的集合和索引
+- **create_superuser.py**: 创建超级用户脚本
+- **fix_admin_login.py**: 修复管理员登录脚本
+- **reset_admin_password.py**: 重置管理员密码脚本
+- **test_mongodb_auth.py**: MongoDB认证测试脚本
+
+## 主要脚本说明
+
+### 数据迁移脚本
+
+#### migrate_to_mongodb.py
 
 将Django ORM数据迁移到MongoDB。
 
-**功能**：
+**功能**:
 - 迁移用户数据
 - 迁移笔记数据
 - 迁移提醒数据
 - 迁移通知数据
 
-**使用方法**：
+**使用方法**:
 
 ```bash
 cd backend
 python scripts/migrate_to_mongodb.py
 ```
 
-### 2. cleanup_django_orm.py
+**参数**:
+- `--dry-run`: 模拟迁移过程，不实际修改数据
+- `--batch-size`: 设置批处理大小，默认为100
+- `--skip-tables`: 指定要跳过的表，用逗号分隔
+
+### 数据库操作脚本
+
+#### cleanup_django_orm.py
 
 清理Django ORM相关文件。
 
-**功能**：
+**功能**:
 - 删除迁移文件（migrations目录下的文件，保留__init__.py）
 - 删除Django ORM模型文件
 - 更新__init__.py文件，移除对Django ORM模型的导入
 
-**使用方法**：
+**使用方法**:
 
 ```bash
 cd backend
 python scripts/cleanup_django_orm.py
 ```
 
-### 3. mongodb_init.py
+#### mongodb_init.py
 
 初始化MongoDB数据库，创建必要的集合和索引。
 
-**功能**：
+**功能**:
 - 创建所有必要的集合
 - 为每个集合创建适当的索引
+- 设置数据库用户和权限
 
-**使用方法**：
+**使用方法**:
 
 ```bash
 cd backend
 python mongodb_init.py
+```
+
+**参数**:
+- `--drop-existing`: 删除现有数据库后重新创建
+- `--create-admin`: 创建管理员用户
+- `--admin-username`: 管理员用户名
+- `--admin-password`: 管理员密码
+
+### 用户管理脚本
+
+#### create_superuser.py
+
+创建超级用户。
+
+**功能**:
+- 创建具有管理员权限的用户
+- 设置用户名、邮箱和密码
+
+**使用方法**:
+
+```bash
+cd backend
+python scripts/create_superuser.py
+```
+
+#### reset_admin_password.py
+
+重置管理员密码。
+
+**功能**:
+- 重置指定管理员用户的密码
+- 生成新的随机密码或使用指定密码
+
+**使用方法**:
+
+```bash
+cd backend
+python scripts/reset_admin_password.py
+```
+
+### 测试脚本
+
+#### test_mongodb_auth.py
+
+测试MongoDB认证。
+
+**功能**:
+- 测试MongoDB连接和认证
+- 测试用户注册和登录
+- 测试验证码发送
+- 测试手机号注册和登录
+
+**使用方法**:
+
+```bash
+cd backend
+python scripts/test_mongodb_auth.py
 ```
 
 ## 迁移步骤
@@ -82,9 +159,92 @@ python scripts/cleanup_django_orm.py
 python mongodb_init.py
 ```
 
+## 脚本开发指南
+
+### 脚本结构
+
+新脚本应遵循以下基本结构：
+
+```python
+#!/usr/bin/env python
+"""
+脚本名称: 脚本简短描述
+
+详细描述...
+"""
+
+import os
+import sys
+import argparse
+import logging
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 设置Django环境
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+import django
+django.setup()
+
+# 导入Django模型和其他依赖
+from django.conf import settings
+from django.db import transaction
+# 其他导入...
+
+# 设置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description='脚本描述')
+    # 添加参数
+    parser.add_argument('--example', help='示例参数')
+    # 其他参数...
+    return parser.parse_args()
+
+def main():
+    """主函数"""
+    args = parse_arguments()
+
+    # 脚本逻辑...
+    logger.info('脚本开始执行')
+
+    try:
+        # 主要操作...
+        logger.info('操作成功')
+    except Exception as e:
+        logger.error(f'发生错误: {str(e)}')
+        return 1
+
+    logger.info('脚本执行完成')
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
+```
+
+### 最佳实践
+
+- **参数解析**: 使用argparse模块解析命令行参数
+- **日志记录**: 使用logging模块记录脚本执行情况
+- **错误处理**: 使用try-except捕获和处理异常
+- **事务管理**: 对数据库操作使用事务
+- **进度反馈**: 对长时间运行的操作提供进度反馈
+- **幂等性**: 确保脚本可以安全地多次运行
+- **文档**: 提供详细的脚本文档和使用说明
+
 ## 注意事项
 
-- 在执行迁移和清理脚本之前，建议先备份数据库和代码
+- **权限**: 某些脚本可能需要特定权限才能运行
+- **备份**: 在执行可能修改数据的脚本前，确保已备份数据
+- **测试**: 在生产环境运行前，先在测试环境测试脚本
+- **资源消耗**: 注意脚本的资源消耗，避免影响生产系统
+- **安全性**: 不要在脚本中硬编码敏感信息，如密码或API密钥
+- **日志**: 确保脚本记录足够的日志，便于问题排查
 - 迁移脚本会记录日志到migration.log文件
 - 清理脚本会记录日志到cleanup.log文件
 - 如果迁移过程中出现错误，请查看日志文件获取详细信息

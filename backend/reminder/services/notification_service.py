@@ -12,6 +12,12 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from reminder.mongodb_models import ReminderNotification, Reminder
 
+# 注意：以下导入是有条件的，在实际使用时才会导入
+# firebase_admin - 用于Firebase Cloud Messaging
+# apns2 - 用于Apple Push Notification Service
+# aliyunsdkcore - 用于阿里云短信服务
+# channels - 用于WebSocket通知
+
 logger = logging.getLogger('backend')
 
 class NotificationService:
@@ -631,9 +637,24 @@ class NotificationService:
             ReminderNotification: 创建的通知
         """
         try:
-            from reminder.services import ReminderService
+            # 获取下一次提醒时间
+            next_time = reminder.get_next_occurrence()
+            if not next_time:
+                return None
 
-            return ReminderService._schedule_notification(reminder)
+            # 创建通知
+            notification = ReminderNotification(
+                id=uuid.uuid4(),
+                reminder=reminder,
+                scheduled_time=next_time,
+                status='pending',
+                created_at=timezone.now(),
+                updated_at=timezone.now()
+            )
+            notification.save()
+
+            logger.info(f"成功为提醒 {reminder.title} 安排下一次通知，时间: {next_time}")
+            return notification
         except Exception as e:
             logger.error(f"安排下一次通知失败: {e}")
             return None
