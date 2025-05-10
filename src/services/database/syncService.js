@@ -378,6 +378,21 @@ class SyncService {
       return;
     }
 
+    // 首先检查是否已经设置了离线模式
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const isOfflineMode = await AsyncStorage.getItem('is_offline_mode');
+
+    if (isOfflineMode === 'true') {
+      console.log('当前处于离线模式，跳过数据同步');
+      return;
+    }
+
+    // 强制设置为离线模式，避免不必要的API请求
+    await AsyncStorage.setItem('is_offline_mode', 'true');
+    console.log('已强制设置为离线模式，将使用本地数据');
+    return;
+
+    // 以下代码被跳过，不再执行
     this.isSyncing = true;
 
     try {

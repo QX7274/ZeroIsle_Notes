@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Platform, LogBox } from 'react-native';
+import { Platform, LogBox, View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 // 忽略特定的警告
 LogBox.ignoreLogs([
@@ -10,6 +12,7 @@ LogBox.ignoreLogs([
 
 /**
  * 安全的日期时间选择器组件，避免使用可能导致问题的dismiss方法
+ * 增强版本，包含错误处理和备用UI
  *
  * @param {Object} props 组件属性
  * @param {Date} props.value 当前选择的日期
@@ -35,11 +38,27 @@ const SafeDateTimePicker = ({
   ...rest
 }) => {
   const [internalVisible, setInternalVisible] = useState(false);
+  const [fallbackVisible, setFallbackVisible] = useState(false);
+  const [dateTimePickerError, setDateTimePickerError] = useState(false);
+  const [selectedValue, setSelectedValue] = useState(value || new Date());
 
   // 同步外部visible状态
   useEffect(() => {
-    setInternalVisible(visible);
-  }, [visible]);
+    try {
+      setInternalVisible(visible);
+
+      // 如果原生选择器出错，则显示备用UI
+      if (visible && dateTimePickerError) {
+        setFallbackVisible(true);
+      }
+    } catch (error) {
+      console.warn('SafeDateTimePicker useEffect error:', error);
+      setDateTimePickerError(true);
+      if (visible) {
+        setFallbackVisible(true);
+      }
+    }
+  }, [visible, dateTimePickerError]);
 
   // 处理日期变化
   const handleChange = (event, selectedDate) => {
@@ -52,10 +71,13 @@ const SafeDateTimePicker = ({
 
       // 如果有选择日期，则调用onChange回调
       if (selectedDate && onChange) {
+        setSelectedValue(selectedDate);
         onChange(event, selectedDate);
       }
     } catch (error) {
       console.warn('SafeDateTimePicker handleChange error:', error);
+      // 标记为错误状态，下次将使用备用UI
+      setDateTimePickerError(true);
       // 确保选择器关闭
       setInternalVisible(false);
       if (onClose) {
@@ -64,13 +86,90 @@ const SafeDateTimePicker = ({
     }
   };
 
+  // 处理备用UI的确认按钮
+  const handleFallbackConfirm = () => {
+    setFallbackVisible(false);
+    if (onChange) {
+      // 创建一个模拟的事件对象
+      const event = { type: 'set', nativeEvent: { timestamp: selectedValue.getTime() } };
+      onChange(event, selectedValue);
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  // 处理备用UI的取消按钮
+  const handleFallbackCancel = () => {
+    setFallbackVisible(false);
+    if (onClose) {
+      onClose();
+    }
+  };
+
   // 如果不可见，则不渲染任何内容
-  if (!internalVisible) {
+  if (!internalVisible && !fallbackVisible) {
     return null;
   }
 
-  // 根据平台渲染不同的选择器
-  if (Platform.OS === 'ios') {
+  // 如果需要使用备用UI
+  if (dateTimePickerError || fallbackVisible) {
+    return (
+      <Modal
+        transparent={true}
+        visible={fallbackVisible}
+        onRequestClose={handleFallbackCancel}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {mode === 'date' ? '选择日期' : mode === 'time' ? '选择时间' : '选择日期和时间'}
+            </Text>
+
+            <Text style={styles.dateDisplay}>
+              {format(selectedValue, mode === 'date'
+                ? 'yyyy年MM月dd日'
+                : mode === 'time'
+                  ? 'HH:mm'
+                  : 'yyyy年MM月dd日 HH:mm',
+                { locale: zhCN }
+              )}
+            </Text>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity style={styles.button} onPress={handleFallbackCancel}>
+                <Text style={styles.buttonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={handleFallbackConfirm}>
+                <Text style={styles.confirmButtonText}>确定</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  // 尝试使用原生选择器
+  try {
+    // 根据平台渲染不同的选择器
+    if (Platform.OS === 'ios') {
+      return (
+        <DateTimePicker
+          value={value || new Date()}
+          mode={mode}
+          is24Hour={is24Hour}
+          display={display}
+          onChange={handleChange}
+          minimumDate={minimumDate}
+          maximumDate={maximumDate}
+          {...rest}
+        />
+      );
+    }
+
+    // Android平台
     return (
       <DateTimePicker
         value={value || new Date()}
@@ -80,26 +179,67 @@ const SafeDateTimePicker = ({
         onChange={handleChange}
         minimumDate={minimumDate}
         maximumDate={maximumDate}
+        positiveButton={{label: '确定'}}
+        negativeButton={{label: '取消'}}
         {...rest}
       />
     );
+  } catch (error) {
+    console.error('渲染DateTimePicker时出错:', error);
+    // 标记为错误状态，下次将使用备用UI
+    setDateTimePickerError(true);
+    // 显示备用UI
+    setFallbackVisible(true);
+    return null;
   }
-
-  // Android平台
-  return (
-    <DateTimePicker
-      value={value || new Date()}
-      mode={mode}
-      is24Hour={is24Hour}
-      display={display}
-      onChange={handleChange}
-      minimumDate={minimumDate}
-      maximumDate={maximumDate}
-      positiveButton={{label: '确定'}}
-      negativeButton={{label: '取消'}}
-      {...rest}
-    />
-  );
 };
+
+// 样式
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  dateDisplay: {
+    fontSize: 24,
+    marginBottom: 30,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  button: {
+    padding: 10,
+    borderRadius: 5,
+    width: '45%',
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontSize: 16,
+    color: '#007AFF',
+  },
+  confirmButton: {
+    backgroundColor: '#007AFF',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    color: 'white',
+  },
+});
 
 export default SafeDateTimePicker;

@@ -1,6 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import SafeAsyncStorage from '../../utils/safeAsyncStorage';
 
-// 存储键
+// 存储�?
 const KEYS = {
   TOKEN: 'zeroislenotes_token',
   REFRESH_TOKEN: 'zeroislenotes_refresh_token',
@@ -27,7 +27,7 @@ const setItem = async (key, value) => {
   const safeKey = String(key);
 
   try {
-    await AsyncStorage.setItem(safeKey, value);
+    await SafeAsyncStorage.setItem(safeKey, value);
     return true;
   } catch (error) {
     console.error(`保存数据失败 [${safeKey}]:`, error);
@@ -46,7 +46,7 @@ const getItem = async (key) => {
   const safeKey = String(key);
 
   try {
-    return await AsyncStorage.getItem(safeKey);
+    return await SafeAsyncStorage.getItem(safeKey);
   } catch (error) {
     console.error(`获取数据失败 [${safeKey}]:`, error);
     return null;
@@ -64,7 +64,7 @@ const removeItem = async (key) => {
   const safeKey = String(key);
 
   try {
-    await AsyncStorage.removeItem(safeKey);
+    await SafeAsyncStorage.removeItem(safeKey);
     return true;
   } catch (error) {
     console.error(`删除数据失败 [${safeKey}]:`, error);
@@ -103,7 +103,7 @@ const storageService = {
 // Token 相关
 export const setToken = async (token) => {
   try {
-    await AsyncStorage.setItem(KEYS.TOKEN, token);
+    await SafeAsyncStorage.setItem(KEYS.TOKEN, token);
     return true;
   } catch (error) {
     console.error('保存令牌失败:', error);
@@ -113,21 +113,21 @@ export const setToken = async (token) => {
 
 export const getToken = async () => {
   try {
-    return await AsyncStorage.getItem(KEYS.TOKEN);
+    return await SafeAsyncStorage.getItem(KEYS.TOKEN);
   } catch (error) {
     console.error('获取令牌失败:', error);
     return null;
   }
 };
 
-// 同步获取令牌（用于拦截器）
+// 同步获取令牌（用于拦截器�?
 export const getTokenSync = () => {
-  // 从Redux存储中获取令牌
+  // 从Redux存储中获取令�?
   try {
     // 导入Redux存储
     const { store } = require('../store');
 
-    // 获取当前状态
+    // 获取当前状�?
     const state = store.getState();
 
     // 兼容新旧Redux结构
@@ -148,8 +148,8 @@ export const getTokenSync = () => {
 
 export const removeToken = async () => {
   try {
-    await AsyncStorage.removeItem(KEYS.TOKEN);
-    await AsyncStorage.removeItem(KEYS.REFRESH_TOKEN);
+    await SafeAsyncStorage.removeItem(KEYS.TOKEN);
+    await SafeAsyncStorage.removeItem(KEYS.REFRESH_TOKEN);
     return true;
   } catch (error) {
     console.error('移除令牌失败:', error);
@@ -160,7 +160,7 @@ export const removeToken = async () => {
 // 刷新令牌相关
 export const setRefreshToken = async (token) => {
   try {
-    await AsyncStorage.setItem(KEYS.REFRESH_TOKEN, token);
+    await SafeAsyncStorage.setItem(KEYS.REFRESH_TOKEN, token);
     return true;
   } catch (error) {
     console.error('保存刷新令牌失败:', error);
@@ -170,7 +170,7 @@ export const setRefreshToken = async (token) => {
 
 export const getRefreshToken = async () => {
   try {
-    return await AsyncStorage.getItem(KEYS.REFRESH_TOKEN);
+    return await SafeAsyncStorage.getItem(KEYS.REFRESH_TOKEN);
   } catch (error) {
     console.error('获取刷新令牌失败:', error);
     return null;
@@ -180,7 +180,7 @@ export const getRefreshToken = async () => {
 // 用户信息相关
 export const setUser = async (user) => {
   try {
-    await AsyncStorage.setItem(KEYS.USER, JSON.stringify(user));
+    await SafeAsyncStorage.setItem(KEYS.USER, JSON.stringify(user));
     return true;
   } catch (error) {
     console.error('保存用户信息失败:', error);
@@ -190,7 +190,7 @@ export const setUser = async (user) => {
 
 export const getUser = async () => {
   try {
-    const user = await AsyncStorage.getItem(KEYS.USER);
+    const user = await SafeAsyncStorage.getItem(KEYS.USER);
     return user ? JSON.parse(user) : null;
   } catch (error) {
     console.error('获取用户信息失败:', error);
@@ -200,7 +200,7 @@ export const getUser = async () => {
 
 export const removeUser = async () => {
   try {
-    await AsyncStorage.removeItem(KEYS.USER);
+    await SafeAsyncStorage.removeItem(KEYS.USER);
     return true;
   } catch (error) {
     console.error('移除用户信息失败:', error);
@@ -211,7 +211,7 @@ export const removeUser = async () => {
 // 主题相关
 export const setTheme = async (theme) => {
   try {
-    await AsyncStorage.setItem(KEYS.THEME, theme);
+    await SafeAsyncStorage.setItem(KEYS.THEME, theme);
     return true;
   } catch (error) {
     console.error('保存主题失败:', error);
@@ -221,7 +221,7 @@ export const setTheme = async (theme) => {
 
 export const getTheme = async () => {
   try {
-    const theme = await AsyncStorage.getItem(KEYS.THEME);
+    const theme = await SafeAsyncStorage.getItem(KEYS.THEME);
     return theme || 'system';
   } catch (error) {
     console.error('获取主题失败:', error);
@@ -232,7 +232,7 @@ export const getTheme = async () => {
 // 主题风格相关
 export const setThemeStyle = async (style) => {
   try {
-    await AsyncStorage.setItem(KEYS.THEME_STYLE, style);
+    await SafeAsyncStorage.setItem(KEYS.THEME_STYLE, style);
     return true;
   } catch (error) {
     console.error('保存主题风格失败:', error);
@@ -242,7 +242,7 @@ export const setThemeStyle = async (style) => {
 
 export const getThemeStyle = async () => {
   try {
-    const style = await AsyncStorage.getItem(KEYS.THEME_STYLE);
+    const style = await SafeAsyncStorage.getItem(KEYS.THEME_STYLE);
     return style || 'classic';
   } catch (error) {
     console.error('获取主题风格失败:', error);
@@ -250,23 +250,23 @@ export const getThemeStyle = async () => {
   }
 };
 
-// 自定义主题相关
+// 自定义主题相�?
 export const setCustomTheme = async (customTheme) => {
   try {
-    await AsyncStorage.setItem(KEYS.CUSTOM_THEME, JSON.stringify(customTheme));
+    await SafeAsyncStorage.setItem(KEYS.CUSTOM_THEME, JSON.stringify(customTheme));
     return true;
   } catch (error) {
-    console.error('保存自定义主题失败:', error);
+    console.error('保存自定义主题失�?', error);
     return false;
   }
 };
 
 export const getCustomTheme = async () => {
   try {
-    const customTheme = await AsyncStorage.getItem(KEYS.CUSTOM_THEME);
+    const customTheme = await SafeAsyncStorage.getItem(KEYS.CUSTOM_THEME);
     return customTheme ? JSON.parse(customTheme) : { light: {}, dark: {} };
   } catch (error) {
-    console.error('获取自定义主题失败:', error);
+    console.error('获取自定义主题失�?', error);
     return { light: {}, dark: {} };
   }
 };
@@ -274,7 +274,7 @@ export const getCustomTheme = async () => {
 // 语言相关
 export const setLanguage = async (language) => {
   try {
-    await AsyncStorage.setItem(KEYS.LANGUAGE, language);
+    await SafeAsyncStorage.setItem(KEYS.LANGUAGE, language);
     return true;
   } catch (error) {
     console.error('保存语言失败:', error);
@@ -284,7 +284,7 @@ export const setLanguage = async (language) => {
 
 export const getLanguage = async () => {
   try {
-    const language = await AsyncStorage.getItem(KEYS.LANGUAGE);
+    const language = await SafeAsyncStorage.getItem(KEYS.LANGUAGE);
     return language || 'zh-CN';
   } catch (error) {
     console.error('获取语言失败:', error);
@@ -295,7 +295,7 @@ export const getLanguage = async () => {
 // 设置相关
 export const setSettings = async (settings) => {
   try {
-    await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    await SafeAsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     return true;
   } catch (error) {
     console.error('保存设置失败:', error);
@@ -305,7 +305,7 @@ export const setSettings = async (settings) => {
 
 export const getSettings = async () => {
   try {
-    const settings = await AsyncStorage.getItem(KEYS.SETTINGS);
+    const settings = await SafeAsyncStorage.getItem(KEYS.SETTINGS);
     return settings ? JSON.parse(settings) : {};
   } catch (error) {
     console.error('获取设置失败:', error);
@@ -313,52 +313,52 @@ export const getSettings = async () => {
   }
 };
 
-// 最近搜索相关
+// 最近搜索相�?
 export const setRecentSearches = async (searches) => {
   try {
-    await AsyncStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(searches));
+    await SafeAsyncStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(searches));
     return true;
   } catch (error) {
-    console.error('保存最近搜索失败:', error);
+    console.error('保存最近搜索失�?', error);
     return false;
   }
 };
 
 export const getRecentSearches = async () => {
   try {
-    const searches = await AsyncStorage.getItem(KEYS.RECENT_SEARCHES);
+    const searches = await SafeAsyncStorage.getItem(KEYS.RECENT_SEARCHES);
     return searches ? JSON.parse(searches) : [];
   } catch (error) {
-    console.error('获取最近搜索失败:', error);
+    console.error('获取最近搜索失�?', error);
     return [];
   }
 };
 
-// 最近笔记相关
+// 最近笔记相�?
 export const setRecentNotes = async (notes) => {
   try {
-    await AsyncStorage.setItem(KEYS.RECENT_NOTES, JSON.stringify(notes));
+    await SafeAsyncStorage.setItem(KEYS.RECENT_NOTES, JSON.stringify(notes));
     return true;
   } catch (error) {
-    console.error('保存最近笔记失败:', error);
+    console.error('保存最近笔记失�?', error);
     return false;
   }
 };
 
 export const getRecentNotes = async () => {
   try {
-    const notes = await AsyncStorage.getItem(KEYS.RECENT_NOTES);
+    const notes = await SafeAsyncStorage.getItem(KEYS.RECENT_NOTES);
     return notes ? JSON.parse(notes) : [];
   } catch (error) {
-    console.error('获取最近笔记失败:', error);
+    console.error('获取最近笔记失�?', error);
     return [];
   }
 };
 
-// 清除所有存储
+// 清除所有存�?
 export const clearAll = async () => {
   try {
-    await AsyncStorage.clear();
+    await SafeAsyncStorage.clear();
     return true;
   } catch (error) {
     console.error('清除存储失败:', error);
@@ -369,7 +369,7 @@ export const clearAll = async () => {
 // 清除认证相关存储
 export const clearAuth = async () => {
   try {
-    await AsyncStorage.multiRemove([KEYS.TOKEN, KEYS.REFRESH_TOKEN, KEYS.USER]);
+    await SafeAsyncStorage.multiRemove([KEYS.TOKEN, KEYS.REFRESH_TOKEN, KEYS.USER]);
     return true;
   } catch (error) {
     console.error('清除认证存储失败:', error);
@@ -377,23 +377,23 @@ export const clearAuth = async () => {
   }
 };
 
-// 可访问性设置相关
+// 可访问性设置相�?
 export const setAccessibilitySettings = async (settings) => {
   try {
-    await AsyncStorage.setItem(KEYS.ACCESSIBILITY, JSON.stringify(settings));
+    await SafeAsyncStorage.setItem(KEYS.ACCESSIBILITY, JSON.stringify(settings));
     return true;
   } catch (error) {
-    console.error('保存可访问性设置失败:', error);
+    console.error('保存可访问性设置失�?', error);
     return false;
   }
 };
 
 export const getAccessibilitySettings = async () => {
   try {
-    const settings = await AsyncStorage.getItem(KEYS.ACCESSIBILITY);
+    const settings = await SafeAsyncStorage.getItem(KEYS.ACCESSIBILITY);
     return settings ? JSON.parse(settings) : {};
   } catch (error) {
-    console.error('获取可访问性设置失败:', error);
+    console.error('获取可访问性设置失�?', error);
     return {};
   }
 };

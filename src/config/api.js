@@ -14,6 +14,9 @@ console.log('API_URL:', API_URL);
 console.log('API_VERSION:', API_VERSION);
 console.log('API基础URL构建过程:', `${API_URL}/api/${API_VERSION}`);
 
+// 检查API路径是否正确
+console.log('后端API路径示例:', `${API_URL}/api/v1/notes/`);
+
 // 调试信息
 console.log('API_BASE_URL:', API_BASE_URL);
 

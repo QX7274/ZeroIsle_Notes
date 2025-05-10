@@ -344,7 +344,7 @@ const infiniteCanvasStorage = {
       // 防御性检查：确保canvasId不为null或undefined
       if (!canvasId) {
         console.warn('_getCanvasFromOfflineStorage: canvasId为null或undefined');
-        return null;
+        return this._createEmptyCanvas(Date.now().toString());
       }
 
       // 使用安全的参数值
@@ -358,52 +358,24 @@ const infiniteCanvasStorage = {
 
       console.log(`从offlineStorageService获取画布 ${safeCanvasId}`);
 
-      // 尝试多种方法获取画布
+      // 尝试获取画布
       let canvas = null;
 
-      // 方法1: 使用getCanvas方法
-      if (typeof offlineStorageService.getCanvas === 'function') {
-        try {
-          console.log(`尝试使用getCanvas方法`);
-          canvas = await offlineStorageService.getCanvas(safeCanvasId);
-          if (canvas) {
-            console.log(`使用getCanvas方法成功获取画布`);
-          }
-        } catch (getCanvasError) {
-          console.error(`调用offlineStorageService.getCanvas失败:`, getCanvasError);
+      // 直接使用getCanvas方法，不再检查方法是否存在
+      try {
+        console.log(`尝试使用getCanvas方法`);
+        canvas = await offlineStorageService.getCanvas(safeCanvasId);
+        if (canvas) {
+          console.log(`使用getCanvas方法成功获取画布`);
         }
-      } else {
-        console.warn('offlineStorageService.getCanvas方法未定义');
+      } catch (getCanvasError) {
+        console.error(`调用offlineStorageService.getCanvas失败:`, getCanvasError);
+        // 如果getCanvas方法失败，创建一个空画布
+        console.warn(`getCanvas方法失败，创建空画布: ${safeCanvasId}`);
+        return this._createEmptyCanvas(safeCanvasId);
       }
 
-      // 方法2: 如果方法1失败，尝试使用getCanvasById方法
-      if (!canvas && typeof offlineStorageService.getCanvasById === 'function') {
-        try {
-          console.log(`尝试使用getCanvasById作为备选方法`);
-          canvas = await offlineStorageService.getCanvasById(safeCanvasId);
-          if (canvas) {
-            console.log(`使用getCanvasById方法成功获取画布`);
-          }
-        } catch (fallbackError) {
-          console.error(`备选方法getCanvasById也失败:`, fallbackError);
-        }
-      }
-
-      // 方法3: 如果方法1和方法2都失败，尝试直接从getCanvases获取
-      if (!canvas && typeof offlineStorageService.getCanvases === 'function') {
-        try {
-          console.log(`尝试从所有画布中查找`);
-          const canvases = await offlineStorageService.getCanvases();
-          canvas = canvases.find(c => c.id === safeCanvasId);
-          if (canvas) {
-            console.log(`从所有画布中成功找到画布`);
-          }
-        } catch (getCanvasesError) {
-          console.error(`从所有画布中查找失败:`, getCanvasesError);
-        }
-      }
-
-      // 如果所有方法都失败，创建一个空画布
+      // 如果没有找到画布，创建一个空画布
       if (!canvas) {
         console.warn(`在offlineStorageService中未找到画布 ${safeCanvasId}，创建空画布`);
         return this._createEmptyCanvas(safeCanvasId);
@@ -425,7 +397,7 @@ const infiniteCanvasStorage = {
       };
     } catch (error) {
       console.error(`从offlineStorageService获取画布 ${canvasId} 失败:`, error);
-      return this._createEmptyCanvas(String(canvasId || ''));
+      return this._createEmptyCanvas(String(canvasId || Date.now().toString()));
     }
   },
 

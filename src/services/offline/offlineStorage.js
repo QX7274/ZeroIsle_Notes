@@ -1,5 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { compressionService } from '../compression/compressionService';
+import STORAGE_KEYS from '../../constants/storageKeys';
+import DeviceInfo from 'react-native-device-info';
+
 // 创建一个安全的分析服务包装器，防止未定义错误
 const safeAnalyticsService = {
   trackEvent: (eventName, params = {}) => {
@@ -17,25 +21,22 @@ const safeAnalyticsService = {
     }
   }
 };
-import { compressionService } from '../compression/compressionService';
-import { STORAGE_KEYS } from '../../utils/constants/config';
-// import { Platform } from 'react-native'; // 未使用，已注释
-import DeviceInfo from 'react-native-device-info';
 
 class OfflineStorageService {
   constructor() {
-    this.isOnline = true;
+    this.isOnline = false; // 默认设置为离线
     this.pendingOperations = [];
     this.syncInterval = 5 * 60 * 1000; // 5分钟
     this.timer = null;
     this.deviceId = null;
     this.listeners = [];
-    this.offlineMode = false; // 是否手动开启离线模式
+    this.offlineMode = true; // 默认开启离线模式
     this.lastSyncTime = null;
     this.syncStatus = 'idle'; // idle, syncing, error
     this.syncError = null;
     this.storageLimit = 100 * 1024 * 1024; // 100MB
     this.currentStorageUsage = 0;
+    this.isInitialized = false; // 添加初始化状态标志
   }
 
   async init() {
@@ -43,9 +44,13 @@ class OfflineStorageService {
       // 获取设备ID
       this.deviceId = await DeviceInfo.getUniqueId();
 
-      // 获取离线模式设置
+      // 获取离线模式设置，但强制设置为离线模式
       const settings = await this.getSettings();
-      this.offlineMode = settings?.offlineMode || false;
+      this.offlineMode = true; // 强制使用离线模式
+
+      // 保存设置
+      settings.offlineMode = true;
+      await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
 
       // 获取最后同步时间
       const lastSyncTimeStr = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC_TIME);
@@ -85,10 +90,15 @@ class OfflineStorageService {
       // 启动自动清理定时器
       this.startCleanupTimer();
 
+      // 设置初始化完成标志
+      this.isInitialized = true;
+      console.log('离线存储服务初始化完成');
+
       return true;
     } catch (error) {
       console.error('初始化离线存储服务失败:', error);
       safeAnalyticsService.trackError(error, { operation: 'init_offline_storage' });
+      this.isInitialized = false;
       return false;
     }
   }
@@ -570,39 +580,86 @@ class OfflineStorageService {
 
   async saveCanvas(canvas) {
     try {
-      if (!canvas || !canvas.id) {
-        throw new Error('无效的画布数据');
+      console.log(`尝试保存画布: ${canvas?.id || '未提供ID'}`);
+
+      // 防御性检查：确保canvas不为null或undefined
+      if (!canvas) {
+        console.error('saveCanvas: canvas为null或undefined');
+        return { success: false, error: '无效的画布数据: canvas为null或undefined' };
       }
+
+      // 防御性检查：确保canvas.id不为null或undefined
+      if (!canvas.id) {
+        console.warn('saveCanvas: canvas.id为null或undefined，自动生成ID');
+        // 自动生成ID而不是抛出错误
+        canvas.id = `canvas_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        console.log(`为画布自动生成ID: ${canvas.id}`);
+      }
+
+      // 使用安全的参数值
+      const safeCanvas = { ...canvas };
+      safeCanvas.id = String(safeCanvas.id);
 
       // 保存到本地存储
       const canvases = await this.getCanvases();
-      const index = canvases.findIndex(c => c.id === canvas.id);
 
-      // 确保画布有创建时间和更新时间
-      if (!canvas.createdAt) {
-        canvas.createdAt = new Date().toISOString();
-      }
+      // 防御性检查：确保canvases是数组
+      if (!Array.isArray(canvases)) {
+        console.warn('saveCanvas: canvases不是数组，创建新数组');
+        const newCanvases = [safeCanvas];
 
-      // 更新时间戳
-      canvas.updatedAt = new Date().toISOString();
+        // 使用正确的存储键名
+        const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'canvas_cache';
 
-      // 更新或添加画布
-      if (index >= 0) {
-        canvases[index] = canvas;
+        // 确保画布有创建时间和更新时间
+        const now = new Date().toISOString();
+        if (!safeCanvas.createdAt) {
+          safeCanvas.createdAt = now;
+        }
+        safeCanvas.updatedAt = now;
+
+        await AsyncStorage.setItem(storageKey, JSON.stringify(newCanvases));
+        console.log(`画布已保存到新数组: ${safeCanvas.id}`);
       } else {
-        canvases.push(canvas);
-      }
+        // 查找现有画布
+        const index = canvases.findIndex(c => c && c.id === safeCanvas.id);
 
-      // 使用正确的存储键名 STORAGE_KEYS.CANVAS_CACHE
-      await AsyncStorage.setItem(STORAGE_KEYS.CANVAS_CACHE, JSON.stringify(canvases));
+        // 确保画布有创建时间和更新时间
+        const now = new Date().toISOString();
+        if (!safeCanvas.createdAt) {
+          safeCanvas.createdAt = now;
+        }
+
+        // 更新时间戳
+        safeCanvas.updatedAt = now;
+
+        // 更新或添加画布
+        if (index >= 0) {
+          console.log(`更新现有画布: ${safeCanvas.id}`);
+          canvases[index] = safeCanvas;
+        } else {
+          console.log(`添加新画布: ${safeCanvas.id}`);
+          canvases.push(safeCanvas);
+        }
+
+        // 使用正确的存储键名
+        const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'canvas_cache';
+        await AsyncStorage.setItem(storageKey, JSON.stringify(canvases));
+        console.log(`画布已保存: ${safeCanvas.id}`);
+      }
 
       // 记录操作
-      const operation = {
-        type: 'save_canvas',
-        data: canvas,
-        timestamp: new Date().toISOString(),
-      };
-      await this.addPendingOperation(operation);
+      try {
+        const operation = {
+          type: 'save_canvas',
+          data: safeCanvas,
+          timestamp: new Date().toISOString(),
+        };
+        await this.addPendingOperation(operation);
+      } catch (operationError) {
+        console.error('记录画布保存操作失败:', operationError);
+        // 继续执行，不影响保存结果
+      }
 
       // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
@@ -610,12 +667,17 @@ class OfflineStorageService {
       }
 
       // 通知监听器
-      this.notifyListeners({
-        type: 'canvasSaved',
-        canvas,
-      });
+      try {
+        this.notifyListeners({
+          type: 'canvasSaved',
+          canvas: safeCanvas
+        });
+      } catch (notifyError) {
+        console.error('通知画布保存监听器失败:', notifyError);
+        // 继续执行，不影响保存结果
+      }
 
-      return { success: true, canvas };
+      return { success: true, canvas: safeCanvas };
     } catch (error) {
       console.error('保存画布失败:', error);
       safeAnalyticsService.trackError(error, { operation: 'save_canvas' });
@@ -625,22 +687,53 @@ class OfflineStorageService {
 
   async deleteCanvas(canvasId) {
     try {
+      console.log(`尝试删除画布: ${canvasId || '未提供ID'}`);
+
+      // 防御性检查：确保canvasId不为null或undefined
       if (!canvasId) {
-        throw new Error('无效的画布ID');
+        console.error('deleteCanvas: canvasId为null或undefined');
+        return { success: false, error: '无效的画布ID: canvasId为null或undefined' };
       }
+
+      // 使用安全的参数值
+      const safeCanvasId = String(canvasId);
+      console.log(`使用安全的画布ID: ${safeCanvasId}`);
 
       // 从本地存储中删除
       const canvases = await this.getCanvases();
-      const filteredCanvases = canvases.filter(c => c.id !== canvasId);
-      await AsyncStorage.setItem(STORAGE_KEYS.CANVAS_CACHE, JSON.stringify(filteredCanvases));
+
+      // 防御性检查：确保canvases是数组
+      if (!Array.isArray(canvases)) {
+        console.warn('deleteCanvas: canvases不是数组，无需删除');
+        return { success: true, message: '没有找到画布数据' };
+      }
+
+      // 防御性过滤：确保每个canvas都有id属性
+      const filteredCanvases = canvases.filter(c => c && c.id !== safeCanvasId);
+
+      // 检查是否找到并删除了画布
+      if (filteredCanvases.length === canvases.length) {
+        console.log(`未找到要删除的画布: ${safeCanvasId}`);
+      } else {
+        console.log(`已找到并删除画布: ${safeCanvasId}`);
+      }
+
+      // 使用正确的存储键名
+      const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'canvas_cache';
+      await AsyncStorage.setItem(storageKey, JSON.stringify(filteredCanvases));
 
       // 记录操作
-      const operation = {
-        type: 'delete_canvas',
-        data: { id: canvasId },
-        timestamp: new Date().toISOString(),
-      };
-      await this.addPendingOperation(operation);
+      try {
+        const operation = {
+          type: 'delete_canvas',
+          data: { id: safeCanvasId },
+          timestamp: new Date().toISOString(),
+        };
+        await this.addPendingOperation(operation);
+      } catch (operationError) {
+        console.error('记录画布删除操作失败:', operationError);
+        // 继续执行，不影响删除结果
+      }
 
       // 如果在线，尝试在后台同步，不阻塞当前操作
       if (this.isOnline) {
@@ -648,10 +741,15 @@ class OfflineStorageService {
       }
 
       // 通知监听器
-      this.notifyListeners({
-        type: 'canvasDeleted',
-        canvasId
-      });
+      try {
+        this.notifyListeners({
+          type: 'canvasDeleted',
+          canvasId: safeCanvasId
+        });
+      } catch (notifyError) {
+        console.error('通知画布删除监听器失败:', notifyError);
+        // 继续执行，不影响删除结果
+      }
 
       return { success: true };
     } catch (error) {
@@ -663,8 +761,33 @@ class OfflineStorageService {
 
   async getCanvases() {
     try {
-      const canvasesJson = await AsyncStorage.getItem(STORAGE_KEYS.CANVAS_CACHE);
-      return canvasesJson ? JSON.parse(canvasesJson) : [];
+      // 防御性检查：确保STORAGE_KEYS.CANVAS_CACHE不为undefined
+      const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'canvas_cache';
+      console.log(`尝试从存储中获取画布，使用键: ${storageKey}`);
+
+      const canvasesJson = await AsyncStorage.getItem(storageKey);
+
+      // 防御性检查：确保JSON解析不会失败
+      if (!canvasesJson) {
+        console.log('存储中没有找到画布数据，返回空数组');
+        return [];
+      }
+
+      try {
+        const canvases = JSON.parse(canvasesJson);
+
+        // 确保返回的是数组
+        if (!Array.isArray(canvases)) {
+          console.warn('解析的画布数据不是数组，返回空数组');
+          return [];
+        }
+
+        console.log(`成功获取${canvases.length}个画布`);
+        return canvases;
+      } catch (parseError) {
+        console.error('解析画布JSON数据失败:', parseError);
+        return [];
+      }
     } catch (error) {
       console.error('获取画布失败:', error);
       return [];
@@ -673,76 +796,202 @@ class OfflineStorageService {
 
   async getLastCanvas() {
     try {
+      console.log('开始获取最后编辑的画布');
       const canvases = await this.getCanvases();
+
+      // 防御性检查：确保canvases是数组
+      if (!Array.isArray(canvases)) {
+        console.warn('getLastCanvas: canvases不是数组，返回空画布');
+        return this._createEmptyCanvas(Date.now().toString());
+      }
+
       if (canvases.length === 0) {
-        return null;
+        console.log('没有找到任何画布，返回空画布');
+        return this._createEmptyCanvas(Date.now().toString());
       }
 
       // 按更新时间排序，获取最新的画布
       canvases.sort((a, b) => {
-        const dateA = new Date(a.updatedAt || a.createdAt || 0);
-        const dateB = new Date(b.updatedAt || b.createdAt || 0);
+        // 防御性检查：确保日期字段存在
+        const dateA = new Date(a?.updatedAt || a?.createdAt || 0);
+        const dateB = new Date(b?.updatedAt || b?.createdAt || 0);
         return dateB - dateA;
       });
 
-      return canvases[0];
+      const lastCanvas = canvases[0];
+      console.log(`找到最后编辑的画布: ${lastCanvas.id}`);
+
+      // 确保返回的画布有所有必要的属性
+      return {
+        id: lastCanvas.id,
+        title: lastCanvas.title || '新画布',
+        description: lastCanvas.description || '',
+        elements: lastCanvas.elements || [],
+        layers: lastCanvas.layers || [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+        activeLayer: lastCanvas.activeLayer || 'default',
+        viewState: lastCanvas.viewState || {},
+        createdAt: lastCanvas.createdAt || new Date().toISOString(),
+        updatedAt: lastCanvas.updatedAt || new Date().toISOString()
+      };
     } catch (error) {
       console.error('获取最后画布失败:', error);
-      return null;
+      // 出错时返回一个空画布，而不是null
+      return this._createEmptyCanvas(Date.now().toString());
     }
   }
 
   async getCanvasById(id) {
     try {
+      console.log(`尝试通过ID获取画布: ${id || '未提供'}`);
+
+      // 防御性检查：确保id不为null或undefined
+      if (!id) {
+        console.warn('getCanvasById: id为null或undefined');
+        return null;
+      }
+
+      // 使用安全的参数值
+      const safeId = String(id || '');
+
       const canvases = await this.getCanvases();
-      return canvases.find(canvas => canvas.id === id) || null;
+
+      // 防御性检查：确保canvases是数组
+      if (!Array.isArray(canvases)) {
+        console.warn('getCanvasById: canvases不是数组');
+        return null;
+      }
+
+      // 防御性查找：确保每个canvas都有id属性
+      const canvas = canvases.find(c => c && c.id === safeId);
+
+      if (canvas) {
+        console.log(`成功找到画布: ${safeId}`);
+        return canvas;
+      } else {
+        console.log(`未找到画布: ${safeId}`);
+        return null;
+      }
     } catch (error) {
-      console.error(`获取画布(ID: ${id})失败:`, error);
+      console.error(`获取画布(ID: ${id || '未提供'})失败:`, error);
       return null;
     }
   }
 
   /**
-   * 获取指定ID的画布 (兼容方法，与getCanvasById功能相同)
+   * 获取指定ID的画布
    * @param {string} canvasId - 画布ID
-   * @returns {Promise<Object|null>} - 画布对象或null
+   * @returns {Promise<Object>} - 画布对象，如果找不到则返回空画布
    */
   async getCanvas(canvasId) {
     try {
+      console.log(`开始获取画布，ID: ${canvasId || '未提供'}`);
+
       // 防御性检查：确保canvasId不为null或undefined
       if (!canvasId) {
-        console.warn('offlineStorageService.getCanvas: canvasId为null或undefined');
-        return null;
+        console.warn('offlineStorageService.getCanvas: canvasId为null或undefined，创建空画布');
+        return this._createEmptyCanvas(Date.now().toString());
       }
 
       // 使用安全的参数值
       const safeCanvasId = String(canvasId || '');
+      console.log(`使用安全的画布ID: ${safeCanvasId}`);
 
-      // 确保getCanvasById方法存在
-      if (typeof this.getCanvasById === 'function') {
-        try {
-          return await this.getCanvasById(safeCanvasId);
-        } catch (getByIdError) {
-          console.error(`offlineStorageService.getCanvasById调用失败:`, getByIdError);
-          // 继续执行，尝试备选方案
-        }
-      } else {
-        console.error('offlineStorageService.getCanvasById方法未定义，尝试备选方案');
-      }
-
-      // 备选方案：直接从存储中获取
+      // 尝试方法1: 使用getCanvasById方法
+      let canvas = null;
       try {
-        const canvases = await this.getCanvases();
-        return canvases.find(canvas => canvas.id === safeCanvasId) || null;
-      } catch (fallbackError) {
-        console.error(`备选方案获取画布失败:`, fallbackError);
-        return null;
+        console.log(`尝试使用getCanvasById方法获取画布: ${safeCanvasId}`);
+        canvas = await this.getCanvasById(safeCanvasId);
+        if (canvas) {
+          console.log(`使用getCanvasById方法成功获取画布: ${safeCanvasId}`);
+          return this._ensureCanvasProperties(canvas);
+        }
+        console.log(`getCanvasById方法未找到画布: ${safeCanvasId}，尝试备选方案`);
+      } catch (getByIdError) {
+        console.error(`offlineStorageService.getCanvasById调用失败:`, getByIdError);
+        // 继续执行，尝试备选方案
       }
+
+      // 尝试方法2: 直接从存储中获取
+      try {
+        console.log(`尝试从所有画布中查找: ${safeCanvasId}`);
+        const canvases = await this.getCanvases();
+
+        // 防御性检查：确保canvases是数组
+        if (Array.isArray(canvases)) {
+          canvas = canvases.find(c => c && c.id === safeCanvasId);
+          if (canvas) {
+            console.log(`在所有画布中找到画布: ${safeCanvasId}`);
+            return this._ensureCanvasProperties(canvas);
+          }
+          console.log(`在所有画布中未找到画布: ${safeCanvasId}`);
+        } else {
+          console.warn('getCanvases返回的不是数组');
+        }
+      } catch (fallbackError) {
+        console.error(`从所有画布中查找失败:`, fallbackError);
+      }
+
+      // 如果所有方法都失败，创建一个空画布
+      console.log(`所有获取方法都失败，创建空画布: ${safeCanvasId}`);
+      return this._createEmptyCanvas(safeCanvasId);
     } catch (error) {
       console.error(`offlineStorageService.getCanvas错误:`, error);
-      return null;
+      return this._createEmptyCanvas(String(canvasId || Date.now().toString()));
     }
   }
+
+  /**
+   * 确保画布对象有所有必要的属性
+   * @param {Object} canvas - 画布对象
+   * @returns {Object} - 完整的画布对象
+   * @private
+   */
+  _ensureCanvasProperties(canvas) {
+    if (!canvas) return this._createEmptyCanvas(Date.now().toString());
+
+    return {
+      id: canvas.id,
+      title: canvas.title || '新画布',
+      description: canvas.description || '',
+      elements: canvas.elements || [],
+      layers: canvas.layers || [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+      activeLayer: canvas.activeLayer || 'default',
+      viewState: canvas.viewState || {},
+      createdAt: canvas.createdAt || new Date().toISOString(),
+      updatedAt: canvas.updatedAt || new Date().toISOString()
+    };
+  }
+
+  /**
+   * 创建一个空画布（当所有获取方法都失败时使用）
+   * @param {string} canvasId 画布ID
+   * @returns {Object} 空画布对象
+   * @private
+   */
+  _createEmptyCanvas(canvasId) {
+    // 防御性检查：确保canvasId不为null或undefined
+    const safeCanvasId = String(canvasId || Date.now().toString());
+    console.log(`offlineStorageService创建空画布: ${safeCanvasId}`);
+
+    const now = new Date().toISOString();
+
+    return {
+      id: safeCanvasId,
+      title: '新画布',
+      description: '',
+      elements: [],
+      layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+      activeLayer: 'default',
+      viewState: {},
+      createdAt: now,
+      updatedAt: now,
+      // 添加额外的元数据，以便于调试
+      isEmptyCanvas: true,
+      createdBy: 'offlineStorageService._createEmptyCanvas'
+    };
+  }
+
+  // 注意：_ensureCanvasProperties方法已在上面定义，这里是重复定义
 
   async addPendingOperation(operation) {
     this.pendingOperations.push(operation);

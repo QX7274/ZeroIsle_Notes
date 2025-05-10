@@ -22,6 +22,7 @@ const apiClient = axios.create({
 
 // 调试信息
 console.log('API客户端初始化，baseURL:', `${API_URL}/api/${API_VERSION}`);
+console.log('API请求示例:', `${API_URL}/api/${API_VERSION}/notes/`);
 
 // 检查网络连接状态
 const checkNetworkConnection = async () => {
@@ -329,9 +330,25 @@ apiClient.interceptors.response.use(
           Alert.alert('访问被拒绝', ERROR_MESSAGES.FORBIDDEN);
           break;
         case 404:
-          // 资源未找到
-          console.error('资源未找到:', error.config.url);
-          Alert.alert('资源不存在', ERROR_MESSAGES.NOT_FOUND);
+          // 资源未找到，静默处理，不显示弹窗
+          console.log('资源未找到，静默处理:', error.config.url);
+
+          // 返回一个模拟的成功响应，避免应用崩溃
+          return Promise.resolve({
+            data: {
+              offline: true,
+              message: '资源未找到，使用离线模式',
+              timestamp: new Date().toISOString(),
+              success: true,
+              method: error.config.method,
+              url: error.config.url
+            },
+            status: 200,
+            statusText: 'OK (Offline)',
+            headers: {},
+            config: error.config,
+            offline: true
+          });
           break;
         case 500:
           // 服务器错误

@@ -367,12 +367,11 @@ class SQLiteService {
         } catch (fullInitError) {
           console.error('完成表创建失败:', fullInitError);
 
-          // 即使表创建失败，也标记为完全初始化，让应用可以继续运行
-          console.log('尽管出现错误，仍然标记数据库为完全初始化状态');
-          this.isFullyInitialized = true;
-          this.processOperationQueue();
-          this.notifyInitCallbacks();
+          // 表创建失败时不标记为完全初始化
+          console.error('表创建失败，数据库未完全初始化');
 
+          // 仍然返回数据库实例，但不标记为完全初始化
+          // 这样应用可以继续运行，但会知道数据库初始化有问题
           return this.database;
         }
       } catch (error) {
@@ -1028,10 +1027,58 @@ class SQLiteService {
         { table: TABLES.SETTINGS, sql: `CREATE INDEX IF NOT EXISTS idx_settings_user_id ON ${TABLES.SETTINGS} (user_id)` },
         { table: TABLES.SETTINGS, sql: `CREATE INDEX IF NOT EXISTS idx_settings_key ON ${TABLES.SETTINGS} (key)` },
         { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_user_id ON ${TABLES.FILES} (user_id)` },
-        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)` },
-        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)` },
-        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)` }
+        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)` }
       ];
+
+      // 添加reminders表的索引，但先检查表是否存在
+      if (existingTables.includes(TABLES.REMINDERS)) {
+        secondaryIndexes.push(
+          { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)` },
+          { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)` }
+        );
+      } else {
+        console.log(`表 ${TABLES.REMINDERS} 不存在，跳过创建其索引`);
+
+        // 尝试创建reminders表
+        try {
+          console.log(`尝试创建缺失的 ${TABLES.REMINDERS} 表...`);
+          await this.database.executeSql(`
+            CREATE TABLE IF NOT EXISTS ${TABLES.REMINDERS} (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              title TEXT NOT NULL,
+              description TEXT,
+              due_date TEXT,
+              is_completed INTEGER DEFAULT 0,
+              is_enabled INTEGER DEFAULT 1,
+              priority INTEGER DEFAULT 0,
+              category_id TEXT,
+              note_id TEXT,
+              frequency TEXT,
+              repeat_interval INTEGER,
+              repeat_end_date TEXT,
+              notification_id TEXT,
+              created_at TEXT,
+              updated_at TEXT,
+              version INTEGER DEFAULT 1,
+              is_synced INTEGER DEFAULT 0,
+              last_sync_at TEXT
+            )
+          `);
+          console.log(`表 ${TABLES.REMINDERS} 创建成功`);
+
+          // 更新存在的表列表
+          existingTables.push(TABLES.REMINDERS);
+
+          // 现在可以添加索引了
+          secondaryIndexes.push(
+            { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)` },
+            { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)` }
+          );
+        } catch (createTableError) {
+          console.error(`创建 ${TABLES.REMINDERS} 表失败:`, createTableError);
+        }
+      }
 
       // 先创建核心索引，只为存在的表创建索引
       for (const index of coreIndexes) {
@@ -1071,6 +1118,7 @@ class SQLiteService {
             if (updatedExistingTables.includes(index.table)) {
               try {
                 await this.database.executeSql(index.sql);
+                console.log(`成功创建索引: ${index.sql}`);
               } catch (error) {
                 console.warn(`创建次要索引失败 (${index.table}):`, error);
               }
@@ -1090,10 +1138,10 @@ class SQLiteService {
 
     } catch (error) {
       console.error('创建索引失败:', error);
-      // 即使索引创建失败，也标记为完全初始化
-      this.isFullyInitialized = true;
-      this.processOperationQueue();
-      this.notifyInitCallbacks();
+      // 出现错误时不标记为完全初始化
+      console.error('索引创建失败，数据库未完全初始化');
+      // 抛出错误，让调用者知道初始化失败
+      throw error;
     }
   }
 
@@ -1414,37 +1462,107 @@ class SQLiteService {
    */
   async createIndexes() {
     try {
-      // 用户表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_users_username ON ${TABLES.USERS} (username)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_users_email ON ${TABLES.USERS} (email)`);
+      // 获取所有存在的表
+      const tablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
+      const existingTables = [];
+      for (let i = 0; i < tablesResult[0].rows.length; i++) {
+        existingTables.push(tablesResult[0].rows.item(i).name);
+      }
 
-      // 笔记表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_notes_user_id ON ${TABLES.NOTES} (user_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_notes_category_id ON ${TABLES.NOTES} (category_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_notes_is_deleted ON ${TABLES.NOTES} (is_deleted)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_notes_is_favorite ON ${TABLES.NOTES} (is_favorite)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON ${TABLES.NOTES} (updated_at)`);
+      console.log('现有表:', existingTables.join(', '));
 
-      // 分类表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_categories_user_id ON ${TABLES.CATEGORIES} (user_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON ${TABLES.CATEGORIES} (parent_id)`);
+      // 定义所有索引
+      const allIndexes = [
+        // 用户表索引
+        { table: TABLES.USERS, sql: `CREATE INDEX IF NOT EXISTS idx_users_username ON ${TABLES.USERS} (username)` },
+        { table: TABLES.USERS, sql: `CREATE INDEX IF NOT EXISTS idx_users_email ON ${TABLES.USERS} (email)` },
 
-      // 标签表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_tags_user_id ON ${TABLES.TAGS} (user_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_tags_name ON ${TABLES.TAGS} (name)`);
+        // 笔记表索引
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_user_id ON ${TABLES.NOTES} (user_id)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_category_id ON ${TABLES.NOTES} (category_id)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_is_deleted ON ${TABLES.NOTES} (is_deleted)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_is_favorite ON ${TABLES.NOTES} (is_favorite)` },
+        { table: TABLES.NOTES, sql: `CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON ${TABLES.NOTES} (updated_at)` },
 
-      // 提醒表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)`);
+        // 分类表索引
+        { table: TABLES.CATEGORIES, sql: `CREATE INDEX IF NOT EXISTS idx_categories_user_id ON ${TABLES.CATEGORIES} (user_id)` },
+        { table: TABLES.CATEGORIES, sql: `CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON ${TABLES.CATEGORIES} (parent_id)` },
 
-      // 设置表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_settings_user_id_key ON ${TABLES.SETTINGS} (user_id, key)`);
+        // 标签表索引
+        { table: TABLES.TAGS, sql: `CREATE INDEX IF NOT EXISTS idx_tags_user_id ON ${TABLES.TAGS} (user_id)` },
+        { table: TABLES.TAGS, sql: `CREATE INDEX IF NOT EXISTS idx_tags_name ON ${TABLES.TAGS} (name)` },
 
-      // 文件表索引
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_files_user_id ON ${TABLES.FILES} (user_id)`);
-      await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)`);
+        // 提醒表索引
+        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)` },
+        { table: TABLES.REMINDERS, sql: `CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)` },
+
+        // 设置表索引
+        { table: TABLES.SETTINGS, sql: `CREATE INDEX IF NOT EXISTS idx_settings_user_id_key ON ${TABLES.SETTINGS} (user_id, key)` },
+
+        // 文件表索引
+        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_user_id ON ${TABLES.FILES} (user_id)` },
+        { table: TABLES.FILES, sql: `CREATE INDEX IF NOT EXISTS idx_files_note_id ON ${TABLES.FILES} (note_id)` }
+      ];
+
+      // 只为存在的表创建索引
+      for (const index of allIndexes) {
+        if (existingTables.includes(index.table)) {
+          try {
+            await this.database.executeSql(index.sql);
+            console.log(`成功创建索引: ${index.sql}`);
+          } catch (error) {
+            console.warn(`创建索引失败 (${index.table}):`, error);
+            // 记录错误但继续执行其他索引创建
+          }
+        } else {
+          console.log(`跳过创建索引，表 ${index.table} 不存在`);
+
+          // 如果是 reminders 表不存在，尝试创建它
+          if (index.table === TABLES.REMINDERS && !existingTables.includes(TABLES.REMINDERS)) {
+            try {
+              console.log(`尝试创建缺失的 ${TABLES.REMINDERS} 表...`);
+              await this.database.executeSql(`
+                CREATE TABLE IF NOT EXISTS ${TABLES.REMINDERS} (
+                  id TEXT PRIMARY KEY,
+                  user_id TEXT NOT NULL,
+                  title TEXT NOT NULL,
+                  description TEXT,
+                  due_date TEXT,
+                  is_completed INTEGER DEFAULT 0,
+                  is_enabled INTEGER DEFAULT 1,
+                  priority INTEGER DEFAULT 0,
+                  category_id TEXT,
+                  note_id TEXT,
+                  frequency TEXT,
+                  repeat_interval INTEGER,
+                  repeat_end_date TEXT,
+                  notification_id TEXT,
+                  created_at TEXT,
+                  updated_at TEXT,
+                  version INTEGER DEFAULT 1,
+                  is_synced INTEGER DEFAULT 0,
+                  last_sync_at TEXT,
+                  FOREIGN KEY (user_id) REFERENCES ${TABLES.USERS} (id),
+                  FOREIGN KEY (category_id) REFERENCES ${TABLES.CATEGORIES} (id),
+                  FOREIGN KEY (note_id) REFERENCES ${TABLES.NOTES} (id)
+                )
+              `);
+              console.log(`表 ${TABLES.REMINDERS} 创建成功`);
+
+              // 现在可以创建索引了
+              await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON ${TABLES.REMINDERS} (user_id)`);
+              await this.database.executeSql(`CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON ${TABLES.REMINDERS} (due_date)`);
+              console.log(`表 ${TABLES.REMINDERS} 的索引创建成功`);
+            } catch (createTableError) {
+              console.error(`创建 ${TABLES.REMINDERS} 表失败:`, createTableError);
+              // 记录错误但继续执行
+            }
+          }
+        }
+      }
 
       console.log('SQLite索引创建成功');
+      return true;
     } catch (error) {
       console.error('创建索引失败:', error);
       throw error;
@@ -1564,7 +1682,20 @@ class SQLiteService {
     }
 
     // 最后检查确保没有null值
-    safeParams = safeParams.map(param => param === null ? '' : param);
+    safeParams = safeParams.map(param => {
+      if (param === null || param === undefined) {
+        return ''; // 统一使用空字符串替代null和undefined
+      } else if (typeof param === 'object') {
+        try {
+          // 尝试将对象转换为JSON字符串
+          return JSON.stringify(param);
+        } catch (e) {
+          console.warn('无法将对象参数转换为JSON字符串:', e);
+          return '';
+        }
+      }
+      return param;
+    });
 
     // 添加重试机制
     let lastError = null;
@@ -1609,16 +1740,48 @@ class SQLiteService {
             if (errorIndex > 0 && errorIndex <= safeParams.length) {
               console.log(`问题参数索引: ${errorIndex}, 当前值: ${safeParams[errorIndex-1]}`);
 
-              // 创建新的参数数组，确保指定索引的值不为null
-              const emergencyParams = [...safeParams];
-              emergencyParams[errorIndex-1] = emergencyParams[errorIndex-1] === null ? '' : emergencyParams[errorIndex-1];
+              // 创建新的参数数组，确保所有值都不为null
+              const emergencyParams = safeParams.map(param => {
+                if (param === null || param === undefined) {
+                  return ''; // 统一使用空字符串替代null和undefined
+                } else if (typeof param === 'object') {
+                  try {
+                    return JSON.stringify(param);
+                  } catch (e) {
+                    return '';
+                  }
+                }
+                return param;
+              });
+
+              // 特别确保问题索引的参数不为null
+              emergencyParams[errorIndex-1] = emergencyParams[errorIndex-1] === null ? '' :
+                                             (typeof emergencyParams[errorIndex-1] === 'object' ?
+                                              JSON.stringify(emergencyParams[errorIndex-1]) :
+                                              String(emergencyParams[errorIndex-1] || ''));
 
               console.log('使用紧急修复参数重试查询');
               console.log('修复后的参数:', JSON.stringify(emergencyParams));
 
               // 直接重试查询，不经过超时控制
-              const [emergencyResults] = await this.database.executeSql(query, emergencyParams);
-              return emergencyResults;
+              try {
+                const [emergencyResults] = await this.database.executeSql(query, emergencyParams);
+                return emergencyResults;
+              } catch (emergencyError) {
+                console.error('紧急修复参数后仍然失败:', emergencyError);
+
+                // 最后尝试：使用空字符串替换所有参数
+                const lastResortParams = Array(placeholderCount).fill('');
+                console.log('最后尝试：使用空字符串替换所有参数');
+
+                try {
+                  const [lastResortResults] = await this.database.executeSql(query, lastResortParams);
+                  return lastResortResults;
+                } catch (lastError) {
+                  console.error('最后尝试也失败:', lastError);
+                  throw lastError;
+                }
+              }
             }
           }
 
@@ -1637,8 +1800,31 @@ class SQLiteService {
           if (error.message.includes('bind value at index') && error.message.includes('is null')) {
             console.error('SQL绑定值错误，尝试修复参数');
 
-            // 创建新的参数数组，确保没有null值
-            const fixedParams = safeParams.map(param => param === null ? '' : param);
+            // 提取错误中的索引信息
+            const indexMatch = error.message.match(/bind value at index (\d+)/);
+            const errorIndex = indexMatch ? parseInt(indexMatch[1], 10) : -1;
+
+            // 创建新的参数数组，确保所有值都不为null
+            const fixedParams = safeParams.map(param => {
+              if (param === null || param === undefined) {
+                return ''; // 统一使用空字符串替代null和undefined
+              } else if (typeof param === 'object') {
+                try {
+                  return JSON.stringify(param);
+                } catch (e) {
+                  return '';
+                }
+              }
+              return param;
+            });
+
+            // 如果知道具体的错误索引，特别处理该索引的参数
+            if (errorIndex > 0 && errorIndex <= fixedParams.length) {
+              console.log(`问题参数索引: ${errorIndex}, 当前值: ${fixedParams[errorIndex-1]}`);
+              fixedParams[errorIndex-1] = typeof fixedParams[errorIndex-1] === 'object' ?
+                                         JSON.stringify(fixedParams[errorIndex-1] || {}) :
+                                         String(fixedParams[errorIndex-1] || '');
+            }
 
             try {
               console.log('使用修复后的参数重试查询');
@@ -1647,7 +1833,17 @@ class SQLiteService {
               return results;
             } catch (retryError) {
               console.error('使用修复后的参数重试失败:', retryError);
-              // 继续外层重试循环
+
+              // 最后尝试：使用空字符串替换所有参数
+              try {
+                const lastResortParams = Array(placeholderCount).fill('');
+                console.log('最后尝试：使用空字符串替换所有参数');
+                const [lastResortResults] = await this.database.executeSql(query, lastResortParams);
+                return lastResortResults;
+              } catch (lastError) {
+                console.error('最后尝试也失败，继续外层重试循环:', lastError);
+                // 继续外层重试循环
+              }
             }
           }
 

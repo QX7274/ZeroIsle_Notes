@@ -5,8 +5,11 @@
 
 // API配置
 export const API_URL = __DEV__
-  ? 'http://192.168.75.232:8000'  // 热点访问地址
+  ? 'http://localhost:8000'  // 本地开发地址
   : 'https://api.zeroislenotes.com'; // 生产环境地址
+
+// 调试信息
+console.log('当前API_URL:', API_URL);
 
 export const API_VERSION = 'v1';
 export const API_TIMEOUT = 15000;

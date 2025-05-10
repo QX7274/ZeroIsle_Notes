@@ -34,7 +34,7 @@ import { dataService, sqliteService } from './services/database';
 import infiniteCanvasStorage from './services/offline/infiniteCanvasStorage';
 import { offlineStorageService } from './services/offline/offlineStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from './utils/constants/config';
+import STORAGE_KEYS from './constants/storageKeys';
 import { patchDateTimePicker } from './utils/patchDateTimePicker';
 
 // 导入屏幕组件
@@ -380,46 +380,148 @@ const AppContainer = () => {
                 if (typeof offlineStorageService.getCanvas !== 'function') {
                   console.log('添加getCanvas兼容方法');
                   offlineStorageService.getCanvas = async function(canvasId) {
-                    console.log('使用兼容的getCanvas方法');
-                    // 如果getCanvasById存在，使用它
+                    console.log(`开始获取画布，ID: ${canvasId || '未提供'}`);
+
+                    // 防御性检查：确保canvasId不为null或undefined
+                    if (!canvasId) {
+                      console.warn('offlineStorageService.getCanvas: canvasId为null或undefined，创建空画布');
+                      return this._createEmptyCanvas(Date.now().toString());
+                    }
+
+                    // 使用安全的参数值
+                    const safeCanvasId = String(canvasId || '');
+                    console.log(`使用安全的画布ID: ${safeCanvasId}`);
+
+                    // 尝试方法1: 使用getCanvasById方法
+                    let canvas = null;
                     if (typeof this.getCanvasById === 'function') {
                       try {
-                        return await this.getCanvasById(canvasId);
-                      } catch (error) {
-                        console.error('兼容getCanvas调用getCanvasById失败:', error);
+                        console.log(`尝试使用getCanvasById方法获取画布: ${safeCanvasId}`);
+                        canvas = await this.getCanvasById(safeCanvasId);
+                        if (canvas) {
+                          console.log(`使用getCanvasById方法成功获取画布: ${safeCanvasId}`);
+                          return this._ensureCanvasProperties(canvas);
+                        }
+                        console.log(`getCanvasById方法未找到画布: ${safeCanvasId}，尝试备选方案`);
+                      } catch (getByIdError) {
+                        console.error(`offlineStorageService.getCanvasById调用失败:`, getByIdError);
+                        // 继续执行，尝试备选方案
                       }
+                    } else {
+                      console.warn('offlineStorageService.getCanvasById方法未定义，尝试备选方案');
                     }
 
-                    // 尝试从getCanvases获取
-                    if (typeof this.getCanvases === 'function') {
-                      try {
-                        const canvases = await this.getCanvases();
-                        return canvases.find(canvas => canvas.id === canvasId) || null;
-                      } catch (error) {
-                        console.error('兼容getCanvas从getCanvases获取失败:', error);
+                    // 尝试方法2: 直接从存储中获取
+                    try {
+                      console.log(`尝试从所有画布中查找: ${safeCanvasId}`);
+                      const canvases = await this.getCanvases();
+
+                      // 防御性检查：确保canvases是数组
+                      if (Array.isArray(canvases)) {
+                        canvas = canvases.find(c => c && c.id === safeCanvasId);
+                        if (canvas) {
+                          console.log(`在所有画布中找到画布: ${safeCanvasId}`);
+                          return this._ensureCanvasProperties(canvas);
+                        }
+                        console.log(`在所有画布中未找到画布: ${safeCanvasId}`);
+                      } else {
+                        console.warn('getCanvases返回的不是数组');
                       }
+                    } catch (fallbackError) {
+                      console.error(`从所有画布中查找失败:`, fallbackError);
                     }
 
-                    console.warn('所有获取画布方法都失败，返回null');
-                    return null;
+                    // 如果所有方法都失败，创建一个空画布
+                    console.log(`所有获取方法都失败，创建空画布: ${safeCanvasId}`);
+                    return this._createEmptyCanvas(safeCanvasId);
+                  };
+                }
+
+                // 确保_ensureCanvasProperties方法存在
+                if (typeof offlineStorageService._ensureCanvasProperties !== 'function') {
+                  console.log('添加_ensureCanvasProperties兼容方法');
+                  offlineStorageService._ensureCanvasProperties = function(canvas) {
+                    if (!canvas) return this._createEmptyCanvas(Date.now().toString());
+
+                    return {
+                      id: canvas.id,
+                      title: canvas.title || '新画布',
+                      description: canvas.description || '',
+                      elements: canvas.elements || [],
+                      layers: canvas.layers || [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+                      activeLayer: canvas.activeLayer || 'default',
+                      viewState: canvas.viewState || {},
+                      createdAt: canvas.createdAt || new Date().toISOString(),
+                      updatedAt: canvas.updatedAt || new Date().toISOString()
+                    };
+                  };
+                }
+
+                // 确保_createEmptyCanvas方法存在
+                if (typeof offlineStorageService._createEmptyCanvas !== 'function') {
+                  console.log('添加_createEmptyCanvas兼容方法');
+                  offlineStorageService._createEmptyCanvas = function(canvasId) {
+                    // 防御性检查：确保canvasId不为null或undefined
+                    const safeCanvasId = String(canvasId || Date.now().toString());
+                    console.log(`兼容_createEmptyCanvas创建空画布: ${safeCanvasId}`);
+
+                    const now = new Date().toISOString();
+
+                    return {
+                      id: safeCanvasId,
+                      title: '新画布',
+                      description: '',
+                      elements: [],
+                      layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+                      activeLayer: 'default',
+                      viewState: {},
+                      createdAt: now,
+                      updatedAt: now,
+                      // 添加额外的元数据，以便于调试
+                      isEmptyCanvas: true,
+                      createdBy: 'App.js._createEmptyCanvas'
+                    };
                   };
                 }
 
                 // 确保getCanvasById方法存在
                 if (typeof offlineStorageService.getCanvasById !== 'function') {
                   console.log('添加getCanvasById兼容方法');
-                  offlineStorageService.getCanvasById = async function(canvasId) {
-                    console.log('使用兼容的getCanvasById方法');
-                    // 尝试从getCanvases获取
-                    if (typeof this.getCanvases === 'function') {
-                      try {
-                        const canvases = await this.getCanvases();
-                        return canvases.find(canvas => canvas.id === canvasId) || null;
-                      } catch (error) {
-                        console.error('兼容getCanvasById从getCanvases获取失败:', error);
+                  offlineStorageService.getCanvasById = async function(id) {
+                    try {
+                      console.log(`尝试通过ID获取画布: ${id || '未提供'}`);
+
+                      // 防御性检查：确保id不为null或undefined
+                      if (!id) {
+                        console.warn('getCanvasById: id为null或undefined');
+                        return null;
                       }
+
+                      // 使用安全的参数值
+                      const safeId = String(id || '');
+
+                      const canvases = await this.getCanvases();
+
+                      // 防御性检查：确保canvases是数组
+                      if (!Array.isArray(canvases)) {
+                        console.warn('getCanvasById: canvases不是数组');
+                        return null;
+                      }
+
+                      // 防御性查找：确保每个canvas都有id属性
+                      const canvas = canvases.find(c => c && c.id === safeId);
+
+                      if (canvas) {
+                        console.log(`成功找到画布: ${safeId}`);
+                        return canvas;
+                      } else {
+                        console.log(`未找到画布: ${safeId}`);
+                        return null;
+                      }
+                    } catch (error) {
+                      console.error(`获取画布(ID: ${id || '未提供'})失败:`, error);
+                      return null;
                     }
-                    return null;
                   };
                 }
 
@@ -429,8 +531,33 @@ const AppContainer = () => {
                   offlineStorageService.getCanvases = async function() {
                     console.log('使用兼容的getCanvases方法');
                     try {
-                      const canvasesJson = await AsyncStorage.getItem(STORAGE_KEYS.CANVAS_CACHE);
-                      return canvasesJson ? JSON.parse(canvasesJson) : [];
+                      // 防御性检查：确保STORAGE_KEYS.CANVAS_CACHE不为undefined
+                      const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
+                      console.log(`尝试从存储中获取画布，使用键: ${storageKey}`);
+
+                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+
+                      // 防御性检查：确保JSON解析不会失败
+                      if (!canvasesJson) {
+                        console.log('存储中没有找到画布数据，返回空数组');
+                        return [];
+                      }
+
+                      try {
+                        const canvases = JSON.parse(canvasesJson);
+
+                        // 确保返回的是数组
+                        if (!Array.isArray(canvases)) {
+                          console.warn('解析的画布数据不是数组，返回空数组');
+                          return [];
+                        }
+
+                        console.log(`成功获取${canvases.length}个画布`);
+                        return canvases;
+                      } catch (parseError) {
+                        console.error('解析画布JSON数据失败:', parseError);
+                        return [];
+                      }
                     } catch (error) {
                       console.error('兼容getCanvases获取失败:', error);
                       return [];
@@ -460,24 +587,171 @@ const AppContainer = () => {
               try {
                 console.log('添加紧急兼容方法...');
 
+                if (typeof offlineStorageService._createEmptyCanvas !== 'function') {
+                  console.log('添加紧急兼容的_createEmptyCanvas方法');
+                  offlineStorageService._createEmptyCanvas = function(canvasId) {
+                    // 防御性检查：确保canvasId不为null或undefined
+                    const safeCanvasId = String(canvasId || Date.now().toString());
+                    console.log(`紧急兼容_createEmptyCanvas创建空画布: ${safeCanvasId}`);
+
+                    const now = new Date().toISOString();
+
+                    return {
+                      id: safeCanvasId,
+                      title: '新画布',
+                      description: '',
+                      elements: [],
+                      layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+                      activeLayer: 'default',
+                      viewState: {},
+                      createdAt: now,
+                      updatedAt: now,
+                      // 添加额外的元数据，以便于调试
+                      isEmptyCanvas: true,
+                      createdBy: 'App.js.紧急兼容._createEmptyCanvas'
+                    };
+                  };
+                }
+
+                if (typeof offlineStorageService._ensureCanvasProperties !== 'function') {
+                  console.log('添加紧急兼容的_ensureCanvasProperties方法');
+                  offlineStorageService._ensureCanvasProperties = function(canvas) {
+                    if (!canvas) return this._createEmptyCanvas(Date.now().toString());
+
+                    return {
+                      id: canvas.id,
+                      title: canvas.title || '新画布',
+                      description: canvas.description || '',
+                      elements: canvas.elements || [],
+                      layers: canvas.layers || [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+                      activeLayer: canvas.activeLayer || 'default',
+                      viewState: canvas.viewState || {},
+                      createdAt: canvas.createdAt || new Date().toISOString(),
+                      updatedAt: canvas.updatedAt || new Date().toISOString(),
+                      // 添加额外的元数据，以便于调试
+                      ensuredBy: 'App.js.紧急兼容._ensureCanvasProperties'
+                    };
+                  };
+                }
+
                 if (typeof offlineStorageService.getCanvas !== 'function') {
+                  console.log('添加紧急兼容的getCanvas方法');
                   offlineStorageService.getCanvas = async function(canvasId) {
-                    console.log('使用紧急兼容的getCanvas方法');
-                    return null;
+                    // 防御性检查：确保canvasId不为null或undefined
+                    const safeCanvasId = String(canvasId || Date.now().toString());
+                    console.log(`紧急兼容getCanvas获取画布: ${safeCanvasId}`);
+
+                    try {
+                      // 尝试从AsyncStorage直接获取
+                      const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
+                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+
+                      if (canvasesJson) {
+                        try {
+                          const canvases = JSON.parse(canvasesJson);
+                          if (Array.isArray(canvases)) {
+                            const canvas = canvases.find(c => c && c.id === safeCanvasId);
+                            if (canvas) {
+                              console.log(`紧急兼容getCanvas找到画布: ${safeCanvasId}`);
+                              return this._ensureCanvasProperties(canvas);
+                            }
+                          }
+                        } catch (parseError) {
+                          console.error('紧急兼容getCanvas解析JSON失败:', parseError);
+                        }
+                      }
+                    } catch (storageError) {
+                      console.error('紧急兼容getCanvas从存储获取失败:', storageError);
+                    }
+
+                    // 如果所有方法都失败，创建一个空画布
+                    return this._createEmptyCanvas(safeCanvasId);
                   };
                 }
 
                 if (typeof offlineStorageService.getCanvasById !== 'function') {
-                  offlineStorageService.getCanvasById = async function(canvasId) {
-                    console.log('使用紧急兼容的getCanvasById方法');
-                    return null;
+                  console.log('添加紧急兼容的getCanvasById方法');
+                  offlineStorageService.getCanvasById = async function(id) {
+                    try {
+                      console.log(`紧急兼容getCanvasById获取画布: ${id || '未提供'}`);
+
+                      // 防御性检查：确保id不为null或undefined
+                      if (!id) {
+                        console.warn('紧急兼容getCanvasById: id为null或undefined');
+                        return null;
+                      }
+
+                      // 使用安全的参数值
+                      const safeId = String(id || '');
+
+                      try {
+                        // 尝试从AsyncStorage直接获取
+                        const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
+                        const canvasesJson = await AsyncStorage.getItem(storageKey);
+
+                        if (canvasesJson) {
+                          try {
+                            const canvases = JSON.parse(canvasesJson);
+                            if (Array.isArray(canvases)) {
+                              const canvas = canvases.find(c => c && c.id === safeId);
+                              if (canvas) {
+                                console.log(`紧急兼容getCanvasById找到画布: ${safeId}`);
+                                return canvas;
+                              }
+                            }
+                          } catch (parseError) {
+                            console.error('紧急兼容getCanvasById解析JSON失败:', parseError);
+                          }
+                        }
+                      } catch (storageError) {
+                        console.error('紧急兼容getCanvasById从存储获取失败:', storageError);
+                      }
+
+                      console.log(`紧急兼容getCanvasById未找到画布: ${safeId}`);
+                      return null;
+                    } catch (error) {
+                      console.error(`紧急兼容getCanvasById错误:`, error);
+                      return null;
+                    }
                   };
                 }
 
                 if (typeof offlineStorageService.getCanvases !== 'function') {
+                  console.log('添加紧急兼容的getCanvases方法');
                   offlineStorageService.getCanvases = async function() {
                     console.log('使用紧急兼容的getCanvases方法');
-                    return [];
+                    try {
+                      // 防御性检查：确保STORAGE_KEYS.CANVAS_CACHE不为undefined
+                      const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
+                      console.log(`紧急兼容getCanvases尝试从存储中获取画布，使用键: ${storageKey}`);
+
+                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+
+                      // 防御性检查：确保JSON解析不会失败
+                      if (!canvasesJson) {
+                        console.log('紧急兼容getCanvases存储中没有找到画布数据，返回空数组');
+                        return [];
+                      }
+
+                      try {
+                        const canvases = JSON.parse(canvasesJson);
+
+                        // 确保返回的是数组
+                        if (!Array.isArray(canvases)) {
+                          console.warn('紧急兼容getCanvases解析的画布数据不是数组，返回空数组');
+                          return [];
+                        }
+
+                        console.log(`紧急兼容getCanvases成功获取${canvases.length}个画布`);
+                        return canvases;
+                      } catch (parseError) {
+                        console.error('紧急兼容getCanvases解析画布JSON数据失败:', parseError);
+                        return [];
+                      }
+                    } catch (error) {
+                      console.error('紧急兼容getCanvases获取失败:', error);
+                      return [];
+                    }
                   };
                 }
               } catch (emergencyError) {
