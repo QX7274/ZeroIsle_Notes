@@ -376,29 +376,100 @@ backend/
    # 编辑.env文件，设置必要的环境变量
    ```
 
-5. **运行开发服务器**
+5. **初始化数据库**
+
    ```bash
+   cd backend
+
+   # 创建数据库表
+   python manage.py migrate
+   ```
+
+6. **创建管理员用户**
+
+   ```bash
+   # 创建超级用户
+   python manage.py createsuperuser
+   # 按照提示输入用户名、邮箱和密码
+   ```
+
+   如果遇到问题，可以使用项目中提供的脚本创建管理员用户：
+
+   ```bash
+   # 运行创建管理员脚本
+   python create_admin.py
+   ```
+
+   这将创建一个默认的管理员用户：
+   - 用户名: admin
+   - 密码: admin123
+
+7. **运行开发服务器**
+   ```bash
+   cd backend
    python manage.py runserver
    ```
+
+8. **访问Django管理后台**
+
+   在浏览器中访问: http://localhost:8000/admin/
+
+   使用之前创建的超级用户凭据登录。
+
 
 ### 数据库设置
 
 1. **MongoDB**
    ```bash
    # 确保MongoDB服务已启动
+   # Windows
+   mongod --dbpath=D:\data\db
+
+   # Linux/macOS
    mongod --dbpath=/path/to/data/db
    ```
 
 2. **Neo4j**
    ```bash
    # 确保Neo4j服务已启动
+   # Windows
+   neo4j.bat console
+
+   # Linux/macOS
    neo4j start
    ```
 
 3. **Redis**
    ```bash
    # 确保Redis服务已启动
+   # Windows
+   redis-server.exe
+
+   # Linux/macOS
    redis-server
+   ```
+
+### 常见问题排查
+
+1. **MongoDB连接问题**
+
+   确保MongoDB服务已启动，并检查连接字符串是否正确。可以使用以下命令测试连接：
+
+   ```bash
+   mongo --host localhost --port 27017
+   ```
+
+2. **数据库迁移问题**
+
+   如果遇到迁移问题，可以尝试重置迁移：
+
+   ```bash
+   # 删除所有迁移文件
+   find . -path "*/migrations/*.py" -not -name "__init__.py" -delete
+
+   # 重新创建迁移
+   python manage.py makemigrations
+   python manage.py migrate
    ```
 
 ## API文档

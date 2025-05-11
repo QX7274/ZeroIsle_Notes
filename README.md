@@ -298,8 +298,7 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/yourusername/zeroislenotes.git
-   cd zeroislenotes
+   git clone https://github.com/QX7274/ZeroIsle_Notes.git
    ```
 
 2. **安装依赖**
