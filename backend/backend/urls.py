@@ -21,6 +21,37 @@ def api_root_json(request):
         'api_prefix': '/api/v1/'
     })
 
+# API v1根路径视图函数 - 返回API v1信息
+def api_v1_root(request):
+    """
+    API v1根路径，返回API v1信息（JSON格式）
+    """
+    # 获取所有API端点
+    endpoints = {
+        'auth': '/api/v1/auth/',
+        'notes': '/api/v1/notes/',
+        'reminders': '/api/v1/reminders/',
+        'knowledge_graph': '/api/v1/knowledge-graph/',
+        'mind_map': '/api/v1/mind-map/',
+        'ai_assistant': '/api/v1/ai-assistant/',
+        'voice_recognition': '/api/v1/voice-recognition/',
+        'search': '/api/v1/search/',
+        'community': '/api/v1/community/',
+        'canvas': '/api/v1/canvas/',
+        'code': '/api/v1/code/',
+        'common': '/api/v1/common/',
+        'notifications': '/api/v1/notifications/',
+        'groups': '/api/v1/groups/',
+    }
+
+    return JsonResponse({
+        'name': '零屿笔记 API',
+        'version': 'v1',
+        'status': 'running',
+        'documentation': '/swagger/',
+        'endpoints': endpoints
+    })
+
 # API文档配置
 schema_view = get_schema_view(
     openapi.Info(
@@ -47,6 +78,9 @@ urlpatterns = [
 
     # 重定向到Swagger文档
     path('api/', RedirectView.as_view(url='/swagger/', permanent=False), name='api-docs'),
+
+    # API v1根路径
+    path(api_prefix.rstrip('/'), api_v1_root, name='api-v1-root'),
 
     # Django管理后台
     path('admin/', admin.site.urls),
