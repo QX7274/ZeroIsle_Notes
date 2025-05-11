@@ -211,6 +211,9 @@ dependencies {
 
     // 权限库
     implementation project(':react-native-permissions')
+
+    // SQLite 存储
+    implementation project(':react-native-sqlite-storage')
 }
 
 // 解决依赖冲突

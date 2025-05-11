@@ -29,7 +29,7 @@ class CompressionService {
       this.initialized = true;
       return true;
     } catch (error) {
-      console.error('初始化压缩服务失�?', error);
+      console.error('初始化压缩服务失败:', error);
       analyticsService.trackError(error, { operation: 'init_compression_service' });
       return false;
     }
@@ -151,7 +151,7 @@ class CompressionService {
       // 如果需要，解析为JSON对象
       return parseJson ? JSON.parse(jsonString) : jsonString;
     } catch (error) {
-      console.error('解压缩数据失�?', error);
+      console.error('解压缩数据失败:', error);
       analyticsService.trackError(error, { operation: 'decompress_data' });
       throw error;
     }
