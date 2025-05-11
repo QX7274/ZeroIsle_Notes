@@ -351,4 +351,6 @@ export const Text = ({
   }
 };
 
-export default Text;
+// 确保正确导出Text组件
+const Typography = { Text, Heading, Body, Label };
+export default Typography;

@@ -9,33 +9,38 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
+  Dimensions,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import useOrientation from '../../utils/hooks/useOrientation';
 
 // 排序选项
 const SORT_OPTIONS = [
-  { id: 'created_desc', label: '最新创建', icon: 'schedule', description: '按创建时间从新到旧排序' },
-  { id: 'created_asc', label: '最早创建', icon: 'schedule', description: '按创建时间从旧到新排序' },
-  { id: 'updated_desc', label: '最近更新', icon: 'update', description: '按更新时间从新到旧排序' },
-  { id: 'updated_asc', label: '最早更新', icon: 'update', description: '按更新时间从旧到新排序' },
-  { id: 'title_asc', label: '名称 A-Z', icon: 'sort-by-alpha', description: '按名称字母顺序排序' },
-  { id: 'title_desc', label: '名称 Z-A', icon: 'sort-by-alpha', description: '按名称字母倒序排序' },
-  { id: 'type', label: '文件类型', icon: 'category', description: '按文件类型分组排序' },
+  { id: 'created_desc', label: '最新创建', icon: 'schedule', description: '按创建时间从新到旧排序', color: '#4CAF50' }, // 绿色
+  { id: 'created_asc', label: '最早创建', icon: 'schedule', description: '按创建时间从旧到新排序', color: '#8BC34A' }, // 浅绿色
+  { id: 'updated_desc', label: '最近更新', icon: 'update', description: '按更新时间从新到旧排序', color: '#2196F3' }, // 蓝色
+  { id: 'updated_asc', label: '最早更新', icon: 'update', description: '按更新时间从旧到新排序', color: '#03A9F4' }, // 浅蓝色
+  { id: 'title_asc', label: '名称 A-Z', icon: 'sort-by-alpha', description: '按名称字母顺序排序', color: '#9C27B0' }, // 紫色
+  { id: 'title_desc', label: '名称 Z-A', icon: 'sort-by-alpha', description: '按名称字母倒序排序', color: '#673AB7' }, // 深紫色
+  { id: 'type', label: '文件类型', icon: 'category', description: '按文件类型分组排序', color: '#FF9800' }, // 橙色
 ];
 
 // 存储键
 const SORT_PREFERENCE_KEY = 'home_sort_preference';
 
-const SortControl = ({ onSortChange, initialSortOption = 'updated_desc' }) => {
+const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact = false }) => {
   const { theme } = useTheme();
   const { colors } = theme;
 
   // 状态
   const [showSortModal, setShowSortModal] = useState(false);
   const [currentSort, setCurrentSort] = useState(initialSortOption);
+
+  // 获取屏幕方向信息
+  const { isLandscape } = useOrientation();
 
   // 获取当前排序选项标签
   const getCurrentSortLabel = () => {
@@ -75,32 +80,39 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc' }) => {
     >
       <View style={styles.sortOptionLeft}>
         <View style={{
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          backgroundColor: currentSort === item.id ? `${colors.primary}20` : `${colors.textSecondary}10`,
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: currentSort === item.id
+            ? `${item.color}20`
+            : `${item.color}10`,
           justifyContent: 'center',
           alignItems: 'center',
+          borderWidth: currentSort === item.id ? 1 : 0,
+          borderColor: `${item.color}40`,
         }}>
           <Icon
             name={item.icon}
-            size={20}
-            color={currentSort === item.id ? colors.primary : colors.textSecondary}
+            size={16}
+            color={currentSort === item.id ? item.color : `${item.color}99`}
           />
         </View>
         <View style={styles.sortOptionTextContainer}>
           <Text
             variant="body"
             size="medium"
-            color={currentSort === item.id ? 'primary' : 'text'}
-            style={{ fontWeight: currentSort === item.id ? '600' : '500', fontSize: 16 }}
+            style={{
+              fontWeight: currentSort === item.id ? '600' : '500',
+              fontSize: 14,
+              color: currentSort === item.id ? item.color : colors.text
+            }}
           >
             {item.label}
           </Text>
           <Text
             variant="caption"
             color="textSecondary"
-            style={{ fontSize: 13, lineHeight: 18, marginTop: 2 }}
+            style={{ fontSize: 11, lineHeight: 14, marginTop: 1, opacity: 0.8 }}
           >
             {item.description}
           </Text>
@@ -108,44 +120,75 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc' }) => {
       </View>
 
       {currentSort === item.id && (
-        <Icon name="check-circle" size={22} color={colors.primary} />
+        <Icon name="check-circle" size={20} color={item.color} />
       )}
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      compact && styles.compactContainer,
+      // 横屏模式下的样式调整
+      isLandscape && {
+        marginHorizontal: 0,
+        marginBottom: 0,
+      }
+    ]}>
       <TouchableOpacity
         style={[
           styles.sortButton,
           {
             backgroundColor: colors.card,
             borderColor: `${colors.border}80`,
+          },
+          compact && styles.compactSortButton,
+          // 横屏模式下的样式调整
+          isLandscape && compact && {
+            paddingHorizontal: 12,
+            paddingVertical: 12,
+            borderRadius: 24,
+            minWidth: 48,
           }
         ]}
         onPress={() => setShowSortModal(true)}
         activeOpacity={0.7}
       >
         <View style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: `${colors.primary}10`,
+          width: compact ? 30 : 28,
+          height: compact ? 30 : 28,
+          borderRadius: compact ? 15 : 14,
+          backgroundColor: `${colors.primary}15`,
           justifyContent: 'center',
           alignItems: 'center',
-          marginRight: 6,
+          marginRight: compact ? 4 : 6,
         }}>
-          <Icon name="sort" size={16} color={colors.primary} />
+          <Icon name="sort" size={compact ? 18 : 16} color={colors.primary} />
         </View>
-        <Text
-          variant="body"
-          size="small"
-          color="text"
-          style={styles.sortButtonText}
-        >
-          {getCurrentSortLabel()}
-        </Text>
-        <Icon name="keyboard-arrow-down" size={18} color={colors.primary} />
+        {!compact ? (
+          <Text
+            variant="body"
+            size="small"
+            color="text"
+            style={styles.sortButtonText}
+          >
+            {getCurrentSortLabel()}
+          </Text>
+        ) : (
+          <Text
+            variant="body"
+            size="small"
+            color="primary"
+            style={[styles.sortButtonText, { marginHorizontal: 0, fontSize: 12, fontWeight: '600' }]}
+          >
+            排序
+          </Text>
+        )}
+        <Icon
+          name="expand-more"
+          size={compact ? 18 : 18}
+          color={colors.primary}
+        />
       </TouchableOpacity>
 
       <Modal
@@ -161,28 +204,39 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc' }) => {
               backgroundColor: colors.card,
               borderTopWidth: 1,
               borderColor: `${colors.border}40`,
+            },
+            // 横屏模式下的样式调整
+            isLandscape && {
+              maxHeight: '80%',
+              width: '50%',
+              alignSelf: 'center',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              borderBottomLeftRadius: 20,
+              borderBottomRightRadius: 20,
+              marginBottom: 20,
             }
           ]}>
             <View style={styles.modalHeader}>
               <Text
                 variant="heading"
                 level="h6"
-                style={{ fontSize: 20, fontWeight: '700' }}
+                style={{ fontSize: 16, fontWeight: '700', letterSpacing: -0.3 }}
               >
-                排序方式
+                选择排序方式
               </Text>
               <TouchableOpacity
                 onPress={() => setShowSortModal(false)}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
                   backgroundColor: `${colors.error}10`,
                   justifyContent: 'center',
                   alignItems: 'center',
                 }}
               >
-                <Icon name="close" size={20} color={colors.error} />
+                <Icon name="close" size={18} color={colors.error} />
               </TouchableOpacity>
             </View>
 
@@ -204,6 +258,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 12,
   },
+  // 紧凑模式容器
+  compactContainer: {
+    marginHorizontal: 0,
+    marginBottom: 0,
+    alignItems: 'flex-end',
+  },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -218,6 +278,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 1,
   },
+  // 紧凑模式按钮
+  compactSortButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 20,
+    minWidth: 40,
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
   sortButtonText: {
     marginHorizontal: 6,
     fontWeight: '500',
@@ -227,10 +300,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 30,
-    maxHeight: '80%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+    maxHeight: '70%',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -241,21 +314,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   sortOptionsList: {
-    padding: 12,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 10,
   },
   sortOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
   },
@@ -265,7 +341,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sortOptionTextContainer: {
-    marginLeft: 14,
+    marginLeft: 8,
     flex: 1,
   },
 });

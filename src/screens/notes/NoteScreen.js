@@ -30,7 +30,7 @@ import {
   HandwritingRecognizer
 } from '../../components/notes';
 import { Button } from '../../components/common';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 
@@ -281,13 +281,42 @@ const NoteScreen = ({ navigation, route }) => {
         // 创建新笔记
         console.log('创建新笔记');
 
+        // 设置超时，确保不会一直等待
+        let timeoutId = null;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error('创建笔记超时，但笔记可能已保存'));
+          }, 10000); // 10秒超时
+        });
+
         try {
-          // 添加额外的错误处理和日志
-          const actionResult = await dispatch(createNote(note));
+          // 创建一个可以被取消的Promise
+          const createPromise = dispatch(createNote(note));
+
+          // 使用Promise.race确保不会一直等待
+          const actionResult = await Promise.race([createPromise, timeoutPromise]);
           console.log('创建笔记action结果:', actionResult);
+
+          // 清除超时
+          if (timeoutId) clearTimeout(timeoutId);
 
           // 检查是否有错误
           if (actionResult.error) {
+            console.error('创建笔记返回错误:', actionResult.error);
+
+            // 尝试从错误中提取有用信息
+            if (actionResult.payload && actionResult.payload.data) {
+              const emergencyNote = actionResult.payload.data;
+              console.log('从错误中提取紧急笔记数据:', emergencyNote);
+
+              // 显示警告提示
+              ToastAndroid.show('笔记已创建，但可能存在问题', ToastAndroid.LONG);
+
+              // 使用紧急笔记数据
+              handleViewNote(emergencyNote);
+              return;
+            }
+
             throw new Error(actionResult.error.message || '创建笔记失败');
           }
 
@@ -296,27 +325,54 @@ const NoteScreen = ({ navigation, route }) => {
           console.log('创建笔记成功，结果:', result);
 
           // 创建成功后返回详情页
-          if (result && (result.data || result)) {
-            const noteData = result.data || result;
-            handleViewNote(noteData);
+          if (result) {
+            // 提取笔记数据，处理不同的响应格式
+            let noteData = null;
 
-            // 显示成功提示
-            ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
-
-            // 如果是离线创建的笔记，显示额外提示
-            if (result.isOffline || noteData.isOffline) {
-              ToastAndroid.show('笔记已离线保存，将在网络恢复后同步', ToastAndroid.LONG);
+            if (result.data) {
+              noteData = result.data;
+            } else if (typeof result === 'object') {
+              noteData = result;
             }
-          } else {
-            console.warn('创建笔记成功但返回结果为空');
-            // 返回列表页
-            handleBackToList();
 
-            // 显示通用成功提示
-            ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+            if (noteData && noteData.id) {
+              console.log('使用返回的笔记数据:', noteData);
+              handleViewNote(noteData);
+
+              // 显示成功提示
+              ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+
+              // 如果是离线创建的笔记，显示额外提示
+              if (result.isOffline || noteData.isOffline) {
+                ToastAndroid.show('笔记已离线保存，将在网络恢复后同步', ToastAndroid.LONG);
+              }
+
+              return;
+            }
           }
-        } catch (createError) {
-          console.error('创建笔记失败:', createError);
+
+          // 如果没有有效的笔记数据，但操作成功
+          console.warn('创建笔记成功但返回结果无效');
+
+          // 返回列表页
+          handleBackToList();
+
+          // 显示通用成功提示
+          ToastAndroid.show('笔记已保存', ToastAndroid.SHORT);
+        } catch (error) {
+          // 清除超时
+          if (timeoutId) clearTimeout(timeoutId);
+
+          console.error('创建笔记过程中出错:', error);
+
+          // 如果是超时错误，显示特殊提示
+          if (error.message && error.message.includes('超时')) {
+            ToastAndroid.show('创建笔记超时，请检查笔记列表', ToastAndroid.LONG);
+            handleBackToList();
+            return;
+          }
+
+          console.error('创建笔记失败:', error);
 
           // 显示错误，但不阻止用户继续操作
           Alert.alert(
@@ -563,19 +619,21 @@ const NoteScreen = ({ navigation, route }) => {
 
   // 创建无限画布
   const handleCreateCanvas = () => {
-    // 创建新的无限画布笔记
-    const canvasNote = {
-      title: '无标题画布',
-      content: '',
-      type: 'canvas',
-      metadata: {
-        canvasType: 'infinite',
-        elements: []
-      }
-    };
+    try {
+      console.log('开始创建无限画布...');
 
-    // 保存画布笔记
-    handleSaveNote(canvasNote);
+      // 直接导航到InfiniteCanvas屏幕，而不是创建笔记
+      // 这样可以避免数据库操作和笔记保存过程中的问题
+      navigation.navigate('InfiniteCanvas');
+
+      // 记录分析事件
+      analyticsService.trackEvent('create_infinite_canvas');
+    } catch (error) {
+      console.error('创建无限画布失败:', error);
+
+      // 显示错误提示，但不阻止用户继续操作
+      ToastAndroid.show('创建画布失败，请重试', ToastAndroid.SHORT);
+    }
   };
 
   // 处理工具变化

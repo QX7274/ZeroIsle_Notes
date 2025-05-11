@@ -11,7 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DeviceInfo from 'react-native-device-info';
 import { APP_VERSION } from '../../utils/constants/config';
@@ -19,14 +19,14 @@ import { APP_VERSION } from '../../utils/constants/config';
 const AboutScreen = () => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [appInfo, setAppInfo] = useState({
     version: APP_VERSION,
     buildNumber: '',
     deviceId: '',
   });
-  
+
   // 获取应用信息
   useEffect(() => {
     const getAppInfo = async () => {
@@ -34,7 +34,7 @@ const AboutScreen = () => {
         const version = await DeviceInfo.getVersion();
         const buildNumber = await DeviceInfo.getBuildNumber();
         const deviceId = await DeviceInfo.getUniqueId();
-        
+
         setAppInfo({
           version,
           buildNumber,
@@ -44,10 +44,10 @@ const AboutScreen = () => {
         console.error('获取应用信息失败:', error);
       }
     };
-    
+
     getAppInfo();
   }, []);
-  
+
   // 打开链接
   const openLink = (url) => {
     Linking.canOpenURL(url).then(supported => {
@@ -58,7 +58,7 @@ const AboutScreen = () => {
       }
     });
   };
-  
+
   // 渲染链接项
   const renderLinkItem = ({ icon, title, url }) => (
     <TouchableOpacity
@@ -76,7 +76,7 @@ const AboutScreen = () => {
       <Icon name="open-in-new" size={20} color={colors.textSecondary} />
     </TouchableOpacity>
   );
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -87,7 +87,7 @@ const AboutScreen = () => {
             style={styles.appIcon}
             resizeMode="contain"
           />
-          
+
           <Text
             variant="heading"
             level="h5"
@@ -96,7 +96,7 @@ const AboutScreen = () => {
           >
             零屿笔记
           </Text>
-          
+
           <Text
             variant="body"
             size="medium"
@@ -105,7 +105,7 @@ const AboutScreen = () => {
           >
             版本 {appInfo.version} ({appInfo.buildNumber})
           </Text>
-          
+
           <Text
             variant="caption"
             color="hint"
@@ -115,7 +115,7 @@ const AboutScreen = () => {
             © 2025 零屿笔记团队. 保留所有权利.
           </Text>
         </View>
-        
+
         {/* 应用描述 */}
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <Text
@@ -126,7 +126,7 @@ const AboutScreen = () => {
             零屿笔记是一款功能强大的笔记应用，集成了知识图谱、手写识别、语音识别等多种智能功能，帮助您更高效地记录和管理知识。
           </Text>
         </View>
-        
+
         {/* 链接 */}
         <View style={styles.linksContainer}>
           <Text
@@ -136,32 +136,32 @@ const AboutScreen = () => {
           >
             相关链接
           </Text>
-          
+
           {renderLinkItem({
             icon: 'language',
             title: '官方网站',
             url: 'https://zeroislenotes.com',
           })}
-          
+
           {renderLinkItem({
             icon: 'help',
             title: '帮助中心',
             url: 'https://zeroislenotes.com/help',
           })}
-          
+
           {renderLinkItem({
             icon: 'policy',
             title: '隐私政策',
             url: 'https://zeroislenotes.com/privacy',
           })}
-          
+
           {renderLinkItem({
             icon: 'description',
             title: '用户协议',
             url: 'https://zeroislenotes.com/terms',
           })}
         </View>
-        
+
         {/* 开发者信息 */}
         <View style={styles.developerContainer}>
           <Text
@@ -171,7 +171,7 @@ const AboutScreen = () => {
           >
             开发者信息
           </Text>
-          
+
           <View style={[styles.developerCard, { backgroundColor: colors.card }]}>
             <Text
               variant="body"
@@ -180,7 +180,7 @@ const AboutScreen = () => {
             >
               零屿笔记团队
             </Text>
-            
+
             <Text
               variant="body"
               size="small"
@@ -189,7 +189,7 @@ const AboutScreen = () => {
             >
               邮箱: contact@zeroislenotes.com
             </Text>
-            
+
             <Text
               variant="body"
               size="small"
@@ -200,7 +200,7 @@ const AboutScreen = () => {
             </Text>
           </View>
         </View>
-        
+
         {/* 技术信息 */}
         <View style={styles.techInfoContainer}>
           <Text
@@ -210,7 +210,7 @@ const AboutScreen = () => {
           >
             技术信息
           </Text>
-          
+
           <View style={[styles.techInfoCard, { backgroundColor: colors.card }]}>
             <View style={styles.techInfoItem}>
               <Text
@@ -227,7 +227,7 @@ const AboutScreen = () => {
                 {appInfo.deviceId}
               </Text>
             </View>
-            
+
             <View style={styles.techInfoItem}>
               <Text
                 variant="body"
@@ -243,7 +243,7 @@ const AboutScreen = () => {
                 0.71.8
               </Text>
             </View>
-            
+
             <View style={styles.techInfoItem}>
               <Text
                 variant="body"
@@ -261,7 +261,7 @@ const AboutScreen = () => {
             </View>
           </View>
         </View>
-        
+
         {/* 致谢 */}
         <View style={styles.acknowledgementsContainer}>
           <Text
@@ -271,7 +271,7 @@ const AboutScreen = () => {
           >
             致谢
           </Text>
-          
+
           <View style={[styles.acknowledgementsCard, { backgroundColor: colors.card }]}>
             <Text
               variant="body"
@@ -280,7 +280,7 @@ const AboutScreen = () => {
             >
               感谢所有为零屿笔记做出贡献的开发者和用户。
             </Text>
-            
+
             <Text
               variant="body"
               size="small"

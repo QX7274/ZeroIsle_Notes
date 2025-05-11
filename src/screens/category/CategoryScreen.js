@@ -4,7 +4,7 @@ import CategoryManager from '../../components/notes/CategoryManager';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UnifiedSearchBar } from '../../components/search';
 import { IconButton } from '../../components/common';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
 const CategoryScreen = ({ navigation }) => {

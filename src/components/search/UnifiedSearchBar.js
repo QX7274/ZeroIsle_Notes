@@ -8,12 +8,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 import MultiModalSearch from './MultiModalSearch';
+import useOrientation from '../../utils/hooks/useOrientation';
 
 /**
  * 统一搜索栏组件
@@ -40,6 +42,9 @@ const UnifiedSearchBar = ({
   const { colors } = useTheme();
   const navigation = useNavigation();
   const [showSearch, setShowSearch] = useState(false);
+
+  // 获取屏幕方向信息
+  const { isLandscape } = useOrientation();
 
   // 根据搜索范围获取占位文本
   const getPlaceholder = () => {
@@ -107,6 +112,12 @@ const UnifiedSearchBar = ({
             backgroundColor: colors.card,
             borderColor: `${colors.border}80`,
           },
+          // 横屏模式下的样式调整
+          isLandscape && {
+            paddingHorizontal: 18,
+            paddingVertical: 12,
+            borderRadius: 24,
+          },
           style
         ]}
         onPress={() => {
@@ -116,15 +127,15 @@ const UnifiedSearchBar = ({
         activeOpacity={0.7}
       >
         <View style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: `${colors.primary}10`,
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: `${colors.primary}15`,
           justifyContent: 'center',
           alignItems: 'center',
-          marginRight: 10,
+          marginRight: 8,
         }}>
-          <Icon name="search" size={20} color={colors.primary} />
+          <Icon name="search" size={18} color={colors.primary} />
         </View>
         <Text
           variant="body"
@@ -162,22 +173,22 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 16,
-    marginVertical: 8,
-    elevation: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginVertical: 0,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
   placeholder: {
-    marginLeft: 10,
+    marginLeft: 8,
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
   },
   modalContainer: {
     flex: 1,

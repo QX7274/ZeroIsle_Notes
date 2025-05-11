@@ -9,23 +9,27 @@ import {
   ToastAndroid,
   Platform,
   Image,
-  Dimensions
+  Dimensions,
+  ScrollView,
+  SafeAreaView
 } from 'react-native';
+import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
+import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { notesApi } from '../../services/api';
-import { setNotes as setNotesAction, deleteNote, selectAllNotes } from '../../redux/slices/notesSlice';
+import { setNotes as setNotesAction, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { Text } from '../../components/common/Typography';
-import { UnifiedSearchBar } from '../../components/search';
+import { Text } from 'react-native'; // 直接从react-native导入Text组件
+import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
 import SortControl from '../../components/home/SortControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // OfflineIndicator 已移除
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
 import NetInfo from '@react-native-community/netinfo';
-import { CreateContentModal } from '../../components/common';
+import CreateContentModal from '../../components/common/CreateContentModal';
 import RNFS from 'react-native-fs';
 
 const HomeScreen = ({ navigation }) => {
@@ -41,8 +45,13 @@ const HomeScreen = ({ navigation }) => {
   });
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 获取屏幕方向信息
+  const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
   const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
+  const [renameDialogVisible, setRenameDialogVisible] = useState(false);
+  const [noteToRename, setNoteToRename] = useState(null);
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
@@ -202,21 +211,41 @@ const HomeScreen = ({ navigation }) => {
       // 设置超时，确保不会一直等待API响应
       const timeoutPromise = new Promise((resolve) => {
         setTimeout(() => {
-          console.log('加载笔记超时，返回空数组');
+          console.log('加载笔记超时，尝试从备份恢复');
           resolve({ success: false, timeout: true });
-        }, 3000); // 3秒超时
+        }, 10000); // 10秒超时，增加超时时间
       });
 
       // 首先尝试从本地存储获取笔记，带超时
       const offlineResponsePromise = notesApi.getAllNotes();
       const offlineResponse = await Promise.race([offlineResponsePromise, timeoutPromise]);
 
-      // 如果超时，返回空数组
+      // 如果超时，尝试从AsyncStorage备份恢复
       if (offlineResponse.timeout) {
-        console.log('API请求超时，返回空数组');
-        dispatch(setNotesAction([]));
-        setIsLoading(false);
-        return; // 提前返回，避免重复设置 isLoading
+        console.log('API请求超时，尝试从AsyncStorage备份恢复');
+
+        try {
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          const backupNotesJson = await AsyncStorage.getItem('BACKUP_NOTES');
+
+          if (backupNotesJson) {
+            const backupNotes = JSON.parse(backupNotesJson);
+            console.log(`从AsyncStorage备份恢复了 ${backupNotes.length} 条笔记`);
+            dispatch(setNotesAction(backupNotes));
+            setIsLoading(false);
+            return; // 提前返回，避免重复设置 isLoading
+          } else {
+            console.log('AsyncStorage中没有备份笔记，返回空数组');
+            dispatch(setNotesAction([]));
+            setIsLoading(false);
+            return; // 提前返回，避免重复设置 isLoading
+          }
+        } catch (backupError) {
+          console.error('从AsyncStorage恢复备份失败:', backupError);
+          dispatch(setNotesAction([]));
+          setIsLoading(false);
+          return; // 提前返回，避免重复设置 isLoading
+        }
       }
 
       console.log('获取笔记响应:', offlineResponse);
@@ -307,17 +336,18 @@ const HomeScreen = ({ navigation }) => {
 
           // 创建本地笔记对象
           const localNote = {
-            id: 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
-            title: file.name ? file.name.split('.')[0] : '导入的PDF文档',
-            content: `导入的PDF文件: ${file.name || '未命名文档'}`,
+            id: Date.now() + '_' + Math.random().toString(36).substring(2, 11), // 使用时间戳和随机字符串作为ID
+            title: file.name ? file.name.split('.')[0] : 'PDF文档', // 使用文件名作为标题
+            content: `PDF文件: ${file.name || '未命名文档'}`, // 明确标记为PDF文件
             file_type: 'pdf',
-            file_name: file.name || `document_${Date.now()}.pdf`,
+            file_name: file.name || `document_${Date.now()}.pdf`, // 保存原始文件名
             file_uri: file.uri,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             is_synced: false,
             is_offline: true,
-            preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
+            // 不再使用预览图，而是使用纯色背景
+            preview_image: null
           };
 
           // 添加到Redux状态
@@ -457,9 +487,9 @@ const HomeScreen = ({ navigation }) => {
 
       // 创建本地笔记对象
       const localNote = {
-        id: 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
-        title: file.name ? file.name.split('.')[0] : '导入的Word文档',
-        content: `导入的Word文件: ${file.name || '未命名文档'}`,
+        id: Date.now() + '_' + Math.random().toString(36).substring(2, 11), // 移除temp_前缀
+        title: file.name ? file.name.split('.')[0] : 'Word文档',
+        content: `Word文件: ${file.name || '未命名文档'}`, // 明确标记为Word文件
         file_type: 'word',
         file_name: file.name || `document_${Date.now()}.docx`,
         file_uri: fileUri,
@@ -467,16 +497,77 @@ const HomeScreen = ({ navigation }) => {
         updated_at: new Date().toISOString(),
         is_synced: false,
         is_offline: true,
-        preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
+        // 不再使用预览图，而是使用纯色背景
+        preview_image: null
       };
 
       // 添加到Redux状态
       dispatch(setNotesAction([...allNotes, localNote]));
 
-      // 保存到本地存储
+      // 保存到本地存储 - 使用多种方式确保持久化
       try {
-        await notesApi.saveOfflineNote(localNote);
-        console.log('笔记已保存到本地存储');
+        // 1. 使用notesApi保存到离线存储
+        const saveResult = await notesApi.saveOfflineNote(localNote);
+        console.log('笔记已保存到离线存储:', saveResult);
+
+        // 2. 使用数据服务直接保存到SQLite数据库
+        try {
+          // 尝试多种方式获取数据服务
+          let dataService = null;
+
+          // 方法1: 直接导入
+          try {
+            dataService = require('../../services/database/dataService').dataService;
+          } catch (importError) {
+            console.log('导入dataService失败，尝试其他方法:', importError);
+          }
+
+          // 方法2: 从全局对象获取
+          if (!dataService && global.dataService) {
+            dataService = global.dataService;
+            console.log('从全局对象获取dataService成功');
+          }
+
+          // 方法3: 从SQLite服务获取
+          if (!dataService) {
+            try {
+              const SQLiteService = require('../../services/database/sqliteService').default;
+              const sqliteService = new SQLiteService();
+              await sqliteService.init();
+              dataService = sqliteService;
+              console.log('创建新的SQLiteService实例成功');
+            } catch (sqliteError) {
+              console.log('创建SQLiteService实例失败:', sqliteError);
+            }
+          }
+
+          if (dataService) {
+            // 确保ID不以temp_开头
+            const noteToSave = {
+              ...localNote,
+              id: localNote.id.startsWith('temp_') ? localNote.id.substring(5) : localNote.id
+            };
+
+            const savedNote = await dataService.createNote(noteToSave);
+            console.log('笔记已直接保存到SQLite数据库:', savedNote.id);
+          } else {
+            console.error('无法获取数据服务实例');
+          }
+        } catch (sqliteError) {
+          console.error('直接保存到SQLite数据库失败:', sqliteError);
+        }
+
+        // 3. 使用AsyncStorage作为额外备份
+        try {
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          const existingNotesJson = await AsyncStorage.getItem('BACKUP_NOTES');
+          const existingNotes = existingNotesJson ? JSON.parse(existingNotesJson) : [];
+          existingNotes.push(localNote);
+          await AsyncStorage.setItem('BACKUP_NOTES', JSON.stringify(existingNotes));
+          console.log('笔记已备份到AsyncStorage');
+        } catch (asyncStorageError) {
+          console.error('备份到AsyncStorage失败:', asyncStorageError);
+        }
       } catch (storageError) {
         console.error('保存到本地存储失败:', storageError);
       }
@@ -490,130 +581,90 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const renderNoteItem = ({ item }) => {
-    console.log('渲染笔记项:', item);
+  const renderNoteItem = ({ item, index }) => {
+    console.log('渲染笔记项:', item, '索引:', index);
 
     // 根据笔记类型渲染不同的封面
     const renderCover = () => {
+      console.log('渲染封面，笔记数据:', item);
+
+      // 检查内容是否包含文件类型信息
+      const content = item.content || '';
+
       // 检查是否是PDF文件
-      if (item.file_type === 'pdf' || item.type === 'pdf' || (item.file_name && item.file_name.toLowerCase().endsWith('.pdf'))) {
-        // PDF封面 - 使用文件首页作为预览
+      if (
+        item.file_type === 'pdf' ||
+        item.type === 'pdf' ||
+        (item.file_name && item.file_name.toLowerCase().endsWith('.pdf')) ||
+        content.includes('pdf')
+      ) {
+        // PDF封面 - 使用纯色背景
         return (
-          <View style={styles.coverContainer}>
-            <View style={styles.pdfPreview}>
-              {item.preview_image ? (
-                <Image
-                  source={{ uri: item.preview_image }}
-                  style={styles.coverImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.pdfPlaceholder}>
-                  <Icon name="document-text" size={40} color="#E53935" />
-                  <Text style={styles.pdfPlaceholderText}>PDF</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.fileTypeIndicator}>
-              <Icon name="document-text" size={16} color="#fff" />
-            </View>
+          <View style={[styles.coverContainer, styles.pdfBackground]}>
+            <Icon name="document-text" size={30} color="#E53935" />
+            <Text style={{ color: '#E53935', fontSize: 12, marginTop: 4 }}>PDF</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#E53935' }]} />
           </View>
         );
       }
       // 检查是否是Word文件
-      else if (item.file_type === 'word' || item.type === 'word' ||
-               (item.file_name && (item.file_name.toLowerCase().endsWith('.docx') || item.file_name.toLowerCase().endsWith('.doc')))) {
-        // Word封面 - 使用文件首页作为预览
+      else if (
+        item.file_type === 'word' ||
+        item.type === 'word' ||
+        (item.file_name && (item.file_name.toLowerCase().endsWith('.docx') || item.file_name.toLowerCase().endsWith('.doc'))) ||
+        content.includes('word') ||
+        content.includes('docx') ||
+        content.includes('doc')
+      ) {
+        // Word封面 - 使用纯色背景
         return (
-          <View style={styles.coverContainer}>
-            <View style={styles.wordPreview}>
-              {item.preview_image ? (
-                <Image
-                  source={{ uri: item.preview_image }}
-                  style={styles.coverImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.wordPlaceholder}>
-                  <Icon name="document" size={40} color="#1976D2" />
-                  <Text style={styles.wordPlaceholderText}>Word</Text>
-                </View>
-              )}
-            </View>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#1976D2' }]}>
-              <Icon name="document" size={16} color="#fff" />
-            </View>
+          <View style={[styles.coverContainer, styles.wordBackground]}>
+            <Icon name="document" size={30} color="#1976D2" />
+            <Text style={{ color: '#1976D2', fontSize: 12, marginTop: 4 }}>Word</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#1976D2' }]} />
           </View>
         );
       }
       // 检查是否是图片
-      else if (item.type === 'image' || (item.file_name &&
-              (item.file_name.toLowerCase().endsWith('.jpg') ||
-               item.file_name.toLowerCase().endsWith('.jpeg') ||
-               item.file_name.toLowerCase().endsWith('.png') ||
-               item.file_name.toLowerCase().endsWith('.gif')))) {
-        // 图片封面 - 直接使用图片本身
-        const imagePath = item.metadata?.imagePath || item.preview_image || item.file_uri;
+      else if (
+        item.type === 'image' ||
+        (item.file_name && (
+          item.file_name.toLowerCase().endsWith('.jpg') ||
+          item.file_name.toLowerCase().endsWith('.jpeg') ||
+          item.file_name.toLowerCase().endsWith('.png') ||
+          item.file_name.toLowerCase().endsWith('.gif')
+        ))
+      ) {
+        // 图片封面 - 使用纯色背景
         return (
-          <View style={styles.coverContainer}>
-            {imagePath ? (
-              <Image
-                source={{ uri: imagePath }}
-                style={styles.coverImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Icon name="image" size={40} color="#4CAF50" />
-              </View>
-            )}
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#4CAF50' }]}>
-              <Icon name="image" size={16} color="#fff" />
-            </View>
+          <View style={[styles.coverContainer, styles.imageBackground]}>
+            <Icon name="image" size={30} color="#4CAF50" />
+            <Text style={{ color: '#4CAF50', fontSize: 12, marginTop: 4 }}>图片</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#4CAF50' }]} />
           </View>
         );
       }
       // 检查是否是画布
       else if (item.type === 'canvas') {
-        // 画布封面 - 使用画布预览图或占位符
+        // 画布封面 - 使用纯色背景
         return (
-          <View style={styles.coverContainer}>
-            {item.preview_image ? (
-              <Image
-                source={{ uri: item.preview_image }}
-                style={styles.coverImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.canvasPreview}>
-                <Icon name="brush" size={40} color={colors.primary} />
-                <Text style={[styles.canvasPlaceholderText, { color: colors.primary }]}>画布</Text>
-              </View>
-            )}
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#9C27B0' }]}>
-              <Icon name="brush" size={16} color="#fff" />
-            </View>
+          <View style={[styles.coverContainer, styles.canvasBackground]}>
+            <Icon name="brush" size={30} color="#9C27B0" />
+            <Text style={{ color: '#9C27B0', fontSize: 12, marginTop: 4 }}>画布</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#9C27B0' }]} />
           </View>
         );
       }
       // 默认文本笔记封面
       else {
         return (
-          <View style={styles.coverContainer}>
-            <View style={styles.textPreview}>
-              <Text
-                style={[styles.coverContent, { color: colors.text }]}
-                numberOfLines={5}
-              >
-                {item.content || '空白笔记'}
-              </Text>
-            </View>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF9800' }]}>
-              <Icon name="document" size={16} color="#fff" />
-            </View>
+          <View style={[styles.coverContainer, styles.textBackground]}>
+            <Icon name="document-text-outline" size={30} color="#FF9800" />
+            <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>笔记</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF9800' }]} />
           </View>
         );
-      }
+      }                                                                  
     };
 
     // 格式化日期显示
@@ -728,50 +779,268 @@ const HomeScreen = ({ navigation }) => {
       );
     };
 
-    return (
-      <TouchableOpacity
-        style={[styles.noteItem, { backgroundColor: colors.card }]}
-        onPress={handleFilePress}
-        activeOpacity={0.7}
-      >
-        {/* 封面 */}
-        {renderCover()}
+    // 根据屏幕方向计算笔记项的宽度
+    const columnCount = isLandscape ? 4 : 3;
+    // 调整计算方式，确保均匀分布
+    const itemWidth = (screenWidth - 40) / columnCount; // 40是左右两侧的总padding
 
-        {/* 标题和底部信息 */}
-        <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1}>
-          {item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名笔记')}
-        </Text>
-        <View style={styles.noteFooter}>
-          <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
-            {formatDate(item.updatedAt || item.updated_at)}
+    return (
+      <View style={[
+        styles.noteItem,
+        {
+          backgroundColor: colors.card,
+          width: itemWidth // 动态设置宽度
+        }
+      ]}>
+        {/* 只有点击背景区域才执行打开操作 */}
+        <TouchableOpacity
+          style={styles.coverTouchable}
+          onPress={handleFilePress}
+          activeOpacity={0.7}
+        >
+          {/* 封面 */}
+          {renderCover()}
+
+          {/* 标题 */}
+          <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1}>
+            {item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名笔记')}
           </Text>
 
-          <View style={styles.noteActions}>
-            {hasCloudIcon && (
-              <View style={styles.cloudIcon}>
-                <Icon name="cloud-done" size={16} color={colors.primary} />
-              </View>
-            )}
+          {/* 底部区域 - 日期和操作按钮 */}
+          <View style={styles.noteFooter}>
+            <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
+              {formatDate(item.updatedAt || item.updated_at)}
+            </Text>
 
-            <TouchableOpacity
-              onPress={handleMoreOptions}
-              style={styles.deleteButton}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <Icon name="ellipsis-vertical" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              {/* 编辑名称按钮 */}
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation(); // 阻止事件冒泡
+                  handleRenameNote(item);
+                }}
+                style={[styles.actionButton, { backgroundColor: 'rgba(33, 150, 243, 0.1)' }]}
+                hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
+              >
+                <Icon name="create-outline" size={16} color={colors.primary} />
+              </TouchableOpacity>
+
+              {/* 导出/分享按钮 */}
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation(); // 阻止事件冒泡
+                  handleExportNote(item);
+                }}
+                style={[styles.actionButton, { backgroundColor: 'rgba(76, 175, 80, 0.1)' }]}
+                hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
+              >
+                <Icon name="share-outline" size={16} color="#4CAF50" />
+              </TouchableOpacity>
+
+              {/* 删除按钮 */}
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation(); // 阻止事件冒泡
+                  handleDeleteNote(item.id);
+                }}
+                style={[styles.actionButton, { backgroundColor: 'rgba(229, 57, 53, 0.1)' }]}
+                hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
+              >
+                <Icon name="trash-outline" size={16} color="#E53935" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   };
 
+  // 处理笔记重命名 - 优化为立即响应
+  const handleRenameNote = (note) => {
+    console.log('重命名笔记:', note);
+
+    // 使用平台兼容的方式获取用户输入
+    if (Platform.OS === 'ios') {
+      // iOS 使用 Alert.prompt
+      Alert.prompt(
+        '重命名笔记',
+        '请输入新的名称',
+        [
+          {
+            text: '取消',
+            style: 'cancel'
+          },
+          {
+            text: '确定',
+            onPress: (newTitle) => {
+              if (newTitle && newTitle.trim()) {
+                // 在iOS上，Alert.prompt关闭后才会执行这个回调
+                // 所以我们可以直接调用updateNoteTitle
+                updateNoteTitle(note, newTitle.trim());
+              }
+            }
+          }
+        ],
+        'plain-text',
+        note.title || ''
+      );
+    } else {
+      // Android 使用自定义对话框
+      // 保存要重命名的笔记引用
+      setNoteToRename(note);
+      // 显示对话框
+      setRenameDialogVisible(true);
+    }
+  };
+
+  // 更新笔记标题的辅助函数 - 立即更新UI，后台执行数据操作
+  const updateNoteTitle = (note, newTitle) => {
+    try {
+      console.log('更新笔记标题:', newTitle);
+
+      // 创建更新后的笔记对象
+      const updatedNote = {
+        ...note,
+        title: newTitle,
+        updated_at: new Date().toISOString()
+      };
+
+      // 1. 立即更新Redux状态，确保UI立即响应
+      dispatch(updateNote({
+        id: updatedNote.id,
+        noteData: updatedNote
+      }));
+
+      // 2. 立即关闭对话框
+      if (Platform.OS === 'android') {
+        setRenameDialogVisible(false);
+      }
+
+      // 3. 立即显示成功消息（可选，如果想要更快的体验可以移除）
+      // Alert.alert('成功', '重命名成功');
+
+      // 4. 在后台异步执行数据库操作，完全不阻塞UI
+      requestAnimationFrame(() => {
+        // 强制刷新笔记列表，确保UI立即更新
+        const updatedNotesList = notes.map(n =>
+          n.id === updatedNote.id ? updatedNote : n
+        );
+        setNotes([...updatedNotesList]);
+
+        // 在后台尝试更新数据库
+        setTimeout(() => {
+          notesApi.updateNote(updatedNote.id, updatedNote)
+            .then((result) => {
+              console.log('笔记已在后台通过API更新:', result);
+              // 静默处理，不打扰用户
+            })
+            .catch(error => {
+              console.error('后台更新数据库失败，但UI已更新:', error);
+              // 静默处理，不打扰用户
+            });
+        }, 100); // 稍微延迟以确保UI更新优先
+      });
+
+      return true; // 返回成功，允许调用者立即继续
+    } catch (error) {
+      console.error('重命名笔记失败:', error);
+      // 只在真正的错误情况下显示警告
+      Alert.alert('错误', '重命名失败: ' + (error.message || '未知错误'));
+      return false;
+    }
+  };
+
+  // 处理笔记导出/分享
+  const handleExportNote = (note) => {
+    Alert.alert(
+      '导出/分享',
+      '选择操作',
+      [
+        {
+          text: '导出到设备',
+          onPress: async () => {
+            try {
+              // 根据笔记类型执行不同的导出操作
+              if (note.file_uri) {
+                // 如果是文件类型的笔记，直接导出文件
+                const RNFS = require('react-native-fs');
+                const fileName = note.title || '导出文件';
+                const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}${getFileExtension(note.file_uri)}`;
+
+                await RNFS.copyFile(note.file_uri, destPath);
+                Alert.alert('成功', `文件已导出到: ${destPath}`);
+              } else {
+                // 如果是文本笔记，导出为TXT文件
+                const RNFS = require('react-native-fs');
+                const fileName = `${note.title || '笔记'}.txt`;
+                const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+
+                await RNFS.writeFile(destPath, note.content || '', 'utf8');
+                Alert.alert('成功', `笔记已导出到: ${destPath}`);
+              }
+            } catch (error) {
+              console.error('导出笔记失败:', error);
+              Alert.alert('错误', '导出失败，请稍后重试');
+            }
+          }
+        },
+        {
+          text: '分享',
+          onPress: () => {
+            // 分享功能可以在这里实现
+            Alert.alert('提示', '分享功能即将推出');
+          }
+        },
+        {
+          text: '取消',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  // 获取文件扩展名
+  const getFileExtension = (uri) => {
+    if (!uri) return '';
+    const parts = uri.split('.');
+    return parts.length > 1 ? `.${parts[parts.length - 1]}` : '';
+  };
+
+  // 处理笔记删除
   const handleDeleteNote = async (id) => {
     try {
-      await notesApi.delete(id);
-      dispatch(deleteNote(id));
+      Alert.alert(
+        '确认删除',
+        '确定要删除这个笔记吗？此操作无法撤销。',
+        [
+          {
+            text: '取消',
+            style: 'cancel'
+          },
+          {
+            text: '删除',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const result = await notesApi.deleteNote(id);
+                if (result && result.success) {
+                  console.log('笔记已通过API删除:', result);
+                  dispatch(deleteNote(id));
+                } else {
+                  console.warn('API返回成功但结果异常:', result);
+                  Alert.alert('部分成功', '笔记可能未完全从数据库中删除');
+                }
+              } catch (deleteError) {
+                console.error('删除笔记失败:', deleteError);
+                Alert.alert('错误', '删除失败: ' + (deleteError.message || '未知错误'));
+              }
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('删除笔记失败:', error);
+      Alert.alert('错误', '删除失败，请稍后重试');
     }
   };
 
@@ -841,10 +1110,10 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {renderLoader()}
 
-      {/* 头部区域 */}
+      {/* 头部区域 - 固定在顶部 */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{
@@ -868,41 +1137,101 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* 搜索栏 */}
-      <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-        <UnifiedSearchBar
-          searchScope="home"
-          resultScreenName="SearchResults"
-          onSearch={handleSearch}
-        />
+      {/* 搜索栏和排序控件放在同一行 */}
+      <View style={[
+        styles.searchSortContainer,
+        // 横屏时调整样式
+        isLandscape && {
+          paddingHorizontal: 24,
+          paddingVertical: 10,
+        }
+      ]}>
+        {/* 搜索栏 - 占据大部分空间 */}
+        <View style={[
+          styles.searchBarContainer,
+          // 横屏时调整搜索栏宽度
+          isLandscape && {
+            flex: 0.9,
+            marginRight: 16,
+          }
+        ]}>
+          <UnifiedSearchBar
+            searchScope="home"
+            resultScreenName="SearchResults"
+            onSearch={handleSearch}
+          />
+        </View>
+
+        {/* 排序控件 - 占据较小空间 */}
+        <View style={[
+          styles.sortControlContainer,
+          // 横屏时调整排序控件宽度
+          isLandscape && {
+            flex: 0.1,
+          }
+        ]}>
+          <SortControl
+            onSortChange={handleSortChange}
+            initialSortOption={sortOption}
+            compact={true} // 添加紧凑模式属性，如果SortControl组件支持的话
+          />
+        </View>
       </View>
 
-      {/* 排序控件 */}
-      <SortControl
-        onSortChange={handleSortChange}
-        initialSortOption={sortOption}
-      />
+      {/* 可滚动内容区域 */}
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContentContainer}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
+      >
+        {notes && notes.length > 0 ? (
+          <FlatList
+            key={`flatlist-${isLandscape ? 'landscape' : 'portrait'}`} // 添加基于屏幕方向的key
+            data={notes}
+            renderItem={renderNoteItem}
+            keyExtractor={item => item.id.toString()}
+            contentContainerStyle={styles.listContainer}
+            numColumns={isLandscape ? 4 : 3} // 横屏时显示4列，竖屏时显示3列
+            columnWrapperStyle={styles.columnWrapper}
+            getItemLayout={(_, index) => {
+              // 根据屏幕方向计算每个项目的宽度
+              const columnCount = isLandscape ? 4 : 3;
+              // 保持与renderNoteItem中相同的计算方式
+              const itemWidth = (screenWidth - 40) / columnCount;
+              return {
+                length: itemWidth,
+                offset: itemWidth * Math.floor(index / columnCount),
+                index,
+              };
+            }}
+            scrollEnabled={false} // 禁用FlatList的滚动，由外层ScrollView处理
+          />
+        ) : (
+          renderEmptyState()
+        )}
+      </ScrollView>
 
-      {notes && notes.length > 0 ? (
-        <FlatList
-          data={notes}
-          renderItem={renderNoteItem}
-          keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
-        />
-      ) : (
-        renderEmptyState()
-      )}
-
-      {/* 网络状态指示器已移除 */}
-
-      <View style={styles.buttonContainer}>
-        {/* 上传云端按钮已移除 */}
-
+      {/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
+      <View style={[
+        styles.buttonContainer,
+        // 横屏模式下的样式调整
+        isLandscape && {
+          right: 32,
+          bottom: 32,
+        }
+      ]}>
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          style={[
+            styles.addButton,
+            { backgroundColor: colors.primary },
+            // 横屏模式下的样式调整
+            isLandscape && {
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+            }
+          ]}
           onPress={() => {
             // 显示创建选项
             setShowCreateOptions(true);
@@ -925,13 +1254,68 @@ const HomeScreen = ({ navigation }) => {
           onCreateCanvas={() => navigation.navigate('Canvas')}
         />
       </View>
-    </View>
+
+      {/* 重命名对话框 - 仅在 Android 上使用 */}
+      <RenameDialog
+        visible={renameDialogVisible}
+        onClose={() => setRenameDialogVisible(false)}
+        onSubmit={(newTitle) => {
+          if (noteToRename && newTitle && newTitle.trim()) {
+            // 立即关闭对话框，然后更新标题
+            setRenameDialogVisible(false);
+            // 使用requestAnimationFrame确保对话框关闭动画开始后再执行更新
+            requestAnimationFrame(() => {
+              updateNoteTitle(noteToRename, newTitle.trim());
+            });
+          } else {
+            // 如果输入无效，也关闭对话框
+            setRenameDialogVisible(false);
+          }
+        }}
+        title="重命名笔记"
+        message="请输入新的名称"
+        initialValue={noteToRename?.title || ''}
+      />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1
+  },
+  // 滚动容器样式
+  scrollContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  // 滚动内容容器样式
+  scrollContentContainer: {
+    flexGrow: 1, // 允许内容拉伸以填充可用空间
+    paddingBottom: 100, // 底部添加额外的内边距，确保内容不被底部按钮遮挡
+  },
+  // 搜索栏和排序控件的容器
+  searchSortContainer: {
+    flexDirection: 'row', // 水平排列
+    alignItems: 'center', // 垂直居中
+    justifyContent: 'space-between', // 两端对齐
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.95)', // 与头部相同的背景色
+    zIndex: 9, // 确保在滚动内容之上，但在头部之下
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  // 搜索栏容器
+  searchBarContainer: {
+    flex: 0.85, // 占据85%的空间
+    marginRight: 10, // 右侧添加间距
+  },
+  // 排序控件容器
+  sortControlContainer: {
+    flex: 0.15, // 占据15%的空间
+    alignItems: 'flex-end', // 右对齐
   },
   header: {
     flexDirection: 'row',
@@ -947,6 +1331,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.95)', // 添加背景色，确保内容滚动时头部不透明
+    zIndex: 10, // 确保头部在其他内容之上
   },
   headerTitle: {
     flex: 1,
@@ -955,50 +1341,54 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   listContainer: {
-    padding: 20
+    paddingVertical: 16,
+    paddingHorizontal: 8
   },
   columnWrapper: {
-    justifyContent: 'space-between'
+    justifyContent: 'space-between', // 均匀分布
+    paddingHorizontal: 8, // 添加水平内边距
   },
   noteItem: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    elevation: 3,
+    padding: 8, // 减小内边距
+    borderRadius: 10, // 减小圆角
+    marginBottom: 12, // 减小底部边距
+    elevation: 2, // 减小阴影
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    width: Dimensions.get('window').width / 2 - 24,
-    margin: 6,
+    shadowRadius: 3,
+    // 宽度将在renderNoteItem中动态设置
+    margin: 0, // 移除外边距，由FlatList的columnWrapper控制间距
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
   noteTitle: {
-    fontSize: 14,
+    fontSize: 12, // 减小字体大小
     fontWeight: '600',
-    marginTop: 8,
-    marginBottom: 4,
-    lineHeight: 18,
+    marginTop: 4, // 减小边距
+    marginBottom: 2, // 减小边距
+    lineHeight: 16, // 减小行高
   },
   noteContent: {
-    fontSize: 13,
-    marginBottom: 8,
-    lineHeight: 18,
+    fontSize: 11, // 减小字体大小
+    marginBottom: 4, // 减小边距
+    lineHeight: 14, // 减小行高
   },
   noteFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between', // 两端对齐
     alignItems: 'center',
-    marginTop: 4,
-    paddingTop: 4,
+    marginTop: 4, // 增加边距
+    paddingTop: 4, // 增加上内边距
+    paddingBottom: 2, // 增加下内边距
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: 'rgba(0,0,0,0.05)', // 边框颜色
   },
   noteDate: {
-    fontSize: 10,
+    fontSize: 9, // 字体大小
     fontWeight: '400',
+    color: 'rgba(0,0,0,0.5)', // 设置颜色
   },
   noteActions: {
     flexDirection: 'row',
@@ -1007,31 +1397,53 @@ const styles = StyleSheet.create({
   cloudIcon: {
     marginRight: 8,
   },
-  deleteButton: {
-    padding: 4,
-    borderRadius: 12,
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 3,
+    borderRadius: 8,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 4,
+  },
+  coverTouchable: {
+    width: '100%',
+    flex: 1,
   },
   // 封面样式
   coverContainer: {
-    height: 140,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.02)',
+    height: undefined, // 高度将根据屏幕方向动态计算
+    aspectRatio: 1.8, // 增加宽高比，使卡片更扁一些
+    width: '100%', // 确保宽度占满父容器
+    borderRadius: 6, // 减小圆角
+    backgroundColor: '#FFF8E1', // 默认淡黄色背景
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 6, // 减小底部边距
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     position: 'relative',
   },
-  coverImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 8
+  // 不同类型的背景颜色
+  pdfBackground: {
+    backgroundColor: '#FFEBEE', // 淡红色背景用于PDF
+  },
+  wordBackground: {
+    backgroundColor: '#E3F2FD', // 淡蓝色背景用于Word
+  },
+  imageBackground: {
+    backgroundColor: '#E8F5E9', // 淡绿色背景用于图片
+  },
+  canvasBackground: {
+    backgroundColor: '#F3E5F5', // 淡紫色背景用于画布
+  },
+  textBackground: {
+    backgroundColor: '#FFF8E1', // 淡黄色背景用于文本
   },
   // PDF预览样式
   pdfPreview: {
@@ -1116,19 +1528,19 @@ const styles = StyleSheet.create({
   },
   fileTypeIndicator: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 4, // 减小边距
+    right: 4, // 减小边距
+    width: 20, // 减小尺寸
+    height: 20, // 减小尺寸
+    borderRadius: 10, // 减小圆角
     backgroundColor: '#E53935',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
+    elevation: 1, // 减小阴影
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowRadius: 1, // 减小阴影
   },
   buttonContainer: {
     position: 'absolute',

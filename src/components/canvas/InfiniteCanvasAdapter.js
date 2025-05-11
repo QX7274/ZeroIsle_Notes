@@ -6,8 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, { 
-  useSharedValue, 
+import Animated, {
+  useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS
@@ -19,26 +19,26 @@ import { InfiniteCanvas } from './index';
  * 无限画布适配器组件
  * 提供与Canvas兼容的接口，但使用InfiniteCanvas的实现
  */
-const InfiniteCanvasAdapter = ({ 
-  elements = [], 
-  onContentChange, 
-  onElementSelect 
+const InfiniteCanvasAdapter = ({
+  elements = [],
+  onContentChange,
+  onElementSelect
 }) => {
   // 主题
   const { colors } = useTheme();
-  
+
   // 状态
   const [selectedElement, setSelectedElement] = useState(null);
   const [canvasId, setCanvasId] = useState(`canvas_${Date.now()}`);
-  
+
   // 画布尺寸
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-  
-  // 动画值
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  
+
+  // 注释掉未使用的动画值，避免不必要的Reanimated警告
+  // const scale = useSharedValue(1);
+  // const translateX = useSharedValue(0);
+  // const translateY = useSharedValue(0);
+
   // 处理元素选择
   const handleElementSelect = (element) => {
     setSelectedElement(element);
@@ -46,14 +46,14 @@ const InfiniteCanvasAdapter = ({
       onElementSelect(element);
     }
   };
-  
+
   // 处理内容变化
   const handleContentChange = (newElements) => {
     if (onContentChange) {
       onContentChange(newElements);
     }
   };
-  
+
   // 将旧格式的元素转换为新格式
   const convertElements = (oldElements) => {
     return oldElements.map(element => {
@@ -65,7 +65,7 @@ const InfiniteCanvasAdapter = ({
         x: element.x || 0,
         y: element.y || 0,
       };
-      
+
       // 根据类型添加特定属性
       switch (element.type) {
         case 'text':
@@ -107,7 +107,7 @@ const InfiniteCanvasAdapter = ({
       }
     });
   };
-  
+
   // 将新格式的元素转换为旧格式
   const convertBackElements = (newElements) => {
     return newElements.map(element => {
@@ -118,7 +118,7 @@ const InfiniteCanvasAdapter = ({
         x: element.x || 0,
         y: element.y || 0,
       };
-      
+
       // 根据类型添加特定属性
       switch (element.type) {
         case 'text':
@@ -160,22 +160,22 @@ const InfiniteCanvasAdapter = ({
       }
     });
   };
-  
+
   // 内容变化处理
   const handleInfiniteCanvasContentChange = (newElements) => {
     const convertedElements = convertBackElements(newElements);
     handleContentChange(convertedElements);
   };
-  
+
   // 保存处理
   const handleSave = (canvasData) => {
     // 可以在这里添加保存逻辑
     console.log('Canvas saved:', canvasData);
   };
-  
+
   // 转换后的元素
   const convertedElements = convertElements(elements);
-  
+
   return (
     <View style={styles.container}>
       <InfiniteCanvas

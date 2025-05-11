@@ -3,7 +3,7 @@
  * 集成了Redux状态管理、主题管理、认证流程和导航等基础功能
  */
 import React, { useEffect, useState } from 'react';
-import { StatusBar, Platform, LogBox, View, Text, ActivityIndicator } from 'react-native';
+import { StatusBar, Platform, LogBox, View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -89,12 +89,7 @@ const AuthStateManager = () => {
 
   // 如果正在检查认证状态，显示加载指示器
   if (isCheckingAuth) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 20, fontSize: 16, color: '#333' }}>正在加载...</Text>
-      </View>
-    );
+    return <SplashScreen message="正在加载..." />;
   }
 
   return null;
@@ -1041,14 +1036,10 @@ const AppContainer = () => {
             console.error('获取当前路由失败:', error);
           }
         }}
-        fallback={
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-            <Text style={{ fontSize: 18 }}>导航加载中...</Text>
-          </View>
-        }
+        fallback={<SplashScreen message="导航加载中..." />}
       >
         <AuthStateManager />
-        {isAuthenticated ? <AppNavigator /> : <AuthNavigator />}
+        <AppNavigator />
       </NavigationContainer>
     </PaperProvider>
   );
@@ -1086,7 +1077,7 @@ class ErrorBoundary extends React.Component {
 
 // 加载组件
 const LoadingComponent = () => {
-  console.log('显示加载组件...');
+  console.log('显示启动屏幕...');
   return <SplashScreen message="应用初始化中..." />;
 };
 

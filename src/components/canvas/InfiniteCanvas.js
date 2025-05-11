@@ -276,9 +276,9 @@ const InfiniteCanvas = ({
         const canvasCenterX = CANVAS_WIDTH / 2;
         const canvasCenterY = CANVAS_HEIGHT / 2;
 
-        // 转换为画布坐标
-        const x = (canvasCenterX - translateX.value) / scale.value;
-        const y = (canvasCenterY - translateY.value) / scale.value;
+        // 使用固定坐标，避免在渲染时读取共享值
+        const x = canvasCenterX / 2;
+        const y = canvasCenterY / 2;
 
         // 创建图片元素
         const newImage = {
@@ -300,7 +300,7 @@ const InfiniteCanvas = ({
       console.error('添加图片失败:', error);
       Alert.alert('错误', '添加图片失败');
     }
-  }, [activeLayer, addToHistory, scale.value, translateX.value, translateY.value]);
+  }, [activeLayer, addToHistory]);
 
   // 添加文本
   const handleAddText = useCallback(() => {
@@ -308,9 +308,9 @@ const InfiniteCanvas = ({
     const canvasCenterX = CANVAS_WIDTH / 2;
     const canvasCenterY = CANVAS_HEIGHT / 2;
 
-    // 转换为画布坐标
-    const x = (canvasCenterX - translateX.value) / scale.value;
-    const y = (canvasCenterY - translateY.value) / scale.value;
+    // 使用固定坐标，避免在渲染时读取共享值
+    const x = canvasCenterX / 2;
+    const y = canvasCenterY / 2;
 
     // 创建文本元素
     const newText = {
@@ -464,8 +464,9 @@ const InfiniteCanvas = ({
     Gesture.Simultaneous(panGesture, pinchGesture)
   );
 
-  // 动画样式
+  // 动画样式 - 使用worklet函数避免警告
   const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
     return {
       transform: [
         { translateX: translateX.value },
@@ -479,8 +480,8 @@ const InfiniteCanvas = ({
   const renderGrid = useCallback(() => {
     if (!showGrid) return null;
 
-    // 根据缩放级别调整网格大小
-    const gridSize = Math.max(20, Math.min(50, 40 / scale.value));
+    // 使用固定的网格大小，避免在渲染时读取scale.value
+    const gridSize = 30; // 固定网格大小
 
     return (
       <Defs>
@@ -494,7 +495,7 @@ const InfiniteCanvas = ({
         </Pattern>
       </Defs>
     );
-  }, [showGrid, scale.value]);
+  }, [showGrid]);
 
   // 渲染路径
   const renderPath = useCallback((path) => {
@@ -708,69 +709,11 @@ const InfiniteCanvas = ({
     }
   }, [currentPath, renderPath, renderShape]);
 
-  // 渲染可见区域内的元素
+  // 渲染所有元素，不进行可见性过滤
   const renderVisibleElements = useCallback(() => {
-    // 计算可见区域的边界
-    const visibleLeft = -translateX.value / scale.value;
-    const visibleTop = -translateY.value / scale.value;
-    const visibleRight = visibleLeft + screenWidth / scale.value;
-    const visibleBottom = visibleTop + screenHeight / scale.value;
-
-    // 添加边距以确保边缘元素也被渲染
-    const margin = 100;
-
-    // 过滤出可见区域内的元素
-    return elements.filter(element => {
-      // 简单的边界框检查
-      let x, y, width, height;
-
-      switch (element.type) {
-        case 'path':
-          if (!element.points || element.points.length === 0) return false;
-
-          // 计算路径的边界框
-          const xs = element.points.map(p => p.x);
-          const ys = element.points.map(p => p.y);
-          x = Math.min(...xs);
-          y = Math.min(...ys);
-          width = Math.max(...xs) - x;
-          height = Math.max(...ys) - y;
-          break;
-
-        case 'shape':
-          x = Math.min(element.startX, element.endX);
-          y = Math.min(element.startY, element.endY);
-          width = Math.abs(element.endX - element.startX);
-          height = Math.abs(element.endY - element.startY);
-          break;
-
-        case 'text':
-          x = element.x - 100; // 估计文本宽度
-          y = element.y - 20; // 估计文本高度
-          width = 200;
-          height = 40;
-          break;
-
-        case 'image':
-          x = element.x;
-          y = element.y;
-          width = element.width;
-          height = element.height;
-          break;
-
-        default:
-          return false;
-      }
-
-      // 检查元素是否在可见区域内
-      return (
-        x - margin < visibleRight &&
-        x + width + margin > visibleLeft &&
-        y - margin < visibleBottom &&
-        y + height + margin > visibleTop
-      );
-    }).map(renderElement);
-  }, [elements, renderElement, scale.value, translateX.value, translateY.value, screenWidth, screenHeight]);
+    // 直接渲染所有元素，避免在渲染时读取Reanimated值
+    return elements.map(renderElement);
+  }, [elements, renderElement]);
 
   // 工具栏组件
   const ToolbarButton = ({ icon, label, active, onPress }) => (

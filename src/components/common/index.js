@@ -22,6 +22,9 @@ import ApiTestComponent from './ApiTestComponent';
 import SearchBar from './SearchBar';
 import IconButton from './IconButton';
 import CreateContentModal from './CreateContentModal';
+import Typography from './Typography'; // 导入Typography组件
+import RenameDialog from './RenameDialog'; // 导入重命名对话框组件
+const { Text } = Typography;
 
 // 现代UI组件
 import GradientButton from './GradientButton';
@@ -61,6 +64,8 @@ export {
   SearchBar,
   IconButton,
   CreateContentModal,
+  RenameDialog, // 导出重命名对话框组件
+  Text, // 导出Typography组件
 
   // 现代UI组件
   GradientButton,

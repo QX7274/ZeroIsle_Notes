@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 
 /**
  * 聊天输入组件

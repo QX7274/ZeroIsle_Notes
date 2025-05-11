@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useSelector } from 'react-redux';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
 import { analyticsService } from '../../services/analytics/analyticsService';
@@ -21,17 +21,17 @@ import { analyticsService } from '../../services/analytics/analyticsService';
 const HelpScreen = () => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 从Redux获取用户信息
   const user = useSelector(state => state.auth.user);
-  
+
   // 本地状�?
   const [feedbackType, setFeedbackType] = useState('bug');
   const [feedbackContent, setFeedbackContent] = useState('');
   const [contactInfo, setContactInfo] = useState(user?.email || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState(null);
-  
+
   // 常见问题列表
   const faqList = [
     {
@@ -60,7 +60,7 @@ const HelpScreen = () => {
       answer: '在笔记编辑界面，点击工具栏中的"手写"按钮，进入手写模式。在手写区域书写内容后，系统会自动识别并转换为文本。您可以在设置中调整手写识别的灵敏度和识别模式。',
     },
   ];
-  
+
   // 反馈类型选项
   const feedbackTypes = [
     { value: 'bug', label: '问题反馈', icon: 'bug-report' },
@@ -68,7 +68,7 @@ const HelpScreen = () => {
     { value: 'question', label: '使用咨询', icon: 'help' },
     { value: 'other', label: '其他', icon: 'more-horiz' },
   ];
-  
+
   // 提交反馈
   const submitFeedback = async () => {
     // 验证输入
@@ -76,38 +76,38 @@ const HelpScreen = () => {
       Alert.alert('提示', '请输入反馈内容');
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // 这里可以添加实际的反馈提交逻辑
       // 例如：await api.submitFeedback({ type: feedbackType, content: feedbackContent, contactInfo });
-      
+
       // 模拟提交延迟
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // 记录分析事件
       analyticsService.trackEvent('feedback_submitted', {
         type: feedbackType,
         has_contact_info: !!contactInfo,
       });
-      
+
       // 重置表单
       setFeedbackContent('');
-      
+
       // 显示成功提示
       Alert.alert('提交成功', '感谢您的反馈，我们会尽快处理');
     } catch (error) {
       console.error('提交反馈失败:', error);
       Alert.alert('提交失败', '请稍后重试');
-      
+
       // 记录错误
       analyticsService.trackError(error, { operation: 'submit_feedback' });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
   // 打开链接
   const openLink = (url) => {
     Linking.canOpenURL(url).then(supported => {
@@ -118,22 +118,22 @@ const HelpScreen = () => {
       }
     });
   };
-  
+
   // 发送邮�?
   const sendEmail = () => {
     const url = 'mailto:support@zeroislenotes.com?subject=零屿笔记使用咨询';
     openLink(url);
   };
-  
+
   // 切换FAQ展开状�?
   const toggleFaq = (id) => {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
-  
+
   // 渲染FAQ�?
   const renderFaqItem = ({ id, question, answer }) => {
     const isExpanded = expandedFaq === id;
-    
+
     return (
       <TouchableOpacity
         key={id}
@@ -160,7 +160,7 @@ const HelpScreen = () => {
             color={colors.text}
           />
         </View>
-        
+
         {isExpanded && (
           <View style={styles.faqAnswer}>
             <Text
@@ -175,7 +175,7 @@ const HelpScreen = () => {
       </TouchableOpacity>
     );
   };
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -188,12 +188,12 @@ const HelpScreen = () => {
           >
             常见问题
           </Text>
-          
+
           <View style={styles.faqList}>
             {faqList.map(renderFaqItem)}
           </View>
         </View>
-        
+
         {/* 联系我们 */}
         <View style={styles.section}>
           <Text
@@ -203,7 +203,7 @@ const HelpScreen = () => {
           >
             联系我们
           </Text>
-          
+
           <View style={[styles.contactCard, { backgroundColor: colors.card }]}>
             <Text
               variant="body"
@@ -212,7 +212,7 @@ const HelpScreen = () => {
             >
               如果您有任何问题或需要帮助，可以通过以下方式联系我们：
             </Text>
-            
+
             <TouchableOpacity
               style={styles.contactItem}
               onPress={sendEmail}
@@ -227,7 +227,7 @@ const HelpScreen = () => {
                 support@zeroislenotes.com
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.contactItem}
               onPress={() => openLink('https://zeroislenotes.com/help')}
@@ -244,7 +244,7 @@ const HelpScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* 反馈表单 */}
         <View style={styles.section}>
           <Text
@@ -254,7 +254,7 @@ const HelpScreen = () => {
           >
             提交反馈
           </Text>
-          
+
           <View style={[styles.feedbackCard, { backgroundColor: colors.card }]}>
             {/* 反馈类型 */}
             <Text
@@ -265,16 +265,16 @@ const HelpScreen = () => {
             >
               反馈类型
             </Text>
-            
+
             <View style={styles.feedbackTypes}>
               {feedbackTypes.map(type => (
                 <TouchableOpacity
                   key={type.value}
                   style={[
                     styles.feedbackTypeButton,
-                    { 
-                      backgroundColor: feedbackType === type.value 
-                        ? colors.primary 
+                    {
+                      backgroundColor: feedbackType === type.value
+                        ? colors.primary
                         : colors.background
                     }
                   ]}
@@ -295,7 +295,7 @@ const HelpScreen = () => {
                 </TouchableOpacity>
               ))}
             </View>
-            
+
             {/* 反馈内容 */}
             <Text
               variant="body"
@@ -305,11 +305,11 @@ const HelpScreen = () => {
             >
               反馈内容
             </Text>
-            
+
             <TextInput
               style={[
                 styles.feedbackInput,
-                { 
+                {
                   color: colors.text,
                   backgroundColor: colors.background,
                   borderColor: colors.border
@@ -323,7 +323,7 @@ const HelpScreen = () => {
               numberOfLines={5}
               textAlignVertical="top"
             />
-            
+
             {/* 联系方式 */}
             <Text
               variant="body"
@@ -333,11 +333,11 @@ const HelpScreen = () => {
             >
               联系方式 (选填)
             </Text>
-            
+
             <TextInput
               style={[
                 styles.contactInput,
-                { 
+                {
                   color: colors.text,
                   backgroundColor: colors.background,
                   borderColor: colors.border
@@ -348,7 +348,7 @@ const HelpScreen = () => {
               value={contactInfo}
               onChangeText={setContactInfo}
             />
-            
+
             <Text
               variant="caption"
               color="hint"
@@ -356,7 +356,7 @@ const HelpScreen = () => {
             >
               提供联系方式有助于我们更好地解决您的问题
             </Text>
-            
+
             {/* 提交按钮 */}
             <Button
               title="提交反馈"

@@ -76,39 +76,65 @@ const InfiniteCanvasScreen = ({ navigation, route }) => {
 
   // 创建新画布
   const createNewCanvas = async () => {
-    try {
-      // 生成唯一ID
-      const newId = Date.now().toString();
+    // 生成唯一ID
+    const newId = Date.now().toString();
+    console.log('开始创建新画布:', newId);
 
-      // 创建新画布数据
-      const newCanvas = {
-        id: newId,
-        title: '新草稿',
-        elements: [],
-        layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
-        activeLayer: 'default',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    // 创建新画布数据
+    const newCanvas = {
+      id: newId,
+      title: '新草稿',
+      elements: [],
+      layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+      activeLayer: 'default',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-      // 保存到本地存储
-      // 使用两种存储方式保存，确保兼容性
-      await infiniteCanvasStorage.saveCanvas(newCanvas);
-      await offlineStorageService.saveCanvas(newCanvas);
+    // 立即更新状态，不等待存储操作
+    setCanvasId(newId);
 
-      // 更新状态
-      setCanvasId(newId);
+    // 更新标题
+    navigation.setOptions({
+      title: '新草稿',
+    });
 
-      // 更新标题
-      navigation.setOptions({
-        title: '新草稿',
-      });
+    // 在后台保存画布，不阻塞UI
+    setTimeout(async () => {
+      try {
+        // 设置超时
+        const timeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('保存画布超时')), 5000);
+        });
 
-      analyticsService.trackCanvasAction('create_new');
-    } catch (error) {
-      console.error('创建新画布失败:', error);
-      Alert.alert('错误', '创建新画布失败');
-    }
+        // 尝试保存到AsyncStorage (offlineStorageService)
+        try {
+          console.log('尝试保存画布到AsyncStorage...');
+          const savePromise = offlineStorageService.saveCanvas(newCanvas);
+          await Promise.race([savePromise, timeout]);
+          console.log('画布已保存到AsyncStorage');
+        } catch (asyncStorageError) {
+          console.warn('保存到AsyncStorage失败:', asyncStorageError);
+          // 继续执行，尝试其他存储方式
+        }
+
+        // 尝试保存到SQLite (infiniteCanvasStorage)
+        try {
+          console.log('尝试保存画布到SQLite...');
+          const savePromise = infiniteCanvasStorage.saveCanvas(newCanvas);
+          await Promise.race([savePromise, timeout]);
+          console.log('画布已保存到SQLite');
+        } catch (sqliteError) {
+          console.warn('保存到SQLite失败:', sqliteError);
+          // 继续执行，已经保存到AsyncStorage
+        }
+
+        analyticsService.trackCanvasAction('create_new');
+      } catch (error) {
+        console.error('在后台保存画布失败:', error);
+        // 不显示错误提示，因为画布已经创建，只是保存失败
+      }
+    }, 0);
   };
 
   // 内容变化处理

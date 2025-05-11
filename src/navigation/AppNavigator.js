@@ -16,7 +16,7 @@ import { navigationRef } from './navigationRef';
 // import { getProfile } from '../redux/slices/authSlice';
 
 // 导入组件
-import { Loading } from '../components/common';
+import { Loading, SplashScreen } from '../screens/common';
 
 // 导入导航
 import AuthNavigator from './AuthNavigator';
@@ -131,10 +131,10 @@ const AppNavigator = () => {
     }
   }, [dispatch, isAuthenticated]);
 
-  // 如果正在检查认证状态，显示加载指示器
+  // 如果正在检查认证状态，显示启动屏幕
   if (isLoading) {
-    console.log('AppNavigator: 显示加载指示器...');
-    return <Loading type="fullscreen" text="加载中..." />;
+    console.log('AppNavigator: 显示启动屏幕...');
+    return <SplashScreen message="应用加载中..." />;
   }
 
   console.log('AppNavigator: 准备渲染导航器...');

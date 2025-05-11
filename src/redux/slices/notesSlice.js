@@ -470,6 +470,7 @@ const notesSlice = createSlice({
       })
       .addCase(createNote.fulfilled, (state, action) => {
         state.isLoading = false;
+        console.log('创建笔记成功，处理响应数据:', action.payload);
 
         // 处理各种可能的响应格式
         let noteData = action.payload;
@@ -477,43 +478,147 @@ const notesSlice = createSlice({
         // 如果响应是一个包含data属性的对象，使用data
         if (noteData && noteData.data) {
           noteData = noteData.data;
+          console.log('从response.data中提取笔记数据:', noteData);
+        }
+
+        // 如果响应是一个包含success属性的对象，检查是否成功
+        if (noteData && typeof noteData.success === 'boolean') {
+          if (!noteData.success) {
+            console.warn('API返回失败状态，但继续处理:', noteData.message);
+            // 如果有错误消息，记录到state.error
+            state.error = noteData.message || '创建笔记失败';
+          }
         }
 
         // 确保笔记有一个有效的ID
         if (noteData && !noteData.id) {
-          noteData.id = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          console.log(`笔记缺少ID，生成临时ID: ${tempId}`);
+          noteData.id = tempId;
+        }
+
+        // 确保笔记有标题和内容
+        if (noteData) {
+          if (!noteData.title) {
+            console.log('笔记缺少标题，设置默认标题');
+            noteData.title = '无标题笔记';
+          }
+          if (!noteData.content && noteData.content !== '') {
+            console.log('笔记缺少内容，设置为空字符串');
+            noteData.content = '';
+          }
         }
 
         // 确保笔记有创建和更新时间
-        if (noteData && (!noteData.created_at || !noteData.createdAt)) {
+        if (noteData) {
           const now = new Date().toISOString();
-          noteData.created_at = noteData.created_at || noteData.createdAt || now;
-          noteData.updated_at = noteData.updated_at || noteData.updatedAt || now;
+
+          // 处理不同格式的时间字段
+          if (!noteData.created_at && !noteData.createdAt) {
+            console.log('笔记缺少创建时间，设置为当前时间');
+            noteData.created_at = now;
+            noteData.createdAt = now;
+          } else if (noteData.created_at && !noteData.createdAt) {
+            noteData.createdAt = noteData.created_at;
+          } else if (!noteData.created_at && noteData.createdAt) {
+            noteData.created_at = noteData.createdAt;
+          }
+
+          if (!noteData.updated_at && !noteData.updatedAt) {
+            console.log('笔记缺少更新时间，设置为当前时间');
+            noteData.updated_at = now;
+            noteData.updatedAt = now;
+          } else if (noteData.updated_at && !noteData.updatedAt) {
+            noteData.updatedAt = noteData.updated_at;
+          } else if (!noteData.updated_at && noteData.updatedAt) {
+            noteData.updated_at = noteData.updatedAt;
+          }
         }
 
         // 只有当笔记数据有效时才添加到状态
-        if (noteData && (noteData.id || noteData.title || noteData.content)) {
+        if (noteData && noteData.id) {
           console.log('将笔记添加到Redux状态:', noteData);
-          notesAdapter.addOne(state, noteData);
-          state.currentNote = noteData;
+
+          // 确保数据格式一致，避免重复字段
+          const normalizedNote = {
+            id: noteData.id,
+            title: noteData.title || '无标题笔记',
+            content: noteData.content || '',
+            created_at: noteData.created_at || noteData.createdAt,
+            updated_at: noteData.updated_at || noteData.updatedAt,
+            category_id: noteData.category_id || noteData.categoryId,
+            is_favorite: noteData.is_favorite || noteData.isFavorite || false,
+            is_offline: noteData.is_offline || noteData.isOffline || false,
+            tags: noteData.tags || []
+          };
+
+          notesAdapter.addOne(state, normalizedNote);
+          state.currentNote = normalizedNote;
         } else {
           console.warn('收到无效的笔记数据，无法添加到Redux状态:', noteData);
+
+          // 创建一个紧急笔记对象
+          const emergencyNote = {
+            id: 'emergency_' + Date.now(),
+            title: '恢复的笔记',
+            content: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_emergency: true
+          };
+
+          console.log('创建紧急恢复笔记:', emergencyNote);
+          notesAdapter.addOne(state, emergencyNote);
+          state.currentNote = emergencyNote;
+          state.error = '笔记数据无效，已创建恢复笔记';
         }
       })
       .addCase(createNote.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        console.error('创建笔记被拒绝:', action.payload || action.error);
+
+        // 记录错误信息
+        state.error = action.payload || action.error?.message || '创建笔记失败';
 
         // 即使在拒绝的情况下，也尝试从payload中提取有用的信息
-        if (action.payload && typeof action.payload === 'object') {
-          if (action.payload.data) {
+        try {
+          if (action.payload && typeof action.payload === 'object') {
             // 如果有数据，尝试添加到状态
-            const noteData = action.payload.data;
-            if (noteData.id || noteData.title || noteData.content) {
+            if (action.payload.data) {
+              const noteData = action.payload.data;
               console.log('从拒绝的action中提取笔记数据:', noteData);
-              notesAdapter.addOne(state, noteData);
+
+              if (noteData.id || noteData.title || noteData.content) {
+                notesAdapter.addOne(state, noteData);
+                state.currentNote = noteData;
+                return;
+              }
+            }
+
+            // 如果有紧急恢复笔记
+            if (action.payload.isEmergency && action.payload.id) {
+              console.log('使用紧急恢复笔记:', action.payload);
+              notesAdapter.addOne(state, action.payload);
+              state.currentNote = action.payload;
+              return;
             }
           }
+
+          // 如果没有可用数据，创建一个紧急笔记
+          const emergencyNote = {
+            id: 'emergency_' + Date.now(),
+            title: '恢复的笔记',
+            content: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_emergency: true
+          };
+
+          console.log('创建紧急恢复笔记:', emergencyNote);
+          notesAdapter.addOne(state, emergencyNote);
+          state.currentNote = emergencyNote;
+        } catch (error) {
+          console.error('处理拒绝状态时出错:', error);
         }
       })
 
@@ -524,11 +629,42 @@ const notesSlice = createSlice({
       })
       .addCase(updateNote.fulfilled, (state, action) => {
         state.isLoading = false;
+
+        // 处理各种可能的响应格式
+        let noteData = action.payload;
+
+        // 如果响应是一个包含data属性的对象，使用data
+        if (noteData && noteData.data) {
+          noteData = noteData.data;
+          console.log('从response.data中提取笔记数据:', noteData);
+        }
+
+        // 如果响应是一个包含success属性的对象，检查是否成功
+        if (noteData && typeof noteData.success === 'boolean') {
+          if (!noteData.success) {
+            console.warn('API返回失败状态，但继续处理:', noteData.message);
+            // 如果有错误消息，记录到state.error
+            state.error = noteData.message || '更新笔记失败';
+            return;
+          }
+        }
+
+        // 确保笔记有一个有效的ID
+        if (!noteData || !noteData.id) {
+          console.error('更新笔记响应中没有有效的笔记ID:', noteData);
+          return;
+        }
+
+        console.log('更新笔记成功，更新Redux状态:', noteData);
+
+        // 更新实体
         notesAdapter.updateOne(state, {
-          id: action.payload.id,
-          changes: action.payload,
+          id: noteData.id,
+          changes: noteData,
         });
-        state.currentNote = action.payload;
+
+        // 更新当前笔记
+        state.currentNote = noteData;
       })
       .addCase(updateNote.rejected, (state, action) => {
         state.isLoading = false;

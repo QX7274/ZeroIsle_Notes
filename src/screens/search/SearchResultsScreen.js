@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { UnifiedSearchBar } from '../../components/search';
 import SearchFilters from '../../components/search/SearchFilters';

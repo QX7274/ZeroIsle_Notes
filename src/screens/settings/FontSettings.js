@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 
@@ -18,17 +18,17 @@ const FontSettings = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取设置
   const settings = useSelector(state => state.settings);
-  
+
   // 字体大小选项
   const fontSizeOptions = [
     { value: 'small', label: '小', icon: 'format-size' },
     { value: 'medium', label: '中', icon: 'format-size' },
     { value: 'large', label: '大', icon: 'format-size' },
   ];
-  
+
   // 更新字体大小
   const updateFontSize = (value) => {
     const newSettings = { ...settings, fontSize: value };
@@ -54,7 +54,7 @@ const FontSettings = ({ navigation }) => {
             <View style={[styles.iconContainer, { backgroundColor: colors.primary + '20' }]}>
               <Icon name={option.icon} size={24} color={colors.primary} />
             </View>
-            
+
             <View style={styles.optionInfo}>
               <Text
                 variant="heading"
@@ -62,22 +62,22 @@ const FontSettings = ({ navigation }) => {
               >
                 {option.label}
               </Text>
-              
+
               <Text
                 variant="body"
                 color="hint"
               >
-                {option.value === 'small' ? '较小的字体大小' : 
+                {option.value === 'small' ? '较小的字体大小' :
                  option.value === 'medium' ? '默认字体大小' : '较大的字体大小'}
               </Text>
             </View>
-            
+
             {settings.fontSize === option.value && (
               <Icon name="check-circle" size={24} color={colors.primary} />
             )}
           </TouchableOpacity>
         ))}
-        
+
         <View style={styles.previewContainer}>
           <Text
             variant="heading"
@@ -86,7 +86,7 @@ const FontSettings = ({ navigation }) => {
           >
             预览
           </Text>
-          
+
           <View style={[styles.previewCard, { backgroundColor: colors.card }]}>
             <Text
               variant="heading"
@@ -98,7 +98,7 @@ const FontSettings = ({ navigation }) => {
             >
               零屿笔记
             </Text>
-            
+
             <Text
               variant="body"
               style={[

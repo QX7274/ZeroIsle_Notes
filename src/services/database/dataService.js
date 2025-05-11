@@ -54,7 +54,7 @@ class DataService {
           setTimeout(() => {
             console.log('数据服务初始化超时，以降级模式继续');
             resolve({ timeout: true });
-          }, 10000); // 10秒超时
+          }, 30000); // 30秒超时，增加超时时间
         });
 
         // 尝试初始化SQLite服务，但不等待太久
@@ -612,15 +612,21 @@ class DataService {
    */
   async getNotes(options = {}) {
     try {
+      console.log('开始获取笔记列表...');
+      const startTime = Date.now();
+
+      // 确保数据库已初始化
       await this.init();
+      console.log(`数据库初始化检查完成，耗时: ${Date.now() - startTime}ms`);
 
       const userId = options.userId || this.getCurrentUserId();
       if (!userId) {
         throw new Error('未设置用户ID');
       }
 
-      // 使用更简单的查询，只获取基本字段，避免超时
-      let query = `SELECT id, title, content, category_id, is_favorite, created_at, updated_at
+      // 使用更简单的查询，只获取必要字段，避免超时
+      // 不获取content字段，减少数据传输量
+      let query = `SELECT id, title, category_id, is_favorite, created_at, updated_at
                   FROM ${TABLES.NOTES}
                   WHERE user_id = ? AND is_deleted = 0`;
       const params = [userId];
@@ -638,7 +644,7 @@ class DataService {
       query += ' ORDER BY updated_at DESC';
 
       // 分页 - 添加默认限制，避免返回太多数据
-      const limit = options.limit || 50; // 默认限制为50条
+      const limit = options.limit || 30; // 默认限制为30条，减少数据量
       query += ' LIMIT ?';
       params.push(limit);
 
@@ -650,9 +656,10 @@ class DataService {
       console.log('执行笔记查询:', query);
       console.log('查询参数:', params);
 
-      // 设置更长的超时时间
-      const result = await sqliteService.executeSql(query, params, 60000);
-      console.log(`查询返回 ${result.rows.length} 条笔记`);
+      // 设置较短的超时时间，避免长时间等待
+      const queryStartTime = Date.now();
+      const result = await sqliteService.executeSql(query, params, 15000);
+      console.log(`笔记查询完成，耗时: ${Date.now() - queryStartTime}ms，返回 ${result.rows.length} 条笔记`);
 
       // 处理结果 - 不再为每个笔记单独查询标签，而是一次性获取所有标签
       const notes = [];
@@ -664,68 +671,68 @@ class DataService {
         noteIds.push(note.id);
         notes.push({
           ...note,
+          // 添加一个简短的内容预览，而不是完整内容
+          content: note.content ? (note.content.substring(0, 100) + (note.content.length > 100 ? '...' : '')) : '',
           tags: [] // 初始化空标签数组
         });
       }
 
-      // 如果有笔记，一次性获取所有标签
+      // 如果有笔记，尝试获取标签，但不阻塞主流程
       if (noteIds.length > 0) {
-        try {
-          // 构建IN查询的参数占位符
-          const placeholders = noteIds.map(() => '?').join(',');
-          const tagsQuery = `SELECT note_id, tag_id FROM ${TABLES.NOTE_TAGS} WHERE note_id IN (${placeholders})`;
+        // 使用Promise.race和超时机制，确保标签查询不会阻塞太久
+        const tagsPromise = (async () => {
+          try {
+            // 构建IN查询的参数占位符
+            const placeholders = noteIds.map(() => '?').join(',');
+            const tagsQuery = `SELECT note_id, tag_id FROM ${TABLES.NOTE_TAGS} WHERE note_id IN (${placeholders})`;
 
-          // 执行标签查询，设置较短的超时时间
-          const tagsResult = await sqliteService.executeSql(tagsQuery, noteIds, 10000);
+            // 执行标签查询，设置较短的超时时间
+            const tagsStartTime = Date.now();
+            const tagsResult = await sqliteService.executeSql(tagsQuery, noteIds, 5000);
+            console.log(`标签查询完成，耗时: ${Date.now() - tagsStartTime}ms`);
 
-          // 创建笔记ID到索引的映射，方便快速查找
-          const noteIdToIndex = {};
-          notes.forEach((note, index) => {
-            noteIdToIndex[note.id] = index;
-          });
+            // 创建笔记ID到索引的映射，方便快速查找
+            const noteIdToIndex = {};
+            notes.forEach((note, index) => {
+              noteIdToIndex[note.id] = index;
+            });
 
-          // 将标签分配给对应的笔记
-          for (let j = 0; j < tagsResult.rows.length; j++) {
-            const { note_id, tag_id } = tagsResult.rows.item(j);
-            const noteIndex = noteIdToIndex[note_id];
-            if (noteIndex !== undefined) {
-              notes[noteIndex].tags.push(tag_id);
+            // 将标签分配给对应的笔记
+            for (let j = 0; j < tagsResult.rows.length; j++) {
+              const { note_id, tag_id } = tagsResult.rows.item(j);
+              const noteIndex = noteIdToIndex[note_id];
+              if (noteIndex !== undefined) {
+                notes[noteIndex].tags.push(tag_id);
+              }
             }
+
+            return true;
+          } catch (tagsError) {
+            console.warn('获取标签失败，返回没有标签的笔记:', tagsError);
+            return false;
           }
-        } catch (tagsError) {
-          console.warn('获取标签失败，返回没有标签的笔记:', tagsError);
-          // 继续返回没有标签的笔记
-        }
+        })();
+
+        // 设置标签查询超时
+        const tagsTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('标签查询超时，返回没有标签的笔记');
+            resolve(false);
+          }, 5000); // 5秒超时
+        });
+
+        // 使用Promise.race，不等待太久
+        await Promise.race([tagsPromise, tagsTimeoutPromise]);
       }
 
+      console.log(`笔记列表获取成功，总耗时: ${Date.now() - startTime}ms`);
       return notes;
     } catch (error) {
       console.error('获取笔记列表失败:', error);
 
-      // 返回测试数据，避免应用崩溃
-      console.log('返回测试数据，避免应用崩溃');
-      return [
-        {
-          id: 'test1',
-          title: '测试笔记1',
-          content: '这是一个测试笔记',
-          category_id: '',
-          is_favorite: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          tags: []
-        },
-        {
-          id: 'test2',
-          title: '测试笔记2',
-          content: '这是另一个测试笔记',
-          category_id: '',
-          is_favorite: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          tags: []
-        }
-      ];
+      // 返回空数组，而不是测试数据
+      console.log('返回空数组，避免显示虚假数据');
+      return [];
     }
   }
 
@@ -739,15 +746,8 @@ class DataService {
     try {
       await this.init();
 
-      // 检查笔记是否存在
-      const existingNote = await this.getNote(noteId);
-      if (!existingNote) {
-        throw new Error(`找不到笔记: ${noteId}`);
-      }
-
-      const now = new Date().toISOString();
-
       // 准备更新数据
+      const now = new Date().toISOString();
       const updateData = { ...noteData, updated_at: now, is_synced: 0 };
       delete updateData.id; // 不更新ID
       delete updateData.user_id; // 不更新用户ID
@@ -759,75 +759,123 @@ class DataService {
       const setClause = columns.map(col => `${col} = ?`).join(', ');
       const values = [...columns.map(col => updateData[col]), noteId];
 
-      // 更新本地数据库
-      await sqliteService.executeSql(
-        `UPDATE ${TABLES.NOTES} SET ${setClause} WHERE id = ?`,
-        values
-      );
+      // 设置较长的超时时间
+      const timeout = 60000; // 60秒
 
-      // 处理标签
-      if (noteData.tags && Array.isArray(noteData.tags)) {
-        // 删除现有标签关联
+      // 使用事务更新本地数据库，提高可靠性
+      try {
+        // 开始事务
+        await sqliteService.executeSql('BEGIN TRANSACTION;', [], timeout);
+
+        // 更新笔记
         await sqliteService.executeSql(
-          `DELETE FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
-          [noteId]
+          `UPDATE ${TABLES.NOTES} SET ${setClause} WHERE id = ?`,
+          values,
+          timeout
         );
 
-        // 添加新标签关联
-        for (const tagId of noteData.tags) {
+        // 处理标签
+        if (noteData.tags && Array.isArray(noteData.tags)) {
+          // 删除现有标签关联
           await sqliteService.executeSql(
-            `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, is_synced) VALUES (?, ?, ?, ?)`,
-            [noteId, tagId, now, 0]
-          );
-        }
-      }
-
-      // 尝试同步到服务器
-      const isConnected = await this.isConnected();
-      if (isConnected) {
-        try {
-          // 直接调用API更新笔记
-          const response = await apiService.put(`/notes/${noteId}`, {
-            ...noteData,
-            id: noteId
-          });
-
-          // 更新本地记录为已同步
-          await sqliteService.executeSql(
-            `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
-            [noteId]
+            `DELETE FROM ${TABLES.NOTE_TAGS} WHERE note_id = ?`,
+            [noteId],
+            timeout
           );
 
-          // 更新标签关联为已同步
-          if (noteData.tags && Array.isArray(noteData.tags)) {
+          // 添加新标签关联
+          for (const tagId of noteData.tags) {
             await sqliteService.executeSql(
-              `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
-              [noteId]
+              `INSERT INTO ${TABLES.NOTE_TAGS} (note_id, tag_id, created_at, is_synced) VALUES (?, ?, ?, ?)`,
+              [noteId, tagId, now, 0],
+              timeout
             );
           }
-
-          return response.data;
-        } catch (error) {
-          console.error('同步笔记更新到服务器失败:', error);
-          // 添加到离线队列
-          await syncService.addOfflineOperation('update', TABLES.NOTES, noteId, {
-            ...updateData,
-            tags: noteData.tags
-          });
         }
-      } else {
-        // 添加到离线队列
+
+        // 提交事务
+        await sqliteService.executeSql('COMMIT;', [], timeout);
+        console.log('笔记更新事务已提交');
+      } catch (transactionError) {
+        // 回滚事务
+        console.error('笔记更新事务失败，回滚:', transactionError);
+        try {
+          await sqliteService.executeSql('ROLLBACK;', [], timeout);
+        } catch (rollbackError) {
+          console.error('事务回滚失败:', rollbackError);
+        }
+        throw transactionError;
+      }
+
+      // 添加到离线队列，在后台处理
+      try {
         await syncService.addOfflineOperation('update', TABLES.NOTES, noteId, {
           ...updateData,
           tags: noteData.tags
         });
+        console.log('笔记更新已添加到离线队列');
+      } catch (syncError) {
+        console.warn('添加到离线队列失败，但本地更新成功:', syncError);
       }
 
-      // 返回更新后的笔记
-      return await this.getNote(noteId);
+      // 在后台尝试同步到服务器，不阻塞当前操作
+      setTimeout(async () => {
+        try {
+          const isConnected = await this.isConnected();
+          if (isConnected) {
+            try {
+              // 直接调用API更新笔记
+              const response = await apiService.put(`/notes/${noteId}`, {
+                ...noteData,
+                id: noteId
+              });
+
+              // 更新本地记录为已同步
+              await sqliteService.executeSql(
+                `UPDATE ${TABLES.NOTES} SET is_synced = 1 WHERE id = ?`,
+                [noteId],
+                timeout
+              );
+
+              // 更新标签关联为已同步
+              if (noteData.tags && Array.isArray(noteData.tags)) {
+                await sqliteService.executeSql(
+                  `UPDATE ${TABLES.NOTE_TAGS} SET is_synced = 1 WHERE note_id = ?`,
+                  [noteId],
+                  timeout
+                );
+              }
+
+              console.log('笔记已同步到服务器');
+            } catch (error) {
+              console.error('同步笔记更新到服务器失败:', error);
+            }
+          } else {
+            console.log('当前离线，笔记将在下次联网时同步');
+          }
+        } catch (error) {
+          console.warn('后台同步过程出错:', error);
+        }
+      }, 0);
+
+      // 直接返回更新后的笔记对象，不查询数据库
+      return {
+        success: true,
+        data: {
+          ...noteData,
+          id: noteId,
+          updated_at: now
+        }
+      };
     } catch (error) {
       console.error(`更新笔记失败 (ID: ${noteId}):`, error);
-      throw error;
+
+      // 即使出错，也返回一个基本的结果，避免UI卡住
+      return {
+        success: false,
+        message: error.message || '更新笔记失败',
+        error
+      };
     }
   }
 

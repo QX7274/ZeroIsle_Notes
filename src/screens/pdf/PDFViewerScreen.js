@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Pdf from 'react-native-pdf';
 import { DrawingToolbar, InfiniteDrawingCanvas } from '../../components/canvas';

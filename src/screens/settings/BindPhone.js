@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import { Input, GradientButton } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';

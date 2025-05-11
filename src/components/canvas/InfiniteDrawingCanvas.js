@@ -8,8 +8,8 @@ import { View, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path, Rect, Circle, Line, Polygon, G } from 'react-native-svg';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { captureRef } from 'react-native-view-shot';
-import Animated, { 
-  useSharedValue, 
+import Animated, {
+  useSharedValue,
   useAnimatedStyle,
   runOnJS
 } from 'react-native-reanimated';
@@ -59,61 +59,61 @@ const InfiniteDrawingCanvas = ({
   // 引用
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
-  
+
   // 动画值
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  
+
   // 处理工具变更
   const handleToolChange = (newTool) => {
     setTool(newTool);
   };
-  
+
   // 处理颜色变更
   const handleColorChange = (newColor) => {
     setColor(newColor);
   };
-  
+
   // 处理线宽变更
   const handleStrokeWidthChange = (newWidth) => {
     setStrokeWidth(newWidth);
   };
-  
+
   // 处理撤销
   const handleUndo = () => {
     if (paths.length === 0) return;
-    
+
     const lastPath = paths[paths.length - 1];
     setRedoStack(prev => [...prev, lastPath]);
     setPaths(prev => prev.slice(0, -1));
   };
-  
+
   // 处理重做
   const handleRedo = () => {
     if (redoStack.length === 0) return;
-    
+
     const pathToRedo = redoStack[redoStack.length - 1];
     setPaths(prev => [...prev, pathToRedo]);
     setRedoStack(prev => prev.slice(0, -1));
   };
-  
+
   // 处理清空
   const handleClear = () => {
     setPaths([]);
     setRedoStack([]);
   };
-  
+
   // 处理截图
   const handleScreenshot = async () => {
     if (!canvasRef.current) return;
-    
+
     try {
       const uri = await captureRef(canvasRef, {
         format: 'png',
         quality: 1,
       });
-      
+
       if (onScreenshotTaken) {
         onScreenshotTaken(uri);
       }
@@ -121,7 +121,7 @@ const InfiniteDrawingCanvas = ({
       console.error('截图失败:', error);
     }
   };
-  
+
   // 处理绘制开始
   const handleDrawStart = (x, y) => {
     if (tool.type === TOOLS.SHAPE) {
@@ -148,11 +148,11 @@ const InfiniteDrawingCanvas = ({
       setCurrentPath(newPath);
     }
   };
-  
+
   // 处理绘制移动
   const handleDrawMove = (x, y) => {
     if (!currentPath) return;
-    
+
     if (currentPath.tool === TOOLS.SHAPE) {
       // 更新形状
       const newPoints = [...currentPath.points, { x, y }];
@@ -171,23 +171,23 @@ const InfiniteDrawingCanvas = ({
       });
     }
   };
-  
+
   // 处理绘制结束
   const handleDrawEnd = () => {
     if (!currentPath) return;
-    
+
     // 添加到路径列表
     setPaths(prev => [...prev, currentPath]);
-    
+
     // 回调
     if (onStrokeEnd) {
       onStrokeEnd(currentPath);
     }
-    
+
     // 清空当前路径
     setCurrentPath(null);
   };
-  
+
   // 创建手势响应器
   const panGesture = Gesture.Pan()
     .onStart((e) => {
@@ -199,14 +199,14 @@ const InfiniteDrawingCanvas = ({
     .onEnd(() => {
       runOnJS(handleDrawEnd)();
     });
-  
+
   // 渲染形状
   const renderShape = (shape) => {
     if (!shape || !shape.points || shape.points.length < 2) return null;
-    
+
     const startPoint = shape.points[0];
     const endPoint = shape.points[shape.points.length - 1];
-    
+
     switch (shape.shape) {
       case SHAPES.LINE:
         return (
@@ -225,7 +225,7 @@ const InfiniteDrawingCanvas = ({
         const y = Math.min(startPoint.y, endPoint.y);
         const width = Math.abs(endPoint.x - startPoint.x);
         const height = Math.abs(endPoint.y - startPoint.y);
-        
+
         return (
           <Rect
             key={shape.id}
@@ -242,7 +242,7 @@ const InfiniteDrawingCanvas = ({
         const radius = Math.sqrt(
           Math.pow(endPoint.x - startPoint.x, 2) + Math.pow(endPoint.y - startPoint.y, 2)
         );
-        
+
         return (
           <Circle
             key={shape.id}
@@ -256,7 +256,7 @@ const InfiniteDrawingCanvas = ({
         );
       case SHAPES.TRIANGLE:
         const midX = (startPoint.x + endPoint.x) / 2;
-        
+
         return (
           <Polygon
             key={shape.id}
@@ -270,12 +270,12 @@ const InfiniteDrawingCanvas = ({
         const angle = Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x);
         const arrowLength = 15;
         const arrowAngle = Math.PI / 6; // 30度
-        
+
         const arrowPoint1X = endPoint.x - arrowLength * Math.cos(angle - arrowAngle);
         const arrowPoint1Y = endPoint.y - arrowLength * Math.sin(angle - arrowAngle);
         const arrowPoint2X = endPoint.x - arrowLength * Math.cos(angle + arrowAngle);
         const arrowPoint2Y = endPoint.y - arrowLength * Math.sin(angle + arrowAngle);
-        
+
         return (
           <G key={shape.id}>
             <Line
@@ -297,27 +297,27 @@ const InfiniteDrawingCanvas = ({
         return null;
     }
   };
-  
+
   // 渲染当前形状
   const renderCurrentShape = () => {
     if (!currentPath || currentPath.tool !== TOOLS.SHAPE || currentPath.points.length < 2) {
       return null;
     }
-    
+
     return renderShape(currentPath);
   };
-  
-  // 动画样式
+
+  // 动画样式 - 使用固定值，避免在渲染时读取共享值
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value }
+        { translateX: 0 }, // 固定值，不使用translateX.value
+        { translateY: 0 }, // 固定值，不使用translateY.value
+        { scale: 1 }       // 固定值，不使用scale.value
       ]
     };
   });
-  
+
   // 返回与DrawingCanvas兼容的接口
   return {
     canvasRef,
@@ -358,7 +358,7 @@ const InfiniteDrawingCanvas = ({
                   );
                 }
               })}
-              
+
               {/* 当前绘制的路径 */}
               {currentPath && currentPath.tool !== TOOLS.SHAPE && (
                 <Path
@@ -371,7 +371,7 @@ const InfiniteDrawingCanvas = ({
                   strokeOpacity={currentPath.tool === TOOLS.HIGHLIGHTER ? 0.5 : 1}
                 />
               )}
-              
+
               {/* 当前绘制的形状 */}
               {renderCurrentShape()}
             </Svg>

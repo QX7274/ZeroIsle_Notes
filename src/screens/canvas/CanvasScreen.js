@@ -26,27 +26,29 @@ const CanvasScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
 
-  // 初始化绘图画布
-  const drawingCanvas = InfiniteDrawingCanvas({
-    width: Dimensions.get('window').width - 16,
-    height: 400,
-    backgroundColor: 'white',
-    onStrokeEnd: (path) => {
-      // 可以将绘图路径保存到画布元素中
-      console.log('绘图路径:', path);
-      // 将绘图路径添加到元素数组中
-      const newElement = {
-        id: Date.now().toString(),
-        type: 'path',
-        ...path
-      };
-      handleAddElement(newElement);
-    },
-    onScreenshotTaken: (uri) => {
-      // 处理截图
-      Alert.alert('截图已保存', '截图已保存到画布中');
-    },
-  });
+  // 初始化绘图画布 - 使用useCallback避免重复创建
+  const drawingCanvas = useCallback(() => {
+    return InfiniteDrawingCanvas({
+      width: Dimensions.get('window').width - 16,
+      height: 400,
+      backgroundColor: 'white',
+      onStrokeEnd: (path) => {
+        // 可以将绘图路径保存到画布元素中
+        console.log('绘图路径:', path);
+        // 将绘图路径添加到元素数组中
+        const newElement = {
+          id: Date.now().toString(),
+          type: 'path',
+          ...path
+        };
+        handleAddElement(newElement);
+      },
+      onScreenshotTaken: (uri) => {
+        // 处理截图
+        Alert.alert('截图已保存', '截图已保存到画布中');
+      },
+    });
+  }, [handleAddElement]);
 
   useEffect(() => {
     analyticsService.trackScreen('canvas');
@@ -295,7 +297,7 @@ const CanvasScreen = ({ navigation, route }) => {
     setElements(prev => [...prev, newElement]);
     setHistory(prev => [...prev, [...prev, newElement]]);
     setFuture([]);
-  }, []);
+  }, [setElements, setHistory, setFuture]);
 
   // 切换绘图工具显示状态的函数
   const toggleDrawingTools = () => {
@@ -360,22 +362,22 @@ const CanvasScreen = ({ navigation, route }) => {
         {/* 绘图工具栏 */}
         {showDrawingTools && (
           <DrawingToolbar
-            onToolChange={drawingCanvas.handleToolChange}
-            onColorChange={drawingCanvas.handleColorChange}
-            onStrokeWidthChange={drawingCanvas.handleStrokeWidthChange}
-            onUndo={drawingCanvas.handleUndo}
-            onRedo={drawingCanvas.handleRedo}
-            canUndo={drawingCanvas.canUndo}
-            canRedo={drawingCanvas.canRedo}
-            onScreenshot={drawingCanvas.handleScreenshot}
-            onClear={drawingCanvas.handleClear}
+            onToolChange={drawingCanvas().handleToolChange}
+            onColorChange={drawingCanvas().handleColorChange}
+            onStrokeWidthChange={drawingCanvas().handleStrokeWidthChange}
+            onUndo={drawingCanvas().handleUndo}
+            onRedo={drawingCanvas().handleRedo}
+            canUndo={drawingCanvas().canUndo}
+            canRedo={drawingCanvas().canRedo}
+            onScreenshot={drawingCanvas().handleScreenshot}
+            onClear={drawingCanvas().handleClear}
           />
         )}
 
         {/* 绘图画布或普通画布 */}
         {showDrawingTools? (
           <View style={styles.drawingCanvasContainer}>
-            {drawingCanvas.render()}
+            {drawingCanvas().render()}
           </View>
         ) : (
           <InfiniteCanvasAdapter

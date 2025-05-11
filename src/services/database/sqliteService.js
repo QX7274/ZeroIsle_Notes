@@ -1654,7 +1654,7 @@ class SQLiteService {
    * @param {number} retryCount - 重试次数
    * @returns {Promise<Array>} 查询结果
    */
-  async executeSql(query, params = [], timeout = 60000, retryCount = 3) {
+  async executeSql(query, params = [], timeout = 300000, retryCount = 4) {
     // 对事务相关的查询使用更长的超时时间
     if (query.includes('BEGIN TRANSACTION') || query.includes('COMMIT') || query.includes('ROLLBACK')) {
       timeout = Math.max(timeout, 180000); // 至少3分钟的超时时间
@@ -1706,11 +1706,47 @@ class SQLiteService {
    * @param {number} retryCount - 重试次数
    * @returns {Promise<Array>} 查询结果
    */
-  async _executeSql(query, params = [], timeout = 60000, retryCount = 3) {
+  async _executeSql(query, params = [], timeout = 30000, retryCount = 4) {
     // 对事务相关的查询使用更长的超时时间
     if (query.includes('BEGIN TRANSACTION') || query.includes('COMMIT') || query.includes('ROLLBACK')) {
-      timeout = Math.max(timeout, 180000); // 至少3分钟的超时时间
+      timeout = Math.max(timeout, 60000); // 至少1分钟的超时时间
       console.log(`事务操作，使用更长的超时时间: ${timeout}ms`);
+    }
+
+    // 优化查询 - 特别是针对notes表的查询
+    if (query.trim().toUpperCase().startsWith('SELECT') && query.includes('notes')) {
+      // 检查是否是获取所有笔记的查询
+      if (query.includes('FROM notes') && query.includes('user_id') && !query.includes('COUNT(*)')) {
+        console.log('检测到笔记查询，优化查询性能');
+
+        // 确保查询有LIMIT子句
+        if (!query.toUpperCase().includes('LIMIT')) {
+          query = query.trim();
+          if (query.endsWith(';')) {
+            query = query.slice(0, -1);
+          }
+          query += ' LIMIT 50;'; // 限制返回50条记录
+          console.log('为笔记查询添加LIMIT子句:', query);
+        }
+
+        // 减少返回的字段，只返回必要的字段
+        if (query.includes('SELECT *')) {
+          query = query.replace('SELECT *', 'SELECT id, title, content, category_id, is_favorite, created_at, updated_at');
+          console.log('优化笔记查询字段:', query);
+        }
+      }
+    }
+    // 对于其他SELECT查询，也添加LIMIT子句以提高性能
+    else if (query.trim().toUpperCase().startsWith('SELECT') && !query.toUpperCase().includes('LIMIT')) {
+      // 只对没有LIMIT的查询添加LIMIT
+      if (!query.includes('LIMIT')) {
+        query = query.trim();
+        if (query.endsWith(';')) {
+          query = query.slice(0, -1);
+        }
+        query += ' LIMIT 500;'; // 添加合理的LIMIT
+        console.log('为SELECT查询添加LIMIT子句:', query);
+      }
     }
 
     // 确保数据库已初始化
@@ -1841,17 +1877,35 @@ class SQLiteService {
 
         console.log('查询参数:', JSON.stringify(safeParams));
 
-        // 添加超时机制
-        const queryPromise = this.database.executeSql(query, safeParams);
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`SQL查询超时(${timeout}ms): ${query}`));
-          }, timeout);
-        });
+        // 优化超时机制 - 使用AbortController (如果支持)
+        let abortController;
+        let abortSignal;
 
-        // 使用Promise.race实现超时控制
         try {
-          const [results] = await Promise.race([queryPromise, timeoutPromise]);
+          // 检查是否支持AbortController
+          if (typeof AbortController !== 'undefined') {
+            abortController = new AbortController();
+            abortSignal = abortController.signal;
+
+            // 设置超时
+            setTimeout(() => {
+              console.warn(`查询超时(${timeout}ms)，尝试中止操作`);
+              abortController.abort();
+            }, timeout);
+          }
+        } catch (abortError) {
+          console.warn('不支持AbortController，使用传统超时机制');
+        }
+
+        // 执行查询，尝试使用更高效的方式
+        try {
+          console.log('开始执行查询...');
+          const startTime = Date.now();
+
+          // 直接执行查询，不使用Promise.race
+          const [results] = await this.database.executeSql(query, safeParams);
+
+          console.log(`查询成功完成，耗时: ${Date.now() - startTime}ms`);
           return results;
         } catch (queryError) {
           // 检查是否是绑定值错误

@@ -191,6 +191,8 @@ export const logout = createAsyncThunk(
   }
 );
 
+// 临时用户功能已移除
+
 // 异步action：检查认证状态
 export const checkAuthState = createAsyncThunk(
   'auth/checkAuthState',
@@ -421,7 +423,8 @@ const authSlice = createSlice({
       .addCase(logout.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
+      // 临时用户功能已移除
   }
 });
 
@@ -432,4 +435,7 @@ export const {
   setAuthRefreshToken,
   setIsAuthenticated
 } = authSlice.actions;
+
+// 注意：异步action已经通过createAsyncThunk自动导出，不需要重复导出
+
 export default authSlice.reducer;

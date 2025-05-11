@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { colors } from '../../utils/constants/colors';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import { Button, Card, Toast } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { EdgeEditor } from '../../components/knowledge';

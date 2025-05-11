@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platfo
 import { useDispatch, useSelector } from 'react-redux';
 import { login, clearError } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
-import { Text as Typography } from '../../components/common/Typography';
+// 移除Typography导入，直接使用React Native的Text
 
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
@@ -480,14 +480,15 @@ const LoginScreen = ({ navigation }) => {
                 ]}
                 onPress={() => setIsRegister(false)}
               >
-                <Typography
-                  variant="body"
-                  size="medium"
-                  color={!isRegister ? 'white' : 'textSecondary'}
-                  bold
+                <Text
+                  style={{
+                    color: !isRegister ? 'white' : colors.textSecondary,
+                    fontSize: 16,
+                    fontWeight: 'bold'
+                  }}
                 >
                   登录
-                </Typography>
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -496,14 +497,15 @@ const LoginScreen = ({ navigation }) => {
                 ]}
                 onPress={() => setIsRegister(true)}
               >
-                <Typography
-                  variant="body"
-                  size="medium"
-                  color={isRegister ? 'white' : 'textSecondary'}
-                  bold
+                <Text
+                  style={{
+                    color: isRegister ? 'white' : colors.textSecondary,
+                    fontSize: 16,
+                    fontWeight: 'bold'
+                  }}
                 >
                   注册
-                </Typography>
+                </Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -517,13 +519,11 @@ const LoginScreen = ({ navigation }) => {
           ]}>
           {error ? (
             <View style={styles.errorContainer}>
-              <Typography
-                variant="body"
-                size="small"
-                style={styles.errorText}
+              <Text
+                style={[styles.errorText, { fontSize: 14 }]}
               >
                 {error}
-              </Typography>
+              </Text>
             </View>
           ) : null}
 
@@ -539,14 +539,15 @@ const LoginScreen = ({ navigation }) => {
               ]}
               onPress={() => setLoginType('password')}
             >
-              <Typography
-                variant="body"
-                size="tiny"
-                color={loginType === 'password' ? 'primary' : 'hint'}
-                bold={loginType === 'password'}
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: loginType === 'password' ? colors.primary : colors.hint || '#999',
+                  fontWeight: loginType === 'password' ? 'bold' : 'normal'
+                }}
               >
                 密码{isRegister ? '注册' : '登录'}
-              </Typography>
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -558,14 +559,15 @@ const LoginScreen = ({ navigation }) => {
               ]}
               onPress={() => setLoginType('code')}
             >
-              <Typography
-                variant="body"
-                size="tiny"
-                color={loginType === 'code' ? 'primary' : 'hint'}
-                bold={loginType === 'code'}
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: loginType === 'code' ? colors.primary : colors.hint || '#999',
+                  fontWeight: loginType === 'code' ? 'bold' : 'normal'
+                }}
               >
                 验证码{isRegister ? '注册' : '登录'}
-              </Typography>
+              </Text>
             </TouchableOpacity>
           </View>
 

@@ -25,7 +25,7 @@ import {
   SearchHistory,
   UnifiedSearchBar
 } from '../../components/search';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 /**

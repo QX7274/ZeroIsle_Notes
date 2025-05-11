@@ -23,7 +23,7 @@ import {
   clearError
 } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import { authApi } from '../../services/api';
 
 const RegisterScreen = ({ navigation }) => {

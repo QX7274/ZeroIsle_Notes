@@ -14,7 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import { updateNote } from '../../redux/slices/notesSlice';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { DrawingToolbar, InfiniteDrawingCanvas } from '../../components/canvas';
 import { captureRef } from 'react-native-view-shot';

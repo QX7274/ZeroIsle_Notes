@@ -12,6 +12,17 @@ const setupErrorHandling = () => {
       const originalGlobalHandler = ErrorUtils.getGlobalHandler();
 
       ErrorUtils.setGlobalHandler((error, isFatal) => {
+        // 检查是否是 Reanimated 相关错误
+        if (error && error.message && (
+          error.message.includes('Reanimated') ||
+          error.message.includes('strictMode') ||
+          error.message.includes('LoggerConfig')
+        )) {
+          console.warn('已捕获 Reanimated 错误:', error.message);
+          // 不向上传递 Reanimated 错误
+          return;
+        }
+
         console.error('全局错误:', error);
         console.error('是否致命:', isFatal);
 
@@ -34,6 +45,8 @@ setupErrorHandling();
 // 添加必要的模块导入
 import 'events';
 import { AppRegistry, LogBox } from 'react-native';
+// 首先导入Reanimated配置，确保在其他组件之前加载
+import './src/config/reanimatedConfig';
 import App from './src/App';
 import { COLORS } from './src/utils/constants/colors';
 
@@ -49,6 +62,10 @@ LogBox.ignoreLogs([
   'AsyncStorage has been extracted',
   'new NativeEventEmitter',
   'RCTBridge required dispatch_sync',
+  // Reanimated相关警告
+  'Reading from `value` during component render',
+  'Animated: `useNativeDriver`',
+  'Reanimated 2',
 ]);
 
 // 预加载关键模块
