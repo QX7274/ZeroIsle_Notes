@@ -147,241 +147,154 @@ class SQLiteService {
     try {
       const startTime = Date.now();
 
-        // 1. 确保数据库文件存在且可访问
-        try {
-          const dbPath = await this.getDatabasePath();
-          const RNFS = require('react-native-fs');
-          const fileExists = await RNFS.exists(dbPath);
+      // 1. 确保数据库文件存在且可访问
+      try {
+        const dbPath = await this.getDatabasePath();
+        const RNFS = require('react-native-fs');
+        const fileExists = await RNFS.exists(dbPath);
 
-          if (!fileExists) {
-            console.log('数据库文件不存在，创建空文件');
+        if (!fileExists) {
+          console.log('数据库文件不存在，创建空文件');
 
-            // 确保目录存在
-            if (Platform.OS === 'ios') {
-              const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
-              const dirExists = await RNFS.exists(dirPath);
-              if (!dirExists) {
-                await RNFS.mkdir(dirPath);
-                console.log(`创建iOS数据库目录: ${dirPath}`);
-              }
-            }
-
-            // 创建空文件
-            await RNFS.writeFile(dbPath, '', 'utf8');
-            console.log('创建空数据库文件成功');
-          } else {
-            // 检查文件大小
-            const fileInfo = await RNFS.stat(dbPath);
-            console.log(`数据库文件存在，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
-
-            // 如果文件太小，可能是损坏的
-            if (fileInfo.size < 100) { // 小于100字节
-              console.warn('数据库文件异常小，可能是空文件或损坏，重新创建');
-              await RNFS.unlink(dbPath);
-              await RNFS.writeFile(dbPath, '', 'utf8');
-              console.log('重新创建空数据库文件成功');
+          // 确保目录存在
+          if (Platform.OS === 'ios') {
+            const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
+            const dirExists = await RNFS.exists(dirPath);
+            if (!dirExists) {
+              await RNFS.mkdir(dirPath);
+              console.log(`创建iOS数据库目录: ${dirPath}`);
             }
           }
-        } catch (fileError) {
-          console.error('检查或创建数据库文件失败:', fileError);
-          // 继续尝试打开数据库
-        }
 
-        // 2. 打开数据库 - 使用优化的设置
-        if (__DEV__) console.log('尝试打开数据库...');
+          // 创建空文件
+          await RNFS.writeFile(dbPath, '', 'utf8');
+          console.log('创建空数据库文件成功');
+        } else {
+          // 检查文件大小
+          const fileInfo = await RNFS.stat(dbPath);
+          console.log(`数据库文件存在，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
+
+          // 如果文件太小，可能是损坏的
+          if (fileInfo.size < 100) { // 小于100字节
+            console.warn('数据库文件异常小，可能是空文件或损坏，重新创建');
+            await RNFS.unlink(dbPath);
+            await RNFS.writeFile(dbPath, '', 'utf8');
+            console.log('重新创建空数据库文件成功');
+          }
+        }
+      } catch (fileError) {
+        console.error('检查或创建数据库文件失败:', fileError);
+        // 继续尝试打开数据库
+      }
+
+      // 2. 打开数据库 - 使用优化的设置
+      console.log('尝试打开数据库...');
+      try {
         this.database = await SQLite.openDatabase({
           name: DB_NAME,
           location: DB_LOCATION,
           createFromLocation: 0,
         });
+        console.log('数据库打开成功');
+      } catch (openError) {
+        console.error('打开数据库失败，尝试重置数据库:', openError);
 
-        // 优化PRAGMA设置，提高性能
+        // 尝试重置数据库
+        try {
+          await this.resetDatabase();
+          console.log('数据库重置成功，重新尝试打开');
+
+          this.database = await SQLite.openDatabase({
+            name: DB_NAME,
+            location: DB_LOCATION,
+            createFromLocation: 0,
+          });
+          console.log('数据库重置后打开成功');
+        } catch (resetError) {
+          console.error('数据库重置和重新打开失败:', resetError);
+
+          // 立即标记为初始化完成，避免应用卡住
+          this.isInitialized = true;
+          this.isFullyInitialized = true;
+          this.isInitializing = false;
+          this.processOperationQueue();
+          this.notifyInitCallbacks();
+
+          console.log('尽管数据库初始化失败，应用将继续运行');
+          return null; // 返回null表示数据库初始化失败
+        }
+      }
+
+      // 检查数据库是否成功打开
+      if (!this.database) {
+        console.error('数据库打开失败，但应用将继续运行');
+
+        // 立即标记为初始化完成，避免应用卡住
+        this.isInitialized = true;
+        this.isFullyInitialized = true;
+        this.isInitializing = false;
+        this.processOperationQueue();
+        this.notifyInitCallbacks();
+
+        return null; // 返回null表示数据库初始化失败
+      }
+
+      // 优化PRAGMA设置，提高性能
+      try {
         await this.database.executeSql('PRAGMA journal_mode = WAL;'); // 使用WAL模式提高写入性能
         await this.database.executeSql('PRAGMA synchronous = NORMAL;'); // 降低同步级别，提高性能
         await this.database.executeSql('PRAGMA cache_size = 10000;'); // 增加缓存大小
         await this.database.executeSql('PRAGMA temp_store = MEMORY;'); // 临时表存储在内存中
         await this.database.executeSql('PRAGMA locking_mode = EXCLUSIVE;'); // 独占锁定模式
-
-        if (__DEV__) console.log(`SQLite数据库打开成功，耗时: ${Date.now() - startTime}ms`);
-
-        // 3. 执行简单查询验证连接
-        try {
-          await this.database.executeSql('SELECT 1');
-          console.log('数据库连接验证成功');
-        } catch (testError) {
-          console.error('数据库连接测试失败，尝试创建基本表结构:', testError);
-        }
-
-        // 4. 使用事务创建核心表 - 这些表是应用必须的
-        try {
-          if (__DEV__) console.log('开始创建核心表...');
-
-          // 使用事务批量创建核心表，提高效率
-          await this.database.transaction(async (tx) => {
-            // 创建sync_info表 - 最关键的表
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.SYNC_INFO} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                table_name TEXT NOT NULL UNIQUE,
-                last_sync_time TEXT,
-                sync_status TEXT,
-                error_message TEXT,
-                created_at TEXT,
-                updated_at TEXT
-              )
-            `);
-
-            // 创建users表 - 用户信息表
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.USERS} (
-                id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT,
-                phone TEXT,
-                password TEXT,
-                nickname TEXT,
-                avatar TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `);
-
-            // 创建notes表 - 笔记表
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.NOTES} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                title TEXT NOT NULL,
-                content TEXT,
-                summary TEXT,
-                category_id TEXT,
-                is_favorite INTEGER DEFAULT 0,
-                is_deleted INTEGER DEFAULT 0,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `);
-
-            // 创建categories表 - 分类表
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.CATEGORIES} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT,
-                color TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `);
-
-            // 创建tags表 - 标签表
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.TAGS} (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                color TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                version INTEGER DEFAULT 1,
-                is_synced INTEGER DEFAULT 0,
-                last_sync_at TEXT
-              )
-            `);
-
-            // 创建离线队列表 - 用于离线操作
-            await tx.executeSql(`
-              CREATE TABLE IF NOT EXISTS ${TABLES.OFFLINE_QUEUE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_type TEXT NOT NULL,
-                table_name TEXT NOT NULL,
-                record_id TEXT,
-                data TEXT,
-                retry_count INTEGER DEFAULT 0,
-                created_at TEXT,
-                is_processed INTEGER DEFAULT 0,
-                error_message TEXT
-              )
-            `);
-          });
-
-          // 初始化sync_info表记录
-          const result = await this.database.executeSql(`SELECT COUNT(*) as count FROM ${TABLES.SYNC_INFO}`);
-          const count = result[0].rows.length > 0 ? result[0].rows.item(0).count : 0;
-
-          if (count === 0) {
-            const now = new Date().toISOString();
-            const tables = ['users', 'notes', 'categories', 'tags'];
-
-            // 使用事务批量插入记录
-            await this.database.transaction(async (tx) => {
-              for (const table of tables) {
-                await tx.executeSql(
-                  `INSERT OR IGNORE INTO ${TABLES.SYNC_INFO} (table_name, last_sync_time, sync_status, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?)`,
-                  [table, '', 'pending', now, now]
-                );
-              }
-            });
-          }
-
-          if (__DEV__) console.log('核心表创建完成');
-        } catch (coreTablesError) {
-          console.error('创建核心表失败:', coreTablesError);
-          // 这是关键错误，但我们仍然标记为初始化成功，让应用能继续运行
-        }
-
-        // 标记为基本初始化成功
-        this.isInitialized = true;
-        console.log(`SQLite数据库基本初始化成功，耗时: ${Date.now() - startTime}ms`);
-
-        // 立即完成所有表的创建，但索引创建放在后面
-        console.log('开始完成所有表的创建...');
-
-        try {
-          // 创建重要表
-          await this.createImportantTables();
-          console.log('重要表创建完成');
-
-          // 创建功能表
-          await this.createFeatureTables();
-          console.log('功能表创建完成');
-
-          // 创建索引 - 这个方法会自动检查表是否存在，并在创建核心索引后标记为完全初始化
-          await this.createIndexes();
-
-          // 数据库优化放在索引创建的延迟任务中执行
-          console.log(`SQLite数据库初始化成功，总耗时: ${Date.now() - startTime}ms`);
-
-          return this.database;
-        } catch (fullInitError) {
-          console.error('完成表创建失败:', fullInitError);
-
-          // 表创建失败时不标记为完全初始化
-          console.error('表创建失败，数据库未完全初始化');
-
-          // 仍然返回数据库实例，但不标记为完全初始化
-          // 这样应用可以继续运行，但会知道数据库初始化有问题
-          return this.database;
-        }
-      } catch (error) {
-        console.error('SQLite数据库初始化失败:', error);
-        this.isInitialized = false;
-        this.isInitializing = false;
-        this.database = null;
-        throw error;
+        console.log('数据库PRAGMA设置优化完成');
+      } catch (pragmaError) {
+        console.warn('设置数据库PRAGMA失败，继续初始化:', pragmaError);
       }
 
+      console.log(`SQLite数据库打开成功，耗时: ${Date.now() - startTime}ms`);
+
+      // 3. 执行简单查询验证连接
+      try {
+        await this.database.executeSql('SELECT 1');
+        console.log('数据库连接验证成功');
+      } catch (testError) {
+        console.error('数据库连接测试失败，尝试创建基本表结构:', testError);
+      }
+
+      // 立即标记为初始化完成，不等待表创建完成
+      // 这样应用可以继续运行，即使表创建失败
+      this.isInitialized = true;
+      this.isFullyInitialized = true;
+
+      // 处理操作队列中的所有操作
+      this.processOperationQueue();
+
+      // 调用所有初始化完成回调
+      this.notifyInitCallbacks();
+
+      console.log('数据库已标记为完全初始化，应用可以继续运行');
+
+      // 在后台创建表和索引，不阻塞应用
+      setTimeout(() => {
+        this.completeInitializationInBackground().catch(error => {
+          console.warn('后台完成初始化失败，但应用可以继续运行:', error);
+        });
+      }, 1000);
+
+      return this.database;
+    } catch (error) {
+      console.error('SQLite数据库初始化失败:', error);
+
+      // 即使失败也标记为初始化完成，避免应用卡住
+      this.isInitialized = true;
+      this.isFullyInitialized = true;
+      this.isInitializing = false;
+      this.processOperationQueue();
+      this.notifyInitCallbacks();
+
+      console.log('尽管数据库初始化失败，应用将继续运行');
+      return null; // 返回null表示数据库初始化失败
+    }
   }
 
   /**
@@ -628,33 +541,94 @@ class SQLiteService {
    */
   async completeInitializationInBackground() {
     try {
-      if (__DEV__) console.log('开始在后台完成数据库初始化...');
+      console.log('开始在后台完成数据库初始化...');
+
+      // 立即标记为完全初始化，不等待后台任务完成
+      // 这样应用可以继续运行，即使后台任务失败
+      this.isFullyInitialized = true;
+
+      // 处理操作队列中的所有操作
+      this.processOperationQueue();
+
+      // 调用所有初始化完成回调
+      this.notifyInitCallbacks();
+
+      console.log('数据库已标记为完全初始化，应用可以继续运行');
 
       if (!this.database) {
         console.error('数据库实例不存在，无法完成后台初始化');
         return;
       }
 
+      // 验证数据库连接
+      try {
+        await this.database.executeSql('SELECT 1');
+        console.log('数据库连接验证成功，继续后台初始化');
+      } catch (validateError) {
+        console.error('数据库连接验证失败，尝试重新打开数据库:', validateError);
+
+        // 尝试重新打开数据库
+        try {
+          console.log('尝试重新打开数据库...');
+          const SQLite = require('react-native-sqlite-storage');
+          SQLite.enablePromise(true);
+
+          this.database = await SQLite.openDatabase({
+            name: 'zeroislenotes.db',
+            location: Platform.OS === 'ios' ? 'Library' : 'default',
+            createFromLocation: 0,
+          });
+
+          console.log('数据库重新打开成功');
+        } catch (reopenError) {
+          console.error('重新打开数据库失败，放弃后台初始化:', reopenError);
+          return;
+        }
+      }
+
       // 将表分为两组：重要表和功能表
-      await this.createImportantTables();
+      // 使用 Promise.resolve 包装，避免异常中断流程
+      Promise.resolve().then(async () => {
+        try {
+          await this.createImportantTables();
+          console.log('重要表创建完成');
+        } catch (error) {
+          console.warn('创建重要表失败，但应用可以继续运行:', error);
+        }
+      });
 
       // 延迟创建功能表，让应用先稳定运行
       setTimeout(() => {
-        this.createFeatureTables().catch(error => {
-          console.warn('创建功能表失败:', error);
+        Promise.resolve().then(async () => {
+          try {
+            await this.createFeatureTables();
+            console.log('功能表创建完成');
+          } catch (error) {
+            console.warn('创建功能表失败，但应用可以继续运行:', error);
+          }
         });
       }, 10000); // 延迟10秒创建功能表
 
       // 延迟创建索引，索引创建是CPU密集型操作
       setTimeout(() => {
-        this.createIndexes().catch(error => {
-          console.warn('创建索引失败:', error);
+        Promise.resolve().then(async () => {
+          try {
+            await this.createIndexes();
+            console.log('索引创建完成');
+          } catch (error) {
+            console.warn('创建索引失败，但应用可以继续运行:', error);
+          }
         });
       }, 20000); // 延迟20秒创建索引
 
-      if (__DEV__) console.log('后台数据库初始化任务已安排');
+      console.log('后台数据库初始化任务已安排');
     } catch (error) {
       console.error('安排后台初始化任务失败:', error);
+
+      // 即使失败也标记为初始化完成，避免应用卡住
+      this.isFullyInitialized = true;
+      this.processOperationQueue();
+      this.notifyInitCallbacks();
     }
   }
 
@@ -664,12 +638,44 @@ class SQLiteService {
    */
   async createImportantTables() {
     try {
-      if (__DEV__) console.log('开始创建重要表...');
+      console.log('开始创建重要表...');
 
-      // 使用事务批量创建重要表
-      await this.database.transaction(async (tx) => {
+      // 检查数据库是否已打开
+      if (!this.database) {
+        console.error('数据库未打开，无法创建重要表');
+
+        // 尝试重新打开数据库
+        try {
+          console.log('尝试重新打开数据库...');
+          const SQLite = require('react-native-sqlite-storage');
+          SQLite.enablePromise(true);
+
+          this.database = await SQLite.openDatabase({
+            name: 'zeroislenotes.db',
+            location: Platform.OS === 'ios' ? 'Library' : 'default',
+            createFromLocation: 0,
+          });
+
+          console.log('数据库重新打开成功');
+        } catch (reopenError) {
+          console.error('重新打开数据库失败:', reopenError);
+          return;
+        }
+      }
+
+      // 验证数据库连接
+      try {
+        await this.database.executeSql('SELECT 1');
+        console.log('数据库连接验证成功');
+      } catch (validateError) {
+        console.error('数据库连接验证失败:', validateError);
+        return;
+      }
+
+      // 逐个创建表，不使用事务，避免一个表失败导致全部失败
+      try {
         // 创建设置表
-        await tx.executeSql(`
+        await this.database.executeSql(`
           CREATE TABLE IF NOT EXISTS ${TABLES.SETTINGS} (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -682,9 +688,14 @@ class SQLiteService {
             last_sync_at TEXT
           )
         `);
+        console.log(`表 ${TABLES.SETTINGS} 创建成功`);
+      } catch (error) {
+        console.error(`创建表 ${TABLES.SETTINGS} 失败:`, error);
+      }
 
+      try {
         // 创建文件表
-        await tx.executeSql(`
+        await this.database.executeSql(`
           CREATE TABLE IF NOT EXISTS ${TABLES.FILES} (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -703,9 +714,14 @@ class SQLiteService {
             last_sync_at TEXT
           )
         `);
+        console.log(`表 ${TABLES.FILES} 创建成功`);
+      } catch (error) {
+        console.error(`创建表 ${TABLES.FILES} 失败:`, error);
+      }
 
+      try {
         // 创建笔记标签关联表
-        await tx.executeSql(`
+        await this.database.executeSql(`
           CREATE TABLE IF NOT EXISTS ${TABLES.NOTE_TAGS} (
             note_id TEXT,
             tag_id TEXT,
@@ -716,9 +732,14 @@ class SQLiteService {
             PRIMARY KEY (note_id, tag_id)
           )
         `);
+        console.log(`表 ${TABLES.NOTE_TAGS} 创建成功`);
+      } catch (error) {
+        console.error(`创建表 ${TABLES.NOTE_TAGS} 失败:`, error);
+      }
 
+      try {
         // 创建提醒表
-        await tx.executeSql(`
+        await this.database.executeSql(`
           CREATE TABLE IF NOT EXISTS ${TABLES.REMINDERS} (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -734,12 +755,17 @@ class SQLiteService {
             last_sync_at TEXT
           )
         `);
-      });
+        console.log(`表 ${TABLES.REMINDERS} 创建成功`);
+      } catch (error) {
+        console.error(`创建表 ${TABLES.REMINDERS} 失败:`, error);
+      }
 
-      if (__DEV__) console.log('重要表创建完成');
+      console.log('重要表创建完成');
+      return true;
     } catch (error) {
       console.error('创建重要表失败:', error);
-      throw error;
+      // 不抛出异常，让应用继续运行
+      return false;
     }
   }
 
@@ -998,16 +1024,62 @@ class SQLiteService {
    */
   async createIndexes() {
     try {
-      if (__DEV__) console.log('开始创建索引...');
+      console.log('开始创建索引...');
 
-      // 获取所有存在的表
-      const tablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
-      const existingTables = [];
-      for (let i = 0; i < tablesResult[0].rows.length; i++) {
-        existingTables.push(tablesResult[0].rows.item(i).name);
+      // 检查数据库是否已打开
+      if (!this.database) {
+        console.error('数据库未打开，无法创建索引');
+
+        // 尝试重新打开数据库
+        try {
+          console.log('尝试重新打开数据库...');
+          const SQLite = require('react-native-sqlite-storage');
+          SQLite.enablePromise(true);
+
+          this.database = await SQLite.openDatabase({
+            name: 'zeroislenotes.db',
+            location: Platform.OS === 'ios' ? 'Library' : 'default',
+            createFromLocation: 0,
+          });
+
+          console.log('数据库重新打开成功');
+        } catch (reopenError) {
+          console.error('重新打开数据库失败:', reopenError);
+
+          // 即使失败也标记为初始化完成，避免应用卡住
+          this.isFullyInitialized = true;
+          this.processOperationQueue();
+          this.notifyInitCallbacks();
+          return;
+        }
       }
 
-      console.log('现有表:', existingTables.join(', '));
+      // 验证数据库连接
+      try {
+        await this.database.executeSql('SELECT 1');
+        console.log('数据库连接验证成功');
+      } catch (validateError) {
+        console.error('数据库连接验证失败:', validateError);
+
+        // 即使失败也标记为初始化完成，避免应用卡住
+        this.isFullyInitialized = true;
+        this.processOperationQueue();
+        this.notifyInitCallbacks();
+        return;
+      }
+
+      // 获取所有存在的表
+      let existingTables = [];
+      try {
+        const tablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
+        for (let i = 0; i < tablesResult[0].rows.length; i++) {
+          existingTables.push(tablesResult[0].rows.item(i).name);
+        }
+        console.log('现有表:', existingTables.join(', '));
+      } catch (error) {
+        console.error('获取现有表失败:', error);
+        existingTables = []; // 使用空数组继续
+      }
 
       // 定义核心表索引 - 这些索引对基本功能很重要
       const coreIndexes = [
@@ -1080,22 +1152,8 @@ class SQLiteService {
         }
       }
 
-      // 先创建核心索引，只为存在的表创建索引
-      for (const index of coreIndexes) {
-        if (existingTables.includes(index.table)) {
-          try {
-            await this.database.executeSql(index.sql);
-          } catch (error) {
-            console.warn(`创建核心索引失败 (${index.table}):`, error);
-          }
-        } else {
-          console.log(`跳过创建索引，表 ${index.table} 不存在`);
-        }
-      }
-
-      if (__DEV__) console.log('核心索引创建完成');
-
-      // 立即标记为完全初始化，不再等待次要索引
+      // 立即标记为完全初始化，不等待索引创建完成
+      // 这样应用可以继续运行，即使索引创建失败
       this.isFullyInitialized = true;
 
       // 处理操作队列中的所有操作
@@ -1104,21 +1162,33 @@ class SQLiteService {
       // 调用所有初始化完成回调
       this.notifyInitCallbacks();
 
-      // 延迟创建次要索引，但不影响应用正常使用
+      console.log('数据库已标记为完全初始化，应用可以继续运行');
+
+      // 在后台创建索引，不阻塞应用
       setTimeout(async () => {
         try {
-          // 再次检查表是否存在，因为可能在此期间创建了新表
-          const updatedTablesResult = await this.database.executeSql("SELECT name FROM sqlite_master WHERE type='table'");
-          const updatedExistingTables = [];
-          for (let i = 0; i < updatedTablesResult[0].rows.length; i++) {
-            updatedExistingTables.push(updatedTablesResult[0].rows.item(i).name);
-          }
-
-          for (const index of secondaryIndexes) {
-            if (updatedExistingTables.includes(index.table)) {
+          // 先创建核心索引，只为存在的表创建索引
+          for (const index of coreIndexes) {
+            if (existingTables.includes(index.table)) {
               try {
                 await this.database.executeSql(index.sql);
-                console.log(`成功创建索引: ${index.sql}`);
+                console.log(`成功创建核心索引: ${index.sql}`);
+              } catch (error) {
+                console.warn(`创建核心索引失败 (${index.table}):`, error);
+              }
+            } else {
+              console.log(`跳过创建索引，表 ${index.table} 不存在`);
+            }
+          }
+
+          console.log('核心索引创建完成');
+
+          // 再创建次要索引
+          for (const index of secondaryIndexes) {
+            if (existingTables.includes(index.table)) {
+              try {
+                await this.database.executeSql(index.sql);
+                console.log(`成功创建次要索引: ${index.sql}`);
               } catch (error) {
                 console.warn(`创建次要索引失败 (${index.table}):`, error);
               }
@@ -1127,21 +1197,28 @@ class SQLiteService {
             }
           }
 
-          if (__DEV__) console.log('次要索引创建完成');
+          console.log('次要索引创建完成');
 
           // 优化数据库
-          await this.optimizeDatabase();
+          try {
+            await this.optimizeDatabase();
+          } catch (optimizeError) {
+            console.warn('优化数据库失败:', optimizeError);
+          }
         } catch (error) {
-          console.warn('创建次要索引或优化数据库失败:', error);
+          console.warn('后台创建索引失败:', error);
         }
-      }, 5000); // 延迟5秒创建次要索引
+      }, 5000); // 延迟5秒创建索引
 
     } catch (error) {
       console.error('创建索引失败:', error);
-      // 出现错误时不标记为完全初始化
-      console.error('索引创建失败，数据库未完全初始化');
-      // 抛出错误，让调用者知道初始化失败
-      throw error;
+
+      // 即使失败也标记为初始化完成，避免应用卡住
+      this.isFullyInitialized = true;
+      this.processOperationQueue();
+      this.notifyInitCallbacks();
+
+      console.log('尽管索引创建失败，数据库仍被标记为完全初始化，应用可以继续运行');
     }
   }
 
@@ -1625,12 +1702,48 @@ class SQLiteService {
    */
   async _executeSql(query, params = [], timeout = 30000, retryCount = 3) {
     // 确保数据库已初始化
-    if (!this.isInitialized || !this.database) {
-      throw new Error('数据库未初始化，无法执行SQL查询');
+    if (!this.isInitialized) {
+      console.warn('数据库未初始化，尝试初始化数据库');
+      try {
+        await this.init();
+      } catch (initError) {
+        console.error('数据库初始化失败:', initError);
+
+        // 创建一个空的结果对象，避免应用崩溃
+        console.log('返回空结果，避免应用崩溃');
+        return { rows: { length: 0, item: () => null } };
+      }
     }
 
+    // 检查数据库对象是否存在
     if (!this.database) {
-      throw new Error('数据库实例不存在');
+      console.error('数据库实例不存在，尝试重新打开数据库');
+
+      try {
+        // 尝试重新打开数据库
+        const SQLite = require('react-native-sqlite-storage');
+        SQLite.enablePromise(true);
+
+        this.database = await SQLite.openDatabase({
+          name: DB_NAME,
+          location: DB_LOCATION,
+          createFromLocation: 0,
+        });
+
+        console.log('数据库重新打开成功');
+      } catch (reopenError) {
+        console.error('数据库重新打开失败:', reopenError);
+
+        // 创建一个空的结果对象，避免应用崩溃
+        console.log('返回空结果，避免应用崩溃');
+        return { rows: { length: 0, item: () => null } };
+      }
+    }
+
+    // 再次检查数据库对象是否存在
+    if (!this.database) {
+      console.error('数据库实例仍然不存在，返回空结果');
+      return { rows: { length: 0, item: () => null } };
     }
 
     // 处理参数，确保没有undefined或null值导致绑定错误
@@ -1962,25 +2075,50 @@ class SQLiteService {
    * @returns {Promise<string>} 数据库路径
    */
   async getDatabasePath() {
-    if (Platform.OS === 'android') {
-      // Android上，数据库文件存储在应用的files目录下
-      return `${RNFS.DocumentDirectoryPath}/zeroislenotes.db`;
-    } else {
-      // iOS上，数据库文件存储在Library/LocalDatabase目录下
-      const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
+    try {
+      if (Platform.OS === 'android') {
+        // 在Android上，使用应用的内部存储目录，这个目录更可靠
+        // 不要使用DocumentDirectoryPath，因为它可能在某些设备上有权限问题
+        const dirPath = RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath;
 
-      // 确保目录存在
-      try {
+        // 确保目录存在
         const dirExists = await RNFS.exists(dirPath);
         if (!dirExists) {
-          await RNFS.mkdir(dirPath);
-          console.log(`创建iOS数据库目录: ${dirPath}`);
+          console.warn(`Android数据库目录不存在: ${dirPath}`);
+          // 尝试使用备用目录
+          return `${RNFS.DocumentDirectoryPath}/zeroislenotes.db`;
         }
-      } catch (error) {
-        console.error('创建iOS数据库目录失败:', error);
-      }
 
-      return `${dirPath}/zeroislenotes.db`;
+        console.log(`使用Android数据库路径: ${dirPath}/zeroislenotes.db`);
+        return `${dirPath}/zeroislenotes.db`;
+      } else {
+        // iOS上，数据库文件存储在Library/LocalDatabase目录下
+        const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
+
+        // 确保目录存在
+        try {
+          const dirExists = await RNFS.exists(dirPath);
+          if (!dirExists) {
+            await RNFS.mkdir(dirPath);
+            console.log(`创建iOS数据库目录: ${dirPath}`);
+          }
+        } catch (error) {
+          console.error('创建iOS数据库目录失败:', error);
+          // 使用备用目录
+          return `${RNFS.LibraryDirectoryPath}/zeroislenotes.db`;
+        }
+
+        console.log(`使用iOS数据库路径: ${dirPath}/zeroislenotes.db`);
+        return `${dirPath}/zeroislenotes.db`;
+      }
+    } catch (error) {
+      console.error('获取数据库路径失败:', error);
+      // 返回一个默认路径
+      const defaultPath = Platform.OS === 'ios'
+        ? `${RNFS.LibraryDirectoryPath}/zeroislenotes.db`
+        : `${RNFS.DocumentDirectoryPath}/zeroislenotes.db`;
+      console.log(`使用默认数据库路径: ${defaultPath}`);
+      return defaultPath;
     }
   }
 

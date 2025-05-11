@@ -21,11 +21,12 @@ import { Text } from '../../components/common/Typography';
 import { UnifiedSearchBar } from '../../components/search';
 import SortControl from '../../components/home/SortControl';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import OfflineIndicator from '../../components/common/OfflineIndicator';
+// OfflineIndicator 已移除
 import { offlineStorageService } from '../../services/offline/offlineStorage';
 import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { CreateContentModal } from '../../components/common';
+import RNFS from 'react-native-fs';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -42,123 +43,73 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
-  const [isOffline, setIsOffline] = useState(false);
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
     const initialize = async () => {
       try {
+        setIsLoading(true);
+        console.log('开始初始化 HomeScreen...');
+
         // 加载排序偏好
         const savedSort = await AsyncStorage.getItem('home_sort_preference');
         if (savedSort) {
           setSortOption(savedSort);
         }
 
-        // 初始化离线存储服务
-        await offlineStorageService.init();
+        // 设置超时，确保加载状态不会一直显示
+        const timeoutId = setTimeout(() => {
+          console.log('初始化超时，强制结束加载状态');
+          setIsLoading(false);
+        }, 5000); // 5秒超时
 
-        // 初始化无限画布存储
-        await infiniteCanvasStorage.initTables();
+        try {
+          // 加载笔记 - 不等待离线存储服务初始化
+          console.log('直接加载笔记...');
+          await loadNotes();
 
-        // 加载笔记
-        await loadNotes();
+          // 在后台初始化离线存储服务，不阻塞UI
+          if (!offlineStorageService.isInitialized) {
+            console.log('在后台初始化离线存储服务...');
+            offlineStorageService.init().catch(err => {
+              console.warn('后台初始化离线存储服务失败:', err);
+            });
+          } else {
+            console.log('离线存储服务已初始化');
+          }
+
+          // 在后台初始化无限画布存储，不阻塞UI
+          console.log('在后台初始化无限画布存储...');
+          infiniteCanvasStorage.initTables().catch(err => {
+            console.warn('后台初始化无限画布存储失败:', err);
+          });
+
+          console.log('HomeScreen 初始化完成');
+        } catch (innerError) {
+          console.error('内部初始化失败:', innerError);
+          // 即使内部初始化失败，也继续执行，不阻塞UI
+        } finally {
+          // 清除超时
+          clearTimeout(timeoutId);
+        }
       } catch (error) {
         console.error('初始化失败:', error);
+      } finally {
+        // 确保无论如何都会结束加载状态
+        setIsLoading(false);
       }
     };
 
     initialize();
   }, []);
 
-  // 监听网络状态
-  useEffect(() => {
-    // 获取当前网络状态
-    const status = offlineStorageService.getStatus();
-    setIsOffline(!status.isOnline);
+  // 网络状态监听已移除
 
-    // 添加监听器
-    const unsubscribe = offlineStorageService.addListener(event => {
-      if (event.type === 'connectionChange' || event.type === 'offlineModeChange') {
-        setIsOffline(!offlineStorageService.getStatus().isOnline);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // 同步离线笔记到云端
-  const syncNotesToCloud = async () => {
-    try {
-      setIsLoading(true);
-
-      // 获取网络状态
-      const networkStatus = await NetInfo.fetch();
-      if (!networkStatus.isConnected) {
-        Alert.alert('错误', '无网络连接，无法同步到云端');
-        setIsLoading(false);
-        return;
-      }
-
-      // 获取离线笔记
-      const offlineNotes = await offlineStorageService.getNotes();
-      const unsyncedNotes = offlineNotes.filter(note => !note.is_synced);
-
-      if (unsyncedNotes.length === 0) {
-        Alert.alert('提示', '没有需要同步的笔记');
-        setIsLoading(false);
-        return;
-      }
-
-      // 显示确认对话框
-      Alert.alert(
-        '同步到云端',
-        `发现${unsyncedNotes.length}个未同步的笔记，是否同步到云端？`,
-        [
-          {
-            text: '取消',
-            style: 'cancel',
-            onPress: () => setIsLoading(false)
-          },
-          {
-            text: '同步',
-            onPress: async () => {
-              try {
-                // 执行同步
-                const result = await offlineStorageService.syncPendingOperations();
-
-                if (result.success) {
-                  Alert.alert('成功', `成功同步${result.syncedCount}个笔记到云端`);
-                  loadNotes(); // 重新加载笔记列表
-                } else {
-                  throw new Error(result.message || '同步失败');
-                }
-              } catch (error) {
-                console.error('同步笔记失败:', error);
-                Alert.alert('错误', error.message || '同步笔记失败，请稍后重试');
-              } finally {
-                setIsLoading(false);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('准备同步笔记失败:', error);
-      Alert.alert('错误', error.message || '准备同步笔记失败，请稍后重试');
-      setIsLoading(false);
-    }
-  };
+  // 同步功能已移除
 
   // 当笔记或排序选项变化时，重新排序
   useEffect(() => {
     console.log('Redux中的笔记状态变化:', allNotes ? allNotes.length : 0, '条笔记');
-
-    // 如果没有笔记，并且不是正在加载状态，创建测试数据
-    if ((!allNotes || allNotes.length === 0) && !isLoading && !notesState.isLoading) {
-      console.log('没有笔记且不在加载状态，创建测试数据');
-      createTestNotes();
-      return;
-    }
 
     if (allNotes && allNotes.length > 0) {
       const sortedNotes = sortNotes(allNotes, sortOption);
@@ -233,57 +184,41 @@ const HomeScreen = ({ navigation }) => {
     setSortOption(newSortOption);
   }, []);
 
-  // 创建测试数据的函数
+  // 创建空笔记列表的函数
   const createTestNotes = () => {
-    console.log('创建测试数据');
+    console.log('创建空笔记列表');
     setIsLoading(true);
 
-    const testNotes = [
-      {
-        id: 'test_1',
-        title: '计算机网络（第8版）',
-        content: '计算机网络是指将地理位置不同的具有独立功能的多台计算机及其外部设备，通过通信线路连接起来...',
-        file_type: 'pdf',
-        file_name: '计算机网络（第8版）.pdf',
-        created_at: '2023/4/21 08:14 PM',
-        updated_at: '2023/4/21 08:14 PM',
-        is_synced: true,
-        preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
-      },
-      {
-        id: 'test_2',
-        title: 'SVN备忘录',
-        content: 'SVN是Subversion的简称，是一个开放源代码的版本控制系统...',
-        file_type: 'word',
-        file_name: 'SVN备忘录.docx',
-        created_at: '2023/4/5 11:37 AM',
-        updated_at: '2023/4/5 11:37 AM',
-        is_synced: true,
-        preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
-      },
-      {
-        id: 'test_3',
-        title: '微积分',
-        content: '微积分是高等数学中研究函数的微分和积分的数学分支...',
-        file_type: 'text',
-        file_name: '微积分.txt',
-        created_at: '2023/3/24 06:52 PM',
-        updated_at: '2023/3/24 06:52 PM',
-        is_synced: true
-      }
-    ];
-
-    // 使用action creator设置笔记
-    dispatch(setNotesAction(testNotes));
+    // 使用空数组设置笔记
+    dispatch(setNotesAction([]));
     setIsLoading(false);
   };
 
   const loadNotes = async () => {
     try {
-      setIsLoading(true);
+      // 注意：setIsLoading(true) 已经在调用此方法的地方设置
+      console.log('开始加载笔记...');
 
-      // 首先尝试从本地存储获取笔记
-      const offlineResponse = await notesApi.getAllNotes();
+      // 设置超时，确保不会一直等待API响应
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          console.log('加载笔记超时，返回空数组');
+          resolve({ success: false, timeout: true });
+        }, 3000); // 3秒超时
+      });
+
+      // 首先尝试从本地存储获取笔记，带超时
+      const offlineResponsePromise = notesApi.getAllNotes();
+      const offlineResponse = await Promise.race([offlineResponsePromise, timeoutPromise]);
+
+      // 如果超时，返回空数组
+      if (offlineResponse.timeout) {
+        console.log('API请求超时，返回空数组');
+        dispatch(setNotesAction([]));
+        setIsLoading(false);
+        return; // 提前返回，避免重复设置 isLoading
+      }
+
       console.log('获取笔记响应:', offlineResponse);
 
       if (offlineResponse && offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
@@ -293,34 +228,26 @@ const HomeScreen = ({ navigation }) => {
         // 使用导出的action creator设置笔记
         dispatch(setNotesAction(offlineResponse.data));
       } else {
-        // 如果没有笔记，创建测试数据
-        console.log('没有笔记，调用createTestNotes()');
-        createTestNotes();
+        // 如果没有笔记，返回空数组
+        console.log('没有笔记，返回空数组');
+        dispatch(setNotesAction([]));
+        setIsLoading(false);
+        return; // 提前返回，避免重复设置 isLoading
       }
 
-      // 然后尝试从服务器获取笔记（不影响离线笔记的显示）
-      try {
-        const response = await notesApi.getAllNotes();
-        console.log('获取在线笔记响应:', response);
-        if (response && response.success) {
-          // 如果在线获取成功，使用action creator更新Redux状态
-          dispatch(setNotesAction(response.data));
-        }
-      } catch (error) {
-        console.log('在线获取笔记失败，继续使用离线数据:', error.message);
-        // 在线获取失败不影响用户体验，继续使用离线数据
-      }
+      console.log('笔记加载完成');
+      // 注意：setIsLoading(false) 会在调用此方法的 finally 块中设置
     } catch (error) {
       console.error('加载笔记失败:', error);
       // 不显示弹窗，避免影响用户体验
       console.error('错误详情:', error);
 
-      // 加载失败时，显示测试数据
-      console.log('加载失败，调用createTestNotes()');
-      createTestNotes();
-    } finally {
+      // 加载失败时，返回空数组
+      console.log('加载失败，返回空数组');
+      dispatch(setNotesAction([]));
       setIsLoading(false);
     }
+    // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
   };
 
   // 导入PDF文件
@@ -428,6 +355,14 @@ const HomeScreen = ({ navigation }) => {
           throw new Error('无效的文件URI');
         }
 
+        // 检查文件大小，如果太大，直接使用本地导入
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+        if (file.size && file.size > MAX_FILE_SIZE) {
+          console.log('文件过大，使用本地导入方式');
+          await handleLocalImport(file);
+          return;
+        }
+
         // 创建FormData对象
         const formData = new FormData();
 
@@ -445,8 +380,18 @@ const HomeScreen = ({ navigation }) => {
         console.log('准备导入Word，FormData:', formData);
 
         try {
+          // 设置导入超时
+          const importTimeout = setTimeout(() => {
+            console.log('导入操作超时，切换到本地导入');
+            handleLocalImport(file);
+          }, 30000); // 30秒超时
+
           // 调用实际的导入API
           const response = await notesApi.importNote(formData);
+
+          // 清除超时
+          clearTimeout(importTimeout);
+
           console.log('Word导入结果:', response);
 
           // 即使API返回失败，只要有数据就继续处理
@@ -457,35 +402,12 @@ const HomeScreen = ({ navigation }) => {
             return;
           }
 
-          // 如果没有数据，抛出错误
-          throw new Error(response.message || '导入Word文档失败');
+          // 如果没有数据，使用本地导入
+          console.log('API返回失败，使用本地导入方式');
+          await handleLocalImport(file);
         } catch (importError) {
           console.error('导入Word过程中出错:', importError);
-
-          // 即使API调用失败，也尝试使用本地导入
-          console.log('尝试使用本地导入方式');
-
-          // 创建本地笔记对象
-          const localNote = {
-            id: 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
-            title: file.name ? file.name.split('.')[0] : '导入的Word文档',
-            content: `导入的Word文件: ${file.name || '未命名文档'}`,
-            file_type: 'word',
-            file_name: file.name || `document_${Date.now()}.docx`,
-            file_uri: file.uri,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            is_synced: false,
-            is_offline: true,
-            preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
-          };
-
-          // 添加到Redux状态
-          dispatch(setNotesAction([...allNotes, localNote]));
-
-          setIsLoading(false);
-          Alert.alert('成功', '导入Word文档成功（本地模式）');
-          return;
+          await handleLocalImport(file);
         }
       }
     } catch (error) {
@@ -494,6 +416,77 @@ const HomeScreen = ({ navigation }) => {
         console.error('导入Word失败:', error);
         Alert.alert('错误', error.message || '导入Word文档失败，请稍后重试');
       }
+    }
+  };
+
+  // 本地导入处理函数
+  const handleLocalImport = async (file) => {
+    try {
+      console.log('使用本地导入方式处理文件:', file.name);
+
+      // 检查文件是否存在
+      try {
+        const fileExists = await RNFS.exists(file.uri);
+        if (!fileExists) {
+          throw new Error('文件不存在或无法访问');
+        }
+      } catch (fileCheckError) {
+        console.error('检查文件存在失败:', fileCheckError);
+      }
+
+      // 如果文件URI不是以file://开头，需要复制到应用的文档目录
+      let fileUri = file.uri;
+      if (!fileUri.startsWith('file://')) {
+        try {
+          // 创建目标路径
+          const fileName = file.name || `document_${Date.now()}.docx`;
+          const destPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+
+          // 复制文件
+          console.log(`复制文件从 ${fileUri} 到 ${destPath}`);
+          await RNFS.copyFile(fileUri, destPath);
+
+          // 更新文件URI
+          fileUri = `file://${destPath}`;
+          console.log('文件已复制到应用目录:', fileUri);
+        } catch (copyError) {
+          console.error('复制文件失败:', copyError);
+          // 继续使用原始URI
+        }
+      }
+
+      // 创建本地笔记对象
+      const localNote = {
+        id: 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
+        title: file.name ? file.name.split('.')[0] : '导入的Word文档',
+        content: `导入的Word文件: ${file.name || '未命名文档'}`,
+        file_type: 'word',
+        file_name: file.name || `document_${Date.now()}.docx`,
+        file_uri: fileUri,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        preview_image: 'https://img-blog.csdnimg.cn/20200627111426602.png'
+      };
+
+      // 添加到Redux状态
+      dispatch(setNotesAction([...allNotes, localNote]));
+
+      // 保存到本地存储
+      try {
+        await notesApi.saveOfflineNote(localNote);
+        console.log('笔记已保存到本地存储');
+      } catch (storageError) {
+        console.error('保存到本地存储失败:', storageError);
+      }
+
+      setIsLoading(false);
+      Alert.alert('成功', '导入Word文档成功（本地模式）');
+    } catch (error) {
+      console.error('本地导入失败:', error);
+      setIsLoading(false);
+      Alert.alert('错误', '本地导入失败: ' + (error.message || '未知错误'));
     }
   };
 
@@ -791,20 +784,20 @@ const HomeScreen = ({ navigation }) => {
         您还没有创建任何笔记，点击右下角的按钮开始创建吧！
       </Text>
 
-      <View style={[styles.aiAssistantCard, { backgroundColor: colors.primaryContainer }]}>
+      <View style={[styles.aiAssistantCard, { backgroundColor: colors.secondaryContainer || '#E8F5E9' }]}>
         <View style={styles.aiAssistantHeader}>
-          <Icon name="bulb-outline" size={24} color={colors.primary} />
+          <Icon name="bulb-outline" size={24} color={colors.secondary || '#388E3C'} />
           <Text style={[styles.aiAssistantTitle, { color: colors.text }]}>AI助手</Text>
         </View>
         <Text style={[styles.aiAssistantDesc, { color: colors.textSecondary }]}>
           使用我们的AI助手帮助您更高效地记录和整理笔记，提供智能建议和内容分析。
         </Text>
         <TouchableOpacity
-          style={[styles.aiAssistantButton, { backgroundColor: colors.primary }]}
+          style={[styles.aiAssistantButton, { backgroundColor: colors.secondary || '#388E3C' }]}
           onPress={() => navigation.navigate('AIAssistant')}
         >
-          <Text style={[styles.aiAssistantButtonText, { color: colors.onPrimary }]}>立即体验</Text>
-          <Icon name="arrow-forward-outline" size={18} color={colors.onPrimary} />
+          <Text style={[styles.aiAssistantButtonText, { color: colors.onSecondary || '#FFFFFF' }]}>立即体验</Text>
+          <Icon name="arrow-forward-outline" size={18} color={colors.onSecondary || '#FFFFFF'} />
         </TouchableOpacity>
       </View>
 
@@ -903,21 +896,10 @@ const HomeScreen = ({ navigation }) => {
         renderEmptyState()
       )}
 
-      {/* 离线状态指示器 */}
-      {isOffline && <OfflineIndicator />}
+      {/* 网络状态指示器已移除 */}
 
       <View style={styles.buttonContainer}>
-        {/* 上传云端按钮 */}
-        {(
-          <TouchableOpacity
-            style={[styles.syncButton, { backgroundColor: colors.secondary }]}
-            onPress={syncNotesToCloud}
-          >
-            <View style={styles.syncButtonInner}>
-              <Icon name="cloud-upload" size={24} color={colors.onSecondary} />
-            </View>
-          </TouchableOpacity>
-        )}
+        {/* 上传云端按钮已移除 */}
 
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -1231,10 +1213,11 @@ const styles = StyleSheet.create({
   // 空状态样式
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 30,
-    paddingVertical: 50,
+    paddingTop: 100, // 增加顶部内边距，避免被上方控件遮挡
+    paddingBottom: 50,
   },
   // 创建选项弹出菜单样式
   modalOverlay: {
@@ -1335,8 +1318,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.03)',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   aiAssistantHeader: {
     flexDirection: 'row',

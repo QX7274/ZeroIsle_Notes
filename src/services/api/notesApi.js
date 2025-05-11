@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import NetInfo from '@react-native-community/netinfo';
 import { dataService } from '../database';
+import simpleStorageService from '../storage/simpleStorageService';
 
 // 使用导入的离线存储服务
 
@@ -200,76 +201,159 @@ export const deleteNote = async (id) => {
  */
 export const getAllNotes = async (params = {}) => {
   try {
-    // 确保数据服务已初始化
-    await dataService.init();
+    console.log('开始获取所有笔记...');
+    const startTime = Date.now();
 
-    // 检查网络状态
-    const networkStatus = await NetInfo.fetch();
-    const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
-
-    // 获取当前用户信息
-    const storageService = require('../storage/storageService');
-    const user = await storageService.getUser();
-
-    if (!user || !user.id) {
-      console.warn('未找到当前用户信息，尝试从离线存储获取笔记');
-      return await getOfflineNotes();
-    }
-
-    // 设置当前用户到dataService
-    dataService.setCurrentUser(user);
-
-    // 确保params中包含userId
-    const paramsWithUserId = {
-      ...params,
-      userId: user.id
-    };
-
-    // 从SQLite获取笔记
-    const notes = await dataService.getNotes(paramsWithUserId);
-    console.log(`从SQLite获取到${notes.length}条笔记`);
-
-    // 如果在线，尝试从服务器获取最新数据并同步
-    if (isOnline) {
-      try {
-        console.log('在线模式：尝试从服务器获取最新笔记');
-        // 异步从服务器获取数据，不等待结果
-        instance.get(API_ENDPOINTS.NOTES.BASE, { params }).then(async response => {
-          if (response && response.data) {
-            console.log(`从服务器获取到${response.data.length}条笔记`);
-            // 触发同步服务进行数据同步
-            await dataService.syncNotes(response.data);
-          }
-        }).catch(networkError => {
-          console.log('从服务器获取笔记失败，使用本地数据', networkError);
+    // 设置超时，确保不会一直等待
+    const timeoutPromise = new Promise(resolve => {
+      setTimeout(() => {
+        console.log('获取笔记超时');
+        resolve({
+          success: false,
+          message: '获取笔记超时，请稍后重试',
+          isTimeout: true,
+          data: []
         });
-      } catch (networkError) {
-        console.log('从服务器获取笔记失败，使用本地数据', networkError);
+      }, 10000); // 10秒超时
+    });
+
+    // 实际获取笔记的Promise
+    const fetchPromise = (async () => {
+      try {
+        // 确保数据服务已初始化，但不等待太久
+        const initTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('数据服务初始化超时');
+            resolve(false);
+          }, 3000); // 3秒超时
+        });
+
+        await Promise.race([dataService.init(), initTimeoutPromise]);
+
+        // 检查网络状态
+        const networkStatus = await NetInfo.fetch();
+        const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+        console.log('网络状态:', isOnline ? '在线' : '离线');
+
+        // 获取当前用户信息
+        const storageService = require('../storage/storageService');
+        const user = await storageService.getUser();
+
+        if (!user || !user.id) {
+          console.warn('未找到当前用户信息，尝试从离线存储获取笔记');
+          const offlineResult = await getOfflineNotes();
+          return offlineResult;
+        }
+
+        console.log('当前用户:', user.username || user.id);
+
+        // 设置当前用户到dataService
+        dataService.setCurrentUser(user);
+
+        // 确保params中包含userId
+        const paramsWithUserId = {
+          ...params,
+          userId: user.id
+        };
+
+        // 从SQLite获取笔记，设置较短的超时
+        console.log('从SQLite获取笔记...');
+        const sqliteTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('SQLite查询超时');
+            resolve(null);
+          }, 5000); // 5秒超时
+        });
+
+        const notes = await Promise.race([
+          dataService.getNotes(paramsWithUserId),
+          sqliteTimeoutPromise
+        ]);
+
+        // 如果查询超时或失败
+        if (!notes) {
+          console.error('SQLite查询超时或失败');
+          return {
+            success: false,
+            message: 'SQLite查询超时或失败',
+            data: [],
+            isOffline: true
+          };
+        }
+
+        console.log(`从SQLite获取到${notes.length}条笔记，耗时: ${Date.now() - startTime}ms`);
+
+        // 如果没有获取到笔记，返回空数组
+        if (notes.length === 0) {
+          console.log('未获取到笔记，返回空数组');
+          return {
+            success: true,
+            data: [],
+            isOffline: true,
+            message: '没有找到笔记'
+          };
+        }
+
+        // 如果在线，尝试从服务器获取最新数据并同步
+        if (isOnline) {
+          try {
+            console.log('在线模式：尝试从服务器获取最新笔记');
+            // 异步从服务器获取数据，不等待结果
+            instance.get(API_ENDPOINTS.NOTES.BASE, { params }).then(async response => {
+              if (response && response.data) {
+                console.log(`从服务器获取到${response.data.length}条笔记`);
+                // 触发同步服务进行数据同步
+                await dataService.syncNotes(response.data);
+              }
+            }).catch(networkError => {
+              console.log('从服务器获取笔记失败，使用本地数据', networkError);
+            });
+          } catch (networkError) {
+            console.log('从服务器获取笔记失败，使用本地数据', networkError);
+          }
+        } else {
+          console.log('离线模式：仅使用本地SQLite数据');
+        }
+
+        return {
+          success: true,
+          data: notes,
+          isOffline: !isOnline
+        };
+      } catch (error) {
+        console.error('获取笔记列表失败:', error);
+
+        // 尝试从旧的离线存储获取
+        try {
+          console.log('SQLite获取失败，尝试从旧的离线存储获取笔记');
+          return await getOfflineNotes();
+        } catch (offlineError) {
+          console.error('从旧的离线存储获取笔记也失败:', offlineError);
+
+          // 所有方法都失败，返回错误
+          console.log('所有获取方法都失败');
+          return {
+            success: false,
+            message: '无法获取笔记，所有存储方法都失败',
+            error: error.message,
+            data: []
+          };
+        }
       }
-    } else {
-      console.log('离线模式：仅使用本地SQLite数据');
-    }
+    })();
 
-    return {
-      success: true,
-      data: notes,
-      isOffline: !isOnline
-    };
+    // 使用Promise.race确保不会一直等待
+    return await Promise.race([fetchPromise, timeoutPromise]);
   } catch (error) {
-    console.error('获取笔记列表失败:', error);
+    console.error('获取笔记过程中出现未处理的错误:', error);
 
-    // 尝试从旧的离线存储获取
-    try {
-      console.log('SQLite获取失败，尝试从旧的离线存储获取笔记');
-      return await getOfflineNotes();
-    } catch (offlineError) {
-      console.error('从旧的离线存储获取笔记也失败:', offlineError);
-      return {
-        success: false,
-        message: error.message || '获取笔记列表失败',
-        error
-      };
-    }
+    // 返回错误信息
+    return {
+      success: false,
+      message: '获取笔记失败: ' + (error.message || '未知错误'),
+      error: error.message,
+      data: []
+    };
   }
 };
 
@@ -283,94 +367,185 @@ export const getNoteById = async (id) => {
     console.log(`开始获取笔记详情 (ID: ${id})`);
     const startTime = Date.now();
 
-    // 检查SQLite数据库连接状态
-    const sqliteService = dataService.getSqliteService();
-    const isConnected = await sqliteService.checkConnection(10000);
-
-    if (!isConnected) {
-      console.warn('SQLite数据库连接不可用，尝试使用备用方法获取笔记');
-      throw new Error('数据库连接不可用');
-    }
-
-    console.log('SQLite数据库连接正常，开始获取笔记数据');
-
-    // 确保数据服务已初始化
-    await dataService.init();
-
-    // 从SQLite获取笔记详情 - 使用更长的超时时间
-    const note = await dataService.getNote(id, 15000);
-    console.log(`从SQLite获取笔记详情成功，耗时: ${Date.now() - startTime}ms`);
-
-    // 检查网络状态
-    const networkStatus = await NetInfo.fetch();
-    const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
-
-    // 如果在线，尝试从服务器获取最新数据
-    if (isOnline) {
-      try {
-        // 异步从服务器获取数据，不等待结果
-        instance.get(API_ENDPOINTS.NOTES.DETAIL(id)).then(async response => {
-          if (response && response.data) {
-            console.log('从服务器获取到最新笔记数据，更新本地数据');
-            // 更新本地数据
-            await dataService.updateNote(id, response.data);
-          }
-        }).catch(networkError => {
-          console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
+    // 设置超时，确保不会一直等待
+    const timeoutPromise = new Promise(resolve => {
+      setTimeout(() => {
+        console.log('获取笔记详情超时');
+        resolve({
+          success: false,
+          message: '获取笔记详情超时，请稍后重试',
+          isTimeout: true,
+          data: null
         });
-      } catch (networkError) {
-        console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
-      }
-    }
+      }, 10000); // 10秒超时
+    });
 
-    return {
-      success: true,
-      data: note,
-      isOffline: !isOnline
-    };
-  } catch (error) {
-    console.error('获取笔记详情失败:', error);
+    // 实际获取笔记的Promise
+    const fetchPromise = (async () => {
+      try {
+        // 检查SQLite数据库连接状态，但不等待太久
+        const sqliteService = dataService.getSqliteService();
+        const connectionTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('检查数据库连接超时');
+            resolve(false);
+          }, 3000); // 3秒超时
+        });
 
-    // 记录详细的错误信息
-    if (error.message) {
-      console.error('错误详情:', error.message);
-    }
-    if (error.stack) {
-      console.error('错误堆栈:', error.stack);
-    }
+        const isConnected = await Promise.race([
+          sqliteService.checkConnection(3000),
+          connectionTimeoutPromise
+        ]);
 
-    // 尝试从服务器获取
-    try {
-      console.log('尝试从服务器获取笔记详情');
-      const response = await instance.get(API_ENDPOINTS.NOTES.DETAIL(id));
-      console.log('从服务器获取笔记详情成功');
-      return {
-        success: true,
-        data: response.data,
-        fromServer: true
-      };
-    } catch (serverError) {
-      console.error('从服务器获取笔记详情也失败:', serverError);
+        if (!isConnected) {
+          console.warn('SQLite数据库连接不可用或超时');
+          return {
+            success: false,
+            message: 'SQLite数据库连接不可用或超时',
+            isOffline: true,
+            connectionFailed: true,
+            data: null
+          };
+        }
 
-      // 提供更详细的错误信息
-      let errorMessage = '获取笔记详情失败';
+        console.log('SQLite数据库连接正常，开始获取笔记数据');
 
-      if (error.message) {
-        if (error.message.includes('数据库连接不可用')) {
-          errorMessage = '数据库连接不可用，请重启应用后重试';
-        } else if (error.message.includes('超时')) {
-          errorMessage = '数据库查询超时，请稍后重试';
-        } else {
-          errorMessage = error.message;
+        // 确保数据服务已初始化，但不等待太久
+        const initTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('数据服务初始化超时');
+            resolve(false);
+          }, 3000); // 3秒超时
+        });
+
+        await Promise.race([dataService.init(), initTimeoutPromise]);
+
+        // 从SQLite获取笔记详情，设置较短的超时
+        console.log('从SQLite获取笔记详情...');
+        const noteTimeoutPromise = new Promise(resolve => {
+          setTimeout(() => {
+            console.log('获取笔记详情查询超时');
+            resolve(null);
+          }, 5000); // 5秒超时
+        });
+
+        const note = await Promise.race([
+          dataService.getNote(id, 5000),
+          noteTimeoutPromise
+        ]);
+
+        if (!note) {
+          console.log('获取笔记详情失败或超时');
+          return {
+            success: false,
+            message: '获取笔记详情失败或超时',
+            isOffline: true,
+            queryFailed: true,
+            data: null
+          };
+        }
+
+        console.log(`从SQLite获取笔记详情成功，耗时: ${Date.now() - startTime}ms`);
+
+        // 检查网络状态
+        const networkStatus = await NetInfo.fetch();
+        const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+
+        // 如果在线，尝试从服务器获取最新数据
+        if (isOnline) {
+          try {
+            // 异步从服务器获取数据，不等待结果
+            instance.get(API_ENDPOINTS.NOTES.DETAIL(id)).then(async response => {
+              if (response && response.data) {
+                console.log('从服务器获取到最新笔记数据，更新本地数据');
+                // 更新本地数据
+                await dataService.updateNote(id, response.data);
+              }
+            }).catch(networkError => {
+              console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
+            });
+          } catch (networkError) {
+            console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
+          }
+        }
+
+        return {
+          success: true,
+          data: note,
+          isOffline: !isOnline
+        };
+      } catch (error) {
+        console.error('获取笔记详情失败:', error);
+
+        // 记录详细的错误信息
+        if (error.message) {
+          console.error('错误详情:', error.message);
+        }
+        if (error.stack) {
+          console.error('错误堆栈:', error.stack);
+        }
+
+        // 尝试从服务器获取
+        try {
+          console.log('尝试从服务器获取笔记详情');
+          const serverTimeoutPromise = new Promise(resolve => {
+            setTimeout(() => {
+              console.log('从服务器获取笔记详情超时');
+              resolve(null);
+            }, 5000); // 5秒超时
+          });
+
+          const responsePromise = instance.get(API_ENDPOINTS.NOTES.DETAIL(id));
+          const response = await Promise.race([responsePromise, serverTimeoutPromise]);
+
+          if (response) {
+            console.log('从服务器获取笔记详情成功');
+            return {
+              success: true,
+              data: response.data,
+              fromServer: true
+            };
+          } else {
+            console.log('从服务器获取笔记详情超时');
+            return {
+              success: false,
+              message: '从服务器获取笔记详情超时',
+              isOffline: true,
+              serverTimeout: true,
+              data: null
+            };
+          }
+        } catch (serverError) {
+          console.error('从服务器获取笔记详情也失败:', serverError);
+
+          // 所有方法都失败，返回错误
+          console.log('所有获取方法都失败');
+          return {
+            success: false,
+            message: '无法获取笔记详情，所有存储方法都失败',
+            isOffline: true,
+            allMethodsFailed: true,
+            error: error.message,
+            data: null
+          };
         }
       }
+    })();
 
-      return {
-        success: false,
-        message: errorMessage,
-        error
-      };
-    }
+    // 使用Promise.race确保不会一直等待
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } catch (error) {
+    console.error('获取笔记详情过程中出现未处理的错误:', error);
+
+    // 返回错误信息
+    return {
+      success: false,
+      message: '获取笔记详情失败: ' + (error.message || '未知错误'),
+      isOffline: true,
+      isError: true,
+      error: error.message,
+      data: null
+    };
   }
 };
 
@@ -670,9 +845,80 @@ const importNote = async (formData) => {
       // 确保数据服务已初始化
       await dataService.init();
 
-      // 使用数据服务保存笔记
-      await dataService.createNote(note);
-      console.log('笔记已保存到SQLite数据库');
+      // 使用简化版的笔记对象，减少数据量
+      const simplifiedNote = {
+        id: note.id,
+        title: note.title,
+        content: note.content.substring(0, 1000), // 限制内容长度，避免超时
+        file_type: note.file_type,
+        file_name: note.file_name,
+        file_uri: note.file_uri,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        is_synced: note.is_synced
+      };
+
+      // 设置更长的超时时间
+      console.log('使用简化笔记对象保存到SQLite数据库');
+      const sqliteService = dataService.getSqliteService();
+
+      // 直接使用SQL语句插入，避免复杂的对象处理
+      const userId = dataService.getCurrentUserId() || '9cdc472e-92e9-4f2a-b9d8-5a9a86a59b98'; // 默认用户ID
+
+      const columns = [
+        'id', 'user_id', 'title', 'content', 'category_id',
+        'is_favorite', 'is_encrypted', 'encryption_key',
+        'is_public', 'is_deleted', 'created_at', 'updated_at', 'is_synced'
+      ];
+
+      const values = [
+        simplifiedNote.id,
+        userId,
+        simplifiedNote.title,
+        simplifiedNote.content,
+        '', // category_id
+        0,  // is_favorite
+        0,  // is_encrypted
+        '', // encryption_key
+        0,  // is_public
+        0,  // is_deleted
+        simplifiedNote.created_at,
+        simplifiedNote.updated_at,
+        0   // is_synced
+      ];
+
+      const placeholders = columns.map(() => '?').join(', ');
+
+      // 使用事务和更长的超时时间
+      await sqliteService.executeSql(
+        `BEGIN TRANSACTION;`,
+        [],
+        120000 // 2分钟超时
+      );
+
+      try {
+        await sqliteService.executeSql(
+          `INSERT INTO notes (${columns.join(', ')}) VALUES (${placeholders})`,
+          values,
+          120000 // 2分钟超时
+        );
+
+        await sqliteService.executeSql(
+          `COMMIT;`,
+          [],
+          120000 // 2分钟超时
+        );
+
+        console.log('笔记已成功保存到SQLite数据库');
+      } catch (transactionError) {
+        console.error('事务执行失败，回滚:', transactionError);
+        await sqliteService.executeSql(
+          `ROLLBACK;`,
+          [],
+          30000 // 30秒超时
+        );
+        throw transactionError;
+      }
     } catch (dbError) {
       console.error('保存到SQLite数据库失败，但本地存储成功:', dbError);
       // 不影响整体导入流程

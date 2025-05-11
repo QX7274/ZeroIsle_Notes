@@ -8337,6 +8337,11 @@ react-native-device-info@^14.0.4:
   resolved "https://registry.npmmirror.com/react-native-device-info/-/react-native-device-info-14.0.4.tgz#56b24ace9ff29a66bdfc667209086421ed6cfdce"
   integrity sha512-NX0wMAknSDBeFnEnSFQ8kkAcQrFHrG4Cl0mVjoD+0++iaKrOupiGpBXqs8xR0SeJyPC5zpdPl4h/SaBGly6UxA==
 
+react-native-document-opener@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.npmmirror.com/react-native-document-opener/-/react-native-document-opener-1.0.0.tgz#fdac0aea0b49d4d80d92cc5d9db8c183fe74b557"
+  integrity sha512-0obWWyRfFrAkEN5gcxnmRosAOZdrp/Nd9cGyxBfRWMq0r78TkeUgKfbt/HhU7mIVoIAELdOqAxLC2gwUxj4pcQ==
+
 react-native-document-picker@^9.3.1:
   version "9.3.1"
   resolved "https://registry.npmmirror.com/react-native-document-picker/-/react-native-document-picker-9.3.1.tgz#f2c33237a906fd0893130e0605c8f18a3aef1605"

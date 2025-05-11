@@ -8,7 +8,8 @@ import {
   Alert,
   Text,
   Platform,
-  Share
+  Share,
+  Linking
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../context/ThemeContext';
@@ -17,6 +18,7 @@ import { offlineStorageService } from '../../services/offline/offlineStorage';
 import RNFS from 'react-native-fs';
 import { WebView } from 'react-native-webview';
 import ViewShot from 'react-native-view-shot';
+import DocumentOpener from 'react-native-document-opener';
 
 const DocViewer = ({ route, navigation }) => {
   const { uri, title, noteId } = route.params;
@@ -87,81 +89,110 @@ const DocViewer = ({ route, navigation }) => {
 
       console.log('加载文档:', uri);
 
-      // 由于React Native没有内置的Word查看器，我们使用一个简单的方法：
-      // 1. 将文档内容显示为文本（如果是纯文本文档）
-      // 2. 或者使用WebView加载一个简单的HTML页面，显示"无法直接查看Word文档"的消息
-
       // 检查文件类型
-      const isWordDoc = uri.toLowerCase().endsWith('.docx') || uri.toLowerCase().endsWith('.doc');
+      const isWordDoc = uri.toLowerCase().endsWith('.docx') || uri.toLowerCase().endsWith('.doc') ||
+                        (title && (title.toLowerCase().endsWith('.docx') || title.toLowerCase().endsWith('.doc')));
 
-      if (isWordDoc) {
-        // 对于Word文档，我们创建一个简单的HTML页面
-        const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                margin: 20px;
-                line-height: 1.6;
-                color: ${colors.text};
-                background-color: ${colors.background};
+      // 对于Word文档，我们创建一个简单的HTML页面，并提供打开外部应用的选项
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              line-height: 1.6;
+              color: ${colors.text};
+              background-color: ${colors.background};
+            }
+            .container {
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: ${colors.card};
+              border-radius: 8px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+              color: ${colors.primary};
+            }
+            .icon {
+              font-size: 48px;
+              color: ${colors.primary};
+              text-align: center;
+              margin: 20px 0;
+            }
+            .message {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .file-info {
+              background-color: rgba(0,0,0,0.05);
+              padding: 10px;
+              border-radius: 4px;
+              margin-top: 20px;
+            }
+            .button {
+              background-color: ${colors.primary};
+              color: white;
+              border: none;
+              padding: 10px 20px;
+              text-align: center;
+              text-decoration: none;
+              display: inline-block;
+              font-size: 16px;
+              margin: 10px 5px;
+              cursor: pointer;
+              border-radius: 4px;
+            }
+            .button-container {
+              text-align: center;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>${title || '文档查看器'}</h1>
+            <div class="icon">${isWordDoc ? '📄' : '📝'}</div>
+            <div class="message">
+              ${isWordDoc ?
+                '<p>Word文档无法直接在应用内查看。</p>' :
+                '<p>文档内容预览</p>'
               }
-              .container {
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: ${colors.card};
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-              }
-              h1 {
-                color: ${colors.primary};
-              }
-              .icon {
-                font-size: 48px;
-                color: ${colors.primary};
-                text-align: center;
-                margin: 20px 0;
-              }
-              .message {
-                text-align: center;
-                margin-bottom: 20px;
-              }
-              .file-info {
-                background-color: rgba(0,0,0,0.05);
-                padding: 10px;
-                border-radius: 4px;
-                margin-top: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>${title || '文档查看器'}</h1>
-              <div class="icon">📄</div>
-              <div class="message">
-                <p>Word文档无法直接在应用内查看。</p>
-                <p>您可以使用外部应用打开此文档，或将其导出到其他格式。</p>
-              </div>
-              <div class="file-info">
-                <p><strong>文件名:</strong> ${title || '未命名文档'}</p>
-                <p><strong>文件路径:</strong> ${uri}</p>
-              </div>
+              <p>您可以使用以下选项操作此文档：</p>
             </div>
-          </body>
-          </html>
-        `;
+            <div class="button-container">
+              <button class="button" onclick="window.ReactNativeWebView.postMessage('open_external')">
+                使用外部应用打开
+              </button>
+              <button class="button" onclick="window.ReactNativeWebView.postMessage('export')">
+                导出文档
+              </button>
+            </div>
+            <div class="file-info">
+              <p><strong>文件名:</strong> ${title || '未命名文档'}</p>
+              <p><strong>文件类型:</strong> ${isWordDoc ? 'Word文档' : '文本文档'}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
 
-        setHtmlContent(html);
-      } else {
-        // 对于其他类型的文档，尝试读取文本内容
+      setHtmlContent(html);
+
+      // 如果不是Word文档，尝试读取文本内容并添加到页面
+      if (!isWordDoc) {
         try {
-          const content = await RNFS.readFile(uri, 'utf8');
-          const html = `
+          // 尝试读取文件内容，但使用base64编码避免UTF-8解析错误
+          const base64Content = await RNFS.readFile(uri, 'base64');
+          const content = Buffer.from(base64Content, 'base64').toString('utf8');
+
+          // 创建包含文本内容的HTML
+          const htmlWithContent = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -169,12 +200,11 @@ const DocViewer = ({ route, navigation }) => {
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <style>
                 body {
-                  font-family: monospace;
+                  font-family: Arial, sans-serif;
                   margin: 20px;
                   line-height: 1.6;
                   color: ${colors.text};
                   background-color: ${colors.background};
-                  white-space: pre-wrap;
                 }
                 .container {
                   max-width: 800px;
@@ -186,23 +216,58 @@ const DocViewer = ({ route, navigation }) => {
                 }
                 h1 {
                   color: ${colors.primary};
-                  font-family: Arial, sans-serif;
+                }
+                .content {
+                  font-family: monospace;
+                  white-space: pre-wrap;
+                  background-color: rgba(0,0,0,0.05);
+                  padding: 15px;
+                  border-radius: 4px;
+                  overflow-x: auto;
+                }
+                .button {
+                  background-color: ${colors.primary};
+                  color: white;
+                  border: none;
+                  padding: 10px 20px;
+                  text-align: center;
+                  text-decoration: none;
+                  display: inline-block;
+                  font-size: 16px;
+                  margin: 10px 5px;
+                  cursor: pointer;
+                  border-radius: 4px;
+                }
+                .button-container {
+                  text-align: center;
+                  margin: 20px 0;
                 }
               </style>
             </head>
             <body>
               <div class="container">
                 <h1>${title || '文本文档'}</h1>
-                ${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                <div class="button-container">
+                  <button class="button" onclick="window.ReactNativeWebView.postMessage('open_external')">
+                    使用外部应用打开
+                  </button>
+                  <button class="button" onclick="window.ReactNativeWebView.postMessage('export')">
+                    导出文档
+                  </button>
+                </div>
+                <div class="content">
+                  ${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                </div>
               </div>
             </body>
             </html>
           `;
 
-          setHtmlContent(html);
+          setHtmlContent(htmlWithContent);
         } catch (readError) {
           console.error('读取文件内容失败:', readError);
-          throw new Error('无法读取文件内容');
+          // 如果读取失败，继续使用默认HTML，不抛出错误
+          console.log('使用默认HTML显示文档信息');
         }
       }
     } catch (error) {
@@ -302,6 +367,12 @@ const DocViewer = ({ route, navigation }) => {
         fileExt = 'docx';
       } else if (uri.toLowerCase().endsWith('.doc')) {
         fileExt = 'doc';
+      } else if (title) {
+        // 从标题中提取扩展名
+        const titleParts = title.split('.');
+        if (titleParts.length > 1) {
+          fileExt = titleParts[titleParts.length - 1].toLowerCase();
+        }
       }
 
       // 导出到下载目录
@@ -313,6 +384,61 @@ const DocViewer = ({ route, navigation }) => {
     } catch (error) {
       console.error('导出文档失败:', error);
       Alert.alert('错误', error.message || '导出文档失败');
+    }
+  };
+
+  // 使用外部应用打开文档
+  const handleOpenExternal = async () => {
+    try {
+      if (!localFilePath && !uri) {
+        throw new Error('没有可打开的文件');
+      }
+
+      const filePath = localFilePath || uri;
+
+      // 对于Android，需要确保文件路径以file://开头
+      const fileUri = Platform.OS === 'android' && !filePath.startsWith('file://')
+        ? `file://${filePath}`
+        : filePath;
+
+      console.log('尝试使用外部应用打开文件:', fileUri);
+
+      // 尝试使用DocumentOpener打开文件
+      try {
+        await DocumentOpener.openAsync(fileUri);
+        console.log('文件已使用DocumentOpener打开');
+        return;
+      } catch (docOpenerError) {
+        console.warn('DocumentOpener打开失败，尝试使用Linking:', docOpenerError);
+      }
+
+      // 如果DocumentOpener失败，尝试使用Linking
+      if (await Linking.canOpenURL(fileUri)) {
+        await Linking.openURL(fileUri);
+        console.log('文件已使用Linking打开');
+      } else {
+        throw new Error('没有找到可以打开此类型文件的应用');
+      }
+    } catch (error) {
+      console.error('使用外部应用打开文档失败:', error);
+      Alert.alert('错误', error.message || '无法打开文档');
+    }
+  };
+
+  // 处理WebView消息
+  const handleWebViewMessage = (event) => {
+    const message = event.nativeEvent.data;
+    console.log('收到WebView消息:', message);
+
+    switch (message) {
+      case 'open_external':
+        handleOpenExternal();
+        break;
+      case 'export':
+        handleExport();
+        break;
+      default:
+        console.log('未知的WebView消息:', message);
     }
   };
 
@@ -426,6 +552,7 @@ const DocViewer = ({ route, navigation }) => {
                 }, 1500);
               }
             }}
+            onMessage={handleWebViewMessage}
             onError={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
               console.error('WebView错误:', nativeEvent);

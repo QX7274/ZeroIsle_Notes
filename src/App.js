@@ -827,32 +827,84 @@ const AppContainer = () => {
               });
 
               // 开始初始化，但不等待完全初始化完成
-              const db = await sqliteService.init();
+              try {
+                console.log('尝试重置并重新初始化数据库...');
 
-              if (db) {
-                console.log('SQLite数据库基本初始化成功，应用可以继续启动');
-                sqliteResult = true;
-              } else {
-                console.warn('SQLite数据库初始化失败，尝试备选方案');
-
-                // 尝试强制创建sync_info表
+                // 先尝试重置数据库
                 try {
-                  const forceResult = await sqliteService.forceCreateSyncInfoTable();
-                  console.log('强制创建sync_info表结果:', forceResult ? '成功' : '失败');
-
-                  if (forceResult) {
-                    // 再次尝试初始化数据服务
-                    try {
-                      await dataService.init();
-                      sqliteResult = true;
-                      console.log('使用备选方案后数据服务初始化成功');
-                    } catch (retryDataServiceError) {
-                      console.error('使用备选方案后数据服务初始化失败:', retryDataServiceError);
-                    }
-                  }
-                } catch (forceError) {
-                  console.error('强制创建sync_info表失败:', forceError);
+                  console.log('开始重置数据库...');
+                  await sqliteService.resetDatabase();
+                  console.log('数据库重置成功');
+                } catch (resetError) {
+                  console.warn('数据库重置失败，继续尝试初始化:', resetError);
                 }
+
+                // 设置超时，确保初始化不会一直等待
+                const initTimeoutPromise = new Promise(resolve => {
+                  setTimeout(() => {
+                    console.log('SQLite初始化超时，使用降级模式');
+                    resolve(null);
+                  }, 10000); // 10秒超时
+                });
+
+                // 尝试初始化SQLite，但不等待太久
+                const initPromise = sqliteService.init();
+                const db = await Promise.race([initPromise, initTimeoutPromise]);
+
+                // 无论成功与否，都立即标记为完全初始化
+                console.log('立即标记数据库为完全初始化，应用可以继续运行');
+                sqliteService.isFullyInitialized = true;
+                sqliteService.isInitialized = true;
+                sqliteService.processOperationQueue();
+                sqliteService.notifyInitCallbacks();
+                sqliteResult = true;
+
+                if (db) {
+                  console.log('SQLite数据库基本初始化成功，应用可以继续启动');
+
+                  // 尝试初始化数据服务，但不等待太久
+                  const dataServiceTimeoutPromise = new Promise(resolve => {
+                    setTimeout(() => {
+                      console.log('数据服务初始化超时，使用降级模式');
+                      resolve(false);
+                    }, 5000); // 5秒超时
+                  });
+
+                  try {
+                    await Promise.race([dataService.init(), dataServiceTimeoutPromise]);
+                    console.log('数据服务初始化成功或超时');
+                  } catch (dataServiceError) {
+                    console.warn('数据服务初始化失败，但应用可以继续运行:', dataServiceError);
+                  }
+
+                  // 在后台完成其他初始化任务，不等待结果
+                  setTimeout(() => {
+                    sqliteService.completeInitializationInBackground().catch(error => {
+                      console.warn('后台完成初始化失败，但应用可以继续运行:', error);
+                    });
+                  }, 1000);
+                } else {
+                  console.warn('SQLite数据库初始化失败或超时，使用降级模式');
+
+                  // 尝试初始化数据服务，但不等待太久
+                  const dataServiceTimeoutPromise = new Promise(resolve => {
+                    setTimeout(() => {
+                      console.log('数据服务初始化超时，使用降级模式');
+                      resolve(false);
+                    }, 5000); // 5秒超时
+                  });
+
+                  try {
+                    await Promise.race([dataService.init(), dataServiceTimeoutPromise]);
+                    console.log('数据服务初始化成功或超时');
+                  } catch (dataServiceError) {
+                    console.warn('数据服务初始化失败，但应用可以继续运行:', dataServiceError);
+                  }
+                }
+              } catch (error) {
+                console.error('数据库初始化过程中出现未处理的错误:', error);
+                // 即使失败也继续运行
+                sqliteResult = true;
               }
             } catch (initError) {
               console.error('SQLite初始化过程中出错:', initError);

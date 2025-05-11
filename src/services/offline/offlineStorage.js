@@ -24,13 +24,12 @@ const safeAnalyticsService = {
 
 class OfflineStorageService {
   constructor() {
-    this.isOnline = false; // 默认设置为离线
+    this.isOnline = false; // 默认假设无网络连接
     this.pendingOperations = [];
     this.syncInterval = 5 * 60 * 1000; // 5分钟
     this.timer = null;
     this.deviceId = null;
     this.listeners = [];
-    this.offlineMode = true; // 默认开启离线模式
     this.lastSyncTime = null;
     this.syncStatus = 'idle'; // idle, syncing, error
     this.syncError = null;
@@ -44,12 +43,16 @@ class OfflineStorageService {
       // 获取设备ID
       this.deviceId = await DeviceInfo.getUniqueId();
 
-      // 获取离线模式设置，但强制设置为离线模式
+      // 获取应用设置
       const settings = await this.getSettings();
-      this.offlineMode = true; // 强制使用离线模式
+
+      // 检查网络状态
+      const netInfo = await NetInfo.fetch();
+      this.isOnline = netInfo.isConnected && netInfo.isInternetReachable;
+
+      console.log(`初始化网络状态: 连接=${netInfo.isConnected}, 可访问=${netInfo.isInternetReachable}, 在线=${this.isOnline}`);
 
       // 保存设置
-      settings.offlineMode = true;
       await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
 
       // 获取最后同步时间
@@ -62,16 +65,26 @@ class OfflineStorageService {
       // 监听网络状态
       NetInfo.addEventListener(state => {
         const wasOnline = this.isOnline;
-        this.isOnline = state.isConnected && !this.offlineMode;
+
+        // 更新在线状态：只根据网络连接状态判断
+        const newIsOnline = state.isConnected && state.isInternetReachable;
+        this.isOnline = newIsOnline;
+
+        console.log(`网络状态变化: 连接=${state.isConnected}, 可访问=${state.isInternetReachable}, 在线=${this.isOnline}`);
 
         // 网络状态变化通知
         if (wasOnline !== this.isOnline) {
-          this.notifyListeners({ type: 'connectionChange', isOnline: this.isOnline });
-        }
+          this.notifyListeners({
+            type: 'connectionChange',
+            isOnline: this.isOnline,
+            networkState: state
+          });
 
-        // 如果恢复在线，尝试同步
-        if (this.isOnline && !wasOnline) {
-          this.syncPendingOperations();
+          // 如果恢复在线，尝试同步待处理的操作
+          if (this.isOnline) {
+            console.log('网络已恢复，尝试同步待处理操作');
+            this.syncPendingOperations();
+          }
         }
       });
 
@@ -90,9 +103,31 @@ class OfflineStorageService {
       // 启动自动清理定时器
       this.startCleanupTimer();
 
+      // 初始化完成后，再次检查网络状态并更新
+      const finalNetInfo = await NetInfo.fetch();
+      const finalIsOnline = finalNetInfo.isConnected && finalNetInfo.isInternetReachable;
+
+      if (this.isOnline !== finalIsOnline) {
+        this.isOnline = finalIsOnline;
+        console.log(`初始化完成后更新网络状态: 在线=${this.isOnline}`);
+
+        // 通知监听器
+        this.notifyListeners({
+          type: 'connectionChange',
+          isOnline: this.isOnline,
+          networkState: finalNetInfo
+        });
+      }
+
       // 设置初始化完成标志
       this.isInitialized = true;
-      console.log('离线存储服务初始化完成');
+      console.log('存储服务初始化完成，当前状态:', this.getStatus());
+
+      // 如果在线，尝试同步待处理的操作
+      if (this.isOnline && this.pendingOperations.length > 0) {
+        console.log(`发现${this.pendingOperations.length}个待同步操作，自动开始同步`);
+        this.syncPendingOperations();
+      }
 
       return true;
     } catch (error) {
@@ -163,31 +198,24 @@ class OfflineStorageService {
     });
   }
 
-  // 设置离线模式
-  async setOfflineMode(enabled) {
+  // 手动触发同步
+  async manualSync() {
     try {
-      this.offlineMode = enabled;
-
-      // 更新网络状态
+      // 检查网络状态
       const netInfo = await NetInfo.fetch();
-      this.isOnline = netInfo.isConnected && !this.offlineMode;
+      this.isOnline = netInfo.isConnected && netInfo.isInternetReachable;
 
-      // 保存设置
-      const settings = await this.getSettings();
-      settings.offlineMode = enabled;
-      await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+      if (!this.isOnline) {
+        console.log('无网络连接，无法同步');
+        return { success: false, message: '无网络连接，无法同步' };
+      }
 
-      // 通知监听器
-      this.notifyListeners({
-        type: 'offlineModeChange',
-        offlineMode: enabled,
-        isOnline: this.isOnline
-      });
-
-      return true;
+      console.log('手动触发同步操作');
+      return await this.syncPendingOperations();
     } catch (error) {
-      console.error('设置离线模式失败:', error);
-      return false;
+      console.error('手动同步失败:', error);
+      safeAnalyticsService.trackError(error, { operation: 'manual_sync' });
+      return { success: false, error: error.message };
     }
   }
 
@@ -195,7 +223,6 @@ class OfflineStorageService {
   getStatus() {
     return {
       isOnline: this.isOnline,
-      offlineMode: this.offlineMode,
       pendingOperationsCount: this.pendingOperations.length,
       lastSyncTime: this.lastSyncTime,
       syncStatus: this.syncStatus,

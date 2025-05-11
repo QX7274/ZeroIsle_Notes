@@ -22,37 +22,37 @@ import { offlineStorageService } from '../../services/offline/offlineStorage';
 const OfflineIndicator = ({ onPress, style }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 状态
   const [status, setStatus] = useState(offlineStorageService.getStatus());
   const [expanded, setExpanded] = useState(false);
-  
+
   // 动画值
   const animatedHeight = new Animated.Value(0);
   const animatedOpacity = new Animated.Value(0);
   const syncIconRotation = new Animated.Value(0);
-  
+
   // 监听离线存储服务状态变化
   useEffect(() => {
     const unsubscribe = offlineStorageService.addListener(event => {
       if (['connectionChange', 'offlineModeChange', 'syncStarted', 'syncCompleted', 'syncError', 'pendingOperationAdded'].includes(event.type)) {
         setStatus(offlineStorageService.getStatus());
       }
-      
+
       // 如果同步开始，启动旋转动画
       if (event.type === 'syncStarted') {
         startRotationAnimation();
       }
-      
+
       // 如果同步完成或出错，停止旋转动画
       if (event.type === 'syncCompleted' || event.type === 'syncError') {
         stopRotationAnimation();
       }
     });
-    
+
     return () => unsubscribe();
   }, []);
-  
+
   // 展开/收起动画
   useEffect(() => {
     Animated.parallel([
@@ -70,38 +70,45 @@ const OfflineIndicator = ({ onPress, style }) => {
       }),
     ]).start();
   }, [expanded]);
-  
+
   // 启动旋转动画
   const startRotationAnimation = () => {
+    // 先重置动画值
     syncIconRotation.setValue(0);
+
+    // 创建并启动循环动画
     Animated.loop(
       Animated.timing(syncIconRotation, {
         toValue: 1,
-        duration: 1000,
+        duration: 800, // 加快速度，使动画更流畅
         easing: Easing.linear,
         useNativeDriver: true,
       })
     ).start();
+
+    console.log('旋转动画已启动');
   };
-  
+
   // 停止旋转动画
   const stopRotationAnimation = () => {
+    // 停止动画并重置值
     syncIconRotation.stopAnimation();
     syncIconRotation.setValue(0);
+    console.log('旋转动画已停止');
   };
-  
+
   // 计算旋转角度
   const spin = syncIconRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
-  
+
   // 计算展开高度
   const height = animatedHeight.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 120],
   });
-  
+
   // 处理点击
   const handlePress = () => {
     if (onPress) {
@@ -110,28 +117,30 @@ const OfflineIndicator = ({ onPress, style }) => {
       setExpanded(!expanded);
     }
   };
-  
+
   // 处理同步按钮点击
   const handleSyncPress = async () => {
     if (status.syncStatus === 'syncing') return;
-    
+
     try {
       await offlineStorageService.manualSync();
     } catch (error) {
       console.error('手动同步失败:', error);
     }
   };
-  
+
   // 获取状态图标和颜色
   const getStatusIconAndColor = () => {
-    if (status.offlineMode) {
+    // 如果正在同步，显示同步状态
+    if (status.syncStatus === 'syncing') {
       return {
-        icon: 'cloud-off',
-        color: colors.warning,
-        text: '离线模式',
+        icon: 'sync',
+        color: colors.primary,
+        text: '正在同步...',
       };
     }
-    
+
+    // 如果没有网络连接，显示离线状态
     if (!status.isOnline) {
       return {
         icon: 'signal-wifi-off',
@@ -139,7 +148,8 @@ const OfflineIndicator = ({ onPress, style }) => {
         text: '无网络连接',
       };
     }
-    
+
+    // 如果有待同步的操作，显示待同步状态
     if (status.pendingOperationsCount > 0) {
       return {
         icon: 'sync',
@@ -147,25 +157,26 @@ const OfflineIndicator = ({ onPress, style }) => {
         text: `${status.pendingOperationsCount}项待同步`,
       };
     }
-    
+
+    // 默认状态：已同步
     return {
       icon: 'cloud-done',
       color: colors.success,
       text: '已同步',
     };
   };
-  
+
   const { icon, color, text } = getStatusIconAndColor();
-  
+
   // 格式化最后同步时间
   const formatLastSyncTime = () => {
     if (!status.lastSyncTime) return '从未同步';
-    
+
     const lastSync = new Date(status.lastSyncTime);
     const now = new Date();
     const diffMs = now - lastSync;
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    
+
     if (diffMinutes < 1) {
       return '刚刚同步';
     } else if (diffMinutes < 60) {
@@ -176,14 +187,14 @@ const OfflineIndicator = ({ onPress, style }) => {
       return `${Math.floor(diffMinutes / (24 * 60))}天前同步`;
     }
   };
-  
+
   // 格式化存储使用量
   const formatStorageUsage = () => {
     const { current, limit } = status.storageUsage;
     const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
     return `${mb(current)}MB / ${mb(limit)}MB`;
   };
-  
+
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity
@@ -213,7 +224,7 @@ const OfflineIndicator = ({ onPress, style }) => {
           color={colors.text}
         />
       </TouchableOpacity>
-      
+
       <Animated.View
         style={[
           styles.details,
@@ -236,10 +247,9 @@ const OfflineIndicator = ({ onPress, style }) => {
             color="text"
           >
             {status.isOnline ? '在线' : '离线'}
-            {status.offlineMode ? ' (手动)' : ''}
           </Text>
         </View>
-        
+
         <View style={styles.detailRow}>
           <Text
             variant="caption"
@@ -254,7 +264,7 @@ const OfflineIndicator = ({ onPress, style }) => {
             {formatLastSyncTime()}
           </Text>
         </View>
-        
+
         <View style={styles.detailRow}>
           <Text
             variant="caption"
@@ -269,7 +279,7 @@ const OfflineIndicator = ({ onPress, style }) => {
             {status.pendingOperationsCount}
           </Text>
         </View>
-        
+
         <View style={styles.detailRow}>
           <Text
             variant="caption"
@@ -284,7 +294,7 @@ const OfflineIndicator = ({ onPress, style }) => {
             {formatStorageUsage()}
           </Text>
         </View>
-        
+
         <View style={styles.actions}>
           <TouchableOpacity
             style={[
@@ -303,6 +313,8 @@ const OfflineIndicator = ({ onPress, style }) => {
               立即同步
             </Text>
           </TouchableOpacity>
+
+
         </View>
       </Animated.View>
     </View>
@@ -320,49 +332,70 @@ const styles = StyleSheet.create({
   indicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   indicatorText: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
+    fontWeight: '600',
+    fontSize: 14,
   },
   details: {
-    marginTop: 8,
-    borderRadius: 8,
-    padding: 12,
+    marginTop: 10,
+    borderRadius: 16,
+    padding: 18,
     overflow: 'hidden',
-    elevation: 2,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
+    paddingVertical: 2,
   },
   actions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
+    justifyContent: 'center', // 居中对齐
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    justifyContent: 'center', // 居中对齐
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minWidth: 120, // 增加最小宽度
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   actionButtonText: {
-    marginLeft: 4,
+    marginLeft: 8,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
 
