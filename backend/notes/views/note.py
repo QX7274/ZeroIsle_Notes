@@ -55,10 +55,10 @@ class NoteViewSet(viewsets.ModelViewSet):
         """获取查询集"""
         user = self.request.user
         # 基础查询：用户自己的未删除笔记 或 公开的未删除笔记
+        from mongoengine.queryset.visitor import Q
         queryset = Note.objects.filter(
-            user=user, is_deleted=False
-        ) | Note.objects.filter(
-            is_public=True, is_deleted=False
+            Q(user=user, is_deleted=False) |
+            Q(is_public=True, is_deleted=False)
         )
         return queryset
 

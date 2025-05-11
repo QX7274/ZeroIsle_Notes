@@ -189,7 +189,16 @@ const DocViewer = ({ route, navigation }) => {
         try {
           // 尝试读取文件内容，但使用base64编码避免UTF-8解析错误
           const base64Content = await RNFS.readFile(uri, 'base64');
-          const content = Buffer.from(base64Content, 'base64').toString('utf8');
+
+          // 使用try-catch包装解码过程，以防止UTF-8解码错误
+          let content;
+          try {
+            content = Buffer.from(base64Content, 'base64').toString('utf8');
+          } catch (decodeError) {
+            console.error('UTF-8解码失败，尝试使用其他编码:', decodeError);
+            // 尝试使用ASCII编码
+            content = Buffer.from(base64Content, 'base64').toString('ascii');
+          }
 
           // 创建包含文本内容的HTML
           const htmlWithContent = `
@@ -269,6 +278,13 @@ const DocViewer = ({ route, navigation }) => {
           // 如果读取失败，继续使用默认HTML，不抛出错误
           console.log('使用默认HTML显示文档信息');
         }
+      } else {
+        // 对于Word文档，直接尝试使用外部应用打开
+        console.log('检测到Word文档，准备使用外部应用打开');
+        // 延迟一秒后自动触发外部应用打开
+        setTimeout(() => {
+          handleOpenExternal();
+        }, 1000);
       }
     } catch (error) {
       console.error('加载文档失败:', error);
@@ -288,20 +304,105 @@ const DocViewer = ({ route, navigation }) => {
 
       console.log('开始生成文档预览图片');
 
-      // 等待WebView加载完成
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 等待WebView加载完成，增加等待时间
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 使用ViewShot捕获WebView内容
-      const uri = await viewShotRef.current.capture();
-      console.log('预览图片已生成:', uri);
+      // 使用try-catch包装ViewShot捕获过程
+      let uri;
+      try {
+        // 使用ViewShot捕获WebView内容
+        uri = await viewShotRef.current.capture();
+        console.log('预览图片已生成:', uri);
+      } catch (captureError) {
+        console.error('ViewShot捕获失败，使用默认预览图:', captureError);
+
+        // 使用默认预览图
+        const isWordDoc = route.params.uri.toLowerCase().endsWith('.docx') ||
+                          route.params.uri.toLowerCase().endsWith('.doc');
+
+        // 根据文档类型选择默认预览图
+        if (isWordDoc) {
+          uri = 'https://img-blog.csdnimg.cn/20200627111426602.png';
+        } else {
+          uri = 'https://img-blog.csdnimg.cn/20200627111426602.png';
+        }
+      }
+
+      // 如果uri是网络图片，直接使用URL而不尝试保存到本地
+      if (uri.startsWith('http')) {
+        setPreviewPath(uri);
+        setPreviewGenerated(true);
+
+        // 如果有笔记ID，更新笔记的预览图片
+        if (noteId) {
+          try {
+            // 获取笔记
+            const notes = await offlineStorageService.getNotes();
+            const noteIndex = notes.findIndex(note => note.id === noteId);
+
+            if (noteIndex >= 0) {
+              // 更新笔记的预览图片
+              notes[noteIndex].preview_image = uri;
+
+              // 保存更新后的笔记
+              await offlineStorageService.saveNote(notes[noteIndex]);
+              console.log('笔记预览图片已更新(使用网络图片)');
+            }
+          } catch (error) {
+            console.error('更新笔记预览图片失败:', error);
+          }
+        }
+
+        return uri;
+      }
 
       // 保存预览图片到缓存目录
-      const fileName = `preview_${Date.now()}.jpg`;
-      const destPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+      try {
+        const fileName = `preview_${Date.now()}.jpg`;
+        const destPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
-      await RNFS.copyFile(uri, destPath);
-      setPreviewPath(destPath);
-      setPreviewGenerated(true);
+        await RNFS.copyFile(uri, destPath);
+        setPreviewPath(destPath);
+        setPreviewGenerated(true);
+
+        // 如果有笔记ID，更新笔记的预览图片
+        if (noteId) {
+          try {
+            // 获取笔记
+            const notes = await offlineStorageService.getNotes();
+            const noteIndex = notes.findIndex(note => note.id === noteId);
+
+            if (noteIndex >= 0) {
+              // 更新笔记的预览图片
+              notes[noteIndex].preview_image = `file://${destPath}`;
+
+              // 保存更新后的笔记
+              await offlineStorageService.saveNote(notes[noteIndex]);
+              console.log('笔记预览图片已更新');
+            }
+          } catch (error) {
+            console.error('更新笔记预览图片失败:', error);
+          }
+        }
+
+        return destPath;
+      } catch (saveError) {
+        console.error('保存预览图片失败:', saveError);
+
+        // 如果保存失败但有URI，直接使用URI
+        if (uri) {
+          setPreviewPath(uri);
+          setPreviewGenerated(true);
+          return uri;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('生成预览图片失败:', error);
+
+      // 使用默认预览图
+      const defaultPreview = 'https://img-blog.csdnimg.cn/20200627111426602.png';
 
       // 如果有笔记ID，更新笔记的预览图片
       if (noteId) {
@@ -312,21 +413,18 @@ const DocViewer = ({ route, navigation }) => {
 
           if (noteIndex >= 0) {
             // 更新笔记的预览图片
-            notes[noteIndex].preview_image = `file://${destPath}`;
+            notes[noteIndex].preview_image = defaultPreview;
 
             // 保存更新后的笔记
             await offlineStorageService.saveNote(notes[noteIndex]);
-            console.log('笔记预览图片已更新');
+            console.log('笔记预览图片已更新(使用默认图片)');
           }
-        } catch (error) {
-          console.error('更新笔记预览图片失败:', error);
+        } catch (updateError) {
+          console.error('更新笔记预览图片失败:', updateError);
         }
       }
 
-      return destPath;
-    } catch (error) {
-      console.error('生成预览图片失败:', error);
-      return null;
+      return defaultPreview;
     }
   };
 
@@ -402,6 +500,57 @@ const DocViewer = ({ route, navigation }) => {
         : filePath;
 
       console.log('尝试使用外部应用打开文件:', fileUri);
+
+      // 检查文件是否存在
+      try {
+        const exists = await RNFS.exists(filePath);
+        if (!exists) {
+          throw new Error(`文件不存在: ${filePath}`);
+        }
+        console.log('文件存在，继续打开');
+      } catch (existsError) {
+        console.error('检查文件是否存在失败:', existsError);
+        // 继续尝试打开，可能是权限问题
+      }
+
+      // 对于Word文档，先尝试复制到临时目录
+      const isWordDoc = fileUri.toLowerCase().endsWith('.docx') || fileUri.toLowerCase().endsWith('.doc');
+      if (isWordDoc) {
+        try {
+          const tempDir = `${RNFS.CachesDirectoryPath}/temp_docs`;
+
+          // 确保临时目录存在
+          const dirExists = await RNFS.exists(tempDir);
+          if (!dirExists) {
+            await RNFS.mkdir(tempDir);
+          }
+
+          // 生成临时文件路径
+          const fileName = title || `document_${Date.now()}`;
+          const fileExt = fileUri.toLowerCase().endsWith('.docx') ? 'docx' : 'doc';
+          const tempFilePath = `${tempDir}/${fileName}.${fileExt}`;
+
+          // 复制文件到临时目录
+          await RNFS.copyFile(filePath, tempFilePath);
+          console.log('文件已复制到临时目录:', tempFilePath);
+
+          // 使用临时文件路径
+          const tempFileUri = Platform.OS === 'android' ? `file://${tempFilePath}` : tempFilePath;
+
+          // 尝试使用DocumentOpener打开临时文件
+          try {
+            await DocumentOpener.openAsync(tempFileUri);
+            console.log('文件已使用DocumentOpener打开');
+            return;
+          } catch (tempDocOpenerError) {
+            console.warn('使用临时文件的DocumentOpener打开失败:', tempDocOpenerError);
+            // 继续尝试其他方法
+          }
+        } catch (tempFileError) {
+          console.error('创建临时文件失败:', tempFileError);
+          // 继续尝试直接打开原始文件
+        }
+      }
 
       // 尝试使用DocumentOpener打开文件
       try {

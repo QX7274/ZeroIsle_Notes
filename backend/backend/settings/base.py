@@ -88,9 +88,13 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # ASGI配置
 ASGI_APPLICATION = 'backend.asgi.application'
 
-# MongoDB数据库配置
+# 数据库配置
 DATABASES = {
     'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    },
+    'mongodb': {
         'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine
     }
 }

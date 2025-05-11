@@ -1654,7 +1654,13 @@ class SQLiteService {
    * @param {number} retryCount - 重试次数
    * @returns {Promise<Array>} 查询结果
    */
-  async executeSql(query, params = [], timeout = 30000, retryCount = 3) {
+  async executeSql(query, params = [], timeout = 60000, retryCount = 3) {
+    // 对事务相关的查询使用更长的超时时间
+    if (query.includes('BEGIN TRANSACTION') || query.includes('COMMIT') || query.includes('ROLLBACK')) {
+      timeout = Math.max(timeout, 180000); // 至少3分钟的超时时间
+      console.log(`事务操作，使用更长的超时时间: ${timeout}ms`);
+    }
+
     // 如果数据库未初始化，尝试初始化
     if (!this.isInitialized || !this.database) {
       console.warn('数据库未初始化，尝试初始化数据库');
@@ -1700,7 +1706,13 @@ class SQLiteService {
    * @param {number} retryCount - 重试次数
    * @returns {Promise<Array>} 查询结果
    */
-  async _executeSql(query, params = [], timeout = 30000, retryCount = 3) {
+  async _executeSql(query, params = [], timeout = 60000, retryCount = 3) {
+    // 对事务相关的查询使用更长的超时时间
+    if (query.includes('BEGIN TRANSACTION') || query.includes('COMMIT') || query.includes('ROLLBACK')) {
+      timeout = Math.max(timeout, 180000); // 至少3分钟的超时时间
+      console.log(`事务操作，使用更长的超时时间: ${timeout}ms`);
+    }
+
     // 确保数据库已初始化
     if (!this.isInitialized) {
       console.warn('数据库未初始化，尝试初始化数据库');
