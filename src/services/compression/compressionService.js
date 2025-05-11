@@ -1,15 +1,15 @@
 /**
- * 数据压缩和加密服�?
+ * 数据压缩和加密服务
  * 提供数据压缩、解压缩、加密和解密功能
  */
 import { Buffer } from 'buffer';
 import { gzip, ungzip } from 'pako';
 import CryptoJS from 'crypto-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from '../../utils/constants/config';
+import STORAGE_KEYS from '../../constants/storageKeys';
 import { analyticsService } from '../analytics/analyticsService';
 
-// 加密密钥存储�?
+// 加密密钥存储键
 const ENCRYPTION_KEY_STORAGE_KEY = STORAGE_KEYS.ENCRYPTION_KEY;
 
 class CompressionService {
@@ -19,12 +19,12 @@ class CompressionService {
   }
 
   /**
-   * 初始化服�?
-   * @returns {Promise<boolean>} 初始化是否成�?
+   * 初始化服务
+   * @returns {Promise<boolean>} 初始化是否成功
    */
   async init() {
     try {
-      // 获取或生成加密密�?
+      // 获取或生成加密密钥
       await this.getOrCreateEncryptionKey();
       this.initialized = true;
       return true;
@@ -36,12 +36,35 @@ class CompressionService {
   }
 
   /**
-   * 获取或创建加密密�?
+   * 获取或创建加密密钥
    * @returns {Promise<string>} 加密密钥
    */
   async getOrCreateEncryptionKey() {
     try {
-      // 尝试从存储中获取密钥
+      // 确保存储键有效
+      if (!ENCRYPTION_KEY_STORAGE_KEY) {
+        console.warn('加密密钥存储键未定义，使用默认键');
+        const defaultKey = 'zeroisle_encryption_key';
+
+        // 尝试从存储中获取密钥
+        const storedKey = await AsyncStorage.getItem(defaultKey);
+
+        if (storedKey) {
+          this.encryptionKey = storedKey;
+          return storedKey;
+        }
+
+        // 生成新密钥
+        const newKey = this.generateSecureKey();
+
+        // 保存密钥
+        await AsyncStorage.setItem(defaultKey, newKey);
+
+        this.encryptionKey = newKey;
+        return newKey;
+      }
+
+      // 正常流程：尝试从存储中获取密钥
       const storedKey = await AsyncStorage.getItem(ENCRYPTION_KEY_STORAGE_KEY);
 
       if (storedKey) {
@@ -49,8 +72,8 @@ class CompressionService {
         return storedKey;
       }
 
-      // 生成新密�?
-      const newKey = CryptoJS.lib.WordArray.random(16).toString();
+      // 生成新密钥
+      const newKey = this.generateSecureKey();
 
       // 保存密钥
       await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE_KEY, newKey);
@@ -58,8 +81,35 @@ class CompressionService {
       this.encryptionKey = newKey;
       return newKey;
     } catch (error) {
-      console.error('获取或创建加密密钥失�?', error);
-      throw error;
+      console.error('获取或创建加密密钥失败:', error);
+
+      // 出错时使用内存中的临时密钥
+      if (!this.encryptionKey) {
+        this.encryptionKey = this.generateSecureKey();
+        console.log('使用临时内存加密密钥');
+      }
+
+      return this.encryptionKey;
+    }
+  }
+
+  /**
+   * 生成安全的随机密钥
+   * @returns {string} 随机密钥
+   */
+  generateSecureKey() {
+    try {
+      return CryptoJS.lib.WordArray.random(16).toString();
+    } catch (error) {
+      console.warn('使用CryptoJS生成随机密钥失败，使用备用方法:', error);
+
+      // 备用方法：生成随机字符串
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      for (let i = 0; i < 32; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
     }
   }
 
@@ -70,7 +120,7 @@ class CompressionService {
    */
   compress(data) {
     try {
-      // 将数据转换为字符�?
+      // 将数据转换为字符串
       const jsonString = typeof data === 'string' ? data : JSON.stringify(data);
 
       // 压缩数据
@@ -85,14 +135,14 @@ class CompressionService {
   }
 
   /**
-   * 解压缩数�?
-   * @param {Uint8Array} compressedData - 压缩的数�?
+   * 解压缩数据
+   * @param {Uint8Array} compressedData - 压缩的数据
    * @param {boolean} parseJson - 是否将结果解析为JSON对象
-   * @returns {Object|string} 解压缩后的数�?
+   * @returns {Object|string} 解压缩后的数据
    */
   decompress(compressedData, parseJson = true) {
     try {
-      // 解压缩数�?
+      // 解压缩数据
       const decompressed = ungzip(compressedData);
 
       // 转换为字符串
@@ -118,7 +168,7 @@ class CompressionService {
         throw new Error('加密密钥未初始化');
       }
 
-      // 如果是Uint8Array，转换为Base64字符�?
+      // 如果是Uint8Array，转换为Base64字符串
       const dataString = data instanceof Uint8Array
         ? Buffer.from(data).toString('base64')
         : data;
@@ -136,7 +186,7 @@ class CompressionService {
 
   /**
    * 解密数据
-   * @param {string} encryptedData - 加密的数�?
+   * @param {string} encryptedData - 加密的数据
    * @param {boolean} toUint8Array - 是否将结果转换为Uint8Array
    * @returns {string|Uint8Array} 解密后的数据
    */
@@ -163,9 +213,9 @@ class CompressionService {
   }
 
   /**
-   * 压缩并加密数�?
+   * 压缩并加密数据
    * @param {Object|string} data - 要处理的数据
-   * @returns {string} 压缩并加密后的数�?
+   * @returns {string} 压缩并加密后的数据
    */
   compressAndEncrypt(data) {
     try {
@@ -173,7 +223,7 @@ class CompressionService {
       const encrypted = this.encrypt(compressed);
       return encrypted;
     } catch (error) {
-      console.error('压缩并加密数据失�?', error);
+      console.error('压缩并加密数据失败:', error);
       analyticsService.trackError(error, { operation: 'compress_and_encrypt' });
       throw error;
     }

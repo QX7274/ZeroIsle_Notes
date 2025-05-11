@@ -77,23 +77,32 @@ export const trackEvent = (eventName, params = {}) => {
 
 /**
  * 跟踪错误
- * @param {Error} error 错误对象
+ * @param {Error|string|any} error 错误对象、错误消息或任何值
  * @param {Object} context 错误上下文
  */
 export const trackError = (error, context = {}) => {
   if (!ANALYTICS_ENABLED) return;
 
   try {
+    // 防御性检查，确保 error 不为 undefined 或 null
+    if (error === undefined || error === null) {
+      error = '未知错误';
+    }
+
+    // 构建错误事件对象
     const errorEvent = {
       eventName: 'app_error',
       params: {
-        errorMessage: error.message,
-        errorStack: error.stack,
-        errorName: error.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : new Error().stack,
+        errorName: error instanceof Error ? error.name : typeof error,
         ...context,
       },
       timestamp: new Date().toISOString(),
-      deviceInfo,
+      deviceInfo: deviceInfo || {
+        osName: Platform.OS,
+        osVersion: Platform.Version.toString(),
+      },
     };
 
     // 添加到队列
@@ -102,9 +111,10 @@ export const trackError = (error, context = {}) => {
     // 错误立即发送
     sendEvents();
 
-    console.log('[Analytics] 跟踪错误:', error.message, context);
+    console.log('[Analytics] 跟踪错误:', errorEvent.params.errorMessage, context);
   } catch (err) {
     console.error('跟踪错误失败:', err);
+    // 确保即使跟踪错误失败，也不会影响应用
   }
 };
 
@@ -145,15 +155,15 @@ const sendEvents = async () => {
 
     // 这里应该实现发送到分析服务器的逻辑
     // 例如使用fetch或axios发送数据
-    
+
     // 模拟发送
     console.log(`[Analytics] 发送 ${events.length} 个事件到服务器`);
-    
+
     // 实际项目中应该实现真正的发送逻辑
     // await api.post('/analytics/events', { events });
   } catch (error) {
     console.error('发送分析数据失败:', error);
-    
+
     // 失败时，将事件放回队列
     eventQueue.push(...events);
   }
@@ -172,7 +182,7 @@ export const setUserId = (userId, userProperties = {}) => {
       user_id: userId,
       ...userProperties,
     });
-    
+
     console.log(`[Analytics] 设置用户ID: ${userId}`);
   } catch (error) {
     console.error('设置用户ID失败:', error);
@@ -201,9 +211,14 @@ const analyticsService = {
   trackUserAction,
   setUserId,
   clearUserId,
-  
+
   // 预定义事件
   events: ANALYTICS_EVENTS,
 };
+
+// 确保全局可访问
+if (global) {
+  global.analyticsService = analyticsService;
+}
 
 export default analyticsService;

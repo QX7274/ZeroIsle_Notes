@@ -33,9 +33,11 @@ import { offlineDataService } from './services/storage';
 import { dataService, sqliteService } from './services/database';
 import infiniteCanvasStorage from './services/offline/infiniteCanvasStorage';
 import { offlineStorageService } from './services/offline/offlineStorage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// 使用拦截器替代原始的 AsyncStorage
+import AsyncStorage from './utils/asyncStorageInterceptor';
 import STORAGE_KEYS from './constants/storageKeys';
 import { patchDateTimePicker } from './utils/patchDateTimePicker';
+import './utils/cryptoPolyfill'; // 导入加密模块 polyfill
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
