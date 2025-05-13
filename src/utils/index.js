@@ -6,10 +6,9 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import dateUtilsModule from './dateUtils';
 import { validationUtils as validationUtilsModule } from './validationUtils';
 import { storageService } from '../services/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from './eventEmitter';
 
-// 存储工具 - 直接使用AsyncStorage作为备选
+// 存储工具 - 使用MongoDB存储服务
 export const storage = {
   set: async (key, value) => {
     // 防御性检查：确保key不为undefined
@@ -22,24 +21,17 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 首先尝试使用storageService
+      // 使用storageService
       if (storageService && typeof storageService.setItem === 'function') {
         await storageService.setItem(safeKey, JSON.stringify(value));
-      } else {
-        // 备选方案：直接使用AsyncStorage
-        await AsyncStorage.setItem(safeKey, JSON.stringify(value));
-      }
-      return true;
-    } catch (e) {
-      console.error(`存储错误 [${safeKey}]:`, e);
-      // 备选方案：直接使用AsyncStorage
-      try {
-        await AsyncStorage.setItem(safeKey, JSON.stringify(value));
         return true;
-      } catch (innerError) {
-        console.error(`备选存储也失败 [${safeKey}]:`, innerError);
+      } else {
+        console.error(`存储错误 [${safeKey}]: storageService不可用`);
         return false;
       }
+    } catch (e) {
+      console.error(`存储错误 [${safeKey}]:`, e);
+      return false;
     }
   },
   get: async (key) => {
@@ -53,25 +45,17 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 首先尝试使用storageService
+      // 使用storageService
       if (storageService && typeof storageService.getItem === 'function') {
         const value = await storageService.getItem(safeKey);
         return value ? JSON.parse(value) : null;
       } else {
-        // 备选方案：直接使用AsyncStorage
-        const value = await AsyncStorage.getItem(safeKey);
-        return value ? JSON.parse(value) : null;
+        console.error(`读取错误 [${safeKey}]: storageService不可用`);
+        return null;
       }
     } catch (e) {
       console.error(`读取错误 [${safeKey}]:`, e);
-      // 备选方案：直接使用AsyncStorage
-      try {
-        const value = await AsyncStorage.getItem(safeKey);
-        return value ? JSON.parse(value) : null;
-      } catch (innerError) {
-        console.error(`备选读取也失败 [${safeKey}]:`, innerError);
-        return null;
-      }
+      return null;
     }
   },
   remove: async (key) => {
@@ -85,24 +69,17 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 首先尝试使用storageService
+      // 使用storageService
       if (storageService && typeof storageService.removeItem === 'function') {
         await storageService.removeItem(safeKey);
-      } else {
-        // 备选方案：直接使用AsyncStorage
-        await AsyncStorage.removeItem(safeKey);
-      }
-      return true;
-    } catch (e) {
-      console.error(`删除错误 [${safeKey}]:`, e);
-      // 备选方案：直接使用AsyncStorage
-      try {
-        await AsyncStorage.removeItem(safeKey);
         return true;
-      } catch (innerError) {
-        console.error(`备选删除也失败 [${safeKey}]:`, innerError);
+      } else {
+        console.error(`删除错误 [${safeKey}]: storageService不可用`);
         return false;
       }
+    } catch (e) {
+      console.error(`删除错误 [${safeKey}]:`, e);
+      return false;
     }
   }
 };

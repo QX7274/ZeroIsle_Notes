@@ -70,13 +70,25 @@
 ## 使用方法
 
 ```javascript
-import { networkService } from '../../services/network';
+import { networkService, NETWORK_EVENTS } from '../../services/network';
+
+// 初始化网络服务
+async function initializeNetwork() {
+  try {
+    await networkService.initialize();
+    console.log('网络服务初始化成功');
+    return true;
+  } catch (error) {
+    console.error('网络服务初始化失败:', error);
+    return false;
+  }
+}
 
 // 检查网络连接状态
 function checkNetworkStatus() {
-  const isConnected = networkService.isConnected();
-  console.log('网络连接状态:', isConnected ? '已连接' : '未连接');
-  return isConnected;
+  const isOnline = networkService.isOnline();
+  console.log('网络连接状态:', isOnline ? '已连接' : '未连接');
+  return isOnline;
 }
 
 // 获取当前连接类型
@@ -86,22 +98,47 @@ function getConnectionType() {
   return connectionType;
 }
 
+// 获取当前连接质量
+function getConnectionQuality() {
+  const quality = networkService.getConnectionQuality();
+  console.log('当前连接质量:', quality);
+  return quality;
+}
+
 // 监听网络状态变化
 function listenToNetworkChanges() {
-  // 监听连接状态变化
-  const unsubscribe = networkService.addConnectionChangeListener(state => {
+  // 监听网络状态变化
+  const removeChangeListener = networkService.addListener(NETWORK_EVENTS.NETWORK_CHANGE, (state) => {
     console.log('网络状态变化:', state);
-
-    if (state.isConnected) {
-      // 网络已连接，执行相应操作
-      syncData();
-    } else {
-      // 网络已断开，启用离线模式
-      enableOfflineMode();
-    }
   });
 
-  return unsubscribe; // 返回取消监听的函数
+  // 监听网络连接
+  const removeOnlineListener = networkService.addListener(NETWORK_EVENTS.ONLINE, () => {
+    console.log('网络已连接');
+    // 网络已连接，执行相应操作
+    syncData();
+  });
+
+  // 监听网络断开
+  const removeOfflineListener = networkService.addListener(NETWORK_EVENTS.OFFLINE, () => {
+    console.log('网络已断开');
+    // 网络已断开，启用离线模式
+    enableOfflineMode();
+  });
+
+  // 返回取消监听的函数
+  return () => {
+    removeChangeListener();
+    removeOnlineListener();
+    removeOfflineListener();
+  };
+}
+
+// 手动检查网络连接
+async function checkConnection() {
+  const isOnline = await networkService.checkConnection();
+  console.log('网络连接状态:', isOnline ? '已连接' : '未连接');
+  return isOnline;
 }
 ```
 

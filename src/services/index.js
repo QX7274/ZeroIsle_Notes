@@ -6,11 +6,39 @@
 // 导入API服务
 import api from './api/index';
 
+// 导入应用服务
+import { configService } from './app/configService';
+import { appStateService } from './app/appStateService';
+
+// 导入数据库服务
+import {
+  realmService,
+  databaseInitService,
+  dataService
+} from './database';
+
+// 导入网络服务
+import { networkService, apiService } from './network';
+
+// 导入离线服务
+import {
+  offlineAIService,
+  offlineStorage,
+  offlineStorageService,
+  offlineSyncService
+} from './offline';
+
+// 导入AI服务
+import { aiService, chatHistoryService } from './ai';
+
+// 导入文件服务
+import { fileService } from './files/fileService';
+
+// 工具服务
+import { logService } from './utils';
+
 // 导入其他服务
-import { fileService } from './file';
 import { notificationService } from './notification';
-import { storageService } from './storage';
-import { networkService } from './network';
 import { audioService } from './audio';
 import { calendarIntegrationService } from './calendar';
 import { canvasService } from './canvas';
@@ -18,8 +46,8 @@ import { codeService } from './code';
 import { compressionService } from './compression';
 import { exportService } from './export';
 import { groupService } from './group';
-import { noteAIService, noteToolbarService } from './note';
-import { offlineAIService, offlineStorage } from './offline';
+import { noteAIService } from './notes/noteAIService';
+import { noteToolbarService } from './notes/noteToolbarService';
 import { reminderNotificationService } from './reminder';
 import { searchService } from './search';
 import { thirdPartyAuth } from './auth';
@@ -27,28 +55,44 @@ import { translationService } from './translation';
 import { ttsService } from './tts';
 import { webrtcService } from './webrtc';
 import { websocket } from './websocket';
-import { aiHistoryService } from './ai_history';
 import { analyticsService } from './analytics/analyticsService';
-
-// 导入数据库服务
-import { sqliteService, syncService, dataService, TABLES } from './database';
 
 // 导出所有服务
 export {
   // API服务
   api,
+  apiService,
+
+  // 应用服务
+  configService,
+  appStateService,
+
+  // 数据库服务
+  realmService,
+  databaseInitService,
+  dataService,
+
+  // 网络服务
+  networkService,
+
+  // 离线服务
+  offlineAIService,
+  offlineStorage,
+  offlineStorageService,
+  offlineSyncService,
+
+  // AI服务
+  aiService,
+  chatHistoryService,
 
   // 文件服务
   fileService,
 
+  // 工具服务
+  logService,
+
   // 通知服务
   notificationService,
-
-  // 存储服务
-  storageService,
-
-  // 网络服务
-  networkService,
 
   // 音频服务
   audioService,
@@ -75,10 +119,6 @@ export {
   noteAIService,
   noteToolbarService,
 
-  // 离线服务
-  offlineAIService,
-  offlineStorage,
-
   // 提醒服务
   reminderNotificationService,
 
@@ -100,17 +140,8 @@ export {
   // WebSocket服务
   websocket,
 
-  // AI历史服务
-  aiHistoryService,
-
   // 分析服务
   analyticsService,
-
-  // 数据库服务
-  sqliteService,
-  syncService,
-  dataService,
-  TABLES,
 };
 
 // 导出API服务的各个模�?

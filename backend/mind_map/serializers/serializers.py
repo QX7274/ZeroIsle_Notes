@@ -3,11 +3,11 @@
 """
 
 from rest_framework import serializers
-from mind_map.models import MindMap, MindMapNode, MindMapEdge, MindMapTemplate
+from mind_map.mongodb_models import MindMap, MindMapNode, MindMapEdge, MindMapTemplate
 
 class MindMapNodeSerializer(serializers.ModelSerializer):
     """思维导图节点序列化器"""
-    
+
     class Meta:
         model = MindMapNode
         fields = [
@@ -20,7 +20,7 @@ class MindMapNodeSerializer(serializers.ModelSerializer):
 
 class MindMapEdgeSerializer(serializers.ModelSerializer):
     """思维导图边序列化器"""
-    
+
     class Meta:
         model = MindMapEdge
         fields = [
@@ -32,7 +32,7 @@ class MindMapEdgeSerializer(serializers.ModelSerializer):
 
 class MindMapSerializer(serializers.ModelSerializer):
     """思维导图序列化器"""
-    
+
     class Meta:
         model = MindMap
         fields = [
@@ -47,7 +47,7 @@ class MindMapDetailSerializer(serializers.ModelSerializer):
     """思维导图详情序列化器"""
     nodes = MindMapNodeSerializer(many=True, read_only=True, source='nodes.all')
     edges = MindMapEdgeSerializer(many=True, read_only=True, source='edges.all')
-    
+
     class Meta:
         model = MindMap
         fields = [
@@ -60,7 +60,7 @@ class MindMapDetailSerializer(serializers.ModelSerializer):
 
 class MindMapTemplateSerializer(serializers.ModelSerializer):
     """思维导图模板序列化器"""
-    
+
     class Meta:
         model = MindMapTemplate
         fields = [

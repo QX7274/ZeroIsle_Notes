@@ -6,7 +6,7 @@
 
 零屿笔记后端采用模块化设计，每个功能模块都有清晰的目录结构，遵循以下约定：
 
-- `models/`: 数据模型，定义数据库结构
+- `mongodb_models.py`: MongoDB文档模型，使用MongoEngine ODM定义
 - `serializers/`: 序列化器，处理数据转换
 - `views/`: 视图，处理HTTP请求
 - `services/`: 服务层，处理业务逻辑
@@ -195,14 +195,39 @@ AI助手模块，提供智能对话和内容生成功能。
 
 笔记模块，支持创建、编辑、删除笔记，以及笔记分类、标签管理等功能。
 
-- `models/`: 数据模型
-  - `note.py`: 笔记模型
+- `mongodb_models.py`: MongoDB文档模型
+  - `Note`: 笔记模型
+  - `Category`: 分类模型
+  - `Tag`: 标签模型
+  - `NoteVersion`: 笔记版本模型
+  - `NoteAttachment`: 笔记附件模型
+  - `NoteShare`: 笔记分享模型
+  - `NoteReminder`: 笔记提醒模型
+  - `NoteBackup`: 笔记备份模型
+  - `NoteSync`: 笔记同步模型
+  - `NoteComment`: 笔记评论模型
+  - `NoteCollaboration`: 笔记协作模型
+  - `NoteTemplate`: 笔记模板模型
+  - `Handwriting`: 手写笔记模型
+  - `Annotation`: PDF注释模型
+  - `DrawingPath`: 绘图路径模型
+  - `OCRModel`: OCR模型
+  - `WhisperModel`: Whisper模型
+  - `Notification`: 通知模型
 - `serializers/`: 序列化器
   - `note.py`: 笔记序列化器
+  - `category.py`: 分类序列化器
+  - `tag.py`: 标签序列化器
 - `views/`: 视图
   - `note.py`: 笔记视图
+  - `category.py`: 分类视图
+  - `tag.py`: 标签视图
+  - `realm_note.py`: Realm笔记视图
 - `services/`: 服务
   - `note_service.py`: 笔记服务
+  - `export_service.py`: 导出服务
+  - `import_service.py`: 导入服务
+  - `sync_service.py`: 同步服务
 - `tests/`: 测试
   - `test_models.py`: 模型测试
   - `test_views.py`: 视图测试
@@ -258,13 +283,13 @@ AI助手模块，提供智能对话和内容生成功能。
 
 用户模块，包括用户注册、登录、个人资料管理等功能。
 
-- `models/`: 数据模型
-  - `user.py`: 用户模型
-  - `user_profile.py`: 用户资料模型
-  - `user_settings.py`: 用户设置模型
-  - `user_device.py`: 用户设备模型
-  - `verification_code.py`: 验证码模型
-  - `third_party_account.py`: 第三方账号模型
+- `mongodb_models.py`: MongoDB文档模型
+  - `User`: 用户模型
+  - `UserProfile`: 用户资料模型
+  - `UserSettings`: 用户设置模型
+  - `UserDevice`: 用户设备模型
+  - `VerificationCode`: 验证码模型
+  - `ThirdPartyAccount`: 第三方账号模型
 - `serializers/`: 序列化器
   - `user.py`: 用户序列化器
   - `auth.py`: 认证序列化器

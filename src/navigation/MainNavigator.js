@@ -15,7 +15,8 @@ import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/no
 import { InfiniteCanvasScreen, InfiniteCanvasListScreen } from '../screens/canvas';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import { SearchScreen } from '../screens/search';
-import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen } from '../screens/settings';
+import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen, SyncSettingsScreen } from '../screens/settings';
+import { FileViewerScreen } from '../screens/common';
 
 // 临时占位组件
 import { View, Text } from 'react-native';
@@ -41,6 +42,7 @@ const NotesNavigator = () => (
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="InfiniteCanvasList" component={InfiniteCanvasListScreen} options={{ title: '我的草稿' }} />
     <Stack.Screen name="InfiniteCanvas" component={InfiniteCanvasScreen} options={{ title: '无限草稿' }} />
+    <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -50,6 +52,7 @@ const MindMapNavigator = () => (
     <Stack.Screen name="MindMapList" component={MindMapScreen} options={{ title: '思维导图' }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
     <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
+    <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -65,6 +68,7 @@ const KnowledgeGraphNavigator = () => (
     <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
     <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
+    <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -76,6 +80,7 @@ const ProfileNavigator = () => (
     <Stack.Screen name="BindEmail" component={BindEmail} options={{ title: '邮箱绑定' }} />
     <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{ title: '主题设置' }} />
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
+    <Stack.Screen name="SyncSettings" component={SyncSettingsScreen} options={{ title: '同步设置' }} />
   </Stack.Navigator>
 );
 

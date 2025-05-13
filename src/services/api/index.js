@@ -17,9 +17,14 @@ import codeApi from './codeApi';
 import userApi from './userApi';
 import annotationApi from './annotationApi';
 import drawingPathApi from './drawingPathApi';
+import tagApi from './tagApi';
+import fileApi from './fileApi';
+import categoryApi from './categoryApi';
+import apiClient from './apiClient';
 
 // 导出API服务
 export {
+  apiClient,
   authApi,
   notesApi,
   knowledgeGraphApi,
@@ -32,11 +37,15 @@ export {
   codeApi,
   userApi,
   annotationApi,
-  drawingPathApi
+  drawingPathApi,
+  tagApi,
+  fileApi,
+  categoryApi
 };
 
 // 默认导出所有API服务
 export default {
+  api: apiClient,
   auth: authApi,
   notes: notesApi,
   knowledgeGraph: knowledgeGraphApi,
@@ -49,5 +58,8 @@ export default {
   code: codeApi,
   user: userApi,
   annotation: annotationApi,
-  drawingPath: drawingPathApi
+  drawingPath: drawingPathApi,
+  tag: tagApi,
+  file: fileApi,
+  category: categoryApi
 };

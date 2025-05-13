@@ -30,7 +30,8 @@ try:
     REALTIME_TRANSCRIPTION_AVAILABLE = True
 except ImportError:
     REALTIME_TRANSCRIPTION_AVAILABLE = False
-    logger.warning("未安装实时转写所需的库，实时转写功能不可用")
+    # 仅在调试级别记录，避免在每次启动时显示警告
+    logger.debug("未安装实时转写所需的库，实时转写功能不可用")
 
 
 class RealtimeTranscriptionService:

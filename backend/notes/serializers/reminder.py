@@ -4,7 +4,8 @@
 
 from rest_framework import serializers
 from django.utils import timezone
-from notes.mongodb_models import NoteReminder
+from notes.mongodb_models import NoteReminder, Note
+import uuid
 
 
 class NoteReminderSerializer(serializers.Serializer):

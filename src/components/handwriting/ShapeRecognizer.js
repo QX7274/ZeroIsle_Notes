@@ -16,7 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import HandwritingCanvas from './HandwritingCanvas';
 import handwritingApi from '../../services/api/handwritingApi';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 
 /**
  * 形状识别组件
@@ -213,20 +213,20 @@ const ShapeRecognizer = ({
         <Text variant="subtitle1" style={styles.resultsTitle}>
           识别结果
         </Text>
-        
+
         <View style={styles.shapesList}>
           {recognizedShapes.map((shape, index) => (
-            <View 
-              key={index} 
+            <View
+              key={index}
               style={[
-                styles.shapeItem, 
+                styles.shapeItem,
                 { backgroundColor: colors.card }
               ]}
             >
-              <Icon 
-                name={getShapeIcon(shape.type)} 
-                size={24} 
-                color={colors.primary} 
+              <Icon
+                name={getShapeIcon(shape.type)}
+                size={24}
+                color={colors.primary}
               />
               <Text variant="body2" style={styles.shapeText}>
                 {getShapeName(shape.type)}
@@ -323,7 +323,7 @@ const ShapeRecognizer = ({
           onPress={handleCancel}
           style={styles.cancelButton}
         />
-        
+
         <Button
           title="识别形状"
           icon="gesture"

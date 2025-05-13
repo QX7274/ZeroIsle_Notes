@@ -3,8 +3,5 @@
 导入所有模型以便在其他地方直接从voice_recognition.models导入
 """
 
-from .audio_file import AudioFile
-from .transcription import Transcription
-from .language import Language
-from .speaker import Speaker
-from .speaker_profile import SpeakerProfile, SpeakerEmbedding
+# 从MongoDB模型导入
+from ..mongodb_models import AudioFile, Transcription, Language, Speaker, SpeakerProfile, SpeakerEmbedding

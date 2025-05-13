@@ -39,7 +39,7 @@
 
 状态持久化配置如下：
 
-- **持久化键**: 'root'，用于AsyncStorage中的存储键
+- **持久化键**: 'root'，用于MongoDB中的存储键
 - **持久化白名单**: ['auth', 'settings', 'user']，只持久化这些reducer
 - **超时设置**: 10000毫秒（10秒），避免无限等待
 - **调试模式**: 在开发环境中启用，方便调试
@@ -57,7 +57,7 @@
 状态管理与以下模块有交互：
 
 - **Redux模块**: 提供状态管理的核心功能
-- **存储模块**: 通过AsyncStorage进行状态持久化
+- **存储模块**: 通过MongoDB进行状态持久化
 - **应用入口**: 在App.js中使用Provider提供状态
 
 ## 使用方法
@@ -92,15 +92,15 @@ import { login, logout } from '../redux/slices/authSlice';
 export default function AuthScreen() {
   const dispatch = useDispatch();
   const { isLoggedIn, user } = useSelector(state => state.auth);
-  
+
   const handleLogin = () => {
     dispatch(login({ username: 'testuser', token: 'test-token' }));
   };
-  
+
   const handleLogout = () => {
     dispatch(logout());
   };
-  
+
   return (
     <View>
       {isLoggedIn ? (

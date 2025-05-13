@@ -9,7 +9,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../../services/storage/realmStorageService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 
@@ -53,7 +53,7 @@ const ChatHistorySidebar = ({
   const loadChatHistory = async () => {
     try {
       setIsLoading(true);
-      const historyJson = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
       if (historyJson) {
         const history = JSON.parse(historyJson);
         // 将历史记录转换为会话列表
@@ -122,13 +122,13 @@ const ChatHistorySidebar = ({
   // 删除会话
   const handleDeleteSession = async (sessionId) => {
     try {
-      const historyJson = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
       if (historyJson) {
         const history = JSON.parse(historyJson);
         // 删除指定会话
         delete history[sessionId];
         // 保存更新后的历史记录
-        await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+        await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
         // 更新状态
         setChatSessions(chatSessions.filter(session => session.id !== sessionId));
 
@@ -173,14 +173,14 @@ const ChatHistorySidebar = ({
     if (!editingSessionId) return;
 
     try {
-      const historyJson = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
       if (historyJson) {
         const history = JSON.parse(historyJson);
         if (history[editingSessionId]) {
           // 添加自定义标题
           history[editingSessionId].customTitle = editingTitle;
           // 保存更新后的历史记录
-          await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+          await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
 
           // 更新状态
           setChatSessions(chatSessions.map(session =>

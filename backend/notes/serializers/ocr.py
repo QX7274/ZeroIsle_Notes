@@ -4,6 +4,8 @@ OCR序列化器
 
 from rest_framework import serializers
 from notes.mongodb_models import OCRModel, OCRTrainingData
+from django.utils import timezone
+import uuid
 
 
 class OCRModelSerializer(serializers.Serializer):

@@ -1,13 +1,14 @@
 /**
  * 提醒通知服务
  * 处理提醒的本地通知和离线存储
+ * 使用 MongoDB 替代 AsyncStorage
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import PushNotification from 'react-native-push-notification';
 import { Platform } from 'react-native';
 import reminderApi from '../api/reminderApi';
 import analyticsService from '../analytics/analyticsService';
 import { isNetworkConnected } from '../network/networkService';
+import reminderMongoDBService from './reminderMongoDBService';
 
 // 本地存储键
 const STORAGE_KEYS = {
@@ -469,15 +470,15 @@ class ReminderNotificationService {
 
       // 更新离线操作存储
       if (failedOperations.length > 0) {
-        await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, JSON.stringify(failedOperations));
+        await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, failedOperations);
         console.log(`${failedOperations.length}个操作同步失败，将在下次尝试`);
       } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+        await reminderMongoDBService.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
         console.log('所有离线操作同步成功');
       }
 
       // 更新最后同步时间
-      await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
+      await reminderMongoDBService.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
 
       // 如果有成功同步的操作，从服务器获取最新数据
       if (synced > 0) {
@@ -518,8 +519,7 @@ class ReminderNotificationService {
   async saveOfflineReminder(reminder) {
     try {
       // 获取现有的离线提醒
-      const offlineRemindersJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-      const offlineReminders = offlineRemindersJson ? JSON.parse(offlineRemindersJson) : [];
+      const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS) || [];
 
       // 添加新的离线提醒
       offlineReminders.push({
@@ -529,7 +529,7 @@ class ReminderNotificationService {
       });
 
       // 保存更新后的离线提醒
-      await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, JSON.stringify(offlineReminders));
+      await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, offlineReminders);
 
       // 保存离线操作记录
       await this.saveOfflineOperation('create', reminder);
@@ -552,8 +552,7 @@ class ReminderNotificationService {
    */
   async getOfflineReminders() {
     try {
-      const offlineRemindersJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-      return offlineRemindersJson ? JSON.parse(offlineRemindersJson) : [];
+      return await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS) || [];
     } catch (error) {
       console.error('获取离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_offline_reminders' });
@@ -568,8 +567,8 @@ class ReminderNotificationService {
    */
   async saveAllReminders(reminders) {
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.ALL_REMINDERS, JSON.stringify(reminders));
-      await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
+      await reminderMongoDBService.setItem(STORAGE_KEYS.ALL_REMINDERS, reminders);
+      await reminderMongoDBService.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
 
       analyticsService.trackEvent('save_all_reminders', {
         count: reminders.length,
@@ -589,8 +588,7 @@ class ReminderNotificationService {
    */
   async getAllReminders() {
     try {
-      const remindersJson = await AsyncStorage.getItem(STORAGE_KEYS.ALL_REMINDERS);
-      return remindersJson ? JSON.parse(remindersJson) : [];
+      return await reminderMongoDBService.getItem(STORAGE_KEYS.ALL_REMINDERS) || [];
     } catch (error) {
       console.error('获取所有提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_all_reminders' });
@@ -607,8 +605,7 @@ class ReminderNotificationService {
   async saveOfflineOperation(operation, data) {
     try {
       // 获取现有的离线操作
-      const operationsJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
-      const operations = operationsJson ? JSON.parse(operationsJson) : [];
+      const operations = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS) || [];
 
       // 添加新的操作
       operations.push({
@@ -619,7 +616,7 @@ class ReminderNotificationService {
       });
 
       // 保存更新后的操作记录
-      await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, JSON.stringify(operations));
+      await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_OPERATIONS, operations);
 
       return true;
     } catch (error) {
@@ -635,8 +632,7 @@ class ReminderNotificationService {
    */
   async getOfflineOperations() {
     try {
-      const operationsJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
-      return operationsJson ? JSON.parse(operationsJson) : [];
+      return await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_OPERATIONS) || [];
     } catch (error) {
       console.error('获取离线操作记录失败:', error);
       analyticsService.trackError(error, { action: 'get_offline_operations' });
@@ -650,7 +646,7 @@ class ReminderNotificationService {
    */
   async clearOfflineOperations() {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+      await reminderMongoDBService.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
       return true;
     } catch (error) {
       console.error('清除离线操作记录失败:', error);
@@ -667,10 +663,8 @@ class ReminderNotificationService {
   async removeOfflineReminder(id) {
     try {
       // 获取现有的离线提醒
-      const offlineRemindersJson = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-      if (!offlineRemindersJson) return true;
-
-      const offlineReminders = JSON.parse(offlineRemindersJson);
+      const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
+      if (!offlineReminders || !Array.isArray(offlineReminders)) return true;
 
       // 过滤掉要移除的提醒
       const updatedReminders = offlineReminders.filter(reminder =>
@@ -679,9 +673,9 @@ class ReminderNotificationService {
 
       // 保存更新后的离线提醒
       if (updatedReminders.length > 0) {
-        await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, JSON.stringify(updatedReminders));
+        await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, updatedReminders);
       } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_REMINDERS);
+        await reminderMongoDBService.removeItem(STORAGE_KEYS.OFFLINE_REMINDERS);
       }
 
       return true;

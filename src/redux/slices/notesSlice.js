@@ -4,7 +4,7 @@
 
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
 import notesApi from '../../services/api/notesApi';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 
 // 创建实体适配器，用于规范化状态
 const notesAdapter = createEntityAdapter({

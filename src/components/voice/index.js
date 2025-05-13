@@ -6,6 +6,9 @@ import RealtimeTranscription from './RealtimeTranscription';
 import RecordButton from './RecordButton';
 import SpeakerLabel from './SpeakerLabel';
 import TranscriptionResult from './TranscriptionResult';
+import VoiceRecorder from './VoiceRecorder';
+import VoicePlayer from './VoicePlayer';
+import VoiceTranscription from './VoiceTranscription';
 
 export {
   AudioWaveform,
@@ -13,6 +16,9 @@ export {
   RecordButton,
   SpeakerLabel,
   TranscriptionResult,
+  VoiceRecorder,
+  VoicePlayer,
+  VoiceTranscription,
 };
 
 export default {
@@ -21,4 +27,7 @@ export default {
   RecordButton,
   SpeakerLabel,
   TranscriptionResult,
+  VoiceRecorder,
+  VoicePlayer,
+  VoiceTranscription,
 };

@@ -3,12 +3,15 @@
  */
 import { ThemeProvider, useTheme } from './ThemeContext';
 import { AccessibilityProvider, useAccessibility } from './AccessibilityContext';
+import { RealmProvider, useRealm } from './RealmContext';
 
 export {
   ThemeProvider,
   useTheme,
   AccessibilityProvider,
   useAccessibility,
+  RealmProvider,
+  useRealm,
 };
 
 export default {
@@ -16,4 +19,6 @@ export default {
   useTheme,
   AccessibilityProvider,
   useAccessibility,
+  RealmProvider,
+  useRealm,
 };

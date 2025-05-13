@@ -1,433 +1,316 @@
-import SafeAsyncStorage from '../../utils/safeAsyncStorage';
+/**
+ * 存储服务
+ * 提供完全本地存储功能，只同步关键用户信息
+ */
 
-// 存储�?
-const KEYS = {
-  TOKEN: 'zeroislenotes_token',
-  REFRESH_TOKEN: 'zeroislenotes_refresh_token',
-  USER: 'zeroislenotes_user',
-  THEME: 'zeroislenotes_theme',
-  THEME_STYLE: 'zeroislenotes_theme_style',
-  CUSTOM_THEME: 'zeroislenotes_custom_theme',
-  LANGUAGE: 'zeroislenotes_language',
-  SETTINGS: 'zeroislenotes_settings',
-  RECENT_SEARCHES: 'zeroislenotes_recent_searches',
-  RECENT_NOTES: 'zeroislenotes_recent_notes',
-  ACCESSIBILITY: 'zeroislenotes_accessibility',
-};
+import { realmService } from '../database/realmService';
+import { logService } from '../utils/logService';
+import { networkService } from '../network/networkService';
+import NetInfo from '@react-native-community/netinfo';
+import { API_ENDPOINTS } from '../../config/api';
+import axios from 'axios';
+import STORAGE_KEYS from '../../constants/storageKeys';
 
-// 通用存储方法
-const setItem = async (key, value) => {
-  // 防御性检查：确保key不为undefined
-  if (key === undefined || key === null) {
-    console.error('存储错误: 键不能为undefined或null');
-    return false;
+// 需要同步的关键用户信息字段
+const KEY_USER_INFO_FIELDS = [
+  'username',
+  'email',
+  'id',
+  'profile',
+  'settings',
+  'preferences',
+];
+
+// 需要同步的集合
+const SYNC_COLLECTIONS = [
+  'users',
+];
+
+class StorageService {
+  constructor() {
+    this.initialized = false;
+    this.initializationPromise = null;
+    this.isOnline = false;
+    this.apiClient = null;
+    this.syncInProgress = false;
+    this.networkListener = null;
   }
 
-  // 确保key是字符串
-  const safeKey = String(key);
+  /**
+   * 初始化存储服务
+   */
+  async initialize() {
+    if (this.initialized) return Promise.resolve();
 
-  try {
-    await SafeAsyncStorage.setItem(safeKey, value);
-    return true;
-  } catch (error) {
-    console.error(`保存数据失败 [${safeKey}]:`, error);
-    return false;
-  }
-};
-
-const getItem = async (key) => {
-  // 防御性检查：确保key不为undefined
-  if (key === undefined || key === null) {
-    console.error('读取错误: 键不能为undefined或null');
-    return null;
-  }
-
-  // 确保key是字符串
-  const safeKey = String(key);
-
-  try {
-    return await SafeAsyncStorage.getItem(safeKey);
-  } catch (error) {
-    console.error(`获取数据失败 [${safeKey}]:`, error);
-    return null;
-  }
-};
-
-const removeItem = async (key) => {
-  // 防御性检查：确保key不为undefined
-  if (key === undefined || key === null) {
-    console.error('删除错误: 键不能为undefined或null');
-    return false;
-  }
-
-  // 确保key是字符串
-  const safeKey = String(key);
-
-  try {
-    await SafeAsyncStorage.removeItem(safeKey);
-    return true;
-  } catch (error) {
-    console.error(`删除数据失败 [${safeKey}]:`, error);
-    return false;
-  }
-};
-
-// 导出通用方法
-const storageService = {
-  setItem,
-  getItem,
-  removeItem,
-
-  // 以下是为了兼容性保留的方法
-  getSettings: async () => {
-    try {
-      const settings = await getItem(KEYS.SETTINGS);
-      return settings ? JSON.parse(settings) : {};
-    } catch (error) {
-      console.error('获取设置失败:', error);
-      return {};
+    if (this.initializationPromise) {
+      return this.initializationPromise;
     }
-  },
 
-  setSettings: async (settings) => {
+    this.initializationPromise = new Promise(async (resolve, reject) => {
+      try {
+        // 初始化Realm服务
+        await realmService.initialize();
+
+        // 检查网络状态
+        const netInfo = await NetInfo.fetch();
+        this.isOnline = netInfo.isConnected && netInfo.isInternetReachable;
+
+        // 添加网络状态监听器
+        this.networkListener = NetInfo.addEventListener(state => {
+          const wasOnline = this.isOnline;
+          this.isOnline = state.isConnected && state.isInternetReachable;
+
+          // 如果从离线变为在线，尝试同步关键数据
+          if (!wasOnline && this.isOnline) {
+            this.syncKeyUserInfo();
+          }
+        });
+
+        // 创建API客户端
+        this.apiClient = axios.create({
+          baseURL: API_ENDPOINTS.BASE_URL,
+          timeout: 10000,
+        });
+
+        this.initialized = true;
+        logService.info('存储服务初始化成功');
+        resolve();
+      } catch (error) {
+        logService.error('存储服务初始化失败', error);
+        reject(error);
+      }
+    });
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * 获取项目
+   * @param {string} key 存储键
+   * @returns {Promise<any|null>} 存储值
+   */
+  async getItem(key) {
     try {
-      await setItem(KEYS.SETTINGS, JSON.stringify(settings));
+      await this.initialize();
+
+      // 获取Realm实例
+      const realm = await realmService.getRealm();
+
+      // 查询存储项目
+      const item = realm.objectForPrimaryKey('StorageItem', key);
+
+      if (!item) {
+        return null;
+      }
+
+      // 解析JSON值
+      try {
+        return JSON.parse(item.value);
+      } catch (parseError) {
+        // 如果不是JSON，返回原始值
+        return item.value;
+      }
+    } catch (error) {
+      logService.error(`获取存储项目失败: ${key}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * 设置项目
+   * @param {string} key 存储键
+   * @param {any} value 存储值
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async setItem(key, value) {
+    try {
+      await this.initialize();
+
+      // 获取Realm实例
+      const realm = await realmService.getRealm();
+
+      // 准备存储值
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+
+      // 当前时间
+      const now = new Date();
+
+      // 写入或更新存储项目
+      realm.write(() => {
+        realm.create('StorageItem', {
+          key,
+          value: stringValue,
+          createdAt: now,
+          updatedAt: now,
+        }, 'modified');
+      });
+
+      // 如果是用户信息且在线，尝试同步关键用户信息
+      if (key === STORAGE_KEYS.USER_INFO && this.isOnline) {
+        this.syncKeyUserInfo();
+      }
+
       return true;
     } catch (error) {
-      console.error('保存设置失败:', error);
+      logService.error(`设置存储项目失败: ${key}`, error);
       return false;
     }
   }
-};
 
-// Token 相关
-export const setToken = async (token) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.TOKEN, token);
-    return true;
-  } catch (error) {
-    console.error('保存令牌失败:', error);
-    return false;
+  /**
+   * 删除项目
+   * @param {string} key 存储键
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async removeItem(key) {
+    try {
+      await this.initialize();
+
+      // 获取Realm实例
+      const realm = await realmService.getRealm();
+
+      // 查询存储项目
+      const item = realm.objectForPrimaryKey('StorageItem', key);
+
+      if (!item) {
+        return true; // 项目不存在，视为删除成功
+      }
+
+      // 删除项目
+      realm.write(() => {
+        realm.delete(item);
+      });
+
+      return true;
+    } catch (error) {
+      logService.error(`删除存储项目失败: ${key}`, error);
+      return false;
+    }
   }
-};
 
-export const getToken = async () => {
-  try {
-    return await SafeAsyncStorage.getItem(KEYS.TOKEN);
-  } catch (error) {
-    console.error('获取令牌失败:', error);
-    return null;
-  }
-};
-
-// 同步获取令牌（用于拦截器�?
-export const getTokenSync = () => {
-  // 从Redux存储中获取令�?
-  try {
-    // 导入Redux存储
-    const { store } = require('../store');
-
-    // 获取当前状�?
-    const state = store.getState();
-
-    // 兼容新旧Redux结构
-    if (state.auth && state.auth.token) {
-      return state.auth.token;
+  /**
+   * 同步关键用户信息到服务器
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async syncKeyUserInfo() {
+    if (!this.isOnline || this.syncInProgress) {
+      return false;
     }
 
-    if (state.user && state.user.token) {
-      return state.user.token;
+    try {
+      this.syncInProgress = true;
+
+      // 获取用户信息
+      const userInfo = await this.getItem(STORAGE_KEYS.USER_INFO);
+
+      if (!userInfo) {
+        this.syncInProgress = false;
+        return false;
+      }
+
+      // 只提取关键字段
+      const keyUserInfo = {};
+      KEY_USER_INFO_FIELDS.forEach(field => {
+        if (userInfo[field] !== undefined) {
+          keyUserInfo[field] = userInfo[field];
+        }
+      });
+
+      // 同步到服务器
+      const token = await this.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      
+      if (token) {
+        await this.apiClient.put('/users/profile', keyUserInfo, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      }
+
+      this.syncInProgress = false;
+      return true;
+    } catch (error) {
+      logService.error('同步关键用户信息失败', error);
+      this.syncInProgress = false;
+      return false;
+    }
+  }
+
+  /**
+   * 手动上传数据到服务器
+   * @param {string} collection 集合名称
+   * @param {string} id 记录ID
+   * @param {Object} data 数据
+   * @returns {Promise<Object>} 上传结果
+   */
+  async uploadData(collection, id, data) {
+    if (!this.isOnline) {
+      return { success: false, message: '离线状态无法上传数据' };
     }
 
-    return null;
-  } catch (error) {
-    console.error('同步获取令牌失败:', error);
-    return null;
-  }
-};
+    try {
+      await this.initialize();
 
-export const removeToken = async () => {
-  try {
-    await SafeAsyncStorage.removeItem(KEYS.TOKEN);
-    await SafeAsyncStorage.removeItem(KEYS.REFRESH_TOKEN);
-    return true;
-  } catch (error) {
-    console.error('移除令牌失败:', error);
-    return false;
-  }
-};
+      // 获取认证令牌
+      const token = await this.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      
+      if (!token) {
+        return { success: false, message: '未登录，无法上传数据' };
+      }
 
-// 刷新令牌相关
-export const setRefreshToken = async (token) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.REFRESH_TOKEN, token);
-    return true;
-  } catch (error) {
-    console.error('保存刷新令牌失败:', error);
-    return false;
-  }
-};
+      // 上传数据
+      const response = await this.apiClient.post(`/${collection}/${id}/upload`, data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-export const getRefreshToken = async () => {
-  try {
-    return await SafeAsyncStorage.getItem(KEYS.REFRESH_TOKEN);
-  } catch (error) {
-    console.error('获取刷新令牌失败:', error);
-    return null;
+      return { success: true, data: response.data };
+    } catch (error) {
+      logService.error(`上传数据失败: ${collection}/${id}`, error);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || '上传数据失败',
+        error
+      };
+    }
   }
-};
 
-// 用户信息相关
-export const setUser = async (user) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.USER, JSON.stringify(user));
-    return true;
-  } catch (error) {
-    console.error('保存用户信息失败:', error);
-    return false;
+  /**
+   * 设置认证令牌
+   * @param {string} token 认证令牌
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async setToken(token) {
+    return this.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
   }
-};
 
-export const getUser = async () => {
-  try {
-    const user = await SafeAsyncStorage.getItem(KEYS.USER);
-    return user ? JSON.parse(user) : null;
-  } catch (error) {
-    console.error('获取用户信息失败:', error);
-    return null;
+  /**
+   * 设置刷新令牌
+   * @param {string} token 刷新令牌
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async setRefreshToken(token) {
+    return this.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
   }
-};
 
-export const removeUser = async () => {
-  try {
-    await SafeAsyncStorage.removeItem(KEYS.USER);
-    return true;
-  } catch (error) {
-    console.error('移除用户信息失败:', error);
-    return false;
+  /**
+   * 设置用户信息
+   * @param {Object} user 用户信息
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async setUser(user) {
+    return this.setItem(STORAGE_KEYS.USER_INFO, user);
   }
-};
+}
 
-// 主题相关
-export const setTheme = async (theme) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.THEME, theme);
-    return true;
-  } catch (error) {
-    console.error('保存主题失败:', error);
-    return false;
-  }
-};
+// 创建单例实例
+const storageService = new StorageService();
 
-export const getTheme = async () => {
-  try {
-    const theme = await SafeAsyncStorage.getItem(KEYS.THEME);
-    return theme || 'system';
-  } catch (error) {
-    console.error('获取主题失败:', error);
-    return 'system';
-  }
-};
-
-// 主题风格相关
-export const setThemeStyle = async (style) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.THEME_STYLE, style);
-    return true;
-  } catch (error) {
-    console.error('保存主题风格失败:', error);
-    return false;
-  }
-};
-
-export const getThemeStyle = async () => {
-  try {
-    const style = await SafeAsyncStorage.getItem(KEYS.THEME_STYLE);
-    return style || 'classic';
-  } catch (error) {
-    console.error('获取主题风格失败:', error);
-    return 'classic';
-  }
-};
-
-// 自定义主题相�?
-export const setCustomTheme = async (customTheme) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.CUSTOM_THEME, JSON.stringify(customTheme));
-    return true;
-  } catch (error) {
-    console.error('保存自定义主题失�?', error);
-    return false;
-  }
-};
-
-export const getCustomTheme = async () => {
-  try {
-    const customTheme = await SafeAsyncStorage.getItem(KEYS.CUSTOM_THEME);
-    return customTheme ? JSON.parse(customTheme) : { light: {}, dark: {} };
-  } catch (error) {
-    console.error('获取自定义主题失�?', error);
-    return { light: {}, dark: {} };
-  }
-};
-
-// 语言相关
-export const setLanguage = async (language) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.LANGUAGE, language);
-    return true;
-  } catch (error) {
-    console.error('保存语言失败:', error);
-    return false;
-  }
-};
-
-export const getLanguage = async () => {
-  try {
-    const language = await SafeAsyncStorage.getItem(KEYS.LANGUAGE);
-    return language || 'zh-CN';
-  } catch (error) {
-    console.error('获取语言失败:', error);
-    return 'zh-CN';
-  }
-};
-
-// 设置相关
-export const setSettings = async (settings) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-    return true;
-  } catch (error) {
-    console.error('保存设置失败:', error);
-    return false;
-  }
-};
-
-export const getSettings = async () => {
-  try {
-    const settings = await SafeAsyncStorage.getItem(KEYS.SETTINGS);
-    return settings ? JSON.parse(settings) : {};
-  } catch (error) {
-    console.error('获取设置失败:', error);
-    return {};
-  }
-};
-
-// 最近搜索相�?
-export const setRecentSearches = async (searches) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(searches));
-    return true;
-  } catch (error) {
-    console.error('保存最近搜索失�?', error);
-    return false;
-  }
-};
-
-export const getRecentSearches = async () => {
-  try {
-    const searches = await SafeAsyncStorage.getItem(KEYS.RECENT_SEARCHES);
-    return searches ? JSON.parse(searches) : [];
-  } catch (error) {
-    console.error('获取最近搜索失�?', error);
-    return [];
-  }
-};
-
-// 最近笔记相�?
-export const setRecentNotes = async (notes) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.RECENT_NOTES, JSON.stringify(notes));
-    return true;
-  } catch (error) {
-    console.error('保存最近笔记失�?', error);
-    return false;
-  }
-};
-
-export const getRecentNotes = async () => {
-  try {
-    const notes = await SafeAsyncStorage.getItem(KEYS.RECENT_NOTES);
-    return notes ? JSON.parse(notes) : [];
-  } catch (error) {
-    console.error('获取最近笔记失�?', error);
-    return [];
-  }
-};
-
-// 清除所有存�?
-export const clearAll = async () => {
-  try {
-    await SafeAsyncStorage.clear();
-    return true;
-  } catch (error) {
-    console.error('清除存储失败:', error);
-    return false;
-  }
-};
-
-// 清除认证相关存储
-export const clearAuth = async () => {
-  try {
-    await SafeAsyncStorage.multiRemove([KEYS.TOKEN, KEYS.REFRESH_TOKEN, KEYS.USER]);
-    return true;
-  } catch (error) {
-    console.error('清除认证存储失败:', error);
-    return false;
-  }
-};
-
-// 可访问性设置相�?
-export const setAccessibilitySettings = async (settings) => {
-  try {
-    await SafeAsyncStorage.setItem(KEYS.ACCESSIBILITY, JSON.stringify(settings));
-    return true;
-  } catch (error) {
-    console.error('保存可访问性设置失�?', error);
-    return false;
-  }
-};
-
-export const getAccessibilitySettings = async () => {
-  try {
-    const settings = await SafeAsyncStorage.getItem(KEYS.ACCESSIBILITY);
-    return settings ? JSON.parse(settings) : {};
-  } catch (error) {
-    console.error('获取可访问性设置失�?', error);
-    return {};
-  }
-};
-
-// 将所有方法添加到storageService对象
-Object.assign(storageService, {
-  setToken,
-  getToken,
-  getTokenSync,
-  removeToken,
-  setRefreshToken,
-  getRefreshToken,
-  setUser,
-  getUser,
-  removeUser,
-  setTheme,
-  getTheme,
-  setThemeStyle,
-  getThemeStyle,
-  setCustomTheme,
-  getCustomTheme,
-  setLanguage,
-  getLanguage,
-  setSettings,
-  getSettings,
-  setRecentSearches,
-  getRecentSearches,
-  setRecentNotes,
-  getRecentNotes,
-  clearAll,
-  clearAuth,
-  setAccessibilitySettings,
-  getAccessibilitySettings
+// 初始化
+storageService.initialize().catch(error => {
+  logService.error('初始化存储服务失败', error);
 });
 
-// 导出storageService对象
 export default storageService;

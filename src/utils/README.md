@@ -24,15 +24,11 @@
 
 ```javascript
 // 导入所有工具函数
-import { storage, dateUtils, permissionUtils, validationUtils } from '../utils';
+import { dateUtils, permissionUtils, validationUtils } from '../utils';
 
 // 使用工具函数
 const formattedDate = dateUtils.formatDate(new Date(), 'YYYY-MM-DD');
 const isValidEmail = validationUtils.isEmail('example@example.com');
-
-// 存储数据
-await storage.set('key', { value: 'data' });
-const data = await storage.get('key');
 ```
 
 ### 导入特定工具函数

@@ -4,13 +4,19 @@
 
 import CodeEditor from './CodeEditor';
 import CodeRunner from './CodeRunner';
+import CodeSnippet from './CodeSnippet';
+import LanguageSelector from './LanguageSelector';
 
 export {
   CodeEditor,
-  CodeRunner
+  CodeRunner,
+  CodeSnippet,
+  LanguageSelector
 };
 
 export default {
   CodeEditor,
-  CodeRunner
+  CodeRunner,
+  CodeSnippet,
+  LanguageSelector
 };

@@ -2,13 +2,14 @@
  * 笔记API服务
  */
 import instance from './interceptor';
-import { API_ENDPOINTS } from '../../config/api';
-import { offlineStorageService } from '../offline/offlineStorage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_ENDPOINTS } from '../../constants/api';
+import { offlineStorageService } from '../offline/offlineStorageService';
+// 使用MongoDB替代AsyncStorage
+import { mongoDBService } from '../database/mongoDBAdapter';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import NetInfo from '@react-native-community/netinfo';
 import { dataService } from '../database';
-import simpleStorageService from '../storage/simpleStorageService';
+import { realmStorageService } from '../storage';
 
 // 使用导入的离线存储服务
 
@@ -48,43 +49,26 @@ export const createNote = async (note) => {
       is_memory_only: true
     };
 
-    // 1. 优先保存到本地SQLite数据库，但设置超时
+    // 1. 优先保存到MongoDB数据库
     let createdNote = null;
     try {
-      console.log('尝试保存到SQLite数据库...');
+      console.log('尝试保存到MongoDB数据库...');
 
-      // 设置SQLite操作超时
-      const sqliteTimeoutPromise = new Promise(resolve => {
-        setTimeout(() => {
-          console.log('SQLite保存操作超时');
-          resolve(null);
-        }, 5000); // 5秒超时
-      });
+      // 初始化数据服务
+      await dataService.init();
 
-      // 初始化数据服务，但不等待太久
-      const initTimeoutPromise = new Promise(resolve => {
-        setTimeout(() => {
-          console.log('数据服务初始化超时');
-          resolve(false);
-        }, 3000); // 3秒超时
-      });
+      // 使用数据服务创建笔记
+      const mongoResult = await dataService.createNote(noteWithMeta);
 
-      // 尝试初始化数据服务
-      await Promise.race([dataService.init(), initTimeoutPromise]);
-
-      // 使用数据服务创建笔记，但设置超时
-      const createPromise = dataService.createNote(noteWithMeta);
-      const sqliteResult = await Promise.race([createPromise, sqliteTimeoutPromise]);
-
-      if (sqliteResult) {
-        createdNote = sqliteResult;
-        console.log('SQLite保存笔记成功:', createdNote.id);
+      if (mongoResult) {
+        createdNote = mongoResult;
+        console.log('MongoDB保存笔记成功:', createdNote.id);
       } else {
-        console.warn('SQLite保存笔记超时或失败');
+        console.warn('MongoDB保存笔记失败');
       }
-    } catch (sqliteError) {
-      console.error('SQLite保存笔记失败，尝试使用备用存储:', sqliteError);
-      // SQLite失败时，不抛出错误，继续尝试其他存储方式
+    } catch (mongoError) {
+      console.error('MongoDB保存笔记失败，尝试使用备用存储:', mongoError);
+      // MongoDB失败时，不抛出错误，继续尝试其他存储方式
     }
 
     // 2. 尝试保存到离线存储，但设置超时
@@ -123,16 +107,15 @@ export const createNote = async (note) => {
       console.warn('所有存储方式都失败，使用内存笔记');
       createdNote = memoryNote;
 
-      // 尝试使用AsyncStorage作为最后的备选方案
+      // 尝试使用MongoDB作为最后的备选方案
       try {
         const notesKey = 'emergency_notes';
-        const existingNotesJson = await AsyncStorage.getItem(notesKey);
-        const existingNotes = existingNotesJson ? JSON.parse(existingNotesJson) : [];
+        const existingNotes = await mongoDBService.getItem(notesKey) || [];
         existingNotes.push(memoryNote);
-        await AsyncStorage.setItem(notesKey, JSON.stringify(existingNotes));
-        console.log('成功将笔记保存到AsyncStorage应急存储');
-      } catch (asyncStorageError) {
-        console.error('AsyncStorage应急保存失败:', asyncStorageError);
+        await mongoDBService.setItem(notesKey, existingNotes);
+        console.log('成功将笔记保存到MongoDB应急存储');
+      } catch (mongoError) {
+        console.error('MongoDB应急保存失败:', mongoError);
       }
     }
 
@@ -286,7 +269,7 @@ export const updateNote = async (id, note) => {
               console.log('离线存储服务不可用或缺少必要的方法');
             }
           } catch (offlineError) {
-            console.log('更新旧的离线存储失败，但SQLite更新成功', offlineError);
+            console.log('更新旧的离线存储失败，但MongoDB Realm更新成功', offlineError);
           }
         }, 0);
 
@@ -345,7 +328,7 @@ export const deleteNote = async (id) => {
     try {
       await offlineStorageService.deleteNote(id);
     } catch (offlineError) {
-      console.log('从旧的离线存储删除失败，但SQLite删除成功', offlineError);
+      console.log('从旧的离线存储删除失败，但MongoDB Realm删除成功', offlineError);
     }
 
     return {
@@ -458,33 +441,33 @@ export const getAllNotes = async (params = {}) => {
           limit: params.limit || 30 // 默认限制为30条，减少数据量
         };
 
-        // 从SQLite获取笔记，设置较短的超时
-        console.log('从SQLite获取笔记...');
-        const sqliteTimeoutPromise = new Promise(resolve => {
+        // 从MongoDB Realm获取笔记，设置较短的超时
+        console.log('从MongoDB Realm获取笔记...');
+        const realmTimeoutPromise = new Promise(resolve => {
           setTimeout(() => {
-            console.log('SQLite查询超时');
+            console.log('MongoDB Realm查询超时');
             resolve(null);
-          }, 3000); // 3秒超时，比之前的5秒更短
+          }, 3000); // 3秒超时
         });
 
         // 使用Promise.race，确保查询不会阻塞太久
         const notes = await Promise.race([
           dataService.getNotes(paramsWithUserId),
-          sqliteTimeoutPromise
+          realmTimeoutPromise
         ]);
 
         // 如果查询超时或失败，返回空数组而不是错误
         if (!notes) {
-          console.warn('SQLite查询超时或失败，返回空数组');
+          console.warn('MongoDB Realm查询超时或失败，返回空数组');
           return {
             success: true,
-            message: 'SQLite查询超时，返回空数组',
+            message: 'MongoDB Realm查询超时，返回空数组',
             data: [],
             isOffline: true
           };
         }
 
-        console.log(`从SQLite获取到${notes.length}条笔记，耗时: ${Date.now() - startTime}ms`);
+        console.log(`从MongoDB Realm获取到${notes.length}条笔记，耗时: ${Date.now() - startTime}ms`);
 
         // 如果在线，在后台尝试从服务器获取最新数据并同步，不阻塞UI
         if (isOnline) {
@@ -517,13 +500,12 @@ export const getAllNotes = async (params = {}) => {
       } catch (error) {
         console.error('获取笔记列表失败:', error);
 
-        // 尝试从AsyncStorage获取备份笔记
+        // 尝试从MongoDB获取备份笔记
         try {
-          console.log('尝试从AsyncStorage获取备份笔记...');
-          const backupNotesJson = await AsyncStorage.getItem('BACKUP_NOTES');
-          if (backupNotesJson) {
-            const backupNotes = JSON.parse(backupNotesJson);
-            console.log(`从AsyncStorage获取到${backupNotes.length}条备份笔记`);
+          console.log('尝试从MongoDB获取备份笔记...');
+          const backupNotes = await mongoDBService.getItem('BACKUP_NOTES');
+          if (backupNotes && backupNotes.length > 0) {
+            console.log(`从MongoDB获取到${backupNotes.length}条备份笔记`);
             return {
               success: true,
               data: backupNotes,
@@ -532,7 +514,7 @@ export const getAllNotes = async (params = {}) => {
             };
           }
         } catch (backupError) {
-          console.error('从AsyncStorage获取备份笔记失败:', backupError);
+          console.error('从MongoDB获取备份笔记失败:', backupError);
         }
 
         // 所有方法都失败，返回空数组而不是错误
@@ -586,32 +568,20 @@ export const getNoteById = async (id) => {
     // 实际获取笔记的Promise
     const fetchPromise = (async () => {
       try {
-        // 检查SQLite数据库连接状态，但不等待太久
-        const sqliteService = dataService.getSqliteService();
-        const connectionTimeoutPromise = new Promise(resolve => {
-          setTimeout(() => {
-            console.log('检查数据库连接超时');
-            resolve(false);
-          }, 3000); // 3秒超时
-        });
-
-        const isConnected = await Promise.race([
-          sqliteService.checkConnection(3000),
-          connectionTimeoutPromise
-        ]);
-
-        if (!isConnected) {
-          console.warn('SQLite数据库连接不可用或超时');
+        // 检查MongoDB数据库连接状态
+        try {
+          await dataService.init();
+          console.log('MongoDB数据库连接正常，开始获取笔记数据');
+        } catch (connectionError) {
+          console.warn('MongoDB数据库连接不可用:', connectionError);
           return {
             success: false,
-            message: 'SQLite数据库连接不可用或超时',
+            message: 'MongoDB数据库连接不可用',
             isOffline: true,
             connectionFailed: true,
             data: null
           };
         }
-
-        console.log('SQLite数据库连接正常，开始获取笔记数据');
 
         // 确保数据服务已初始化，但不等待太久
         const initTimeoutPromise = new Promise(resolve => {
@@ -623,60 +593,46 @@ export const getNoteById = async (id) => {
 
         await Promise.race([dataService.init(), initTimeoutPromise]);
 
-        // 从SQLite获取笔记详情，设置较短的超时
-        console.log('从SQLite获取笔记详情...');
-        const noteTimeoutPromise = new Promise(resolve => {
-          setTimeout(() => {
-            console.log('获取笔记详情查询超时');
-            resolve(null);
-          }, 5000); // 5秒超时
-        });
+        // 从MongoDB获取笔记详情
+        console.log('从MongoDB获取笔记详情...');
 
-        const note = await Promise.race([
-          dataService.getNote(id, 5000),
-          noteTimeoutPromise
-        ]);
+        try {
+          const note = await dataService.getNote(id);
 
-        if (!note) {
-          console.log('获取笔记详情失败或超时');
+          if (!note) {
+            console.log('获取笔记详情失败');
+            return {
+              success: false,
+              message: '获取笔记详情失败',
+              isOffline: true,
+              queryFailed: true,
+              data: null
+            };
+          }
+
+          console.log(`从MongoDB获取笔记详情成功，耗时: ${Date.now() - startTime}ms`);
+
+          // 检查网络状态
+          const networkStatus = await NetInfo.fetch();
+          const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
+
+          return {
+            success: true,
+            data: note,
+            isOffline: !isOnline
+          };
+        } catch (noteError) {
+          console.error('获取笔记详情失败:', noteError);
           return {
             success: false,
-            message: '获取笔记详情失败或超时',
+            message: '获取笔记详情失败: ' + noteError.message,
             isOffline: true,
             queryFailed: true,
             data: null
           };
         }
 
-        console.log(`从SQLite获取笔记详情成功，耗时: ${Date.now() - startTime}ms`);
-
-        // 检查网络状态
-        const networkStatus = await NetInfo.fetch();
-        const isOnline = networkStatus.isConnected && networkStatus.isInternetReachable;
-
-        // 如果在线，尝试从服务器获取最新数据
-        if (isOnline) {
-          try {
-            // 异步从服务器获取数据，不等待结果
-            instance.get(API_ENDPOINTS.NOTES.DETAIL(id)).then(async response => {
-              if (response && response.data) {
-                console.log('从服务器获取到最新笔记数据，更新本地数据');
-                // 更新本地数据
-                await dataService.updateNote(id, response.data);
-              }
-            }).catch(networkError => {
-              console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
-            });
-          } catch (networkError) {
-            console.log('从服务器获取笔记详情失败，使用本地数据', networkError);
-          }
-        }
-
-        return {
-          success: true,
-          data: note,
-          isOffline: !isOnline
-        };
+        // 这部分代码已经被上面的代码替代，不再需要
       } catch (error) {
         console.error('获取笔记详情失败:', error);
 
@@ -1043,7 +999,7 @@ const importNote = async (formData) => {
       throw new Error(saveResult.error || `离线导入${fileType}失败`);
     }
 
-    // 添加到SQLite数据库
+    // 添加到MongoDB数据库
     try {
       // 确保数据服务已初始化
       await dataService.init();
@@ -1062,68 +1018,36 @@ const importNote = async (formData) => {
       };
 
       // 设置更长的超时时间
-      console.log('使用简化笔记对象保存到SQLite数据库');
-      const sqliteService = dataService.getSqliteService();
+      console.log('使用简化笔记对象保存到MongoDB数据库');
 
-      // 直接使用SQL语句插入，避免复杂的对象处理
+      // 获取当前用户ID
       const userId = dataService.getCurrentUserId() || '9cdc472e-92e9-4f2a-b9d8-5a9a86a59b98'; // 默认用户ID
 
-      const columns = [
-        'id', 'user_id', 'title', 'content', 'category_id',
-        'is_favorite', 'is_encrypted', 'encryption_key',
-        'is_public', 'is_deleted', 'created_at', 'updated_at', 'is_synced'
-      ];
+      // 准备完整的笔记对象
+      const noteDocument = {
+        id: simplifiedNote.id,
+        user_id: userId,
+        title: simplifiedNote.title,
+        content: simplifiedNote.content,
+        category_id: '',
+        is_favorite: false,
+        is_encrypted: false,
+        encryption_key: '',
+        is_public: false,
+        is_deleted: false,
+        created_at: simplifiedNote.created_at,
+        updated_at: simplifiedNote.updated_at,
+        is_synced: false,
+        file_type: simplifiedNote.file_type,
+        file_name: simplifiedNote.file_name,
+        file_uri: simplifiedNote.file_uri
+      };
 
-      const values = [
-        simplifiedNote.id,
-        userId,
-        simplifiedNote.title,
-        simplifiedNote.content,
-        '', // category_id
-        0,  // is_favorite
-        0,  // is_encrypted
-        '', // encryption_key
-        0,  // is_public
-        0,  // is_deleted
-        simplifiedNote.created_at,
-        simplifiedNote.updated_at,
-        0   // is_synced
-      ];
-
-      const placeholders = columns.map(() => '?').join(', ');
-
-      // 使用事务和更长的超时时间
-      await sqliteService.executeSql(
-        `BEGIN TRANSACTION;`,
-        [],
-        120000 // 2分钟超时
-      );
-
-      try {
-        await sqliteService.executeSql(
-          `INSERT INTO notes (${columns.join(', ')}) VALUES (${placeholders})`,
-          values,
-          120000 // 2分钟超时
-        );
-
-        await sqliteService.executeSql(
-          `COMMIT;`,
-          [],
-          120000 // 2分钟超时
-        );
-
-        console.log('笔记已成功保存到SQLite数据库');
-      } catch (transactionError) {
-        console.error('事务执行失败，回滚:', transactionError);
-        await sqliteService.executeSql(
-          `ROLLBACK;`,
-          [],
-          30000 // 30秒超时
-        );
-        throw transactionError;
-      }
+      // 保存到MongoDB
+      await dataService.createNote(noteDocument);
+      console.log('笔记已成功保存到MongoDB数据库');
     } catch (dbError) {
-      console.error('保存到SQLite数据库失败，但本地存储成功:', dbError);
+      console.error('保存到MongoDB数据库失败，但本地存储成功:', dbError);
       // 不影响整体导入流程
     }
 

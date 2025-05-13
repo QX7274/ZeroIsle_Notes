@@ -8,10 +8,7 @@ from .mind_map_views import (
     MindMapEdgeViewSet,
     MongoMindMapViewSet
 )
-from .template_views import (
-    MindMapTemplateViewSet,
-    MongoMindMapTemplateViewSet
-)
+from .template_views import MongoMindMapTemplateViewSet
 from .generator_views import (
     generate_from_text,
     generate_from_note,

@@ -24,10 +24,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
 import SortControl from '../../components/home/SortControl';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 // OfflineIndicator 已移除
-import { offlineStorageService } from '../../services/offline/offlineStorage';
-import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
+import { offlineStorageService, infiniteCanvasStorage } from '../../services/offline';
 import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
 import RNFS from 'react-native-fs';
@@ -61,7 +59,7 @@ const HomeScreen = ({ navigation }) => {
         console.log('开始初始化 HomeScreen...');
 
         // 加载排序偏好
-        const savedSort = await AsyncStorage.getItem('home_sort_preference');
+        const savedSort = await offlineStorageService.getItem('home_sort_preference');
         if (savedSort) {
           setSortOption(savedSort);
         }
@@ -225,17 +223,15 @@ const HomeScreen = ({ navigation }) => {
         console.log('API请求超时，尝试从AsyncStorage备份恢复');
 
         try {
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          const backupNotesJson = await AsyncStorage.getItem('BACKUP_NOTES');
+          const backupNotes = await offlineStorageService.getItem('BACKUP_NOTES');
 
-          if (backupNotesJson) {
-            const backupNotes = JSON.parse(backupNotesJson);
-            console.log(`从AsyncStorage备份恢复了 ${backupNotes.length} 条笔记`);
+          if (backupNotes) {
+            console.log(`从MongoDB备份恢复了 ${backupNotes.length} 条笔记`);
             dispatch(setNotesAction(backupNotes));
             setIsLoading(false);
             return; // 提前返回，避免重复设置 isLoading
           } else {
-            console.log('AsyncStorage中没有备份笔记，返回空数组');
+            console.log('MongoDB中没有备份笔记，返回空数组');
             dispatch(setNotesAction([]));
             setIsLoading(false);
             return; // 提前返回，避免重复设置 isLoading
@@ -510,63 +506,23 @@ const HomeScreen = ({ navigation }) => {
         const saveResult = await notesApi.saveOfflineNote(localNote);
         console.log('笔记已保存到离线存储:', saveResult);
 
-        // 2. 使用数据服务直接保存到SQLite数据库
+        // 2. 使用数据服务直接保存到MongoDB数据库
         try {
-          // 尝试多种方式获取数据服务
-          let dataService = null;
-
-          // 方法1: 直接导入
-          try {
-            dataService = require('../../services/database/dataService').dataService;
-          } catch (importError) {
-            console.log('导入dataService失败，尝试其他方法:', importError);
-          }
-
-          // 方法2: 从全局对象获取
-          if (!dataService && global.dataService) {
-            dataService = global.dataService;
-            console.log('从全局对象获取dataService成功');
-          }
-
-          // 方法3: 从SQLite服务获取
-          if (!dataService) {
-            try {
-              const SQLiteService = require('../../services/database/sqliteService').default;
-              const sqliteService = new SQLiteService();
-              await sqliteService.init();
-              dataService = sqliteService;
-              console.log('创建新的SQLiteService实例成功');
-            } catch (sqliteError) {
-              console.log('创建SQLiteService实例失败:', sqliteError);
-            }
-          }
-
-          if (dataService) {
-            // 确保ID不以temp_开头
-            const noteToSave = {
-              ...localNote,
-              id: localNote.id.startsWith('temp_') ? localNote.id.substring(5) : localNote.id
-            };
-
-            const savedNote = await dataService.createNote(noteToSave);
-            console.log('笔记已直接保存到SQLite数据库:', savedNote.id);
-          } else {
-            console.error('无法获取数据服务实例');
-          }
-        } catch (sqliteError) {
-          console.error('直接保存到SQLite数据库失败:', sqliteError);
+          // 使用MongoDB数据服务保存笔记
+          const savedNote = await notesApi.saveOfflineNote(localNote);
+          console.log('笔记已直接保存到MongoDB数据库:', savedNote.id);
+        } catch (dbError) {
+          console.error('直接保存到MongoDB数据库失败:', dbError);
         }
 
-        // 3. 使用AsyncStorage作为额外备份
+        // 3. 使用MongoDB作为额外备份
         try {
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          const existingNotesJson = await AsyncStorage.getItem('BACKUP_NOTES');
-          const existingNotes = existingNotesJson ? JSON.parse(existingNotesJson) : [];
+          const existingNotes = await offlineStorageService.getItem('BACKUP_NOTES') || [];
           existingNotes.push(localNote);
-          await AsyncStorage.setItem('BACKUP_NOTES', JSON.stringify(existingNotes));
-          console.log('笔记已备份到AsyncStorage');
-        } catch (asyncStorageError) {
-          console.error('备份到AsyncStorage失败:', asyncStorageError);
+          await offlineStorageService.setItem('BACKUP_NOTES', existingNotes);
+          console.log('笔记已备份到MongoDB');
+        } catch (storageError) {
+          console.error('备份到MongoDB失败:', storageError);
         }
       } catch (storageError) {
         console.error('保存到本地存储失败:', storageError);
@@ -664,7 +620,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF9800' }]} />
           </View>
         );
-      }                                                                  
+      }
     };
 
     // 格式化日期显示

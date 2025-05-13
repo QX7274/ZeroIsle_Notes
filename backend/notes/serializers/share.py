@@ -3,7 +3,7 @@
 """
 
 from rest_framework import serializers
-from notes.mongodb_models import NoteShare
+from notes.mongodb_models import NoteShare, Note
 from django.utils import timezone
 import uuid
 
@@ -64,7 +64,7 @@ class NoteShareCreateSerializer(serializers.Serializer):
         """
         创建笔记分享
         """
-        from notes.mongodb_models import Note
+        # Note已经导入
 
         expires_days = validated_data.pop('expires_days', None)
         note_id = validated_data.pop('note')

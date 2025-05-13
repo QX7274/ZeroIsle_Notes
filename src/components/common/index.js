@@ -43,6 +43,9 @@ import VirtualizedList from './VirtualizedList';
 // 可访问性组件
 import AccessibleButton from './AccessibleButton';
 
+// 服务状态检查组件
+import ServiceStatusChecker from './ServiceStatusChecker';
+
 export {
   // 基础组件
   Button,
@@ -83,4 +86,7 @@ export {
 
   // 可访问性组件
   AccessibleButton,
+
+  // 服务状态检查组件
+  ServiceStatusChecker,
 };

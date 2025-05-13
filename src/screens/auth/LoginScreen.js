@@ -3,16 +3,21 @@
  * 提供统一的登录框：支持用户名/手机号/邮箱登录，以及第三方登录
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TextInput } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Alert, TextInput, ActivityIndicator, Animated } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { login, clearError } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
-// 移除Typography导入，直接使用React Native的Text
-
-import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import authApi from '../../services/api/authApi';
+
+// 导入LinearGradient组件
+let LinearGradient;
+try {
+  LinearGradient = require('react-native-linear-gradient').default;
+} catch (error) {
+  console.warn('无法导入LinearGradient组件，将使用普通View替代');
+}
 
 const LoginScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -42,6 +47,7 @@ const LoginScreen = ({ navigation }) => {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [loginType, setLoginType] = useState('password'); // 'password', 'code'
+  const indicatorPosition = useRef(new Animated.Value(0)).current; // 登录方式指示器位置动画值
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(false); // 是否为注册模式
@@ -61,6 +67,17 @@ const LoginScreen = ({ navigation }) => {
       setError(reduxError);
     }
   }, [reduxError]);
+
+  // 处理登录类型切换动画
+  useEffect(() => {
+    Animated.timing(indicatorPosition, {
+      toValue: loginType === 'password' ? 0 : 1,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [loginType, indicatorPosition]);
+
+
 
   // 验证码倒计时
   useEffect(() => {
@@ -142,12 +159,15 @@ const LoginScreen = ({ navigation }) => {
     // 清除错误
     setError('');
 
-    // 获取标识符类型
-    const identifierType = getIdentifierType(identifier);
+    // 不再需要获取标识符类型，根据登录方式决定
 
     // 表单验证
     if (!identifier) {
-      setError('请输入用户名/手机号/邮箱');
+      if (loginType === 'password') {
+        setError('请输入用户名/手机号/邮箱');
+      } else {
+        setError('请输入手机号');
+      }
       return;
     }
 
@@ -172,13 +192,14 @@ const LoginScreen = ({ navigation }) => {
 
       // 验证码注册
       if (loginType === 'code') {
-        if (identifierType !== 'phone') {
-          setError('验证码注册仅支持手机号');
+        // 强制将标识符视为手机号
+        if (!/^1\d{10}$/.test(identifier)) {
+          setError('请输入正确的手机号');
           return;
         }
 
         if (!code || code.length < 4) {
-          setError('请输入正确的验证码');
+          setError('请输入正确的手机验证码');
           return;
         }
 
@@ -192,14 +213,14 @@ const LoginScreen = ({ navigation }) => {
           if (result.success) {
             dispatch(login(result.data));
 
-            // 同步用户信息到SQLite
+            // 同步用户信息到Realm数据库
             try {
-              // 动态导入用户同步服务
-              const userSyncService = require('../../services/database/userSyncService').default;
-              await userSyncService.ensureUserInSQLite(result.data.user);
-              console.log('手机验证码注册用户信息已同步到SQLite数据库');
+              // 使用Realm存储服务保存用户信息
+              const { realmStorageService } = require('../../services/storage/realmStorageService');
+              await realmStorageService.setItem('user_info', result.data.user);
+              console.log('手机验证码注册用户信息已保存到Realm数据库');
             } catch (syncError) {
-              console.error('同步手机验证码注册用户信息到SQLite失败:', syncError);
+              console.error('保存手机验证码注册用户信息失败:', syncError);
               // 继续处理，不阻止注册流程
             }
 
@@ -214,20 +235,11 @@ const LoginScreen = ({ navigation }) => {
       // 密码注册
       else {
         try {
-          let result;
-
-          if (identifierType === 'email') {
-            result = await authApi.registerWithEmail({
-              email: identifier,
-              password
-            });
-          } else {
-            // 用户名注册
-            result = await authApi.registerWithUsername({
-              username: identifier,
-              password
-            });
-          }
+          // 密码注册时，统一使用用户名
+          const result = await authApi.registerWithUsername({
+            username: identifier,
+            password
+          });
 
           if (result.success) {
             // 注册成功后，使用用户名和密码进行登录
@@ -242,14 +254,14 @@ const LoginScreen = ({ navigation }) => {
               dispatch({ type: 'auth/setAuthToken', payload: loginResult.data.access });
               dispatch({ type: 'auth/setAuthRefreshToken', payload: loginResult.data.refresh });
 
-              // 同步用户信息到SQLite
+              // 同步用户信息到Realm数据库
               try {
-                // 动态导入用户同步服务
-                const userSyncService = require('../../services/database/userSyncService').default;
-                await userSyncService.ensureUserInSQLite(loginResult.data.user);
-                console.log('注册用户信息已同步到SQLite数据库');
+                // 使用Realm存储服务保存用户信息
+                const { realmStorageService } = require('../../services/storage/realmStorageService');
+                await realmStorageService.setItem('user_info', loginResult.data.user);
+                console.log('注册用户信息已保存到Realm数据库');
               } catch (syncError) {
-                console.error('同步注册用户信息到SQLite失败:', syncError);
+                console.error('保存注册用户信息失败:', syncError);
                 // 继续处理，不阻止注册流程
               }
 
@@ -271,13 +283,14 @@ const LoginScreen = ({ navigation }) => {
     else {
       // 验证码登录
       if (loginType === 'code') {
-        if (identifierType !== 'phone') {
-          setError('验证码登录仅支持手机号');
+        // 强制将标识符视为手机号
+        if (!/^1\d{10}$/.test(identifier)) {
+          setError('请输入正确的手机号');
           return;
         }
 
         if (!code || code.length < 4) {
-          setError('请输入正确的验证码');
+          setError('请输入正确的手机验证码');
           return;
         }
 
@@ -300,14 +313,14 @@ const LoginScreen = ({ navigation }) => {
             dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
             dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
 
-            // 同步用户信息到SQLite
+            // 同步用户信息到Realm数据库
             try {
-              // 动态导入用户同步服务
-              const userSyncService = require('../../services/database/userSyncService').default;
-              await userSyncService.ensureUserInSQLite(result.data.user);
-              console.log('验证码登录用户信息已同步到SQLite数据库');
+              // 使用Realm存储服务保存用户信息
+              const { realmStorageService } = require('../../services/storage/realmStorageService');
+              await realmStorageService.setItem('user_info', result.data.user);
+              console.log('验证码登录用户信息已保存到Realm数据库');
             } catch (syncError) {
-              console.error('同步验证码登录用户信息到SQLite失败:', syncError);
+              console.error('保存验证码登录用户信息失败:', syncError);
               // 继续处理，不阻止登录流程
             }
           } else {
@@ -325,16 +338,10 @@ const LoginScreen = ({ navigation }) => {
           return;
         }
 
-        // 根据标识符类型调用不同的登录API
-        const loginData = {};
-
-        if (identifierType === 'email') {
-          loginData.email = identifier;
-        } else if (identifierType === 'phone') {
-          loginData.phone = identifier;
-        } else {
-          loginData.username = identifier;
-        }
+        // 密码登录时，统一使用用户名
+        const loginData = {
+          username: identifier
+        };
 
         loginData.password = password;
 
@@ -358,14 +365,14 @@ const LoginScreen = ({ navigation }) => {
               // 显式设置认证状态
               dispatch({ type: 'auth/setIsAuthenticated', payload: true });
 
-              // 同步用户信息到SQLite
+              // 同步用户信息到Realm数据库
               try {
-                // 动态导入用户同步服务
-                const userSyncService = require('../../services/database/userSyncService').default;
-                await userSyncService.ensureUserInSQLite(result.data.user);
-                console.log('用户信息已同步到SQLite数据库');
+                // 使用Realm存储服务保存用户信息
+                const { realmStorageService } = require('../../services/storage/realmStorageService');
+                await realmStorageService.setItem('user_info', result.data.user);
+                console.log('用户信息已保存到Realm数据库');
               } catch (syncError) {
-                console.error('同步用户信息到SQLite失败:', syncError);
+                console.error('保存用户信息失败:', syncError);
                 // 继续处理，不阻止登录流程
               }
 
@@ -416,12 +423,25 @@ const LoginScreen = ({ navigation }) => {
 
     try {
       let result;
+      let loginMethod;
+      let serviceName;
 
       if (type === 'wechat') {
-        result = await authApi.wechatLogin('mock_code');
+        loginMethod = authApi.thirdPartyLogin || authApi.wechatLogin;
+        serviceName = '微信';
       } else if (type === 'qq') {
-        result = await authApi.qqLogin('mock_code');
+        loginMethod = authApi.thirdPartyLogin || authApi.qqLogin;
+        serviceName = 'QQ';
       }
+
+      if (!loginMethod) {
+        setError(`${serviceName}登录服务未初始化，请联系管理员`);
+        console.error(`${type} login method is not available`);
+        return;
+      }
+
+      // 调用第三方登录方法
+      result = await loginMethod('mock_code', type);
 
       if (result && result.success) {
         // 登录成功，更新Redux状态
@@ -429,22 +449,22 @@ const LoginScreen = ({ navigation }) => {
         dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
         dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
 
-        // 同步用户信息到SQLite
+        // 同步用户信息到Realm数据库
         try {
-          // 动态导入用户同步服务
-          const userSyncService = require('../../services/database/userSyncService').default;
-          await userSyncService.ensureUserInSQLite(result.data.user);
-          console.log(`${type}登录用户信息已同步到SQLite数据库`);
-        } catch (syncError) {
-          console.error(`同步${type}登录用户信息到SQLite失败:`, syncError);
+          // 使用Realm存储服务保存用户信息
+          const { realmStorageService } = require('../../services/storage/realmStorageService');
+          await realmStorageService.setItem('user_info', result.data.user);
+          console.log(`${serviceName}登录用户信息已保存到Realm数据库`);
+        } catch (storageError) {
+          console.error(`保存${serviceName}登录用户信息失败:`, storageError);
           // 继续处理，不阻止登录流程
         }
       } else {
-        setError(result?.message || `${type === 'wechat' ? '微信' : 'QQ'}登录失败`);
+        setError(result?.message || `${serviceName}登录失败`);
       }
     } catch (error) {
-      console.error(`${type}登录错误:`, error);
-      setError(`${type === 'wechat' ? '微信' : 'QQ'}登录失败，请重试`);
+      console.error(`第三方登录错误:`, error);
+      setError(`第三方登录失败，请重试`);
     }
   };
 
@@ -466,49 +486,82 @@ const LoginScreen = ({ navigation }) => {
               resizeMode="cover"
             />
           </View>
-          <LinearGradient
-            colors={['#6CB4EE', '#D6F0FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.gradientHeader]}
-          >
-            <View style={styles.formHeader}>
-              <TouchableOpacity
-                style={[
-                  styles.tabButton,
-                  !isRegister && styles.activeTabButton
-                ]}
-                onPress={() => setIsRegister(false)}
-              >
-                <Text
-                  style={{
-                    color: !isRegister ? 'white' : colors.textSecondary,
-                    fontSize: 16,
-                    fontWeight: 'bold'
-                  }}
+          {LinearGradient ? (
+            <LinearGradient
+              colors={['#6CB4EE', '#D6F0FF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[styles.gradientHeader]}
+            >
+              <View style={styles.formHeader}>
+                <TouchableOpacity
+                  style={styles.tabButton}
+                  onPress={() => setIsRegister(false)}
                 >
-                  登录
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.tabButton,
-                  isRegister && styles.activeTabButton
-                ]}
-                onPress={() => setIsRegister(true)}
-              >
-                <Text
-                  style={{
-                    color: isRegister ? 'white' : colors.textSecondary,
-                    fontSize: 16,
-                    fontWeight: 'bold'
-                  }}
+                  <Text
+                    style={{
+                      color: !isRegister ? 'white' : colors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    登录
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.tabButton}
+                  onPress={() => setIsRegister(true)}
                 >
-                  注册
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: isRegister ? 'white' : colors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    注册
+                  </Text>
+                </TouchableOpacity>
+
+
+              </View>
+            </LinearGradient>
+          ) : (
+            <View style={[styles.gradientHeader, { backgroundColor: '#6CB4EE' }]}>
+              <View style={styles.formHeader}>
+                <TouchableOpacity
+                  style={styles.tabButton}
+                  onPress={() => setIsRegister(false)}
+                >
+                  <Text
+                    style={{
+                      color: !isRegister ? 'white' : colors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    登录
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.tabButton}
+                  onPress={() => setIsRegister(true)}
+                >
+                  <Text
+                    style={{
+                      color: isRegister ? 'white' : colors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    注册
+                  </Text>
+                </TouchableOpacity>
+
+
+              </View>
             </View>
-          </LinearGradient>
+          )}
 
           <View style={[
             styles.formContainer,
@@ -532,10 +585,7 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.loginTypeButton,
-                loginType === 'password' && [
-                  styles.activeLoginType,
-                  { borderBottomColor: colors.primary }
-                ]
+                loginType === 'password' && styles.activeLoginType
               ]}
               onPress={() => setLoginType('password')}
             >
@@ -552,10 +602,7 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.loginTypeButton,
-                loginType === 'code' && [
-                  styles.activeLoginType,
-                  { borderBottomColor: colors.primary }
-                ]
+                loginType === 'code' && styles.activeLoginType
               ]}
               onPress={() => setLoginType('code')}
             >
@@ -569,17 +616,33 @@ const LoginScreen = ({ navigation }) => {
                 验证码{isRegister ? '注册' : '登录'}
               </Text>
             </TouchableOpacity>
+
+            {/* 添加可移动的指示器 */}
+            <Animated.View
+              style={[
+                styles.tabIndicator,
+                {
+                  left: indicatorPosition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '50%']
+                  }),
+                  borderBottomColor: colors.primary
+                }
+              ]}
+            />
           </View>
 
           {/* 统一的标识符输入框 */}
           <Input
-            label={isRegister ? "设置用户名/手机号/邮箱" : "用户名/手机号/邮箱"}
+            label={loginType === 'password' ? "用户" : "手机号"}
             value={identifier}
             onChangeText={setIdentifier}
-            placeholder={isRegister ? "请设置用户名/手机号/邮箱" : "请输入用户名/手机号/邮箱"}
+            placeholder={loginType === 'password' ?
+                        (isRegister ? "请设置用户名/手机号/邮箱" : "请输入用户名/手机号/邮箱") :
+                        "请输入手机号"}
             autoCapitalize="none"
-            keyboardType={getIdentifierType(identifier) === 'email' ? 'email-address' :
-                          getIdentifierType(identifier) === 'phone' ? 'phone-pad' : 'default'}
+            keyboardType={loginType === 'code' || getIdentifierType(identifier) === 'phone' ? 'phone-pad' :
+                          getIdentifierType(identifier) === 'email' ? 'email-address' : 'default'}
             size="small"
             inputStyle={styles.customInputField}
             labelStyle={styles.customInputLabel}
@@ -594,7 +657,7 @@ const LoginScreen = ({ navigation }) => {
                   <TextInput
                     value={code}
                     onChangeText={setCode}
-                    placeholder="请输入验证码"
+                    placeholder="请输入手机验证码"
                     keyboardType="number-pad"
                     style={styles.codeInputText}
                     placeholderTextColor="#999"
@@ -605,15 +668,15 @@ const LoginScreen = ({ navigation }) => {
                 activeOpacity={0.7}
                 onPress={() => {
                   console.log('验证码按钮点击');
-                  if (getIdentifierType(identifier) === 'phone' && countdown === 0) {
+                  if (/^1\d{10}$/.test(identifier) && countdown === 0) {
                     handleSendCode();
-                  } else if (getIdentifierType(identifier) !== 'phone') {
+                  } else if (!/^1\d{10}$/.test(identifier)) {
                     setError('请输入正确的手机号');
                   }
                 }}
                 style={[
                   styles.codeButtonTouchable,
-                  { opacity: countdown > 0 || getIdentifierType(identifier) !== 'phone' ? 0.5 : 1 }
+                  { opacity: countdown > 0 || !/^1\d{10}$/.test(identifier) ? 0.5 : 1 }
                 ]}
               >
                 <LinearGradient
@@ -680,22 +743,27 @@ const LoginScreen = ({ navigation }) => {
             </View>
           )}
 
-          <LinearGradient
-            colors={['#1E90FF', '#87CEFA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradientButton}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleSubmit}
+            disabled={isLoading}
+            style={styles.gradientButtonContainer}
           >
-            <Button
-              title={isRegister ? "注册" : "登录"}
-              onPress={handleSubmit}
-              loading={isLoading}
-              disabled={isLoading}
-              style={styles.submitButton}
-              size="medium"
-              fullWidth
-            />
-          </LinearGradient>
+            <LinearGradient
+              colors={['#1E90FF', '#87CEFA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientButton}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.gradientButtonText}>
+                  {isRegister ? "注册" : "登录"}
+                </Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
 
           {!isRegister && (
             <View style={styles.linkContainer}>
@@ -743,7 +811,7 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </View>
         </View>
       </ScrollView>
 
@@ -798,16 +866,21 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     marginTop: -1, // 确保与logo容器无缝衔接
+    height: 45, // 增加高度
+    paddingVertical: 2, // 增加内部空间
   },
   formHeader: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    position: 'relative',
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 2,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 1,
   },
   activeTabButton: {
     borderBottomWidth: 2,
@@ -832,10 +905,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#E53935',
   },
-  gradientButton: {
+  gradientButtonContainer: {
     marginTop: 5,
+    width: '100%',
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  gradientButton: {
+    height: 45,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  gradientButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   submitButton: {
     height: 45,
@@ -855,6 +943,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
+    position: 'relative',
   },
   loginTypeButton: {
     flex: 1,
@@ -864,9 +953,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'transparent',
     marginHorizontal: 4,
+    position: 'relative',
+    zIndex: 1,
   },
   activeLoginType: {
-    // borderBottomColor 在组件中动态设置
+    // 不再使用边框作为指示器
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    width: '46%', // 略小于50%，考虑到marginHorizontal
+    borderBottomWidth: 2,
+    height: 2, // 确保有高度
+    marginHorizontal: '2%', // 与按钮的marginHorizontal对应
   },
   // 验证码输入框样式
   codeInputContainer: {

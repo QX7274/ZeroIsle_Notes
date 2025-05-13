@@ -10,10 +10,7 @@ from mind_map.views.mind_map_views import (
     MindMapEdgeViewSet,
     MongoMindMapViewSet
 )
-from mind_map.views.template_views import (
-    MindMapTemplateViewSet,
-    MongoMindMapTemplateViewSet
-)
+from mind_map.views.template_views import MongoMindMapTemplateViewSet
 from mind_map.views.generator_views import (
     generate_from_text,
     generate_from_note,
@@ -28,7 +25,6 @@ router = DefaultRouter()
 router.register(r'maps', MindMapViewSet, basename='mind-map')
 router.register(r'nodes', MindMapNodeViewSet, basename='mind-map-node')
 router.register(r'edges', MindMapEdgeViewSet, basename='mind-map-edge')
-router.register(r'templates', MindMapTemplateViewSet, basename='mind-map-template')
 
 # 创建MongoDB路由器
 mongo_router = DefaultRouter()
@@ -48,10 +44,10 @@ generator_urls = [
 urlpatterns = [
     # 路由器URL
     path('', include(router.urls)),
-    
+
     # MongoDB路由器URL
     path('mongo/', include(mongo_router.urls)),
-    
+
     # 生成器URL
     path('generator/', include(generator_urls)),
 ]

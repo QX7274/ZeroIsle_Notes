@@ -8,7 +8,9 @@ from mongoengine import UUIDField, ReferenceField, ListField, DictField, URLFiel
 from django.utils import timezone
 import uuid
 from users.mongodb_models import User
-from notes.mongodb_models import Note
+# 避免循环导入
+# 在运行时导入Note
+Note = None
 
 class Reminder(Document):
     """
@@ -50,7 +52,7 @@ class Reminder(Document):
     tags = StringField(verbose_name='标签', default='')
     is_completed = BooleanField(default=False, verbose_name='是否完成')
     is_enabled = BooleanField(default=True, verbose_name='是否启用')
-    note = ReferenceField(Note, verbose_name='关联笔记')
+    note = ReferenceField('notes.mongodb_models.Note', verbose_name='关联笔记')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
     completed_at = DateTimeField(verbose_name='完成时间')

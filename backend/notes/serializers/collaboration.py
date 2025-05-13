@@ -3,7 +3,7 @@
 """
 
 from rest_framework import serializers
-from notes.mongodb_models import Note
+from notes.mongodb_models import Note, NoteCollaboration
 
 
 class NoteCollaborationSerializer(serializers.Serializer):

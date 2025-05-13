@@ -3,13 +3,13 @@
 """
 
 from rest_framework import serializers
-from voice_recognition.models import Speaker
+from voice_recognition.mongodb_models import Speaker
 from users.serializers import UserSerializer
 
 class SpeakerSerializer(serializers.ModelSerializer):
     """说话人序列化器"""
     user = UserSerializer(read_only=True)
-    
+
     class Meta:
         model = Speaker
         fields = [

@@ -4,9 +4,10 @@
 
 ## 技术栈
 
-- **Django 4.2.7**: Web框架，提供ORM、认证、路由等核心功能
+- **Django 4.2.7**: Web框架，提供认证、路由等核心功能
 - **Django REST Framework 3.14**: RESTful API框架，用于构建API接口
-- **MongoDB**: 主数据库，通过djongo适配器连接，存储笔记、用户数据等
+- **MongoDB**: 主数据库，通过MongoEngine ODM连接，存储笔记、用户数据等
+- **MongoDB Realm**: 本地数据库，提供离线存储和同步功能
 - **Neo4j**: 图数据库，用于构建和查询知识图谱
 - **Redis**: 缓存和消息队列，提高应用性能和可靠性
 - **Celery**: 异步任务处理，用于处理耗时操作和定时任务
@@ -858,10 +859,10 @@ Closes #123
 
 ### 依赖冲突
 
-如果遇到依赖冲突，特别是djongo和Django版本不兼容的问题，可以尝试：
+如果遇到依赖冲突，特别是MongoEngine和Django版本不兼容的问题，可以尝试：
 1. 使用虚拟环境隔离依赖
 2. 按照requirements.txt中的确切版本安装依赖
-3. 如果必要，可以降级Django版本以兼容djongo
+3. 如果必要，可以调整依赖版本以确保兼容性
 
 ## 性能优化
 

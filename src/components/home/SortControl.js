@@ -14,7 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../../services/storage/realmStorageService';
 import useOrientation from '../../utils/hooks/useOrientation';
 
 // 排序选项
@@ -51,7 +51,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
   // 保存排序偏好
   const saveSortPreference = async (sortId) => {
     try {
-      await AsyncStorage.setItem(SORT_PREFERENCE_KEY, sortId);
+      await realmStorageService.setItem(SORT_PREFERENCE_KEY, sortId);
     } catch (error) {
       console.error('保存排序偏好失败:', error);
     }

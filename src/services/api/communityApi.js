@@ -3,8 +3,8 @@
  * 提供社区相关的API调用，包括帖子、评论、点赞、关注等功能
  */
 import instance from './interceptor';
-import { API_ENDPOINTS } from '../../config/api';
-import { offlineStorageService } from '../offline/offlineStorage';
+import { API_ENDPOINTS } from '../../constants/api';
+import { offlineStorageService } from '../offline/offlineStorageService';
 
 /**
  * 获取社区帖子列表

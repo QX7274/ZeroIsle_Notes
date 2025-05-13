@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'notes',
     'reminder',
     'knowledge_graph',
+    'mind_map',
     'ai_assistant',
     'voice_recognition',
     'community',
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     'common',
     'notification',
     'groups',
+    'sync',
 ]
 
 # 中间件配置
@@ -91,29 +93,41 @@ ASGI_APPLICATION = 'backend.asgi.application'
 # 数据库配置
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    },
-    'mongodb': {
-        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine
+        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用MongoDB Realm
     }
 }
 
-# MongoDB连接配置
+# MongoDB Atlas/Realm连接配置
 import mongoengine
 
 # 连接到MongoDB
-mongoengine.connect(
-    db='zeroislenotes',
-    host=os.environ.get('MONGO_HOST', 'localhost'),
-    port=int(os.environ.get('MONGO_PORT', 27017)),
-    username=os.environ.get('MONGO_USER', ''),
-    password=os.environ.get('MONGO_PASSWORD', ''),
-    authentication_source='admin'
-)
+mongo_uri = os.environ.get('MONGO_URI', '')
+if mongo_uri:
+    # 使用MongoDB Atlas连接字符串
+    mongoengine.connect(
+        host=mongo_uri,
+        alias='default'
+    )
+else:
+    # 使用传统连接参数
+    mongoengine.connect(
+        db=os.environ.get('MONGO_DB', 'zeroislenotes'),
+        host=os.environ.get('MONGO_HOST', 'localhost'),
+        port=int(os.environ.get('MONGO_PORT', 27017)),
+        username=os.environ.get('MONGO_USER', ''),
+        password=os.environ.get('MONGO_PASSWORD', ''),
+        authentication_source='admin',
+        alias='default'
+    )
 
 # 用户认证配置
 AUTH_USER_MODEL = 'users.User'
+
+# 认证后端
+AUTHENTICATION_BACKENDS = [
+    'users.auth.MongoDBUserBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 # 密码哈希设置
 PASSWORD_HASHERS = [

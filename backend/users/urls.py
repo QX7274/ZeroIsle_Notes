@@ -24,6 +24,12 @@ from .views.mongo_auth import (
     MongoUserLoginView,
     MongoVerificationCodeView
 )
+# 导入MongoDB Realm视图
+from .views.realm_auth import (
+    RealmRegisterView,
+    RealmLoginView,
+    realm_sync_user
+)
 # 导入密码重置API视图
 from .views.password_reset_api import (
     send_email_verification,
@@ -86,6 +92,11 @@ auth_urls = [
     path('send-email-verification/', send_email_verification, name='send-email-verification'),
     path('send-sms-verification/', send_sms_verification, name='send-sms-verification'),
     path('reset-password/', reset_password, name='reset-password-api'),
+
+    # MongoDB Realm认证API
+    path('realm/register/', RealmRegisterView.as_view(), name='realm-register'),
+    path('realm/login/', RealmLoginView.as_view(), name='realm-login'),
+    path('realm/sync-user/', realm_sync_user, name='realm-sync-user'),
 ]
 
 urlpatterns = [

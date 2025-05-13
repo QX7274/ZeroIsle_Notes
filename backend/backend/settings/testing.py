@@ -10,10 +10,10 @@ DEBUG = True
 # 允许的主机
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
-# 使用测试MongoDB数据库
+# 使用测试MongoDB Realm数据库
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine
+        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用MongoDB Realm
     }
 }
 
@@ -22,8 +22,11 @@ import mongoengine
 mongoengine.disconnect_all()  # 断开所有连接
 mongoengine.connect(
     db='zeroislenotes_test',
-    host='localhost',
-    port=27017,
+    host=os.environ.get('MONGO_HOST', 'localhost'),
+    port=int(os.environ.get('MONGO_PORT', 27017)),
+    username=os.environ.get('MONGO_USER', ''),
+    password=os.environ.get('MONGO_PASSWORD', ''),
+    authentication_source='admin',
     alias='default'
 )
 

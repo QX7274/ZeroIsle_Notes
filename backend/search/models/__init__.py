@@ -3,7 +3,5 @@
 导入所有模型以便在其他地方直接从search.models导入
 """
 
-from .search_index import SearchIndex
-from .search_query import SearchQuery
-from .search_result import SearchResult
-from .search_suggestion import SearchSuggestion
+# 从MongoDB模型导入
+from ..mongodb_models import SearchIndex, SearchQuery, SearchResult, SearchSuggestion

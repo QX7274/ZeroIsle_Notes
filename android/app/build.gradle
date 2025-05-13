@@ -212,8 +212,7 @@ dependencies {
     // 权限库
     implementation project(':react-native-permissions')
 
-    // SQLite 存储
-    implementation project(':react-native-sqlite-storage')
+    // SQLite 已移除，因为项目已迁移到 MongoDB
 }
 
 // 解决依赖冲突

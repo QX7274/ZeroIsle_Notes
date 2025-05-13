@@ -2,12 +2,41 @@
  * 启动屏幕组件
  * 在应用程序加载时显示
  */
-import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Image, Animated } from 'react-native';
 
-const SplashScreen = ({ message = '应用加载中...' }) => {
+const SplashScreen = ({ message = '应用加载中...', onFinish }) => {
+  // 添加动画效果
+  const fadeAnim = new Animated.Value(0);
+
+  useEffect(() => {
+    // 启动淡入动画
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+
+    // 如果提供了onFinish回调，在3秒后调用
+    if (onFinish) {
+      const timer = setTimeout(() => {
+        // 启动淡出动画
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start(() => {
+          // 动画完成后调用onFinish
+          onFinish();
+        });
+      }, 2500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [fadeAnim, onFinish]);
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <View style={styles.logoContainer}>
         {<Image source={require('../../assets/images/logo.png')} style={styles.logo} /> }
       </View>
@@ -16,7 +45,7 @@ const SplashScreen = ({ message = '应用加载中...' }) => {
       <Text style={styles.subtitle}>从零开始构建您的知识岛屿</Text>
       <ActivityIndicator size="large" color="#4361EE" style={styles.loader} />
       <Text style={styles.message}>{message}</Text>
-    </View>
+    </Animated.View>
   );
 };
 

@@ -10,8 +10,7 @@ import { modernLightTheme, modernDarkTheme } from '../theme/modernTheme';
 // 确保这个导入不会导致循环依赖
 import { updateThemeColors } from '../utils/constants/colors';
 // 导入存储服务
-import { storageService } from '../services/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../services/storage/realmStorageService';
 
 // 定义主题存储键
 const THEME_KEYS = {
@@ -23,15 +22,9 @@ const THEME_KEYS = {
 // 主题存储函数
 const getTheme = async () => {
   try {
-    // 首先尝试使用storageService
-    if (storageService && typeof storageService.getItem === 'function') {
-      const theme = await storageService.getItem(THEME_KEYS.THEME);
-      return theme || 'system';
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      const theme = await AsyncStorage.getItem(THEME_KEYS.THEME);
-      return theme || 'system';
-    }
+    // 使用realmStorageService作为唯一存储服务
+    const theme = await realmStorageService.getItem(THEME_KEYS.THEME);
+    return theme || 'system';
   } catch (error) {
     console.error('获取主题失败:', error);
     return 'system';
@@ -40,13 +33,8 @@ const getTheme = async () => {
 
 const saveTheme = async (theme) => {
   try {
-    // 首先尝试使用storageService
-    if (storageService && typeof storageService.setItem === 'function') {
-      await storageService.setItem(THEME_KEYS.THEME, theme);
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      await AsyncStorage.setItem(THEME_KEYS.THEME, theme);
-    }
+    // 使用realmStorageService作为唯一存储服务
+    await realmStorageService.setItem(THEME_KEYS.THEME, theme);
     return true;
   } catch (error) {
     console.error('保存主题失败:', error);
@@ -56,15 +44,9 @@ const saveTheme = async (theme) => {
 
 const getThemeStyle = async () => {
   try {
-    // 首先尝试使用storageService
-    if (storageService && typeof storageService.getItem === 'function') {
-      const style = await storageService.getItem(THEME_KEYS.THEME_STYLE);
-      return style || 'classic';
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      const style = await AsyncStorage.getItem(THEME_KEYS.THEME_STYLE);
-      return style || 'classic';
-    }
+    // 使用realmStorageService作为唯一存储服务
+    const style = await realmStorageService.getItem(THEME_KEYS.THEME_STYLE);
+    return style || 'classic';
   } catch (error) {
     console.error('获取主题风格失败:', error);
     return 'classic';
@@ -73,13 +55,8 @@ const getThemeStyle = async () => {
 
 const saveThemeStyle = async (style) => {
   try {
-    // 首先尝试使用storageService
-    if (storageService && typeof storageService.setItem === 'function') {
-      await storageService.setItem(THEME_KEYS.THEME_STYLE, style);
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      await AsyncStorage.setItem(THEME_KEYS.THEME_STYLE, style);
-    }
+    // 使用realmStorageService作为唯一存储服务
+    await realmStorageService.setItem(THEME_KEYS.THEME_STYLE, style);
     return true;
   } catch (error) {
     console.error('保存主题风格失败:', error);
@@ -89,14 +66,8 @@ const saveThemeStyle = async (style) => {
 
 const getCustomTheme = async () => {
   try {
-    // 首先尝试使用storageService
-    let customThemeStr;
-    if (storageService && typeof storageService.getItem === 'function') {
-      customThemeStr = await storageService.getItem(THEME_KEYS.CUSTOM_THEME);
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      customThemeStr = await AsyncStorage.getItem(THEME_KEYS.CUSTOM_THEME);
-    }
+    // 使用realmStorageService作为唯一存储服务
+    const customThemeStr = await realmStorageService.getItem(THEME_KEYS.CUSTOM_THEME);
     return customThemeStr ? JSON.parse(customThemeStr) : { light: {}, dark: {} };
   } catch (error) {
     console.error('获取自定义主题失败:', error);
@@ -107,13 +78,8 @@ const getCustomTheme = async () => {
 const saveCustomTheme = async (customTheme) => {
   try {
     const customThemeStr = JSON.stringify(customTheme);
-    // 首先尝试使用storageService
-    if (storageService && typeof storageService.setItem === 'function') {
-      await storageService.setItem(THEME_KEYS.CUSTOM_THEME, customThemeStr);
-    } else {
-      // 备选方案：直接使用AsyncStorage
-      await AsyncStorage.setItem(THEME_KEYS.CUSTOM_THEME, customThemeStr);
-    }
+    // 使用realmStorageService作为唯一存储服务
+    await realmStorageService.setItem(THEME_KEYS.CUSTOM_THEME, customThemeStr);
     return true;
   } catch (error) {
     console.error('保存自定义主题失败:', error);

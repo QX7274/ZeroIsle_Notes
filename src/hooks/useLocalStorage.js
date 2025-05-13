@@ -34,15 +34,15 @@ function useLocalStorage(key, initialValue) {
     fetchStoredValue();
   }, [key]);
 
-  // 返回一个包装版的setState函数，将新值保存到AsyncStorage
+  // 返回一个包装版的setState函数，将新值保存到存储服务
   const setValue = async (value) => {
     try {
       // 允许值是一个函数，就像useState的setter一样
       const valueToStore = value instanceof Function ? value(storedValue) : value;
-      
+
       // 保存到状态
       setStoredValue(valueToStore);
-      
+
       // 保存到存储
       await storageService.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {

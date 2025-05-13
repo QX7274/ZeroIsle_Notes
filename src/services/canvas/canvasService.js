@@ -1,6 +1,5 @@
 import { analyticsService } from '../analytics/analyticsService';
-import infiniteCanvasStorage from '../offline/infiniteCanvasStorage';
-import { offlineStorageService } from '../offline/offlineStorage';
+import { infiniteCanvasStorage, offlineStorageService } from '../offline';
 
 class CanvasService {
   constructor() {

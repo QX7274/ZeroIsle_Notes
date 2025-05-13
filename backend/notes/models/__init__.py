@@ -1,6 +1,5 @@
-"""模型初始化文件"""
-from .note import Note
-from .category import Category
-from .tag import Tag
-
-__all__ = ['Note', 'Category', 'Tag']
+"""
+模型初始化文件
+注意：SQLite模型已被MongoDB Realm模型替代
+请使用notes.mongodb_models中的模型
+"""

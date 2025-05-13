@@ -40,6 +40,18 @@ class User(Document):
     # 用户偏好设置
     preferences = DictField(verbose_name='偏好设置')
 
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_api_key = StringField(max_length=100, sparse=True, verbose_name='Realm API Key')
+    realm_app_id = StringField(max_length=100, sparse=True, verbose_name='Realm App ID')
+    realm_sync_enabled = BooleanField(default=True, verbose_name='是否启用Realm同步')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
+
+    # 统计字段
+    note_count = IntField(default=0, verbose_name='笔记数量')
+    canvas_count = IntField(default=0, verbose_name='画布数量')
+    login_count = IntField(default=0, verbose_name='登录次数')
+
     meta = {
         'collection': 'users',
         'indexes': [
@@ -48,6 +60,7 @@ class User(Document):
             {'fields': ['phone'], 'sparse': True},
             {'fields': ['wechat_openid'], 'sparse': True},
             {'fields': ['qq_openid'], 'sparse': True},
+            {'fields': ['realm_id'], 'sparse': True},
             {'fields': ['is_active']},
             {'fields': ['date_joined']},
         ],

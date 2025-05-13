@@ -3,8 +3,8 @@
  * 提供手写识别相关的API调用，包括手写文字识别、手写形状识别等功能
  */
 import instance from './interceptor';
-import { API_ENDPOINTS } from '../../config/api';
-import { offlineStorageService } from '../offline/offlineStorage';
+import { API_ENDPOINTS } from '../../constants/api';
+import { offlineStorageService } from '../offline/offlineStorageService';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 
 /**
@@ -19,7 +19,7 @@ export const recognizeHandwriting = async (data) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       return {
         success: false,
@@ -27,10 +27,10 @@ export const recognizeHandwriting = async (data) => {
         error: new Error('Offline mode')
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(API_ENDPOINTS.HANDWRITING.RECOGNIZE, data);
-    
+
     return {
       success: true,
       text: response.data.text,
@@ -55,7 +55,7 @@ export const recognizeShape = async (data) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       return {
         success: false,
@@ -63,10 +63,10 @@ export const recognizeShape = async (data) => {
         error: new Error('Offline mode')
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(API_ENDPOINTS.HANDWRITING.RECOGNIZE_SHAPE, data);
-    
+
     return {
       success: true,
       shapes: response.data.shapes,
@@ -93,7 +93,7 @@ export const recognizeTextFromImage = async (data) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       return {
         success: false,
@@ -101,10 +101,10 @@ export const recognizeTextFromImage = async (data) => {
         error: new Error('Offline mode')
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(API_ENDPOINTS.HANDWRITING.OCR, data);
-    
+
     return {
       success: true,
       text: response.data.text,
@@ -132,7 +132,7 @@ export const saveHandwritingImage = async (data) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       await offlineStorageService.addPendingOperation({
@@ -140,17 +140,17 @@ export const saveHandwritingImage = async (data) => {
         data,
         timestamp: new Date().toISOString()
       });
-      
+
       return {
         success: true,
         message: '图像已保存到离线队列',
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(API_ENDPOINTS.HANDWRITING.SAVE_IMAGE, data);
-    
+
     return {
       success: true,
       data: response.data
@@ -173,24 +173,24 @@ export const getHandwritingHistory = async (params = {}) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：从缓存获取
       const cachedHistory = await offlineStorageService.getCachedData('handwriting_history') || [];
-      
+
       return {
         success: true,
         data: cachedHistory,
         fromCache: true
       };
     }
-    
+
     // 在线模式：从服务器获取
     const response = await instance.get(API_ENDPOINTS.HANDWRITING.HISTORY, { params });
-    
+
     // 缓存数据
     await offlineStorageService.cacheData('handwriting_history', response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -212,11 +212,11 @@ export const getSupportedLanguages = async () => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：从缓存获取
       const cachedLanguages = await offlineStorageService.getCachedData('handwriting_languages') || [];
-      
+
       if (cachedLanguages.length > 0) {
         return {
           success: true,
@@ -235,7 +235,7 @@ export const getSupportedLanguages = async () => {
           { code: 'es-ES', name: '西班牙语' },
           { code: 'ru-RU', name: '俄语' }
         ];
-        
+
         return {
           success: true,
           data: defaultLanguages,
@@ -243,13 +243,13 @@ export const getSupportedLanguages = async () => {
         };
       }
     }
-    
+
     // 在线模式：从服务器获取
     const response = await instance.get(API_ENDPOINTS.HANDWRITING.LANGUAGES);
-    
+
     // 缓存数据
     await offlineStorageService.cacheData('handwriting_languages', response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -266,7 +266,7 @@ export const getSupportedLanguages = async () => {
       { code: 'es-ES', name: '西班牙语' },
       { code: 'ru-RU', name: '俄语' }
     ];
-    
+
     return {
       success: true,
       data: defaultLanguages,
@@ -283,11 +283,11 @@ export const getSupportedModels = async () => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：从缓存获取
       const cachedModels = await offlineStorageService.getCachedData('handwriting_models') || [];
-      
+
       if (cachedModels.length > 0) {
         return {
           success: true,
@@ -302,7 +302,7 @@ export const getSupportedModels = async () => {
           { id: 'english', name: '英文优化', description: '针对英文手写进行优化的模型' },
           { id: 'math', name: '数学公式', description: '专门用于识别数学公式的模型' }
         ];
-        
+
         return {
           success: true,
           data: defaultModels,
@@ -310,13 +310,13 @@ export const getSupportedModels = async () => {
         };
       }
     }
-    
+
     // 在线模式：从服务器获取
     const response = await instance.get(API_ENDPOINTS.HANDWRITING.MODELS);
-    
+
     // 缓存数据
     await offlineStorageService.cacheData('handwriting_models', response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -329,7 +329,7 @@ export const getSupportedModels = async () => {
       { id: 'english', name: '英文优化', description: '针对英文手写进行优化的模型' },
       { id: 'math', name: '数学公式', description: '专门用于识别数学公式的模型' }
     ];
-    
+
     return {
       success: true,
       data: defaultModels,

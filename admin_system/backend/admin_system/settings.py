@@ -66,22 +66,51 @@ WSGI_APPLICATION = 'admin_system.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine
     }
 }
 
-# MongoDB connection
-MONGODB_DATABASES = {
-    'default': {
-        'name': 'admin_system',
-        'host': 'localhost',
-        'port': 27017,
-        'username': '',
-        'password': '',
-        'authentication_source': 'admin',
-    },
-}
+# MongoDB连接配置
+import mongoengine
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+# MongoDB连接参数
+MONGO_DB = os.environ.get('MONGO_DB', 'admin_system')
+MONGO_HOST = os.environ.get('MONGO_HOST', 'localhost')
+MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
+MONGO_USER = os.environ.get('MONGO_USER', '')
+MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD', '')
+
+# 连接到MongoDB
+mongo_uri = os.environ.get('MONGO_URI', '')
+if mongo_uri:
+    # 使用MongoDB Atlas连接字符串
+    mongoengine.connect(
+        host=mongo_uri,
+        alias='default'
+    )
+else:
+    # 使用传统连接参数
+    if MONGO_USER and MONGO_PASSWORD:
+        mongoengine.connect(
+            db=MONGO_DB,
+            host=MONGO_HOST,
+            port=MONGO_PORT,
+            username=MONGO_USER,
+            password=MONGO_PASSWORD,
+            authentication_source='admin',
+            alias='default'
+        )
+    else:
+        mongoengine.connect(
+            db=MONGO_DB,
+            host=MONGO_HOST,
+            port=MONGO_PORT,
+            alias='default'
+        )
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

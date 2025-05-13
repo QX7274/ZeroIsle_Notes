@@ -7,9 +7,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q
+from mongoengine.queryset.visitor import Q
 
-from canvas.models import Canvas
+from canvas.mongodb_models import Canvas, CanvasElement, CanvasConnection
 from canvas.serializers import (
     CanvasSerializer,
     CanvasDetailSerializer,
@@ -65,13 +65,18 @@ class CanvasViewSet(viewsets.ModelViewSet):
         """
         canvas = self.get_object()
         canvas_data = CanvasSerializer(canvas).data
-        elements = CanvasElementSerializer(canvas.elements.all(), many=True).data
-        connections = CanvasConnectionSerializer(canvas.connections.all(), many=True).data
+
+        # 获取画布的元素和连接
+        elements = CanvasElement.objects.filter(canvas_id=canvas.id, is_deleted=False)
+        connections = CanvasConnection.objects.filter(canvas_id=canvas.id, is_deleted=False)
+
+        elements_data = CanvasElementSerializer(elements, many=True).data
+        connections_data = CanvasConnectionSerializer(connections, many=True).data
 
         return Response({
             'canvas': canvas_data,
-            'elements': elements,
-            'connections': connections
+            'elements': elements_data,
+            'connections': connections_data
         })
 
     @action(detail=False, methods=['get'])
@@ -149,7 +154,6 @@ class CanvasViewSet(viewsets.ModelViewSet):
         支持的格式: json
         """
         import json
-        from django.db import transaction
 
         try:
             file = request.FILES.get('file')
@@ -178,36 +182,37 @@ class CanvasViewSet(viewsets.ModelViewSet):
                     'error': '画布数据结构不完整'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 开始事务
-            with transaction.atomic():
-                # 创建画布
-                canvas_data = data['canvas']
-                canvas_data.pop('id', None)  # 移除ID，使用新ID
-                canvas_data['user'] = request.user
+            # 创建画布
+            canvas_data = data['canvas']
+            canvas_data.pop('id', None)  # 移除ID，使用新ID
+            canvas_data['user'] = request.user
 
-                canvas = Canvas.objects.create(**canvas_data)
+            canvas = Canvas(**canvas_data)
+            canvas.save()
 
-                # 创建元素
-                elements_map = {}  # 旧ID到新ID的映射
-                for element_data in data['elements']:
-                    old_id = element_data.pop('id', None)
-                    element_data['canvas'] = canvas
-                    element = canvas.elements.create(**element_data)
-                    if old_id:
-                        elements_map[old_id] = str(element.id)
+            # 创建元素
+            elements_map = {}  # 旧ID到新ID的映射
+            for element_data in data['elements']:
+                old_id = element_data.pop('id', None)
+                element_data['canvas_id'] = canvas.id
+                element = CanvasElement(**element_data)
+                element.save()
+                if old_id:
+                    elements_map[old_id] = str(element.id)
 
-                # 创建连接
-                for connection_data in data['connections']:
-                    connection_data.pop('id', None)
-                    connection_data['canvas'] = canvas
+            # 创建连接
+            for connection_data in data['connections']:
+                connection_data.pop('id', None)
+                connection_data['canvas_id'] = canvas.id
 
-                    # 更新源和目标ID
-                    if 'source' in connection_data and connection_data['source'] in elements_map:
-                        connection_data['source'] = elements_map[connection_data['source']]
-                    if 'target' in connection_data and connection_data['target'] in elements_map:
-                        connection_data['target'] = elements_map[connection_data['target']]
+                # 更新源和目标ID
+                if 'source_id' in connection_data and connection_data['source_id'] in elements_map:
+                    connection_data['source_id'] = elements_map[connection_data['source_id']]
+                if 'target_id' in connection_data and connection_data['target_id'] in elements_map:
+                    connection_data['target_id'] = elements_map[connection_data['target_id']]
 
-                    canvas.connections.create(**connection_data)
+                connection = CanvasConnection(**connection_data)
+                connection.save()
 
             return Response({
                 'message': '画布导入成功',

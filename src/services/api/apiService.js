@@ -3,7 +3,7 @@
  * 处理API请求和错误
  */
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../storage/realmStorageService';
 import { API_URL, API_VERSION, API_TIMEOUT, STORAGE_KEYS } from '../../config';
 import { handleUnauthorizedError } from '../auth/authUtils';
 
@@ -23,9 +23,9 @@ console.log('API服务baseURL:', `${API_URL}/api/${API_VERSION}`);
 // 请求拦截器
 api.interceptors.request.use(
   async (config) => {
-    // 从AsyncStorage获取token
-    const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
-                  await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+    // 从存储服务获取token
+    const token = await realmStorageService.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+                  await realmStorageService.getItem(STORAGE_KEYS.TOKEN);
 
     // 如果有token，添加到请求头
     if (token) {

@@ -8,7 +8,7 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { persistReducer } from 'redux-persist';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import realmStorage from '../utils/realmStorage';
 
 // 导入reducers
 import authReducer from './slices/authSlice';
@@ -38,7 +38,7 @@ const configureAppStore = () => {
     // 配置Redux Persist
     const persistConfig = {
       key: 'root',
-      storage: AsyncStorage,
+      storage: realmStorage,
       // 只持久化这些reducer
       whitelist: ['auth', 'settings', 'user'],
       // 调试模式

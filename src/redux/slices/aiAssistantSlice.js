@@ -3,7 +3,8 @@
  */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { aiAssistantApi } from '../../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// 使用MongoDB Realm替代AsyncStorage
+import { realmStorageService } from '../../services/storage/realmStorageService';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -180,31 +181,31 @@ export const loadSettings = createAsyncThunk(
       const settings = {};
 
       // 加载AI引擎
-      const savedEngine = await AsyncStorage.getItem(STORAGE_KEYS.AI_ENGINE);
+      const savedEngine = await realmStorageService.getItem(STORAGE_KEYS.AI_ENGINE);
       if (savedEngine) {
         settings.aiEngine = savedEngine;
       }
 
       // 加载AI模型
-      const savedModel = await AsyncStorage.getItem(STORAGE_KEYS.AI_MODEL);
+      const savedModel = await realmStorageService.getItem(STORAGE_KEYS.AI_MODEL);
       if (savedModel) {
         settings.aiModel = savedModel;
       }
 
       // 加载流式响应设置
-      const savedStreamEnabled = await AsyncStorage.getItem(STORAGE_KEYS.STREAM_RESPONSE);
+      const savedStreamEnabled = await realmStorageService.getItem(STORAGE_KEYS.STREAM_RESPONSE);
       if (savedStreamEnabled !== null) {
         settings.streamEnabled = savedStreamEnabled === 'true';
       }
 
       // 加载语音设置
-      const savedVoiceEnabled = await AsyncStorage.getItem(STORAGE_KEYS.VOICE_ENABLED);
+      const savedVoiceEnabled = await realmStorageService.getItem(STORAGE_KEYS.VOICE_ENABLED);
       if (savedVoiceEnabled !== null) {
         settings.voiceEnabled = savedVoiceEnabled === 'true';
       }
 
       // 加载Markdown设置
-      const savedMarkdownEnabled = await AsyncStorage.getItem(STORAGE_KEYS.MARKDOWN_ENABLED);
+      const savedMarkdownEnabled = await realmStorageService.getItem(STORAGE_KEYS.MARKDOWN_ENABLED);
       if (savedMarkdownEnabled !== null) {
         settings.markdownEnabled = savedMarkdownEnabled === 'true';
       }
@@ -227,27 +228,27 @@ export const saveSettings = createAsyncThunk(
 
       // 保存AI引擎
       if (settings.aiEngine !== undefined) {
-        await AsyncStorage.setItem(STORAGE_KEYS.AI_ENGINE, newSettings.aiEngine);
+        await realmStorageService.setItem(STORAGE_KEYS.AI_ENGINE, newSettings.aiEngine);
       }
 
       // 保存AI模型
       if (settings.aiModel !== undefined) {
-        await AsyncStorage.setItem(STORAGE_KEYS.AI_MODEL, newSettings.aiModel);
+        await realmStorageService.setItem(STORAGE_KEYS.AI_MODEL, newSettings.aiModel);
       }
 
       // 保存流式响应设置
       if (settings.streamEnabled !== undefined) {
-        await AsyncStorage.setItem(STORAGE_KEYS.STREAM_RESPONSE, String(newSettings.streamEnabled));
+        await realmStorageService.setItem(STORAGE_KEYS.STREAM_RESPONSE, String(newSettings.streamEnabled));
       }
 
       // 保存语音设置
       if (settings.voiceEnabled !== undefined) {
-        await AsyncStorage.setItem(STORAGE_KEYS.VOICE_ENABLED, String(newSettings.voiceEnabled));
+        await realmStorageService.setItem(STORAGE_KEYS.VOICE_ENABLED, String(newSettings.voiceEnabled));
       }
 
       // 保存Markdown设置
       if (settings.markdownEnabled !== undefined) {
-        await AsyncStorage.setItem(STORAGE_KEYS.MARKDOWN_ENABLED, String(newSettings.markdownEnabled));
+        await realmStorageService.setItem(STORAGE_KEYS.MARKDOWN_ENABLED, String(newSettings.markdownEnabled));
       }
 
       return settings;
@@ -263,7 +264,7 @@ export const loadChatHistory = createAsyncThunk(
   'aiAssistant/loadChatHistory',
   async (sessionId, { rejectWithValue }) => {
     try {
-      const savedHistory = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const savedHistory = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
 
       if (savedHistory) {
         const historyObj = JSON.parse(savedHistory);
@@ -287,14 +288,14 @@ export const loadChatHistory = createAsyncThunk(
             const newHistory = {};
             const newSessionId = sessionId || Date.now().toString();
             newHistory[newSessionId] = [welcomeMessage];
-            await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
+            await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
             return [welcomeMessage];
           }
 
           // 创建新会话
           const newSessionId = sessionId || Date.now().toString();
           historyObj[newSessionId] = [welcomeMessage];
-          await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+          await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
           return [welcomeMessage];
         }
       } else {
@@ -311,7 +312,7 @@ export const loadChatHistory = createAsyncThunk(
         const newSessionId = sessionId || Date.now().toString();
         newHistory[newSessionId] = [welcomeMessage];
 
-        await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
+        await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
         return [welcomeMessage];
       }
     } catch (error) {
@@ -329,7 +330,7 @@ export const saveChatHistory = createAsyncThunk(
       const currentSessionId = sessionId || Date.now().toString();
 
       // 获取现有历史记录
-      const savedHistory = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const savedHistory = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
       let historyObj = {};
 
       if (savedHistory) {
@@ -349,7 +350,7 @@ export const saveChatHistory = createAsyncThunk(
       historyObj[currentSessionId] = messages;
 
       // 保存更新后的历史记录
-      await AsyncStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+      await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
       return { sessionId: currentSessionId, messages };
     } catch (error) {
       return rejectWithValue(error.message || '保存聊天历史失败');

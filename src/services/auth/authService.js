@@ -1,0 +1,284 @@
+/**
+ * 认证服务
+ * 使用MongoDB Realm进行用户认证
+ */
+
+import { realmService } from '../database/realmService';
+import authStorage from './authStorage';
+import { STORAGE_KEYS } from '../../utils/constants/config';
+import { logService } from '../utils/logService';
+
+class AuthService {
+  constructor() {
+    this.initialized = false;
+    this.initializationPromise = null;
+    this.currentUser = null;
+  }
+
+  /**
+   * 初始化认证服务
+   * @returns {Promise<void>}
+   */
+  async initialize() {
+    if (this.initialized) return Promise.resolve();
+
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = new Promise(async (resolve, reject) => {
+      try {
+        // 确保realmService已初始化
+        await realmService.initialize();
+
+        // 检查是否有保存的用户信息
+        const user = await authStorage.getUser();
+        if (user) {
+          this.currentUser = user;
+        }
+
+        this.initialized = true;
+        logService.info('认证服务初始化成功');
+        resolve();
+      } catch (error) {
+        logService.error('认证服务初始化失败', error);
+        reject(error);
+      }
+    });
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * 使用邮箱和密码注册
+   * @param {string} email 邮箱
+   * @param {string} password 密码
+   * @param {object} userData 用户数据
+   * @returns {Promise<object>} 用户对象
+   */
+  async registerWithEmail(email, password, userData = {}) {
+    try {
+      await this.initialize();
+
+      // 使用Realm注册
+      const app = realmService.app;
+      
+      // 创建邮箱密码用户
+      await app.emailPasswordAuth.registerUser({ email, password });
+      
+      // 登录
+      const credentials = Realm.Credentials.emailPassword(email, password);
+      const user = await app.logIn(credentials);
+      
+      // 保存用户信息
+      const userProfile = {
+        id: user.id,
+        email,
+        ...userData,
+        createdAt: new Date().toISOString(),
+      };
+      
+      // 保存到本地存储
+      await this.saveUserData(user, userProfile);
+      
+      return userProfile;
+    } catch (error) {
+      logService.error('邮箱注册失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 使用邮箱和密码登录
+   * @param {string} email 邮箱
+   * @param {string} password 密码
+   * @returns {Promise<object>} 用户对象
+   */
+  async loginWithEmail(email, password) {
+    try {
+      await this.initialize();
+
+      // 使用realmService登录
+      const user = await realmService.login(email, password);
+      
+      // 获取用户信息
+      const userProfile = await this.fetchUserProfile(user);
+      
+      // 保存到本地存储
+      await this.saveUserData(user, userProfile);
+      
+      return userProfile;
+    } catch (error) {
+      logService.error('邮箱登录失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 匿名登录
+   * @returns {Promise<object>} 用户对象
+   */
+  async loginAnonymously() {
+    try {
+      await this.initialize();
+
+      // 使用realmService匿名登录
+      const user = await realmService.loginAnonymously();
+      
+      // 创建匿名用户信息
+      const userProfile = {
+        id: user.id,
+        isAnonymous: true,
+        createdAt: new Date().toISOString(),
+      };
+      
+      // 保存到本地存储
+      await this.saveUserData(user, userProfile);
+      
+      return userProfile;
+    } catch (error) {
+      logService.error('匿名登录失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 登出
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async logout() {
+    try {
+      await this.initialize();
+
+      // 使用realmService登出
+      await realmService.logout();
+      
+      // 清除本地存储
+      await authStorage.clearAuth();
+      
+      // 重置当前用户
+      this.currentUser = null;
+      
+      return true;
+    } catch (error) {
+      logService.error('登出失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取当前用户
+   * @returns {Promise<object|null>} 用户对象
+   */
+  async getCurrentUser() {
+    try {
+      await this.initialize();
+
+      // 如果已有当前用户，直接返回
+      if (this.currentUser) {
+        return this.currentUser;
+      }
+
+      // 从本地存储获取
+      const user = await authStorage.getUser();
+      if (user) {
+        this.currentUser = user;
+        return user;
+      }
+
+      return null;
+    } catch (error) {
+      logService.error('获取当前用户失败', error);
+      return null;
+    }
+  }
+
+  /**
+   * 检查是否已登录
+   * @returns {Promise<boolean>} 是否已登录
+   */
+  async isLoggedIn() {
+    try {
+      await this.initialize();
+
+      // 检查realmService是否已登录
+      const isLoggedIn = realmService.isUserLoggedIn();
+      
+      // 如果realmService已登录，但本地没有用户信息，尝试获取
+      if (isLoggedIn && !this.currentUser) {
+        const user = await authStorage.getUser();
+        if (user) {
+          this.currentUser = user;
+        }
+      }
+      
+      return isLoggedIn && !!this.currentUser;
+    } catch (error) {
+      logService.error('检查登录状态失败', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取用户信息
+   * @param {object} user Realm用户对象
+   * @returns {Promise<object>} 用户信息
+   * @private
+   */
+  async fetchUserProfile(user) {
+    try {
+      // 这里可以从MongoDB获取用户信息
+      // 或者从用户自定义数据获取
+      const customData = user.customData || {};
+      
+      return {
+        id: user.id,
+        email: user.profile.email,
+        ...customData,
+      };
+    } catch (error) {
+      logService.error('获取用户信息失败', error);
+      
+      // 返回基本信息
+      return {
+        id: user.id,
+        email: user.profile?.email,
+      };
+    }
+  }
+
+  /**
+   * 保存用户数据
+   * @param {object} user Realm用户对象
+   * @param {object} userProfile 用户信息
+   * @returns {Promise<void>}
+   * @private
+   */
+  async saveUserData(user, userProfile) {
+    try {
+      // 保存用户信息
+      await authStorage.saveUser(userProfile);
+      
+      // 保存当前用户
+      this.currentUser = userProfile;
+      
+      // 保存令牌（如果有）
+      if (user.accessToken) {
+        await authStorage.saveToken(user.accessToken);
+      }
+    } catch (error) {
+      logService.error('保存用户数据失败', error);
+      throw error;
+    }
+  }
+}
+
+// 创建单例实例
+const authService = new AuthService();
+
+// 初始化
+authService.initialize().catch(error => {
+  console.error('初始化认证服务失败', error);
+});
+
+export default authService;

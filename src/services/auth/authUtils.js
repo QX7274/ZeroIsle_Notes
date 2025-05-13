@@ -2,11 +2,11 @@
  * 认证工具函数
  * 处理认证相关的通用功能
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { STORAGE_KEYS } from '../../config';
+import { STORAGE_KEYS } from '../../utils/constants/config';
 import { navigationRef } from '../../navigation/navigationRef';
 import { CommonActions } from '@react-navigation/native';
+import authStorage from './authStorage';
 
 /**
  * 处理未授权错误
@@ -17,7 +17,7 @@ export const handleUnauthorizedError = async () => {
 
   try {
     // 清除所有可能的token和用户信息存储位置
-    await AsyncStorage.multiRemove([
+    await authStorage.multiRemove([
       STORAGE_KEYS.AUTH_TOKEN,
       STORAGE_KEYS.USER_INFO,
       STORAGE_KEYS.TOKEN,
@@ -30,7 +30,7 @@ export const handleUnauthorizedError = async () => {
     ]);
 
     // 设置一个标志，表示认证已过期
-    await AsyncStorage.setItem('auth_expired', 'true');
+    await authStorage.setItem('auth_expired', 'true');
 
     // 显示提示
     Alert.alert('登录已过期', '请重新登录');
@@ -67,11 +67,11 @@ export const handleUnauthorizedError = async () => {
  */
 export const saveAuthInfo = async (token, user) => {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
+    await authStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+    await authStorage.setItem(STORAGE_KEYS.USER_INFO, user);
     // 兼容旧版存储键
-    await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    await authStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    await authStorage.setItem(STORAGE_KEYS.USER, user);
     return true;
   } catch (error) {
     console.error('保存认证信息失败:', error);
@@ -86,19 +86,17 @@ export const saveAuthInfo = async (token, user) => {
 export const getAuthInfo = async () => {
   try {
     // 尝试从新版存储键获取
-    let token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    let userStr = await AsyncStorage.getItem(STORAGE_KEYS.USER_INFO);
+    let token = await authStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    let user = await authStorage.getItem(STORAGE_KEYS.USER_INFO);
 
     // 如果新版存储键不存在，尝试从旧版存储键获取
     if (!token) {
-      token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+      token = await authStorage.getItem(STORAGE_KEYS.TOKEN);
     }
 
-    if (!userStr) {
-      userStr = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+    if (!user) {
+      user = await authStorage.getItem(STORAGE_KEYS.USER);
     }
-
-    const user = userStr ? JSON.parse(userStr) : null;
 
     return { token, user };
   } catch (error) {
@@ -112,7 +110,7 @@ export const getAuthInfo = async () => {
  */
 export const clearAuthInfo = async () => {
   try {
-    await AsyncStorage.multiRemove([
+    await authStorage.multiRemove([
       STORAGE_KEYS.AUTH_TOKEN,
       STORAGE_KEYS.USER_INFO,
       STORAGE_KEYS.TOKEN,

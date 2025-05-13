@@ -1,21 +1,23 @@
 /**
  * 数据库服务索引
  * 导出所有数据库相关的服务
+ * 使用MongoDB Realm作为本地存储
  */
-import sqliteService, { TABLES } from './sqliteService';
-import syncService from './syncService';
-import dataService from './dataService';
+import { realmService } from './realmService';
+import { databaseInitService } from './databaseInitService';
+import { dataService } from './dataService';
+import { mongoDBService } from './mongoDBAdapter';
 
 export {
-  sqliteService,
-  syncService,
+  realmService,
+  databaseInitService,
   dataService,
-  TABLES
+  mongoDBService
 };
 
 export default {
-  sqliteService,
-  syncService,
+  realmService,
+  databaseInitService,
   dataService,
-  TABLES
+  mongoDBService
 };

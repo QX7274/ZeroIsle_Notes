@@ -103,6 +103,13 @@ class Note(Document):
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_partition = StringField(max_length=100, sparse=True, verbose_name='Realm Partition')
+    realm_sync_status = StringField(max_length=20, choices=('pending', 'synced', 'error'), default='pending', verbose_name='Realm同步状态')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
+    realm_error_message = StringField(verbose_name='同步错误信息')
+
     meta = {
         'collection': 'notes',
         'indexes': [
@@ -112,7 +119,10 @@ class Note(Document):
             {'fields': ['is_favorite']},
             {'fields': ['is_public']},
             {'fields': ['created_at']},
-            {'fields': ['updated_at']}
+            {'fields': ['updated_at']},
+            {'fields': ['realm_id'], 'sparse': True},
+            {'fields': ['realm_partition'], 'sparse': True},
+            {'fields': ['realm_sync_status']}
         ],
         'ordering': ['-updated_at']
     }
@@ -169,52 +179,7 @@ class NoteVersion(Document):
     def __str__(self):
         return f"{self.note.title} - 版本 {self.version_number}"
 
-class NoteAttachment(Document):
-    """
-    笔记附件文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='附件ID')
-    note = ReferenceField(Note, required=True, verbose_name='笔记')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    file_name = StringField(max_length=255, required=True, verbose_name='文件名')
-    file_path = StringField(required=True, verbose_name='文件路径')
-    file_type = StringField(max_length=100, verbose_name='文件类型')
-    file_size = IntField(verbose_name='文件大小(字节)')
-    thumbnail_path = StringField(verbose_name='缩略图路径')
-    is_deleted = BooleanField(default=False, verbose_name='是否删除')
-    deleted_at = DateTimeField(verbose_name='删除时间')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'note_attachments',
-        'indexes': [
-            {'fields': ['note']},
-            {'fields': ['user']},
-            {'fields': ['file_type']},
-            {'fields': ['is_deleted']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return self.file_name
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def delete(self):
-        """软删除"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save()
-
-    def hard_delete(self):
-        """硬删除"""
-        super().delete()
+# 注意：NoteAttachment类在下面已经重新定义，这里删除重复定义
 
 class NoteShare(Document):
     """
@@ -785,107 +750,9 @@ class NoteAttachment(Document):
         """硬删除"""
         super().delete()
 
-class NoteVersion(Document):
-    """
-    笔记版本文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='版本ID')
-    note = ReferenceField('Note', required=True, verbose_name='笔记')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    title = StringField(max_length=255, required=True, verbose_name='标题')
-    content = StringField(required=True, verbose_name='内容')
-    version_number = IntField(default=1, verbose_name='版本号')
-    description = StringField(max_length=500, verbose_name='版本描述')
-    is_current = BooleanField(default=False, verbose_name='是否当前版本')
-    is_deleted = BooleanField(default=False, verbose_name='是否删除')
-    deleted_at = DateTimeField(verbose_name='删除时间')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+# 注意：NoteVersion类在上面已经定义，这里删除重复定义
 
-    meta = {
-        'collection': 'note_versions',
-        'indexes': [
-            {'fields': ['note']},
-            {'fields': ['user']},
-            {'fields': ['version_number']},
-            {'fields': ['is_current']},
-            {'fields': ['is_deleted']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-version_number']
-    }
-
-    def __str__(self):
-        return f"{self.note.title} - v{self.version_number}"
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def delete(self):
-        """软删除"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save()
-
-    def hard_delete(self):
-        """硬删除"""
-        super().delete()
-
-class NoteShare(Document):
-    """
-    笔记分享文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='分享ID')
-    note = ReferenceField('Note', required=True, verbose_name='笔记')
-    user = ReferenceField(User, required=True, verbose_name='分享用户')
-    share_type = StringField(max_length=20, choices=('link', 'email', 'user'), required=True, verbose_name='分享类型')
-    share_to = StringField(max_length=255, verbose_name='分享对象')
-    share_code = StringField(max_length=20, verbose_name='分享码')
-    expires_at = DateTimeField(verbose_name='过期时间')
-    is_password_protected = BooleanField(default=False, verbose_name='是否密码保护')
-    password = StringField(max_length=100, verbose_name='密码')
-    is_active = BooleanField(default=True, verbose_name='是否激活')
-    view_count = IntField(default=0, verbose_name='查看次数')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'note_shares',
-        'indexes': [
-            {'fields': ['note']},
-            {'fields': ['user']},
-            {'fields': ['share_code']},
-            {'fields': ['is_active']},
-            {'fields': ['expires_at']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return f"{self.note.title} - {self.share_type}"
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def is_expired(self):
-        """检查是否过期"""
-        if not self.expires_at:
-            return False
-        return timezone.now() > self.expires_at
-
-    def is_valid(self):
-        """检查是否有效"""
-        return self.is_active and not self.is_expired()
-
-    def increment_view_count(self):
-        """增加查看次数"""
-        self.view_count += 1
-        self.save()
+# 注意：NoteShare类在上面已经定义，这里删除重复定义
 
 class NoteSync(Document):
     """
@@ -1053,116 +920,9 @@ class NoteTemplate(Document):
         self.view_count += 1
         self.save()
 
-class NoteBackup(Document):
-    """
-    笔记备份文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='备份ID')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    note = ReferenceField('Note', verbose_name='笔记')
-    title = StringField(max_length=255, required=True, verbose_name='标题')
-    content = StringField(required=True, verbose_name='内容')
-    backup_type = StringField(max_length=20, choices=('auto', 'manual'), default='auto', verbose_name='备份类型')
-    backup_file = FileField(verbose_name='备份文件')
-    is_deleted = BooleanField(default=False, verbose_name='是否删除')
-    deleted_at = DateTimeField(verbose_name='删除时间')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+# 注意：NoteBackup类在上面已经定义，这里删除重复定义
 
-    meta = {
-        'collection': 'note_backups',
-        'indexes': [
-            {'fields': ['user']},
-            {'fields': ['note']},
-            {'fields': ['backup_type']},
-            {'fields': ['is_deleted']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return f"{self.title} - {self.backup_type}"
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def delete(self):
-        """软删除"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save()
-
-    def hard_delete(self):
-        """硬删除"""
-        super().delete()
-
-class NoteReminder(Document):
-    """
-    笔记提醒文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='提醒ID')
-    note = ReferenceField('Note', required=True, verbose_name='笔记')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    title = StringField(max_length=255, required=True, verbose_name='标题')
-    content = StringField(verbose_name='内容')
-    remind_at = DateTimeField(required=True, verbose_name='提醒时间')
-    repeat_type = StringField(max_length=20, choices=('none', 'daily', 'weekly', 'monthly'), default='none', verbose_name='重复类型')
-    is_completed = BooleanField(default=False, verbose_name='是否完成')
-    completed_at = DateTimeField(verbose_name='完成时间')
-    is_deleted = BooleanField(default=False, verbose_name='是否删除')
-    deleted_at = DateTimeField(verbose_name='删除时间')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'note_reminders',
-        'indexes': [
-            {'fields': ['note']},
-            {'fields': ['user']},
-            {'fields': ['remind_at']},
-            {'fields': ['is_completed']},
-            {'fields': ['is_deleted']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['remind_at']
-    }
-
-    def __str__(self):
-        return self.title
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def delete(self):
-        """软删除"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save()
-
-    def hard_delete(self):
-        """硬删除"""
-        super().delete()
-
-    def complete(self):
-        """完成提醒"""
-        self.is_completed = True
-        self.completed_at = timezone.now()
-        self.save()
-
-    def uncomplete(self):
-        """取消完成提醒"""
-        self.is_completed = False
-        self.completed_at = None
-        self.save()
-
-    def is_due(self):
-        """检查是否到期"""
-        return timezone.now() >= self.remind_at
+# 注意：NoteReminder类在上面已经定义，这里删除重复定义
 
 class Notification(Document):
     """

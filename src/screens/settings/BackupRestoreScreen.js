@@ -17,11 +17,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// 使用MongoDB替代AsyncStorage
+import { mongoDBService } from '../../services/database/mongoDBAdapter';
 import RNFS from 'react-native-fs';
 import { pick, types } from '@react-native-documents/picker';
 import { STORAGE_KEYS } from '../../utils/constants/config';
-import { offlineStorageService } from '../../services/offlineStorage';
+import { offlineStorageService } from '../../services/offline/offlineStorageService';
 import { analyticsService } from '../../services/analytics/analyticsService';
 
 const BackupRestoreScreen = ({ navigation }) => {
@@ -48,12 +49,12 @@ const BackupRestoreScreen = ({ navigation }) => {
     setIsLoading(true);
     try {
       // 获取备份信息
-      const backupInfoJson = await AsyncStorage.getItem(STORAGE_KEYS.BACKUP_INFO);
-      const backupInfo = backupInfoJson ? JSON.parse(backupInfoJson) : [];
+      const backupInfo = await mongoDBService.findOne('backup_info', { type: 'backup_list' }) || { backups: [] };
+      const backupList = backupInfo.backups || [];
 
-      // 检查备份文件是否存�?
+      // 检查备份文件是否存在
       const validBackups = [];
-      for (const backup of backupInfo) {
+      for (const backup of backupList) {
         try {
           const exists = await RNFS.exists(backup.path);
           if (exists) {
@@ -107,24 +108,19 @@ const BackupRestoreScreen = ({ navigation }) => {
 
     setIsCreatingBackup(true);
     try {
-      // 获取所有存储键
-      const keys = await AsyncStorage.getAllKeys();
-
-      // 过滤需要备份的键
-      const keysToBackup = keys.filter(key =>
-        key.startsWith('notes_') ||
-        key.startsWith('tags_') ||
-        key.startsWith('categories_') ||
-        key === STORAGE_KEYS.NOTES_CACHE ||
-        key === STORAGE_KEYS.SETTINGS
-      );
+      // 从MongoDB获取需要备份的数据
+      const collections = ['notes', 'tags', 'categories', 'settings'];
 
       // 获取所有数据
       const data = {};
-      for (const key of keysToBackup) {
-        const value = await AsyncStorage.getItem(key);
-        if (value) {
-          data[key] = value;
+      for (const collection of collections) {
+        try {
+          const documents = await mongoDBService.find(collection, {});
+          if (documents && documents.length > 0) {
+            data[collection] = documents;
+          }
+        } catch (error) {
+          console.error(`获取${collection}集合数据失败:`, error);
         }
       }
 
@@ -167,8 +163,13 @@ const BackupRestoreScreen = ({ navigation }) => {
       const updatedBackups = [...backups, newBackup];
       setBackups(updatedBackups);
 
-      // 保存备份信息
-      await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
+      // 保存备份信息到MongoDB
+      await mongoDBService.updateOne(
+        'backup_info',
+        { type: 'backup_list' },
+        { $set: { backups: updatedBackups, updated_at: new Date() } },
+        { upsert: true }
+      );
 
       // 显示成功提示
       Alert.alert('备份成功', `备份已保存到: ${backupPath}`);
@@ -213,9 +214,17 @@ const BackupRestoreScreen = ({ navigation }) => {
                 throw new Error('不支持的备份版本');
               }
 
-              // 恢复数据
-              for (const [key, value] of Object.entries(backupData.data)) {
-                await AsyncStorage.setItem(key, value);
+              // 恢复数据到MongoDB
+              for (const [collection, documents] of Object.entries(backupData.data)) {
+                if (Array.isArray(documents) && documents.length > 0) {
+                  // 先删除现有数据
+                  await mongoDBService.deleteMany(collection, {});
+
+                  // 插入备份数据
+                  for (const doc of documents) {
+                    await mongoDBService.insertOne(collection, doc);
+                  }
+                }
               }
 
               // 清除离线操作
@@ -312,8 +321,13 @@ const BackupRestoreScreen = ({ navigation }) => {
       const updatedBackups = [...backups, newBackup];
       setBackups(updatedBackups);
 
-      // 保存备份信息
-      await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
+      // 保存备份信息到MongoDB
+      await mongoDBService.updateOne(
+        'backup_info',
+        { type: 'backup_list' },
+        { $set: { backups: updatedBackups, updated_at: new Date() } },
+        { upsert: true }
+      );
 
       // 显示成功提示
       Alert.alert('导入成功', '备份文件已成功导入');
@@ -361,8 +375,13 @@ const BackupRestoreScreen = ({ navigation }) => {
               const updatedBackups = backups.filter(b => b.id !== backup.id);
               setBackups(updatedBackups);
 
-              // 保存备份信息
-              await AsyncStorage.setItem(STORAGE_KEYS.BACKUP_INFO, JSON.stringify(updatedBackups));
+              // 保存备份信息到MongoDB
+              await mongoDBService.updateOne(
+                'backup_info',
+                { type: 'backup_list' },
+                { $set: { backups: updatedBackups, updated_at: new Date() } },
+                { upsert: true }
+              );
 
               // 记录分析事件
               analyticsService.trackEvent('backup_deleted', {

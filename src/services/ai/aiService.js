@@ -4,7 +4,7 @@
  */
 import { Platform } from 'react-native';
 import analyticsService from '../analytics/analyticsService';
-import { offlineStorageService } from '../offlineStorage';
+import { offlineStorageService } from '../offline/offlineStorageService';
 
 /**
  * AI服务

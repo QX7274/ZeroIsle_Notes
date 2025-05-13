@@ -11,7 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../context/ThemeContext';
 // useDispatch已移除
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import RNFS from 'react-native-fs';
 import { WebView } from 'react-native-webview';
 // ViewShot已移除

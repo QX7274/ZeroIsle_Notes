@@ -3,7 +3,9 @@
 """
 
 from rest_framework import serializers
-from notes.mongodb_models import Handwriting, HandwritingShare
+from notes.mongodb_models import Handwriting, HandwritingShare, Category, Tag
+from django.utils import timezone
+import uuid
 
 
 class HandwritingSerializer(serializers.Serializer):

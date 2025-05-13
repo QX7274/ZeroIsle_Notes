@@ -1,7 +1,7 @@
 /**
  * 认证工具函数
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import authStorage from '../auth/authStorage';
 
 /**
  * 获取访问令牌
@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const getToken = async () => {
   try {
-    const token = await AsyncStorage.getItem('access_token');
+    const token = await authStorage.getItem('access_token');
     return token;
   } catch (error) {
     console.error('获取令牌失败:', error);
@@ -23,7 +23,7 @@ export const getToken = async () => {
  */
 export const getRefreshToken = async () => {
   try {
-    const refreshToken = await AsyncStorage.getItem('refresh_token');
+    const refreshToken = await authStorage.getItem('refresh_token');
     return refreshToken;
   } catch (error) {
     console.error('获取刷新令牌失败:', error);
@@ -37,8 +37,8 @@ export const getRefreshToken = async () => {
  */
 export const getUser = async () => {
   try {
-    const userJson = await AsyncStorage.getItem('user_info');
-    return userJson ? JSON.parse(userJson) : null;
+    const user = await authStorage.getItem('user_info');
+    return user;
   } catch (error) {
     console.error('获取用户信息失败:', error);
     return null;

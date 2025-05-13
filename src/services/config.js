@@ -3,7 +3,7 @@
  * 提供axios实例和API配置
  */
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from './storage/realmStorageService';
 import { API_BASE_URL, REQUEST_TIMEOUT } from '../config/api';
 
 // 创建axios实例
@@ -20,7 +20,7 @@ export const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   async config => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await realmStorageService.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }

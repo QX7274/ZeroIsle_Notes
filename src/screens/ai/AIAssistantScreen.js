@@ -12,7 +12,8 @@ import {
   PermissionsAndroid,
   Modal,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// 使用MongoDB替代AsyncStorage
+import { realmService } from '../../services/database/realmService';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -289,8 +290,9 @@ const AIAssistantScreen = ({ navigation }) => {
       });
 
       try {
-        // 获取认证令牌
-        const authToken = await AsyncStorage.getItem('auth_token');
+        // 从MongoDB获取认证令牌
+        const authData = await realmService.findOne('auth', { type: 'token' });
+        const authToken = authData ? authData.token : null;
 
         // 调用后端API进行转写
         const response = await fetch(`${AIAssistantModule.getApiUrl('ai-assistant/transcribe/')}`, {

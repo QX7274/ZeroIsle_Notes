@@ -4,13 +4,13 @@
 
 ## 目录结构
 
-- **models/**: 数据模型
-  - **user.py**: 用户模型，核心用户数据
-  - **user_profile.py**: 用户资料模型，详细信息
-  - **user_settings.py**: 用户设置模型，个性化设置
-  - **user_device.py**: 用户设备模型，登录设备
-  - **verification_code.py**: 验证码模型，验证码记录
-  - **third_party_account.py**: 第三方账号模型，社交登录
+- **mongodb_models.py**: MongoDB文档模型
+  - **User**: 用户模型，核心用户数据
+  - **UserProfile**: 用户资料模型，详细信息
+  - **UserSettings**: 用户设置模型，个性化设置
+  - **VerificationCode**: 验证码模型，验证码记录
+- **auth.py**: 自定义认证后端
+  - **MongoDBUserBackend**: MongoDB用户认证后端
 - **serializers/**: 序列化器
   - **user.py**: 用户序列化器
   - **auth.py**: 认证序列化器，登录注册
@@ -172,54 +172,95 @@
 
 ```python
 class User(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    username = StringField(max_length=150, required=True, unique=True)
-    email = EmailField(unique=True, sparse=True)
-    phone = StringField(max_length=20, unique=True, sparse=True)
-    password = StringField(required=True)
-    is_active = BooleanField(default=True)
-    is_staff = BooleanField(default=False)
-    is_superuser = BooleanField(default=False)
-    date_joined = DateTimeField(default=timezone.now)
-    last_login = DateTimeField()
-    email_verified = BooleanField(default=False)
-    phone_verified = BooleanField(default=False)
+    """
+    用户文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='用户ID')
+    username = StringField(max_length=150, required=True, unique=True, verbose_name='用户名')
+    email = EmailField(sparse=True, required=False, verbose_name='邮箱地址')
+    phone = StringField(max_length=20, sparse=True, verbose_name='手机号')
+    password = StringField(required=True, verbose_name='密码哈希')
+    first_name = StringField(max_length=30, default='', verbose_name='名')
+    last_name = StringField(max_length=150, default='', verbose_name='姓')
+    nickname = StringField(max_length=50, default='', verbose_name='昵称')
+    avatar = URLField(verbose_name='头像URL')
+    bio = StringField(max_length=500, verbose_name='个人简介')
+    is_active = BooleanField(default=True, verbose_name='是否激活')
+    is_staff = BooleanField(default=False, verbose_name='是否员工')
+    is_superuser = BooleanField(default=False, verbose_name='是否超级用户')
+    is_verified = BooleanField(default=False, verbose_name='是否验证')
+    last_login = DateTimeField(verbose_name='最后登录时间')
+    last_login_ip = StringField(max_length=100, verbose_name='最后登录IP')
+    date_joined = DateTimeField(default=timezone.now, verbose_name='注册时间')
+
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_api_key = StringField(max_length=100, sparse=True, verbose_name='Realm API Key')
+    realm_app_id = StringField(max_length=100, sparse=True, verbose_name='Realm App ID')
+    realm_sync_enabled = BooleanField(default=True, verbose_name='是否启用Realm同步')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
 ```
 
 ### 用户资料模型 (UserProfile)
 
 ```python
 class UserProfile(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True, unique=True)
-    first_name = StringField(max_length=30)
-    last_name = StringField(max_length=30)
-    avatar = StringField()
-    bio = StringField()
-    gender = StringField(choices=['male', 'female', 'other'])
-    birth_date = DateTimeField()
-    location = StringField(max_length=100)
-    website = URLField()
-    social_links = DictField()
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
+    """
+    用户资料文档模型
+    """
+    user = ReferenceField(User, required=True, unique=True, verbose_name='用户')
+    nickname = StringField(max_length=50, verbose_name='昵称')
+    gender = StringField(max_length=10, choices=('male', 'female', 'other', 'unknown'), default='unknown', verbose_name='性别')
+    birthday = DateTimeField(verbose_name='生日')
+    location = StringField(max_length=100, verbose_name='位置')
+    website = URLField(verbose_name='个人网站')
+    social_links = DictField(verbose_name='社交链接')
+    education = ListField(DictField(), verbose_name='教育经历')
+    work = ListField(DictField(), verbose_name='工作经历')
+    skills = ListField(StringField(), verbose_name='技能')
+    interests = ListField(StringField(), verbose_name='兴趣')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 ```
 
 ### 用户设置模型 (UserSettings)
 
 ```python
 class UserSettings(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True, unique=True)
-    theme = StringField(choices=['light', 'dark', 'system'], default='system')
-    language = StringField(default='zh-CN')
-    font_size = StringField(choices=['small', 'medium', 'large'], default='medium')
-    notification_settings = DictField()
-    privacy_settings = DictField()
-    security_settings = DictField()
-    sync_settings = DictField()
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
+    """
+    用户设置文档模型
+    """
+    user = ReferenceField(User, required=True, unique=True, verbose_name='用户')
+    theme = StringField(max_length=20, default='system', verbose_name='主题')
+    font_size = StringField(max_length=20, default='medium', verbose_name='字体大小')
+    language = StringField(max_length=10, default='zh-CN', verbose_name='语言')
+    notification_enabled = BooleanField(default=True, verbose_name='是否启用通知')
+    email_notification = BooleanField(default=True, verbose_name='是否启用邮件通知')
+    auto_save = BooleanField(default=True, verbose_name='是否自动保存')
+    auto_save_interval = IntField(default=60, verbose_name='自动保存间隔(秒)')
+    offline_mode = BooleanField(default=False, verbose_name='是否启用离线模式')
+    handwriting_recognition_mode = StringField(max_length=20, default='realtime', verbose_name='手写识别模式')
+    ai_assistant_enabled = BooleanField(default=True, verbose_name='是否启用AI助手')
+    ai_assistant_model = StringField(max_length=50, default='gpt-3.5-turbo', verbose_name='AI助手模型')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+```
+
+### 验证码模型 (VerificationCode)
+
+```python
+class VerificationCode(Document):
+    """
+    验证码文档模型
+    """
+    user = ReferenceField(User, required=False, verbose_name='用户')
+    email = EmailField(sparse=True, verbose_name='邮箱地址')
+    phone = StringField(max_length=20, sparse=True, verbose_name='手机号')
+    code = StringField(max_length=10, required=True, verbose_name='验证码')
+    purpose = StringField(max_length=20, required=True, verbose_name='用途')
+    expires_at = DateTimeField(required=True, verbose_name='过期时间')
+    is_used = BooleanField(default=False, verbose_name='是否已使用')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
 ```
 
 ## 与其他模块的交互
@@ -231,6 +272,7 @@ class UserSettings(Document):
 - **社区模块**: 提供用户资料和权限信息
 - **通知模块**: 发送用户相关的通知
 - **存储模块**: 管理用户数据和文件的存储
+- **MongoDB Realm**: 同步用户信息到本地存储
 
 ## 注意事项
 
@@ -243,3 +285,5 @@ class UserSettings(Document):
 - **会话管理**: 妥善管理用户会话，包括超时和失效处理
 - **第三方集成**: 安全地处理第三方登录集成
 - **用户体验**: 提供流畅的注册和登录体验，减少摩擦
+- **MongoDB同步**: 确保用户数据在MongoDB Atlas和MongoDB Realm之间正确同步
+- **离线支持**: 支持离线访问用户数据，确保应用在无网络环境下仍能正常工作

@@ -5,7 +5,7 @@
 
 import { instance } from './config';
 import { API_ENDPOINTS } from '../../utils/constants';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 
 /**
  * 获取笔记的所有绘图路径
@@ -16,24 +16,24 @@ export const getDrawingPathsByNote = async (noteId) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：从本地存储获取
       const paths = await offlineStorageService.getDrawingPaths(noteId);
-      
+
       return {
         success: true,
         data: paths,
         fromCache: true
       };
     }
-    
+
     // 在线模式：从服务器获取
     const response = await instance.get(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/by_note?note_id=${noteId}`);
-    
+
     // 保存到本地存储
     await offlineStorageService.saveDrawingPaths(noteId, response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -56,21 +56,21 @@ export const getDrawingPathsByCanvas = async (canvasId) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：从本地存储获取
       const paths = await offlineStorageService.getDrawingPathsByCanvas(canvasId);
-      
+
       return {
         success: true,
         data: paths,
         fromCache: true
       };
     }
-    
+
     // 在线模式：从服务器获取
     const response = await instance.get(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/by_canvas?canvas_id=${canvasId}`);
-    
+
     return {
       success: true,
       data: response.data
@@ -93,34 +93,34 @@ export const createDrawingPath = async (pathData) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       const tempId = Date.now().toString();
       const path = { ...pathData, id: tempId };
-      
+
       await offlineStorageService.addPendingOperation({
         type: 'create_drawing_path',
         data: path,
         timestamp: new Date().toISOString()
       });
-      
+
       // 添加到本地存储
       await offlineStorageService.addDrawingPath(path);
-      
+
       return {
         success: true,
         data: path,
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(API_ENDPOINTS.NOTES.DRAWING_PATHS, pathData);
-    
+
     // 保存到本地存储
     await offlineStorageService.addDrawingPath(response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -144,7 +144,7 @@ export const updateDrawingPath = async (id, pathData) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       await offlineStorageService.addPendingOperation({
@@ -153,23 +153,23 @@ export const updateDrawingPath = async (id, pathData) => {
         data: pathData,
         timestamp: new Date().toISOString()
       });
-      
+
       // 更新本地存储
       await offlineStorageService.updateDrawingPath(id, pathData);
-      
+
       return {
         success: true,
         data: { ...pathData, id },
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.put(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`, pathData);
-    
+
     // 更新本地存储
     await offlineStorageService.updateDrawingPath(id, response.data);
-    
+
     return {
       success: true,
       data: response.data
@@ -192,7 +192,7 @@ export const deleteDrawingPath = async (id) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       await offlineStorageService.addPendingOperation({
@@ -200,22 +200,22 @@ export const deleteDrawingPath = async (id) => {
         id,
         timestamp: new Date().toISOString()
       });
-      
+
       // 从本地存储删除
       await offlineStorageService.deleteDrawingPath(id);
-      
+
       return {
         success: true,
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     await instance.delete(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`);
-    
+
     // 从本地存储删除
     await offlineStorageService.deleteDrawingPath(id);
-    
+
     return {
       success: true
     };
@@ -237,40 +237,40 @@ export const batchCreateDrawingPaths = async (paths) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       const pathsWithIds = paths.map(path => ({
         ...path,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
       }));
-      
+
       await offlineStorageService.addPendingOperation({
         type: 'batch_create_drawing_paths',
         data: pathsWithIds,
         timestamp: new Date().toISOString()
       });
-      
+
       // 添加到本地存储
-      await Promise.all(pathsWithIds.map(path => 
+      await Promise.all(pathsWithIds.map(path =>
         offlineStorageService.addDrawingPath(path)
       ));
-      
+
       return {
         success: true,
         data: pathsWithIds,
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.post(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/batch_create`, { paths });
-    
+
     // 保存到本地存储
-    await Promise.all(response.data.created.map(path => 
+    await Promise.all(response.data.created.map(path =>
       offlineStorageService.addDrawingPath(path)
     ));
-    
+
     return {
       success: true,
       data: response.data
@@ -293,7 +293,7 @@ export const batchDeleteDrawingPaths = async (pathIds) => {
   try {
     // 检查网络状态
     const status = offlineStorageService.getStatus();
-    
+
     if (!status.isOnline) {
       // 离线模式：添加到待处理操作
       await offlineStorageService.addPendingOperation({
@@ -301,28 +301,28 @@ export const batchDeleteDrawingPaths = async (pathIds) => {
         data: { path_ids: pathIds },
         timestamp: new Date().toISOString()
       });
-      
+
       // 从本地存储删除
-      await Promise.all(pathIds.map(id => 
+      await Promise.all(pathIds.map(id =>
         offlineStorageService.deleteDrawingPath(id)
       ));
-      
+
       return {
         success: true,
         fromCache: true
       };
     }
-    
+
     // 在线模式：发送到服务器
     const response = await instance.delete(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/batch_delete`, {
       data: { path_ids: pathIds }
     });
-    
+
     // 从本地存储删除
-    await Promise.all(pathIds.map(id => 
+    await Promise.all(pathIds.map(id =>
       offlineStorageService.deleteDrawingPath(id)
     ));
-    
+
     return {
       success: true,
       data: response.data

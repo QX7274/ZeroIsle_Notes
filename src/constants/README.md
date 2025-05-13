@@ -216,7 +216,7 @@ function navigateToNoteDetail(navigation, noteId) {
 
 // 使用存储键常量
 function saveUserToken(token) {
-  AsyncStorage.setItem(STORAGE_KEYS.AUTH.TOKEN, token);
+  realmStorageService.setItem(STORAGE_KEYS.AUTH.TOKEN, token);
 }
 ```
 

@@ -2,13 +2,32 @@
  * API客户端
  * 提供统一的API请求客户端，处理请求拦截、响应拦截和错误处理
  * 支持离线模式和数据同步
+ * 使用 MongoDB 替代 AsyncStorage
  */
 import axios from 'axios';
-import { API_URL, API_VERSION, API_TIMEOUT, ERROR_MESSAGES, STORAGE_KEYS } from '../../config/index';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_ENDPOINTS } from '../../constants/api';
 import { Alert, Platform, ToastAndroid } from 'react-native';
 import { navigationRef } from '../../navigation/navigationRef';
 import NetInfo from '@react-native-community/netinfo';
+import apiCache from './apiCache';
+import authStorage from '../auth/authStorage';
+import { STORAGE_KEYS } from '../../utils/constants/config';
+
+// API配置
+const API_URL = API_ENDPOINTS.BASE_URL;
+const API_VERSION = 'v1';
+const API_TIMEOUT = 30000;
+
+// 错误消息
+const ERROR_MESSAGES = {
+  NETWORK_ERROR: '网络连接失败，请检查网络设置',
+  SERVER_ERROR: '服务器错误，请稍后重试',
+  FORBIDDEN: '您没有权限执行此操作',
+  UNAUTHORIZED: '请先登录',
+  NOT_FOUND: '请求的资源不存在',
+  TIMEOUT: '请求超时，请稍后重试',
+  UNKNOWN: '发生未知错误，请稍后重试'
+};
 
 // 创建axios实例
 const apiClient = axios.create({
@@ -39,8 +58,7 @@ const checkNetworkConnection = async () => {
 const saveOfflineRequest = async (config) => {
   try {
     // 获取当前离线请求队列
-    const offlineQueueJson = await AsyncStorage.getItem('offline_queue');
-    const offlineQueue = offlineQueueJson ? JSON.parse(offlineQueueJson) : [];
+    const offlineQueue = await apiCache.getItem('offline_queue') || [];
 
     // 添加新的请求到队列
     offlineQueue.push({
@@ -52,7 +70,7 @@ const saveOfflineRequest = async (config) => {
     });
 
     // 保存更新后的队列
-    await AsyncStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
+    await apiCache.setItem('offline_queue', offlineQueue);
 
     // 显示提示
     if (Platform.OS === 'android') {
@@ -71,16 +89,16 @@ apiClient.interceptors.request.use(
   async config => {
     try {
       // 添加认证令牌 - 尝试从多个可能的存储位置获取
-      let token = await AsyncStorage.getItem('auth_token');
+      let token = await authStorage.getItem('auth_token');
 
       // 如果第一个位置没有找到，尝试其他位置
       if (!token) {
-        token = await AsyncStorage.getItem('token');
+        token = await authStorage.getItem('token');
       }
 
       // 如果还没找到，尝试从Redux存储的键获取
       if (!token) {
-        token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+        token = await authStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       }
 
       if (token) {
@@ -116,9 +134,8 @@ apiClient.interceptors.request.use(
 
         // 对于GET请求，尝试从缓存获取数据
         if (config.method === 'get') {
-          const cacheKey = `cache_${config.url}`;
           try {
-            const cachedData = await AsyncStorage.getItem(cacheKey);
+            const cachedData = await apiCache.getCachedApiResponse(config.url);
             if (cachedData) {
               console.log('使用缓存数据:', config.url);
               // 添加标记，表示这是缓存数据
@@ -166,47 +183,62 @@ apiClient.interceptors.response.use(
       // 检查是否是GET请求
       if (config.method === 'get') {
         // 尝试从缓存获取数据
-        const cacheKey = `cache_${config.url}`;
         try {
-          const cachedDataJson = await AsyncStorage.getItem(cacheKey);
-          if (cachedDataJson) {
+          const cachedData = await apiCache.getCachedApiResponse(config.url);
+          if (cachedData) {
             console.log('使用缓存数据响应离线GET请求:', config.url);
-            try {
-              const cachedData = JSON.parse(cachedDataJson);
-              return Promise.resolve({
-                data: cachedData.data || cachedData,
-                status: 200,
-                statusText: 'OK (Offline Cache)',
-                headers: { 'X-From-Cache': 'true' },
-                config,
-                offline: true,
-                fromCache: true
-              });
-            } catch (parseError) {
-              console.error('解析缓存数据失败:', parseError);
-            }
+            return Promise.resolve({
+              data: cachedData,
+              status: 200,
+              statusText: 'OK (Offline Cache)',
+              headers: { 'X-From-Cache': 'true' },
+              config,
+              offline: true,
+              fromCache: true
+            });
           }
         } catch (cacheError) {
           console.error('读取缓存数据失败:', cacheError);
         }
       }
 
-      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的成功响应
-      return Promise.resolve({
-        data: {
-          offline: true,
-          message: '当前处于离线模式，请求已保存或使用本地数据',
-          timestamp: new Date().toISOString(),
-          success: true,  // 添加success标志，使其与正常响应格式一致
-          method: config.method,
-          url: config.url
-        },
-        status: 200,
-        statusText: 'OK (Offline)',
-        headers: {},
-        config,
-        offline: true
-      });
+      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的响应
+      // 特殊处理登录请求
+      if (config.url && config.url.includes('/auth/login')) {
+        return Promise.resolve({
+          data: {
+            offline: true,
+            message: '网络连接失败，请检查网络设置后重试',
+            timestamp: new Date().toISOString(),
+            success: false,  // 登录请求在离线模式下应该返回失败
+            method: config.method,
+            url: config.url,
+            error: 'NETWORK_ERROR'
+          },
+          status: 200,
+          statusText: 'OK (Offline)',
+          headers: {},
+          config,
+          offline: true
+        });
+      } else {
+        // 其他请求返回一个模拟的成功响应
+        return Promise.resolve({
+          data: {
+            offline: true,
+            message: '当前处于离线模式，请求已保存或使用本地数据',
+            timestamp: new Date().toISOString(),
+            success: true,  // 添加success标志，使其与正常响应格式一致
+            method: config.method,
+            url: config.url
+          },
+          status: 200,
+          statusText: 'OK (Offline)',
+          headers: {},
+          config,
+          offline: true
+        });
+      }
     }
 
     // 处理错误响应
@@ -229,49 +261,63 @@ apiClient.interceptors.response.use(
       // 检查是否是GET请求
       if (config.method === 'get') {
         // 尝试从缓存获取数据
-        const cacheKey = `cache_${config.url}`;
         try {
           // 使用await获取缓存数据
-          const cachedDataJson = await AsyncStorage.getItem(cacheKey);
-          if (cachedDataJson) {
+          const cachedData = await apiCache.getCachedApiResponse(config.url);
+          if (cachedData) {
             console.log('使用缓存数据响应网络错误的GET请求:', config.url);
-            try {
-              // 安全解析JSON
-              const cachedData = JSON.parse(cachedDataJson);
-              return Promise.resolve({
-                data: cachedData.data || cachedData,
-                status: 200,
-                statusText: 'OK (Offline Cache)',
-                headers: { 'X-From-Cache': 'true' },
-                config,
-                offline: true,
-                fromCache: true
-              });
-            } catch (parseError) {
-              console.error('解析缓存数据失败:', parseError);
-            }
+            return Promise.resolve({
+              data: cachedData,
+              status: 200,
+              statusText: 'OK (Offline Cache)',
+              headers: { 'X-From-Cache': 'true' },
+              config,
+              offline: true,
+              fromCache: true
+            });
           }
         } catch (cacheError) {
           console.error('读取缓存数据失败:', cacheError);
         }
       }
 
-      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的成功响应
-      return Promise.resolve({
-        data: {
-          offline: true,
-          message: '当前处于离线模式，请求已保存或使用本地数据',
-          timestamp: new Date().toISOString(),
-          success: true,  // 添加success标志，使其与正常响应格式一致
-          method: config.method,
-          url: config.url
-        },
-        status: 200,
-        statusText: 'OK (Offline)',
-        headers: {},
-        config,
-        offline: true
-      });
+      // 对于非GET请求或没有缓存的GET请求，返回一个模拟的响应
+      // 特殊处理登录请求
+      if (config.url && config.url.includes('/auth/login')) {
+        return Promise.resolve({
+          data: {
+            offline: true,
+            message: '网络连接失败，请检查网络设置后重试',
+            timestamp: new Date().toISOString(),
+            success: false,  // 登录请求在离线模式下应该返回失败
+            method: config.method,
+            url: config.url,
+            error: 'NETWORK_ERROR'
+          },
+          status: 200,
+          statusText: 'OK (Offline)',
+          headers: {},
+          config,
+          offline: true
+        });
+      } else {
+        // 其他请求返回一个模拟的成功响应
+        return Promise.resolve({
+          data: {
+            offline: true,
+            message: '当前处于离线模式，请求已保存或使用本地数据',
+            timestamp: new Date().toISOString(),
+            success: true,  // 添加success标志，使其与正常响应格式一致
+            method: config.method,
+            url: config.url
+          },
+          status: 200,
+          statusText: 'OK (Offline)',
+          headers: {},
+          config,
+          offline: true
+        });
+      }
 
       /* 以下代码被上面的逻辑替代
       // 检查是否有本地缓存数据
@@ -389,14 +435,14 @@ const handleUnauthorized = async () => {
   try {
     console.log('处理未授权错误: 清除token和用户信息');
     // 清除token和用户信息
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('auth_token');
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('user_info');
-    await AsyncStorage.removeItem('refresh_token');
+    await authStorage.removeItem('token');
+    await authStorage.removeItem('auth_token');
+    await authStorage.removeItem('user');
+    await authStorage.removeItem('user_info');
+    await authStorage.removeItem('refresh_token');
 
     // 设置一个标志，表示认证已过期
-    await AsyncStorage.setItem('auth_expired', 'true');
+    await authStorage.setItem('auth_expired', 'true');
 
     // 显示提示
     Alert.alert('登录已过期', '请重新登录');
@@ -434,13 +480,7 @@ const handleUnauthorized = async () => {
 // 添加缓存方法
 apiClient.cache = async (url, data, expirationMinutes = 60) => {
   try {
-    const cacheKey = `cache_${url}`;
-    const cacheData = {
-      data,
-      expiration: Date.now() + expirationMinutes * 60 * 1000
-    };
-    await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    return true;
+    return await apiCache.cacheApiResponse(url, data, expirationMinutes);
   } catch (error) {
     console.error('缓存数据失败:', error);
     return false;
@@ -450,21 +490,7 @@ apiClient.cache = async (url, data, expirationMinutes = 60) => {
 // 获取缓存方法
 apiClient.getCache = async (url) => {
   try {
-    const cacheKey = `cache_${url}`;
-    const cacheJson = await AsyncStorage.getItem(cacheKey);
-
-    if (!cacheJson) return null;
-
-    const cache = JSON.parse(cacheJson);
-
-    // 检查缓存是否过期
-    if (cache.expiration && cache.expiration < Date.now()) {
-      // 缓存已过期，删除并返回null
-      await AsyncStorage.removeItem(cacheKey);
-      return null;
-    }
-
-    return cache.data;
+    return await apiCache.getCachedApiResponse(url);
   } catch (error) {
     console.error('获取缓存数据失败:', error);
     return null;
@@ -477,12 +503,12 @@ apiClient.clearCache = async (url) => {
     if (url) {
       // 清除特定URL的缓存
       const cacheKey = `cache_${url}`;
-      await AsyncStorage.removeItem(cacheKey);
+      await apiCache.removeItem(cacheKey);
     } else {
       // 清除所有缓存
-      const keys = await AsyncStorage.getAllKeys();
+      const keys = await apiCache.getAllKeys();
       const cacheKeys = keys.filter(key => key.startsWith('cache_'));
-      await AsyncStorage.multiRemove(cacheKeys);
+      await apiCache.multiRemove(cacheKeys);
     }
     return true;
   } catch (error) {
@@ -494,8 +520,7 @@ apiClient.clearCache = async (url) => {
 // 获取离线队列
 apiClient.getOfflineQueue = async () => {
   try {
-    const queueJson = await AsyncStorage.getItem('offline_queue');
-    return queueJson ? JSON.parse(queueJson) : [];
+    return await apiCache.getItem('offline_queue') || [];
   } catch (error) {
     console.error('获取离线队列失败:', error);
     return [];
@@ -505,7 +530,7 @@ apiClient.getOfflineQueue = async () => {
 // 清空离线队列
 apiClient.clearOfflineQueue = async () => {
   try {
-    await AsyncStorage.removeItem('offline_queue');
+    await apiCache.removeItem('offline_queue');
     return true;
   } catch (error) {
     console.error('清空离线队列失败:', error);
@@ -570,7 +595,7 @@ apiClient.processOfflineQueue = async () => {
     const failedRequests = results.filter(result => !result.success).map(result => result.request);
 
     // 更新离线队列，只保留失败的请求
-    await AsyncStorage.setItem('offline_queue', JSON.stringify(failedRequests));
+    await apiCache.setItem('offline_queue', failedRequests);
 
     // 显示处理结果提示
     const successCount = results.length - failedRequests.length;

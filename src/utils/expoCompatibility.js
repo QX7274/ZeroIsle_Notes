@@ -3,7 +3,7 @@
  * 提供统一的API接口，使用React Native原生功能
  */
 import { Platform } from 'react-native';
-import { fileService } from '../services/file/fileService';
+import { fileService } from '../services/files/fileService';
 
 // Expo已移除，始终返回false
 export const isExpoAvailable = () => false;

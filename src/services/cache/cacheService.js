@@ -3,7 +3,7 @@
  * 提供应用缓存管理功能
  */
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../storage/realmStorageService';
 import RNFS from 'react-native-fs';
 import DeviceInfo from 'react-native-device-info';
 import { CACHE_KEYS } from '../../utils/constants/config';
@@ -42,13 +42,13 @@ class CacheService {
         }
       }
 
-      // 获取AsyncStorage缓存大小（估计值）
-      const keys = await AsyncStorage.getAllKeys();
+      // 获取Realm存储缓存大小（估计值）
+      const keys = await realmStorageService.getAllKeys();
       let asyncStorageSize = 0;
 
       for (const key of keys) {
         if (key.startsWith('cache_') || key.startsWith('temp_')) {
-          const value = await AsyncStorage.getItem(key);
+          const value = await realmStorageService.getItem(key);
           if (value) {
             asyncStorageSize += value.length * 2; // 估计UTF-16编码每个字符2字节
           }
@@ -90,8 +90,8 @@ class CacheService {
 
       await Promise.all(deletePromises);
 
-      // 清理AsyncStorage缓存
-      const keys = await AsyncStorage.getAllKeys();
+      // 清理Realm存储缓存
+      const keys = await realmStorageService.getAllKeys();
       const cacheKeys = keys.filter(key =>
         key.startsWith('cache_') ||
         key.startsWith('temp_') ||
@@ -99,7 +99,7 @@ class CacheService {
       );
 
       if (cacheKeys.length > 0) {
-        await AsyncStorage.multiRemove(cacheKeys);
+        await realmStorageService.multiRemove(cacheKeys);
       }
 
       // 通知监听器

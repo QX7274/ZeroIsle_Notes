@@ -4,13 +4,14 @@
 
 ## 目录结构
 
-- **models/**: 数据模型
-  - **conversation.py**: 对话模型，存储用户与AI的对话
-  - **feedback.py**: 反馈模型，用户对AI回复的评价
-  - **model_config.py**: 模型配置，AI模型参数设置
-  - **prompt_template.py**: 提示模板，预设的AI提示
-  - **usage_record.py**: 使用记录，跟踪API调用
-  - **embedding.py**: 嵌入模型，向量表示
+- **mongodb_models.py**: MongoDB文档模型
+  - **Conversation**: 对话模型，存储用户与AI的对话
+  - **Message**: 消息模型，存储对话中的消息
+  - **Feedback**: 反馈模型，用户对AI回复的评价
+  - **ModelConfig**: 模型配置，AI模型参数设置
+  - **PromptTemplate**: 提示模板，预设的AI提示
+  - **UsageRecord**: 使用记录，跟踪API调用
+  - **Embedding**: 嵌入模型，向量表示
 - **serializers/**: 序列化器
   - **conversation.py**: 对话序列化器
   - **feedback.py**: 反馈序列化器
@@ -125,40 +126,84 @@ AI助手模块提供以下主要API端点：
 
 ```python
 class Conversation(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True)
-    title = StringField(max_length=255)
-    messages = ListField(EmbeddedDocumentField(Message))
-    model = StringField(max_length=100)
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
-    is_deleted = BooleanField(default=False)
-    metadata = DictField()
+    """
+    对话文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='对话ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    title = StringField(max_length=255, verbose_name='标题')
+    messages = ListField(EmbeddedDocumentField('Message'), verbose_name='消息列表')
+    model = StringField(max_length=100, verbose_name='模型')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    is_favorite = BooleanField(default=False, verbose_name='是否收藏')
+    is_pinned = BooleanField(default=False, verbose_name='是否置顶')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+    deleted_at = DateTimeField(verbose_name='删除时间')
+    metadata = DictField(verbose_name='元数据')
+
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_partition = StringField(max_length=100, sparse=True, verbose_name='Realm Partition')
+    realm_sync_status = StringField(max_length=20, choices=('pending', 'synced', 'error'), default='pending', verbose_name='Realm同步状态')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
+    realm_error_message = StringField(verbose_name='同步错误信息')
 ```
 
 ### 消息模型 (Message)
 
 ```python
 class Message(EmbeddedDocument):
-    id = UUIDField(default=lambda: uuid.uuid4())
-    role = StringField(choices=['user', 'assistant', 'system'])
-    content = StringField(required=True)
-    timestamp = DateTimeField(default=timezone.now)
-    metadata = DictField()
+    """
+    消息嵌入文档模型
+    """
+    id = UUIDField(default=lambda: uuid.uuid4(), verbose_name='消息ID')
+    role = StringField(choices=('user', 'assistant', 'system'), required=True, verbose_name='角色')
+    content = StringField(required=True, verbose_name='内容')
+    timestamp = DateTimeField(default=timezone.now, verbose_name='时间戳')
+    tokens = IntField(default=0, verbose_name='Token数量')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    metadata = DictField(verbose_name='元数据')
 ```
 
 ### 反馈模型 (Feedback)
 
 ```python
 class Feedback(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True)
-    conversation = ReferenceField(Conversation)
-    message = UUIDField()
-    rating = IntField(min_value=1, max_value=5)
-    comment = StringField()
-    created_at = DateTimeField(default=timezone.now)
-    metadata = DictField()
+    """
+    反馈文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='反馈ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    conversation = ReferenceField(Conversation, verbose_name='对话')
+    message_id = UUIDField(verbose_name='消息ID')
+    rating = IntField(min_value=1, max_value=5, verbose_name='评分')
+    comment = StringField(verbose_name='评论')
+    category = StringField(max_length=50, choices=('helpful', 'not_helpful', 'inappropriate', 'inaccurate', 'other'), verbose_name='分类')
+    is_resolved = BooleanField(default=False, verbose_name='是否已解决')
+    resolution = StringField(verbose_name='解决方案')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+    metadata = DictField(verbose_name='元数据')
+```
+
+### 模型配置 (ModelConfig)
+
+```python
+class ModelConfig(Document):
+    """
+    模型配置文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='配置ID')
+    name = StringField(max_length=100, required=True, verbose_name='名称')
+    provider = StringField(max_length=50, choices=('openai', 'anthropic', 'baidu', 'xunfei', 'local'), required=True, verbose_name='提供商')
+    model_id = StringField(max_length=100, required=True, verbose_name='模型ID')
+    description = StringField(verbose_name='描述')
+    parameters = DictField(verbose_name='参数')
+    is_active = BooleanField(default=True, verbose_name='是否激活')
+    is_default = BooleanField(default=False, verbose_name='是否默认')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 ```
 
 ## 与其他模块的交互
@@ -170,6 +215,7 @@ AI助手模块与以下模块有交互：
 - **知识图谱模块**: 利用知识图谱提供更准确的回复
 - **搜索模块**: 搜索相关内容，辅助回复生成
 - **存储模块**: 存储对话历史和用户反馈
+- **MongoDB Realm**: 同步对话历史到本地存储，支持离线访问
 
 ## 配置说明
 
@@ -191,12 +237,12 @@ AI助手模块需要以下配置：
 def chat(request):
     user = request.user
     data = request.data
-    
+
     # 获取请求参数
     message = data.get('message')
     conversation_id = data.get('conversation_id')
     model = data.get('model', 'gpt-3.5-turbo')
-    
+
     # 调用对话服务
     conversation_service = ConversationService()
     response = conversation_service.process_message(
@@ -205,7 +251,7 @@ def chat(request):
         conversation_id=conversation_id,
         model=model
     )
-    
+
     return Response(response)
 ```
 
@@ -217,12 +263,12 @@ def chat(request):
 def generate_summary(request):
     user = request.user
     data = request.data
-    
+
     # 获取请求参数
     text = data.get('text')
     max_length = data.get('max_length', 200)
     model = data.get('model', 'gpt-3.5-turbo')
-    
+
     # 调用生成服务
     openai_service = OpenAIService()
     summary = openai_service.generate_summary(
@@ -230,7 +276,7 @@ def generate_summary(request):
         max_length=max_length,
         model=model
     )
-    
+
     return Response({'summary': summary})
 ```
 
@@ -243,3 +289,6 @@ def generate_summary(request):
 - **成本控制**: 监控API调用成本，实施合理的使用限制
 - **模型选择**: 根据任务需求选择合适的模型，平衡性能和成本
 - **缓存策略**: 实施合理的缓存策略，减少重复API调用
+- **离线支持**: 确保对话历史在MongoDB Realm中正确同步，支持离线访问
+- **数据同步**: 处理好本地数据和云端数据的同步冲突
+- **存储优化**: 优化对话历史的存储，避免占用过多设备存储空间

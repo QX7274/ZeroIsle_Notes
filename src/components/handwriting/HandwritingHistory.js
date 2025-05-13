@@ -16,7 +16,7 @@ import { Text } from '../common/Typography';
 import { Button, EmptyState } from '../common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -71,13 +71,13 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
     try {
       // 获取历史记录
       const data = await offlineStorageService.getCachedData('handwriting_history') || [];
-      
+
       // 过滤掉要删除的记录
       const updatedHistory = data.filter(item => item.id !== id);
-      
+
       // 更新存储
       await offlineStorageService.cacheData('handwriting_history', updatedHistory);
-      
+
       // 更新状态
       setHistory(updatedHistory);
     } catch (error) {
@@ -105,21 +105,21 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
       '确定要清除所有历史记录吗？此操作无法撤销。',
       [
         { text: '取消', style: 'cancel' },
-        { 
-          text: '清除', 
-          style: 'destructive', 
+        {
+          text: '清除',
+          style: 'destructive',
           onPress: async () => {
             try {
               await offlineStorageService.cacheData('handwriting_history', []);
               setHistory([]);
-              
+
               if (onClear) {
                 onClear();
               }
             } catch (error) {
               console.error('清除历史记录失败:', error);
             }
-          } 
+          }
         },
       ],
       { cancelable: true }
@@ -140,7 +140,7 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
   const renderItem = ({ item }) => {
     // 构建图像URI
     const imageUri = `data:image/png;base64,${item.image}`;
-    
+
     return (
       <TouchableOpacity
         style={[styles.historyItem, { backgroundColor: colors.card }]}
@@ -153,17 +153,17 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
             resizeMode="contain"
           />
         </View>
-        
+
         <View style={styles.historyContent}>
           <Text variant="subtitle1" numberOfLines={2} style={styles.historyText}>
             {item.text || '(无文本)'}
           </Text>
-          
+
           <View style={styles.historyMeta}>
             <Text variant="caption" color="textSecondary">
               {formatDate(item.timestamp)}
             </Text>
-            
+
             {item.offline && (
               <View style={styles.offlineTag}>
                 <Icon name="cloud-off" size={12} color={colors.warning} />
@@ -172,7 +172,7 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
                 </Text>
               </View>
             )}
-            
+
             <View style={styles.confidenceTag}>
               <Text variant="caption" color="textSecondary">
                 置信度: {Math.round(item.confidence * 100)}%
@@ -180,7 +180,7 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
             </View>
           </View>
         </View>
-        
+
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={() => confirmDelete(item.id)}
@@ -203,7 +203,7 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
         </View>
       );
     }
-    
+
     return (
       <EmptyState
         icon="history"
@@ -216,7 +216,7 @@ const HandwritingHistory = ({ onSelect, onClear, style }) => {
   // 渲染列表头部
   const renderHeader = () => {
     if (history.length === 0) return null;
-    
+
     return (
       <View style={styles.header}>
         <Text variant="h6">历史记录</Text>

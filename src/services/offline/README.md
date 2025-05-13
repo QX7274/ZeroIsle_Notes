@@ -1,11 +1,27 @@
 # 离线服务
 
-本目录包含零屿笔记应用的离线相关服务，用于提供离线模式下的功能支持和数据管理。
+本目录包含零屿笔记应用的离线相关服务，用于提供离线模式下的功能支持和数据管理。项目已完全迁移到 MongoDB，不再使用 SQLite 或 AsyncStorage。
 
 ## 文件结构
 
+- **infiniteCanvasStorage.js**: 无限画布存储服务，提供基于 MongoDB 的无限画布数据存储和同步功能
+- **offlineStorage.js**: 离线存储服务，提供基于 MongoDB 的通用离线数据存储和同步功能
 - **offlineAIService.js**: 离线AI服务，提供离线模式下的AI功能
-- **offlineStorage.js**: 离线存储服务，提供离线数据存储功能
+
+## MongoDB 配置
+
+项目使用 MongoDB Atlas 作为云数据库服务：
+
+- **连接 URL**: `mongodb+srv://qianxin7274:<password>@cluster0.lo5ybvq.mongodb.net/`
+- **数据库名**: `ZeroIsle_Notes`
+- **集合名**:
+  - `infinite_canvas`: 存储无限画布数据
+  - `notes`: 存储笔记数据
+  - `categories`: 存储分类数据
+  - `tags`: 存储标签数据
+  - `reminders`: 存储提醒数据
+  - `settings`: 存储设置数据
+  - `files`: 存储文件数据
 
 ## 主要功能
 
@@ -24,12 +40,36 @@
 
 离线存储服务提供以下主要功能：
 
-- **离线数据存储**: 存储应用数据，支持离线访问
+- **离线数据存储**: 使用MongoDB Atlas存储应用数据，支持离线访问
+- **存储管理**: 管理离线存储空间和数据清理
+- **数据同步**: 在网络恢复时自动同步数据到MongoDB
+- **离线笔记**: 在离线状态下创建和编辑笔记
+- **离线分类**: 在离线状态下创建和编辑分类
+- **离线标签**: 在离线状态下创建和编辑标签
+- **离线提醒**: 在离线状态下创建和编辑提醒
+
+### 无限画布存储服务 (infiniteCanvasStorage.js)
+
+无限画布存储服务提供以下主要功能：
+
+- **画布数据存储**: 使用MongoDB Atlas存储无限画布数据
+- **离线访问**: 支持在离线状态下访问和编辑画布
+- **数据同步**: 在网络恢复时自动同步画布数据到MongoDB
+- **画布管理**: 创建、获取、更新和删除画布
+- **图层管理**: 管理画布中的图层
+- **元素管理**: 管理画布中的元素
+
+### 离线同步服务 (offlineSyncService.js)
+
+离线同步服务提供以下主要功能：
+
 - **数据同步**: 在网络恢复时同步离线数据
 - **冲突解决**: 处理离线编辑与服务器数据的冲突
-- **存储管理**: 管理离线存储空间和数据清理
-- **数据优先级**: 设置数据的离线存储优先级
-- **数据压缩**: 压缩离线数据，减少存储空间占用
+- **同步队列**: 管理待同步的操作队列
+- **重试机制**: 处理同步失败的情况
+- **增量同步**: 只同步变更的数据，减少数据传输
+- **批量同步**: 批量处理同步操作，提高效率
+- **同步状态**: 提供同步状态的监控和通知
 
 ## 离线AI模型
 
@@ -61,8 +101,118 @@
 
 ## 使用方法
 
+### 无限画布存储服务
+
 ```javascript
-import { offlineAIService, offlineStorage } from '../../services/offline';
+import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
+
+// 初始化无限画布存储服务
+async function initializeCanvasStorage() {
+  try {
+    await infiniteCanvasStorage.initialize();
+    console.log('无限画布存储服务初始化成功');
+    return true;
+  } catch (error) {
+    console.error('无限画布存储服务初始化失败:', error);
+    return false;
+  }
+}
+
+// 获取所有画布
+async function getAllCanvases() {
+  try {
+    const canvases = await infiniteCanvasStorage.getCanvases();
+    console.log(`获取到 ${canvases.length} 个画布`);
+    return canvases;
+  } catch (error) {
+    console.error('获取画布失败:', error);
+    return [];
+  }
+}
+
+// 获取特定画布
+async function getCanvas(canvasId) {
+  try {
+    const canvas = await infiniteCanvasStorage.getCanvas(canvasId);
+    console.log('获取画布成功:', canvas.title);
+    return canvas;
+  } catch (error) {
+    console.error('获取画布失败:', error);
+    return null;
+  }
+}
+
+// 保存画布
+async function saveCanvas(canvas) {
+  try {
+    const success = await infiniteCanvasStorage.saveCanvas(canvas);
+    console.log('保存画布' + (success ? '成功' : '失败'));
+    return success;
+  } catch (error) {
+    console.error('保存画布失败:', error);
+    return false;
+  }
+}
+
+// 删除画布
+async function deleteCanvas(canvasId) {
+  try {
+    const success = await infiniteCanvasStorage.deleteCanvas(canvasId);
+    console.log('删除画布' + (success ? '成功' : '失败'));
+    return success;
+  } catch (error) {
+    console.error('删除画布失败:', error);
+    return false;
+  }
+}
+```
+
+### 离线存储服务
+
+```javascript
+import { offlineStorageService } from '../../services/offline/offlineStorage';
+
+// 初始化离线存储服务
+async function initializeOfflineStorage() {
+  try {
+    await offlineStorageService.init();
+    console.log('离线存储服务初始化成功');
+    return true;
+  } catch (error) {
+    console.error('离线存储服务初始化失败:', error);
+    return false;
+  }
+}
+
+// 获取画布（兼容无限画布存储）
+async function getCanvas(canvasId) {
+  try {
+    const canvas = await offlineStorageService.getCanvas(canvasId);
+    console.log('获取画布成功:', canvas.title);
+    return canvas;
+  } catch (error) {
+    console.error('获取画布失败:', error);
+    return null;
+  }
+}
+
+// 获取所有画布
+async function getAllCanvases() {
+  try {
+    const canvases = await offlineStorageService.getCanvases();
+    console.log(`获取到 ${canvases.length} 个画布`);
+    return canvases;
+  } catch (error) {
+    console.error('获取画布失败:', error);
+    return [];
+  }
+}
+```
+
+### 离线AI服务
+
+```javascript
+import { offlineAIService } from '../../services/offline';
 
 // 初始化离线AI服务
 async function initializeOfflineAI() {
@@ -84,7 +234,7 @@ async function downloadOfflineModels() {
         console.log('模型下载进度:', progress);
       }
     });
-    
+
     console.log('离线AI模型下载成功');
     return true;
   } catch (error) {
@@ -104,126 +254,28 @@ async function analyzeTextOffline(text) {
     return null;
   }
 }
-
-// 离线生成标签
-async function generateTagsOffline(text) {
-  try {
-    const tags = await offlineAIService.generateTags(text);
-    console.log('离线生成的标签:', tags);
-    return tags;
-  } catch (error) {
-    console.error('离线标签生成失败:', error);
-    return [];
-  }
-}
-
-// 离线生成摘要
-async function generateSummaryOffline(text, maxLength = 100) {
-  try {
-    const summary = await offlineAIService.generateSummary(text, maxLength);
-    console.log('离线生成的摘要:', summary);
-    return summary;
-  } catch (error) {
-    console.error('离线摘要生成失败:', error);
-    return '';
-  }
-}
-
-// 初始化离线存储
-async function initializeOfflineStorage() {
-  try {
-    await offlineStorage.initialize();
-    console.log('离线存储初始化成功');
-    return true;
-  } catch (error) {
-    console.error('离线存储初始化失败:', error);
-    return false;
-  }
-}
-
-// 存储离线数据
-async function storeOfflineData(key, data) {
-  try {
-    await offlineStorage.setItem(key, data);
-    console.log('离线数据存储成功:', key);
-    return true;
-  } catch (error) {
-    console.error('离线数据存储失败:', error);
-    return false;
-  }
-}
-
-// 获取离线数据
-async function getOfflineData(key) {
-  try {
-    const data = await offlineStorage.getItem(key);
-    console.log('获取离线数据成功:', key);
-    return data;
-  } catch (error) {
-    console.error('获取离线数据失败:', error);
-    return null;
-  }
-}
-
-// 同步离线数据
-async function syncOfflineData() {
-  try {
-    const result = await offlineStorage.syncData();
-    console.log('离线数据同步成功:', result);
-    return result;
-  } catch (error) {
-    console.error('离线数据同步失败:', error);
-    return { success: false, error };
-  }
-}
-
-// 设置离线模式
-function setOfflineMode(enabled) {
-  try {
-    offlineStorage.setOfflineMode(enabled);
-    console.log('离线模式已' + (enabled ? '启用' : '禁用'));
-    return true;
-  } catch (error) {
-    console.error('设置离线模式失败:', error);
-    return false;
-  }
-}
-
-// 检查是否处于离线模式
-function isOfflineMode() {
-  return offlineStorage.isOfflineMode();
-}
-
-// 获取离线存储状态
-async function getOfflineStorageStatus() {
-  try {
-    const status = await offlineStorage.getStatus();
-    console.log('离线存储状态:', status);
-    return status;
-  } catch (error) {
-    console.error('获取离线存储状态失败:', error);
-    return null;
-  }
-}
-
-// 清理离线存储
-async function cleanOfflineStorage() {
-  try {
-    await offlineStorage.clean();
-    console.log('离线存储清理成功');
-    return true;
-  } catch (error) {
-    console.error('离线存储清理失败:', error);
-    return false;
-  }
-}
 ```
 
 ## 注意事项
 
+### MongoDB 迁移相关
+
+- 项目已完全迁移到 MongoDB Atlas，不再使用 SQLite 或 AsyncStorage
+- MongoDB Atlas 是云数据库服务，需要网络连接才能直接访问
+- 离线功能通过在本地缓存数据并在网络恢复时同步到 MongoDB 实现
+- 所有数据库操作都是异步的，使用 `async/await` 处理
+- 数据同步在后台进行，不阻塞用户界面
+
+### 离线功能相关
+
 - 离线AI模型可能较大，应在WiFi环境下下载，并提供下载进度反馈
 - 离线AI功能可能不如在线AI功能强大，应设置适当的用户期望
-- 离线存储空间有限，应优先存储重要数据，并提供存储空间管理功能
 - 处理离线编辑与服务器数据的冲突，提供冲突解决机制
 - 考虑电池消耗，离线AI功能应优化性能和能耗
 - 提供离线模式的视觉指示，让用户了解当前状态
+- 添加适当的错误处理，确保应用在数据库操作失败时能够正常运行
+- 使用事件机制通知其他组件状态变化
+- 支持离线操作，确保用户在离线状态下也能操作数据
+- 提供同步状态的反馈，让用户了解同步进度
+- 处理同步失败的情况，提供重试机制
+- 考虑网络连接不稳定的情况，确保数据不会丢失

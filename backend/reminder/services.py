@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from django.db.models import Q
-from reminder.models import Reminder
-from users.models import User
+from mongoengine.queryset.visitor import Q
+from reminder.mongodb_models import Reminder
+from users.mongodb_models import User
 from notification.services import NotificationService
 
 class ReminderService:
@@ -60,10 +60,10 @@ class ReminderService:
             is_completed=True
         ).count()
         upcoming_reviews = self.get_upcoming_reviews(user_id).count()
-        
+
         return {
             "total": total_reviews,
             "completed": completed_reviews,
             "upcoming": upcoming_reviews,
             "completion_rate": (completed_reviews / total_reviews * 100) if total_reviews > 0 else 0
-        } 
+        }

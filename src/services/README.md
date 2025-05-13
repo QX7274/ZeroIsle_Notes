@@ -40,7 +40,9 @@
 - **notificationService.js**: 通知服务，提供本地通知和推送通知功能
 
 ### 存储服务 (`storage/`)
-- **storageService.js**: 存储服务，提供本地存储功能
+- **storageService.js**: 存储服务，提供基于MongoDB Realm的本地存储功能，只同步关键用户信息
+- **realmStorageService.js**: Realm存储服务，提供基于MongoDB Realm的本地存储功能
+- **offlineDataService.js**: 离线数据服务，提供基于MongoDB Realm的离线数据存储和同步功能
 
 ### 网络服务 (`network/`)
 - **networkService.js**: 网络服务，提供网络状态监测、连接类型检测等功能
@@ -94,6 +96,9 @@
 
 ### WebSocket服务 (`websocket/`)
 - **websocket.js**: WebSocket服务，提供实时通信功能
+
+### 上传服务 (`upload/`)
+- **uploadService.js**: 上传服务，提供数据和文件上传功能
 
 ## 使用方法
 

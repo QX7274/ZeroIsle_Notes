@@ -13,7 +13,8 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme } from '../../context/ThemeContext';
 import AIAssistantModule from '../../native/AIAssistantModule';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// 使用MongoDB替代AsyncStorage
+import { realmService } from '../../services/database/realmService';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -38,20 +39,21 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   // 加载保存的设置
   const loadSettings = async () => {
     try {
-      const savedEngine = await AsyncStorage.getItem(STORAGE_KEYS.AI_ENGINE);
-      const savedApiKey = await AsyncStorage.getItem(STORAGE_KEYS.BAIDU_API_KEY);
-      const savedSecretKey = await AsyncStorage.getItem(STORAGE_KEYS.BAIDU_SECRET_KEY);
+      // 从MongoDB获取AI助手设置
+      const aiSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
 
-      if (savedEngine) {
-        setAiEngine(savedEngine);
-      }
+      if (aiSettings) {
+        if (aiSettings.engine) {
+          setAiEngine(aiSettings.engine);
+        }
 
-      if (savedApiKey) {
-        setBaiduApiKey(savedApiKey);
-      }
+        if (aiSettings.baidu_api_key) {
+          setBaiduApiKey(aiSettings.baidu_api_key);
+        }
 
-      if (savedSecretKey) {
-        setBaiduSecretKey(savedSecretKey);
+        if (aiSettings.baidu_secret_key) {
+          setBaiduSecretKey(aiSettings.baidu_secret_key);
+        }
       }
     } catch (error) {
       console.error('加载AI助手设置失败:', error);
@@ -61,9 +63,30 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   // 保存设置
   const saveSettings = async () => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AI_ENGINE, aiEngine);
-      await AsyncStorage.setItem(STORAGE_KEYS.BAIDU_API_KEY, baiduApiKey);
-      await AsyncStorage.setItem(STORAGE_KEYS.BAIDU_SECRET_KEY, baiduSecretKey);
+      // 保存到MongoDB
+      // 查找现有设置
+      const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
+
+      if (existingSettings) {
+        // 更新现有设置
+        await realmService.update('ai_settings', existingSettings._id, {
+          engine: aiEngine,
+          baidu_api_key: baiduApiKey,
+          baidu_secret_key: baiduSecretKey,
+          updated_at: new Date()
+        });
+      } else {
+        // 创建新设置
+        await realmService.create('ai_settings', {
+          _id: new Realm.BSON.ObjectId().toHexString(),
+          type: 'assistant_config',
+          engine: aiEngine,
+          baidu_api_key: baiduApiKey,
+          baidu_secret_key: baiduSecretKey,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      }
 
       Alert.alert('成功', '设置已保存');
     } catch (error) {
@@ -90,7 +113,27 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
 
       setConfigStatus('配置成功！访问令牌已获取。');
       setAiEngine(AIAssistantModule.ENGINE_BAIDU);
-      await AsyncStorage.setItem(STORAGE_KEYS.AI_ENGINE, AIAssistantModule.ENGINE_BAIDU);
+
+      // 更新Realm中的引擎设置
+      // 查找现有设置
+      const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
+
+      if (existingSettings) {
+        // 更新现有设置
+        await realmService.update('ai_settings', existingSettings._id, {
+          engine: AIAssistantModule.ENGINE_BAIDU,
+          updated_at: new Date()
+        });
+      } else {
+        // 创建新设置
+        await realmService.create('ai_settings', {
+          _id: new Realm.BSON.ObjectId().toHexString(),
+          type: 'assistant_config',
+          engine: AIAssistantModule.ENGINE_BAIDU,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      }
 
       Alert.alert('成功', '百度AI配置成功');
     } catch (error) {

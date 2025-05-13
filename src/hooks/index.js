@@ -6,6 +6,8 @@ import useThrottle from './useThrottle';
 import useLocalStorage from './useLocalStorage';
 import useNetworkStatus from './useNetworkStatus';
 import usePermissions from './usePermissions';
+import useRealm from './useRealm';
+import useSyncStatus from './useSyncStatus';
 
 export {
   useDebounce,
@@ -13,6 +15,8 @@ export {
   useLocalStorage,
   useNetworkStatus,
   usePermissions,
+  useRealm,
+  useSyncStatus,
 };
 
 export default {
@@ -21,4 +25,6 @@ export default {
   useLocalStorage,
   useNetworkStatus,
   usePermissions,
+  useRealm,
+  useSyncStatus,
 };

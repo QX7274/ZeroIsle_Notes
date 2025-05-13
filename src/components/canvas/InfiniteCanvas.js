@@ -12,7 +12,7 @@ import Animated, {
 import { captureRef } from 'react-native-view-shot';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useTheme } from '../../context/ThemeContext';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
 import analyticsService from '../../services/analytics/analyticsService';
 

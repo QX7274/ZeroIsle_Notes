@@ -3,7 +3,8 @@
 """
 
 import logging
-from ai_assistant.models import PromptTemplate
+from ai_assistant.mongodb_models import PromptTemplate
+from mongoengine.queryset.visitor import Q
 
 logger = logging.getLogger('backend')
 
@@ -28,9 +29,8 @@ class PromptService:
             QuerySet: 提示词模板查询集
         """
         # 基础查询：用户自己的模板 或 公开的模板
-        from django.db.models import Q
         queryset = PromptTemplate.objects.filter(
-            Q(user=user) | Q(is_public=True)
+            Q(user=user) | Q(is_system=True)
         )
 
         # 应用过滤条件
@@ -38,12 +38,9 @@ class PromptService:
             queryset = queryset.filter(category=category)
 
         if is_public is not None:
-            queryset = queryset.filter(is_public=is_public)
+            queryset = queryset.filter(is_system=is_public)
 
-        if is_featured is not None:
-            queryset = queryset.filter(is_featured=is_featured)
-
-        return queryset.distinct()
+        return queryset
 
     @staticmethod
     def create_template(user, data):
@@ -58,16 +55,19 @@ class PromptService:
             PromptTemplate: 创建的模板
         """
         try:
-            template = PromptTemplate.objects.create(
+            # 提取变量
+            variables = PromptService.extract_variables(data['content'])
+
+            template = PromptTemplate(
                 user=user,
-                title=data['title'],
+                name=data['title'],
                 description=data.get('description', ''),
                 content=data['content'],
                 category=data.get('category', 'other'),
-                tags=data.get('tags', ''),
-                variables=data.get('variables', []),
-                is_public=data.get('is_public', False)
+                variables=variables,
+                is_system=data.get('is_public', False)
             )
+            template.save()
 
             return template
         except Exception as e:
@@ -92,14 +92,11 @@ class PromptService:
             template = PromptTemplate.objects.get(id=template_id)
 
             # 检查权限
-            if template.user != user and not template.is_public:
+            if template.user != user and not template.is_system:
                 raise ValueError("无权访问此模板")
 
             # 渲染模板
             rendered_content = template.render(variables)
-
-            # 增加使用次数
-            template.increment_usage()
 
             return rendered_content
         except PromptTemplate.DoesNotExist:

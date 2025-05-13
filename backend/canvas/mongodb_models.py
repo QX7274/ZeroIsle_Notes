@@ -5,10 +5,11 @@ Canvas模块MongoDB模型
 import uuid
 from django.utils import timezone
 from mongoengine import (
-    Document, EmbeddedDocument, StringField, DateTimeField, 
+    Document, EmbeddedDocument, StringField, DateTimeField,
     UUIDField, ListField, EmbeddedDocumentField, BooleanField,
     FloatField, IntField, DictField, ReferenceField
 )
+from users.mongodb_models import User
 
 class CanvasElement(Document):
     """
@@ -27,7 +28,7 @@ class CanvasElement(Document):
     is_deleted = BooleanField(default=False, verbose_name='是否删除')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'canvas_elements',
         'indexes': [
@@ -37,10 +38,10 @@ class CanvasElement(Document):
         ],
         'ordering': ['created_at']
     }
-    
+
     def __str__(self):
         return f"{self.type} - {self.id}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -62,7 +63,7 @@ class CanvasConnection(Document):
     is_deleted = BooleanField(default=False, verbose_name='是否删除')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'canvas_connections',
         'indexes': [
@@ -73,10 +74,10 @@ class CanvasConnection(Document):
         ],
         'ordering': ['created_at']
     }
-    
+
     def __str__(self):
         return f"{self.type} - {self.id}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -88,7 +89,7 @@ class Canvas(Document):
     画布文档模型
     """
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='画布ID')
-    user_id = UUIDField(required=True, verbose_name='用户ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
     title = StringField(required=True, verbose_name='标题')
     description = StringField(verbose_name='描述')
     type = StringField(required=True, default='freeform', verbose_name='类型')
@@ -105,11 +106,11 @@ class Canvas(Document):
     tags = ListField(StringField(), verbose_name='标签')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'canvases',
         'indexes': [
-            'user_id',
+            'user',
             'type',
             'is_deleted',
             'is_template',
@@ -118,10 +119,10 @@ class Canvas(Document):
         ],
         'ordering': ['-updated_at']
     }
-    
+
     def __str__(self):
         return f"{self.title} - {self.id}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()

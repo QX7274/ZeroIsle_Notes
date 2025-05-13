@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, BackHandler } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { InfiniteCanvas } from '../../components/canvas';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
-import infiniteCanvasStorage from '../../services/offline/infiniteCanvasStorage';
+import { offlineStorageService, infiniteCanvasStorage } from '../../services/offline';
 import analyticsService from '../../services/analytics/analyticsService';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -107,26 +106,26 @@ const InfiniteCanvasScreen = ({ navigation, route }) => {
           setTimeout(() => reject(new Error('保存画布超时')), 5000);
         });
 
-        // 尝试保存到AsyncStorage (offlineStorageService)
+        // 尝试保存到MongoDB Realm (offlineStorageService)
         try {
-          console.log('尝试保存画布到AsyncStorage...');
+          console.log('尝试保存画布到MongoDB Realm...');
           const savePromise = offlineStorageService.saveCanvas(newCanvas);
           await Promise.race([savePromise, timeout]);
-          console.log('画布已保存到AsyncStorage');
-        } catch (asyncStorageError) {
-          console.warn('保存到AsyncStorage失败:', asyncStorageError);
+          console.log('画布已保存到MongoDB Realm');
+        } catch (realmError) {
+          console.warn('保存到MongoDB Realm失败:', realmError);
           // 继续执行，尝试其他存储方式
         }
 
-        // 尝试保存到SQLite (infiniteCanvasStorage)
+        // 尝试保存到本地存储 (infiniteCanvasStorage)
         try {
-          console.log('尝试保存画布到SQLite...');
+          console.log('尝试保存画布到本地存储...');
           const savePromise = infiniteCanvasStorage.saveCanvas(newCanvas);
           await Promise.race([savePromise, timeout]);
-          console.log('画布已保存到SQLite');
-        } catch (sqliteError) {
-          console.warn('保存到SQLite失败:', sqliteError);
-          // 继续执行，已经保存到AsyncStorage
+          console.log('画布已保存到本地存储');
+        } catch (storageError) {
+          console.warn('保存到本地存储失败:', storageError);
+          // 继续执行，已经保存到MongoDB
         }
 
         analyticsService.trackCanvasAction('create_new');

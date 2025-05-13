@@ -32,7 +32,7 @@ import {
 import { Button } from '../../components/common';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 
 const NoteScreen = ({ navigation, route }) => {
   // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值

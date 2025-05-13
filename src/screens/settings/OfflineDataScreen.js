@@ -14,18 +14,18 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import { Button } from '../../components/common';
 
 const OfflineDataScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 状态
   const [status, setStatus] = useState(offlineStorageService.getStatus());
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  
+
   // 监听离线存储服务状态变化
   useEffect(() => {
     const unsubscribe = offlineStorageService.addListener(event => {
@@ -33,10 +33,10 @@ const OfflineDataScreen = ({ navigation }) => {
         setStatus(offlineStorageService.getStatus());
       }
     });
-    
+
     return () => unsubscribe();
   }, []);
-  
+
   // 处理离线模式切换
   const handleOfflineModeToggle = async (value) => {
     setIsLoading(true);
@@ -48,7 +48,7 @@ const OfflineDataScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 处理同步
   const handleSync = async () => {
     setIsLoading(true);
@@ -66,7 +66,7 @@ const OfflineDataScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 处理清除离线数据
   const handleClearOfflineData = () => {
     Alert.alert(
@@ -101,22 +101,22 @@ const OfflineDataScreen = ({ navigation }) => {
       ]
     );
   };
-  
+
   // 格式化最后同步时间
   const formatLastSyncTime = () => {
     if (!status.lastSyncTime) return '从未同步';
-    
+
     const lastSync = new Date(status.lastSyncTime);
     return lastSync.toLocaleString();
   };
-  
+
   // 格式化存储使用量
   const formatStorageUsage = () => {
     const { current, limit, percentage } = status.storageUsage;
     const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
     return `${mb(current)}MB / ${mb(limit)}MB (${percentage.toFixed(1)}%)`;
   };
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content} key={refreshKey}>
@@ -132,7 +132,7 @@ const OfflineDataScreen = ({ navigation }) => {
               离线模式
             </Text>
           </View>
-          
+
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Text
@@ -148,7 +148,7 @@ const OfflineDataScreen = ({ navigation }) => {
                 在离线模式下，应用不会尝试连接服务器
               </Text>
             </View>
-            
+
             {isLoading ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
@@ -161,7 +161,7 @@ const OfflineDataScreen = ({ navigation }) => {
             )}
           </View>
         </View>
-        
+
         {/* 同步状态 */}
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <View style={styles.sectionHeader}>
@@ -174,7 +174,7 @@ const OfflineDataScreen = ({ navigation }) => {
               同步状态
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text
               variant="body"
@@ -198,7 +198,7 @@ const OfflineDataScreen = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text
               variant="body"
@@ -214,7 +214,7 @@ const OfflineDataScreen = ({ navigation }) => {
               {formatLastSyncTime()}
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text
               variant="body"
@@ -230,7 +230,7 @@ const OfflineDataScreen = ({ navigation }) => {
               {status.pendingOperationsCount}
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text
               variant="body"
@@ -244,12 +244,12 @@ const OfflineDataScreen = ({ navigation }) => {
               size="medium"
               style={status.syncStatus === 'error' && { color: colors.error }}
             >
-              {status.syncStatus === 'idle' ? '空闲' : 
-               status.syncStatus === 'syncing' ? '同步中' : 
+              {status.syncStatus === 'idle' ? '空闲' :
+               status.syncStatus === 'syncing' ? '同步中' :
                `错误: ${status.syncError}`}
             </Text>
           </View>
-          
+
           <Button
             title="立即同步"
             onPress={handleSync}
@@ -258,7 +258,7 @@ const OfflineDataScreen = ({ navigation }) => {
             icon="sync"
           />
         </View>
-        
+
         {/* 存储使用 */}
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <View style={styles.sectionHeader}>
@@ -271,7 +271,7 @@ const OfflineDataScreen = ({ navigation }) => {
               存储使用
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text
               variant="body"
@@ -287,7 +287,7 @@ const OfflineDataScreen = ({ navigation }) => {
               {formatStorageUsage()}
             </Text>
           </View>
-          
+
           <View
             style={[
               styles.storageBar,
@@ -297,16 +297,16 @@ const OfflineDataScreen = ({ navigation }) => {
             <View
               style={[
                 styles.storageUsed,
-                { 
+                {
                   width: `${Math.min(status.storageUsage.percentage, 100)}%`,
-                  backgroundColor: status.storageUsage.percentage > 90 ? colors.error : 
-                                  status.storageUsage.percentage > 70 ? colors.warning : 
+                  backgroundColor: status.storageUsage.percentage > 90 ? colors.error :
+                                  status.storageUsage.percentage > 70 ? colors.warning :
                                   colors.success
                 }
               ]}
             />
           </View>
-          
+
           <Button
             title="清除离线数据"
             onPress={handleClearOfflineData}

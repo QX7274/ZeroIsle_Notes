@@ -42,6 +42,7 @@ def api_v1_root(request):
         'common': '/api/v1/common/',
         'notifications': '/api/v1/notifications/',
         'groups': '/api/v1/groups/',
+        'sync': '/api/v1/sync/',
     }
 
     return JsonResponse({
@@ -105,6 +106,7 @@ urlpatterns = [
     path(f'{api_prefix}common/', include('common.urls')),
     path(f'{api_prefix}notifications/', include('notification.urls')),
     path(f'{api_prefix}groups/', include('groups.urls')),
+    path(f'{api_prefix}sync/', include('sync.urls')),
 ]
 
 # 添加媒体文件URL

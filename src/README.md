@@ -56,4 +56,4 @@
 - 使用Redux进行状态管理
 - 使用React Navigation进行导航
 - 使用Axios进行API请求
-- 使用AsyncStorage进行本地存储
+- 使用MongoDB Realm进行本地存储

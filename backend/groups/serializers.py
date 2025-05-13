@@ -4,7 +4,7 @@
 
 from rest_framework import serializers
 from users.serializers import UserSerializer
-from .models import Group, GroupMember, GroupInvitation, SharedScreen
+from .mongodb_models import Group, GroupMember, GroupInvitation, SharedScreen
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -34,7 +34,7 @@ class GroupDetailSerializer(GroupSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
-        
+
         if obj.creator == request.user or obj.members.filter(user=request.user, role='admin', is_active=True).exists():
             return obj.join_code if obj.is_join_code_valid() else None
         return None
@@ -44,7 +44,7 @@ class GroupDetailSerializer(GroupSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
-        
+
         if obj.creator == request.user or obj.members.filter(user=request.user, role='admin', is_active=True).exists():
             return obj.join_code_expires_at if obj.is_join_code_valid() else None
         return None

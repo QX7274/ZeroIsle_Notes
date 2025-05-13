@@ -2,11 +2,10 @@
 对话模型
 """
 
-from django.db import models
-from django.contrib.auth import get_user_model
-from common.models import UserOwnedModel, SoftDeleteModel
-
-User = get_user_model()
+from mongoengine import Document, StringField, DateTimeField, BooleanField, FloatField
+from mongoengine import IntField, ReferenceField, CASCADE
+from django.utils import timezone
+from users.mongodb_models import User
 
 class Conversation(UserOwnedModel, SoftDeleteModel):
     """
@@ -21,7 +20,7 @@ class Conversation(UserOwnedModel, SoftDeleteModel):
     max_tokens = models.IntegerField(default=2000, verbose_name='最大令牌数')
     is_pinned = models.BooleanField(default=False, verbose_name='是否置顶')
     last_message_at = models.DateTimeField(auto_now=True, verbose_name='最后消息时间')
-    
+
     class Meta:
         verbose_name = '对话'
         verbose_name_plural = '对话'
@@ -31,29 +30,29 @@ class Conversation(UserOwnedModel, SoftDeleteModel):
             models.Index(fields=['user', 'is_pinned']),
             models.Index(fields=['last_message_at']),
         ]
-    
+
     def __str__(self):
         return self.title or f"对话 {self.id}"
-    
+
     @property
     def message_count(self):
         """消息数量"""
         return self.messages.count()
-    
+
     @property
     def total_tokens(self):
         """总令牌数"""
         return self.messages.aggregate(total=models.Sum('tokens'))['total'] or 0
-    
+
     def add_message(self, role, content, tokens=None):
         """
         添加消息
-        
+
         Args:
             role: 角色 (user/assistant/system)
             content: 内容
             tokens: 令牌数
-            
+
         Returns:
             Message: 创建的消息
         """
@@ -74,7 +73,7 @@ class Message(models.Model):
         ('assistant', '助手'),
         ('system', '系统'),
     )
-    
+
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,
@@ -85,7 +84,7 @@ class Message(models.Model):
     content = models.TextField(verbose_name='内容')
     tokens = models.IntegerField(default=0, verbose_name='令牌数')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    
+
     class Meta:
         verbose_name = '消息'
         verbose_name_plural = '消息'
@@ -94,6 +93,6 @@ class Message(models.Model):
             models.Index(fields=['conversation', 'role']),
             models.Index(fields=['created_at']),
         ]
-    
+
     def __str__(self):
         return f"{self.get_role_display()}: {self.content[:50]}..."

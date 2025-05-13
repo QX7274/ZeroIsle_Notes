@@ -1,9 +1,10 @@
-/**
+﻿/**
  * 应用入口
  * 集成了Redux状态管理、主题管理、认证流程和导航等基础功能
  */
+
 import React, { useEffect, useState } from 'react';
-import { StatusBar, Platform, LogBox, View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { StatusBar, Platform, LogBox, View, Text, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -26,21 +27,24 @@ import { navigationRef, processNavigationQueue } from './navigation/navigationRe
 // 导入上下文提供者
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { RealmProvider } from './context/RealmContext';
 
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
-import { dataService, sqliteService } from './services/database';
-import infiniteCanvasStorage from './services/offline/infiniteCanvasStorage';
-import { offlineStorageService } from './services/offline/offlineStorage';
-// 使用拦截器替代原始的 AsyncStorage
-import AsyncStorage from './utils/asyncStorageInterceptor';
+import { dataService } from './services/database';
+import { infiniteCanvasStorage, offlineStorageService } from './services/offline';
+// 使用MongoDB Realm替代AsyncStorage
+import { realmStorageService } from './services/storage/realmStorageService';
 import STORAGE_KEYS from './constants/storageKeys';
 import { patchDateTimePicker } from './utils/patchDateTimePicker';
 import './utils/cryptoPolyfill'; // 导入加密模块 polyfill
+import { fixServiceInitialization } from './services/initFix'; // 导入服务初始化修复
+import { ensureAllServicesInitialized, checkAllServices } from './services/serviceChecker'; // 导入服务检查器
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
+import { ServiceStatusChecker } from './components/common';
 
 // 调试信息
 console.log('App.js: store导入状态:', store ? '成功' : '失败');
@@ -98,6 +102,13 @@ const AuthStateManager = () => {
 // 主应用容器
 const AppContainer = () => {
   console.log('AppContainer组件开始渲染...');
+
+  // 应用状态
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [showServiceChecker, setShowServiceChecker] = useState(false);
+  const [servicesInitialized, setServicesInitialized] = useState(false);
 
   // 获取认证状态
   const { token, user, isAuthenticated: authState } = useSelector(state => {
@@ -164,6 +175,30 @@ const AppContainer = () => {
         return;
       }
 
+      // 确保所有必需服务已初始化
+      try {
+        console.log('确保所有必需服务已初始化...');
+        const servicesInitialized = await ensureAllServicesInitialized();
+
+        if (!servicesInitialized) {
+          console.error('必需服务初始化失败，应用可能无法正常工作');
+          // 显示错误提示
+          Alert.alert(
+            '初始化错误',
+            '某些必需服务初始化失败，应用可能无法正常工作。请重启应用。',
+            [{ text: '确定', style: 'cancel' }]
+          );
+        } else {
+          console.log('所有必需服务已初始化');
+        }
+      } catch (serviceError) {
+        console.error('服务初始化检查失败:', serviceError);
+        // 继续执行，不阻塞应用启动
+      }
+
+      // 导入realmInitializer
+      const { realmInitializer } = require('./services/database/realmInitializer');
+
       try {
         console.log('正在初始化服务...');
         servicesInitialized = true;
@@ -178,152 +213,68 @@ const AppContainer = () => {
           // 继续执行，不阻塞应用启动
         }
 
-        // 直接创建数据库文件和表，不依赖于导入的方法
+        // 初始化MongoDB连接和存储服务
         try {
-          console.log('直接创建数据库文件和sync_info表...');
+          console.log('初始化MongoDB连接和存储服务...');
 
-          // 导入必要的模块
-          const SQLite = require('react-native-sqlite-storage');
-          const RNFS = require('react-native-fs');
-          SQLite.enablePromise(true);
-
-          // 获取数据库文件路径
-          let dbPath = '';
-          if (Platform.OS === 'android') {
-            dbPath = `${RNFS.DocumentDirectoryPath}/zeroislenotes.db`;
-          } else {
-            dbPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase/zeroislenotes.db`;
+          // 初始化无限画布存储服务
+          try {
+            console.log('初始化无限画布存储服务...');
+            await infiniteCanvasStorage.initialize();
+            console.log('无限画布存储服务初始化完成');
+          } catch (canvasError) {
+            console.error('初始化无限画布存储服务失败:', canvasError);
+            // 继续执行，不阻塞应用启动
           }
 
-          console.log('数据库文件路径:', dbPath);
+          // 初始化Realm数据库
+          try {
+            console.log('初始化Realm数据库...');
+            const { realmInitializer } = require('./services/database/realmInitializer');
+            await realmInitializer.initialize();
+            console.log('Realm数据库初始化完成');
 
-          // 检查文件是否存在
-          const fileExists = await RNFS.exists(dbPath);
-          console.log(`数据库文件是否存在: ${fileExists}`);
+            // 检查网络连接并尝试同步
+            await realmInitializer.checkNetworkAndSync();
 
-          // 如果文件不存在，创建目录和空文件
-          if (!fileExists) {
+            // 确保所有服务正确初始化
             try {
-              // 确保目录存在
-              if (Platform.OS === 'ios') {
-                const dirPath = `${RNFS.LibraryDirectoryPath}/LocalDatabase`;
-                const dirExists = await RNFS.exists(dirPath);
-                if (!dirExists) {
-                  await RNFS.mkdir(dirPath);
-                  console.log(`创建iOS数据库目录: ${dirPath}`);
-                }
-              }
+              console.log('再次检查所有服务初始化状态...');
+              const servicesInitialized = await ensureAllServicesInitialized();
 
-                  // 直接创建空文件，不使用二进制头部
-              await RNFS.writeFile(dbPath, '', 'utf8');
-              console.log('创建空数据库文件成功');
-
-              // 验证文件是否创建成功
-              const fileExistsAfter = await RNFS.exists(dbPath);
-              if (fileExistsAfter) {
-                const fileInfo = await RNFS.stat(dbPath);
-                console.log(`数据库文件已创建，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
-              } else {
-                console.error('数据库文件创建失败');
-                // 备选方案：尝试使用空字符串创建文件
-                await RNFS.writeFile(dbPath, '', 'utf8');
-                console.log('使用备选方案创建空数据库文件');
-              }
-            } catch (fileError) {
-              console.error('创建数据库文件失败:', fileError);
-            }
-          }
-
-          // 打开数据库
-          console.log('尝试打开数据库...');
-          const db = await SQLite.openDatabase({
-            name: 'zeroislenotes.db',
-            location: Platform.OS === 'ios' ? 'Library' : 'default',
-            createFromLocation: 0,
-          });
-
-          console.log('数据库打开成功，尝试创建sync_info表');
-
-          // 创建sync_info表
-          await db.executeSql(`
-            CREATE TABLE IF NOT EXISTS sync_info (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              table_name TEXT NOT NULL UNIQUE,
-              last_sync_time TEXT,
-              sync_status TEXT,
-              error_message TEXT,
-              created_at TEXT,
-              updated_at TEXT
-            )
-          `);
-
-          console.log('sync_info表创建成功');
-
-          // 检查表是否已有记录
-          const result = await db.executeSql('SELECT COUNT(*) as count FROM sync_info');
-          const count = result[0].rows.item(0).count;
-
-          if (count === 0) {
-            console.log('sync_info表为空，初始化记录');
-            const now = new Date().toISOString();
-            const tables = ['users', 'notes', 'categories', 'tags', 'note_tags', 'reminders', 'settings', 'files'];
-
-            // 使用事务批量插入
-            await db.transaction(async (tx) => {
-              for (const table of tables) {
-                // 确保参数不为null
-                const safeParams = [
-                  table || '',
-                  '',
-                  'pending',
-                  now || new Date().toISOString(),
-                  now || new Date().toISOString()
-                ];
-
-                await tx.executeSql(
-                  'INSERT INTO sync_info (table_name, last_sync_time, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-                  safeParams
+              if (!servicesInitialized) {
+                console.error('必需服务初始化失败，应用可能无法正常工作');
+                // 显示错误提示
+                Alert.alert(
+                  '初始化错误',
+                  '某些必需服务初始化失败，应用可能无法正常工作。请重启应用。',
+                  [{ text: '确定', style: 'cancel' }]
                 );
+              } else {
+                console.log('所有必需服务已初始化');
               }
-            });
-
-            console.log('sync_info表初始化完成');
-          } else {
-            console.log(`sync_info表已有${count}条记录`);
+            } catch (serviceError) {
+              console.error('服务初始化检查失败:', serviceError);
+              // 继续执行，不阻塞应用启动
+            }
+          } catch (realmError) {
+            console.error('初始化Realm数据库失败:', realmError);
+            // 继续执行，不阻塞应用启动
           }
 
-          // 创建离线队列表
-          await db.executeSql(`
-            CREATE TABLE IF NOT EXISTS offline_queue (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              operation_type TEXT NOT NULL,
-              table_name TEXT NOT NULL,
-              record_id TEXT,
-              data TEXT,
-              retry_count INTEGER DEFAULT 0,
-              created_at TEXT,
-              is_processed INTEGER DEFAULT 0,
-              error_message TEXT
-            )
-          `);
-          console.log('离线队列表创建成功');
-
-          // 确保数据库文件被正确保存
-          await db.executeSql('PRAGMA journal_mode=DELETE');
-          await db.executeSql('PRAGMA synchronous=FULL');
-          await db.close();
-          console.log('数据库已关闭，确保更改被保存');
-
-          // 验证数据库文件是否存在
-          const fileExistsAfterClose = await RNFS.exists(dbPath);
-          if (fileExistsAfterClose) {
-            const fileInfo = await RNFS.stat(dbPath);
-            console.log(`数据库文件已保存，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
-          } else {
-            console.error('数据库文件保存失败');
+          // 初始化MongoDB数据服务
+          try {
+            console.log('初始化MongoDB数据服务...');
+            await dataService.initialize();
+            console.log('MongoDB数据服务初始化完成');
+          } catch (mongoError) {
+            console.error('初始化MongoDB数据服务失败:', mongoError);
+            // 继续执行，不阻塞应用启动
           }
-        } catch (syncTableError) {
-          console.error('直接创建数据库和表失败:', syncTableError);
+
+          console.log('MongoDB连接和存储服务初始化完成');
+        } catch (dbError) {
+          console.error('初始化数据库服务失败:', dbError);
           // 继续执行，不阻塞应用启动
         }
 
@@ -357,9 +308,9 @@ const AppContainer = () => {
               // 步骤1: 首先确保offlineStorageService已经初始化
               try {
                 console.log('确保offlineStorageService已初始化...');
-                if (!offlineStorageService.isInitialized) {
+                if (!offlineStorageService.initialized) {
                   console.log('offlineStorageService未初始化，开始初始化...');
-                  await offlineStorageService.init();
+                  await offlineStorageService.initialize();
                   console.log('offlineStorageService初始化完成');
                 } else {
                   console.log('offlineStorageService已经初始化');
@@ -532,7 +483,7 @@ const AppContainer = () => {
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
                       console.log(`尝试从存储中获取画布，使用键: ${storageKey}`);
 
-                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+                      const canvasesJson = await realmStorageService.getItem(storageKey);
 
                       // 防御性检查：确保JSON解析不会失败
                       if (!canvasesJson) {
@@ -641,7 +592,7 @@ const AppContainer = () => {
                     try {
                       // 尝试从AsyncStorage直接获取
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
-                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+                      const canvasesJson = await realmStorageService.getItem(storageKey);
 
                       if (canvasesJson) {
                         try {
@@ -684,7 +635,7 @@ const AppContainer = () => {
                       try {
                         // 尝试从AsyncStorage直接获取
                         const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
-                        const canvasesJson = await AsyncStorage.getItem(storageKey);
+                        const canvasesJson = await realmStorageService.getItem(storageKey);
 
                         if (canvasesJson) {
                           try {
@@ -722,7 +673,7 @@ const AppContainer = () => {
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
                       console.log(`紧急兼容getCanvases尝试从存储中获取画布，使用键: ${storageKey}`);
 
-                      const canvasesJson = await AsyncStorage.getItem(storageKey);
+                      const canvasesJson = await realmStorageService.getItem(storageKey);
 
                       // 防御性检查：确保JSON解析不会失败
                       if (!canvasesJson) {
@@ -764,179 +715,26 @@ const AppContainer = () => {
         });
         initPromises.push(offlineDataPromise);
 
-        // 初始化SQLite数据库服务 - 使用单独的Promise.race确保不会阻塞其他服务
-        const sqlitePromise = new Promise(async (resolve) => {
+        // 初始化MongoDB数据库服务
+        const mongoDBPromise = new Promise(async (resolve) => {
           try {
-            console.log('正在初始化SQLite数据库服务...');
+            console.log('正在初始化MongoDB数据库服务...');
 
-            // 检查数据库状态并尝试修复
+            // 尝试初始化数据服务
             try {
-              console.log('检查数据库状态...');
-              const dbPath = await sqliteService.getDatabasePath();
-              const RNFS = require('react-native-fs');
-              const fileExists = await RNFS.exists(dbPath);
-
-              if (fileExists) {
-                try {
-                  const fileInfo = await RNFS.stat(dbPath);
-                  console.log(`数据库文件存在，大小: ${(fileInfo.size / 1024).toFixed(2)} KB`);
-
-                  // 如果文件大小异常（太小或太大），可能是损坏的
-                  if (fileInfo.size < 1024) { // 小于1KB
-                    console.warn('数据库文件异常小，可能是空文件或损坏，尝试重置');
-                    await sqliteService.resetDatabase();
-                  } else if (fileInfo.size > 100 * 1024 * 1024) { // 大于100MB
-                    console.warn('数据库文件过大，可能导致性能问题，尝试检查完整性');
-                    await sqliteService.checkAndRepairDatabase();
-                  }
-                } catch (fileError) {
-                  console.warn('检查数据库文件失败:', fileError);
-                }
-              } else {
-                console.log('数据库文件不存在，将在初始化时创建');
-              }
-            } catch (dbCheckError) {
-              console.error('检查数据库状态失败:', dbCheckError);
+              await dataService.initialize();
+              console.log('MongoDB数据服务初始化成功');
+              resolve(true);
+            } catch (dataServiceError) {
+              console.error('MongoDB数据服务初始化失败:', dataServiceError);
+              resolve(false);
             }
-
-            // 不再需要单独的超时Promise，因为init方法内部已经有超时处理
-
-            // 使用更简单、更可靠的方法初始化SQLite
-            let sqliteResult = false;
-            try {
-              console.log('使用简化方法初始化SQLite数据库...');
-
-              // 初始化SQLite服务并等待完全初始化
-              console.log('开始初始化SQLite数据库并等待完全初始化...');
-
-              // 注册初始化完成回调，在数据库完全初始化后初始化数据服务
-              sqliteService.onInitialized(async () => {
-                console.log('SQLite数据库完全初始化完成，现在初始化数据服务');
-
-                try {
-                  await dataService.init();
-                  console.log('数据服务初始化成功');
-                } catch (dataServiceError) {
-                  console.error('数据服务初始化失败:', dataServiceError);
-                }
-              });
-
-              // 开始初始化，但不等待完全初始化完成
-              try {
-                console.log('尝试重置并重新初始化数据库...');
-
-                // 先尝试重置数据库
-                try {
-                  console.log('开始重置数据库...');
-                  await sqliteService.resetDatabase();
-                  console.log('数据库重置成功');
-                } catch (resetError) {
-                  console.warn('数据库重置失败，继续尝试初始化:', resetError);
-                }
-
-                // 设置超时，确保初始化不会一直等待
-                const initTimeoutPromise = new Promise(resolve => {
-                  setTimeout(() => {
-                    console.log('SQLite初始化超时，使用降级模式');
-                    resolve(null);
-                  }, 10000); // 10秒超时
-                });
-
-                // 尝试初始化SQLite，但不等待太久
-                const initPromise = sqliteService.init();
-                const db = await Promise.race([initPromise, initTimeoutPromise]);
-
-                // 无论成功与否，都立即标记为完全初始化
-                console.log('立即标记数据库为完全初始化，应用可以继续运行');
-                sqliteService.isFullyInitialized = true;
-                sqliteService.isInitialized = true;
-                sqliteService.processOperationQueue();
-                sqliteService.notifyInitCallbacks();
-                sqliteResult = true;
-
-                if (db) {
-                  console.log('SQLite数据库基本初始化成功，应用可以继续启动');
-
-                  // 尝试初始化数据服务，但不等待太久
-                  const dataServiceTimeoutPromise = new Promise(resolve => {
-                    setTimeout(() => {
-                      console.log('数据服务初始化超时，使用降级模式');
-                      resolve(false);
-                    }, 5000); // 5秒超时
-                  });
-
-                  try {
-                    await Promise.race([dataService.init(), dataServiceTimeoutPromise]);
-                    console.log('数据服务初始化成功或超时');
-                  } catch (dataServiceError) {
-                    console.warn('数据服务初始化失败，但应用可以继续运行:', dataServiceError);
-                  }
-
-                  // 在后台完成其他初始化任务，不等待结果
-                  setTimeout(() => {
-                    sqliteService.completeInitializationInBackground().catch(error => {
-                      console.warn('后台完成初始化失败，但应用可以继续运行:', error);
-                    });
-                  }, 1000);
-                } else {
-                  console.warn('SQLite数据库初始化失败或超时，使用降级模式');
-
-                  // 尝试初始化数据服务，但不等待太久
-                  const dataServiceTimeoutPromise = new Promise(resolve => {
-                    setTimeout(() => {
-                      console.log('数据服务初始化超时，使用降级模式');
-                      resolve(false);
-                    }, 5000); // 5秒超时
-                  });
-
-                  try {
-                    await Promise.race([dataService.init(), dataServiceTimeoutPromise]);
-                    console.log('数据服务初始化成功或超时');
-                  } catch (dataServiceError) {
-                    console.warn('数据服务初始化失败，但应用可以继续运行:', dataServiceError);
-                  }
-                }
-              } catch (error) {
-                console.error('数据库初始化过程中出现未处理的错误:', error);
-                // 即使失败也继续运行
-                sqliteResult = true;
-              }
-            } catch (initError) {
-              console.error('SQLite初始化过程中出错:', initError);
-
-              // 最后尝试：重置数据库
-              try {
-                console.log('尝试重置数据库...');
-                const resetResult = await sqliteService.resetDatabase();
-                console.log('数据库重置结果:', resetResult ? '成功' : '失败');
-
-                if (resetResult) {
-                  // 再次尝试初始化数据服务
-                  try {
-                    await dataService.init();
-                    sqliteResult = true;
-                    console.log('重置后数据服务初始化成功');
-                  } catch (postResetError) {
-                    console.error('重置后数据服务初始化失败:', postResetError);
-                  }
-                }
-              } catch (resetError) {
-                console.error('重置数据库失败:', resetError);
-              }
-            }
-
-            if (sqliteResult) {
-              console.log('SQLite数据库服务初始化成功');
-            } else {
-              console.warn('SQLite数据库服务未成功初始化，应用将以降级模式运行');
-            }
-            resolve(sqliteResult);
           } catch (error) {
-            console.warn('SQLite数据库服务初始化失败，但应用将继续运行:', error);
+            console.warn('MongoDB数据库服务初始化失败，但应用将继续运行:', error);
             resolve(false);
           }
         });
-        initPromises.push(sqlitePromise);
+        initPromises.push(mongoDBPromise);
 
         // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
         // 但不再使用超时来中断数据库初始化，而是让数据库服务自己管理初始化状态
@@ -955,16 +753,37 @@ const AppContainer = () => {
         ]);
 
         console.log('所有服务初始化完成或超时');
+
+        // 设置初始化完成状态
+        setIsInitialized(true);
+        setShowSplash(false);
+
+        // 显示服务检查器
+        setTimeout(() => {
+          setShowServiceChecker(true);
+        }, 500);
       } catch (error) {
         console.error('初始化服务失败:', error);
         // 即使出错也不抛出异常，避免阻塞应用启动
+
+        // 设置初始化完成状态，即使出错也继续
+        setIsInitialized(true);
+        setShowSplash(false);
+
+        // 显示服务检查器
+        setTimeout(() => {
+          setShowServiceChecker(true);
+        }, 500);
       }
     };
+
+    // 显示启动屏幕
+    setShowSplash(true);
 
     // 使用setTimeout确保不会阻塞UI渲染
     const initTimeout = setTimeout(() => {
       initServices();
-    }, 500); // 延迟500ms初始化，确保UI已渲染
+    }, 1000); // 延迟1000ms初始化，确保启动屏幕已显示
 
     // 清理函数，在组件卸载时执行
     return () => {
@@ -979,12 +798,23 @@ const AppContainer = () => {
         console.error('销毁离线数据服务失败:', error);
       }
 
-      // 关闭SQLite数据库连接
+      // 关闭Realm数据库
       try {
-        sqliteService.close();
-        console.log('SQLite数据库连接已关闭');
+        const { realmInitializer } = require('./services/database/realmInitializer');
+        realmInitializer.close();
+        console.log('Realm数据库已关闭');
+      } catch (realmError) {
+        console.error('关闭Realm数据库失败:', realmError);
+      }
+
+      // 关闭MongoDB数据库连接
+      try {
+        if (dataService && typeof dataService.disconnect === 'function') {
+          dataService.disconnect();
+          console.log('MongoDB数据库连接已关闭');
+        }
       } catch (error) {
-        console.error('关闭SQLite数据库连接失败:', error);
+        console.error('关闭MongoDB数据库连接失败:', error);
       }
     };
   }, []); // 空依赖数组确保只在组件挂载时执行一次
@@ -1010,6 +840,59 @@ const AppContainer = () => {
   // 创建 Paper 主题
   const paperTheme = isDarkMode ? createPaperDarkTheme(theme) : createPaperLightTheme(theme);
 
+  // 处理服务检查完成
+  const handleServiceCheckComplete = (success) => {
+    console.log('服务检查完成，结果:', success ? '成功' : '失败');
+    setServicesInitialized(success);
+    setShowServiceChecker(false);
+    setIsLoading(false);
+    setIsInitialized(true);
+  };
+
+  // 在初始化完成后显示服务检查器
+  useEffect(() => {
+    if (isInitialized && !showServiceChecker && !servicesInitialized) {
+      console.log('显示服务检查器...');
+      setShowServiceChecker(true);
+    }
+  }, [isInitialized, showServiceChecker, servicesInitialized]);
+
+  // 如果正在显示服务检查器，则渲染服务检查器
+  if (showServiceChecker) {
+    return (
+      <View style={{ flex: 1 }}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.colors.background}
+          translucent
+        />
+        <ServiceStatusChecker onComplete={handleServiceCheckComplete} />
+      </View>
+    );
+  }
+
+  // 如果正在显示启动屏幕，则渲染启动屏幕
+  if (showSplash) {
+    return (
+      <View style={{ flex: 1 }}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.colors.background}
+          translucent
+        />
+        <SplashScreen
+          message="应用初始化中..."
+          onFinish={() => {
+            console.log('启动屏幕动画完成');
+            setShowSplash(false);
+            setIsInitialized(true);
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 正常渲染应用
   return (
     <PaperProvider theme={paperTheme}>
       <StatusBar
@@ -1132,9 +1015,11 @@ const App = () => {
               <SafeAreaProvider>
                 <ThemeProvider>
                   <AccessibilityProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }}>
-                      <AppContainer />
-                    </GestureHandlerRootView>
+                    <RealmProvider>
+                      <GestureHandlerRootView style={{ flex: 1 }}>
+                        <AppContainer />
+                      </GestureHandlerRootView>
+                    </RealmProvider>
                   </AccessibilityProvider>
                 </ThemeProvider>
               </SafeAreaProvider>

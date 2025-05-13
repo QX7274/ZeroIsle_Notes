@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../../services/storage/realmStorageService';
 import { API_BASE_URL } from '../../config/api';
 
 const ApiTestComponent = () => {
@@ -33,7 +33,7 @@ const ApiTestComponent = () => {
       };
 
       // 添加认证令牌
-      const token = await AsyncStorage.getItem('token');
+      const token = await realmStorageService.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -89,7 +89,7 @@ const ApiTestComponent = () => {
                 key={m}
                 style={[
                   styles.methodButton,
-                  { 
+                  {
                     backgroundColor: method === m ? colors.primary : colors.surface,
                     borderColor: colors.border,
                   }

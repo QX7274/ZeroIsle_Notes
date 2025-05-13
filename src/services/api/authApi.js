@@ -46,8 +46,8 @@ export const login = async (loginData) => {
       console.log('网络未连接，尝试离线登录');
 
       // 检查是否有离线用户
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const offlineUserJson = await AsyncStorage.getItem('offline_user');
+      const { realmStorageService } = require('../storage/realmStorageService');
+      const offlineUserJson = await realmStorageService.getItem('offline_user');
 
       if (offlineUserJson) {
         const offlineUser = JSON.parse(offlineUserJson);
@@ -67,7 +67,7 @@ export const login = async (loginData) => {
           };
 
           // 设置离线模式
-          await AsyncStorage.setItem('is_offline_mode', 'true');
+          await realmStorageService.setItem('is_offline_mode', 'true');
 
           // 保存令牌和用户信息
           await setToken(mockResponse.access);
@@ -113,6 +113,16 @@ export const login = async (loginData) => {
     const responseData = response.data || response;
     console.log('处理后的登录响应数据:', responseData);
 
+    // 检查是否是离线模式的错误响应
+    if (responseData.offline && responseData.error === 'NETWORK_ERROR') {
+      console.log('离线模式下的登录请求，返回网络错误');
+      return {
+        success: false,
+        message: '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
+
     // 验证响应数据是否包含必要的字段
     if (!responseData || !responseData.access || !responseData.refresh || !responseData.user) {
       console.error('登录响应数据格式错误:', responseData);
@@ -131,9 +141,9 @@ export const login = async (loginData) => {
       } else if (storageService && typeof storageService.setToken === 'function') {
         await storageService.setToken(access);
       } else {
-        console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-        await AsyncStorage.setItem('zeroislenotes_token', access);
+        console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
+        const { realmStorageService } = require('../storage/realmStorageService');
+        await realmStorageService.setItem('zeroislenotes_token', access);
       }
 
       if (typeof setRefreshToken === 'function') {
@@ -141,9 +151,9 @@ export const login = async (loginData) => {
       } else if (storageService && typeof storageService.setRefreshToken === 'function') {
         await storageService.setRefreshToken(refresh);
       } else {
-        console.warn('setRefreshToken 函数不可用，使用 AsyncStorage 作为备选');
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-        await AsyncStorage.setItem('zeroislenotes_refresh_token', refresh);
+        console.warn('setRefreshToken 函数不可用，使用 realmStorageService 作为备选');
+        const { realmStorageService } = require('../storage/realmStorageService');
+        await realmStorageService.setItem('zeroislenotes_refresh_token', refresh);
       }
 
       if (typeof setUser === 'function') {
@@ -151,9 +161,9 @@ export const login = async (loginData) => {
       } else if (storageService && typeof storageService.setUser === 'function') {
         await storageService.setUser(user);
       } else {
-        console.warn('setUser 函数不可用，使用 AsyncStorage 作为备选');
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-        await AsyncStorage.setItem('zeroislenotes_user', JSON.stringify(user));
+        console.warn('setUser 函数不可用，使用 realmStorageService 作为备选');
+        const { realmStorageService } = require('../storage/realmStorageService');
+        await realmStorageService.setItem('zeroislenotes_user', JSON.stringify(user));
       }
     } catch (storageError) {
       console.error('保存认证信息时出错:', storageError);
@@ -167,6 +177,17 @@ export const login = async (loginData) => {
   } catch (error) {
     console.error('登录API错误:', error);
     console.error('错误详情:', error.response?.data || error.message);
+
+    // 检查是否是网络错误
+    if (error.message === 'Network Error' || error.isNetworkError) {
+      console.log('登录时发生网络错误');
+      return {
+        success: false,
+        message: '网络连接失败，请检查网络设置后重试',
+        offline: true,
+        error
+      };
+    }
 
     // 根据错误类型返回不同的错误消息
     if (error.response) {
@@ -305,9 +326,9 @@ export const registerWithUsername = async (userData) => {
       };
 
       // 保存到本地存储
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      await AsyncStorage.setItem('offline_user', JSON.stringify(mockUser));
-      await AsyncStorage.setItem('is_offline_mode', 'true');
+      const { realmStorageService } = require('../storage/realmStorageService');
+      await realmStorageService.setItem('offline_user', JSON.stringify(mockUser));
+      await realmStorageService.setItem('is_offline_mode', 'true');
 
       console.log('离线模式：创建了本地用户', mockUser.username);
 
@@ -367,9 +388,9 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setToken === 'function') {
           await storageService.setToken(responseData.access);
         } else {
-          console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          await AsyncStorage.setItem('zeroislenotes_token', responseData.access);
+          console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
+          const { realmStorageService } = require('../storage/realmStorageService');
+          await realmStorageService.setItem('zeroislenotes_token', responseData.access);
         }
 
         if (typeof setRefreshToken === 'function') {
@@ -377,9 +398,9 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setRefreshToken === 'function') {
           await storageService.setRefreshToken(responseData.refresh);
         } else {
-          console.warn('setRefreshToken 函数不可用，使用 AsyncStorage 作为备选');
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          await AsyncStorage.setItem('zeroislenotes_refresh_token', responseData.refresh);
+          console.warn('setRefreshToken 函数不可用，使用 realmStorageService 作为备选');
+          const { realmStorageService } = require('../storage/realmStorageService');
+          await realmStorageService.setItem('zeroislenotes_refresh_token', responseData.refresh);
         }
 
         if (typeof setUser === 'function') {
@@ -387,9 +408,9 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setUser === 'function') {
           await storageService.setUser(responseData.user);
         } else {
-          console.warn('setUser 函数不可用，使用 AsyncStorage 作为备选');
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          await AsyncStorage.setItem('zeroislenotes_user', JSON.stringify(responseData.user));
+          console.warn('setUser 函数不可用，使用 realmStorageService 作为备选');
+          const { realmStorageService } = require('../storage/realmStorageService');
+          await realmStorageService.setItem('zeroislenotes_user', JSON.stringify(responseData.user));
         }
       } catch (storageError) {
         console.error('保存认证信息时出错:', storageError);
@@ -438,9 +459,9 @@ export const refreshToken = async (refreshToken) => {
       } else if (storageService && typeof storageService.setToken === 'function') {
         await storageService.setToken(response.data.access);
       } else {
-        console.warn('setToken 函数不可用，使用 AsyncStorage 作为备选');
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-        await AsyncStorage.setItem('zeroislenotes_token', response.data.access);
+        console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
+        const { realmStorageService } = require('../storage/realmStorageService');
+        await realmStorageService.setItem('zeroislenotes_token', response.data.access);
       }
     } catch (storageError) {
       console.error('保存访问令牌时出错:', storageError);

@@ -6,10 +6,9 @@ import logging
 import time
 import jieba
 import re
-from django.db.models import Q, F, Value, CharField
-from django.db.models.functions import Concat
+from mongoengine.queryset.visitor import Q
 from django.contrib.contenttypes.models import ContentType
-from search.models import SearchIndex, SearchQuery, SearchResult
+from search.mongodb_models import SearchIndex, SearchQuery, SearchResult
 from .suggestion_service import SuggestionService
 from .vector_service import VectorService
 
@@ -48,11 +47,12 @@ class SearchService:
 
         try:
             # 创建搜索查询记录
-            search_query = SearchQuery.objects.create(
+            search_query = SearchQuery(
                 user=user,
                 query=query,
                 filters=filters or {}
             )
+            search_query.save()
 
             # 分词
             tokens = self._tokenize(query)
@@ -132,15 +132,16 @@ class SearchService:
             list: 热门搜索列表
         """
         try:
-            from django.db.models import Count
+            # 使用MongoDB聚合管道
+            pipeline = [
+                {"$group": {"_id": "$query", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": limit},
+                {"$project": {"query": "$_id", "count": 1, "_id": 0}}
+            ]
 
-            popular_searches = SearchQuery.objects.values(
-                'query'
-            ).annotate(
-                count=Count('query')
-            ).order_by('-count')[:limit]
-
-            return list(popular_searches)
+            popular_searches = list(SearchQuery.objects.aggregate(*pipeline))
+            return popular_searches
         except Exception as e:
             logger.error(f"获取热门搜索失败: {e}")
             raise
@@ -470,7 +471,7 @@ class SearchService:
             try:
                 content_type = ContentType.objects.get(model=result['content_type'])
 
-                search_results.append(SearchResult(
+                search_result = SearchResult(
                     query=search_query,
                     title=result['title'],
                     snippet=result['snippet'],
@@ -479,13 +480,14 @@ class SearchService:
                     content_type=content_type,
                     object_id=result['object_id'],
                     result_type=result['type']
-                ))
+                )
+                search_results.append(search_result)
             except ContentType.DoesNotExist:
                 logger.warning(f"内容类型不存在: {result['content_type']}")
 
         # 批量创建
-        if search_results:
-            SearchResult.objects.bulk_create(search_results)
+        for result in search_results:
+            result.save()
 
     def get_search_history(self, user, limit=20):
         """

@@ -4,8 +4,8 @@
  */
 import { tf, initTensorFlow } from '../../utils/mockTensorflow';
 import { analyticsService } from '../analytics/analyticsService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { offlineStorageService } from './offlineStorage';
+import { realmStorageService } from '../storage/realmStorageService';
+import { offlineStorageService } from './offlineStorageService';
 
 // 模型状态
 const MODEL_STATUS = {
@@ -231,7 +231,7 @@ class OfflineAIService {
       if (!cacheKey) return null;
 
       // 检查缓存是否存在
-      const modelInfo = await AsyncStorage.getItem(cacheKey);
+      const modelInfo = await realmStorageService.getItem(cacheKey);
       if (!modelInfo) return null;
 
       // 解析模型信息
@@ -275,7 +275,7 @@ class OfflineAIService {
         timestamp: Date.now()
       };
 
-      await AsyncStorage.setItem(cacheKey, JSON.stringify(modelInfo));
+      await realmStorageService.setItem(cacheKey, JSON.stringify(modelInfo));
 
       return true;
     } catch (error) {
@@ -449,8 +449,8 @@ class OfflineAIService {
    */
   async _checkPaddleOCRModel(modelType) {
     try {
-      // 从AsyncStorage获取模型信息
-      const modelInfoJson = await AsyncStorage.getItem(`paddleocr_${modelType}`);
+      // 从存储中获取模型信息
+      const modelInfoJson = await realmStorageService.getItem(`paddleocr_${modelType}`);
       if (!modelInfoJson) return null;
 
       const modelInfo = JSON.parse(modelInfoJson);
@@ -537,8 +537,8 @@ class OfflineAIService {
         lastUsed: new Date().toISOString()
       };
 
-      // 保存到AsyncStorage
-      await AsyncStorage.setItem(`paddleocr_${modelType}`, JSON.stringify(modelInfo));
+      // 保存到存储服务
+      await realmStorageService.setItem(`paddleocr_${modelType}`, JSON.stringify(modelInfo));
 
       if (progressCallback) {
         progressCallback({ progress: 1, status: 'completed' });

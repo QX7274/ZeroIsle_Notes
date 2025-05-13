@@ -246,6 +246,15 @@ export const API_ENDPOINTS = {
     JOIN_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/join/`,
     END_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/end/`,
   },
+
+  // 同步相关
+  SYNC: {
+    DATA: '/sync/data/',
+    NOTES: '/sync/notes/',
+    REMINDERS: '/sync/reminders/',
+    SETTINGS: '/sync/settings/',
+    STATUS: '/sync/status/',
+  },
 };
 
 // 错误码

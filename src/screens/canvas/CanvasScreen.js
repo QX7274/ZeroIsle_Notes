@@ -9,7 +9,7 @@ import {
   InfiniteCanvasAdapter,
   InfiniteDrawingCanvas
 } from '../../components/canvas';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import analyticsService from '../../services/analytics/analyticsService';
 import canvasApi from '../../services/api/canvasApi';
 import Icon from'react-native-vector-icons/Ionicons';

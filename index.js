@@ -2,6 +2,9 @@
  * @format
  */
 
+// 首先导入bcrypt初始化文件，确保在应用启动时尽早设置随机回退函数
+import './src/utils/bcryptInit';
+
 // 添加全局错误处理
 const setupErrorHandling = () => {
   try {

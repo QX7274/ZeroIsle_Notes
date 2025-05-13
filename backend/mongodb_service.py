@@ -7,26 +7,50 @@ import time
 from datetime import datetime
 import os
 import shutil
+import json
 
 logger = logging.getLogger(__name__)
 
 class MongoDBService:
     def __init__(self):
         # 从环境变量获取MongoDB连接信息
-        mongo_host = os.environ.get('MONGO_HOST', 'localhost')
-        mongo_port = int(os.environ.get('MONGO_PORT', 27017))
-        mongo_user = os.environ.get('MONGO_USER', '')
-        mongo_password = os.environ.get('MONGO_PASSWORD', '')
+        mongo_uri = os.environ.get('MONGO_URI', '')
         mongo_db = os.environ.get('MONGO_DB', 'zeroislenotes')
 
-        # 构建连接URI
-        if mongo_user and mongo_password:
-            mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_db}?authSource=admin"
+        # 如果没有提供MONGO_URI，则尝试使用传统的连接参数
+        if not mongo_uri:
+            mongo_host = os.environ.get('MONGO_HOST', 'localhost')
+            mongo_port = int(os.environ.get('MONGO_PORT', 27017))
+            mongo_user = os.environ.get('MONGO_USER', '')
+            mongo_password = os.environ.get('MONGO_PASSWORD', '')
+
+            # 构建连接URI
+            if mongo_user and mongo_password:
+                mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_db}?authSource=admin"
+            else:
+                mongo_uri = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+
+            logger.info(f"使用传统连接参数初始化MongoDB: {mongo_host}:{mongo_port}/{mongo_db}")
         else:
-            mongo_uri = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+            logger.info(f"使用MongoDB Atlas连接字符串初始化MongoDB")
 
         # 创建MongoDB连接
-        self.client = MongoClient(mongo_uri)
+        # 添加SSL参数
+        if 'mongodb+srv' in mongo_uri:
+            # MongoDB Atlas连接需要SSL参数
+            self.client = MongoClient(
+                mongo_uri,
+                ssl=True,
+                tlsAllowInvalidCertificates=True,  # 允许无效证书
+                connectTimeoutMS=30000,  # 连接超时时间
+                socketTimeoutMS=30000,   # 套接字超时时间
+                serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
+                retryWrites=True,        # 重试写入
+                w='majority'             # 写入确认
+            )
+        else:
+            self.client = MongoClient(mongo_uri)
+
         self.db = self.client[mongo_db]
         self.max_retries = 3
         self.retry_delay = 1
@@ -34,17 +58,54 @@ class MongoDBService:
         self.mongo_uri = mongo_uri
         self.mongo_db = mongo_db
 
-        logger.info(f"MongoDB服务初始化: {mongo_host}:{mongo_port}/{mongo_db}")
+        # 检查连接
+        try:
+            self.client.admin.command('ping')
+            logger.info(f"MongoDB连接成功: {mongo_db}")
+        except Exception as e:
+            logger.error(f"MongoDB连接失败: {str(e)}")
+
+        # 检查是否为MongoDB Atlas
+        try:
+            server_info = self.client.server_info()
+            if 'version' in server_info and 'atlas' in self.mongo_uri.lower():
+                logger.info(f"已连接到MongoDB Atlas: 版本 {server_info['version']}")
+                self.is_atlas = True
+            else:
+                self.is_atlas = False
+                logger.info(f"已连接到MongoDB: 版本 {server_info.get('version', '未知')}")
+        except Exception as e:
+            self.is_atlas = False
+            logger.error(f"获取MongoDB服务器信息失败: {str(e)}")
 
     async def init_async_client(self):
         """初始化异步客户端"""
         if not self.async_client:
-            self.async_client = AsyncIOMotorClient(self.mongo_uri)
+            # 添加SSL参数
+            if 'mongodb+srv' in self.mongo_uri:
+                # MongoDB Atlas连接需要SSL参数
+                self.async_client = AsyncIOMotorClient(
+                    self.mongo_uri,
+                    ssl=True,
+                    tlsAllowInvalidCertificates=True,  # 允许无效证书
+                    connectTimeoutMS=30000,  # 连接超时时间
+                    socketTimeoutMS=30000,   # 套接字超时时间
+                    serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
+                    retryWrites=True,        # 重试写入
+                    w='majority'             # 写入确认
+                )
+            else:
+                self.async_client = AsyncIOMotorClient(self.mongo_uri)
+
             try:
                 await self.async_client.admin.command('ping')
                 logger.info("MongoDB异步连接成功")
-            except ConnectionFailure:
-                logger.error("MongoDB异步连接失败")
+
+                # 检查是否为MongoDB Atlas
+                if self.is_atlas:
+                    logger.info("已连接到MongoDB Atlas异步客户端")
+            except ConnectionFailure as e:
+                logger.error(f"MongoDB异步连接失败: {str(e)}")
                 raise
 
     def get_connection_status(self):

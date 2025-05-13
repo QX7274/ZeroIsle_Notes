@@ -18,7 +18,7 @@ ALLOWED_HOSTS = ['*']
 RUNSERVERPLUS_HOST = '0.0.0.0'
 RUNSERVERPLUS_PORT = 8000
 
-# 使用base.py中的MongoDB配置
+# MongoDB Realm配置
 # 直接使用PyMongo客户端进行原生操作
 MONGO_CLIENT = MongoClient(
     host=os.environ.get('MONGO_HOST', 'localhost'),
@@ -28,6 +28,18 @@ MONGO_CLIENT = MongoClient(
     authSource='admin'
 )
 MONGO_DB = MONGO_CLIENT['zeroislenotes']
+
+# 断开所有现有连接并重新连接
+mongoengine.disconnect_all()
+mongoengine.connect(
+    db='zeroislenotes',
+    host=os.environ.get('MONGO_HOST', 'localhost'),
+    port=int(os.environ.get('MONGO_PORT', 27017)),
+    username=os.environ.get('MONGO_USER', ''),
+    password=os.environ.get('MONGO_PASSWORD', ''),
+    authentication_source='admin',
+    alias='default'
+)
 
 # 日志配置
 LOGGING = {

@@ -5,7 +5,7 @@
 import { Buffer } from 'buffer';
 import { gzip, ungzip } from 'pako';
 import CryptoJS from 'crypto-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../storage/realmStorageService';
 import STORAGE_KEYS from '../../constants/storageKeys';
 import { analyticsService } from '../analytics/analyticsService';
 
@@ -47,7 +47,7 @@ class CompressionService {
         const defaultKey = 'zeroisle_encryption_key';
 
         // 尝试从存储中获取密钥
-        const storedKey = await AsyncStorage.getItem(defaultKey);
+        const storedKey = await realmStorageService.getItem(defaultKey);
 
         if (storedKey) {
           this.encryptionKey = storedKey;
@@ -58,14 +58,14 @@ class CompressionService {
         const newKey = this.generateSecureKey();
 
         // 保存密钥
-        await AsyncStorage.setItem(defaultKey, newKey);
+        await realmStorageService.setItem(defaultKey, newKey);
 
         this.encryptionKey = newKey;
         return newKey;
       }
 
       // 正常流程：尝试从存储中获取密钥
-      const storedKey = await AsyncStorage.getItem(ENCRYPTION_KEY_STORAGE_KEY);
+      const storedKey = await realmStorageService.getItem(ENCRYPTION_KEY_STORAGE_KEY);
 
       if (storedKey) {
         this.encryptionKey = storedKey;
@@ -76,7 +76,7 @@ class CompressionService {
       const newKey = this.generateSecureKey();
 
       // 保存密钥
-      await AsyncStorage.setItem(ENCRYPTION_KEY_STORAGE_KEY, newKey);
+      await realmStorageService.setItem(ENCRYPTION_KEY_STORAGE_KEY, newKey);
 
       this.encryptionKey = newKey;
       return newKey;

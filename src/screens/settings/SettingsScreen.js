@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 import { logout } from '../../redux/slices/authSlice';
 import { DEFAULT_SETTINGS } from '../../utils/constants/config';
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { offlineStorageService } from '../../services/offline';
 import DeviceInfo from 'react-native-device-info';
 import { cacheService } from '../../services/cache/cacheService';
 
@@ -537,6 +537,14 @@ const SettingsScreen = ({ navigation }) => {
               onPress: (value) => updateSetting('autoSave', value),
               value: settings.autoSave,
               type: 'switch',
+            })}
+
+            {renderSettingItem({
+              icon: 'sync',
+              title: '数据同步',
+              description: '管理云端数据同步',
+              onPress: () => navigation.navigate('SyncSettings'),
+              type: 'navigate',
             })}
 
             {renderSettingItem({

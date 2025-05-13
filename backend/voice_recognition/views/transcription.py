@@ -10,10 +10,10 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Count
+from mongoengine.queryset.visitor import Q
 from django.utils import timezone
 
-from voice_recognition.models import Transcription, AudioFile, Language
+from voice_recognition.mongodb_models import Transcription, AudioFile, Language
 from voice_recognition.serializers import (
     TranscriptionSerializer,
     TranscriptionListSerializer,
@@ -44,12 +44,8 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """获取查询集"""
-        return Transcription.objects.filter(
+        return Transcription.objects(
             user=self.request.user
-        ).select_related(
-            'audio_file', 'language'
-        ).annotate(
-            word_count=Count('text')
         )
 
     def get_serializer_class(self):
@@ -255,20 +251,21 @@ def transcribe_audio(request):
             language = None
 
         # 创建音频文件记录
-        audio_file_obj = AudioFile.objects.create(
+        audio_file_obj = AudioFile(
             user=request.user,
             file_type='audio/wav',
             duration=0,  # 暂时设为0，后续更新
             created_at=timezone.now(),
             updated_at=timezone.now()
         )
+        audio_file_obj.save()
 
         # 保存音频文件
         with open(temp_file_path, 'rb') as f:
             audio_file_obj.file.put(f, content_type='audio/wav')
 
         # 创建转录记录
-        transcription = Transcription.objects.create(
+        transcription = Transcription(
             user=request.user,
             audio_file=audio_file_obj,
             language=language,
@@ -277,6 +274,7 @@ def transcribe_audio(request):
             created_at=timezone.now(),
             updated_at=timezone.now()
         )
+        transcription.save()
 
         # 调用Whisper服务
         whisper_service = WhisperService()
@@ -305,7 +303,7 @@ def transcribe_audio(request):
         # 如果提供了笔记ID，将转录文本添加到笔记中
         if note_id:
             try:
-                from notes.models import Note
+                from notes.mongodb_models import Note
                 note = Note.objects.get(id=note_id, user=request.user)
                 note.content += f"\n\n{transcription.text}"
                 note.updated_at = timezone.now()

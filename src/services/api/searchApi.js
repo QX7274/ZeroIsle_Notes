@@ -2,7 +2,7 @@
  * 搜索API服务
  */
 import apiClient from './apiClient';
-import { API_ENDPOINTS } from '../../config/api';
+import { API_ENDPOINTS } from '../../constants/api';
 
 /**
  * 基础搜索
@@ -132,7 +132,7 @@ export const getSearchSuggestions = async (query, limit = 5) => {
       console.log('在线获取搜索建议失败，尝试离线生成建议:', onlineError.message);
 
       // 在线获取失败，尝试离线生成建议
-      const { offlineStorageService } = require('../../services/offline/offlineStorage');
+      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
       const notes = await offlineStorageService.getNotes();
 
       // 从笔记中提取关键词
@@ -193,7 +193,7 @@ export const textSearch = async (query, params = {}) => {
       console.log('在线搜索失败，尝试离线搜索:', onlineError.message);
 
       // 在线搜索失败，尝试离线搜索
-      const { offlineStorageService } = require('../../services/offline/offlineStorage');
+      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
       const notes = await offlineStorageService.getNotes();
 
       // 执行本地搜索
@@ -321,7 +321,7 @@ export const getSearchHistory = async (limit = 10, scope = 'home') => {
       console.log('在线获取搜索历史失败，尝试从本地获取:', onlineError.message);
 
       // 从本地存储获取搜索历史
-      const { offlineStorageService } = require('../../services/offline/offlineStorage');
+      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
       const history = await offlineStorageService.getSearchHistory(scope);
 
       return {

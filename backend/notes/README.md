@@ -4,14 +4,9 @@
 
 ## 目录结构
 
-- **models/**: 数据模型
-  - **note.py**: 笔记模型，核心笔记数据
-  - **note_category.py**: 笔记分类模型
-  - **note_tag.py**: 笔记标签模型
-  - **note_version.py**: 笔记版本模型，历史记录
-  - **attachment.py**: 附件模型，笔记附件
-  - **favorite.py**: 收藏模型，笔记收藏
-  - **share.py**: 分享模型，笔记分享
+- **mongodb_models.py**: MongoDB文档模型定义
+  - 使用MongoEngine ODM定义MongoDB文档模型
+  - 包含笔记、分类、标签等模型定义
 - **serializers/**: 序列化器
   - **note.py**: 笔记序列化器
   - **note_category.py**: 笔记分类序列化器
@@ -188,56 +183,91 @@
 
 ## 数据模型
 
+笔记模块使用MongoDB作为数据库，使用MongoEngine ODM定义文档模型。主要模型包括：
+
 ### 笔记模型 (Note)
 
 ```python
 class Note(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True)
-    title = StringField(max_length=255, required=True)
-    content = StringField(required=True)
-    format = StringField(choices=['text', 'markdown', 'html', 'rich_text'], default='markdown')
-    category = ReferenceField('NoteCategory')
-    tags = ListField(ReferenceField('NoteTag'))
-    attachments = ListField(ReferenceField('Attachment'))
-    is_favorite = BooleanField(default=False)
-    is_deleted = BooleanField(default=False)
-    is_archived = BooleanField(default=False)
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
-    deleted_at = DateTimeField()
-    metadata = DictField()
-    sync_status = StringField(choices=['synced', 'local_only', 'conflict'], default='local_only')
-    last_synced_at = DateTimeField()
+    """
+    笔记文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='笔记ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    title = StringField(max_length=255, required=True, verbose_name='标题')
+    content = StringField(required=True, verbose_name='内容')
+    category = ReferenceField(Category, verbose_name='分类')
+    tags = ListField(ReferenceField(Tag), verbose_name='标签')
+    is_favorite = BooleanField(default=False, verbose_name='是否收藏')
+    is_encrypted = BooleanField(default=False, verbose_name='是否加密')
+    encryption_key = StringField(max_length=255, verbose_name='加密密钥')
+    is_public = BooleanField(default=False, verbose_name='是否公开')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    deleted_at = DateTimeField(verbose_name='删除时间')
+    view_count = IntField(default=0, verbose_name='查看次数')
+    last_viewed_at = DateTimeField(verbose_name='最后查看时间')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_partition = StringField(max_length=100, sparse=True, verbose_name='Realm Partition')
+    realm_sync_status = StringField(max_length=20, choices=('pending', 'synced', 'error'), default='pending', verbose_name='Realm同步状态')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
+    realm_error_message = StringField(verbose_name='同步错误信息')
 ```
 
-### 分类模型 (NoteCategory)
+### 分类模型 (Category)
 
 ```python
-class NoteCategory(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True)
-    name = StringField(max_length=100, required=True)
-    description = StringField()
-    parent = ReferenceField('self')
-    color = StringField(max_length=20)
-    icon = StringField(max_length=50)
-    order = IntField(default=0)
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
+class Category(Document):
+    """
+    分类文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='分类ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    name = StringField(max_length=100, required=True, verbose_name='分类名称')
+    description = StringField(max_length=500, verbose_name='分类描述')
+    color = StringField(max_length=20, default='#2196F3', verbose_name='分类颜色')
+    icon = StringField(max_length=50, verbose_name='分类图标')
+    parent = ReferenceField('self', verbose_name='父分类')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    deleted_at = DateTimeField(verbose_name='删除时间')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 ```
 
-### 标签模型 (NoteTag)
+### 标签模型 (Tag)
 
 ```python
-class NoteTag(Document):
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
-    user = ReferenceField(User, required=True)
-    name = StringField(max_length=100, required=True)
-    color = StringField(max_length=20)
-    created_at = DateTimeField(default=timezone.now)
-    updated_at = DateTimeField(default=timezone.now)
+class Tag(Document):
+    """
+    标签文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='标签ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    name = StringField(max_length=50, required=True, verbose_name='标签名称')
+    color = StringField(max_length=20, default='#2196F3', verbose_name='标签颜色')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 ```
+
+其他模型包括：
+- NoteVersion (笔记版本)
+- NoteAttachment (笔记附件)
+- NoteShare (笔记分享)
+- NoteReminder (笔记提醒)
+- NoteBackup (笔记备份)
+- NoteSync (笔记同步)
+- NoteComment (笔记评论)
+- NoteCollaboration (笔记协作)
+- NoteTemplate (笔记模板)
+- Handwriting (手写笔记)
+- Annotation (PDF注释)
+- DrawingPath (绘图路径)
+- OCRModel (OCR模型)
+- WhisperModel (Whisper模型)
+- Notification (通知)
 
 ## 与其他模块的交互
 

@@ -4,7 +4,7 @@
  * @deprecated 请直接使用apiClient
  */
 import apiClient from './apiClient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { realmStorageService } from '../storage/realmStorageService';
 import { STORAGE_KEYS } from '../../config';
 
 /**
@@ -18,7 +18,7 @@ apiClient.interceptors.request.use(
   async (config) => {
     try {
       // 从存储中获取token
-      const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const token = await realmStorageService.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
       if (token) {
         // 添加认证头
