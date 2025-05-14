@@ -101,7 +101,7 @@ DATABASES = {
 import mongoengine
 
 # 连接到MongoDB
-mongo_uri = os.environ.get('MONGO_URI', '')
+mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
 if mongo_uri:
     # 使用MongoDB Atlas连接字符串
     mongoengine.connect(
@@ -111,7 +111,7 @@ if mongo_uri:
 else:
     # 使用传统连接参数
     mongoengine.connect(
-        db=os.environ.get('MONGO_DB', 'zeroislenotes'),
+        db=os.environ.get('MONGO_DB', 'ZeroIsle_Notes'),
         host=os.environ.get('MONGO_HOST', 'localhost'),
         port=int(os.environ.get('MONGO_PORT', 27017)),
         username=os.environ.get('MONGO_USER', ''),

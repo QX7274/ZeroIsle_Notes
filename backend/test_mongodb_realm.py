@@ -15,15 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.development')
 django.setup()
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('test_mongodb_realm.log')
-    ]
-)
+
 logger = logging.getLogger(__name__)
 
 # 导入MongoDB Realm服务
@@ -37,7 +29,10 @@ async def test_connection():
 
     logger.info("\n测试异步连接...")
     try:
-        await mongodb_realm_service.init_async_client()
+        connection_success = await mongodb_realm_service.init_async_client()
+        if not connection_success:
+            logger.error("异步连接失败，终止测试")
+            return
         logger.info("异步连接成功!")
 
         # 测试插入数据
@@ -106,6 +101,11 @@ def test_sync_connection():
     logger.info("测试同步MongoDB Realm连接...")
     status = mongodb_realm_service.get_connection_status()
     logger.info(f"连接状态: {status}")
+
+    # 检查连接状态
+    if status != "已连接":
+        logger.error("同步连接失败，终止测试")
+        return
 
     try:
         # 测试插入数据

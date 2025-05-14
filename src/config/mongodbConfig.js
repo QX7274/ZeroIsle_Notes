@@ -6,7 +6,7 @@
 // MongoDB连接信息
 export const MONGODB_CONFIG = {
   // 连接URL（仅用于后端连接，前端不使用）
-  URI: 'mongodb+srv://qianxin7274:zxcvbnm@@081325@cluster0.lo5ybvq.mongodb.net/',
+  URI: 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/',
   // 数据库名称
   DB_NAME: 'ZeroIsle_Notes',
   // 本地数据库名称

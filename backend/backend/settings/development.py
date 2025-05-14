@@ -20,26 +20,41 @@ RUNSERVERPLUS_PORT = 8000
 
 # MongoDB Realm配置
 # 直接使用PyMongo客户端进行原生操作
-MONGO_CLIENT = MongoClient(
-    host=os.environ.get('MONGO_HOST', 'localhost'),
-    port=int(os.environ.get('MONGO_PORT', 27017)),
-    username=os.environ.get('MONGO_USER', ''),
-    password=os.environ.get('MONGO_PASSWORD', ''),
-    authSource='admin'
-)
-MONGO_DB = MONGO_CLIENT['zeroislenotes']
+mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+if 'mongodb+srv' in mongo_uri:
+    MONGO_CLIENT = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=30000,
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000
+    )
+else:
+    MONGO_CLIENT = MongoClient(
+        host=os.environ.get('MONGO_HOST', 'localhost'),
+        port=int(os.environ.get('MONGO_PORT', 27017)),
+        username=os.environ.get('MONGO_USER', ''),
+        password=os.environ.get('MONGO_PASSWORD', ''),
+        authSource='admin'
+    )
+MONGO_DB = MONGO_CLIENT['ZeroIsle_Notes']
 
 # 断开所有现有连接并重新连接
 mongoengine.disconnect_all()
-mongoengine.connect(
-    db='zeroislenotes',
-    host=os.environ.get('MONGO_HOST', 'localhost'),
-    port=int(os.environ.get('MONGO_PORT', 27017)),
-    username=os.environ.get('MONGO_USER', ''),
-    password=os.environ.get('MONGO_PASSWORD', ''),
-    authentication_source='admin',
-    alias='default'
-)
+if 'mongodb+srv' in mongo_uri:
+    mongoengine.connect(
+        host=mongo_uri,
+        alias='default'
+    )
+else:
+    mongoengine.connect(
+        db='ZeroIsle_Notes',
+        host=os.environ.get('MONGO_HOST', 'localhost'),
+        port=int(os.environ.get('MONGO_PORT', 27017)),
+        username=os.environ.get('MONGO_USER', ''),
+        password=os.environ.get('MONGO_PASSWORD', ''),
+        authentication_source='admin',
+        alias='default'
+    )
 
 # 日志配置
 LOGGING = {

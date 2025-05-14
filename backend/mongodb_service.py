@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class MongoDBService:
     def __init__(self):
         # 从环境变量获取MongoDB连接信息
-        mongo_uri = os.environ.get('MONGO_URI', '')
-        mongo_db = os.environ.get('MONGO_DB', 'zeroislenotes')
+        mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+        mongo_db = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
 
         # 如果没有提供MONGO_URI，则尝试使用传统的连接参数
         if not mongo_uri:

@@ -229,6 +229,21 @@ export const login = async (loginData) => {
  */
 export const register = async (userData) => {
   try {
+    // 检查网络连接
+    const NetInfo = require('@react-native-community/netinfo').default;
+    const networkState = await NetInfo.fetch();
+
+    if (!networkState.isConnected) {
+      console.log('网络未连接，无法注册');
+
+      // 返回错误信息，不允许在离线状态下注册
+      return {
+        success: false,
+        message: '注册失败：请连接网络后再尝试注册',
+        offline: true
+      };
+    }
+
     // 添加必要的参数
     const completeUserData = {
       ...userData,
@@ -298,43 +313,12 @@ export const registerWithUsername = async (userData) => {
     const networkState = await NetInfo.fetch();
 
     if (!networkState.isConnected) {
-      console.log('网络未连接，使用离线模式');
+      console.log('网络未连接，无法注册');
 
-      // 创建模拟用户数据
-      const mockUser = {
-        id: `local_${Date.now()}`,
-        username: userData.username,
-        email: '',
-        phone: '',
-        is_active: true,
-        is_staff: false,
-        date_joined: new Date().toISOString(),
-        last_login: new Date().toISOString(),
-        profile: {
-          avatar: null,
-          bio: '',
-          location: '',
-          website: '',
-        }
-      };
-
-      // 创建模拟响应
-      const mockResponse = {
-        user: mockUser,
-        access: `mock_token_${Date.now()}`,
-        refresh: `mock_refresh_${Date.now()}`
-      };
-
-      // 保存到本地存储
-      const { realmStorageService } = require('../storage/realmStorageService');
-      await realmStorageService.setItem('offline_user', JSON.stringify(mockUser));
-      await realmStorageService.setItem('is_offline_mode', 'true');
-
-      console.log('离线模式：创建了本地用户', mockUser.username);
-
+      // 返回错误信息，不允许在离线状态下注册
       return {
-        success: true,
-        data: mockResponse,
+        success: false,
+        message: '注册失败：请连接网络后再尝试注册',
         offline: true
       };
     }
@@ -728,6 +712,21 @@ export const registerWithPhone = async (userData) => {
   try {
     console.log('手机号注册请求数据:', userData);
 
+    // 检查网络连接
+    const NetInfo = require('@react-native-community/netinfo').default;
+    const networkState = await NetInfo.fetch();
+
+    if (!networkState.isConnected) {
+      console.log('网络未连接，无法注册');
+
+      // 返回错误信息，不允许在离线状态下注册
+      return {
+        success: false,
+        message: '注册失败：请连接网络后再尝试注册',
+        offline: true
+      };
+    }
+
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, userData);
 
     console.log('手机号注册响应数据:', response.data);
@@ -761,6 +760,21 @@ export const registerWithPhone = async (userData) => {
 export const registerWithEmail = async (userData) => {
   try {
     console.log('邮箱注册请求数据:', userData);
+
+    // 检查网络连接
+    const NetInfo = require('@react-native-community/netinfo').default;
+    const networkState = await NetInfo.fetch();
+
+    if (!networkState.isConnected) {
+      console.log('网络未连接，无法注册');
+
+      // 返回错误信息，不允许在离线状态下注册
+      return {
+        success: false,
+        message: '注册失败：请连接网络后再尝试注册',
+        offline: true
+      };
+    }
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, userData);
 
