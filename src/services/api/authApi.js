@@ -3,7 +3,10 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import { API_URL } from '../../config';
 import storageService, { setToken, setRefreshToken, setUser, clearAuth } from '../storage/storageService';
+import tokenService from '../auth/tokenService';
+import { saveAuthInfo } from '../auth/authUtils';
 
 /**
  * 用户登录
@@ -135,35 +138,20 @@ export const login = async (loginData) => {
     // 保存令牌和用户信息
     const { access, refresh, user } = responseData;
     try {
-      // 尝试使用导入的函数
+      // 使用统一的认证信息保存函数
+      await saveAuthInfo(access, refresh, user);
+
+      // 同时保持兼容旧的存储方式
       if (typeof setToken === 'function') {
         await setToken(access);
-      } else if (storageService && typeof storageService.setToken === 'function') {
-        await storageService.setToken(access);
-      } else {
-        console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
-        const { realmStorageService } = require('../storage/realmStorageService');
-        await realmStorageService.setItem('zeroislenotes_token', access);
       }
 
       if (typeof setRefreshToken === 'function') {
         await setRefreshToken(refresh);
-      } else if (storageService && typeof storageService.setRefreshToken === 'function') {
-        await storageService.setRefreshToken(refresh);
-      } else {
-        console.warn('setRefreshToken 函数不可用，使用 realmStorageService 作为备选');
-        const { realmStorageService } = require('../storage/realmStorageService');
-        await realmStorageService.setItem('zeroislenotes_refresh_token', refresh);
       }
 
       if (typeof setUser === 'function') {
         await setUser(user);
-      } else if (storageService && typeof storageService.setUser === 'function') {
-        await storageService.setUser(user);
-      } else {
-        console.warn('setUser 函数不可用，使用 realmStorageService 作为备选');
-        const { realmStorageService } = require('../storage/realmStorageService');
-        await realmStorageService.setItem('zeroislenotes_user', JSON.stringify(user));
       }
     } catch (storageError) {
       console.error('保存认证信息时出错:', storageError);
@@ -193,6 +181,13 @@ export const login = async (loginData) => {
     if (error.response) {
       const { status, data } = error.response;
 
+      // 详细记录错误信息
+      console.error('服务器错误响应:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+
       if (status === 401) {
         return {
           success: false,
@@ -205,6 +200,16 @@ export const login = async (loginData) => {
           message: '登录服务不可用，请联系管理员',
           error
         };
+      } else if (status === 400) {
+        // 处理400错误，通常包含具体的错误信息
+        if (data && data.error) {
+          return {
+            success: false,
+            message: data.error,
+            error: data,
+            status
+          };
+        }
       } else if (data && data.error) {
         return {
           success: false,
@@ -212,13 +217,31 @@ export const login = async (loginData) => {
           error
         };
       }
-    }
 
-    return {
-      success: false,
-      message: error.message || '登录失败，请稍后重试',
-      error
-    };
+      // 默认错误处理
+      return {
+        success: false,
+        message: data?.detail || data?.error || `服务器错误 (${status})`,
+        error: data,
+        status
+      };
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      console.error('未收到服务器响应:', error.request);
+      return {
+        success: false,
+        message: '服务器无响应，请检查网络连接或服务器状态',
+        error: error.request
+      };
+    } else {
+      // 请求设置时出错
+      console.error('请求设置错误:', error.message);
+      return {
+        success: false,
+        message: `请求错误: ${error.message}`,
+        error
+      };
+    }
   }
 };
 
@@ -287,11 +310,65 @@ export const register = async (userData) => {
     console.error('注册错误:', error);
     console.error('错误详情:', error.response?.data || error.message);
 
-    return {
-      success: false,
-      message: error.response?.data?.detail || error.message || '注册失败',
-      error
-    };
+    // 详细记录错误信息
+    if (error.response) {
+      // 服务器响应了，但状态码不在2xx范围内
+      console.error('服务器错误响应:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+
+      // 处理特定的错误情况
+      if (error.response.status === 400) {
+        // 处理400错误，通常包含具体的错误信息
+        const errorData = error.response.data;
+
+        // 检查是否包含用户名已存在的错误
+        if (errorData && errorData.error === "用户名已存在") {
+          return {
+            success: false,
+            message: "用户名已存在",
+            error: errorData,
+            status: error.response.status
+          };
+        }
+
+        // 检查其他常见错误
+        if (errorData && errorData.error) {
+          return {
+            success: false,
+            message: errorData.error,
+            error: errorData,
+            status: error.response.status
+          };
+        }
+      }
+
+      // 默认错误处理
+      return {
+        success: false,
+        message: error.response.data?.detail || error.response.data?.error || `服务器错误 (${error.response.status})`,
+        error: error.response.data,
+        status: error.response.status
+      };
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      console.error('未收到服务器响应:', error.request);
+      return {
+        success: false,
+        message: '服务器无响应，请检查网络连接或服务器状态',
+        error: error.request
+      };
+    } else {
+      // 请求设置时出错
+      console.error('请求设置错误:', error.message);
+      return {
+        success: false,
+        message: `请求错误: ${error.message}`,
+        error: error
+      };
+    }
   }
 };
 
@@ -306,7 +383,7 @@ export const registerWithUsername = async (userData) => {
     console.log('用户名注册端点:', API_ENDPOINTS.AUTH.REGISTER_USERNAME);
 
     // 打印完整的API URL
-    console.log('完整API URL:', `${instance.defaults.baseURL}${API_ENDPOINTS.AUTH.REGISTER_USERNAME}`);
+    console.log('完整API URL:', `${API_URL}/api/v1${API_ENDPOINTS.AUTH.REGISTER_USERNAME}`);
 
     // 检查网络连接
     const NetInfo = require('@react-native-community/netinfo').default;
@@ -324,8 +401,25 @@ export const registerWithUsername = async (userData) => {
     }
 
     // 如果网络已连接，尝试正常注册
-    const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, userData);
-    console.log('用户名注册响应数据:', response);
+    let response;
+
+    // 使用instance发送请求
+    try {
+      console.log('开始发送请求...');
+      response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, userData);
+
+      console.log('用户名注册响应数据:', response);
+    } catch (error) {
+      console.error('请求失败:', error);
+
+      // 如果请求失败，检查是否是网络错误
+      if (error.message && error.message.includes('Network Error')) {
+        console.error('网络连接错误，可能是服务器CORS配置问题');
+        throw new Error('网络连接失败，请检查网络设置或联系管理员');
+      } else {
+        throw error;
+      }
+    }
 
     // 检查响应是否有效
     if (!response) {
@@ -363,6 +457,26 @@ export const registerWithUsername = async (userData) => {
       };
     }
 
+    // 检查响应中是否包含离线标记
+    if (response && response.offline === true) {
+      console.log('响应中包含离线标记');
+      return {
+        success: false,
+        message: response.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
+
+    // 检查响应数据中是否包含离线标记
+    if (responseData && responseData.offline === true) {
+      console.log('响应数据中包含离线标记');
+      return {
+        success: false,
+        message: responseData.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
+
     // 保存令牌和用户信息
     if (responseData.access && responseData.refresh && responseData.user) {
       try {
@@ -374,7 +488,12 @@ export const registerWithUsername = async (userData) => {
         } else {
           console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
           const { realmStorageService } = require('../storage/realmStorageService');
-          await realmStorageService.setItem('zeroislenotes_token', responseData.access);
+          // 创建完整的存储对象
+          const now = new Date();
+          await realmStorageService.setItem('zeroisle_auth_token', {
+            token: responseData.access,
+            expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
+          });
         }
 
         if (typeof setRefreshToken === 'function') {
@@ -384,7 +503,12 @@ export const registerWithUsername = async (userData) => {
         } else {
           console.warn('setRefreshToken 函数不可用，使用 realmStorageService 作为备选');
           const { realmStorageService } = require('../storage/realmStorageService');
-          await realmStorageService.setItem('zeroislenotes_refresh_token', responseData.refresh);
+          // 创建完整的存储对象
+          const now = new Date();
+          await realmStorageService.setItem('zeroisle_refresh_token', {
+            token: responseData.refresh,
+            expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
+          });
         }
 
         if (typeof setUser === 'function') {
@@ -394,7 +518,11 @@ export const registerWithUsername = async (userData) => {
         } else {
           console.warn('setUser 函数不可用，使用 realmStorageService 作为备选');
           const { realmStorageService } = require('../storage/realmStorageService');
-          await realmStorageService.setItem('zeroislenotes_user', JSON.stringify(responseData.user));
+          // 创建完整的存储对象
+          const now = new Date();
+          await realmStorageService.setItem('zeroisle_user_info', {
+            user: responseData.user
+          });
         }
       } catch (storageError) {
         console.error('保存认证信息时出错:', storageError);
@@ -410,13 +538,66 @@ export const registerWithUsername = async (userData) => {
     };
   } catch (error) {
     console.error('用户名注册失败:', error);
-    console.error('错误详情:', error.response?.data || error.message);
 
-    return {
-      success: false,
-      message: error.response?.data?.detail || error.message || '注册失败',
-      error
-    };
+    // 详细记录错误信息
+    if (error.response) {
+      // 服务器响应了，但状态码不在2xx范围内
+      console.error('服务器错误响应:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+
+      // 处理特定的错误情况
+      if (error.response.status === 400) {
+        // 处理400错误，通常包含具体的错误信息
+        const errorData = error.response.data;
+
+        // 检查是否包含用户名已存在的错误
+        if (errorData && errorData.error === "用户名已存在") {
+          return {
+            success: false,
+            message: "用户名已存在",
+            error: errorData,
+            status: error.response.status
+          };
+        }
+
+        // 检查其他常见错误
+        if (errorData && errorData.error) {
+          return {
+            success: false,
+            message: errorData.error,
+            error: errorData,
+            status: error.response.status
+          };
+        }
+      }
+
+      // 默认错误处理
+      return {
+        success: false,
+        message: error.response.data?.detail || error.response.data?.error || `服务器错误 (${error.response.status})`,
+        error: error.response.data,
+        status: error.response.status
+      };
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      console.error('未收到服务器响应:', error.request);
+      return {
+        success: false,
+        message: '服务器无响应，请检查网络连接或服务器状态',
+        error: error.request
+      };
+    } else {
+      // 请求设置时出错
+      console.error('请求设置错误:', error.message);
+      return {
+        success: false,
+        message: `请求错误: ${error.message}`,
+        error: error
+      };
+    }
   }
 };
 
@@ -445,7 +626,12 @@ export const refreshToken = async (refreshToken) => {
       } else {
         console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
         const { realmStorageService } = require('../storage/realmStorageService');
-        await realmStorageService.setItem('zeroislenotes_token', response.data.access);
+        // 创建完整的存储对象
+        const now = new Date();
+        await realmStorageService.setItem('zeroisle_auth_token', {
+          token: response.data.access,
+          expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
+        });
       }
     } catch (storageError) {
       console.error('保存访问令牌时出错:', storageError);
@@ -728,11 +914,32 @@ export const registerWithPhone = async (userData) => {
     }
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, userData);
+    console.log('手机号注册响应数据:', response);
+
+    // 检查是否是离线模式的响应
+    if (response.offline === true) {
+      console.log('检测到离线模式响应');
+      return {
+        success: false,
+        message: response.data?.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
+
+    // 检查响应数据中是否包含离线标记
+    if (response.data && response.data.offline === true) {
+      console.log('响应数据中包含离线标记');
+      return {
+        success: false,
+        message: response.data.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
 
     console.log('手机号注册响应数据:', response.data);
 
     // 保存令牌和用户信息
-    if (response.data.access && response.data.refresh && response.data.user) {
+    if (response.data && response.data.access && response.data.refresh && response.data.user) {
       await setToken(response.data.access);
       await setRefreshToken(response.data.refresh);
       await setUser(response.data.user);
@@ -777,11 +984,32 @@ export const registerWithEmail = async (userData) => {
     }
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, userData);
+    console.log('邮箱注册响应数据:', response);
+
+    // 检查是否是离线模式的响应
+    if (response.offline === true) {
+      console.log('检测到离线模式响应');
+      return {
+        success: false,
+        message: response.data?.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
+
+    // 检查响应数据中是否包含离线标记
+    if (response.data && response.data.offline === true) {
+      console.log('响应数据中包含离线标记');
+      return {
+        success: false,
+        message: response.data.message || '网络连接失败，请检查网络设置后重试',
+        offline: true
+      };
+    }
 
     console.log('邮箱注册响应数据:', response.data);
 
     // 保存令牌和用户信息
-    if (response.data.access && response.data.refresh && response.data.user) {
+    if (response.data && response.data.access && response.data.refresh && response.data.user) {
       await setToken(response.data.access);
       await setRefreshToken(response.data.refresh);
       await setUser(response.data.user);

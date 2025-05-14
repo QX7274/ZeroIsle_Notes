@@ -13,13 +13,14 @@ export const getUserGroups = async () => {
     const response = await instance.get(API_ENDPOINTS.GROUPS.BASE);
     return {
       success: true,
-      data: response.data
+      data: response.data || []
     };
   } catch (error) {
     console.error('获取群组列表失败:', error);
     return {
       success: false,
-      message: error.response?.data?.detail || '获取群组列表失败'
+      message: error.response?.data?.detail || '获取群组列表失败',
+      data: [] // 确保即使在错误情况下也返回空数组
     };
   }
 };

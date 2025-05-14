@@ -258,6 +258,20 @@ export const StorageItemSchema = {
 };
 
 /**
+ * 设置模型
+ */
+export const SettingsSchema = {
+  name: 'settings',
+  primaryKey: 'key',
+  properties: {
+    key: 'string',
+    value: 'string', // JSON 字符串
+    created_at: 'date',
+    updated_at: 'date'
+  }
+};
+
+/**
  * AI工具历史记录模型
  */
 export const AIToolHistorySchema = {
@@ -295,6 +309,7 @@ export function getAllSchemas() {
     KnowledgeEdgeSchema,
     SyncInfoSchema,
     StorageItemSchema,
+    SettingsSchema,
     AIToolHistorySchema,
   ];
 }

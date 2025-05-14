@@ -25,7 +25,7 @@ import DeviceInfo from 'react-native-device-info';
 import { cacheService } from '../../services/cache/cacheService';
 
 const SettingsScreen = ({ navigation }) => {
-  const { theme, setTheme } = useTheme();
+  const { theme, setThemeType } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
 
@@ -90,7 +90,7 @@ const SettingsScreen = ({ navigation }) => {
 
     // 特殊处理主题
     if (key === 'theme') {
-      setTheme(value);
+      setThemeType(value);
     }
 
     // 特殊处理离线模式
@@ -195,7 +195,7 @@ const SettingsScreen = ({ navigation }) => {
           text: '重置',
           onPress: () => {
             dispatch(updateSettings(DEFAULT_SETTINGS));
-            setTheme(DEFAULT_SETTINGS.theme);
+            setThemeType(DEFAULT_SETTINGS.theme);
             offlineStorageService.setOfflineMode(DEFAULT_SETTINGS.offlineMode);
           },
           style: 'destructive',
@@ -543,17 +543,14 @@ const SettingsScreen = ({ navigation }) => {
               icon: 'sync',
               title: '数据同步',
               description: '管理云端数据同步',
-              onPress: () => navigation.navigate('SyncSettings'),
+              onPress: () => {
+                // SyncSettings页面不存在，显示提示
+                Alert.alert('功能开发中', '数据同步功能正在开发中，敬请期待！');
+              },
               type: 'navigate',
             })}
 
-            {renderSettingItem({
-              icon: 'backup',
-              title: '备份与恢复',
-              description: '管理笔记备份',
-              onPress: () => navigation.navigate('BackupRestore'),
-              type: 'navigate',
-            })}
+            {/* 备份与恢复功能已移除 */}
 
             {renderSettingItem({
               icon: 'cleaning-services',

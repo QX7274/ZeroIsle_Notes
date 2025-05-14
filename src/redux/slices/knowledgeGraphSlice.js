@@ -14,9 +14,51 @@ export const fetchKnowledgeGraph = createAsyncThunk(
     try {
       // 调用API获取知识图谱数据
       const response = await knowledgeGraphApi.getKnowledgeGraph(params);
-      return response;
+
+      // 检查响应是否成功
+      if (!response.success) {
+        console.error('知识图谱API返回错误:', response.message);
+        return rejectWithValue({
+          message: response.message || '获取知识图谱数据失败',
+          statusCode: response.statusCode,
+          isNetworkError: response.isNetworkError
+        });
+      }
+
+      // 检查响应数据是否有效
+      if (!response.data) {
+        console.warn('知识图谱API返回的数据为空:', response);
+        return {
+          nodes: [],
+          edges: []
+        };
+      }
+
+      // 检查数据格式
+      if (!response.data.nodes) {
+        console.warn('知识图谱API返回的数据格式不正确:', response);
+        // 如果响应数据本身就是节点数组，则使用它
+        if (Array.isArray(response.data)) {
+          return {
+            nodes: response.data,
+            edges: []
+          };
+        }
+        // 否则返回空数据
+        return {
+          nodes: [],
+          edges: []
+        };
+      }
+
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || '获取知识图谱数据失败');
+      console.error('获取知识图谱数据异常:', error);
+      return rejectWithValue({
+        message: error.message || '获取知识图谱数据失败',
+        statusCode: error.response?.status,
+        isNetworkError: error.message === 'Network Error'
+      });
     }
   }
 );
@@ -103,14 +145,30 @@ const knowledgeGraphSlice = createSlice({
       })
       .addCase(fetchKnowledgeGraph.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.nodes = action.payload.nodes;
-        state.edges = action.payload.edges;
+        state.error = null;
+
+        // 确保有效的节点和边数据
+        if (action.payload) {
+          state.nodes = action.payload.nodes || [];
+          state.edges = action.payload.edges || [];
+        } else {
+          console.warn('知识图谱数据为空');
+          state.nodes = [];
+          state.edges = [];
+        }
       })
       .addCase(fetchKnowledgeGraph.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+
+        // 处理错误信息
+        if (action.payload) {
+          state.error = action.payload.message || '获取知识图谱数据失败';
+          console.error('知识图谱加载失败:', action.payload);
+        } else {
+          state.error = '未知错误，请稍后重试';
+        }
       })
-      
+
       // 创建知识节点
       .addCase(createNode.pending, (state) => {
         state.isLoading = true;
@@ -124,7 +182,7 @@ const knowledgeGraphSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 创建知识连接
       .addCase(createEdge.pending, (state) => {
         state.isLoading = true;

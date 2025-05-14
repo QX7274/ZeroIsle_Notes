@@ -460,7 +460,12 @@ class RealmService {
       // 如果没有过滤条件，获取所有对象
       let objects;
       if (queryStr) {
-        objects = realm.objects(collectionName).filtered(queryStr, ...queryParams);
+        // 检查是否有查询参数
+        if (queryParams.length > 0) {
+          objects = realm.objects(collectionName).filtered(queryStr, ...queryParams);
+        } else {
+          objects = realm.objects(collectionName).filtered(queryStr);
+        }
       } else {
         objects = realm.objects(collectionName);
       }
@@ -518,58 +523,43 @@ class RealmService {
       const { sort: sortOption, limit: limitOption, skip: skipOption } = options;
       const realm = await this.getRealm();
 
-      // 构建查询字符串
-      let queryStr = '';
-      const queryParams = [];
+      // 简化查询处理，避免复杂的查询字符串构建
+      let objects = realm.objects(collectionName);
 
-      // 处理过滤条件
-      Object.keys(filter).forEach((key, index) => {
-        const value = filter[key];
+      // 如果有过滤条件，尝试应用简单的过滤
+      if (Object.keys(filter).length > 0) {
+        try {
+          // 构建简单的查询字符串，只处理基本的等值查询
+          const conditions = [];
+          const queryParams = [];
 
-        if (index > 0) {
-          queryStr += ' AND ';
-        }
+          Object.keys(filter).forEach((key, index) => {
+            const value = filter[key];
 
-        if (value === null) {
-          queryStr += `${key} == null`;
-        } else if (typeof value === 'string') {
-          queryStr += `${key} == $${index}`;
-          queryParams.push(value);
-        } else if (typeof value === 'number' || typeof value === 'boolean') {
-          queryStr += `${key} == ${value}`;
-        } else if (value instanceof Date) {
-          queryStr += `${key} == $${index}`;
-          queryParams.push(value);
-        } else if (typeof value === 'object') {
-          // 处理特殊查询操作符
-          if (value.$ne !== undefined) {
-            queryStr += `${key} != ${typeof value.$ne === 'string' ? `"${value.$ne}"` : value.$ne}`;
-          } else if (value.$in !== undefined && Array.isArray(value.$in)) {
-            const inConditions = value.$in.map((val, i) => {
-              const paramIndex = index + i;
-              queryParams.push(val);
-              return `${key} == $${paramIndex}`;
-            });
-            queryStr += `(${inConditions.join(' OR ')})`;
-          } else if (value.$gt !== undefined) {
-            queryStr += `${key} > ${typeof value.$gt === 'string' ? `"${value.$gt}"` : value.$gt}`;
-          } else if (value.$gte !== undefined) {
-            queryStr += `${key} >= ${typeof value.$gte === 'string' ? `"${value.$gte}"` : value.$gte}`;
-          } else if (value.$lt !== undefined) {
-            queryStr += `${key} < ${typeof value.$lt === 'string' ? `"${value.$lt}"` : value.$lt}`;
-          } else if (value.$lte !== undefined) {
-            queryStr += `${key} <= ${typeof value.$lte === 'string' ? `"${value.$lte}"` : value.$lte}`;
+            // 只处理简单的等值查询
+            if (value !== undefined && value !== null && typeof value !== 'object') {
+              conditions.push(`${key} == $${index}`);
+              queryParams.push(value);
+            }
+          });
+
+          // 如果有条件，应用过滤
+          if (conditions.length > 0) {
+            const queryStr = conditions.join(' AND ');
+
+            if (queryParams.length > 0) {
+              objects = objects.filtered(queryStr, ...queryParams);
+            } else {
+              objects = objects.filtered(queryStr);
+            }
           }
+        } catch (filterError) {
+          console.warn('应用过滤条件失败，返回所有对象:', filterError);
+          // 如果过滤失败，返回所有对象
         }
-      });
-
-      // 获取对象
-      let objects;
-      if (queryStr) {
-        objects = realm.objects(collectionName).filtered(queryStr, ...queryParams);
-      } else {
-        objects = realm.objects(collectionName);
       }
+
+      // 对象已经在上面获取了，不需要重新获取
 
       // 排序
       if (sortOption) {

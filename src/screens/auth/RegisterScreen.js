@@ -25,6 +25,7 @@ import {
 import { Button, Input, Loading } from '../../components/common';
 import { Text } from 'react-native';
 import { authApi } from '../../services/api';
+import NetInfo from '@react-native-community/netinfo';
 
 const RegisterScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -59,6 +60,7 @@ const RegisterScreen = ({ navigation }) => {
   const [registerType, setRegisterType] = useState('username'); // 'username'|'phone'|'email'
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
+  const [isConnected, setIsConnected] = useState(true);
 
   // 清除Redux错误
   useEffect(() => {
@@ -82,6 +84,23 @@ const RegisterScreen = ({ navigation }) => {
     }
     return () => clearInterval(timer);
   }, [countdown]);
+
+  // 监听网络状态
+  useEffect(() => {
+    // 初始检查网络状态
+    NetInfo.fetch().then(state => {
+      setIsConnected(state.isConnected);
+    });
+
+    // 订阅网络状态变化
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // 发送验证码
   const handleSendCode = async () => {
@@ -109,6 +128,14 @@ const RegisterScreen = ({ navigation }) => {
   // 注册
   const handleRegister = async () => {
     setError('');
+
+    // 检查网络连接
+    const networkState = await NetInfo.fetch();
+    if (!networkState.isConnected) {
+      setError('注册失败：请连接网络后再尝试注册');
+      Alert.alert('网络错误', '注册需要网络连接，请检查您的网络设置后重试。');
+      return;
+    }
 
     // 通用验证
     if (!username) {
@@ -159,7 +186,30 @@ const RegisterScreen = ({ navigation }) => {
 
       console.log('注册结果:', result);
 
+      // 检查是否是离线模式下的响应
+      if ((result && result.offline === true) || (result && result.data && result.data.offline === true)) {
+        console.log('离线模式下的注册请求，显示网络错误');
+        const errorMessage = result.message || result.data?.message || '注册失败：请连接网络后再尝试注册';
+        setError(errorMessage);
+        Alert.alert('网络错误', '注册需要网络连接，请检查您的网络设置后重试。');
+        return;
+      }
+
+      // 检查响应是否明确表示失败
+      if (result && result.success === false) {
+        console.log('注册失败，显示错误信息:', result.message);
+        setError(result.message || '注册失败，请稍后重试');
+        return;
+      }
+
       if (result && result.success) {
+        // 检查是否有必要的数据
+        if (!result.data || !result.data.user || !result.data.access || !result.data.refresh) {
+          console.error('注册响应数据缺少必要字段:', result.data);
+          setError('注册失败：服务器返回数据不完整');
+          return;
+        }
+
         // 注册成功，更新Redux状态
         try {
           dispatch({ type: 'auth/setUserInfo', payload: result.data.user });

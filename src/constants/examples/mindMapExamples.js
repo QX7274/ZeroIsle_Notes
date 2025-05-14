@@ -1,0 +1,229 @@
+/**
+ * 思维导图示例数据
+ * 用于离线模式或加载失败时显示
+ */
+
+export const EXAMPLE_MIND_MAPS = [
+  {
+    id: 'example-mind-map-1',
+    title: '学习计划',
+    description: '个人学习计划思维导图',
+    layout_type: 'tree',
+    theme: 'blue',
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z',
+    is_favorite: true,
+    nodes: [
+      {
+        id: 'node-1',
+        title: '学习计划',
+        content: '我的2025年学习计划',
+        x: 0,
+        y: 0,
+        type: 'root'
+      },
+      {
+        id: 'node-2',
+        title: '编程',
+        content: '编程技能学习',
+        x: -200,
+        y: -100,
+        type: 'topic'
+      },
+      {
+        id: 'node-3',
+        title: '语言',
+        content: '语言学习',
+        x: 200,
+        y: -100,
+        type: 'topic'
+      },
+      {
+        id: 'node-4',
+        title: 'Python',
+        content: 'Python编程',
+        x: -300,
+        y: -200,
+        type: 'subtopic'
+      },
+      {
+        id: 'node-5',
+        title: 'JavaScript',
+        content: 'JavaScript编程',
+        x: -100,
+        y: -200,
+        type: 'subtopic'
+      },
+      {
+        id: 'node-6',
+        title: '英语',
+        content: '英语学习',
+        x: 100,
+        y: -200,
+        type: 'subtopic'
+      },
+      {
+        id: 'node-7',
+        title: '日语',
+        content: '日语学习',
+        x: 300,
+        y: -200,
+        type: 'subtopic'
+      }
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        source: 'node-1',
+        target: 'node-2',
+        type: 'default'
+      },
+      {
+        id: 'edge-2',
+        source: 'node-1',
+        target: 'node-3',
+        type: 'default'
+      },
+      {
+        id: 'edge-3',
+        source: 'node-2',
+        target: 'node-4',
+        type: 'default'
+      },
+      {
+        id: 'edge-4',
+        source: 'node-2',
+        target: 'node-5',
+        type: 'default'
+      },
+      {
+        id: 'edge-5',
+        source: 'node-3',
+        target: 'node-6',
+        type: 'default'
+      },
+      {
+        id: 'edge-6',
+        source: 'node-3',
+        target: 'node-7',
+        type: 'default'
+      }
+    ]
+  },
+  {
+    id: 'example-mind-map-2',
+    title: '项目规划',
+    description: '项目规划思维导图',
+    layout_type: 'tree',
+    theme: 'green',
+    created_at: '2023-02-01T00:00:00Z',
+    updated_at: '2023-02-01T00:00:00Z',
+    is_favorite: false,
+    nodes: [
+      {
+        id: 'node-1',
+        title: '项目规划',
+        content: '移动应用开发项目',
+        x: 0,
+        y: 0,
+        type: 'root'
+      },
+      {
+        id: 'node-2',
+        title: '设计',
+        content: '设计阶段',
+        x: -200,
+        y: -100,
+        type: 'topic'
+      },
+      {
+        id: 'node-3',
+        title: '开发',
+        content: '开发阶段',
+        x: 0,
+        y: -100,
+        type: 'topic'
+      },
+      {
+        id: 'node-4',
+        title: '测试',
+        content: '测试阶段',
+        x: 200,
+        y: -100,
+        type: 'topic'
+      }
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        source: 'node-1',
+        target: 'node-2',
+        type: 'default'
+      },
+      {
+        id: 'edge-2',
+        source: 'node-1',
+        target: 'node-3',
+        type: 'default'
+      },
+      {
+        id: 'edge-3',
+        source: 'node-1',
+        target: 'node-4',
+        type: 'default'
+      }
+    ]
+  },
+  {
+    id: 'example-mind-map-3',
+    title: '读书笔记',
+    description: '读书笔记思维导图',
+    layout_type: 'tree',
+    theme: 'purple',
+    created_at: '2023-03-01T00:00:00Z',
+    updated_at: '2023-03-01T00:00:00Z',
+    is_favorite: true,
+    nodes: [
+      {
+        id: 'node-1',
+        title: '读书笔记',
+        content: '《思考，快与慢》读书笔记',
+        x: 0,
+        y: 0,
+        type: 'root'
+      },
+      {
+        id: 'node-2',
+        title: '系统1',
+        content: '快速思考',
+        x: -200,
+        y: -100,
+        type: 'topic'
+      },
+      {
+        id: 'node-3',
+        title: '系统2',
+        content: '慢速思考',
+        x: 200,
+        y: -100,
+        type: 'topic'
+      }
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        source: 'node-1',
+        target: 'node-2',
+        type: 'default'
+      },
+      {
+        id: 'edge-2',
+        source: 'node-1',
+        target: 'node-3',
+        type: 'default'
+      }
+    ]
+  }
+];
+
+export default EXAMPLE_MIND_MAPS;

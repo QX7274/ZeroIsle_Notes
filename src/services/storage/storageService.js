@@ -140,8 +140,8 @@ class StorageService {
         realm.create('StorageItem', {
           key,
           value: stringValue,
-          createdAt: now,
-          updatedAt: now,
+          created_at: now,
+          updated_at: now,
         }, 'modified');
       });
 
@@ -193,17 +193,21 @@ class StorageService {
    * @returns {Promise<boolean>} 是否成功
    */
   async syncKeyUserInfo() {
+    // 检查是否在线和是否已经在同步中
     if (!this.isOnline || this.syncInProgress) {
+      console.log('同步关键用户信息跳过: ' + (!this.isOnline ? '离线状态' : '同步已在进行中'));
       return false;
     }
 
     try {
       this.syncInProgress = true;
+      console.log('开始同步关键用户信息...');
 
       // 获取用户信息
       const userInfo = await this.getItem(STORAGE_KEYS.USER_INFO);
 
       if (!userInfo) {
+        console.log('没有找到用户信息，跳过同步');
         this.syncInProgress = false;
         return false;
       }
@@ -216,21 +220,88 @@ class StorageService {
         }
       });
 
-      // 同步到服务器
+      // 检查是否有需要同步的字段
+      if (Object.keys(keyUserInfo).length === 0) {
+        console.log('没有需要同步的关键用户信息字段');
+        this.syncInProgress = false;
+        return false;
+      }
+
+      // 获取认证令牌
       const token = await this.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      
-      if (token) {
-        await this.apiClient.put('/users/profile', keyUserInfo, {
+
+      if (!token) {
+        console.log('没有找到认证令牌，跳过同步');
+        this.syncInProgress = false;
+        return false;
+      }
+
+      // 检查网络状态
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+        console.log('网络不可用，跳过同步');
+        this.syncInProgress = false;
+        return false;
+      }
+
+      // 设置超时
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('同步超时')), 5000); // 5秒超时，减少等待时间
+      });
+
+      // 同步到服务器
+      try {
+        console.log('正在同步关键用户信息到服务器...');
+
+        // 对于新用户，我们只同步必要的字段
+        const isNewUser = !userInfo.last_sync_time;
+        const dataToSync = isNewUser ?
+          // 新用户只同步基本信息
+          {
+            username: keyUserInfo.username,
+            email: keyUserInfo.email,
+            phone: keyUserInfo.phone,
+            is_new_user: true
+          } :
+          // 老用户同步所有关键信息
+          keyUserInfo;
+
+        console.log(`以${isNewUser ? '新用户' : '老用户'}模式同步数据`);
+
+        const syncPromise = this.apiClient.put('/users/profile', dataToSync, {
           headers: {
             Authorization: `Bearer ${token}`
-          }
+          },
+          timeout: 5000 // 5秒超时，减少等待时间
         });
+
+        await Promise.race([syncPromise, timeoutPromise]);
+        console.log('同步关键用户信息成功');
+
+        // 更新最后同步时间
+        if (userInfo) {
+          userInfo.last_sync_time = new Date().toISOString();
+          await this.setItem(STORAGE_KEYS.USER_INFO, userInfo);
+        }
+      } catch (apiError) {
+        // 处理网络错误
+        if (apiError.message === '同步超时' || apiError.code === 'ECONNABORTED') {
+          console.warn('同步关键用户信息超时，这是正常的，应用将继续运行');
+        } else if (apiError.message === 'Network Error') {
+          console.warn('同步关键用户信息网络错误，这是正常的，应用将继续运行');
+        } else if (apiError.response && apiError.response.status === 404) {
+          console.warn('同步API端点不存在，这可能是因为服务器未配置或API路径已更改');
+        } else {
+          console.warn('同步关键用户信息API错误，应用将继续运行:', apiError.message || apiError);
+        }
+
+        // 不抛出错误，让同步过程继续
       }
 
       this.syncInProgress = false;
       return true;
     } catch (error) {
-      logService.error('同步关键用户信息失败', error);
+      console.warn('同步关键用户信息失败，但应用将继续运行', error.message || error);
       this.syncInProgress = false;
       return false;
     }
@@ -253,7 +324,7 @@ class StorageService {
 
       // 获取认证令牌
       const token = await this.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      
+
       if (!token) {
         return { success: false, message: '未登录，无法上传数据' };
       }
@@ -269,8 +340,8 @@ class StorageService {
       return { success: true, data: response.data };
     } catch (error) {
       logService.error(`上传数据失败: ${collection}/${id}`, error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: error.response?.data?.message || '上传数据失败',
         error
       };
@@ -302,6 +373,20 @@ class StorageService {
    */
   async setUser(user) {
     return this.setItem(STORAGE_KEYS.USER_INFO, user);
+  }
+
+  /**
+   * 获取用户信息
+   * @returns {Promise<Object|null>} 用户信息
+   */
+  async getUser() {
+    try {
+      const userInfo = await this.getItem(STORAGE_KEYS.USER_INFO);
+      return userInfo;
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      return null;
+    }
   }
 }
 

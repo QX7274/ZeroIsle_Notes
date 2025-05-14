@@ -15,7 +15,7 @@ import BindQQ from '../screens/settings/BindQQ';
 import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 import FontSettings from '../screens/settings/FontSettings';
 import OfflineDataScreen from '../screens/settings/OfflineDataScreen';
-import BackupRestoreScreen from '../screens/settings/BackupRestoreScreen';
+// 备份与恢复功能已移除
 import NotificationSettingsScreen from '../screens/settings/NotificationSettingsScreen';
 import AboutScreen from '../screens/settings/AboutScreen';
 import HelpScreen from '../screens/settings/HelpScreen';
@@ -101,11 +101,7 @@ const ProfileNavigator = () => {
         component={OfflineDataScreen}
         options={{ title: '离线数据', headerShown: false }}
       />
-      <Stack.Screen
-        name="BackupRestore"
-        component={BackupRestoreScreen}
-        options={{ title: '备份与恢复', headerShown: false }}
-      />
+      {/* 备份与恢复功能已移除 */}
       <Stack.Screen
         name="NotificationSettings"
         component={NotificationSettingsScreen}

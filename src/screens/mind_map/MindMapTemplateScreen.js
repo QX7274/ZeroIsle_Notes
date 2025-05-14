@@ -14,13 +14,14 @@ import {
   Alert,
   Image,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, EmptyState } from '../../components/common';
-import apiService from '../../services/api/apiService';
 import analyticsService from '../../services/analytics/analyticsService';
+import mindMapTemplateApi from '../../services/api/mindMapTemplateApi';
 
 const { width } = Dimensions.get('window');
 const TEMPLATE_WIDTH = (width - 48) / 2;
@@ -39,11 +40,11 @@ const MindMapTemplateScreen = () => {
 
   // 模板类型
   const templateTypes = [
-    { id: 'all', name: '全部', icon: 'dashboard' },
-    { id: 'general', name: '通用', icon: 'category' },
-    { id: 'project', name: '项目', icon: 'work' },
-    { id: 'study', name: '学习', icon: 'school' },
-    { id: 'brainstorm', name: '头脑风暴', icon: 'lightbulb' },
+    { id: 'all', name: '全部', icon: 'view-dashboard' },
+    { id: 'general', name: '通用', icon: 'shape' },
+    { id: 'project', name: '项目', icon: 'briefcase' },
+    { id: 'study', name: '学习', icon: 'book-open' },
+    { id: 'brainstorm', name: '头脑风暴', icon: 'lightbulb-on' },
   ];
 
   // 加载模板
@@ -51,20 +52,48 @@ const MindMapTemplateScreen = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = {};
       if (selectedType !== 'all') {
         params.type = selectedType;
       }
-      
-      const response = await apiService.get('/mind-map/templates/', { params });
-      
-      setTemplates(response.data.results);
-      analyticsService.trackEvent('view_mind_map_templates', { count: response.data.results.length });
+
+      const response = await mindMapTemplateApi.getTemplates(params);
+
+      if (response.success) {
+        // 成功获取数据
+        if (response.data && Array.isArray(response.data.results)) {
+          setTemplates(response.data.results);
+          analyticsService.trackEvent('view_mind_map_templates', { count: response.data.results.length });
+        } else {
+          console.warn('思维导图模板API返回的数据格式不正确:', response.data);
+          setError('服务器返回数据格式不正确');
+          setTemplates([]);
+        }
+      } else {
+        // 请求失败，但可能有备用数据
+        console.error('API加载思维导图模板失败:', response.message);
+
+        if (response.isNetworkError) {
+          setError('网络连接失败，请检查网络设置');
+        } else if (response.statusCode === 401) {
+          setError('登录已过期，请重新登录');
+        } else if (response.statusCode === 500) {
+          setError('服务器错误，请稍后重试');
+        } else {
+          setError('加载模板失败，使用示例数据');
+        }
+
+        // 使用响应中的备用数据
+        if (response.data && Array.isArray(response.data.results)) {
+          setTemplates(response.data.results);
+        }
+      }
     } catch (err) {
       console.error('加载思维导图模板失败:', err);
       setError('加载模板失败，请稍后重试');
       analyticsService.trackError(err, { action: 'load_mind_map_templates' });
+      setTemplates([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -85,12 +114,26 @@ const MindMapTemplateScreen = () => {
   // 使用模板
   const handleUseTemplate = async (template) => {
     try {
-      const response = await apiService.post(`/mind-map/templates/${template.id}/use_template/`);
-      
-      analyticsService.trackEvent('use_mind_map_template', { id: template.id });
-      
-      // 导航到编辑页面
-      navigation.replace('MindMapEdit', { mindMapId: response.data.id });
+      const response = await mindMapTemplateApi.useTemplate(template.id);
+
+      if (response.success) {
+        analyticsService.trackEvent('use_mind_map_template', { id: template.id });
+
+        // 导航到编辑页面
+        navigation.replace('MindMapEdit', { mindMapId: response.data.id });
+      } else {
+        // 使用失败，但可能有备用数据
+        console.error('使用模板失败:', response.message);
+
+        if (response.data && response.data.id) {
+          // 如果有备用ID，仍然导航到编辑页面
+          analyticsService.trackEvent('use_mind_map_template', { id: template.id, fallback: true });
+          navigation.replace('MindMapEdit', { mindMapId: response.data.id });
+        } else {
+          Alert.alert('错误', response.message || '使用模板失败，请稍后重试');
+          analyticsService.trackError(new Error(response.message), { action: 'use_mind_map_template' });
+        }
+      }
     } catch (err) {
       console.error('使用模板失败:', err);
       Alert.alert('错误', '使用模板失败，请稍后重试');
@@ -139,11 +182,11 @@ const MindMapTemplateScreen = () => {
           />
         ) : (
           <View style={[styles.templatePlaceholder, { backgroundColor: colors.primaryLight }]}>
-            <Icon name="bubble-chart" size={40} color={colors.primary} />
+            <Icon name="chart-bubble" size={40} color={colors.primary} />
           </View>
         )}
       </View>
-      
+
       <View style={styles.templateInfo}>
         <Text style={[styles.templateTitle, { color: colors.text }]} numberOfLines={1}>
           {item.title}
@@ -152,7 +195,7 @@ const MindMapTemplateScreen = () => {
           {templateTypes.find(t => t.id === item.type)?.name || '通用'}
         </Text>
       </View>
-      
+
       <TouchableOpacity
         style={[styles.useButton, { backgroundColor: colors.primary }]}
         onPress={() => handleUseTemplate(item)}
@@ -165,10 +208,10 @@ const MindMapTemplateScreen = () => {
   // 渲染空状态
   const renderEmptyState = () => {
     if (loading) return null;
-    
+
     return (
       <EmptyState
-        icon="dashboard"
+        icon="view-dashboard"
         title="没有模板"
         message={selectedType !== 'all' ? "当前分类下没有模板" : "暂无可用模板"}
       />
@@ -184,12 +227,12 @@ const MindMapTemplateScreen = () => {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Icon name="arrow-back" size={24} color={colors.text} />
+            <Icon name="arrow-left" size={24} color={colors.text} />
           </TouchableOpacity>
-          
+
           <Text style={styles.headerTitle}>思维导图模板</Text>
         </View>
-        
+
         {/* 类型过滤器 */}
         <ScrollView
           horizontal

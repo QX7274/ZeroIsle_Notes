@@ -123,6 +123,9 @@ const ReminderScreen = ({ navigation }) => {
 
   const handleDateChange = async (event, date) => {
     try {
+      // 无论如何，先关闭日期选择器
+      setShowDatePicker(false);
+
       // 只有当用户选择了日期时才创建提醒
       if (date) {
         const reminderData = {

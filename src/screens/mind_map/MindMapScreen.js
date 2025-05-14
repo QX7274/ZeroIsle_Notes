@@ -21,8 +21,10 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, EmptyState } from '../../components/common';
 import { UnifiedSearchBar } from '../../components/search';
-import apiService from '../../services/api/apiService';
 import analyticsService from '../../services/analytics/analyticsService';
+import NetInfo from '@react-native-community/netinfo';
+import mindMapApi from '../../services/api/mindMapApi';
+import { EXAMPLE_MIND_MAPS } from '../../constants/examples/mindMapExamples';
 
 const { width } = Dimensions.get('window');
 
@@ -46,50 +48,47 @@ const MindMapScreen = () => {
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await apiService.get('/mind-map/maps/', {
-          params: { search: searchQuery }
-        });
+      console.log('开始加载思维导图列表...');
+      const response = await mindMapApi.getMindMaps({
+        search: searchQuery
+      });
 
-        setMindMaps(response.data.results);
-        analyticsService.trackEvent('view_mind_maps', { count: response.data.results.length });
-      } catch (apiErr) {
-        console.error('API加载思维导图失败，使用示例数据:', apiErr);
+      if (response.success) {
+        // 成功获取数据
+        if (response.data && Array.isArray(response.data.results)) {
+          setMindMaps(response.data.results);
+          analyticsService.trackEvent('view_mind_maps', { count: response.data.results.length });
+        } else {
+          console.warn('思维导图API返回的数据格式不正确:', response.data);
+          setError('服务器返回数据格式不正确');
+          setMindMaps(EXAMPLE_MIND_MAPS);
+        }
+      } else {
+        // 请求失败，但可能有备用数据
+        console.error('API加载思维导图失败:', response.message);
 
-        // 如果API请求失败，使用示例数据
-        const exampleMindMaps = [
-          {
-            id: 'example1',
-            title: '学习计划',
-            description: '个人学习计划思维导图',
-            updated_at: new Date().toISOString(),
-            layout_type: 'tree',
-            theme: 'default'
-          },
-          {
-            id: 'example2',
-            title: '项目规划',
-            description: '项目开发规划思维导图',
-            updated_at: new Date().toISOString(),
-            layout_type: 'radial',
-            theme: 'blue'
-          },
-          {
-            id: 'example3',
-            title: '知识体系',
-            description: '个人知识体系思维导图',
-            updated_at: new Date().toISOString(),
-            layout_type: 'tree',
-            theme: 'green'
-          }
-        ];
+        if (response.isNetworkError) {
+          setError('网络连接失败，请检查网络设置');
+        } else if (response.statusCode === 401) {
+          setError('登录已过期，请重新登录');
+        } else if (response.statusCode === 500) {
+          setError('服务器错误，请稍后重试');
+        } else {
+          setError('加载思维导图失败，使用示例数据');
+        }
 
-        setMindMaps(exampleMindMaps);
+        // 使用响应中的备用数据或示例数据
+        if (response.data && Array.isArray(response.data.results)) {
+          setMindMaps(response.data.results);
+        } else {
+          setMindMaps(EXAMPLE_MIND_MAPS);
+        }
       }
     } catch (err) {
       console.error('加载思维导图失败:', err);
       setError('加载思维导图失败，请稍后重试');
       analyticsService.trackError(err, { action: 'load_mind_maps' });
+      setMindMaps(EXAMPLE_MIND_MAPS);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -124,19 +123,25 @@ const MindMapScreen = () => {
     }
 
     try {
-      const response = await apiService.post('/mind-map/maps/', {
+      const response = await mindMapApi.createMindMap({
         title: newMindMapTitle.trim(),
         description: '',
         layout_type: 'tree',
         theme: 'default'
       });
 
-      setShowCreateModal(false);
-      setNewMindMapTitle('');
-      analyticsService.trackEvent('create_mind_map', { title: newMindMapTitle });
+      if (response.success) {
+        setShowCreateModal(false);
+        setNewMindMapTitle('');
+        analyticsService.trackEvent('create_mind_map', { title: newMindMapTitle });
 
-      // 导航到编辑页面
-      navigation.navigate('MindMapEdit', { mindMapId: response.data.id });
+        // 导航到编辑页面
+        navigation.navigate('MindMapEdit', { mindMapId: response.data.id });
+      } else {
+        // 创建失败
+        Alert.alert('错误', response.message || '创建思维导图失败，请稍后重试');
+        analyticsService.trackError(new Error(response.message), { action: 'create_mind_map' });
+      }
     } catch (err) {
       console.error('创建思维导图失败:', err);
       Alert.alert('错误', '创建思维导图失败，请稍后重试');
@@ -165,6 +170,12 @@ const MindMapScreen = () => {
       // 正常导航到编辑页面
       navigation.navigate('MindMapEdit', { mindMapId: mindMap.id });
     }
+  };
+
+  // 使用示例思维导图数据
+  const useExampleMindMaps = () => {
+    console.log('使用示例思维导图数据');
+    setMindMaps(EXAMPLE_MIND_MAPS);
   };
 
   // 获取示例思维导图数据
@@ -267,6 +278,12 @@ const MindMapScreen = () => {
 
   // 删除思维导图
   const handleDeleteMindMap = (mindMap) => {
+    // 如果是示例思维导图，直接从列表中移除
+    if (mindMap.id.startsWith('example')) {
+      Alert.alert('提示', '示例思维导图不能删除');
+      return;
+    }
+
     Alert.alert(
       '确认删除',
       `确定要删除思维导图"${mindMap.title}"吗？`,
@@ -277,9 +294,15 @@ const MindMapScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.delete(`/mind-map/maps/${mindMap.id}/`);
-              analyticsService.trackEvent('delete_mind_map', { id: mindMap.id });
-              loadMindMaps();
+              const response = await mindMapApi.deleteMindMap(mindMap.id);
+
+              if (response.success) {
+                analyticsService.trackEvent('delete_mind_map', { id: mindMap.id });
+                loadMindMaps();
+              } else {
+                Alert.alert('错误', response.message || '删除思维导图失败，请稍后重试');
+                analyticsService.trackError(new Error(response.message), { action: 'delete_mind_map' });
+              }
             } catch (err) {
               console.error('删除思维导图失败:', err);
               Alert.alert('错误', '删除思维导图失败，请稍后重试');

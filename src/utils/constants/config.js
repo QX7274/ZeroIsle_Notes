@@ -12,8 +12,18 @@ export const APP_VERSION = '0.0.1';
 
 // 本地存储键
 export const STORAGE_KEYS = {
+  // 认证相关
   AUTH_TOKEN: 'auth_token',
+  REFRESH_TOKEN: 'refresh_token',
+  TOKEN_EXPIRY: 'token_expiry',
+  AUTH_EXPIRED: 'auth_expired',
   USER_INFO: 'user_info',
+
+  // 兼容旧版本的键
+  TOKEN: 'token',
+  USER: 'user',
+
+  // 应用设置和数据
   SETTINGS: 'app_settings',
   NOTES_CACHE: 'notes_cache',
   OFFLINE_NOTES: 'offline_notes',
@@ -86,3 +96,13 @@ export const CACHE_KEYS = [
   'temp_image_uploads',
   'temp_search_results',
 ];
+
+// 令牌相关常量
+export const TOKEN_CONFIG = {
+  // 访问令牌有效期（分钟）
+  ACCESS_TOKEN_LIFETIME: 60,
+  // 刷新令牌有效期（天）
+  REFRESH_TOKEN_LIFETIME: 7,
+  // 提前刷新时间（分钟）- 令牌过期前多少分钟开始刷新
+  REFRESH_THRESHOLD_MINUTES: 5,
+};

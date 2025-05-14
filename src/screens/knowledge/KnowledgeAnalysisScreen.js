@@ -210,27 +210,39 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   // 处理标签选择
   const handleTagsSelected = (tags) => {
     // 导航到笔记编辑页面，并传递选中的标签
-    navigation.navigate('NoteEdit', {
-      noteId,
-      selectedTags: tags,
+    // 使用嵌套导航，确保导航到正确的笔记编辑屏幕
+    navigation.navigate('Notes', {
+      screen: 'NoteEdit',
+      params: {
+        noteId,
+        selectedTags: tags,
+      }
     });
   };
 
   // 处理分类选择
   const handleCategorySelected = (category) => {
     // 导航到笔记编辑页面，并传递选中的分类
-    navigation.navigate('NoteEdit', {
-      noteId,
-      selectedCategory: category,
+    // 使用嵌套导航，确保导航到正确的笔记编辑屏幕
+    navigation.navigate('Notes', {
+      screen: 'NoteEdit',
+      params: {
+        noteId,
+        selectedCategory: category,
+      }
     });
   };
 
   // 处理笔记选择
   const handleNoteSelected = (note) => {
     // 导航到笔记详情页面
-    navigation.navigate('NoteDetail', {
-      noteId: note.id,
-      title: note.title,
+    // 使用嵌套导航，确保导航到正确的笔记详情屏幕
+    navigation.navigate('Notes', {
+      screen: 'NotesList',
+      params: {
+        initialNoteId: note.id,
+        title: note.title,
+      }
     });
   };
 
@@ -259,7 +271,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
         <Text style={dynamicStyles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
         <Button
           title="创建笔记"
-          onPress={() => navigation.navigate('NoteEdit')}
+          onPress={() => navigation.navigate('Notes', { screen: 'NoteEdit' })}
           style={dynamicStyles.createButton}
         />
       </View>

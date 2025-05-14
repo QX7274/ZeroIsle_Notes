@@ -62,6 +62,13 @@ class DataService {
   }
 
   /**
+   * 初始化数据服务 - 兼容旧版API
+   */
+  async init() {
+    return this.initialize();
+  }
+
+  /**
    * 创建文档
    * @param {string} collectionName 集合名称
    * @param {Object} data 文档数据
@@ -197,7 +204,7 @@ class DataService {
         } catch (syncError) {
           console.error(`同步更新文档失败: ${collectionName}/${id}`, syncError);
 
-          // 添加到同步队列          
+          // 添加到同步队列
           await offlineSyncService.addToSyncQueue({
             entity_id: id,
             entity_type: collectionName,
@@ -496,12 +503,12 @@ class DataService {
       // 同步队列
       await offlineSyncService.syncQueue();
 
-      // 如果需要拉取最新数据      
+      // 如果需要拉取最新数据
       if (options.pull !== false) {
-        // 获取最后同步时间        
+        // 获取最后同步时间
         const lastSyncTime = await this.getLastSyncTime(collectionName);
 
-        // 从云端获取最新数据        
+        // 从云端获取最新数据
         const query = lastSyncTime ? { updated_at: { $gt: lastSyncTime } } : {};
         const cloudDocuments = await mongoDBService.find(collectionName, query);
 
@@ -596,6 +603,176 @@ class DataService {
    */
   removeListener(event, listener) {
     eventEmitter.removeListener(event, listener);
+  }
+
+  /**
+   * 设置当前用户
+   * @param {Object} user 用户信息
+   */
+  setCurrentUser(user) {
+    try {
+      this.currentUser = user;
+      console.log('设置当前用户:', user.username || user.id);
+    } catch (error) {
+      console.error('设置当前用户失败:', error);
+    }
+  }
+
+  /**
+   * 获取当前用户
+   * @returns {Object|null} 当前用户
+   */
+  getCurrentUser() {
+    return this.currentUser || null;
+  }
+
+  /**
+   * 获取笔记列表
+   * @param {Object} params 查询参数
+   * @returns {Promise<Array>} 笔记列表
+   */
+  async getNotes(params = {}) {
+    try {
+      await this.initialize();
+
+      // 构建查询条件 - 使用Realm兼容的查询语法
+      const query = {}; // 不使用MongoDB风格的查询
+
+      // 如果指定了用户ID，添加到查询条件
+      if (params.userId) {
+        query.user_id = params.userId;
+      }
+
+      // 如果指定了标签，添加到查询条件
+      if (params.tag) {
+        query.tags = params.tag;
+      }
+
+      // 如果指定了分类，添加到查询条件
+      if (params.category) {
+        query.category = params.category;
+      }
+
+      // 如果指定了搜索关键词，我们需要在find方法中手动处理
+      // Realm不支持MongoDB风格的$or和$regex查询
+      // 这里先不添加到query对象，后面会手动过滤
+
+      // 构建选项
+      const options = {
+        sort: params.sort || { updated_at: -1 },
+        limit: params.limit || 100,
+        skip: params.skip || 0
+      };
+
+      // 从本地数据库查询笔记 - 使用正确的模型名称 'Note'
+      let notes = [];
+
+      try {
+        // 先获取基本查询结果
+        notes = await realmService.find('Note', query, options);
+
+        // 如果有搜索关键词，手动过滤结果
+        if (params.search && notes.length > 0) {
+          const searchTerm = params.search.toLowerCase();
+          notes = notes.filter(note =>
+            (note.title && note.title.toLowerCase().includes(searchTerm)) ||
+            (note.content && note.content.toLowerCase().includes(searchTerm))
+          );
+        }
+
+        console.log(`查询到${notes.length}条笔记`);
+      } catch (queryError) {
+        console.error('执行笔记查询失败:', queryError);
+        // 出错时返回空数组
+        notes = [];
+      }
+
+      return notes;
+    } catch (error) {
+      console.error('获取笔记列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取单个笔记
+   * @param {string} id 笔记ID
+   * @returns {Promise<Object|null>} 笔记对象
+   */
+  async getNote(id) {
+    try {
+      await this.initialize();
+
+      // 从本地数据库查询笔记 - 使用正确的模型名称 'Note'
+      const note = await realmService.findById('Note', id);
+
+      // 如果笔记已删除，返回null
+      if (note && note.is_deleted) {
+        return null;
+      }
+
+      return note;
+    } catch (error) {
+      console.error(`获取笔记失败: ${id}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * 同步笔记
+   * @param {Array} serverNotes 服务器笔记列表
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async syncNotes(serverNotes) {
+    try {
+      await this.initialize();
+
+      if (!Array.isArray(serverNotes) || serverNotes.length === 0) {
+        console.log('没有需要同步的笔记');
+        return true;
+      }
+
+      console.log(`开始同步${serverNotes.length}条笔记...`);
+
+      // 获取当前用户
+      const currentUser = this.getCurrentUser();
+      const userId = currentUser?.id || 'default_user';
+
+      // 遍历服务器笔记
+      for (const serverNote of serverNotes) {
+        try {
+          // 查找本地笔记 - 使用正确的模型名称 'Note'
+          const localNote = await realmService.findById('Note', serverNote.id);
+
+          if (!localNote) {
+            // 如果本地不存在，创建新笔记 - 使用正确的模型名称 'Note'
+            await realmService.create('Note', {
+              ...serverNote,
+              _id: serverNote.id,
+              user_id: userId,
+              is_synced: true
+            });
+            console.log(`创建新笔记: ${serverNote.id}`);
+          } else if (new Date(serverNote.updated_at) > new Date(localNote.updated_at)) {
+            // 如果服务器版本更新，更新本地笔记 - 使用正确的模型名称 'Note'
+            await realmService.update('Note', serverNote.id, {
+              ...serverNote,
+              is_synced: true
+            });
+            console.log(`更新笔记: ${serverNote.id}`);
+          }
+        } catch (noteError) {
+          console.error(`同步笔记失败: ${serverNote.id}`, noteError);
+          // 继续处理下一条笔记
+        }
+      }
+
+      console.log('笔记同步完成');
+      return true;
+    } catch (error) {
+      console.error('同步笔记失败:', error);
+      return false;
+    }
   }
 }
 

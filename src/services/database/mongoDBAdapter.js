@@ -1,5 +1,5 @@
 /**
- * MongoDB适配器 
+ * MongoDB适配器
  * 将mongoDBService的方法映射到realmService的方法
  * 用于平滑过渡到新的存储架构
  */
@@ -100,17 +100,17 @@ class MongoDBAdapter {
   async updateOne(collectionName, filter, update) {
     try {
       await this.initialize();
-      
+
       // 查找文档
       const document = await realmService.findOne(collectionName, filter);
-      
+
       if (!document) {
         return false;
       }
-      
+
       // 更新文档
       await realmService.update(collectionName, document._id, update.$set || update);
-      
+
       return true;
     } catch (error) {
       console.error(`更新文档失败: ${collectionName}`, error);
@@ -123,23 +123,23 @@ class MongoDBAdapter {
    * @param {string} collectionName 集合名称
    * @param {Object} filter 过滤条件
    * @param {Object} update 更新数据
-   * @returns {Promise<number>} 更新的文档数数   
+   * @returns {Promise<number>} 更新的文档数数
    */
   async updateMany(collectionName, filter, update) {
     try {
       await this.initialize();
-      
+
       // 查找文档
       const documents = await realmService.find(collectionName, filter);
-      
+
       if (documents.length === 0) {
         return 0;
       }
-      
+
       // 更新文档
       const realm = await realmService.getRealm();
       const updateData = update.$set || update;
-      
+
       realm.write(() => {
         for (const document of documents) {
           const obj = realm.objectForPrimaryKey(collectionName, document._id);
@@ -152,7 +152,7 @@ class MongoDBAdapter {
           }
         }
       });
-      
+
       return documents.length;
     } catch (error) {
       console.error(`批量更新文档失败: ${collectionName}`, error);
@@ -169,17 +169,17 @@ class MongoDBAdapter {
   async deleteOne(collectionName, filter) {
     try {
       await this.initialize();
-      
+
       // 查找文档
       const document = await realmService.findOne(collectionName, filter);
-      
+
       if (!document) {
         return false;
       }
-      
+
       // 删除文档
       await realmService.delete(collectionName, document._id);
-      
+
       return true;
     } catch (error) {
       console.error(`删除文档失败: ${collectionName}`, error);
@@ -196,17 +196,17 @@ class MongoDBAdapter {
   async deleteMany(collectionName, filter) {
     try {
       await this.initialize();
-      
+
       // 查找文档
       const documents = await realmService.find(collectionName, filter);
-      
+
       if (documents.length === 0) {
         return 0;
       }
-      
+
       // 删除文档
       const realm = await realmService.getRealm();
-      
+
       realm.write(() => {
         for (const document of documents) {
           const obj = realm.objectForPrimaryKey(collectionName, document._id);
@@ -215,7 +215,7 @@ class MongoDBAdapter {
           }
         }
       });
-      
+
       return documents.length;
     } catch (error) {
       console.error(`批量删除文档失败: ${collectionName}`, error);
@@ -254,6 +254,52 @@ class MongoDBAdapter {
     } catch (error) {
       console.error(`查询单个文档失败: ${collectionName}`, error);
       throw error;
+    }
+  }
+
+  /**
+   * 获取存储项目 - 兼容旧版API
+   * @param {string} key 存储键
+   * @returns {Promise<any|null>} 存储值
+   */
+  async getItem(key) {
+    try {
+      await this.initialize();
+
+      // 先尝试从settings集合获取
+      try {
+        const settingsItem = await realmService.findOne('settings', { key });
+        if (settingsItem) {
+          try {
+            return JSON.parse(settingsItem.value);
+          } catch (parseError) {
+            return settingsItem.value;
+          }
+        }
+      } catch (settingsError) {
+        console.warn(`从settings获取${key}失败:`, settingsError);
+      }
+
+      // 再尝试从StorageItem集合获取
+      try {
+        const storageItem = await realmService.findOne('StorageItem', { key });
+        if (storageItem) {
+          try {
+            return JSON.parse(storageItem.value);
+          } catch (parseError) {
+            return storageItem.value;
+          }
+        }
+      } catch (storageError) {
+        console.warn(`从StorageItem获取${key}失败:`, storageError);
+      }
+
+      // 如果都没有找到，返回null
+      return null;
+    } catch (error) {
+      console.error(`获取存储项目失败: ${key}`, error);
+      // 对于新用户，不抛出错误，而是返回null
+      return null;
     }
   }
 }

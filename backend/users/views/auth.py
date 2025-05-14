@@ -674,8 +674,13 @@ class UserProfileView(viewsets.ViewSet):
 
     def retrieve(self, request):
         """获取用户资料"""
-        serializer = UserDetailSerializer(request.user)
-        return Response(serializer.data)
+        try:
+            logger.debug(f"获取用户资料, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
+            serializer = UserDetailSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"获取用户资料失败: {str(e)}", exc_info=True)
+            return Response({'error': f'获取用户资料失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get(self, request):
         """兼容旧版API"""
@@ -683,12 +688,34 @@ class UserProfileView(viewsets.ViewSet):
 
     def update(self, request):
         """更新用户资料"""
-        from users.serializers import UserUpdateSerializer
-        serializer = UserUpdateSerializer(request.user, data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(UserDetailSerializer(request.user).data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from users.serializers import UserUpdateSerializer
+            logger.debug(f"更新用户资料, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
+
+            # 获取MongoDB用户模型
+            from users.mongodb_models import User as MongoUser
+
+            # 查找对应的MongoDB用户
+            mongo_user = MongoUser.objects(username=request.user.username).first()
+            if mongo_user:
+                logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
+                # 同步更新MongoDB用户的相关字段
+                if 'nickname' in request.data:
+                    mongo_user.nickname = request.data['nickname']
+                if 'bio' in request.data:
+                    mongo_user.bio = request.data['bio']
+                if 'avatar' in request.data:
+                    mongo_user.avatar = request.data['avatar']
+                mongo_user.save()
+
+            serializer = UserUpdateSerializer(request.user, data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response(UserDetailSerializer(request.user).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"更新用户资料失败: {str(e)}", exc_info=True)
+            return Response({'error': f'更新用户资料失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def put(self, request):
         """兼容旧版API"""
@@ -696,12 +723,34 @@ class UserProfileView(viewsets.ViewSet):
 
     def partial_update(self, request):
         """部分更新用户资料"""
-        from users.serializers import UserUpdateSerializer
-        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(UserDetailSerializer(request.user).data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from users.serializers import UserUpdateSerializer
+            logger.debug(f"部分更新用户资料, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
+
+            # 获取MongoDB用户模型
+            from users.mongodb_models import User as MongoUser
+
+            # 查找对应的MongoDB用户
+            mongo_user = MongoUser.objects(username=request.user.username).first()
+            if mongo_user:
+                logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
+                # 同步更新MongoDB用户的相关字段
+                if 'nickname' in request.data:
+                    mongo_user.nickname = request.data['nickname']
+                if 'bio' in request.data:
+                    mongo_user.bio = request.data['bio']
+                if 'avatar' in request.data:
+                    mongo_user.avatar = request.data['avatar']
+                mongo_user.save()
+
+            serializer = UserUpdateSerializer(request.user, data=request.data, partial=True, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response(UserDetailSerializer(request.user).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"部分更新用户资料失败: {str(e)}", exc_info=True)
+            return Response({'error': f'部分更新用户资料失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request):
         """兼容旧版API"""
@@ -712,26 +761,39 @@ class UserProfileView(viewsets.ViewSet):
         """
         上传头像
         """
-        if 'avatar' not in request.FILES:
-            return Response({'error': '请选择要上传的头像'}, status=status.HTTP_400_BAD_REQUEST)
-
-        avatar_file = request.FILES['avatar']
-
-        # 验证文件类型
-        valid_extensions = ['jpg', 'jpeg', 'png', 'gif']
-        ext = avatar_file.name.split('.')[-1].lower()
-        if ext not in valid_extensions:
-            return Response({'error': '不支持的文件类型，请上传jpg、jpeg、png或gif格式的图片'},
-                           status=status.HTTP_400_BAD_REQUEST)
-
-        # 验证文件大小（限制为5MB）
-        if avatar_file.size > 5 * 1024 * 1024:
-            return Response({'error': '文件大小不能超过5MB'},
-                           status=status.HTTP_400_BAD_REQUEST)
-
         try:
+            if 'avatar' not in request.FILES:
+                return Response({'error': '请选择要上传的头像'}, status=status.HTTP_400_BAD_REQUEST)
+
+            avatar_file = request.FILES['avatar']
+
+            # 验证文件类型
+            valid_extensions = ['jpg', 'jpeg', 'png', 'gif']
+            ext = avatar_file.name.split('.')[-1].lower()
+            if ext not in valid_extensions:
+                return Response({'error': '不支持的文件类型，请上传jpg、jpeg、png或gif格式的图片'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+            # 验证文件大小（限制为5MB）
+            if avatar_file.size > 5 * 1024 * 1024:
+                return Response({'error': '文件大小不能超过5MB'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
             # 保存头像
             user = request.user
+            logger.debug(f"上传头像, 用户ID: {user.id}, 类型: {type(user.id)}")
+
+            # 获取MongoDB用户模型
+            from users.mongodb_models import User as MongoUser
+
+            # 查找对应的MongoDB用户
+            mongo_user = MongoUser.objects(username=user.username).first()
+            if mongo_user:
+                logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
+                # 同步更新MongoDB用户的头像
+                # 注意：这里需要根据实际情况处理MongoDB中的头像存储
+                # 这里假设MongoDB中的avatar字段是URL字符串
+                # 实际情况可能需要上传到云存储或其他处理
 
             # 如果用户已有头像，先删除旧头像
             if user.avatar:
@@ -744,15 +806,20 @@ class UserProfileView(viewsets.ViewSet):
             # 返回头像URL
             avatar_url = request.build_absolute_uri(user.avatar.url) if user.avatar else None
 
+            # 如果找到了MongoDB用户，更新其头像URL
+            if mongo_user:
+                mongo_user.avatar = avatar_url
+                mongo_user.save()
+
             return Response({
                 'message': '头像上传成功',
                 'avatar_url': avatar_url
             })
 
         except Exception as e:
-            logger.error(f"头像上传失败: {str(e)}")
-            return Response({'error': '头像上传失败，请稍后重试'},
-                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"头像上传失败: {str(e)}", exc_info=True)
+            return Response({'error': f'头像上传失败: {str(e)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PasswordChangeView(APIView):
     """

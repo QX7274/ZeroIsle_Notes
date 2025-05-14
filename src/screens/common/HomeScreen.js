@@ -59,9 +59,23 @@ const HomeScreen = ({ navigation }) => {
         console.log('开始初始化 HomeScreen...');
 
         // 加载排序偏好
-        const savedSort = await offlineStorageService.getItem('home_sort_preference');
-        if (savedSort) {
-          setSortOption(savedSort);
+        try {
+          // 确保离线存储服务已初始化
+          if (!offlineStorageService.initialized) {
+            await offlineStorageService.initialize();
+          }
+
+          // 使用realmService直接获取数据
+          const { realmService } = require('../../services/database/realmService');
+          const sortPreference = await realmService.findOne('settings', { key: 'home_sort_preference' });
+
+          if (sortPreference && sortPreference.value) {
+            setSortOption(sortPreference.value);
+            console.log('已加载排序偏好:', sortPreference.value);
+          }
+        } catch (sortError) {
+          console.warn('加载排序偏好失败:', sortError);
+          // 使用默认排序选项
         }
 
         // 设置超时，确保加载状态不会一直显示
@@ -76,9 +90,9 @@ const HomeScreen = ({ navigation }) => {
           await loadNotes();
 
           // 在后台初始化离线存储服务，不阻塞UI
-          if (!offlineStorageService.isInitialized) {
+          if (!offlineStorageService.initialized) {
             console.log('在后台初始化离线存储服务...');
-            offlineStorageService.init().catch(err => {
+            offlineStorageService.initialize().catch(err => {
               console.warn('后台初始化离线存储服务失败:', err);
             });
           } else {
@@ -223,19 +237,28 @@ const HomeScreen = ({ navigation }) => {
         console.log('API请求超时，尝试从AsyncStorage备份恢复');
 
         try {
-          const backupNotes = await offlineStorageService.getItem('BACKUP_NOTES');
+          console.log('尝试从MongoDB获取备份笔记...');
+          try {
+            // 使用realmService直接获取备份笔记
+            const { realmService } = require('../../services/database/realmService');
+            const backupNotesObj = await realmService.findOne('settings', { key: 'BACKUP_NOTES' });
+            const backupNotes = backupNotesObj && backupNotesObj.value ? JSON.parse(backupNotesObj.value) : null;
 
-          if (backupNotes) {
-            console.log(`从MongoDB备份恢复了 ${backupNotes.length} 条笔记`);
-            dispatch(setNotesAction(backupNotes));
-            setIsLoading(false);
-            return; // 提前返回，避免重复设置 isLoading
-          } else {
-            console.log('MongoDB中没有备份笔记，返回空数组');
+            if (backupNotes && Array.isArray(backupNotes) && backupNotes.length > 0) {
+              console.log(`从MongoDB备份恢复了 ${backupNotes.length} 条笔记`);
+              dispatch(setNotesAction(backupNotes));
+            } else {
+              console.log('MongoDB中没有备份笔记，返回空数组');
+              dispatch(setNotesAction([]));
+            }
+          } catch (mongoError) {
+            console.log('从MongoDB获取备份笔记失败，但这是正常的，因为可能是新用户:', mongoError);
+            // 对于新用户，返回空数组而不是错误
             dispatch(setNotesAction([]));
-            setIsLoading(false);
-            return; // 提前返回，避免重复设置 isLoading
           }
+
+          setIsLoading(false);
+          return; // 提前返回，避免重复设置 isLoading
         } catch (backupError) {
           console.error('从AsyncStorage恢复备份失败:', backupError);
           dispatch(setNotesAction([]));

@@ -58,7 +58,8 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 使用自定义认证中间件替换Django的认证中间件
+    'users.middleware.CustomAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'common.middleware.RequestLogMiddleware',  # 请求日志中间件
@@ -90,35 +91,106 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # ASGI配置
 ASGI_APPLICATION = 'backend.asgi.application'
 
-# 数据库配置
+# 数据库配置 - 使用SQLite作为Django内部数据库，但主要数据存储在MongoDB
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用MongoDB Realm
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
 # MongoDB Atlas/Realm连接配置
 import mongoengine
+from pymongo import MongoClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 连接到MongoDB
 mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
-if mongo_uri:
-    # 使用MongoDB Atlas连接字符串
-    mongoengine.connect(
-        host=mongo_uri,
-        alias='default'
-    )
-else:
-    # 使用传统连接参数
-    mongoengine.connect(
-        db=os.environ.get('MONGO_DB', 'ZeroIsle_Notes'),
-        host=os.environ.get('MONGO_HOST', 'localhost'),
-        port=int(os.environ.get('MONGO_PORT', 27017)),
-        username=os.environ.get('MONGO_USER', ''),
-        password=os.environ.get('MONGO_PASSWORD', ''),
-        authentication_source='admin',
-        alias='default'
-    )
+mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
+
+# 断开所有现有连接
+mongoengine.disconnect_all()
+
+# 设置MongoDB连接标志
+MONGODB_AVAILABLE = False
+
+try:
+    if mongo_uri:
+        # 使用MongoDB Atlas连接字符串
+        mongoengine.connect(
+            db=mongo_db_name,
+            host=mongo_uri,
+            alias='default',
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            connect=False  # 延迟连接，直到第一次使用
+        )
+
+        # 创建PyMongo客户端用于原生操作
+        MONGO_CLIENT = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            connect=False  # 延迟连接，直到第一次使用
+        )
+    else:
+        # 使用传统连接参数
+        mongo_host = os.environ.get('MONGO_HOST', 'localhost')
+        mongo_port = int(os.environ.get('MONGO_PORT', 27017))
+        mongo_user = os.environ.get('MONGO_USER', '')
+        mongo_password = os.environ.get('MONGO_PASSWORD', '')
+
+        mongoengine.connect(
+            db=mongo_db_name,
+            host=mongo_host,
+            port=mongo_port,
+            username=mongo_user,
+            password=mongo_password,
+            authentication_source='admin',
+            alias='default',
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            connect=False  # 延迟连接，直到第一次使用
+        )
+
+        # 创建PyMongo客户端用于原生操作
+        if mongo_user and mongo_password:
+            MONGO_CLIENT = MongoClient(
+                host=mongo_host,
+                port=mongo_port,
+                username=mongo_user,
+                password=mongo_password,
+                authSource='admin',
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=30000,
+                socketTimeoutMS=30000,
+                connect=False  # 延迟连接，直到第一次使用
+            )
+        else:
+            MONGO_CLIENT = MongoClient(
+                host=mongo_host,
+                port=mongo_port,
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=30000,
+                socketTimeoutMS=30000,
+                connect=False  # 延迟连接，直到第一次使用
+            )
+
+    # 获取数据库引用
+    MONGO_DB = MONGO_CLIENT[mongo_db_name]
+
+    # 设置MongoDB可用标志
+    MONGODB_AVAILABLE = True
+    logger.info(f"MongoDB配置成功: {mongo_db_name}")
+
+except Exception as e:
+    logger.error(f"MongoDB配置错误: {str(e)}")
+    # 不抛出异常，让应用继续启动，但记录错误
 
 # 用户认证配置
 AUTH_USER_MODEL = 'users.User'
@@ -180,7 +252,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework配置
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'users.jwt_auth.CustomJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -208,6 +280,11 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
     'VERIFYING_KEY': None,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',  # 使用UUID字段作为用户ID
+    'USER_ID_CLAIM': 'user_id',  # JWT令牌中的用户ID声明
+    # 添加UUID处理
+    'JTI_CLAIM': 'jti',
+    'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
 # Channels配置

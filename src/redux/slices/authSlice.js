@@ -5,7 +5,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { userApi } from '../../services/api';
 import { storage } from '../../utils';
+import { Platform } from 'react-native';
 import { navigate, navigationRef } from '../../navigation/navigationRef';
+import tokenService from '../../services/auth/tokenService';
+import { getAuthInfo } from '../../services/auth/authUtils';
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -175,12 +178,57 @@ export const logout = createAsyncThunk(
 
       // 使用setTimeout确保Redux状态更新后再导航
       setTimeout(() => {
-        // 使用resetRoot方法重置整个导航状态
+        // 使用reset方法重置整个导航状态
         if (navigationRef.current) {
-          navigationRef.current.resetRoot({
-            index: 0,
-            routes: [{ name: 'Auth' }],
-          });
+          try {
+            console.log('尝试重置导航到Auth页面');
+            // 使用CommonActions.reset方法
+            const { CommonActions } = require('@react-navigation/native');
+            navigationRef.current.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }]
+              })
+            );
+          } catch (navError) {
+            console.error('重置导航失败，尝试备选方法:', navError);
+
+            // 备选方法1：使用navigate方法
+            try {
+              navigationRef.current.navigate('Auth', {}, { reset: true });
+            } catch (navError2) {
+              console.error('备选方法1也失败:', navError2);
+
+              // 备选方法2：直接使用dispatch
+              try {
+                navigationRef.current.dispatch({
+                  type: 'NAVIGATE',
+                  payload: {
+                    name: 'Auth',
+                    params: {},
+                  },
+                });
+              } catch (navError3) {
+                console.error('所有导航方法都失败:', navError3);
+
+                // 最后的备选方法：直接修改Redux状态
+                try {
+                  const { store } = require('../store');
+                  store.dispatch({ type: 'auth/logout/fulfilled' });
+                  console.log('已通过Redux状态重置认证状态');
+
+                  // 强制刷新应用
+                  if (Platform && Platform.OS === 'web') {
+                    window.location.reload();
+                  }
+                } catch (reduxError) {
+                  console.error('Redux状态重置失败:', reduxError);
+                }
+              }
+            }
+          }
+        } else {
+          console.warn('navigationRef.current不存在，无法重置导航');
         }
       }, 100);
 
@@ -196,14 +244,81 @@ export const logout = createAsyncThunk(
 // 异步action：检查认证状态
 export const checkAuthState = createAsyncThunk(
   'auth/checkAuthState',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
-      const token = await storage.get('token');
-      if (!token) return null;
+      console.log('Redux: 检查认证状态...');
 
-      const user = await storage.get('user');
-      return { user, token };
+      // 使用统一的认证信息获取函数
+      const { token, refreshToken, user } = await getAuthInfo();
+
+      // 如果没有令牌，返回null
+      if (!token) {
+        console.log('Redux: 未找到访问令牌，用户未认证');
+
+        // 确保清除认证状态
+        await tokenService.clearTokens();
+
+        // 确保Redux状态一致
+        dispatch({ type: 'auth/setIsAuthenticated', payload: false });
+        dispatch({ type: 'auth/setUserInfo', payload: null });
+        dispatch({ type: 'auth/setAuthToken', payload: null });
+
+        return null;
+      }
+
+      // 检查令牌是否过期
+      const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
+
+      if (isTokenExpired && refreshToken) {
+        console.log('Redux: 访问令牌已过期或即将过期，尝试刷新...');
+
+        // 尝试刷新令牌
+        const newTokenData = await tokenService.refreshAccessToken();
+
+        if (newTokenData) {
+          console.log('Redux: 令牌刷新成功');
+          // 获取最新的认证信息
+          const { token: newToken, user: newUser } = await getAuthInfo();
+
+          // 确保Redux状态一致
+          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+          dispatch({ type: 'auth/setUserInfo', payload: newUser });
+          dispatch({ type: 'auth/setAuthToken', payload: newToken });
+
+          return { user: newUser, token: newToken, refreshToken };
+        } else {
+          console.log('Redux: 刷新令牌失败，用户未认证');
+
+          // 确保清除认证状态
+          await tokenService.clearTokens();
+
+          // 确保Redux状态一致
+          dispatch({ type: 'auth/setIsAuthenticated', payload: false });
+          dispatch({ type: 'auth/setUserInfo', payload: null });
+          dispatch({ type: 'auth/setAuthToken', payload: null });
+
+          return null;
+        }
+      }
+
+      console.log('Redux: 用户已认证');
+
+      // 确保Redux状态一致
+      dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+      dispatch({ type: 'auth/setUserInfo', payload: user });
+      dispatch({ type: 'auth/setAuthToken', payload: token });
+
+      return { user, token, refreshToken };
     } catch (error) {
+      console.error('Redux: 检查认证状态失败:', error);
+
+      // 出错时确保清除认证状态
+      try {
+        await tokenService.clearTokens();
+      } catch (clearError) {
+        console.error('Redux: 清除令牌失败:', clearError);
+      }
+
       return rejectWithValue(error.message);
     }
   }
@@ -256,6 +371,16 @@ const authSlice = createSlice({
         if (action.payload) {
           state.user = action.payload.user;
           state.token = action.payload.token;
+          state.refreshToken = action.payload.refreshToken;
+          state.isAuthenticated = !!action.payload.token && !!action.payload.user;
+          console.log('Redux: 认证状态已更新，isAuthenticated:', state.isAuthenticated);
+        } else {
+          // 如果payload为null，清除认证状态
+          state.user = null;
+          state.token = null;
+          state.refreshToken = null;
+          state.isAuthenticated = false;
+          console.log('Redux: 认证状态已清除');
         }
       })
       .addCase(checkAuthState.rejected, (state, action) => {

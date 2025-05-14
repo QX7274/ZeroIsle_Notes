@@ -86,12 +86,32 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   // 加载知识图谱数据
   const loadKnowledgeGraph = async () => {
     try {
+      console.log('开始加载知识图谱数据...');
       await dispatch(fetchKnowledgeGraph()).unwrap();
+      console.log('知识图谱数据加载成功');
     } catch (err) {
       console.error('加载知识图谱失败:', err);
-      setToastMessage('加载知识图谱失败: ' + (err.message || '请稍后重试'));
+
+      // 检查错误类型并提供更具体的错误信息
+      let errorMessage = '请稍后重试';
+
+      if (err.statusCode === 500) {
+        console.log('服务器错误 (500)，可能是用户ID类型不匹配问题');
+        errorMessage = '服务器内部错误，可能是用户ID格式不兼容';
+      } else if (err.statusCode === 401) {
+        console.log('认证错误 (401)，用户可能需要重新登录');
+        errorMessage = '登录已过期，请重新登录';
+      } else if (err.isNetworkError) {
+        console.log('网络错误，可能是连接问题');
+        errorMessage = '网络连接失败，请检查网络设置';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setToastMessage('加载知识图谱失败: ' + errorMessage);
 
       // 如果API加载失败，使用模拟数据
+      console.log('使用模拟数据作为备选');
       const mockNodes = [
         {
           id: '1',

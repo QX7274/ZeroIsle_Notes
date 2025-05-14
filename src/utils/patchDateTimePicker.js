@@ -53,6 +53,30 @@ if (Platform.OS === 'android') {
       });
       console.log('成功创建全局 DateTimePickerAndroid 模拟对象');
     }
+
+    // 修补RNDateTimePickerAndroid组件
+    if (NativeModules.RNDateTimePickerAndroid) {
+      console.log('尝试修补 RNDateTimePickerAndroid 模块');
+
+      // 保存原始方法的引用
+      const originalDismiss = NativeModules.RNDateTimePickerAndroid.dismiss;
+
+      // 替换dismiss方法
+      NativeModules.RNDateTimePickerAndroid.dismiss = (...args) => {
+        try {
+          if (typeof originalDismiss === 'function') {
+            return originalDismiss(...args);
+          }
+          console.log('使用模拟的 RNDateTimePickerAndroid.dismiss');
+          return Promise.resolve(true);
+        } catch (error) {
+          console.warn('RNDateTimePickerAndroid.dismiss 调用失败:', error);
+          return Promise.resolve(true);
+        }
+      };
+
+      console.log('成功修补 RNDateTimePickerAndroid 模块');
+    }
   } catch (error) {
     console.warn('创建 DateTimePickerAndroid 模拟对象失败:', error);
   }

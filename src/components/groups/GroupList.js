@@ -22,7 +22,7 @@ import { EmptyState, ErrorState } from '../../components/common';
 const GroupList = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const groups = useSelector(selectGroups);
+  const groups = useSelector(selectGroups) || [];
   const isLoading = useSelector(selectGroupsLoading);
   const error = useSelector(selectGroupsError);
 
@@ -107,9 +107,10 @@ const GroupList = () => {
         ListEmptyComponent={renderEmptyComponent}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading && groups.length > 0}
+            refreshing={isLoading && (groups && groups.length > 0)}
             onRefresh={loadGroups}
-            colors={[COLORS.PRIMARY]}
+            colors={COLORS.PRIMARY ? [COLORS.PRIMARY] : ['#007AFF']}
+            tintColor={COLORS.PRIMARY || '#007AFF'}
           />
         }
       />

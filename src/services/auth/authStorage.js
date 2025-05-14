@@ -172,6 +172,24 @@ class AuthStorage {
       return false;
     }
   }
+
+  /**
+   * 批量删除项目
+   * @param {Array<string>} keys 存储键数组
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async multiRemove(keys) {
+    try {
+      await this.initialize();
+      for (const key of keys) {
+        await realmStorageService.removeItem(key);
+      }
+      return true;
+    } catch (error) {
+      logService.error(`批量删除认证存储项目失败: ${keys.join(', ')}`, error);
+      return false;
+    }
+  }
 }
 
 // 创建单例实例

@@ -47,8 +47,15 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def me(self, request):
         """获取当前用户信息"""
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"获取当前用户信息, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"获取当前用户信息失败: {str(e)}", exc_info=True)
+            return Response({'error': f'获取当前用户信息失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def search(self, request):

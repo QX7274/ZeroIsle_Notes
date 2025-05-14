@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from '../../components/common/Typography';
+import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 import { requestNotificationPermission } from '../../services/notifications';
@@ -22,19 +22,19 @@ const NotificationSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
-  
+
   // 从Redux获取设置
   const settings = useSelector(state => state.settings);
-  
+
   // 本地状态
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // 检查通知权限
   useEffect(() => {
     checkNotificationPermission();
   }, []);
-  
+
   // 检查通知权限
   const checkNotificationPermission = async () => {
     try {
@@ -45,14 +45,14 @@ const NotificationSettingsScreen = ({ navigation }) => {
       setHasPermission(false);
     }
   };
-  
+
   // 请求通知权限
   const requestPermission = async () => {
     setIsLoading(true);
     try {
       const permission = await requestNotificationPermission(true);
       setHasPermission(permission);
-      
+
       if (permission) {
         // 如果获得权限，启用通知
         updateNotificationSetting('notificationEnabled', true);
@@ -87,7 +87,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-  
+
   // 更新通知设置
   const updateNotificationSetting = (key, value) => {
     // 如果要启用通知，但没有权限，则请求权限
@@ -95,11 +95,11 @@ const NotificationSettingsScreen = ({ navigation }) => {
       requestPermission();
       return;
     }
-    
+
     const newSettings = { ...settings, [key]: value };
     dispatch(updateSettings(newSettings));
   };
-  
+
   // 渲染设置项
   const renderSettingItem = ({ icon, title, description, key, disabled = false }) => (
     <View style={styles.settingItem}>
@@ -107,26 +107,27 @@ const NotificationSettingsScreen = ({ navigation }) => {
         <View style={styles.settingHeader}>
           <Icon name={icon} size={20} color={disabled ? colors.textSecondary : colors.text} />
           <Text
-            variant="body"
-            size="medium"
-            color={disabled ? 'hint' : 'text'}
-            style={styles.settingTitle}
+            style={[
+              styles.settingTitle,
+              { color: disabled ? colors.textSecondary : colors.text }
+            ]}
           >
             {title}
           </Text>
         </View>
-        
+
         {description && (
           <Text
-            variant="caption"
-            color="hint"
-            style={styles.settingDescription}
+            style={[
+              styles.settingDescription,
+              { color: colors.textSecondary, fontSize: 12 }
+            ]}
           >
             {description}
           </Text>
         )}
       </View>
-      
+
       <Switch
         value={settings[key]}
         onValueChange={(value) => updateNotificationSetting(key, value)}
@@ -136,7 +137,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
       />
     </View>
   );
-  
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
@@ -149,26 +150,26 @@ const NotificationSettingsScreen = ({ navigation }) => {
               color={hasPermission ? colors.success : colors.error}
             />
             <Text
-              variant="body"
-              size="medium"
-              bold
-              style={styles.permissionTitle}
+              style={[
+                styles.permissionTitle,
+                { fontWeight: 'bold' }
+              ]}
             >
               {hasPermission ? '通知已启用' : '通知已禁用'}
             </Text>
           </View>
-          
+
           <Text
-            variant="body"
-            size="small"
-            color="hint"
-            style={styles.permissionDescription}
+            style={[
+              styles.permissionDescription,
+              { color: colors.textSecondary, fontSize: 13 }
+            ]}
           >
             {hasPermission
               ? '您已授予应用发送通知的权限'
               : '您需要授予应用发送通知的权限才能接收提醒和更新'}
           </Text>
-          
+
           {!hasPermission && (
             <TouchableOpacity
               style={[styles.permissionButton, { backgroundColor: colors.primary }]}
@@ -176,16 +177,16 @@ const NotificationSettingsScreen = ({ navigation }) => {
               disabled={isLoading}
             >
               <Text
-                variant="body"
-                size="small"
-                color="card"
+                style={[
+                  { color: colors.card, fontSize: 13 }
+                ]}
               >
                 {isLoading ? '请求中...' : '授予权限'}
               </Text>
             </TouchableOpacity>
           )}
         </View>
-        
+
         {/* 通知设置 */}
         <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
           {renderSettingItem({
@@ -195,7 +196,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
             key: 'notificationEnabled',
             disabled: !hasPermission,
           })}
-          
+
           {renderSettingItem({
             icon: 'event-note',
             title: '提醒通知',
@@ -203,7 +204,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
             key: 'reminderNotification',
             disabled: !hasPermission || !settings.notificationEnabled,
           })}
-          
+
           {renderSettingItem({
             icon: 'sync',
             title: '同步通知',
@@ -211,7 +212,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
             key: 'syncNotification',
             disabled: !hasPermission || !settings.notificationEnabled,
           })}
-          
+
           {renderSettingItem({
             icon: 'forum',
             title: '社区通知',
@@ -219,7 +220,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
             key: 'communityNotification',
             disabled: !hasPermission || !settings.notificationEnabled,
           })}
-          
+
           {renderSettingItem({
             icon: 'update',
             title: '更新通知',
@@ -228,7 +229,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
             disabled: !hasPermission || !settings.notificationEnabled,
           })}
         </View>
-        
+
         {/* 通知时间设置 */}
         <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity
@@ -244,24 +245,25 @@ const NotificationSettingsScreen = ({ navigation }) => {
                   color={!hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text}
                 />
                 <Text
-                  variant="body"
-                  size="medium"
-                  color={!hasPermission || !settings.notificationEnabled ? 'hint' : 'text'}
-                  style={styles.settingTitle}
+                  style={[
+                    styles.settingTitle,
+                    { color: !hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text }
+                  ]}
                 >
                   免打扰时间
                 </Text>
               </View>
-              
+
               <Text
-                variant="caption"
-                color="hint"
-                style={styles.settingDescription}
+                style={[
+                  styles.settingDescription,
+                  { color: colors.textSecondary, fontSize: 12 }
+                ]}
               >
                 设置不接收通知的时间段
               </Text>
             </View>
-            
+
             <Icon
               name="chevron-right"
               size={24}
@@ -269,11 +271,12 @@ const NotificationSettingsScreen = ({ navigation }) => {
             />
           </TouchableOpacity>
         </View>
-        
+
         <Text
-          variant="caption"
-          color="hint"
-          style={styles.note}
+          style={[
+            styles.note,
+            { color: colors.textSecondary, fontSize: 12 }
+          ]}
         >
           注意：即使启用了通知，您也可能需要在设备设置中允许应用发送通知
         </Text>

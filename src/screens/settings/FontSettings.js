@@ -13,11 +13,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
+import { Alert } from 'react-native';
+import { useFontSize } from '../../context/FontSizeContext';
 
 const FontSettings = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors } = theme;
   const dispatch = useDispatch();
+  const { fontSize, setFontSize } = useFontSize();
 
   // 从Redux获取设置
   const settings = useSelector(state => state.settings);
@@ -30,10 +33,27 @@ const FontSettings = ({ navigation }) => {
   ];
 
   // 更新字体大小
-  const updateFontSize = (value) => {
-    const newSettings = { ...settings, fontSize: value };
-    dispatch(updateSettings(newSettings));
-    navigation.goBack();
+  const updateFontSize = async (value) => {
+    try {
+      // 保存到Redux
+      const newSettings = { ...settings, fontSize: value };
+      dispatch(updateSettings(newSettings));
+
+      // 使用FontSizeContext更新全局字体大小
+      await setFontSize(value);
+
+      // 显示成功提示
+      Alert.alert('设置已更新', '字体大小设置已保存并立即生效。');
+
+      // 记录日志
+      console.log(`字体大小已更改为: ${value}`);
+
+      // 返回上一页
+      navigation.goBack();
+    } catch (error) {
+      console.error('更新字体大小失败:', error);
+      Alert.alert('错误', '更新字体大小失败，请重试');
+    }
   };
 
   return (
@@ -46,7 +66,7 @@ const FontSettings = ({ navigation }) => {
               styles.optionItem,
               {
                 backgroundColor: colors.card,
-                borderColor: settings.fontSize === option.value ? colors.primary : 'transparent',
+                borderColor: fontSize === option.value ? colors.primary : 'transparent',
               },
             ]}
             onPress={() => updateFontSize(option.value)}
@@ -72,7 +92,7 @@ const FontSettings = ({ navigation }) => {
               </Text>
             </View>
 
-            {settings.fontSize === option.value && (
+            {fontSize === option.value && (
               <Icon name="check-circle" size={24} color={colors.primary} />
             )}
           </TouchableOpacity>
@@ -93,7 +113,7 @@ const FontSettings = ({ navigation }) => {
               level="h5"
               style={[
                 styles.previewHeading,
-                { fontSize: settings.fontSize === 'small' ? 18 : settings.fontSize === 'medium' ? 20 : 22 }
+                { fontSize: fontSize === 'small' ? 18 : fontSize === 'medium' ? 20 : 22 }
               ]}
             >
               零屿笔记
@@ -103,7 +123,7 @@ const FontSettings = ({ navigation }) => {
               variant="body"
               style={[
                 styles.previewBody,
-                { fontSize: settings.fontSize === 'small' ? 14 : settings.fontSize === 'medium' ? 16 : 18 }
+                { fontSize: fontSize === 'small' ? 14 : fontSize === 'medium' ? 16 : 18 }
               ]}
             >
               这是一段示例文本，用于展示不同字体大小的效果。您可以通过上面的选项来更改应用的字体大小设置。

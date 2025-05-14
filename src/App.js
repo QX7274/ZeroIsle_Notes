@@ -28,6 +28,7 @@ import { navigationRef, processNavigationQueue } from './navigation/navigationRe
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import { RealmProvider } from './context/RealmContext';
+import { FontSizeProvider } from './context/FontSizeContext';
 
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
@@ -70,6 +71,10 @@ const defaultTheme = {
   }
 };
 
+// 导入令牌服务
+import tokenService from './services/auth/tokenService';
+import { handleUnauthorizedError } from './services/auth/authUtils';
+
 // 认证状态检查组件
 const AuthStateManager = () => {
   const dispatch = useDispatch();
@@ -80,6 +85,26 @@ const AuthStateManager = () => {
     const checkAuth = async () => {
       try {
         console.log('正在检查认证状态...');
+
+        // 首先检查令牌是否过期
+        const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
+
+        if (isTokenExpired) {
+          console.log('访问令牌已过期或即将过期，尝试刷新...');
+
+          // 尝试刷新令牌
+          const newTokenData = await tokenService.refreshAccessToken();
+
+          if (!newTokenData) {
+            console.log('刷新令牌失败，清除认证状态');
+            // 处理未授权错误，清除认证状态并导航到登录页面
+            await handleUnauthorizedError();
+          } else {
+            console.log('令牌刷新成功');
+          }
+        }
+
+        // 检查Redux中的认证状态
         await dispatch(checkAuthState()).unwrap();
       } catch (error) {
         console.error('检查认证状态失败:', error);
@@ -736,23 +761,23 @@ const AppContainer = () => {
         });
         initPromises.push(mongoDBPromise);
 
-        // 添加全局超时，确保即使某个服务卡住，应用也能继续运行
-        // 但不再使用超时来中断数据库初始化，而是让数据库服务自己管理初始化状态
-        const timeoutPromise = new Promise(resolve => {
-          setTimeout(() => {
-            console.log('其他服务初始化可能超时，但应用将继续运行');
-            // 不再中断数据库初始化，只是让应用继续运行
-            resolve(true); // 返回true，表示初始化成功，避免应用进入降级模式
-          }, 120000); // 增加到120秒，给所有服务足够的初始化时间
-        });
+        // 等待所有服务初始化完成
+        // 不再使用超时机制，确保所有服务都必须初始化完成
+        console.log('等待所有服务初始化完成...');
+        try {
+          await Promise.all(initPromises);
+          console.log('所有服务初始化完成');
+        } catch (initError) {
+          console.error('服务初始化失败:', initError);
+          // 显示错误提示
+          Alert.alert(
+            '初始化错误',
+            '某些服务初始化失败，应用可能无法正常工作。请重启应用。',
+            [{ text: '确定', style: 'cancel' }]
+          );
+        }
 
-        // 等待所有服务初始化完成或超时
-        await Promise.race([
-          Promise.all(initPromises),
-          timeoutPromise
-        ]);
-
-        console.log('所有服务初始化完成或超时');
+        console.log('所有服务初始化流程已完成');
 
         // 设置初始化完成状态
         setIsInitialized(true);
@@ -1014,13 +1039,15 @@ const App = () => {
             >
               <SafeAreaProvider>
                 <ThemeProvider>
-                  <AccessibilityProvider>
-                    <RealmProvider>
-                      <GestureHandlerRootView style={{ flex: 1 }}>
-                        <AppContainer />
-                      </GestureHandlerRootView>
-                    </RealmProvider>
-                  </AccessibilityProvider>
+                  <FontSizeProvider>
+                    <AccessibilityProvider>
+                      <RealmProvider>
+                        <GestureHandlerRootView style={{ flex: 1 }}>
+                          <AppContainer />
+                        </GestureHandlerRootView>
+                      </RealmProvider>
+                    </AccessibilityProvider>
+                  </FontSizeProvider>
                 </ThemeProvider>
               </SafeAreaProvider>
             </PersistGate>

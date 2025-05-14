@@ -16,10 +16,16 @@ export const STORAGE_EVENTS = {
   STORAGE_CLEARED: 'storage:cleared',
 };
 
+/**
+ * 离线存储服务类
+ */
 class OfflineStorageService {
   constructor() {
     this.initialized = false;
     this.initializationPromise = null;
+    this.isOfflineMode = false;
+    this.isConnected = true;
+    this.localProfile = null;
   }
 
   /**
@@ -176,7 +182,7 @@ class OfflineStorageService {
       // 查询笔记
       const note = await realmService.findById('notes', id);
 
-      // 如果笔记已删除且不包含已删除的笔记      
+      // 如果笔记已删除且不包含已删除的笔记
       if (note && note.is_deleted) {
         return null;
       }
@@ -249,7 +255,7 @@ class OfflineStorageService {
         // 永久删除
         await realmService.delete('notes', id);
       } else {
-        // 软删除   
+        // 软删除
           await realmService.update('notes', id, {
           is_deleted: true,
           deleted_at: new Date(),
@@ -827,7 +833,7 @@ class OfflineStorageService {
   /**
    * 保存画布
    * @param {Object} canvas 画布对象
-   * @returns {Promise<Object>} 保存的画布   
+   * @returns {Promise<Object>} 保存的画布
    */
   async saveCanvas(canvas) {
     try {
@@ -933,14 +939,140 @@ class OfflineStorageService {
   }
 
   /**
-   * 添加存储事件监听器   
-   * @param {string} event 事件名称
+   * 获取离线存储服务状态
+   * @returns {Object} 状态对象
+   */
+  getStatus() {
+    return {
+      isOffline: this.isOfflineMode || !this.isConnected,
+      isOfflineMode: this.isOfflineMode,
+      isConnected: this.isConnected,
+      initialized: this.initialized
+    };
+  }
+
+  /**
+   * 设置离线模式
+   * @param {boolean} enabled 是否启用离线模式
+   */
+  setOfflineMode(enabled) {
+    const oldValue = this.isOfflineMode;
+    this.isOfflineMode = !!enabled;
+
+    // 如果状态发生变化，触发事件
+    if (oldValue !== this.isOfflineMode) {
+      eventEmitter.emit('offlineModeChange', {
+        type: 'offlineModeChange',
+        isOffline: this.isOfflineMode || !this.isConnected,
+        isOfflineMode: this.isOfflineMode
+      });
+    }
+  }
+
+  /**
+   * 设置连接状态
+   * @param {boolean} connected 是否已连接
+   */
+  setConnectionStatus(connected) {
+    const oldValue = this.isConnected;
+    this.isConnected = !!connected;
+
+    // 如果状态发生变化，触发事件
+    if (oldValue !== this.isConnected) {
+      eventEmitter.emit('connectionChange', {
+        type: 'connectionChange',
+        isOffline: this.isOfflineMode || !this.isConnected,
+        isConnected: this.isConnected
+      });
+    }
+  }
+
+  /**
+   * 获取本地个人简介
+   * @returns {Object|null} 本地个人简介
+   */
+  getLocalProfile() {
+    return this.localProfile;
+  }
+
+  /**
+   * 保存本地个人简介
+   * @param {Object} profile 个人简介
+   */
+  saveLocalProfile(profile) {
+    this.localProfile = profile;
+    // 可以选择将其保存到持久化存储
+    try {
+      // 检查是否存在，如果存在则更新，否则创建
+      const existingProfile = realmService.findById('user_profiles', 'local_profile');
+      if (existingProfile) {
+        realmService.update('user_profiles', 'local_profile', {
+          profile: profile,
+          updated_at: new Date()
+        });
+      } else {
+        realmService.create('user_profiles', {
+          _id: 'local_profile',
+          profile: profile,
+          updated_at: new Date()
+        });
+      }
+    } catch (error) {
+      console.warn('保存本地个人简介失败', error);
+    }
+  }
+
+  /**
+   * 同步个人简介到云端
+   * @param {Object} profile 个人简介
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async syncProfile(profile) {
+    // 如果处于离线模式，保存到本地
+    if (this.isOfflineMode || !this.isConnected) {
+      this.saveLocalProfile(profile);
+      return false;
+    }
+
+    try {
+      // 这里应该实现与云端的同步逻辑
+      // 例如，调用API将个人简介同步到服务器
+      console.log('同步个人简介到云端', profile);
+
+      // 清除本地缓存的个人简介
+      this.localProfile = null;
+
+      return true;
+    } catch (error) {
+      console.error('同步个人简介失败', error);
+
+      // 同步失败，保存到本地
+      this.saveLocalProfile(profile);
+
+      return false;
+    }
+  }
+
+  /**
+   * 添加存储事件监听器
    * @param {Function} listener 监听器函数
    * @returns {Function} 移除监听器的函数
    */
-  addListener(event, listener) {
-    eventEmitter.addListener(event, listener);
-    return () => eventEmitter.removeListener(event, listener);
+  addListener(listener) {
+    // 为所有相关事件添加监听器
+    const events = ['connectionChange', 'offlineModeChange', STORAGE_EVENTS.STORAGE_INITIALIZED, STORAGE_EVENTS.STORAGE_ERROR];
+
+    const subscriptions = events.map(event => {
+      eventEmitter.addListener(event, listener);
+      return { event, listener };
+    });
+
+    // 返回一个函数，用于移除所有监听器
+    return () => {
+      subscriptions.forEach(({ event, listener }) => {
+        eventEmitter.removeListener(event, listener);
+      });
+    };
   }
 
   /**

@@ -80,6 +80,11 @@ class User(Document):
         """获取用户简称"""
         return self.first_name or self.username
 
+    def check_password(self, raw_password):
+        """验证密码"""
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password)
+
 class VerificationCode(Document):
     """
     验证码文档模型
@@ -130,6 +135,7 @@ class UserProfile(Document):
     用户资料文档模型
     """
     user = ReferenceField(User, required=True, unique=True, verbose_name='用户')
+    django_user_id = StringField(verbose_name='Django用户ID')  # 添加Django用户ID字段
     nickname = StringField(max_length=50, verbose_name='昵称')
     gender = StringField(max_length=10, choices=('male', 'female', 'other', 'unknown'), default='unknown', verbose_name='性别')
     birthday = DateTimeField(verbose_name='生日')
@@ -147,6 +153,7 @@ class UserProfile(Document):
         'collection': 'user_profiles',
         'indexes': [
             {'fields': ['user']},
+            {'fields': ['django_user_id']},  # 添加django_user_id索引
             {'fields': ['nickname']},
             {'fields': ['location']}
         ],

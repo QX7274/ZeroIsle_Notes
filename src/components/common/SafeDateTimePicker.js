@@ -63,26 +63,44 @@ const SafeDateTimePicker = ({
   // 处理日期变化
   const handleChange = (event, selectedDate) => {
     try {
-      // 首先关闭选择器
+      // 首先关闭选择器，无论发生什么都要确保选择器关闭
       setInternalVisible(false);
-      if (onClose) {
-        onClose();
-      }
 
-      // 如果有选择日期，则调用onChange回调
-      if (selectedDate && onChange) {
-        setSelectedValue(selectedDate);
-        onChange(event, selectedDate);
-      }
+      // 使用setTimeout确保状态更新在UI渲染之前完成
+      setTimeout(() => {
+        try {
+          if (onClose) {
+            onClose();
+          }
+
+          // 如果有选择日期，则调用onChange回调
+          if (selectedDate && onChange) {
+            setSelectedValue(selectedDate);
+            onChange(event, selectedDate);
+          }
+        } catch (innerError) {
+          console.warn('SafeDateTimePicker handleChange inner error:', innerError);
+          // 标记为错误状态，下次将使用备用UI
+          setDateTimePickerError(true);
+        }
+      }, 0);
     } catch (error) {
       console.warn('SafeDateTimePicker handleChange error:', error);
       // 标记为错误状态，下次将使用备用UI
       setDateTimePickerError(true);
       // 确保选择器关闭
       setInternalVisible(false);
-      if (onClose) {
-        onClose();
-      }
+
+      // 使用setTimeout确保状态更新在UI渲染之前完成
+      setTimeout(() => {
+        try {
+          if (onClose) {
+            onClose();
+          }
+        } catch (closeError) {
+          console.warn('SafeDateTimePicker onClose error:', closeError);
+        }
+      }, 0);
     }
   };
 
@@ -153,6 +171,12 @@ const SafeDateTimePicker = ({
 
   // 尝试使用原生选择器
   try {
+    // 在Android平台上，如果之前有错误，直接使用备用UI
+    if (Platform.OS === 'android' && dateTimePickerError) {
+      setFallbackVisible(true);
+      return null;
+    }
+
     // 根据平台渲染不同的选择器
     if (Platform.OS === 'ios') {
       return (
@@ -169,21 +193,32 @@ const SafeDateTimePicker = ({
       );
     }
 
-    // Android平台
-    return (
-      <DateTimePicker
-        value={value || new Date()}
-        mode={mode}
-        is24Hour={is24Hour}
-        display={display}
-        onChange={handleChange}
-        minimumDate={minimumDate}
-        maximumDate={maximumDate}
-        positiveButton={{label: '确定'}}
-        negativeButton={{label: '取消'}}
-        {...rest}
-      />
-    );
+    // Android平台 - 使用try-catch包装组件
+    try {
+      return (
+        <DateTimePicker
+          testID="dateTimePicker"
+          value={value || new Date()}
+          mode={mode}
+          is24Hour={is24Hour}
+          display={display}
+          onChange={handleChange}
+          minimumDate={minimumDate}
+          maximumDate={maximumDate}
+          positiveButton={{label: '确定'}}
+          negativeButton={{label: '取消'}}
+          {...rest}
+        />
+      );
+    } catch (innerError) {
+      console.error('渲染Android DateTimePicker时出错:', innerError);
+      // 立即切换到备用UI
+      setTimeout(() => {
+        setDateTimePickerError(true);
+        setFallbackVisible(true);
+      }, 0);
+      return null;
+    }
   } catch (error) {
     console.error('渲染DateTimePicker时出错:', error);
     // 标记为错误状态，下次将使用备用UI

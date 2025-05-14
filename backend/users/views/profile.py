@@ -21,20 +21,30 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
-    
+
     def get_queryset(self):
         """根据用户角色过滤查询集"""
-        user = self.request.user
-        # 管理员可以查看所有用户资料
-        if user.is_staff or user.is_superuser:
-            return UserProfile.objects.all()
-        # 普通用户只能查看自己的资料
-        return UserProfile.objects.filter(user=user)
-    
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+
+            user = self.request.user
+            logger.debug(f"获取用户资料查询集, 用户ID: {user.id}, 类型: {type(user.id)}")
+
+            # 管理员可以查看所有用户资料
+            if user.is_staff or user.is_superuser:
+                return UserProfile.objects.all()
+            # 普通用户只能查看自己的资料
+            return UserProfile.objects.filter(user=user)
+        except Exception as e:
+            logger.error(f"获取用户资料查询集失败: {str(e)}", exc_info=True)
+            # 返回空查询集
+            return UserProfile.objects.none()
+
     def perform_create(self, serializer):
         """创建时自动关联当前用户"""
         serializer.save(user=self.request.user)
-    
+
     @action(detail=False, methods=['get'])
     def my_profile(self, request):
         """获取当前用户的资料"""
@@ -47,7 +57,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             profile = UserProfile.objects.create(user=request.user)
             serializer = self.get_serializer(profile)
             return Response(serializer.data)
-    
+
     @action(detail=False, methods=['put', 'patch'])
     def update_my_profile(self, request):
         """更新当前用户的资料"""
@@ -55,7 +65,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
             profile = UserProfile.objects.get(user=request.user)
         except UserProfile.DoesNotExist:
             profile = UserProfile.objects.create(user=request.user)
-        
+
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()

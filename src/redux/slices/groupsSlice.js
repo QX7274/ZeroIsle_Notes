@@ -298,13 +298,13 @@ const groupsSlice = createSlice({
       })
       .addCase(fetchGroups.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.groups = action.payload;
+        state.groups = action.payload || [];
       })
       .addCase(fetchGroups.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 获取群组详情
       .addCase(fetchGroupDetail.pending, (state) => {
         state.isLoading = true;
@@ -313,7 +313,7 @@ const groupsSlice = createSlice({
       .addCase(fetchGroupDetail.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentGroup = action.payload;
-        
+
         // 如果有加入码，更新加入码信息
         if (action.payload.join_code) {
           state.joinCode = action.payload.join_code;
@@ -324,7 +324,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 创建群组
       .addCase(createGroup.pending, (state) => {
         state.isLoading = true;
@@ -339,7 +339,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 更新群组
       .addCase(updateGroup.pending, (state) => {
         state.isLoading = true;
@@ -347,13 +347,13 @@ const groupsSlice = createSlice({
       })
       .addCase(updateGroup.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 更新群组列表中的群组
         const index = state.groups.findIndex(group => group.id === action.payload.id);
         if (index !== -1) {
           state.groups[index] = action.payload;
         }
-        
+
         // 如果当前群组是被更新的群组，也更新当前群组
         if (state.currentGroup && state.currentGroup.id === action.payload.id) {
           state.currentGroup = action.payload;
@@ -363,7 +363,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 删除群组
       .addCase(deleteGroup.pending, (state) => {
         state.isLoading = true;
@@ -371,10 +371,10 @@ const groupsSlice = createSlice({
       })
       .addCase(deleteGroup.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 从群组列表中移除群组
         state.groups = state.groups.filter(group => group.id !== action.payload.groupId);
-        
+
         // 如果当前群组是被删除的群组，清空当前群组
         if (state.currentGroup && state.currentGroup.id === action.payload.groupId) {
           state.currentGroup = null;
@@ -384,7 +384,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 生成加入码
       .addCase(generateJoinCode.pending, (state) => {
         state.isLoading = true;
@@ -399,7 +399,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 通过加入码加入群组
       .addCase(joinGroupByCode.pending, (state) => {
         state.isLoading = true;
@@ -407,7 +407,7 @@ const groupsSlice = createSlice({
       })
       .addCase(joinGroupByCode.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 如果群组不在列表中，添加到列表
         const group = action.payload.group;
         if (!state.groups.some(g => g.id === group.id)) {
@@ -418,7 +418,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 获取群组成员
       .addCase(fetchGroupMembers.pending, (state) => {
         state.isLoading = true;
@@ -432,7 +432,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 离开群组
       .addCase(leaveGroup.pending, (state) => {
         state.isLoading = true;
@@ -440,10 +440,10 @@ const groupsSlice = createSlice({
       })
       .addCase(leaveGroup.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 从群组列表中移除群组
         state.groups = state.groups.filter(group => group.id !== action.payload.groupId);
-        
+
         // 如果当前群组是被离开的群组，清空当前群组
         if (state.currentGroup && state.currentGroup.id === action.payload.groupId) {
           state.currentGroup = null;
@@ -453,7 +453,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 获取群组邀请
       .addCase(fetchGroupInvitations.pending, (state) => {
         state.isLoading = true;
@@ -467,7 +467,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 接受群组邀请
       .addCase(acceptGroupInvitation.pending, (state) => {
         state.isLoading = true;
@@ -475,10 +475,10 @@ const groupsSlice = createSlice({
       })
       .addCase(acceptGroupInvitation.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 从邀请列表中移除邀请
         state.invitations = state.invitations.filter(invitation => invitation.id !== action.payload.invitationId);
-        
+
         // 如果群组不在列表中，添加到列表
         const group = action.payload.group;
         if (!state.groups.some(g => g.id === group.id)) {
@@ -489,7 +489,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 拒绝群组邀请
       .addCase(rejectGroupInvitation.pending, (state) => {
         state.isLoading = true;
@@ -497,7 +497,7 @@ const groupsSlice = createSlice({
       })
       .addCase(rejectGroupInvitation.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 从邀请列表中移除邀请
         state.invitations = state.invitations.filter(invitation => invitation.id !== action.payload.invitationId);
       })
@@ -505,7 +505,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 创建屏幕共享
       .addCase(createScreenShare.pending, (state) => {
         state.isLoading = true;
@@ -519,7 +519,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 获取屏幕共享列表
       .addCase(fetchScreenShares.pending, (state) => {
         state.isLoading = true;
@@ -533,7 +533,7 @@ const groupsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 结束屏幕共享
       .addCase(endScreenShare.pending, (state) => {
         state.isLoading = true;
@@ -541,7 +541,7 @@ const groupsSlice = createSlice({
       })
       .addCase(endScreenShare.fulfilled, (state, action) => {
         state.isLoading = false;
-        
+
         // 更新屏幕共享状态
         const index = state.sharedScreens.findIndex(share => share.id === action.payload.shareId);
         if (index !== -1) {

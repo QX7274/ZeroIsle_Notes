@@ -21,27 +21,45 @@ class UserDeviceViewSet(viewsets.ModelViewSet):
     queryset = UserDevice.objects.all()
     serializer_class = UserDeviceSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
-    
+
     def get_queryset(self):
         """根据用户角色过滤查询集"""
-        user = self.request.user
-        # 管理员可以查看所有用户设备
-        if user.is_staff or user.is_superuser:
-            return UserDevice.objects.all()
-        # 普通用户只能查看自己的设备
-        return UserDevice.objects.filter(user=user)
-    
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+
+            user = self.request.user
+            logger.debug(f"获取用户设备查询集, 用户ID: {user.id}, 类型: {type(user.id)}")
+
+            # 管理员可以查看所有用户设备
+            if user.is_staff or user.is_superuser:
+                return UserDevice.objects.all()
+            # 普通用户只能查看自己的设备吧
+            return UserDevice.objects.filter(user=user)
+        except Exception as e:
+            logger.error(f"获取用户设备查询集失败: {str(e)}", exc_info=True)
+            # 返回空查询集
+            return UserDevice.objects.none()
+
     def perform_create(self, serializer):
         """创建时自动关联当前用户"""
         serializer.save(user=self.request.user)
-    
+
     @action(detail=False, methods=['get'])
     def my_devices(self, request):
         """获取当前用户的所有设备"""
-        devices = UserDevice.objects.filter(user=request.user)
-        serializer = self.get_serializer(devices, many=True)
-        return Response(serializer.data)
-    
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+
+            logger.debug(f"获取当前用户的所有设备, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
+            devices = UserDevice.objects.filter(user=request.user)
+            serializer = self.get_serializer(devices, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"获取当前用户的所有设备失败: {str(e)}", exc_info=True)
+            return Response({'error': f'获取设备失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
         """停用设备"""
@@ -49,7 +67,7 @@ class UserDeviceViewSet(viewsets.ModelViewSet):
         device.is_active = False
         device.save()
         return Response({'status': '设备已停用'}, status=status.HTTP_200_OK)
-    
+
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
         """激活设备"""
@@ -57,23 +75,33 @@ class UserDeviceViewSet(viewsets.ModelViewSet):
         device.is_active = True
         device.save()
         return Response({'status': '设备已激活'}, status=status.HTTP_200_OK)
-    
+
     @action(detail=False, methods=['post'])
     def update_push_token(self, request):
         """更新推送令牌
-        
+
         用于更新当前设备的推送令牌
         """
-        device_id = request.data.get('device_id')
-        push_token = request.data.get('push_token')
-        
-        if not device_id or not push_token:
-            return Response({'error': '设备ID和推送令牌不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            device = UserDevice.objects.get(user=request.user, device_id=device_id)
-            device.push_token = push_token
-            device.save()
-            return Response({'status': '推送令牌已更新'}, status=status.HTTP_200_OK)
-        except UserDevice.DoesNotExist:
-            return Response({'error': '设备不存在'}, status=status.HTTP_404_NOT_FOUND)
+            import logging
+            logger = logging.getLogger(__name__)
+
+            device_id = request.data.get('device_id')
+            push_token = request.data.get('push_token')
+
+            if not device_id or not push_token:
+                return Response({'error': '设备ID和推送令牌不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+            logger.debug(f"更新推送令牌, 用户ID: {request.user.id}, 设备ID: {device_id}")
+            try:
+                device = UserDevice.objects.get(user=request.user, device_id=device_id)
+                device.push_token = push_token
+                device.save()
+                logger.debug(f"推送令牌已更新, 设备ID: {device_id}")
+                return Response({'status': '推送令牌已更新'}, status=status.HTTP_200_OK)
+            except UserDevice.DoesNotExist:
+                logger.warning(f"设备不存在, 设备ID: {device_id}")
+                return Response({'error': '设备不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"更新推送令牌失败: {str(e)}", exc_info=True)
+            return Response({'error': f'更新推送令牌失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

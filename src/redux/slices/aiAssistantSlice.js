@@ -267,7 +267,11 @@ export const loadChatHistory = createAsyncThunk(
       const savedHistory = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
 
       if (savedHistory) {
-        const historyObj = JSON.parse(savedHistory);
+        // 导入安全JSON解析工具
+        const { safeParseJSON } = require('../../utils/jsonUtils');
+
+        // 使用安全解析函数
+        const historyObj = safeParseJSON(savedHistory, {});
 
         // 如果提供了会话ID，加载特定会话
         if (sessionId && historyObj[sessionId]) {
@@ -335,7 +339,12 @@ export const saveChatHistory = createAsyncThunk(
 
       if (savedHistory) {
         try {
-          historyObj = JSON.parse(savedHistory);
+          // 导入安全JSON解析工具
+          const { safeParseJSON } = require('../../utils/jsonUtils');
+
+          // 使用安全解析函数
+          historyObj = safeParseJSON(savedHistory, {});
+
           // 确保historyObj是一个对象
           if (typeof historyObj !== 'object' || historyObj === null) {
             historyObj = {};

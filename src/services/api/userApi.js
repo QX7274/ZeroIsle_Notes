@@ -240,6 +240,21 @@ const userApi = {
    */
   registerWithUsername: async (username, password) => {
     try {
+      // 检查网络连接
+      const NetInfo = require('@react-native-community/netinfo').default;
+      const networkState = await NetInfo.fetch();
+
+      if (!networkState.isConnected) {
+        console.log('网络未连接，无法注册');
+
+        // 返回错误信息，不允许在离线状态下注册
+        return {
+          success: false,
+          message: '注册失败：请连接网络后再尝试注册',
+          offline: true
+        };
+      }
+
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, {
         username,
         password
@@ -265,6 +280,21 @@ const userApi = {
    */
   registerWithPhone: async (phone, password) => {
     try {
+      // 检查网络连接
+      const NetInfo = require('@react-native-community/netinfo').default;
+      const networkState = await NetInfo.fetch();
+
+      if (!networkState.isConnected) {
+        console.log('网络未连接，无法注册');
+
+        // 返回错误信息，不允许在离线状态下注册
+        return {
+          success: false,
+          message: '注册失败：请连接网络后再尝试注册',
+          offline: true
+        };
+      }
+
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
         phone,
         password
@@ -291,6 +321,21 @@ const userApi = {
    */
   registerWithPhoneCode: async (phone, code, password) => {
     try {
+      // 检查网络连接
+      const NetInfo = require('@react-native-community/netinfo').default;
+      const networkState = await NetInfo.fetch();
+
+      if (!networkState.isConnected) {
+        console.log('网络未连接，无法注册');
+
+        // 返回错误信息，不允许在离线状态下注册
+        return {
+          success: false,
+          message: '注册失败：请连接网络后再尝试注册',
+          offline: true
+        };
+      }
+
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
         phone,
         code,
@@ -317,6 +362,21 @@ const userApi = {
    */
   registerWithEmail: async (email, password) => {
     try {
+      // 检查网络连接
+      const NetInfo = require('@react-native-community/netinfo').default;
+      const networkState = await NetInfo.fetch();
+
+      if (!networkState.isConnected) {
+        console.log('网络未连接，无法注册');
+
+        // 返回错误信息，不允许在离线状态下注册
+        return {
+          success: false,
+          message: '注册失败：请连接网络后再尝试注册',
+          offline: true
+        };
+      }
+
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, {
         email,
         password

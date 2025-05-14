@@ -3,6 +3,7 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import NetInfo from '@react-native-community/netinfo';
 
 /**
  * 获取知识图谱
@@ -11,16 +12,79 @@ import { API_ENDPOINTS } from '../../config/api';
  */
 export const getKnowledgeGraph = async (params = {}) => {
   try {
+    // 检查网络连接
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected) {
+      console.log('知识图谱API: 网络未连接');
+      return {
+        success: false,
+        message: '网络未连接，请检查网络设置',
+        error: new Error('网络未连接'),
+        isNetworkError: true
+      };
+    }
+
+    console.log('知识图谱API: 开始获取知识图谱数据');
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.BASE, { params });
-    return {
-      success: true,
-      data: response.data
-    };
+
+    console.log('知识图谱API: 获取知识图谱数据成功');
+
+    // 检查响应数据格式
+    if (response.data && (response.data.nodes !== undefined || response.data.edges !== undefined)) {
+      // 如果响应已经包含nodes和edges，直接返回
+      return {
+        success: true,
+        data: response.data
+      };
+    } else {
+      // 如果响应不包含nodes和edges，但响应本身就是数据
+      console.log('知识图谱API: 响应数据格式不包含nodes和edges，使用响应本身作为数据');
+      return {
+        success: true,
+        data: {
+          nodes: [],
+          edges: []
+        }
+      };
+    }
   } catch (error) {
+    console.error('知识图谱API: 获取知识图谱失败:', error);
+    console.log('知识图谱API: 错误详情:', error.message);
+    console.log('知识图谱API: 错误状态码:', error.response?.status);
+
+    // 根据错误类型返回不同的错误信息
+    let errorMessage = '获取知识图谱失败';
+    let isNetworkError = false;
+
+    if (error.message === 'Network Error') {
+      errorMessage = '网络连接失败，请检查网络设置';
+      isNetworkError = true;
+    } else if (error.response) {
+      // 服务器返回了错误状态码
+      switch (error.response.status) {
+        case 401:
+          errorMessage = '登录已过期，请重新登录';
+          break;
+        case 403:
+          errorMessage = '没有权限访问知识图谱';
+          break;
+        case 404:
+          errorMessage = '知识图谱不存在';
+          break;
+        case 500:
+          errorMessage = '服务器错误，请稍后重试';
+          break;
+        default:
+          errorMessage = `服务器返回错误(${error.response.status}): ${error.response.data?.message || '未知错误'}`;
+      }
+    }
+
     return {
       success: false,
-      message: error.message || '获取知识图谱失败',
-      error
+      message: errorMessage,
+      error,
+      isNetworkError,
+      statusCode: error.response?.status
     };
   }
 };

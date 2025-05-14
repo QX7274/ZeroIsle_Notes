@@ -80,13 +80,37 @@ class RealmStorageService {
    */
   async setItem(key, value) {
     try {
+      // 检查key是否有效
+      if (key === undefined || key === null) {
+        console.warn('[RealmStorage] 尝试设置无效的键:', key);
+        return false;
+      }
+
+      // 检查value是否有效
+      if (value === undefined) {
+        console.warn(`[RealmStorage] 尝试设置undefined值到键: ${key}`);
+        return false;
+      }
+
       await this.initialize();
 
       // 获取Realm实例
       const realm = await realmService.getRealm();
 
       // 准备存储值
-      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      let stringValue;
+      if (value === null) {
+        stringValue = 'null';
+      } else if (typeof value === 'string') {
+        stringValue = value;
+      } else {
+        try {
+          stringValue = JSON.stringify(value);
+        } catch (jsonError) {
+          console.error(`[RealmStorage] 无法序列化值: ${key}`, jsonError);
+          return false;
+        }
+      }
 
       // 当前时间
       const now = new Date();
@@ -101,6 +125,7 @@ class RealmStorageService {
         }, 'modified');
       });
 
+      console.log(`[RealmStorage] 成功设置存储项目: ${key}`);
       return true;
     } catch (error) {
       console.error(`[RealmStorage] 设置存储项目失败: ${key}`, error);
@@ -115,6 +140,12 @@ class RealmStorageService {
    */
   async removeItem(key) {
     try {
+      // 检查key是否有效
+      if (key === undefined || key === null) {
+        console.warn('[RealmStorage] 尝试删除无效的键:', key);
+        return false;
+      }
+
       await this.initialize();
 
       // 获取Realm实例
@@ -124,6 +155,7 @@ class RealmStorageService {
       const item = realm.objectForPrimaryKey('StorageItem', key);
 
       if (!item) {
+        console.log(`[RealmStorage] 项目不存在，无需删除: ${key}`);
         return true; // 项目不存在，视为删除成功
       }
 
@@ -132,6 +164,7 @@ class RealmStorageService {
         realm.delete(item);
       });
 
+      console.log(`[RealmStorage] 成功删除存储项目: ${key}`);
       return true;
     } catch (error) {
       console.error(`[RealmStorage] 删除存储项目失败: ${key}`, error);

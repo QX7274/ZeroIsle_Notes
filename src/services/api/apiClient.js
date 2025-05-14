@@ -14,9 +14,12 @@ import authStorage from '../auth/authStorage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 
 // API配置
-const API_URL = API_ENDPOINTS.BASE_URL;
-const API_VERSION = 'v1';
-const API_TIMEOUT = 30000;
+import { API_URL as CONFIG_API_URL, API_VERSION as CONFIG_API_VERSION, API_TIMEOUT as CONFIG_API_TIMEOUT } from '../../config';
+
+// 使用配置文件中的值
+const API_URL = CONFIG_API_URL;  // 使用配置文件中的API_URL
+const API_VERSION = CONFIG_API_VERSION;
+const API_TIMEOUT = CONFIG_API_TIMEOUT;
 
 // 错误消息
 const ERROR_MESSAGES = {
@@ -41,7 +44,7 @@ const apiClient = axios.create({
 
 // 调试信息
 console.log('API客户端初始化，baseURL:', `${API_URL}/api/${API_VERSION}`);
-console.log('API请求示例:', `${API_URL}/api/${API_VERSION}/notes/`);
+console.log('API请求示例:', `${API_URL}/api/${API_VERSION}/auth/register/username/`);
 
 // 检查网络连接状态
 const checkNetworkConnection = async () => {
@@ -84,28 +87,55 @@ const saveOfflineRequest = async (config) => {
   }
 };
 
+// 导入令牌服务
+import tokenService from '../auth/tokenService';
+
 // 请求拦截器
 apiClient.interceptors.request.use(
   async config => {
     try {
-      // 添加认证令牌 - 尝试从多个可能的存储位置获取
-      let token = await authStorage.getItem('auth_token');
+      // 检查是否是公开路径（不需要认证的路径）
+      const isPublicPath = ['/auth/login', '/auth/register', '/auth/password/reset'].some(
+        path => config.url && config.url.includes(path)
+      );
 
-      // 如果第一个位置没有找到，尝试其他位置
-      if (!token) {
-        token = await authStorage.getItem('token');
+      // 如果是公开路径，不需要添加认证令牌
+      if (isPublicPath) {
+        return config;
       }
 
-      // 如果还没找到，尝试从Redux存储的键获取
-      if (!token) {
-        token = await authStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      }
+      // 获取访问令牌
+      const tokenData = await tokenService.getAccessToken();
 
-      if (token) {
-        console.log('API请求添加认证令牌');
-        config.headers.Authorization = `Bearer ${token}`;
+      // 检查令牌是否过期或即将过期
+      const isExpiring = await tokenService.isAccessTokenExpiredOrExpiring();
+
+      if (isExpiring) {
+        console.log('访问令牌即将过期，尝试刷新');
+        // 尝试刷新令牌
+        const newTokenData = await tokenService.refreshAccessToken();
+
+        if (newTokenData && newTokenData.token) {
+          // 使用新令牌
+          console.log('使用刷新后的令牌:', newTokenData.token.substring(0, 10) + '...');
+          config.headers.Authorization = `Bearer ${newTokenData.token}`;
+        } else if (tokenData && tokenData.token) {
+          // 刷新失败但仍有旧令牌，继续使用
+          console.log('刷新令牌失败，使用现有令牌:', tokenData.token.substring(0, 10) + '...');
+          config.headers.Authorization = `Bearer ${tokenData.token}`;
+        } else {
+          console.warn('未找到有效的认证令牌，请求将以未认证状态发送');
+          // 记录请求URL，帮助调试
+          console.log('未认证请求URL:', config.url);
+        }
+      } else if (tokenData && tokenData.token) {
+        // 令牌有效，直接使用
+        console.log('使用有效的访问令牌:', tokenData.token.substring(0, 10) + '...');
+        config.headers.Authorization = `Bearer ${tokenData.token}`;
       } else {
         console.warn('未找到认证令牌，请求将以未认证状态发送');
+        // 记录请求URL，帮助调试
+        console.log('未认证请求URL:', config.url);
       }
 
       // 检查网络连接
@@ -169,8 +199,17 @@ apiClient.interceptors.request.use(
 // 响应拦截器
 apiClient.interceptors.response.use(
   response => {
-    // 直接返回响应数据
-    return response.data;
+    // 记录成功响应
+    console.log(`API响应成功: ${response.config.method.toUpperCase()} ${response.config.url}`);
+
+    // 如果响应包含data字段，直接返回响应数据
+    if (response.data !== undefined) {
+      return response.data;
+    }
+
+    // 否则返回整个响应对象
+    console.warn(`API响应没有data字段: ${response.config.url}`);
+    return response;
   },
   async error => {
     // 处理离线错误
@@ -203,14 +242,14 @@ apiClient.interceptors.response.use(
       }
 
       // 对于非GET请求或没有缓存的GET请求，返回一个模拟的响应
-      // 特殊处理登录请求
-      if (config.url && config.url.includes('/auth/login')) {
+      // 特殊处理登录和注册请求
+      if (config.url && (config.url.includes('/auth/login') || config.url.includes('/auth/register'))) {
         return Promise.resolve({
           data: {
             offline: true,
             message: '网络连接失败，请检查网络设置后重试',
             timestamp: new Date().toISOString(),
-            success: false,  // 登录请求在离线模式下应该返回失败
+            success: false,  // 登录和注册请求在离线模式下应该返回失败
             method: config.method,
             url: config.url,
             error: 'NETWORK_ERROR'
@@ -245,6 +284,17 @@ apiClient.interceptors.response.use(
     if (error.message === 'Network Error') {
       // 网络错误，显示中文提示
       console.error('网络连接失败:', error);
+      console.log('网络错误请求URL:', error.config?.url);
+      console.log('网络错误请求方法:', error.config?.method);
+      console.log('网络错误请求头:', JSON.stringify(error.config?.headers));
+
+      // 检查网络连接状态
+      NetInfo.fetch().then(state => {
+        console.log('网络连接状态:', state.isConnected ? '已连接' : '未连接');
+        console.log('网络类型:', state.type);
+        console.log('网络详情:', JSON.stringify(state.details));
+      });
+
       // 修改错误消息为中文
       error.message = '网络连接失败，请检查网络设置';
 
@@ -275,6 +325,8 @@ apiClient.interceptors.response.use(
               offline: true,
               fromCache: true
             });
+          } else {
+            console.log('没有找到缓存数据:', config.url);
           }
         } catch (cacheError) {
           console.error('读取缓存数据失败:', cacheError);
@@ -282,14 +334,14 @@ apiClient.interceptors.response.use(
       }
 
       // 对于非GET请求或没有缓存的GET请求，返回一个模拟的响应
-      // 特殊处理登录请求
-      if (config.url && config.url.includes('/auth/login')) {
+      // 特殊处理登录和注册请求
+      if (config.url && (config.url.includes('/auth/login') || config.url.includes('/auth/register'))) {
         return Promise.resolve({
           data: {
             offline: true,
             message: '网络连接失败，请检查网络设置后重试',
             timestamp: new Date().toISOString(),
-            success: false,  // 登录请求在离线模式下应该返回失败
+            success: false,  // 登录和注册请求在离线模式下应该返回失败
             method: config.method,
             url: config.url,
             error: 'NETWORK_ERROR'
@@ -369,15 +421,43 @@ apiClient.interceptors.response.use(
       switch (status) {
         case 401:
           // 未授权，清除token并跳转到登录页面
+          console.log('收到401未授权响应，URL:', error.config.url);
+          console.log('请求头:', JSON.stringify(error.config.headers));
+
+          // 检查是否是公开路径或特定API路径
+          const isPublicPath = ['/auth/login', '/auth/register', '/auth/password/reset'].some(
+            path => error.config.url && error.config.url.includes(path)
+          );
+
+          // 特定API路径，不自动登出
+          const skipAuthPaths = [
+            '/mind-map/',
+            '/knowledge-graph/',
+            '/ai-assistant/'
+          ];
+
+          const shouldSkipAuth = skipAuthPaths.some(path => error.config.url && error.config.url.includes(path));
+
+          if (isPublicPath || shouldSkipAuth) {
+            console.log('跳过自动登出处理，URL:', error.config.url);
+            // 为错误添加标记，表示这是一个可以忽略的认证错误
+            error.isIgnorableAuthError = true;
+            // 对于这些路径，返回错误而不是处理为未授权
+            return Promise.reject(error);
+          }
+
+          // 处理未授权错误
           handleUnauthorized();
           break;
         case 403:
           // 禁止访问
+          console.log('收到403禁止访问响应，URL:', error.config.url);
           Alert.alert('访问被拒绝', ERROR_MESSAGES.FORBIDDEN);
           break;
         case 404:
           // 资源未找到，静默处理，不显示弹窗
           console.log('资源未找到，静默处理:', error.config.url);
+          console.log('请求头:', JSON.stringify(error.config.headers));
 
           // 返回一个模拟的成功响应，避免应用崩溃
           return Promise.resolve({
@@ -395,10 +475,20 @@ apiClient.interceptors.response.use(
             config: error.config,
             offline: true
           });
-          break;
         case 500:
           // 服务器错误
-          Alert.alert('服务器错误', ERROR_MESSAGES.SERVER_ERROR);
+          console.log('收到500服务器错误响应，URL:', error.config.url);
+          console.log('请求头:', JSON.stringify(error.config.headers));
+          console.log('错误详情:', error.response?.data);
+
+          // 检查是否是网络问题
+          NetInfo.fetch().then(state => {
+            if (!state.isConnected) {
+              Alert.alert('网络连接失败', '请检查您的网络连接后重试');
+            } else {
+              Alert.alert('服务器错误', ERROR_MESSAGES.SERVER_ERROR);
+            }
+          });
           break;
         default:
           // 其他错误
@@ -430,50 +520,81 @@ apiClient.interceptors.response.use(
   }
 );
 
+// 防止多次处理未授权错误
+let isHandlingUnauthorized = false;
+
 // 处理未授权错误
 const handleUnauthorized = async () => {
+  // 如果已经在处理未授权错误，则直接返回
+  if (isHandlingUnauthorized) {
+    console.log('已经在处理未授权错误，跳过');
+    return;
+  }
+
+  // 设置标志，表示正在处理未授权错误
+  isHandlingUnauthorized = true;
+
   try {
-    console.log('处理未授权错误: 清除token和用户信息');
-    // 清除token和用户信息
-    await authStorage.removeItem('token');
-    await authStorage.removeItem('auth_token');
-    await authStorage.removeItem('user');
-    await authStorage.removeItem('user_info');
-    await authStorage.removeItem('refresh_token');
-
-    // 设置一个标志，表示认证已过期
-    await authStorage.setItem('auth_expired', 'true');
-
-    // 显示提示
-    Alert.alert('登录已过期', '请重新登录');
-
-    // 使用setTimeout确保Alert显示后再执行导航
-    setTimeout(() => {
-      // 使用reset方法重置导航状态
-      console.log('重置导航到登录页面');
-      if (navigationRef.current) {
-        try {
-          // 使用reset方法代替resetRoot方法
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: 'Auth' }],
-          });
-        } catch (navError) {
-          console.error('导航重置失败，尝试备选方法:', navError);
-
-          // 备选方法：使用navigate
-          try {
-            navigationRef.current.navigate('Auth');
-          } catch (navError2) {
-            console.error('导航到Auth失败:', navError2);
-          }
-        }
+    // 使用authUtils中的handleUnauthorizedError函数
+    try {
+      const authUtils = require('../auth/authUtils');
+      if (authUtils && typeof authUtils.handleUnauthorizedError === 'function') {
+        console.log('使用authUtils.handleUnauthorizedError处理未授权错误');
+        await authUtils.handleUnauthorizedError();
       } else {
-        console.error('navigationRef.current不存在，无法执行导航');
+        console.warn('authUtils.handleUnauthorizedError不可用，使用备选方法');
+        throw new Error('authUtils.handleUnauthorizedError不可用');
       }
-    }, 500);
+    } catch (authUtilsError) {
+      console.warn('使用authUtils处理未授权错误失败:', authUtilsError);
+
+      // 备选方法：直接清除令牌和用户信息
+      console.log('使用备选方法处理未授权错误: 清除token和用户信息');
+
+      // 使用tokenService清除所有令牌
+      await tokenService.clearTokens();
+
+      // 清除用户信息
+      await authStorage.removeItem(STORAGE_KEYS.USER_INFO);
+      await authStorage.removeItem(STORAGE_KEYS.USER);
+
+      // 显示提示
+      Alert.alert('登录已过期', '请重新登录');
+
+      // 使用setTimeout确保Alert显示后再执行导航
+      setTimeout(() => {
+        // 尝试直接修改Redux状态
+        try {
+          const { store } = require('../../store');
+          if (store && typeof store.dispatch === 'function') {
+            store.dispatch({ type: 'auth/logout/fulfilled' });
+            console.log('已通过Redux状态重置认证状态');
+          }
+        } catch (reduxError) {
+          console.warn('Redux状态重置失败:', reduxError);
+        }
+
+        // 尝试重置导航
+        try {
+          const navigation = require('../../navigation/navigationRef');
+          if (navigation && typeof navigation.navigate === 'function') {
+            navigation.navigate('Auth', {}, { reset: true });
+          }
+        } catch (navError) {
+          console.warn('导航重置失败:', navError);
+        }
+
+        // 重置处理标志
+        setTimeout(() => {
+          isHandlingUnauthorized = false;
+          console.log('重置未授权处理标志');
+        }, 1000);
+      }, 500);
+    }
   } catch (error) {
     console.error('处理未授权错误失败:', error);
+    // 即使出错也要重置标志
+    isHandlingUnauthorized = false;
   }
 };
 
