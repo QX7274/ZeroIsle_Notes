@@ -2,7 +2,7 @@
  * 颜色选择器组件
  * 提供简单的颜色选择功能
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,9 +12,10 @@ import {
   Modal,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { getSafeColorArray, DEFAULT_COLORS } from '../../utils/colorUtils';
 
-// 预定义颜色
-const COLORS = [
+// 预定义颜色 - 使用安全的颜色数组
+const COLORS = getSafeColorArray([
   // 基础颜色
   '#000000', // 黑色
   '#FFFFFF', // 白色
@@ -24,7 +25,7 @@ const COLORS = [
   '#FFFF00', // 黄色
   '#FF00FF', // 品红
   '#00FFFF', // 青色
-  
+
   // 扩展颜色
   '#FF9900', // 橙色
   '#9900FF', // 紫色
@@ -34,7 +35,7 @@ const COLORS = [
   '#996633', // 棕色
   '#999999', // 灰色
   '#663399', // 深紫色
-  
+
   // 更多颜色
   '#FFCCCC', // 浅粉色
   '#CCFFCC', // 浅绿色
@@ -42,16 +43,27 @@ const COLORS = [
   '#FFFFCC', // 浅黄色
   '#FFCCFF', // 浅紫色
   '#CCFFFF', // 浅青色
-];
+]);
 
 const ColorPicker = ({ selectedColor, onColorChange, style }) => {
   const { theme } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
+  const [safeSelectedColor, setSafeSelectedColor] = useState('#2196F3');
+
+  // 确保选中的颜色是有效的
+  useEffect(() => {
+    if (selectedColor && typeof selectedColor === 'string' && selectedColor.startsWith('#')) {
+      setSafeSelectedColor(selectedColor);
+    } else {
+      console.warn('无效的颜色值:', selectedColor);
+      setSafeSelectedColor('#2196F3'); // 默认蓝色
+    }
+  }, [selectedColor]);
 
   // 渲染颜色项
   const renderColorItem = (color) => {
-    const isSelected = color === selectedColor;
-    
+    const isSelected = color === safeSelectedColor;
+
     return (
       <TouchableOpacity
         key={color}
@@ -63,6 +75,7 @@ const ColorPicker = ({ selectedColor, onColorChange, style }) => {
         ]}
         onPress={() => {
           onColorChange(color);
+          setSafeSelectedColor(color);
           setModalVisible(false);
         }}
       >
@@ -71,7 +84,7 @@ const ColorPicker = ({ selectedColor, onColorChange, style }) => {
             styles.checkmark,
             { borderColor: color === '#FFFFFF' ? '#000000' : '#FFFFFF' }
           ]}>
-            <Text style={{ 
+            <Text style={{
               color: color === '#FFFFFF' ? '#000000' : '#FFFFFF',
               fontSize: 12,
               fontWeight: 'bold'
@@ -90,7 +103,7 @@ const ColorPicker = ({ selectedColor, onColorChange, style }) => {
       <TouchableOpacity
         style={[
           styles.selectedColor,
-          { backgroundColor: selectedColor, borderColor: theme.colors.border }
+          { backgroundColor: safeSelectedColor, borderColor: theme.colors.border }
         ]}
         onPress={() => setModalVisible(true)}
       />
@@ -117,13 +130,13 @@ const ColorPicker = ({ selectedColor, onColorChange, style }) => {
             ]}>
               选择颜色
             </Text>
-            
+
             <ScrollView>
               <View style={styles.colorGrid}>
                 {COLORS.map(renderColorItem)}
               </View>
             </ScrollView>
-            
+
             <TouchableOpacity
               style={[
                 styles.closeButton,

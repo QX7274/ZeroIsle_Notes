@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { IconButton } from '../common';
 import { Text } from '../common/Typography';
+import { getSafeColorArray } from '../../utils/colorUtils';
 
 const CategoryManager = React.forwardRef(({
   onSelectCategory,
