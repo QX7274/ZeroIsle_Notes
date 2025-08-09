@@ -14,9 +14,9 @@ const OfflineQueueSchema = {
     _id: { type: 'objectId', default: () => new ObjectId() },
     entity_id: { type: 'objectId', optional: true },
     entity_type: { type: 'string', default: '' },
-    operation: { type: 'string', default: '' }, // create, update, delete
-    data: { type: 'dictionary', default: {} },
-    status: { type: 'string', default: 'pending' }, // pending, processing, completed, failed
+    operation: { type: 'string', default: '' }, 
+    data: { type: 'string', default: '{}' }, // 存 JSON 字符串
+    status: { type: 'string', default: 'pending' }, 
     error: { type: 'string', optional: true },
     retry_count: { type: 'int', default: 0 },
     created_at: { type: 'date', default: () => new Date() },

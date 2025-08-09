@@ -380,23 +380,60 @@ class RealmService {
   /**
    * 将Realm对象转换为普通对象
    * @param {Object} realmObject Realm对象
+   * @param {Set} [processedObjects] 已处理的对象集合，用于防止循环引用
    * @returns {Object} 普通对象
    * @private
    */
-  realmObjectToPlain(realmObject) {
-    if (!realmObject) {
+  realmObjectToPlain(realmObject, processedObjects = new Set()) {
+    // 处理null或undefined
+    if (realmObject == null) {
       return null;
+    }
+
+    // 如果是基本类型，直接返回
+    if (typeof realmObject !== 'object') {
+      return realmObject;
+    }
+
+    // 如果是Date对象，返回ISO字符串
+    if (realmObject instanceof Date) {
+      return realmObject.toISOString();
     }
 
     // 如果是数组，递归转换每个元素
     if (Array.isArray(realmObject)) {
-      return realmObject.map(item => this.realmObjectToPlain(item));
+      return realmObject.map(item => {
+        // 如果是对象类型且不是null，检查循环引用
+        if (typeof item === 'object' && item !== null) {
+          // 使用对象的内存地址作为唯一标识
+          const objId = item._id || Object.prototype.toString.call(item);
+
+          // 如果已经处理过这个对象，返回简化版本以避免循环引用
+          if (processedObjects.has(objId)) {
+            // 返回对象的ID或简化版本
+            return item._id ? { _id: item._id } : { reference: 'circular' };
+          }
+
+          // 标记为已处理
+          processedObjects.add(objId);
+        }
+
+        return this.realmObjectToPlain(item, processedObjects);
+      });
     }
 
-    // 如果不是对象，直接返回
-    if (typeof realmObject !== 'object') {
-      return realmObject;
+    // 处理普通对象
+    // 使用对象的内存地址作为唯一标识
+    const objId = realmObject._id || Object.prototype.toString.call(realmObject);
+
+    // 如果已经处理过这个对象，返回简化版本以避免循环引用
+    if (processedObjects.has(objId)) {
+      // 返回对象的ID或简化版本
+      return realmObject._id ? { _id: realmObject._id } : { reference: 'circular' };
     }
+
+    // 标记为已处理
+    processedObjects.add(objId);
 
     // 转换对象
     const plainObject = {};
@@ -406,17 +443,35 @@ class RealmService {
 
     // 复制属性
     for (const key of keys) {
-      // 跳过函数和内部属性
-      if (typeof realmObject[key] === 'function' || key.startsWith('_')) {
+      // 跳过函数、Symbol和内部属性，但保留_id字段
+      if (
+        typeof realmObject[key] === 'function' ||
+        typeof key === 'symbol' ||
+        (key.startsWith('_') && key !== '_id') ||
+        key === 'realm' // 跳过realm属性，它可能导致循环引用
+      ) {
         continue;
       }
 
-      // 递归转换嵌套对象
-      if (typeof realmObject[key] === 'object' && realmObject[key] !== null) {
-        plainObject[key] = this.realmObjectToPlain(realmObject[key]);
-      } else {
-        plainObject[key] = realmObject[key];
+      try {
+        const value = realmObject[key];
+
+        // 递归转换嵌套对象，但避免循环引用
+        if (typeof value === 'object' && value !== null) {
+          plainObject[key] = this.realmObjectToPlain(value, processedObjects);
+        } else {
+          plainObject[key] = value;
+        }
+      } catch (error) {
+        console.warn(`无法转换属性 ${key}:`, error);
+        // 跳过无法转换的属性
+        plainObject[key] = null;
       }
+    }
+
+    // 确保_id字段被保留
+    if (realmObject._id !== undefined) {
+      plainObject._id = realmObject._id;
     }
 
     return plainObject;

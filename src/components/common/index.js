@@ -1,4 +1,4 @@
-/**
+ /**
  * 通用组件导出文件
  * 集中导出所有通用组件，方便引用
  */
@@ -24,6 +24,7 @@ import IconButton from './IconButton';
 import CreateContentModal from './CreateContentModal';
 import Typography from './Typography'; // 导入Typography组件
 import RenameDialog from './RenameDialog'; // 导入重命名对话框组件
+import AllInOneToolbar from './AllInOneToolbar'; // 导入新版通用工具栏组件
 const { Text } = Typography;
 
 // 现代UI组件
@@ -89,4 +90,7 @@ export {
 
   // 服务状态检查组件
   ServiceStatusChecker,
+  
+  // 工具栏组件
+  AllInOneToolbar,
 };

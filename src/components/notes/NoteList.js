@@ -46,38 +46,92 @@ const NoteList = ({
 
   // 渲染笔记项
   const renderNoteItem = ({ item }) => {
-    // 提取标签和分类
-    const tags = item.tags || [];
-    const category = item.category || {};
+    // 防止item为null或undefined
+    if (!item) {
+      console.warn('renderNoteItem收到无效的item:', item);
+      return null;
+    }
+
+    // 安全地提取标签和分类，处理循环引用
+    let tags = [];
+    try {
+      // 处理tags可能是循环引用的情况
+      if (item.tags) {
+        if (Array.isArray(item.tags)) {
+          tags = item.tags;
+        } else if (item.tags.reference === 'circular') {
+          // 处理循环引用标记
+          tags = [];
+        } else {
+          // 尝试转换为数组
+          tags = Array.from(item.tags);
+        }
+      }
+    } catch (error) {
+      console.warn('处理笔记标签失败:', error);
+      tags = [];
+    }
+
+    // 安全地提取分类
+    let category = {};
+    try {
+      if (item.category) {
+        if (typeof item.category === 'object' && item.category !== null) {
+          if (item.category.reference === 'circular') {
+            // 处理循环引用标记
+            category = {};
+          } else {
+            category = item.category;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('处理笔记分类失败:', error);
+      category = {};
+    }
 
     // 获取笔记类型图标
     const getNoteTypeIcon = () => {
-      if (item.type === 'canvas') return 'gesture';
+      try {
+        if (item.type === 'canvas') return 'gesture';
+        if (item.file_type === 'pdf') return 'picture-as-pdf';
+        if (item.file_type) return 'insert-drive-file';
 
-      switch (item.template) {
-        case 'lined': return 'subject';
-        case 'grid': return 'grid-on';
-        case 'checklist': return 'check-box';
-        case 'diary': return 'event-note';
-        default: return 'description';
+        switch (item.template) {
+          case 'lined': return 'subject';
+          case 'grid': return 'grid-on';
+          case 'checklist': return 'check-box';
+          case 'diary': return 'event-note';
+          default: return 'description';
+        }
+      } catch (error) {
+        console.warn('获取笔记类型图标失败:', error);
+        return 'description';
       }
     };
 
     // 获取笔记类型颜色
     const getNoteTypeColor = () => {
-      if (item.type === 'canvas') return '#9C27B0'; // 紫色
+      try {
+        if (item.type === 'canvas') return '#9C27B0'; // 紫色
+        if (item.file_type === 'pdf') return '#F44336'; // 红色
+        if (item.file_type) return '#795548'; // 棕色
 
-      switch (item.template) {
-        case 'lined': return '#2196F3'; // 蓝色
-        case 'grid': return '#4CAF50'; // 绿色
-        case 'checklist': return '#FF9800'; // 橙色
-        case 'diary': return '#E91E63'; // 粉色
-        default: return colors.primary;
+        switch (item.template) {
+          case 'lined': return '#2196F3'; // 蓝色
+          case 'grid': return '#4CAF50'; // 绿色
+          case 'checklist': return '#FF9800'; // 橙色
+          case 'diary': return '#E91E63'; // 粉色
+          default: return colors.primary;
+        }
+      } catch (error) {
+        console.warn('获取笔记类型颜色失败:', error);
+        return colors.primary;
       }
     };
 
     // 判断是否为离线笔记
-    const isOfflineNote = item.isOffline || item.sync_status === 'pending';
+    const isOfflineNote = item.isOffline || item.is_offline || item.sync_status === 'pending';
 
     return (
       <Card
@@ -170,7 +224,7 @@ const NoteList = ({
                 color="hint"
                 style={styles.noteDate}
               >
-                {formatDate(item.updated_at || item.created_at)}
+                {formatDate(item.updated_at || item.created_at || new Date().toISOString())}
               </Text>
             </View>
 
@@ -219,6 +273,15 @@ const NoteList = ({
         >
           {emptyText}
         </Text>
+        <Text
+          variant="body"
+          size="medium"
+          color="hint"
+          center
+          style={styles.emptySubText}
+        >
+          点击右下角按钮创建
+        </Text>
       </View>
     );
   };
@@ -236,9 +299,25 @@ const NoteList = ({
 
   return (
     <FlatList
-      data={notes}
+      data={notes.filter(note => note && (note._id || note.id))} // 过滤掉无效的笔记
       renderItem={renderNoteItem}
-      keyExtractor={(item) => item.id.toString()}
+      keyExtractor={(item) => {
+        // 安全地提取ID
+        if (!item) return `invalid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // 优先使用_id字段
+        if (item._id !== undefined) {
+          return typeof item._id === 'object' ? item._id.toString() : String(item._id);
+        }
+
+        // 其次使用id字段
+        if (item.id !== undefined) {
+          return typeof item.id === 'object' ? item.id.toString() : String(item.id);
+        }
+
+        // 如果都没有，生成一个临时ID
+        return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }}
       contentContainerStyle={[
         styles.listContainer,
         notes.length === 0 && styles.emptyListContainer,
@@ -442,6 +521,14 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     textAlign: 'center',
     lineHeight: 26,
+    maxWidth: 300,
+  },
+  emptySubText: {
+    marginTop: 12,
+    fontSize: 16,
+    opacity: 0.6,
+    textAlign: 'center',
+    lineHeight: 22,
     maxWidth: 300,
   },
   footerContainer: {

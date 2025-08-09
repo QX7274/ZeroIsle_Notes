@@ -4,7 +4,7 @@
  */
 
 // Realm应用ID，需要从MongoDB Realm控制台获取
-export const REALM_APP_ID = 'zeroislenotes-rnapp'; // 实际的App ID
+export const REALM_APP_ID = 'zeroislenotes-app'; // 使用与configService中一致的App ID
 
 // 使用本地存储模式，不连接MongoDB Atlas
 export const USE_LOCAL_STORAGE = true; // 使用本地存储模式

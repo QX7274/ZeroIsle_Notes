@@ -6,26 +6,113 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Share
+  Share,
+  ScrollView,
+  Dimensions,
+  Linking
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../context/ThemeContext';
-// useDispatch已移除
+import { DocViewer as RNDocViewer } from 'react-native-doc-viewer';
 import { offlineStorageService } from '../../services/offline';
 import RNFS from 'react-native-fs';
 import { WebView } from 'react-native-webview';
-// ViewShot已移除
-import { Text } from 'react-native'; // 直接从react-native导入Text组件
+import { Text } from 'react-native';
+import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
+import { AllInOneToolbar } from '../../components/common';
 
 const DocViewer = ({ route, navigation }) => {
   const { uri, title, noteId } = route.params;
   const { colors } = useTheme();
-  // dispatch已移除
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [localFilePath] = useState(null);
-  const [htmlContent, setHtmlContent] = useState(null);
+  const [localFilePath, setLocalFilePath] = useState(null);
+  const [txtContent, setTxtContent] = useState('');
+  const [docType, setDocType] = useState(null);
+  const [isRendering, setIsRendering] = useState(false);
   const webViewRef = useRef(null);
+
+  // 手写相关状态
+  const [isHandwritingMode, setIsHandwritingMode] = useState(false); // 默认关闭手写模式
+  const [strokeColor, setStrokeColor] = useState('#000000');
+  const [strokeWidth, setStrokeWidth] = useState(3);
+  const [selectedTool, setSelectedTool] = useState('pen');
+  const [annotations, setAnnotations] = useState({});
+
+  // 分页相关状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageHeight, setPageHeight] = useState(0);
+  const [scrollPosition, setScrollPosition] = useState(0);
+
+  // 引用
+  const handwritingRef = useRef(null);
+
+  // 读取文本文件内容
+  const loadTextContent = async () => {
+    try {
+      if (docType === 'txt' && localFilePath) {
+        const content = await RNFS.readFile(localFilePath, 'utf8');
+        setTxtContent(content);
+        // 文本文件通常是单页显示
+        setTotalPages(1);
+        console.log('文本文件加载完成，设置总页数为1');
+      }
+    } catch (error) {
+      console.error('读取文本文件失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    const prepareFile = async () => {
+      try {
+        if (!uri) {
+          throw new Error('无效的文档URI');
+        }
+
+        // 检测文档类型
+        let type = '';
+        if (uri.toLowerCase().endsWith('.pdf')) {
+          type = 'pdf';
+        } else if (uri.toLowerCase().endsWith('.docx')) {
+          type = 'docx';
+        } else if (uri.toLowerCase().endsWith('.doc')) {
+          type = 'doc';
+        } else if (uri.toLowerCase().endsWith('.txt')) {
+          type = 'txt';
+        } else {
+          type = 'unknown';
+        }
+        setDocType(type);
+
+        // 处理不同类型的URI
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+          // 网络URI，直接使用
+          setLocalFilePath(uri);
+        } else if (uri.startsWith('content://') || uri.startsWith('file://')) {
+          // 内容URI或文件URI，需要复制到应用缓存目录
+          const fileName = `doc_${Date.now()}.${uri.toLowerCase().endsWith('.docx') ? 'docx' : 'doc'}`;
+          const destPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+
+          // 复制文件
+          await RNFS.copyFile(uri, destPath);
+          setLocalFilePath(destPath);
+        } else {
+          // 尝试作为本地路径处理
+          setLocalFilePath(uri);
+        }
+      } catch (error) {
+        console.error('准备文档失败:', error);
+        setError(error.message || '准备文档失败');
+        Alert.alert('错误', error.message || '准备文档失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    prepareFile();
+  }, [uri]);
+
 
   useEffect(() => {
     // 设置导航标题
@@ -80,323 +167,39 @@ const DocViewer = ({ route, navigation }) => {
 
       console.log('加载文档:', uri);
 
-      // 检查文件类型
-      const isWordDoc = uri.toLowerCase().endsWith('.docx') || uri.toLowerCase().endsWith('.doc') ||
-                        (title && (title.toLowerCase().endsWith('.docx') || title.toLowerCase().endsWith('.doc')));
-
-      console.log('文档类型:', isWordDoc ? 'Word文档' : '文本文档');
-
-      // 对于Word文档，我们创建一个简单的HTML页面，并提供打开外部应用的选项
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              margin: 20px;
-              line-height: 1.6;
-              color: ${colors.text};
-              background-color: ${colors.background};
-            }
-            .container {
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-              background-color: ${colors.card};
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            h1 {
-              color: ${colors.primary};
-            }
-            .icon {
-              font-size: 48px;
-              color: ${colors.primary};
-              text-align: center;
-              margin: 20px 0;
-            }
-            .message {
-              text-align: center;
-              margin-bottom: 20px;
-            }
-            .file-info {
-              background-color: rgba(0,0,0,0.05);
-              padding: 10px;
-              border-radius: 4px;
-              margin-top: 20px;
-            }
-            .button {
-              background-color: ${colors.primary};
-              color: white;
-              border: none;
-              padding: 10px 20px;
-              text-align: center;
-              text-decoration: none;
-              display: inline-block;
-              font-size: 16px;
-              margin: 10px 5px;
-              cursor: pointer;
-              border-radius: 4px;
-            }
-            .button-container {
-              text-align: center;
-              margin: 20px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>${title || '文档查看器'}</h1>
-            <div class="icon">${isWordDoc ? '📄' : '📝'}</div>
-            <div class="message">
-              <p>文档内容预览</p>
-              <p>此文档已永久保存在应用中，您可以直接在应用内查看。</p>
-            </div>
-            <div class="button-container">
-              <button class="button" onclick="window.ReactNativeWebView.postMessage('export')">
-                导出文档
-              </button>
-            </div>
-            <div class="file-info">
-              <p><strong>文件名:</strong> ${title || '未命名文档'}</p>
-              <p><strong>文件类型:</strong> ${isWordDoc ? 'Word文档' : '文本文档'}</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      setHtmlContent(html);
-
-      // 如果不是Word文档，尝试读取文本内容并添加到页面
-      if (!isWordDoc) {
-        try {
-          // 尝试读取文件内容，但使用base64编码避免UTF-8解析错误
-          const base64Content = await RNFS.readFile(uri, 'base64');
-
-          // 使用try-catch包装解码过程，以防止UTF-8解码错误
-          let content;
-          try {
-            content = Buffer.from(base64Content, 'base64').toString('utf8');
-          } catch (decodeError) {
-            console.error('UTF-8解码失败，尝试使用其他编码:', decodeError);
-            // 尝试使用ASCII编码
-            content = Buffer.from(base64Content, 'base64').toString('ascii');
-          }
-
-          // 创建包含文本内容的HTML
-          const htmlWithContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  font-family: Arial, sans-serif;
-                  margin: 20px;
-                  line-height: 1.6;
-                  color: ${colors.text};
-                  background-color: ${colors.background};
-                }
-                .container {
-                  max-width: 800px;
-                  margin: 0 auto;
-                  padding: 20px;
-                  background-color: ${colors.card};
-                  border-radius: 8px;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                h1 {
-                  color: ${colors.primary};
-                }
-                .content {
-                  font-family: monospace;
-                  white-space: pre-wrap;
-                  background-color: rgba(0,0,0,0.05);
-                  padding: 15px;
-                  border-radius: 4px;
-                  overflow-x: auto;
-                }
-                .button {
-                  background-color: ${colors.primary};
-                  color: white;
-                  border: none;
-                  padding: 10px 20px;
-                  text-align: center;
-                  text-decoration: none;
-                  display: inline-block;
-                  font-size: 16px;
-                  margin: 10px 5px;
-                  cursor: pointer;
-                  border-radius: 4px;
-                }
-                .button-container {
-                  text-align: center;
-                  margin: 20px 0;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <h1>${title || '文本文档'}</h1>
-                <div class="button-container">
-                  <button class="button" onclick="window.ReactNativeWebView.postMessage('export')">
-                    导出文档
-                  </button>
-                </div>
-                <div class="content">
-                  ${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-                </div>
-              </div>
-            </body>
-            </html>
-          `;
-
-          setHtmlContent(htmlWithContent);
-        } catch (readError) {
-          console.error('读取文件内容失败:', readError);
-          // 如果读取失败，继续使用默认HTML，不抛出错误
-          console.log('使用默认HTML显示文档信息');
-        }
+      // 检测文档类型
+      let type = '';
+      if (uri.toLowerCase().endsWith('.pdf')) {
+        type = 'pdf';
+      } else if (uri.toLowerCase().endsWith('.docx')) {
+        type = 'docx';
+      } else if (uri.toLowerCase().endsWith('.doc')) {
+        type = 'doc';
+      } else if (uri.toLowerCase().endsWith('.txt')) {
+        type = 'txt';
       } else {
-        // 对于Word文档，提供内置查看功能，不再尝试使用外部应用打开
-        console.log('检测到Word文档，使用内置查看功能');
-
-        // 创建一个更友好的Word文档查看界面
-        const wordViewerHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-                line-height: 1.6;
-                color: ${colors.text};
-                background-color: ${colors.background};
-              }
-              .container {
-                max-width: 100%;
-                margin: 0 auto;
-                padding: 20px;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 20px;
-                padding: 10px;
-                background-color: ${colors.primary}15;
-                border-radius: 8px;
-              }
-              h1 {
-                color: ${colors.primary};
-                margin: 0;
-                font-size: 20px;
-              }
-              .doc-icon {
-                font-size: 36px;
-                margin: 10px 0;
-              }
-              .content {
-                background-color: white;
-                border-radius: 8px;
-                padding: 20px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                min-height: 300px;
-              }
-              .placeholder-text {
-                color: #666;
-                text-align: center;
-                margin: 40px 0;
-              }
-              .file-info {
-                margin-top: 20px;
-                padding: 10px;
-                background-color: ${colors.primary}10;
-                border-radius: 8px;
-                font-size: 14px;
-              }
-              .info-item {
-                margin: 5px 0;
-              }
-              .button-container {
-                display: flex;
-                justify-content: center;
-                margin: 20px 0;
-              }
-              .button {
-                background-color: ${colors.primary};
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                text-align: center;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 16px;
-                margin: 0 5px;
-                cursor: pointer;
-                border-radius: 4px;
-              }
-              .note {
-                font-style: italic;
-                text-align: center;
-                margin-top: 20px;
-                font-size: 14px;
-                color: #666;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <div class="doc-icon">📄</div>
-                <h1>${title || '文档查看器'}</h1>
-              </div>
-
-              <div class="content">
-                <div class="placeholder-text">
-                  <p>Word文档内容预览</p>
-                  <p>此文档已保存在应用中，您可以随时查看或导出。</p>
-                </div>
-              </div>
-
-              <div class="file-info">
-                <div class="info-item"><strong>文件名:</strong> ${title || '未命名文档'}</div>
-                <div class="info-item"><strong>文件类型:</strong> Word文档</div>
-                <div class="info-item"><strong>文件路径:</strong> ${uri}</div>
-                <div class="info-item"><strong>导入时间:</strong> ${new Date().toLocaleString()}</div>
-              </div>
-
-              <div class="button-container">
-                <button class="button" onclick="window.ReactNativeWebView.postMessage('export')">
-                  导出文档
-                </button>
-              </div>
-
-              <div class="note">
-                注意：Word文档已永久保存在应用中，您可以随时查看或导出。
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
-
-        setHtmlContent(wordViewerHtml);
+        type = 'unknown';
       }
-    } catch (error) {
-      console.error('加载文档失败:', error);
-      setError(error.message || '加载文档失败');
-      Alert.alert('错误', error.message || '加载文档失败');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setDocType(type);
+
+      // 如果是文本文件，加载文本内容
+      if (type === 'txt') {
+        await loadTextContent();
+      }
+
+      // 如果是支持的文档类型，开始渲染
+      if (type === 'docx' || type === 'doc' || type === 'pdf') {
+         setIsRendering(true);
+      }   
+
+  } catch (error) {
+    console.error('加载文档失败:', error);
+    setError(error.message || '加载文档失败');
+    Alert.alert('错误', error.message || '加载文档失败');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // 预览图功能已移除
 
@@ -499,6 +302,34 @@ const DocViewer = ({ route, navigation }) => {
     );
   };
 
+  // 在外部应用中打开文档
+  const handleOpenExternal = async () => {
+    try {
+      const fileUri = localFilePath || uri;
+      if (!fileUri) {
+        throw new Error('没有可打开的文件');
+      }
+
+      // 确保URI格式正确
+      const formattedUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+
+      // 检查是否可以打开
+      const canOpen = await Linking.canOpenURL(formattedUri);
+      if (canOpen) {
+        await Linking.openURL(formattedUri);
+      } else {
+        // 如果无法直接打开，尝试使用系统分享功能
+        await Share.share({
+          url: formattedUri,
+          title: title || '文档',
+        });
+      }
+    } catch (error) {
+      console.error('在外部应用中打开文档失败:', error);
+      Alert.alert('错误', '无法在外部应用中打开此文档');
+    }
+  };
+
   // 处理WebView消息
   const handleWebViewMessage = (event) => {
     const message = event.nativeEvent.data;
@@ -507,6 +338,9 @@ const DocViewer = ({ route, navigation }) => {
     switch (message) {
       case 'export':
         showExportInfo();
+        break;
+      case 'open_external':
+        handleOpenExternal();
         break;
       default:
         console.log('未知的WebView消息:', message);
@@ -580,6 +414,65 @@ const DocViewer = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 顶部返回按钮 - 增强可见性 */}
+      <View style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.primary + '20' }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="arrow-back" size={28} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          {title || '文档查看器'}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* AllInOneToolbar - 固定在顶部 */}
+      {!isLoading && !error && (
+        <View style={styles.toolbarContainer}>
+          <AllInOneToolbar
+            style={styles.toolbar}
+            onToolChange={(toolInfo) => {
+              console.log('工具变更:', toolInfo.type);
+              setSelectedTool(toolInfo.type);
+            }}
+            onColorChange={(color) => {
+              console.log('颜色变更:', color);
+              setStrokeColor(color);
+            }}
+            onStrokeWidthChange={(width) => {
+              console.log('线宽变更:', width);
+              setStrokeWidth(width);
+            }}
+            onUndo={() => {
+              console.log('执行撤销');
+              if (handwritingRef.current && typeof handwritingRef.current.undoLastStroke === 'function') {
+                handwritingRef.current.undoLastStroke();
+              }
+            }}
+            onRedo={() => {
+              console.log('执行重做');
+              if (handwritingRef.current && typeof handwritingRef.current.redoLastStroke === 'function') {
+                handwritingRef.current.redoLastStroke();
+              }
+            }}
+            onClear={() => {
+              console.log('清除画布');
+              if (handwritingRef.current && typeof handwritingRef.current.clearCanvas === 'function') {
+                handwritingRef.current.clearCanvas();
+              }
+            }}
+            initialTool="pen"
+            initialColor={strokeColor}
+            initialStrokeWidth={strokeWidth}
+            canUndo={true}
+            canRedo={true}
+          />
+        </View>
+      )}
+
       {isLoading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -593,38 +486,193 @@ const DocViewer = ({ route, navigation }) => {
           <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
-            onPress={loadDocument}
+            onPress={() => navigation.reload()}
           >
             <Text style={styles.retryButtonText}>重试</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {htmlContent && !error && (
-        <WebView
-          ref={webViewRef}
-          source={{ html: htmlContent }}
-          style={styles.webView}
-          originWhitelist={['*']}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-          renderLoading={() => (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
+      {!isLoading && !error && (
+        <View style={styles.contentContainer}>
+          {docType === 'txt' && (
+            <View style={styles.textViewContainer}>
+              <ScrollView style={styles.textScrollView}>
+                <Text style={[styles.textContent, { color: colors.text }]}>
+                  {txtContent}
+                </Text>
+              </ScrollView>
+
+              {/* 手写画布层 */}
+              {isHandwritingMode && (
+                <HandwritingCanvas
+                  ref={handwritingRef}
+                  style={styles.handwritingCanvas}
+                  strokeColor={strokeColor}
+                  strokeWidth={strokeWidth}
+                  backgroundColor="transparent"
+                  width={Dimensions.get('window').width}
+                  height={Dimensions.get('window').height - 200}
+                  showToolbar={false}
+                  onStrokeStart={() => {
+                    console.log('Word文档查看器 - 开始绘制');
+                  }}
+                  onStrokeEnd={() => {
+                    console.log('Word文档查看器 - 结束绘制');
+                  }}
+                />
+              )}
             </View>
           )}
-          onLoad={() => {
-            console.log('文档加载完成');
-            // 预览图功能已移除
-          }}
-          onMessage={handleWebViewMessage}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.error('WebView错误:', nativeEvent);
-            setError(nativeEvent.description || 'WebView加载错误');
-          }}
-        />
+
+          {(docType === 'docx' || docType === 'doc') && isRendering && (
+            <View style={styles.docViewerContainer}>
+              <RNDocViewer
+                style={styles.docViewer}
+                source={{ uri: localFilePath || uri }}
+                onLoad={() => {
+                  console.log('Word文档加载完成');
+                  setIsLoading(false);
+                  // Word文档通常是单页显示，设置总页数为1
+                  setTotalPages(1);
+                }}
+                onError={(error) => {
+                  console.error('文档加载失败:', error);
+                  setError('无法加载文档内容');
+                }}
+              />
+
+              {/* 手写画布层 */}
+              {isHandwritingMode && (
+                <HandwritingCanvas
+                  ref={handwritingRef}
+                  style={styles.handwritingCanvas}
+                  strokeColor={strokeColor}
+                  strokeWidth={strokeWidth}
+                  backgroundColor="transparent"
+                  width={Dimensions.get('window').width}
+                  height={Dimensions.get('window').height - 200}
+                  showToolbar={false}
+                  onStrokeStart={() => {
+                    console.log('Word文档查看器(DocViewer) - 开始绘制');
+                  }}
+                  onStrokeEnd={() => {
+                    console.log('Word文档查看器(DocViewer) - 结束绘制');
+                  }}
+                />
+              )}
+            </View>
+          )}
+
+          {docType === 'pdf' && (
+            <View style={styles.pdfViewContainer}>
+              <WebView
+                ref={webViewRef}
+                source={{ uri: localFilePath || uri }}
+                style={styles.webView}
+                onLoad={() => {
+                  console.log('PDF在WebView中加载完成');
+                  setIsLoading(false);
+                  // 对于WebView中的PDF，我们无法准确获取页数，设置为1
+                  setTotalPages(1);
+                }}
+                onError={(error) => {
+                  console.error('PDF加载失败:', error);
+                  setError('无法加载PDF内容');
+                }}
+                scalesPageToFit
+              />
+
+              {/* 手写画布层 */}
+              {isHandwritingMode && (
+                <HandwritingCanvas
+                  ref={handwritingRef}
+                  style={styles.handwritingCanvas}
+                  strokeColor={strokeColor}
+                  strokeWidth={strokeWidth}
+                  backgroundColor="transparent"
+                  width={Dimensions.get('window').width}
+                  height={Dimensions.get('window').height - 200}
+                  showToolbar={false}
+                  onStrokeStart={() => {
+                    console.log('PDF文档查看器(WebView) - 开始绘制');
+                  }}
+                  onStrokeEnd={() => {
+                    console.log('PDF文档查看器(WebView) - 结束绘制');
+                  }}
+                />
+              )}
+            </View>
+          )}
+
+          {docType === 'unknown' && (
+            <View style={styles.unknownFileContainer}>
+              <Icon name="document-outline" size={48} color={colors.text} />
+              <Text style={[styles.unknownFileText, { color: colors.text }]}>
+                不支持的文件类型
+              </Text>
+              <Text style={[styles.unknownFileSubText, { color: colors.text }]}>
+                请尝试在外部应用中打开
+              </Text>
+              <TouchableOpacity
+                style={[styles.openExternalButton, { backgroundColor: colors.primary }]}
+                onPress={handleOpenExternal}
+              >
+                <Text style={styles.buttonText}>在外部应用中打开</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* 页面指示器 - 仅在非文本文档时显示 */}
+      {!isLoading && !error && docType !== 'txt' && totalPages > 1 && (
+        <View style={[styles.pageIndicator, { backgroundColor: colors.card }]}>
+          <Text style={[styles.pageText, { color: colors.text }]}>
+            {currentPage} / {totalPages}
+          </Text>
+        </View>
+      )}
+
+      {/* 分页控制按钮 - 仅在非文本文档时显示 */}
+      {!isLoading && !error && docType !== 'txt' && totalPages > 1 && (
+        <View style={styles.pageControls}>
+          <TouchableOpacity
+            style={[
+              styles.pageButton,
+              currentPage <= 1 && styles.pageButtonDisabled
+            ]}
+            onPress={() => {
+              if (currentPage > 1) {
+                const newPage = currentPage - 1;
+                setCurrentPage(newPage);
+                // 这里可以添加实际的页面跳转逻辑
+                console.log('跳转到上一页:', newPage);
+              }
+            }}
+            disabled={currentPage <= 1}
+          >
+            <Icon name="chevron-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.pageButton,
+              currentPage >= totalPages && styles.pageButtonDisabled
+            ]}
+            onPress={() => {
+              if (currentPage < totalPages) {
+                const newPage = currentPage + 1;
+                setCurrentPage(newPage);
+                // 这里可以添加实际的页面跳转逻辑
+                console.log('跳转到下一页:', newPage);
+              }
+            }}
+            disabled={currentPage >= totalPages}
+          >
+            <Icon name="chevron-forward" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -634,8 +682,134 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: Platform.OS === 'ios' ? 50 : 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    zIndex: 100,
+  },
+  backButton: {
+    padding: 12,
+    marginRight: 12,
+    borderRadius: 8,
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  toolbarContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 110 : 70,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0, // 移除左右内边距，让工具栏延伸到屏幕边缘
+  },
+  toolbar: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 0, // 移除圆角，让工具栏完全贴合屏幕边缘
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    width: '100%', // 确保工具栏宽度为100%
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  contentContainer: {
+    flex: 1,
+    paddingTop: 80, // 为工具栏留出空间
+  },
+  textViewContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  textScrollView: {
+    flex: 1,
+    padding: 16,
+  },
+  textContent: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  docViewerContainer: {
+    flex: 1,
+    position: 'relative',
+    padding: 10,
+  },
+  docViewer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  pdfViewContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   webView: {
     flex: 1,
+  },
+  handwritingCanvas: {
+    position: 'absolute',
+    top: 80, // 从工具栏下方开始，避免遮挡工具栏
+    left: 0,
+    right: 0,
+    bottom: 60, // 为页面指示器留出空间
+    backgroundColor: 'transparent',
+    zIndex: 10, // 降低z-index，让文档可以接收滚动手势
+    pointerEvents: 'box-none', // 只在有内容的地方接收触摸事件
+    elevation: 10, // Android elevation
+  },
+  pageIndicator: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    zIndex: 15,
+  },
+  pageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  pageControls: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    zIndex: 15,
+  },
+  pageButton: {
+    padding: 10,
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageButtonDisabled: {
+    opacity: 0.5,
   },
   headerButtons: {
     flexDirection: 'row',
@@ -679,6 +853,35 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: 'white',
     fontSize: 16,
+  },
+  unknownFileContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  unknownFileText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  unknownFileSubText: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  openExternalButton: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

@@ -467,14 +467,19 @@ const InfiniteCanvas = ({
   // 动画样式 - 使用worklet函数避免警告
   const animatedStyle = useAnimatedStyle(() => {
     'worklet';
+    // 创建本地副本避免修改传递给worklet的对象
+    const currentTranslateX = translateX.value;
+    const currentTranslateY = translateY.value;
+    const currentScale = scale.value;
+
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value }
+        { translateX: currentTranslateX },
+        { translateY: currentTranslateY },
+        { scale: currentScale }
       ]
     };
-  });
+  }, []);
 
   // 渲染网格背景
   const renderGrid = useCallback(() => {

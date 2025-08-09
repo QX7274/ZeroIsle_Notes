@@ -11,7 +11,7 @@ import { colors } from '../utils/constants/colors';
 
 // 导入知识图谱和手写识别组件
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
-import { NoteListScreen, NoteEditScreen, VoiceToTextScreen } from '../screens/notes';
+import { NoteListScreen, NoteEditScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
 import { InfiniteCanvasScreen, InfiniteCanvasListScreen } from '../screens/canvas';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import { SearchScreen } from '../screens/search';
@@ -36,6 +36,10 @@ const NotesNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
     <Stack.Screen name="NotesList" component={NoteListScreen} options={{ title: '我的笔记' }} />
     <Stack.Screen name="NoteEdit" component={NoteEditScreen} options={{ title: '编辑笔记' }} />
+    <Stack.Screen name="NoteDetail" component={NoteDetailScreen} options={({ route }) => ({
+      title: route.params?.title || '笔记详情',
+      headerBackTitleVisible: false,
+    })} />
     <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
     <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />

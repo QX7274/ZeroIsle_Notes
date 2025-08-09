@@ -23,7 +23,50 @@ import { UnifiedSearchBar } from '../../components/search';
  * 用于展示社区内容、分享资源和交流互动
  */
 const CommunityScreen = ({ navigation }) => {
-  const { theme } = useTheme();
+  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+
+    // 如果 theme 或 theme.colors 为 undefined，使用默认值
+    if (!theme || !theme.colors) {
+      console.warn('CommunityScreen: 主题未正确加载，使用默认主题');
+      theme = {
+        background: '#F2F2F2',
+        card: '#FFFFFF',
+        text: '#000000',
+        textSecondary: '#666666',
+        primary: '#007AFF',
+        border: '#E5E5EA',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+      };
+    } else {
+      // 确保所有需要的颜色属性都存在
+      theme = {
+        background: theme.colors.background || '#F2F2F2',
+        card: theme.colors.card || '#FFFFFF',
+        text: theme.colors.text || '#000000',
+        textSecondary: theme.colors.textSecondary || '#666666',
+        primary: theme.colors.primary || '#007AFF',
+        border: theme.colors.border || '#E5E5EA',
+        shadow: theme.colors.shadow || 'rgba(0, 0, 0, 0.1)',
+      };
+    }
+  } catch (error) {
+    console.error('CommunityScreen: 获取主题失败:', error.message);
+    // 使用默认主题
+    theme = {
+      background: '#F2F2F2',
+      card: '#FFFFFF',
+      text: '#000000',
+      textSecondary: '#666666',
+      primary: '#007AFF',
+      border: '#E5E5EA',
+      shadow: 'rgba(0, 0, 0, 0.1)',
+    };
+  }
+
   const dispatch = useDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);

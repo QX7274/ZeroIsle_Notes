@@ -16,11 +16,12 @@ import { useDispatch } from 'react-redux';
 import { updateNote } from '../../redux/slices/notesSlice';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { DrawingToolbar, InfiniteDrawingCanvas } from '../../components/canvas';
+import { InfiniteDrawingCanvas } from '../../components/canvas';
+import { AllInOneToolbar } from '../../components/common';
 import { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import Pdf from 'react-native-pdf';
-import { notesApi } from '../../services/api';
+import notesApi from '../../services/api/notesApi';
 
 const NoteDetailScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
@@ -57,10 +58,66 @@ const NoteDetailScreen = ({ route, navigation }) => {
   });
 
   useEffect(() => {
-    if (note && note.id) {
-      loadNoteDetail(note.id);
+    // 从route.params中获取noteId
+    const noteId = route.params?.noteId;
+    console.log('NoteDetailScreen useEffect - route.params:', route.params);
+
+    if (noteId) {
+      console.log('使用route.params.noteId加载笔记:', noteId);
+      loadNoteDetail(noteId);
+    } else if (note && (note.id || note._id)) {
+      const id = note.id || note._id;
+      console.log('使用note.id或note._id加载笔记:', id);
+      loadNoteDetail(id);
+    } else {
+      console.warn('没有有效的笔记ID，无法加载笔记详情');
     }
-  }, [note]);
+  }, [route.params, note]);
+
+  // 检查是否是PDF文件，如果是，则导航到PDFViewer
+  useEffect(() => {
+    if (noteData) {
+      // 检查是否是PDF文件
+      const isPdf =
+        noteData.type === 'pdf' ||
+        noteData.file_type === 'pdf' ||
+        (noteData.file_name && noteData.file_name.toLowerCase().endsWith('.pdf')) ||
+        (noteData.file_uri && noteData.file_uri.toLowerCase().endsWith('.pdf'));
+
+      // 检查是否有文件URI
+      if (isPdf && noteData.file_uri) {
+        console.log('检测到PDF文件，导航到PDFViewer:', noteData.file_uri);
+
+        // 导航到PDFViewer
+        navigation.navigate('PDFViewer', {
+          uri: noteData.file_uri,
+          title: noteData.title || '未命名PDF',
+          noteId: noteData.id || noteData._id
+        });
+      } else if (isPdf) {
+        // 如果是PDF但没有file_uri，尝试使用其他字段
+        const possibleUris = [
+          noteData.uri,
+          noteData.path,
+          noteData.file_path,
+          noteData.url
+        ].filter(Boolean);
+
+        if (possibleUris.length > 0) {
+          console.log('检测到PDF文件，使用备用URI导航到PDFViewer:', possibleUris[0]);
+
+          // 导航到PDFViewer
+          navigation.navigate('PDFViewer', {
+            uri: possibleUris[0],
+            title: noteData.title || '未命名PDF',
+            noteId: noteData.id || noteData._id
+          });
+        } else {
+          console.warn('检测到PDF文件，但没有有效的URI:', noteData);
+        }
+      }
+    }
+  }, [noteData]);
 
   // 加载笔记详情
   const loadNoteDetail = async (noteId) => {
@@ -76,21 +133,71 @@ const NoteDetailScreen = ({ route, navigation }) => {
         }, 20000); // 20秒超时
       });
 
-      // 使用Promise.race实现超时控制
-      const responsePromise = notesApi.getById(noteId);
-      const response = await Promise.race([responsePromise, timeoutPromise]);
+      // 尝试多种方式获取笔记
+      let response = null;
+
+      try {
+        // 1. 首先尝试使用notesApi.getNote
+        console.log('尝试使用notesApi.getNote获取笔记');
+        const responsePromise = notesApi.getNote(noteId);
+        response = await Promise.race([responsePromise, timeoutPromise]);
+      } catch (apiError) {
+        console.warn('使用notesApi.getNote获取笔记失败:', apiError);
+
+        // 2. 如果失败，尝试使用notesApi.getById
+        try {
+          console.log('尝试使用notesApi.getById获取笔记');
+          response = await Promise.race([notesApi.getById(noteId), timeoutPromise]);
+        } catch (getByIdError) {
+          console.warn('使用notesApi.getById获取笔记失败:', getByIdError);
+
+          // 3. 如果仍然失败，尝试直接从offlineStorageService获取
+          try {
+            console.log('尝试直接从offlineStorageService获取笔记');
+            const { offlineStorageService } = require('../../services/offline/offlineStorageService');
+            const note = await offlineStorageService.getNote(noteId);
+
+            if (note) {
+              response = {
+                success: true,
+                data: note
+              };
+            } else {
+              throw new Error('未找到笔记');
+            }
+          } catch (storageError) {
+            console.error('所有获取笔记的方法都失败:', storageError);
+            throw new Error('无法获取笔记数据，请重启应用后重试');
+          }
+        }
+      }
 
       console.log(`笔记详情加载完成，耗时: ${Date.now() - startTime}ms`);
 
-      if (response.success) {
-        setNoteData(response.data);
+      if (response && response.success) {
+        // 确保笔记数据有效
+        if (!response.data) {
+          throw new Error('获取到的笔记数据为空');
+        }
+
+        // 统一ID字段
+        const noteData = {
+          ...response.data,
+          id: response.data.id || response.data._id || noteId,
+          _id: response.data._id || response.data.id || noteId
+        };
+
+        console.log('设置笔记数据:', noteData.title);
+        setNoteData(noteData);
 
         // 加载注释
-        if (response.data.annotations) {
-          setAnnotations(response.data.annotations);
+        if (noteData.annotations) {
+          setAnnotations(noteData.annotations);
         }
       } else {
-        Alert.alert('错误', '加载笔记失败');
+        const errorMsg = response?.message || '加载笔记失败';
+        console.error('加载笔记失败:', errorMsg);
+        Alert.alert('错误', errorMsg);
       }
     } catch (error) {
       console.error('加载笔记详情失败:', error);
@@ -126,7 +233,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
       };
 
       // 调用API保存笔记
-      const response = await notesApi.update(noteData.id, updatedNote);
+      const response = notesApi.updateNote(noteData.id, updatedNote);
 
       if (response.success) {
         // 更新Redux状态
@@ -168,7 +275,7 @@ const NoteDetailScreen = ({ route, navigation }) => {
       };
 
       // 保存截图笔记
-      const response = await notesApi.create(screenshotNote);
+      const response = notesApi.createNote(screenshotNote);
 
       if (response.success) {
         ToastAndroid.show('截图已保存为新笔记', ToastAndroid.SHORT);
@@ -222,13 +329,17 @@ const NoteDetailScreen = ({ route, navigation }) => {
   const renderTextContent = () => {
     if (!noteData) return null;
 
+    // 确保标题和内容有默认值
+    const title = noteData.title || '无标题笔记';
+    const content = noteData.content || '暂无内容';
+
     return (
       <View style={styles.textContainer}>
-        <Text variant="heading" level="h1" style={styles.title}>
-          {noteData.title}
+        <Text style={styles.title}>
+          {title}
         </Text>
-        <Text variant="body" style={styles.content}>
-          {noteData.content}
+        <Text style={styles.content}>
+          {content}
         </Text>
       </View>
     );
@@ -285,25 +396,27 @@ const NoteDetailScreen = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* 绘图工具栏 */}
+      {/* 顶部固定工具栏 */}
       {showDrawingTools && (
-        <DrawingToolbar
-          onToolChange={drawingCanvas.handleToolChange}
-          onColorChange={drawingCanvas.handleColorChange}
-          onStrokeWidthChange={drawingCanvas.handleStrokeWidthChange}
-          onUndo={drawingCanvas.handleUndo}
-          onRedo={drawingCanvas.handleRedo}
-          canUndo={drawingCanvas.canUndo}
-          canRedo={drawingCanvas.canRedo}
-          onScreenshot={drawingCanvas.handleScreenshot}
-          onClear={drawingCanvas.handleClear}
-        />
+        <View style={styles.toolbarContainer}>
+          <AllInOneToolbar
+            onToolChange={drawingCanvas.handleToolChange}
+            onColorChange={drawingCanvas.handleColorChange}
+            onStrokeWidthChange={drawingCanvas.handleStrokeWidthChange}
+            onUndo={drawingCanvas.handleUndo}
+            onRedo={drawingCanvas.handleRedo}
+            canUndo={drawingCanvas.canUndo}
+            canRedo={drawingCanvas.canRedo}
+            onScreenshot={drawingCanvas.handleScreenshot}
+            onClear={drawingCanvas.handleClear}
+          />
+        </View>
       )}
 
       {/* 内容区域 */}
       <ScrollView
         ref={scrollViewRef}
-        style={styles.scrollView}
+        style={[styles.scrollView, { marginTop: showDrawingTools ? 0 : 0 }]}
         contentContainerStyle={styles.scrollContent}
       >
         <View ref={contentRef} style={styles.contentContainer}>
@@ -362,6 +475,42 @@ const NoteDetailScreen = ({ route, navigation }) => {
             保存
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomBarButton}
+          onPress={async () => {
+            if (noteData) {
+              Alert.alert(
+                '删除笔记',
+                '确定要删除这条笔记吗？此操作无法撤销。',
+                [
+                  { text: '取消', style: 'cancel' },
+                  { 
+                    text: '删除', 
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        setIsLoading(true);
+                        await dispatch(deleteNote(noteData.id)).unwrap();
+                        navigation.goBack();
+                        ToastAndroid.show('笔记已删除', ToastAndroid.SHORT);
+                      } catch (error) {
+                        console.error('删除笔记失败:', error);
+                        Alert.alert('删除失败', error.message || '无法删除笔记，请重试');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }
+                  }
+                ]
+              );
+            }
+          }}>
+          <Icon name="trash-outline" size={24} color={colors.danger} />
+          <Text style={[styles.bottomBarButtonText, { color: colors.danger }]}>
+            删除
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -389,11 +538,26 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     textAlign: 'center',
   },
+  toolbarContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: colors.card,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
   scrollView: {
     flex: 1,
+    marginTop: 50, 
   },
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 20, // 调整顶部内边距
   },
   contentContainer: {
     flex: 1,

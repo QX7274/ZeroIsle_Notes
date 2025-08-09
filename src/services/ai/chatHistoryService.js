@@ -11,7 +11,7 @@ class ChatHistoryService {
   constructor() {
     this.initialized = false;
     this.initializationPromise = null;
-    this.collection = 'ai_chat_history';
+    this.collection = 'ai_conversations';
   }
 
   /**

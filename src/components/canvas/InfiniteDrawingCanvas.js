@@ -309,6 +309,7 @@ const InfiniteDrawingCanvas = ({
 
   // 动画样式 - 使用固定值，避免在渲染时读取共享值
   const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
     return {
       transform: [
         { translateX: 0 }, // 固定值，不使用translateX.value
@@ -316,7 +317,7 @@ const InfiniteDrawingCanvas = ({
         { scale: 1 }       // 固定值，不使用scale.value
       ]
     };
-  });
+  }, []);
 
   // 返回与DrawingCanvas兼容的接口
   return {

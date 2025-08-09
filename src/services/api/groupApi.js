@@ -17,6 +17,17 @@ export const getUserGroups = async () => {
     };
   } catch (error) {
     console.error('获取群组列表失败:', error);
+
+    // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
+    if (error.response?.status === 401 && error.isIgnorableAuthError) {
+      console.log('群组API: 忽略401认证错误');
+      return {
+        success: false,
+        message: '暂时无法访问群组功能，请稍后重试',
+        data: []
+      };
+    }
+
     return {
       success: false,
       message: error.response?.data?.detail || '获取群组列表失败',
@@ -39,6 +50,16 @@ export const getGroupDetail = async (groupId) => {
     };
   } catch (error) {
     console.error('获取群组详情失败:', error);
+
+    // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
+    if (error.response?.status === 401 && error.isIgnorableAuthError) {
+      console.log('群组API: 忽略401认证错误');
+      return {
+        success: false,
+        message: '暂时无法访问群组功能，请稍后重试'
+      };
+    }
+
     return {
       success: false,
       message: error.response?.data?.detail || '获取群组详情失败'

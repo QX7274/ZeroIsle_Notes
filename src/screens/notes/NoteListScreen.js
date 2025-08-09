@@ -63,7 +63,64 @@ const NoteListScreen = ({ navigation }) => {
 
   // 查看笔记详情
   const handleViewNote = (note) => {
-    navigation.navigate('NoteDetail', { noteId: note.id });
+    // 使用_id或id作为noteId
+    const noteId = note._id || note.id;
+    console.log('打开笔记详情，笔记ID:', noteId, '笔记数据:', note);
+
+    // 检查是否是PDF或Word文件
+    const isPdf =
+      note.type === 'pdf' ||
+      note.file_type === 'pdf' ||
+      (note.file_name && note.file_name.toLowerCase().endsWith('.pdf')) ||
+      (note.file_uri && note.file_uri.toLowerCase().endsWith('.pdf'));
+
+    const isWord =
+      note.type === 'doc' ||
+      note.type === 'docx' ||
+      note.file_type === 'doc' ||
+      note.file_type === 'docx' ||
+      (note.file_name && (note.file_name.toLowerCase().endsWith('.doc') || note.file_name.toLowerCase().endsWith('.docx'))) ||
+      (note.file_uri && (note.file_uri.toLowerCase().endsWith('.doc') || note.file_uri.toLowerCase().endsWith('.docx')));
+
+    // 检查是否有文件URI
+    if (isPdf || isWord) {
+      console.log(`检测到${isPdf ? 'PDF' : 'Word'}文件，导航到文件查看器`);
+
+      // 尝试获取文件URI
+      const possibleUris = [
+        note.file_uri,
+        note.uri,
+        note.path,
+        note.file_path,
+        note.url
+      ].filter(Boolean);
+
+      if (possibleUris.length > 0) {
+        console.log('找到文件URI:', possibleUris[0]);
+
+        // 导航到FileViewer
+        navigation.navigate('FileViewer', {
+          uri: possibleUris[0],
+          name: note.title || (isPdf ? '未命名PDF' : '未命名Word文档'),
+          type: isPdf ? 'pdf' : 'doc',
+          noteId: noteId
+        });
+      } else {
+        console.warn('文件没有有效的URI，导航到普通笔记详情');
+
+        // 导航到普通笔记详情
+        navigation.navigate('NoteDetail', {
+          noteId: noteId,
+          title: note.title
+        });
+      }
+    } else {
+      // 导航到普通笔记详情
+      navigation.navigate('NoteDetail', {
+        noteId: noteId,
+        title: note.title
+      });
+    }
   };
 
   // 渲染笔记项

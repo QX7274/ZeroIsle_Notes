@@ -42,6 +42,9 @@ const CreateContentModal = ({
         const results = await DocumentPicker.pick({
           type: [DocumentPicker.types.pdf],
           allowMultiSelection: false,
+          // 确保使用正确的API获取文件访问权限
+          mode: 'open',
+          copyTo: 'cachesDirectory',
         });
 
         if (results && results.length > 0) {

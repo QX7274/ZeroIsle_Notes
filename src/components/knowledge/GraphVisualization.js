@@ -91,28 +91,45 @@ const GraphVisualization = ({
 
   // 手势处理 - 缩放
   const pinchHandler = useAnimatedGestureHandler({
-    onStart: (_, ctx) => {
-      ctx.scale = lastScale.value;
+    onStart: (_, context) => {
+      'worklet';
+      // 避免直接修改context对象，创建本地变量
+      const startScale = lastScale.value;
+      context.scale = startScale;
     },
-    onActive: (event, ctx) => {
-      scale.value = Math.max(0.5, Math.min(ctx.scale * event.scale, 3));
+    onActive: (event, context) => {
+      'worklet';
+      // 使用本地变量避免修改worklet对象
+      const baseScale = context.scale || 1;
+      const newScale = Math.max(0.5, Math.min(baseScale * event.scale, 3));
+      scale.value = newScale;
     },
     onEnd: () => {
+      'worklet';
       lastScale.value = scale.value;
     },
   });
 
   // 手势处理 - 平移
   const panHandler = useAnimatedGestureHandler({
-    onStart: (_, ctx) => {
-      ctx.translateX = lastTranslateX.value;
-      ctx.translateY = lastTranslateY.value;
+    onStart: (_, context) => {
+      'worklet';
+      // 避免直接修改context对象，创建本地变量
+      const startTranslateX = lastTranslateX.value;
+      const startTranslateY = lastTranslateY.value;
+      context.translateX = startTranslateX;
+      context.translateY = startTranslateY;
     },
-    onActive: (event, ctx) => {
-      translateX.value = ctx.translateX + event.translationX;
-      translateY.value = ctx.translateY + event.translationY;
+    onActive: (event, context) => {
+      'worklet';
+      // 使用本地变量避免修改worklet对象
+      const baseTranslateX = context.translateX || 0;
+      const baseTranslateY = context.translateY || 0;
+      translateX.value = baseTranslateX + event.translationX;
+      translateY.value = baseTranslateY + event.translationY;
     },
     onEnd: () => {
+      'worklet';
       lastTranslateX.value = translateX.value;
       lastTranslateY.value = translateY.value;
     },
@@ -120,14 +137,20 @@ const GraphVisualization = ({
 
   // 动画样式
   const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    // 创建本地副本避免修改传递给worklet的对象
+    const currentTranslateX = translateX.value;
+    const currentTranslateY = translateY.value;
+    const currentScale = scale.value;
+
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
+        { translateX: currentTranslateX },
+        { translateY: currentTranslateY },
+        { scale: currentScale },
       ],
     };
-  });
+  }, []);
 
   // 根据节点类型获取颜色
   const getNodeColorByType = (type) => {

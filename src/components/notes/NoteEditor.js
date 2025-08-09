@@ -95,10 +95,13 @@ const NoteEditor = ({
 
   // 处理选择标签
   const handleToggleTag = (tagId) => {
-    if (selectedTags.includes(tagId)) {
-      setSelectedTags(selectedTags.filter(id => id !== tagId));
+    // 确保selectedTags是一个数组
+    const currentTags = Array.isArray(selectedTags) ? selectedTags : [];
+
+    if (currentTags.includes(tagId)) {
+      setSelectedTags(currentTags.filter(id => id !== tagId));
     } else {
-      setSelectedTags([...selectedTags, tagId]);
+      setSelectedTags([...currentTags, tagId]);
     }
   };
 
@@ -272,15 +275,15 @@ const NoteEditor = ({
                 key={tag.id}
                 style={[
                   styles.tagItem,
-                  selectedTags.includes(tag.id) && styles.tagItemSelected,
-                  selectedTags.includes(tag.id) && { backgroundColor: colors.primary }
+                  Array.isArray(selectedTags) && selectedTags.includes(tag.id) && styles.tagItemSelected,
+                  Array.isArray(selectedTags) && selectedTags.includes(tag.id) && { backgroundColor: colors.primary }
                 ]}
                 onPress={() => handleToggleTag(tag.id)}
               >
                 <Text
                   variant="body"
                   size="small"
-                  color={selectedTags.includes(tag.id) ? 'card' : undefined}
+                  color={Array.isArray(selectedTags) && selectedTags.includes(tag.id) ? 'card' : undefined}
                 >
                   {tag.name}
                 </Text>
@@ -308,12 +311,17 @@ const NoteEditor = ({
 
   // 获取当前选中的标签名称
   const getSelectedTagsText = () => {
-    if (selectedTags.length === 0) return '无标签';
+    // 确保selectedTags是一个数组
+    if (!selectedTags || !Array.isArray(selectedTags) || selectedTags.length === 0) {
+      return '无标签';
+    }
+
     const selectedTagNames = selectedTags.map(tagId => {
       const tag = tags.find(t => t.id === tagId);
       return tag ? tag.name : '';
     }).filter(Boolean);
-    return selectedTagNames.join(', ');
+
+    return selectedTagNames.length > 0 ? selectedTagNames.join(', ') : '无标签';
   };
 
   return (

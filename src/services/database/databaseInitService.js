@@ -144,10 +144,10 @@ class DatabaseInitService {
       await mongoDBService.createIndex('tags', { user_id: 1, count: -1 });
 
       // AI聊天索引
-      await mongoDBService.createIndex('ai_chats', { user_id: 1, is_deleted: 1 });
-      await mongoDBService.createIndex('ai_chats', { user_id: 1, updated_at: -1 });
-      await mongoDBService.createIndex('ai_chats', { user_id: 1, is_favorite: 1 });
-      await mongoDBService.createIndex('ai_chats', { title: 'text', 'messages.content': 'text' });
+      await mongoDBService.createIndex('ai_conversations', { user_id: 1, is_deleted: 1 });
+      await mongoDBService.createIndex('ai_conversations', { user_id: 1, updated_at: -1 });
+      await mongoDBService.createIndex('ai_conversations', { user_id: 1, is_favorite: 1 });
+      await mongoDBService.createIndex('ai_conversations', { title: 'text', 'messages.content': 'text' });
 
       // 提醒索引
       await mongoDBService.createIndex('reminders', { user_id: 1, is_deleted: 1 });

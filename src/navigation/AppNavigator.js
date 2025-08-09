@@ -3,10 +3,11 @@
  */
 
 import React, { useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { navigationRef } from './navigationRef';
@@ -36,8 +37,11 @@ import { ThemeCustomizationScreen } from '../screens/theme';
 import { AnalyticsScreen } from '../screens/analytics';
 import { GroupScreen } from '../screens/groups';
 import { CodeEditorScreen } from '../screens/code';
-// 直接导入 NoteScreen 组件，避免通过索引导入
+// 直接导入笔记相关组件
 import NoteScreen from '../screens/notes/NoteScreen';
+// 导入文件查看器组件
+import PDFViewer from '../screens/viewers/PDFViewer';
+import DocViewer from '../screens/viewers/DocViewer';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
@@ -50,14 +54,39 @@ import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalys
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 // 导入画布组件
 import { CanvasScreen, InfiniteCanvasScreen } from '../screens/canvas';
-// 导入文件查看器组件
-import PDFViewer from '../screens/viewers/PDFViewer';
-import DocViewer from '../screens/viewers/DocViewer';
 // 导入群组导航
 import GroupsNavigator from './GroupsNavigator';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// 定义一个函数来处理特定屏幕的底部导航栏显示逻辑
+const getTabBarStyle = (route, colors) => {
+  // 获取当前路由的状态
+  const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
+
+  // 在这些屏幕中隐藏底部导航栏
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'ImageViewer', 'VideoPlayer', 'MindMapEdit', 'InfiniteCanvas'];
+
+  // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
+  if (hideTabBarScreens.includes(routeName)) {
+    return { display: 'none' };
+  }
+
+  // 返回默认的底部导航栏样式
+  return {
+    backgroundColor: colors.card,
+    borderTopColor: colors.border,
+    height: 60,
+    paddingBottom: 8,
+    paddingTop: 8,
+    elevation: 4,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  };
+};
 
 /**
  * 应用主导航器
@@ -202,6 +231,8 @@ const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        // 使用getTabBarStyle函数控制底部导航栏的显示和样式
+        tabBarStyle: getTabBarStyle(route, colors),
         tabBarIcon: ({ color, focused }) => {
           let iconName;
           let iconStyle = { marginBottom: 2 };
@@ -260,18 +291,6 @@ const MainTabs = () => {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          elevation: 4,
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 2,
-          height: 50,
-          paddingBottom: 2,
-          paddingTop: 2,
-        },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '400',
@@ -460,7 +479,14 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         })}
       />
-
+      <Stack.Screen
+        name="PDFNote"
+        component={PDFViewer}
+        options={({ route }) => ({
+          title: route.params?.title || 'PDF查看器',
+          headerBackTitleVisible: false,
+        })}
+      />
       <Stack.Screen
         name="KnowledgeGraph"
         component={KnowledgeGraphScreen}
@@ -517,7 +543,6 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-
       <Stack.Screen
         name="Canvas"
         component={CanvasScreen}
@@ -534,7 +559,6 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-
       <Stack.Screen
         name="Reminder"
         component={ReminderScreen || (() => {
@@ -603,21 +627,52 @@ const HomeStack = () => {
         }}
       />
 
-      {/* 文件查看器组件 */}
+
+      {/* 增强型文件查看器组件 */}
       <Stack.Screen
         name="PDFViewer"
         component={PDFViewer}
-        options={({ route }) => ({
+        options={({ navigation, route }) => ({
           title: route.params?.title || 'PDF查看器',
-          headerBackTitleVisible: false,
+          headerShown: false, // 隐藏头部导航栏，实现全屏显示
+          gestureEnabled: true, // 启用手势返回
+          cardStyleInterpolator: ({ current, layouts }) => {
+            return {
+              cardStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [layouts.screen.width, 0],
+                    }),
+                  },
+                ],
+              },
+            };
+          },
         })}
       />
       <Stack.Screen
         name="DocViewer"
         component={DocViewer}
-        options={({ route }) => ({
+        options={({ navigation, route }) => ({
           title: route.params?.title || '文档查看器',
-          headerBackTitleVisible: false,
+          headerShown: false, // 隐藏头部导航栏，实现全屏显示
+          gestureEnabled: true, // 启用手势返回
+          cardStyleInterpolator: ({ current, layouts }) => {
+            return {
+              cardStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [layouts.screen.width, 0],
+                    }),
+                  },
+                ],
+              },
+            };
+          },
         })}
       />
     </Stack.Navigator>

@@ -968,6 +968,23 @@ class ErrorBoundary extends React.Component {
     console.error('应用错误边界捕获到错误:', error, errorInfo);
   }
 
+  // 重启应用
+  restartApp = () => {
+    this.setState({ hasError: false, error: null });
+    // 尝试清除可能导致问题的状态
+    try {
+      // 清除导航状态
+      if (navigationRef.current) {
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }
+    } catch (e) {
+      console.error('重置导航状态失败:', e);
+    }
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -976,6 +993,18 @@ class ErrorBoundary extends React.Component {
           <Text style={{ fontSize: 14, color: '#333', textAlign: 'center', padding: 20 }}>
             {this.state.error?.message || '未知错误'}
           </Text>
+          <TouchableOpacity 
+            style={{ 
+              backgroundColor: '#2196F3', 
+              paddingVertical: 10, 
+              paddingHorizontal: 20, 
+              borderRadius: 5,
+              marginTop: 20
+            }}
+            onPress={this.restartApp}
+          >
+            <Text style={{ color: 'white', fontSize: 16 }}>重启应用</Text>
+          </TouchableOpacity>
         </View>
       );
     }

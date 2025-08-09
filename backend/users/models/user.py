@@ -20,6 +20,7 @@ class User(AbstractUser):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     mongo_id = models.UUIDField(null=True, blank=True, help_text="对应的MongoDB用户ID")
+    phone = models.CharField(max_length=20, null=True, blank=True, verbose_name='手机号')
 
     class Meta:
         verbose_name = _('用户')

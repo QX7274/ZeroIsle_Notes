@@ -18,7 +18,7 @@ import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { notesApi } from '../../services/api';
+import { apiWrapper } from '../../services/api/apiWrapper';
 import { setNotes as setNotesAction, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
@@ -229,7 +229,7 @@ const HomeScreen = ({ navigation }) => {
       });
 
       // 首先尝试从本地存储获取笔记，带超时
-      const offlineResponsePromise = notesApi.getAllNotes();
+      const offlineResponsePromise = apiWrapper.getAllNotes();
       const offlineResponse = await Promise.race([offlineResponsePromise, timeoutPromise]);
 
       // 如果超时，尝试从AsyncStorage备份恢复
@@ -304,6 +304,9 @@ const HomeScreen = ({ navigation }) => {
       const results = await DocumentPicker.pick({
         type: [types.pdf],
         allowMultiSelection: false,
+        // 确保使用正确的API获取文件访问权限
+        mode: 'import',  // 使用import模式而不是open模式
+        copyTo: 'documentDirectory', // 复制到文档目录而不是缓存目录
       });
 
       if (results && results.length > 0) {
@@ -334,7 +337,7 @@ const HomeScreen = ({ navigation }) => {
 
         try {
           // 调用实际的导入API
-          const response = await notesApi.importNote(formData);
+          const response = await apiWrapper.importNote(formData);
           console.log('PDF导入结果:', response);
 
           // 即使API返回失败，只要有数据就继续处理
@@ -354,19 +357,53 @@ const HomeScreen = ({ navigation }) => {
           console.log('尝试使用本地导入方式');
 
           // 创建本地笔记对象
+          const noteId = Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+
+          // 创建metadata对象
+          const metadataObj = {
+            pdfPath: file.uri,
+            fileSize: file.size || null,
+            pageCount: null, // PDF页数，后续可以添加
+            lastOpenedPage: 1, // 上次打开的页码
+            lastOpenedTime: new Date().toISOString(), // 上次打开时间
+            fileCopyUri: file.fileCopyUri || null // 保存文件复制后的URI
+          };
+
+          // 将metadata转换为字符串
+          const metadataString = JSON.stringify(metadataObj);
+
           const localNote = {
-            id: Date.now() + '_' + Math.random().toString(36).substring(2, 11), // 使用时间戳和随机字符串作为ID
+            id: noteId,
+            _id: noteId, // 同时设置_id字段，确保兼容性
             title: file.name ? file.name.split('.')[0] : 'PDF文档', // 使用文件名作为标题
             content: `PDF文件: ${file.name || '未命名文档'}`, // 明确标记为PDF文件
+
+            // 统一文件类型标识 - 确保这些字段被正确设置
+            type: 'pdf',
             file_type: 'pdf',
+
+            // 文件信息 - 确保这些字段被正确设置
             file_name: file.name || `document_${Date.now()}.pdf`, // 保存原始文件名
             file_uri: file.uri,
+            uri: file.uri, // 添加uri字段作为备用
+            path: file.uri, // 添加path字段作为备用
+            file_path: file.uri, // 添加file_path字段作为备用
+            url: file.uri, // 添加url字段作为备用
+
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             is_synced: false,
             is_offline: true,
+            imported: true,
+
             // 不再使用预览图，而是使用纯色背景
-            preview_image: null
+            preview_image: null,
+
+            // 添加metadata，确保是字符串类型
+            metadata: metadataString,
+
+            // 确保tags是字符串数组
+            tags: []
           };
 
           // 添加到Redux状态
@@ -392,6 +429,8 @@ const HomeScreen = ({ navigation }) => {
       const results = await DocumentPicker.pick({
         type: [types.docx, types.doc],
         allowMultiSelection: false,
+        mode: 'import',  // 使用import模式而不是open模式
+        copyTo: 'documentDirectory', // 复制到文档目录而不是缓存目录
       });
 
       if (results && results.length > 0) {
@@ -436,7 +475,7 @@ const HomeScreen = ({ navigation }) => {
           }, 30000); // 30秒超时
 
           // 调用实际的导入API
-          const response = await notesApi.importNote(formData);
+          const response = await apiWrapper.importNote(formData);
 
           // 清除超时
           clearTimeout(importTimeout);
@@ -505,19 +544,50 @@ const HomeScreen = ({ navigation }) => {
       }
 
       // 创建本地笔记对象
+      const noteId = Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+
+      // 创建metadata对象
+      const metadataObj = {
+        filePath: fileUri,
+        fileSize: file.size || null,
+        lastOpenedTime: new Date().toISOString()
+      };
+
+      // 将metadata转换为字符串
+      const metadataString = JSON.stringify(metadataObj);
+
       const localNote = {
-        id: Date.now() + '_' + Math.random().toString(36).substring(2, 11), // 移除temp_前缀
+        id: noteId,
+        _id: noteId, // 同时设置_id字段，确保兼容性
         title: file.name ? file.name.split('.')[0] : 'Word文档',
         content: `Word文件: ${file.name || '未命名文档'}`, // 明确标记为Word文件
-        file_type: 'word',
+
+        // 统一文件类型标识 - 确保这些字段被正确设置
+        type: file.name && file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'doc',
+        file_type: file.name && file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'doc',
+
+        // 文件信息 - 确保这些字段被正确设置
         file_name: file.name || `document_${Date.now()}.docx`,
         file_uri: fileUri,
+        uri: fileUri, // 添加uri字段作为备用
+        path: fileUri, // 添加path字段作为备用
+        file_path: fileUri, // 添加file_path字段作为备用
+        url: fileUri, // 添加url字段作为备用
+
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_synced: false,
         is_offline: true,
+        imported: true,
+
         // 不再使用预览图，而是使用纯色背景
-        preview_image: null
+        preview_image: null,
+
+        // 添加metadata，确保是字符串类型
+        metadata: metadataString,
+
+        // 确保tags是字符串数组
+        tags: []
       };
 
       // 添加到Redux状态
@@ -526,13 +596,13 @@ const HomeScreen = ({ navigation }) => {
       // 保存到本地存储 - 使用多种方式确保持久化
       try {
         // 1. 使用notesApi保存到离线存储
-        const saveResult = await notesApi.saveOfflineNote(localNote);
+        const saveResult = await apiWrapper.saveOfflineNote(localNote);
         console.log('笔记已保存到离线存储:', saveResult);
 
         // 2. 使用数据服务直接保存到MongoDB数据库
         try {
           // 使用MongoDB数据服务保存笔记
-          const savedNote = await notesApi.saveOfflineNote(localNote);
+          const savedNote = await apiWrapper.saveOfflineNote(localNote);
           console.log('笔记已直接保存到MongoDB数据库:', savedNote.id);
         } catch (dbError) {
           console.error('直接保存到MongoDB数据库失败:', dbError);
@@ -561,22 +631,52 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const renderNoteItem = ({ item, index }) => {
+    // 防止item为null或undefined
+    if (!item) {
+      console.warn('renderNoteItem收到无效的item:', item);
+      return null;
+    }
+
     console.log('渲染笔记项:', item, '索引:', index);
 
     // 根据笔记类型渲染不同的封面
     const renderCover = () => {
       console.log('渲染封面，笔记数据:', item);
 
-      // 检查内容是否包含文件类型信息
-      const content = item.content || '';
+      // 安全地获取内容，处理可能的循环引用
+      let content = '';
+      try {
+        if (item.content) {
+          if (typeof item.content === 'string') {
+            content = item.content;
+          } else if (typeof item.content === 'object' && item.content !== null) {
+            if (item.content.reference === 'circular') {
+              content = ''; // 处理循环引用
+            } else {
+              content = String(item.content);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('处理笔记内容失败:', error);
+        content = '';
+      }
 
       // 检查是否是PDF文件
-      if (
-        item.file_type === 'pdf' ||
-        item.type === 'pdf' ||
-        (item.file_name && item.file_name.toLowerCase().endsWith('.pdf')) ||
-        content.includes('pdf')
-      ) {
+      const type = (item.type || '').toString().toLowerCase().trim();
+      const fileType = (item.file_type || '').toString().toLowerCase().trim();
+      const fileName = (item.file_name || '').toString().toLowerCase().trim();
+      const fileUri = (item.file_uri || '').toString().toLowerCase().trim();
+
+      const isPdf =
+        fileType === 'pdf' ||
+        type === 'pdf' ||
+        fileName.endsWith('.pdf') ||
+        fileUri.endsWith('.pdf');
+
+      console.log('isPdf:', isPdf, { type, fileType, fileName, fileUri });
+
+      if (isPdf) {
         // PDF封面 - 使用纯色背景
         return (
           <View style={[styles.coverContainer, styles.pdfBackground]}>
@@ -625,6 +725,7 @@ const HomeScreen = ({ navigation }) => {
       }
       // 检查是否是画布
       else if (item.type === 'canvas') {
+        console.log('handleFilePress - 检测到画布文件，进入画布分支:', item); // 添加画布分支日志
         // 画布封面 - 使用纯色背景
         return (
           <View style={[styles.coverContainer, styles.canvasBackground]}>
@@ -636,6 +737,7 @@ const HomeScreen = ({ navigation }) => {
       }
       // 默认文本笔记封面
       else {
+        console.log('handleFilePress - 未匹配特定类型，进入默认文本笔记分支:', item); // 添加默认分支日志
         return (
           <View style={[styles.coverContainer, styles.textBackground]}>
             <Icon name="document-text-outline" size={30} color="#FF9800" />
@@ -686,47 +788,134 @@ const HomeScreen = ({ navigation }) => {
     const hasCloudIcon = item.is_synced || item.synced;
 
     // 处理文件点击
-    const handleFilePress = () => {
-      console.log('点击文件:', item);
+    const handleFilePress = (item) => { // 显式接收item参数
+      console.log('handleFilePress - 开始处理文件:', item); // 增强日志
 
       // 根据文件类型选择不同的导航目标
-      if (item.file_type === 'pdf' || (item.file_name && item.file_name.toLowerCase().endsWith('.pdf'))) {
-        // 检查是否有文件URI
-        if (!item.file_uri) {
-          // 对于测试数据，我们没有实际的文件URI，所以显示内容预览
-          navigation.navigate('Note', { note: item });
+      if (item.file_type === 'pdf' || item.type === 'pdf' ||
+          (item.file_name && item.file_name.toLowerCase().endsWith('.pdf')) ||
+          (item.file_uri && item.file_uri.toLowerCase().endsWith('.pdf'))) {
+          console.log('handleFilePress - 检测到PDF文件，进入PDF分支:', item); // 添加PDF分支日志
+
+        // 尝试获取文件URI
+        const possibleUris = [
+          item.file_uri,
+          item.uri,
+          item.path,
+          item.file_path,
+          item.url
+        ].filter(Boolean);
+
+        if (possibleUris.length === 0) {
+          // 文件URI为空，显示错误提示
+          console.error('PDF文件URI为空:', item);
+          Alert.alert(
+            '文件错误',
+            '无法打开PDF文件，文件路径不存在或导入失败。请删除此文件并重新导入。',
+            [
+              {
+                text: '删除此文件',
+                style: 'destructive',
+                onPress: () => {
+                  // 安全地获取ID，优先使用_id，其次使用id
+                  const noteId = item._id || item.id;
+                  handleDeleteNote(noteId);
+                }
+              },
+              {
+                text: '重新导入',
+                onPress: () => importPDF()
+              },
+              {
+                text: '取消',
+                style: 'cancel'
+              }
+            ]
+          );
           return;
         }
 
-        // PDF文件 - 导航到PDF查看器
+        // 确保笔记有ID
+        const noteId = item._id || item.id || `temp_${Date.now()}`;
+        console.log('打开PDF文件，ID:', noteId, '文件URI:', possibleUris[0]);
+
+        // 使用viewers文件夹下的PDFViewer组件
+        console.log('准备打开PDF文件，使用路由PDFViewer，URI:', possibleUris[0]);
+
+        // 直接导航到PDFViewer，让PDFViewer自己处理文件检查
+        // 使用navigate创建新的屏幕，这样goBack()可以正常工作
         navigation.navigate('PDFViewer', {
-          uri: item.file_uri,
+          uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名PDF'),
-          noteId: item.id
+          noteId: noteId
         });
       }
-      else if (item.file_type === 'word' ||
+      else if (item.file_type === 'doc' || item.file_type === 'docx' ||
+               item.type === 'doc' || item.type === 'docx' ||
+               item.file_type === 'word' || item.type === 'word' ||
               (item.file_name && (item.file_name.toLowerCase().endsWith('.docx') ||
-                                 item.file_name.toLowerCase().endsWith('.doc')))) {
-        // 检查是否有文件URI
-        if (!item.file_uri) {
-          // 对于测试数据，我们没有实际的文件URI，所以显示内容预览
-          navigation.navigate('Note', { note: item });
+                                 item.file_name.toLowerCase().endsWith('.doc'))) ||
+              (item.file_uri && (item.file_uri.toLowerCase().endsWith('.docx') ||
+                                 item.file_uri.toLowerCase().endsWith('.doc')))) {
+              console.log('handleFilePress - 检测到Word文件，进入Word分支:', item); // 添加Word分支日志
+
+        // 尝试获取文件URI
+        const possibleUris = [
+          item.file_uri,
+          item.uri,
+          item.path,
+          item.file_path,
+          item.url
+        ].filter(Boolean);
+
+        if (possibleUris.length === 0) {
+          // 文件URI为空，显示错误提示
+          console.error('Word文件URI为空:', item);
+          Alert.alert(
+            '文件错误',
+            '无法打开Word文档，文件路径不存在或导入失败。请删除此文件并重新导入。',
+            [
+              {
+                text: '删除此文件',
+                style: 'destructive',
+                onPress: () => {
+                  // 安全地获取ID，优先使用_id，其次使用id
+                  const noteId = item._id || item.id;
+                  handleDeleteNote(noteId);
+                }
+              },
+              {
+                text: '重新导入',
+                onPress: () => importWord()
+              },
+              {
+                text: '取消',
+                style: 'cancel'
+              }
+            ]
+          );
           return;
         }
 
         // Word文件 - 导航到Word查看器
+        console.log('准备打开Word文件，使用路由DocViewer，URI:', possibleUris[0]);
+
+        // 直接导航到DocViewer，让DocViewer自己处理文件检查
+        // 使用navigate创建新的屏幕，这样goBack()可以正常工作
         navigation.navigate('DocViewer', {
-          uri: item.file_uri,
+          uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
-          noteId: item.id
+          noteId: item._id || item.id || `temp_${Date.now()}`
         });
       }
       else if (item.type === 'canvas') {
+        console.log('handleFilePress - 检测到画布文件，进入画布分支:', item); // 添加画布分支日志
         // 画布 - 导航到画布编辑器
-        navigation.navigate('Canvas', { canvasId: item.id });
+        const canvasId = item._id || item.id || `temp_${Date.now()}`;
+        navigation.navigate('Canvas', { canvasId });
       }
       else {
+        console.log('handleFilePress - 未匹配特定类型，进入默认文本笔记分支:', item); // 添加默认分支日志
         // 默认文本笔记 - 导航到笔记编辑器
         navigation.navigate('Note', { note: item });
       }
@@ -759,9 +948,11 @@ const HomeScreen = ({ navigation }) => {
     };
 
     // 根据屏幕方向计算笔记项的宽度
-    const columnCount = isLandscape ? 4 : 3;
-    // 调整计算方式，确保均匀分布
-    const itemWidth = (screenWidth - 40) / columnCount; // 40是左右两侧的总padding
+    const columnCount = isLandscape ? 4 : 3; // 横屏4列，竖屏3列
+    // 统一计算方式，确保横竖屏边距一致
+    const totalPadding = 32; // 左右两侧各16的内边距
+    const totalGap = (columnCount - 1) * 10; // 项目之间的间距总和
+    const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
 
     return (
       <View style={[
@@ -773,9 +964,11 @@ const HomeScreen = ({ navigation }) => {
       ]}>
         {/* 只有点击背景区域才执行打开操作 */}
         <TouchableOpacity
+          onPress={(e) => { e.persist(); handleFilePress(item); }}
           style={styles.coverTouchable}
-          onPress={handleFilePress}
           activeOpacity={0.7}
+          delayPressIn={100} // 增加延迟，减少误触
+          pressRetentionOffset={{ top: 20, left: 20, bottom: 20, right: 20 }} // 增加触摸区域
         >
           {/* 封面 */}
           {renderCover()}
@@ -788,7 +981,7 @@ const HomeScreen = ({ navigation }) => {
           {/* 底部区域 - 日期和操作按钮 */}
           <View style={styles.noteFooter}>
             <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
-              {formatDate(item.updatedAt || item.updated_at)}
+              {formatDate(item.updatedAt || item.updated_at || item.created_at || new Date().toISOString())}
             </Text>
 
             <View style={styles.actionButtons}>
@@ -820,7 +1013,9 @@ const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation(); // 阻止事件冒泡
-                  handleDeleteNote(item.id);
+                  // 安全地获取ID，优先使用_id，其次使用id
+                  const noteId = item._id || item.id;
+                  handleDeleteNote(noteId);
                 }}
                 style={[styles.actionButton, { backgroundColor: 'rgba(229, 57, 53, 0.1)' }]}
                 hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
@@ -836,7 +1031,20 @@ const HomeScreen = ({ navigation }) => {
 
   // 处理笔记重命名 - 优化为立即响应
   const handleRenameNote = (note) => {
+    // 防止note为null或undefined
+    if (!note) {
+      console.warn('handleRenameNote收到无效的note:', note);
+      return;
+    }
+
     console.log('重命名笔记:', note);
+
+    // 确保笔记有ID
+    if (!note._id && !note.id) {
+      console.warn('笔记没有有效的ID:', note);
+      Alert.alert('错误', '无法重命名笔记：ID无效');
+      return;
+    }
 
     // 使用平台兼容的方式获取用户输入
     if (Platform.OS === 'ios') {
@@ -877,6 +1085,14 @@ const HomeScreen = ({ navigation }) => {
     try {
       console.log('更新笔记标题:', newTitle);
 
+      // 安全地获取ID
+      const noteId = note._id || note.id;
+      if (!noteId) {
+        console.error('无法获取笔记ID:', note);
+        Alert.alert('错误', '无法重命名笔记：ID无效');
+        return false;
+      }
+
       // 创建更新后的笔记对象
       const updatedNote = {
         ...note,
@@ -884,9 +1100,17 @@ const HomeScreen = ({ navigation }) => {
         updated_at: new Date().toISOString()
       };
 
+      // 确保笔记同时有id和_id字段
+      if (note._id && !updatedNote.id) {
+        updatedNote.id = note._id;
+      }
+      if (note.id && !updatedNote._id) {
+        updatedNote._id = note.id;
+      }
+
       // 1. 立即更新Redux状态，确保UI立即响应
       dispatch(updateNote({
-        id: updatedNote.id,
+        id: noteId,
         noteData: updatedNote
       }));
 
@@ -901,14 +1125,15 @@ const HomeScreen = ({ navigation }) => {
       // 4. 在后台异步执行数据库操作，完全不阻塞UI
       requestAnimationFrame(() => {
         // 强制刷新笔记列表，确保UI立即更新
-        const updatedNotesList = notes.map(n =>
-          n.id === updatedNote.id ? updatedNote : n
-        );
+        const updatedNotesList = notes.map(n => {
+          const currentId = n._id || n.id;
+          return currentId === noteId ? updatedNote : n;
+        });
         setNotes([...updatedNotesList]);
 
         // 在后台尝试更新数据库
         setTimeout(() => {
-          notesApi.updateNote(updatedNote.id, updatedNote)
+          apiWrapper.updateNote(noteId, updatedNote)
             .then((result) => {
               console.log('笔记已在后台通过API更新:', result);
               // 静默处理，不打扰用户
@@ -986,8 +1211,30 @@ const HomeScreen = ({ navigation }) => {
   };
 
   // 处理笔记删除
-  const handleDeleteNote = async (id) => {
+  const handleDeleteNote = async (noteId) => {
     try {
+      // 安全地获取ID，处理可能的undefined或对象
+      let id = noteId;
+
+      // 如果ID是undefined，尝试从当前选中的笔记中获取
+      if (id === undefined) {
+        console.warn('删除笔记时ID为undefined，尝试从当前选中的笔记中获取');
+        return;
+      }
+
+      // 如果ID是对象，尝试获取_id或id属性
+      if (typeof id === 'object' && id !== null) {
+        id = id._id || id.id;
+        if (!id) {
+          console.error('无法从对象中获取有效的ID:', noteId);
+          Alert.alert('错误', '无法删除笔记：ID无效');
+          return;
+        }
+      }
+
+      // 确保ID是字符串
+      id = String(id);
+
       Alert.alert(
         '确认删除',
         '确定要删除这个笔记吗？此操作无法撤销。',
@@ -1001,10 +1248,17 @@ const HomeScreen = ({ navigation }) => {
             style: 'destructive',
             onPress: async () => {
               try {
-                const result = await notesApi.deleteNote(id);
+                const result = await apiWrapper.deleteNote(id);
                 if (result && result.success) {
                   console.log('笔记已通过API删除:', result);
                   dispatch(deleteNote(id));
+
+                  // 从本地笔记列表中移除
+                  const updatedNotes = notes.filter(note => {
+                    const noteId = note._id || note.id;
+                    return noteId !== id;
+                  });
+                  setNotes(updatedNotes);
                 } else {
                   console.warn('API返回成功但结果异常:', result);
                   Alert.alert('部分成功', '笔记可能未完全从数据库中删除');
@@ -1167,17 +1421,38 @@ const HomeScreen = ({ navigation }) => {
         {notes && notes.length > 0 ? (
           <FlatList
             key={`flatlist-${isLandscape ? 'landscape' : 'portrait'}`} // 添加基于屏幕方向的key
-            data={notes}
+            data={notes.filter(note => note && (note._id || note.id))} // 过滤掉无效的笔记
             renderItem={renderNoteItem}
-            keyExtractor={item => item.id.toString()}
+            keyExtractor={item => {
+              // 安全地提取ID
+              if (!item) return `invalid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+              // 优先使用_id字段
+              if (item._id !== undefined) {
+                return typeof item._id === 'object' ? item._id.toString() : String(item._id);
+              }
+
+              // 其次使用id字段
+              if (item.id !== undefined) {
+                return typeof item.id === 'object' ? item.id.toString() : String(item.id);
+              }
+
+              // 如果都没有，生成一个临时ID
+              return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            }}
             contentContainerStyle={styles.listContainer}
             numColumns={isLandscape ? 4 : 3} // 横屏时显示4列，竖屏时显示3列
-            columnWrapperStyle={styles.columnWrapper}
+            columnWrapperStyle={[
+              styles.columnWrapper,
+              { justifyContent: 'flex-start' } // 从左到右排列
+            ]}
             getItemLayout={(_, index) => {
               // 根据屏幕方向计算每个项目的宽度
               const columnCount = isLandscape ? 4 : 3;
-              // 保持与renderNoteItem中相同的计算方式
-              const itemWidth = (screenWidth - 40) / columnCount;
+              // 统一计算方式，确保横竖屏边距一致
+              const totalPadding = 32; // 左右两侧各16的内边距
+              const totalGap = (columnCount - 1) * 10; // 项目之间的间距总和
+              const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
               return {
                 length: itemWidth,
                 offset: itemWidth * Math.floor(index / columnCount),
@@ -1288,7 +1563,7 @@ const styles = StyleSheet.create({
   },
   // 搜索栏容器
   searchBarContainer: {
-    flex: 0.85, // 占据85%的空间
+    flex: 0.85, // 占��85%的空间
     marginRight: 10, // 右侧添加间距
   },
   // 排序控件容器
@@ -1321,11 +1596,12 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingVertical: 16,
-    paddingHorizontal: 8
+    paddingHorizontal: 16 // 统一左右边距
   },
   columnWrapper: {
-    justifyContent: 'space-between', // 均匀分布
-    paddingHorizontal: 8, // 添加水平内边距
+    justifyContent: 'flex-start', // 从左到右排列
+    paddingHorizontal: 0, // 移除额外的水平内边距，由listContainer控制
+    gap: 10, // 添加间距
   },
   noteItem: {
     padding: 8, // 减小内边距
@@ -1338,6 +1614,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     // 宽度将在renderNoteItem中动态设置
     margin: 0, // 移除外边距，由FlatList的columnWrapper控制间距
+    // 移除marginRight，使用columnWrapper的gap属性控制间���
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     backgroundColor: 'rgba(255,255,255,0.95)',

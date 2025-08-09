@@ -961,4 +961,8 @@ class ReminderNotificationService {
   }
 }
 
-export default new ReminderNotificationService();
+// 创建单例实例
+const reminderNotificationService = new ReminderNotificationService();
+
+// 导出单例实例
+export default reminderNotificationService;

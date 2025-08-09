@@ -8,7 +8,7 @@ import { logService } from '../services/utils/logService';
 class TagModel extends BaseModel {
   constructor(data = {}) {
     super(data, 'Tag');
-    
+
     this.name = data.name || '';
     this.color = data.color || null;
     this.user_id = data.user_id || null;
@@ -78,16 +78,34 @@ class TagModel extends BaseModel {
       const {
         limit = 50,
         skip = 0,
-        sort = { count: -1, name: 1 },
+        sort = { name: 1 }, // 默认只按名称排序，避免count属性可能不存在的问题
         is_deleted = false,
       } = options;
-      
+
       const filter = { user_id: userId, is_deleted };
-      
-      return this.find(filter, { sort, limit, skip });
+
+      // 尝试使用提供的排序选项
+      try {
+        return await this.find(filter, { sort, limit, skip });
+      } catch (sortError) {
+        // 如果排序失败（可能是因为count属性不存在），尝试只按名称排序
+        logService.warn('使用提供的排序选项查找标签失败，尝试使用备用排序', sortError);
+
+        // 创建一个新的排序选项，只包含name
+        const fallbackSort = { name: 1 };
+
+        try {
+          return await this.find(filter, { sort: fallbackSort, limit, skip });
+        } catch (fallbackError) {
+          // 如果备用排序也失败，尝试不使用排序
+          logService.warn('使用备用排序查找标签失败，尝试不使用排序', fallbackError);
+          return await this.find(filter, { limit, skip });
+        }
+      }
     } catch (error) {
       logService.error('查找用户标签失败', error);
-      throw error;
+      // 返回空数组而不是抛出异常，以提高健壮性
+      return [];
     }
   }
 
@@ -120,14 +138,14 @@ class TagModel extends BaseModel {
   static async findOrCreate(name, userId, options = {}) {
     try {
       const { color = null } = options;
-      
+
       // 查找现有标签
       let tag = await this.findByName(name, userId);
-      
+
       if (tag) {
         return tag;
       }
-      
+
       // 创建新标签
       return this.create({
         name,
@@ -168,14 +186,14 @@ class TagModel extends BaseModel {
   static async createBatch(names, userId) {
     try {
       const tags = [];
-      
+
       for (const name of names) {
         if (!name) continue;
-        
+
         const tag = await this.findOrCreate(name, userId);
         tags.push(tag);
       }
-      
+
       return tags;
     } catch (error) {
       logService.error('批量创建标签失败', error);
@@ -192,10 +210,10 @@ class TagModel extends BaseModel {
     try {
       // 获取所有标签
       const tags = await this.findByUser(userId, { limit: 1000 });
-      
+
       // 获取笔记模型
       const { NoteModel } = require('./index');
-      
+
       // 更新每个标签的计数
       for (const tag of tags) {
         // 查找使用该标签的笔记数量
@@ -204,14 +222,14 @@ class TagModel extends BaseModel {
           tags: tag.name,
           is_deleted: false,
         });
-        
+
         // 更新标签计数
         if (tag.count !== count) {
           tag.count = count;
           await tag.save({ sync: false });
         }
       }
-      
+
       return true;
     } catch (error) {
       logService.error('更新标签计数失败', error);
@@ -231,21 +249,21 @@ class TagModel extends BaseModel {
       // 查找源标签和目标标签
       const sourceTag = await this.findByName(sourceTagName, userId);
       const targetTag = await this.findByName(targetTagName, userId);
-      
+
       if (!sourceTag) {
         throw new Error(`源标签不存在: ${sourceTagName}`);
       }
-      
+
       if (!targetTag) {
         throw new Error(`目标标签不存在: ${targetTagName}`);
       }
-      
+
       // 获取笔记模型
       const { NoteModel } = require('./index');
-      
+
       // 查找使用源标签的笔记
       const notes = await NoteModel.findByTag(sourceTagName, { user_id: userId });
-      
+
       // 更新笔记标签
       let updatedCount = 0;
       for (const note of notes) {
@@ -254,24 +272,24 @@ class TagModel extends BaseModel {
         if (index !== -1) {
           note.tags.splice(index, 1);
         }
-        
+
         // 添加目标标签（如果不存在）
         if (!note.tags.includes(targetTagName)) {
           note.tags.push(targetTagName);
         }
-        
+
         // 保存笔记
         await note.save();
         updatedCount++;
       }
-      
+
       // 更新目标标签计数
       targetTag.count += sourceTag.count;
       await targetTag.save();
-      
+
       // 删除源标签
       await sourceTag.remove();
-      
+
       return {
         success: true,
         updatedCount,

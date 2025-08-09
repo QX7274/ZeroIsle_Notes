@@ -121,38 +121,81 @@ class Tag extends Realm.Object {
    * @param {Object} options 选项
    */
   static findByUser(realm, userId, options = {}) {
-    const {
-      is_deleted = false,
-    } = options;
+    try {
+      const {
+        is_deleted = false,
+      } = options;
 
-    let results = realm.objects('Tag')
-      .filtered(`user_id = "${userId}" AND is_deleted = ${is_deleted}`);
+      let results = realm.objects('Tag')
+        .filtered(`user_id = "${userId}" AND is_deleted = ${is_deleted}`);
 
-    // 排序
-    if (options.sort) {
-      const sortFields = [];
-      if (options.sort.count !== undefined) {
-        sortFields.push(['count', options.sort.count === -1]);
-      }
-      if (options.sort.name !== undefined) {
-        sortFields.push(['name', options.sort.name === -1]);
+      // 排序
+      if (options.sort) {
+        try {
+          const sortFields = [];
+
+          // 检查模式中是否存在count属性
+          const tagSchema = realm.schema.find(schema => schema.name === 'Tag');
+          const hasCountProperty = tagSchema && tagSchema.properties &&
+                                  (tagSchema.properties.count !== undefined);
+
+          if (options.sort.count !== undefined) {
+            if (hasCountProperty) {
+              sortFields.push(['count', options.sort.count === -1]);
+            } else {
+              console.warn('Tag模式中不存在count属性，跳过count排序');
+            }
+          }
+
+          if (options.sort.name !== undefined) {
+            sortFields.push(['name', options.sort.name === -1]);
+          }
+
+          if (sortFields.length > 0) {
+            results = results.sorted(sortFields);
+          }
+        } catch (sortError) {
+          console.error('标签排序失败:', sortError);
+          // 如果排序失败，尝试使用默认排序
+          try {
+            results = results.sorted('name');
+          } catch (fallbackSortError) {
+            console.error('标签默认排序也失败:', fallbackSortError);
+            // 继续使用未排序的结果
+          }
+        }
+      } else {
+        // 默认排序，添加错误处理
+        try {
+          // 检查模式中是否存在count属性
+          const tagSchema = realm.schema.find(schema => schema.name === 'Tag');
+          const hasCountProperty = tagSchema && tagSchema.properties &&
+                                  (tagSchema.properties.count !== undefined);
+
+          if (hasCountProperty) {
+            results = results.sorted([['count', true], ['name', false]]);
+          } else {
+            results = results.sorted('name');
+          }
+        } catch (defaultSortError) {
+          console.error('标签默认排序失败:', defaultSortError);
+          // 继续使用未排序的结果
+        }
       }
 
-      if (sortFields.length > 0) {
-        results = results.sorted(sortFields);
+      // 分页
+      if (options.skip !== undefined && options.limit !== undefined) {
+        const skip = options.skip || 0;
+        const limit = options.limit || 100;
+        results = Array.from(results).slice(skip, skip + limit);
       }
-    } else {
-      results = results.sorted([['count', true], ['name', false]]);
+
+      return results;
+    } catch (error) {
+      console.error('查找多个Tag失败', error);
+      // 返回空数组而不是抛出异常，以提高健壮性
+      return [];
     }
-
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
-      const skip = options.skip || 0;
-      const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
-    }
-
-    return results;
   }
 
   /**

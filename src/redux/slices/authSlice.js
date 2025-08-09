@@ -8,7 +8,7 @@ import { storage } from '../../utils';
 import { Platform } from 'react-native';
 import { navigate, navigationRef } from '../../navigation/navigationRef';
 import tokenService from '../../services/auth/tokenService';
-import { getAuthInfo } from '../../services/auth/authUtils';
+import authUtils from '../../services/auth/authUtils';
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -171,69 +171,121 @@ export const registerWithEmail = createAsyncThunk(
 // 异步action：登出
 export const logout = createAsyncThunk(
   'auth/logout',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
-      await storage.remove('token');
-      await storage.remove('user');
+      console.log('开始登出流程...');
 
-      // 使用setTimeout确保Redux状态更新后再导航
+      // 1. 首先清除本地存储中的认证信息
+      try {
+        await storage.remove('token');
+        await storage.remove('user');
+        console.log('本地存储中的认证信息已清除');
+      } catch (storageError) {
+        console.error('清除本地存储中的认证信息失败:', storageError);
+        // 继续执行，不阻止登出流程
+      }
+
+      // 2. 确保Redux状态被正确更新 - 直接分发action而不是等待异步操作完成
+      try {
+        dispatch({ type: 'auth/logout/fulfilled' });
+        console.log('Redux状态已更新，用户已登出');
+      } catch (reduxError) {
+        console.error('更新Redux状态失败:', reduxError);
+        // 继续执行，不阻止登出流程
+      }
+
+      // 3. 使用setTimeout确保Redux状态更新后再尝试导航
       setTimeout(() => {
-        // 使用reset方法重置整个导航状态
-        if (navigationRef.current) {
-          try {
-            console.log('尝试重置导航到Auth页面');
-            // 使用CommonActions.reset方法
-            const { CommonActions } = require('@react-navigation/native');
-            navigationRef.current.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: 'Auth' }]
-              })
-            );
-          } catch (navError) {
-            console.error('重置导航失败，尝试备选方法:', navError);
+        try {
+          console.log('尝试导航到登录页面...');
 
-            // 备选方法1：使用navigate方法
+          // 导入导航模块
+          const navigation = require('../navigation/navigationRef');
+
+          // 尝试使用导航辅助函数
+          if (navigation && typeof navigation.reset === 'function') {
+            console.log('使用navigation.reset导航到Auth页面');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Auth' }]
+            });
+            return;
+          }
+
+          // 如果导航辅助函数不可用，尝试使用navigationRef
+          if (navigationRef && navigationRef.current) {
+            console.log('使用navigationRef.current导航到Auth页面');
+
+            // 尝试使用CommonActions.reset
             try {
-              navigationRef.current.navigate('Auth', {}, { reset: true });
-            } catch (navError2) {
-              console.error('备选方法1也失败:', navError2);
+              const { CommonActions } = require('@react-navigation/native');
+              navigationRef.current.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Auth' }]
+                })
+              );
+              return;
+            } catch (resetError) {
+              console.error('使用CommonActions.reset失败:', resetError);
 
-              // 备选方法2：直接使用dispatch
+              // 尝试使用navigate方法
               try {
-                navigationRef.current.dispatch({
-                  type: 'NAVIGATE',
-                  payload: {
-                    name: 'Auth',
-                    params: {},
-                  },
-                });
-              } catch (navError3) {
-                console.error('所有导航方法都失败:', navError3);
+                navigationRef.current.navigate('Auth');
+                return;
+              } catch (navigateError) {
+                console.error('使用navigate方法失败:', navigateError);
 
-                // 最后的备选方法：直接修改Redux状态
+                // 尝试使用dispatch方法
                 try {
-                  const { store } = require('../store');
-                  store.dispatch({ type: 'auth/logout/fulfilled' });
-                  console.log('已通过Redux状态重置认证状态');
-
-                  // 强制刷新应用
-                  if (Platform && Platform.OS === 'web') {
-                    window.location.reload();
-                  }
-                } catch (reduxError) {
-                  console.error('Redux状态重置失败:', reduxError);
+                  navigationRef.current.dispatch({
+                    type: 'NAVIGATE',
+                    payload: {
+                      name: 'Auth',
+                      params: {},
+                    },
+                  });
+                  return;
+                } catch (dispatchError) {
+                  console.error('使用dispatch方法失败:', dispatchError);
                 }
               }
             }
+          } else {
+            console.warn('navigationRef.current不存在，无法使用导航方法');
           }
-        } else {
-          console.warn('navigationRef.current不存在，无法重置导航');
+
+          // 如果所有导航方法都失败，尝试强制刷新应用
+          console.log('所有导航方法都失败，尝试强制刷新应用...');
+
+          // 导入Platform
+          const { Platform } = require('react-native');
+
+          // 在Web平台上强制刷新页面
+          if (Platform && Platform.OS === 'web') {
+            console.log('在Web平台上强制刷新页面');
+            window.location.reload();
+          } else {
+            console.log('非Web平台，无法强制刷新页面');
+            // 在移动平台上，可以考虑使用其他方法重新加载应用
+            // 例如，使用DevSettings.reload()（仅在开发模式下可用）
+            try {
+              const DevSettings = require('react-native').DevSettings;
+              if (DevSettings && DevSettings.reload) {
+                DevSettings.reload();
+              }
+            } catch (devSettingsError) {
+              console.error('使用DevSettings.reload失败:', devSettingsError);
+            }
+          }
+        } catch (navigationError) {
+          console.error('导航过程中发生错误:', navigationError);
         }
-      }, 100);
+      }, 300); // 增加延迟时间，确保Redux状态更新完成
 
       return null;
     } catch (error) {
+      console.error('登出过程中发生错误:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -249,7 +301,7 @@ export const checkAuthState = createAsyncThunk(
       console.log('Redux: 检查认证状态...');
 
       // 使用统一的认证信息获取函数
-      const { token, refreshToken, user } = await getAuthInfo();
+      const { token, refreshToken, user } = await authUtils.getAuthInfo();
 
       // 如果没有令牌，返回null
       if (!token) {
@@ -278,7 +330,7 @@ export const checkAuthState = createAsyncThunk(
         if (newTokenData) {
           console.log('Redux: 令牌刷新成功');
           // 获取最新的认证信息
-          const { token: newToken, user: newUser } = await getAuthInfo();
+          const { token: newToken, user: newUser } = await authUtils.getAuthInfo();
 
           // 确保Redux状态一致
           dispatch({ type: 'auth/setIsAuthenticated', payload: true });

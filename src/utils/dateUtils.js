@@ -9,24 +9,55 @@
  * @returns {string} - 格式化后的日期字符串
  */
 export const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
-  if (!date) return '';
-  
-  const d = typeof date === 'string' ? new Date(date) : date;
-  
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-  
-  return format
-    .replace('YYYY', year)
-    .replace('MM', month)
-    .replace('DD', day)
-    .replace('HH', hours)
-    .replace('mm', minutes)
-    .replace('ss', seconds);
+  // 处理无效日期
+  if (!date) return '未知日期';
+
+  try {
+    // 尝试创建日期对象
+    let d;
+    if (typeof date === 'string') {
+      // 处理可能的无效日期字符串
+      if (date === 'Invalid Date' || date.toLowerCase() === 'invalid date') {
+        return '无效日期';
+      }
+
+      // 尝试解析日期字符串
+      d = new Date(date);
+    } else if (date instanceof Date) {
+      d = date;
+    } else if (typeof date === 'object' && date.reference === 'circular') {
+      // 处理循环引用
+      return '未知日期';
+    } else {
+      // 尝试转换其他类型
+      d = new Date(date);
+    }
+
+    // 检查日期是否有效
+    if (isNaN(d.getTime())) {
+      return '无效日期';
+    }
+
+    // 提取日期组件
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+
+    // 格式化日期
+    return format
+      .replace('YYYY', year)
+      .replace('MM', month)
+      .replace('DD', day)
+      .replace('HH', hours)
+      .replace('mm', minutes)
+      .replace('ss', seconds);
+  } catch (error) {
+    console.warn('日期格式化失败:', error, { date });
+    return '日期错误';
+  }
 };
 
 /**
@@ -36,34 +67,34 @@ export const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
  */
 export const formatRelativeTime = (date) => {
   if (!date) return '';
-  
+
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
   const diff = now - d;
-  
+
   // 小于1分钟
   if (diff < 60 * 1000) {
     return '刚刚';
   }
-  
+
   // 小于1小时
   if (diff < 60 * 60 * 1000) {
     const minutes = Math.floor(diff / (60 * 1000));
     return `${minutes}分钟前`;
   }
-  
+
   // 小于1天
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000));
     return `${hours}小时前`;
   }
-  
+
   // 小于7天
   if (diff < 7 * 24 * 60 * 60 * 1000) {
     const days = Math.floor(diff / (24 * 60 * 60 * 1000));
     return `${days}天前`;
   }
-  
+
   // 大于7天，返回具体日期
   return formatDate(date, 'YYYY-MM-DD');
 };
@@ -77,7 +108,7 @@ export const getDateRange = (range) => {
   const now = new Date();
   let start = new Date();
   let end = new Date();
-  
+
   switch (range) {
     case 'today':
       start.setHours(0, 0, 0, 0);
@@ -109,7 +140,7 @@ export const getDateRange = (range) => {
     default:
       break;
   }
-  
+
   return {
     start,
     end,
@@ -125,7 +156,7 @@ export const getDateRange = (range) => {
 export const isSameDay = (date1, date2) => {
   const d1 = typeof date1 === 'string' ? new Date(date1) : date1;
   const d2 = typeof date2 === 'string' ? new Date(date2) : date2;
-  
+
   return (
     d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&

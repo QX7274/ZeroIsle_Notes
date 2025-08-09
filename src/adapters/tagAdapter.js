@@ -14,7 +14,7 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  */
 export const toFrontendTag = (tag) => {
   if (!tag) return null;
-  
+
   try {
     return {
       id: tag._id,
@@ -39,7 +39,7 @@ export const toFrontendTag = (tag) => {
  */
 export const toBackendTag = (tag) => {
   if (!tag) return null;
-  
+
   try {
     return {
       _id: tag.id,
@@ -68,7 +68,7 @@ export const createTag = async (tagData, userId) => {
     // 准备标签数据
     const now = new Date();
     const tagId = `tag_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+
     const backendTag = {
       _id: tagId,
       name: tagData.name || '',
@@ -80,10 +80,10 @@ export const createTag = async (tagData, userId) => {
       updated_at: now,
       user_id: userId,
     };
-    
+
     // 创建标签模型
     const tag = await TagModel.create(backendTag);
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
@@ -92,7 +92,7 @@ export const createTag = async (tagData, userId) => {
       data: tag.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端标签对象
     return toFrontendTag(tag);
   } catch (error) {
@@ -111,23 +111,23 @@ export const updateTag = async (tagId, tagData) => {
   try {
     // 查找标签
     const tag = await TagModel.findById(tagId);
-    
+
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
     }
-    
+
     // 更新标签属性
     if (tagData.name !== undefined) tag.name = tagData.name;
     if (tagData.color !== undefined) tag.color = tagData.color;
     if (tagData.count !== undefined) tag.count = tagData.count;
-    
+
     // 更新时间
     tag.updated_at = new Date();
     tag.is_synced = false;
-    
+
     // 保存标签
     await tag.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
@@ -136,7 +136,7 @@ export const updateTag = async (tagId, tagData) => {
       data: tag.toJSON(),
       user_id: tag.user_id,
     });
-    
+
     // 返回前端标签对象
     return toFrontendTag(tag);
   } catch (error) {
@@ -155,11 +155,11 @@ export const deleteTag = async (tagId, permanent = false) => {
   try {
     // 查找标签
     const tag = await TagModel.findById(tagId);
-    
+
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
     }
-    
+
     if (permanent) {
       // 永久删除
       await tag.remove({ soft: false });
@@ -168,7 +168,7 @@ export const deleteTag = async (tagId, permanent = false) => {
       tag.is_deleted = true;
       tag.is_synced = false;
       await tag.save();
-      
+
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: tag._id,
@@ -178,7 +178,7 @@ export const deleteTag = async (tagId, permanent = false) => {
         user_id: tag.user_id,
       });
     }
-    
+
     return true;
   } catch (error) {
     logService.error(`删除标签失败: ${tagId}`, error);
@@ -194,14 +194,31 @@ export const deleteTag = async (tagId, permanent = false) => {
  */
 export const getTags = async (userId, options = {}) => {
   try {
+    // 修改默认排序选项，避免使用count属性（可能不存在）
+    const safeOptions = { ...options };
+    if (safeOptions.sort && safeOptions.sort.count !== undefined) {
+      // 如果排序选项包含count，添加备用排序选项
+      safeOptions.fallbackSort = { name: 1 };
+    }
+
     // 查找标签
-    const tags = await TagModel.findByUser(userId, options);
-    
+    const tags = await TagModel.findByUser(userId, safeOptions);
+
     // 转换为前端标签对象
-    return tags.map(toFrontendTag);
+    const validTags = tags.filter(tag => tag); // 过滤掉null或undefined
+    return validTags.map(tag => {
+      const frontendTag = toFrontendTag(tag);
+      return frontendTag || {
+        id: tag._id || `tag_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+        name: tag.name || '未命名标签',
+        color: tag.color || '#2196F3',
+        count: 0
+      };
+    });
   } catch (error) {
     logService.error('获取标签列表失败', error);
-    throw error;
+    // 返回空数组而不是抛出异常，以提高健壮性
+    return [];
   }
 };
 
@@ -214,11 +231,11 @@ export const getTagById = async (tagId) => {
   try {
     // 查找标签
     const tag = await TagModel.findById(tagId);
-    
+
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
     }
-    
+
     // 转换为前端标签对象
     return toFrontendTag(tag);
   } catch (error) {
@@ -237,7 +254,7 @@ export const getTagByName = async (name, userId) => {
   try {
     // 查找标签
     const tag = await TagModel.findByName(name, userId);
-    
+
     // 转换为前端标签对象
     return tag ? toFrontendTag(tag) : null;
   } catch (error) {
@@ -257,7 +274,7 @@ export const findOrCreateTag = async (name, userId, options = {}) => {
   try {
     // 查找或创建标签
     const tag = await TagModel.findOrCreate(name, userId, options);
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
@@ -266,7 +283,7 @@ export const findOrCreateTag = async (name, userId, options = {}) => {
       data: tag.toJSON(),
       user_id: userId,
     });
-    
+
     // 转换为前端标签对象
     return toFrontendTag(tag);
   } catch (error) {
@@ -285,7 +302,7 @@ export const createBatchTags = async (names, userId) => {
   try {
     // 批量创建标签
     const tags = await TagModel.createBatch(names, userId);
-    
+
     // 添加到同步队列
     for (const tag of tags) {
       await offlineSyncService.addToSyncQueue({
@@ -296,7 +313,7 @@ export const createBatchTags = async (names, userId) => {
         user_id: userId,
       });
     }
-    
+
     // 转换为前端标签对象
     return tags.map(toFrontendTag);
   } catch (error) {
@@ -315,7 +332,7 @@ export const getPopularTags = async (userId, limit = 10) => {
   try {
     // 获取热门标签
     const tags = await TagModel.getPopularTags(userId, limit);
-    
+
     // 转换为前端标签对象
     return tags.map(toFrontendTag);
   } catch (error) {
@@ -333,7 +350,7 @@ export const updateTagCounts = async (userId) => {
   try {
     // 更新标签计数
     await TagModel.updateTagCounts(userId);
-    
+
     return true;
   } catch (error) {
     logService.error('更新标签计数失败', error);

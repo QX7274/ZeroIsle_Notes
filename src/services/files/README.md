@@ -5,7 +5,7 @@
 ## 文件结构
 
 - **realmFileService.js**: Realm文件服务，提供文件在Realm数据库中的CRUD操作
-- **fileService.js**: 原生文件服务，提供文件系统操作功能
+- **fileService.js**: 原生文件服务，提供文件系统操作功能，包括与Firebase存储的集成
 - **index.js**: 文件服务索引，导出所有文件相关服务
 
 ## 主要功能
@@ -30,12 +30,13 @@ Realm文件服务提供以下主要功能：
 - **目录操作**: 创建、读取、删除目录
 - **文件复制移动**: 复制和移动文件
 - **文件删除**: 删除文件
-- **文件信息**: 获取文件信息（大小、修改时间等）
+- **文件元数据**: 获取文件信息（大小、修改时间等）
 - **文件存在检查**: 检查文件是否存在
 - **文件类型检测**: 检测文件类型和MIME类型
 - **文件路径管理**: 管理应用内的文件路径
-- **文件下载上传**: 下载和上传文件
-- **文件分享**: 分享文件
+- **文件下载上传**: 下载文件和上传到Firebase存储
+- **文件分享**: 分享文件到其他应用
+- **进度监控**: 监控文件上传下载进度
 
 ## 文件目录结构
 
@@ -125,12 +126,12 @@ async function getFile(fileId) {
 ### 使用原生文件服务
 
 ```javascript
-import { nativeFileService } from '../../services/files';
+import { fileService } from '../../services/files';
 
 // 读取文件内容
 async function readFileContent(filePath) {
   try {
-    const content = await nativeFileService.readFile(filePath);
+    const content = await fileService.readFile(filePath);
     console.log('文件内容:', content);
     return content;
   } catch (error) {
@@ -142,11 +143,39 @@ async function readFileContent(filePath) {
 // 写入文件内容
 async function writeFileContent(filePath, content) {
   try {
-    await nativeFileService.writeFile(filePath, content);
+    await fileService.writeFile(filePath, content);
     console.log('文件写入成功');
     return true;
   } catch (error) {
     console.error('写入文件失败:', error);
+    return false;
+  }
+}
+
+// 上传文件到Firebase
+async function uploadToFirebase(localPath, remotePath) {
+  try {
+    const downloadUrl = await fileService.uploadFileToFirebase(localPath, remotePath, (progress) => {
+      console.log('上传进度:', Math.round(progress * 100), '%');
+    });
+    console.log('文件上传成功，下载URL:', downloadUrl);
+    return downloadUrl;
+  } catch (error) {
+    console.error('文件上传失败:', error);
+    return null;
+  }
+}
+
+// 从URL下载文件
+async function downloadFile(url, destinationPath) {
+  try {
+    await fileService.downloadFileFromURL(url, destinationPath, (progress) => {
+      console.log('下载进度:', Math.round(progress * 100), '%');
+    });
+    console.log('文件下载成功');
+    return true;
+  } catch (error) {
+    console.error('文件下载失败:', error);
     return false;
   }
 }

@@ -9,12 +9,18 @@ import {
   ActivityIndicator,
   SafeAreaView,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
+import AllInOneToolbar from '../../components/common/AllInOneToolbar';
+import ViewerLayout from '../../components/viewer/ViewerLayout';
+import ToolbarContainer from '../../components/viewer/ToolbarContainer';
+import BackButton from '../../components/viewer/BackButton';
+import PageControl from '../../components/viewer/PageControl';
+import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import PDFViewer from '../../components/viewers/PDFViewer';
-import DocViewer from '../../components/viewers/DocViewer';
+import { PDFViewer as EnhancedPDFViewer, DocViewer as EnhancedDocViewer } from '../../screens/viewers';
 import RNFS from 'react-native-fs';
 import { useNavigation } from '@react-navigation/native';
 
@@ -28,18 +34,19 @@ import { useNavigation } from '@react-navigation/native';
 const FileViewerScreen = ({ route }) => {
   // 获取主题
   const { colors } = useTheme();
-  
+
   // 导航
   const navigation = useNavigation();
-  
+
   // 状态
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fileInfo, setFileInfo] = useState(null);
-  
+  const [isHandwritingMode, setIsHandwritingMode] = useState(false);
+
   // 获取路由参数
   const { uri, name, type } = route.params || {};
-  
+
   // 加载文件信息
   useEffect(() => {
     if (!uri) {
@@ -47,20 +54,59 @@ const FileViewerScreen = ({ route }) => {
       setError('未提供文件路径');
       return;
     }
-    
+
     const loadFileInfo = async () => {
       try {
         setLoading(true);
-        
+        console.log('开始加载文件信息:', uri);
+
+        // 处理文件路径
+        let processedUri = uri;
+        if (processedUri.startsWith('file://')) {
+          processedUri = processedUri.replace('file://', '');
+        } else if (processedUri.startsWith('content://')) {
+          // 对于content:// URI，尝试复制到缓存目录
+          try {
+            const fileName = `file_${Date.now()}.${uri.split('.').pop() || 'tmp'}`;
+            const destPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+            await RNFS.copyFile(uri, destPath);
+            processedUri = destPath;
+            console.log('已将content URI文件复制到:', destPath);
+          } catch (copyError) {
+            console.error('复制content URI文件失败:', copyError);
+            // 如果复制失败，直接使用原始URI
+            processedUri = uri;
+          }
+        }
+        console.log('处理后的文件路径:', processedUri);
+
         // 检查文件是否存在
-        const fileExists = await RNFS.exists(uri);
+        let fileExists;
+        if (processedUri.startsWith('content://')) {
+          // 对于content:// URI，无法直接检查存在性，假设存在
+          fileExists = true;
+        } else {
+          fileExists = await RNFS.exists(processedUri);
+        }
+        console.log('文件是否存在:', fileExists);
         if (!fileExists) {
           throw new Error('文件不存在');
         }
-        
+
         // 获取文件信息
-        const stats = await RNFS.stat(uri);
-        
+        let stats;
+        if (processedUri.startsWith('content://')) {
+          // 对于content:// URI，无法直接获取文件信息，使用默认值
+          stats = {
+            size: 0,
+            name: name || '未命名文件',
+            mtime: new Date()
+          };
+        } else {
+          stats = await RNFS.stat(processedUri);
+        }
+        console.log('文件信息:', stats);
+
         // 确定文件类型
         let fileType = type;
         if (!fileType) {
@@ -76,13 +122,13 @@ const FileViewerScreen = ({ route }) => {
             fileType = 'powerpoint';
           } else if (['txt', 'md'].includes(extension)) {
             fileType = 'text';
-          } else if (['jpg', 'jpeg', 'png', 'gif'].includes(extension)) {
+          } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extension)) {
             fileType = 'image';
           } else {
             fileType = 'unknown';
           }
         }
-        
+
         // 设置文件信息
         setFileInfo({
           uri,
@@ -91,7 +137,7 @@ const FileViewerScreen = ({ route }) => {
           type: fileType,
           lastModified: stats.mtime,
         });
-        
+
         setLoading(false);
       } catch (err) {
         console.error('加载文件信息错误:', err);
@@ -99,22 +145,80 @@ const FileViewerScreen = ({ route }) => {
         setLoading(false);
       }
     };
-    
+
     loadFileInfo();
   }, [uri, name, type]);
-  
+
+  // 切换手写模式
+  const toggleHandwritingMode = () => {
+    setIsHandwritingMode(!isHandwritingMode);
+  };
+
   // 渲染文件查看器
   const renderFileViewer = () => {
     if (!fileInfo) return null;
-    
+
     switch (fileInfo.type) {
       case 'pdf':
-        return <PDFViewer route={{ params: fileInfo }} />;
+        console.log('渲染PDF查看器:', {
+          uri: fileInfo.uri,
+          name: fileInfo.name,
+          size: fileInfo.size,
+          noteId: route.params.noteId
+        });
         
+        // 检查文件大小
+        if (fileInfo.size === 0) {
+          return (
+            <View style={styles.errorContainer}>
+              <Icon name="error-outline" size={48} color={colors.error} />
+              <Text
+                variant="body"
+                size="medium"
+                style={{ marginTop: 16, color: colors.error }}
+              >
+                PDF文件大小为0，可能已损坏
+              </Text>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                onPress={() => navigation.goBack()}
+              >
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={{ color: colors.onPrimary }}
+                >
+                  返回
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
+        return (
+          <View style={styles.pdfContainer}>
+            <EnhancedPDFViewer 
+              route={{ 
+                params: {
+                  uri: fileInfo.uri,
+                  title: fileInfo.name,
+                  noteId: route.params.noteId,
+                  isHandwritingMode
+                }
+              }} 
+            />
+          </View>
+        );
+
       case 'doc':
       case 'docx':
-        return <DocViewer route={{ params: fileInfo }} />;
-        
+        return <EnhancedDocViewer route={{ params: {
+          uri: fileInfo.uri,
+          title: fileInfo.name,
+          noteId: route.params.noteId,
+          isHandwritingMode
+        }}} />;
+
       case 'image':
         // 图片查看器
         return (
@@ -141,7 +245,7 @@ const FileViewerScreen = ({ route }) => {
             </TouchableOpacity>
           </View>
         );
-        
+
       default:
         // 不支持的文件类型
         return (
@@ -177,7 +281,7 @@ const FileViewerScreen = ({ route }) => {
         );
     }
   };
-  
+
   // 如果正在加载，显示加载指示器
   if (loading) {
     return (
@@ -195,7 +299,7 @@ const FileViewerScreen = ({ route }) => {
       </SafeAreaView>
     );
   }
-  
+
   // 如果有错误，显示错误信息
   if (error) {
     return (
@@ -225,11 +329,22 @@ const FileViewerScreen = ({ route }) => {
       </SafeAreaView>
     );
   }
-  
+
   // 渲染文件查看器
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {renderFileViewer()}
+      <AllInOneToolbar
+        mode="file-viewer"
+        fileType={fileInfo?.type}
+        isHandwritingMode={isHandwritingMode}
+        onHandwritingToggle={() => setIsHandwritingMode(!isHandwritingMode)}
+        onClose={() => navigation.goBack()}
+      />
+      <View style={styles.contentContainer}>
+        {renderFileViewer()}
+        {/* 全局轻量手写覆盖层（仅触控笔激活） */}
+        <GlobalStylusOverlay />
+      </View>
     </SafeAreaView>
   );
 };
@@ -237,6 +352,10 @@ const FileViewerScreen = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    marginTop: 56, // 为工具栏留出空间
   },
   loadingContainer: {
     flex: 1,
@@ -260,6 +379,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
+  },
+  pdfContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'relative',
   },
 });
 

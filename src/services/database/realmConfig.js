@@ -26,8 +26,9 @@ export const getRealmConfig = () => {
   // 基本配置 - 不使用同步功能
   const config = {
     schema: getAllSchemas(),
-    schemaVersion: 2, // 增加版本号，因为我们更新了模型定义
+    schemaVersion: 4, // 增加版本号，因为我们更新了模型定义
     path: `${MONGODB_CONFIG.dbName}.realm`,
+    deleteRealmIfMigrationNeeded: true, // 如果迁移失败，删除旧的Realm文件并创建新的
     migration: (oldRealm, newRealm) => {
       // 处理架构迁移
       console.info('执行Realm架构迁移', {
@@ -42,6 +43,24 @@ export const getRealmConfig = () => {
 
         // 这里可以添加数据迁移逻辑
         // 例如：添加新字段的默认值，转换数据格式等
+      }
+
+      if (oldRealm.schemaVersion < 3) {
+        // 从版本2迁移到版本3
+        console.info('从版本2迁移到版本3 - 将_id字段从ObjectId类型改为字符串类型');
+
+        // 由于我们将_id字段从ObjectId类型改为字符串类型，
+        // 这里不需要特殊的迁移逻辑，因为ObjectId可以自动转换为字符串
+      }
+
+      if (oldRealm.schemaVersion < 4) {
+        // 从版本3迁移到版本4
+        console.info('从版本3迁移到版本4 - 处理主键添加问题');
+
+        // 由于主键添加问题，我们使用deleteRealmIfMigrationNeeded选项
+        // 这将删除旧的Realm文件并创建新的，而不是尝试迁移数据
+        // 这意味着所有本地数据将被重置，但这是最简单的解决方案
+        console.info('使用deleteRealmIfMigrationNeeded选项，将删除旧的Realm文件并创建新的');
       }
     },
   };

@@ -433,7 +433,10 @@ apiClient.interceptors.response.use(
           const skipAuthPaths = [
             '/mind-map/',
             '/knowledge-graph/',
-            '/ai-assistant/'
+            '/ai-assistant/',
+            '/groups/',
+            '/group-invitations/',
+            '/group-members/'
           ];
 
           const shouldSkipAuth = skipAuthPaths.some(path => error.config.url && error.config.url.includes(path));

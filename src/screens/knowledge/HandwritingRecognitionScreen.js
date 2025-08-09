@@ -82,6 +82,7 @@ const HandwritingRecognitionScreen = ({ navigation, route, styles, colors }) => 
   // 手势处理
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (event) => {
+      'worklet';
       const newPath = {
         id: Date.now().toString(),
         color: strokeColor,
@@ -91,6 +92,7 @@ const HandwritingRecognitionScreen = ({ navigation, route, styles, colors }) => 
       runOnJS(setCurrentPath)(newPath);
     },
     onActive: (event) => {
+      'worklet';
       if (currentPath) {
         runOnJS(setCurrentPath)({
           ...currentPath,
@@ -99,6 +101,7 @@ const HandwritingRecognitionScreen = ({ navigation, route, styles, colors }) => 
       }
     },
     onEnd: () => {
+      'worklet';
       if (currentPath) {
         runOnJS(setPaths)([...paths, currentPath]);
         runOnJS(setCurrentPath)(null);

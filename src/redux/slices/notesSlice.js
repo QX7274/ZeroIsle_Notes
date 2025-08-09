@@ -4,12 +4,53 @@
 
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
 import notesApi from '../../services/api/notesApi';
-import { offlineStorageService } from '../../services/offline';
+// 验证notesApi是否正确导入
+if (!notesApi) {
+  console.error('notesApi导入失败，请检查文件路径和导出');
+}
+import { offlineStorageService } from '../../services/offline/offlineStorageService';
 
 // 创建实体适配器，用于规范化状态
 const notesAdapter = createEntityAdapter({
-  selectId: (note) => note.id,
-  sortComparer: (a, b) => b.updated_at.localeCompare(a.updated_at), // 按更新时间降序排序
+  // 改进的selectId实现，同时支持id和_id字段
+  selectId: (note) => {
+    // 防止note为null或undefined
+    if (!note) {
+      console.warn('selectId收到无效的note对象:', note);
+      return `invalid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+    // 优先使用_id字段（MongoDB/Realm标准）
+    if (note._id !== undefined) {
+      return typeof note._id === 'object' ? note._id.toString() : String(note._id);
+    }
+
+    // 其次使用id字段
+    if (note.id !== undefined) {
+      return typeof note.id === 'object' ? note.id.toString() : String(note.id);
+    }
+
+    // 如果都没有，生成一个临时ID
+    console.warn('笔记对象既没有_id也没有id字段:', note);
+    return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  },
+  // 改进的排序比较器，处理可能的无效日期
+  sortComparer: (a, b) => {
+    // 防止a或b为null或undefined
+    if (!a || !b) return 0;
+
+    // 获取更新时间，如果不存在则使用创建时间，如果都不存在则使用当前时间
+    const aDate = a.updated_at || a.created_at || new Date().toISOString();
+    const bDate = b.updated_at || b.created_at || new Date().toISOString();
+
+    // 安全地比较日期字符串
+    try {
+      return bDate.localeCompare(aDate); // 按更新时间降序排序
+    } catch (error) {
+      console.warn('日期比较失败:', error, { a, b });
+      return 0; // 保持原有顺序
+    }
+  },
 });
 
 // 异步Action: 获取笔记列表
@@ -436,12 +477,59 @@ const notesSlice = createSlice({
       })
       .addCase(fetchNotes.fulfilled, (state, action) => {
         state.isLoading = false;
-        notesAdapter.setAll(state, action.payload.notes);
-        state.pagination = {
-          page: action.payload.page,
-          totalPages: action.payload.total_pages,
-          totalItems: action.payload.total_items,
+
+        // 处理各种可能的响应格式
+        let notes = [];
+        let pagination = {
+          page: 1,
+          totalPages: 1,
+          totalItems: 0
         };
+
+        try {
+          // 检查响应格式
+          if (action.payload) {
+            // 如果响应包含data字段（新API格式）
+            if (action.payload.data) {
+              notes = Array.isArray(action.payload.data) ? action.payload.data : [action.payload.data];
+
+              // 提取分页信息
+              pagination = {
+                page: action.payload.page || 1,
+                totalPages: action.payload.total_pages || 1,
+                totalItems: action.payload.total_items || notes.length
+              };
+            }
+            // 如果响应包含notes字段（旧API格式）
+            else if (action.payload.notes) {
+              notes = Array.isArray(action.payload.notes) ? action.payload.notes : [action.payload.notes];
+
+              // 提取分页信息
+              pagination = {
+                page: action.payload.page || 1,
+                totalPages: action.payload.total_pages || 1,
+                totalItems: action.payload.total_items || notes.length
+              };
+            }
+            // 如果响应本身就是数组
+            else if (Array.isArray(action.payload)) {
+              notes = action.payload;
+            }
+          }
+
+          // 过滤掉无效的笔记（没有id或_id的笔记）
+          notes = notes.filter(note => note && (note.id || note._id));
+
+          console.log(`处理了${notes.length}条有效笔记`);
+
+          // 更新状态
+          notesAdapter.setAll(state, notes);
+          state.pagination = pagination;
+          state.pagination.totalItems = notes.length; // 确保totalItems与实际笔记数量一致
+        } catch (error) {
+          console.error('处理笔记响应失败:', error);
+          // 出错时不更新状态，保持现有笔记
+        }
       })
       .addCase(fetchNotes.rejected, (state, action) => {
         state.isLoading = false;

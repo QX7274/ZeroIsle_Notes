@@ -13,8 +13,9 @@ import {
   PermissionsAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { Text } from '../common/Typography';
-import { Button, Toast } from '../common';
+import Typography from '../common/Typography';
+import Button from '../common/Button';
+import Toast from '../common/Toast';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Canvas } from '@shopify/react-native-skia';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -490,23 +491,23 @@ const HandwritingRecognizer = ({
       {isOffline && (
         <View style={[styles.offlineBar, { backgroundColor: colors.warning + '20' }]}>
           <Icon name="cloud-off" size={16} color={colors.warning} />
-          <Text
+          <Typography.Text
             variant="caption"
             color="warning"
             style={styles.offlineText}
           >
             离线模式下无法进行手写识别
-          </Text>
+          </Typography.Text>
         </View>
       )}
 
-      <Text
+      <Typography.Text
         variant="body"
         size="medium"
         style={styles.title}
       >
         {recognizeShape ? '手写形状识别' : '手写文字识别'}
-      </Text>
+      </Typography.Text>
 
       <GestureDetector gesture={panGesture}>
         {renderCanvas()}

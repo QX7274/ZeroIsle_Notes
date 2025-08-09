@@ -93,12 +93,26 @@ const configureAppStore = () => {
     console.error('错误详情:', error.message);
     console.error('错误堆栈:', error.stack);
 
-    // 创建一个简单的store作为备选
+    // 创建包含基本功能的备用store，确保关键reducer可用
+    console.error('创建完整store失败，使用包含基本功能的备用store');
     const fallbackStore = configureStore({
       reducer: {
-        fallback: (state = { initialized: true }, action) => state
-      }
+        notes: notesReducer,
+        auth: authReducer,
+        settings: settingsReducer,
+        fallback: (state = { initialized: true, error: error.message }, action) => state
+      },
+      middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware({
+          serializableCheck: false,
+          immutableCheck: false,
+        }),
+      devTools: __DEV__
     });
+    
+    // 记录错误详情以便调试
+    console.error('store创建失败原因:', error);
+    console.error('错误堆栈:', error.stack);;
 
     console.log('redux/store.js: 创建备选store成功');
 

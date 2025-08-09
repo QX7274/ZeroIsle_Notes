@@ -5,10 +5,10 @@ import {
   CanvasToolbar,
   StyleEditor,
   LayerManager,
-  DrawingToolbar,
   InfiniteCanvasAdapter,
   InfiniteDrawingCanvas
 } from '../../components/canvas';
+import { AllInOneToolbar } from '../../components/common';
 import { offlineStorageService } from '../../services/offline';
 import analyticsService from '../../services/analytics/analyticsService';
 import canvasApi from '../../services/api/canvasApi';
@@ -361,7 +361,7 @@ const CanvasScreen = ({ navigation, route }) => {
 
         {/* 绘图工具栏 */}
         {showDrawingTools && (
-          <DrawingToolbar
+          <AllInOneToolbar
             onToolChange={drawingCanvas().handleToolChange}
             onColorChange={drawingCanvas().handleColorChange}
             onStrokeWidthChange={drawingCanvas().handleStrokeWidthChange}

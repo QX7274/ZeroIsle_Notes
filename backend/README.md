@@ -408,7 +408,7 @@ backend/
 7. **运行开发服务器**
    ```bash
    cd backend
-   python manage.py runserver
+   python manage.py runserver 0.0.0.0:8000
    ```
 
 8. **访问Django管理后台**

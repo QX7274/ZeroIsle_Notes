@@ -62,18 +62,66 @@ class NoteService {
     try {
       await this.initialize();
 
-      // 添加创建时间和更新时间
       const now = new Date();
+
+      // 严格遵循Note schema定义
       const note = {
-        ...noteData,
+        _id: noteData._id || new Realm.BSON.ObjectId(),
+        title: String(noteData.title || ''),
+        content: String(noteData.content || ''),
+        type: String(noteData.type || 'text'),
+        // 确保tags是字符串数组
+        tags: Array.isArray(noteData.tags) ? noteData.tags.map(tag => String(tag)) : [],
+        category_id: noteData.category_id ? new Realm.BSON.ObjectId(noteData.category_id) : null,
+        is_deleted: Boolean(noteData.is_deleted || false),
         created_at: now,
         updated_at: now,
-        is_deleted: false,
-        is_synced: networkService.isOnline(), // 如果在线，标记为已同步
+        is_synced: Boolean(noteData.is_synced || networkService.isOnline()),
+        user_id: noteData.user_id ? new Realm.BSON.ObjectId(noteData.user_id) : null,
+
+        // 文件相关字段严格匹配schema
+        file_path: noteData.file_uri ? String(noteData.file_uri) :
+                  noteData.file_path ? String(noteData.file_path) :
+                  noteData.path ? String(noteData.path) :
+                  noteData.uri ? String(noteData.uri) : null,
+
+        file_type: noteData.file_type ? String(noteData.file_type) :
+                  noteData.type ? String(noteData.type) : null,
+
+        // metadata必须是字符串类型
+        metadata: typeof noteData.metadata === 'object' ?
+                JSON.stringify(noteData.metadata) :
+                typeof noteData.metadata === 'string' ?
+                noteData.metadata : '{}'
       };
 
+      // 只保留schema中定义的字段
+      const schemaFields = [
+        '_id', 'title', 'content', 'type', 'tags', 'category_id',
+        'is_deleted', 'created_at', 'updated_at', 'is_synced',
+        'user_id', 'file_path', 'file_type', 'metadata'
+      ];
+
+      const finalNote = {};
+      for (const field of schemaFields) {
+        if (note[field] !== undefined) {
+          // 严格类型检查
+          if (field === 'file_path' || field === 'file_uri') {
+            finalNote[field] = String(note[field] || '');
+          } else {
+            finalNote[field] = note[field];
+          }
+        }
+      }
+
+      // 调试日志
+      logService.debug('准备创建Note对象', {
+        data: finalNote,
+        types: Object.entries(finalNote).map(([k, v]) => [k, typeof v])
+      });
+
       // 使用优化的创建方法
-      const createdNote = await createDocument('Note', note);
+      const createdNote = await createDocument('Note', finalNote);
 
       // 如果在线，同步到服务器
       if (networkService.isOnline()) {

@@ -719,6 +719,24 @@ class DataService {
   }
 
   /**
+   * 删除笔记
+   * @param {string} id 笔记ID
+   * @param {Object} options 选项
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async deleteNote(id, options = {}) {
+    try {
+      await this.initialize();
+
+      // 调用通用的delete方法，使用'Note'作为集合名称
+      return await this.delete('Note', id, options);
+    } catch (error) {
+      console.error(`删除笔记失败: ${id}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 同步笔记
    * @param {Array} serverNotes 服务器笔记列表
    * @returns {Promise<boolean>} 是否成功

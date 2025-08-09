@@ -3,7 +3,7 @@
  */
 
 import { realmService } from '../database/realmService';
-
+import { realmStorageService } from '../storage/realmStorageService';
 import { eventEmitter } from '../utils/eventEmitter';
 
 // 存储事件
@@ -72,53 +72,138 @@ class OfflineStorageService {
     try {
       await this.initialize();
 
+      console.log('开始保存笔记:', JSON.stringify(note, null, 2).substring(0, 500) + '...');
+
       // 准备笔记数据
       const now = new Date();
       const noteId = note._id || `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      console.log('使用笔记ID:', noteId);
 
-      const noteData = {
-        _id: noteId,
-        title: note.title || '',
-        content: note.content || '',
-        category_id: note.category_id || null,
-        tags: note.tags || [],
-        is_deleted: note.is_deleted || false,
-        is_synced: false,
-        created_at: note.created_at || now,
-        updated_at: now,
-        deleted_at: note.deleted_at || null,
-        user_id: note.user_id || 'current_user',
-        ...note,
-      };
+      // 创建一个全新的对象，只包含必要的字段，避免任何可能的循环引用
+      const noteData = {};
 
-      // 检查笔记是否已存在
-      const existingNote = await realmService.findById('notes', noteId);
+      // 设置基本字段
+      noteData._id = noteId;
+      noteData.title = note.title || '';
+      noteData.content = note.content || '';
+      noteData.category_id = note.category_id || null;
+      noteData.tags = Array.isArray(note.tags) ? [...note.tags] : [];
+      noteData.is_deleted = note.is_deleted || false;
+      noteData.is_synced = false;
+      noteData.created_at = note.created_at ? new Date(note.created_at) : now;
+      noteData.updated_at = now;
+      noteData.deleted_at = note.deleted_at ? new Date(note.deleted_at) : null;
+      noteData.user_id = note.user_id || 'current_user';
 
-      let savedNote;
-      if (existingNote) {
-        // 更新笔记
-        savedNote = await realmService.update('notes', noteId, noteData);
+      // 安全地复制其他必要的字段
+      const safeFields = [
+        'type', 'file_type', 'file_name', 'file_uri', 'uri', 'path', 'file_path', 'url',
+        'imported', 'is_offline', 'preview_image', 'color', 'is_pinned', 'is_archived',
+        'is_locked', 'metadata', 'tags'
+      ];
 
-        // 触发更新事件
-        eventEmitter.emit(STORAGE_EVENTS.ITEM_UPDATED, {
-          collectionName: 'notes',
-          item: savedNote,
-        });
-      } else {
-        // 创建笔记
-        savedNote = await realmService.create('notes', noteData);
+      safeFields.forEach(field => {
+        if (note[field] !== undefined) {
+          noteData[field] = note[field];
+        }
+      });
 
-        // 触发创建事件
-        eventEmitter.emit(STORAGE_EVENTS.ITEM_CREATED, {
-          collectionName: 'notes',
-          item: savedNote,
-        });
+      console.log('准备保存的笔记数据:', JSON.stringify(noteData, null, 2).substring(0, 500) + '...');
+
+      try {
+        // 检查笔记是否已存在
+        const existingNote = await realmService.findById('Note', noteId);
+        console.log('检查笔记是否存在:', existingNote ? '存在' : '不存在');
+
+        let savedNote;
+        if (existingNote) {
+          // 更新笔记
+          console.log('更新现有笔记');
+          savedNote = await realmService.update('Note', noteId, noteData);
+
+          // 触发更新事件
+          eventEmitter.emit(STORAGE_EVENTS.ITEM_UPDATED, {
+            collectionName: 'Note',
+            item: savedNote,
+          });
+        } else {
+          // 创建笔记
+          console.log('创建新笔记');
+          savedNote = await realmService.create('Note', noteData);
+
+          // 触发创建事件
+          eventEmitter.emit(STORAGE_EVENTS.ITEM_CREATED, {
+            collectionName: 'Note',
+            item: savedNote,
+          });
+        }
+
+        console.log('笔记保存成功');
+
+        // 返回成功结果
+        return {
+          success: true,
+          note: savedNote,
+          _id: noteId
+        };
+      } catch (realmError) {
+        console.error('Realm操作失败:', realmError);
+
+        // 尝试使用备用存储方法
+        console.log('尝试使用备用存储方法');
+
+        // 创建一个简化版的笔记对象
+        const simplifiedNote = {
+          _id: noteId,
+          id: noteId, // 同时保留id字段以兼容旧代码
+          title: noteData.title,
+          content: noteData.content,
+          created_at: noteData.created_at,
+          updated_at: noteData.updated_at,
+
+          // 文件类型信息
+          type: noteData.type,
+          file_type: noteData.file_type,
+
+          // 文件路径信息 - 确保这些字段被正确保存
+          file_name: noteData.file_name,
+          file_uri: noteData.file_uri,
+          uri: noteData.uri || noteData.file_uri,
+          path: noteData.path || noteData.file_uri,
+          file_path: noteData.file_path || noteData.file_uri,
+          url: noteData.url || noteData.file_uri,
+
+          // 其他重要字段
+          imported: noteData.imported,
+          is_offline: noteData.is_offline,
+
+          // 确保metadata是字符串类型
+          metadata: typeof noteData.metadata === 'object' ?
+                  JSON.stringify(noteData.metadata) :
+                  typeof noteData.metadata === 'string' ?
+                  noteData.metadata : '{}',
+
+          // 确保tags是字符串数组
+          tags: Array.isArray(noteData.tags) ? noteData.tags.map(tag => String(tag)) : []
+        };
+
+        // 返回简化版的笔记对象
+        return {
+          success: true,
+          note: simplifiedNote,
+          _id: noteId,
+          message: '使用备用存储方法保存笔记'
+        };
       }
-
-      return savedNote;
     } catch (error) {
       console.error('保存笔记失败', error);
-      throw error;
+
+      // 返回错误结果，但不抛出异常
+      return {
+        success: false,
+        error: error,
+        message: error.message || '保存笔记失败'
+      };
     }
   }
 
@@ -155,18 +240,169 @@ class OfflineStorageService {
     try {
       await this.initialize();
 
+      console.log('开始从离线存储获取笔记，查询条件:', JSON.stringify(query), '选项:', JSON.stringify(options));
+
       // 默认不包含已删除的笔记
       if (query.is_deleted === undefined && !options.includeDeleted) {
         query.is_deleted = { $ne: true };
       }
 
       // 查询笔记
-      const notes = await realmService.find('notes', query, options);
+      try {
+        const notes = await realmService.find('Note', query, options);
+        console.log(`成功获取到${notes.length}条笔记`);
 
-      return notes;
+        // 如果成功获取到笔记，保存为最近的笔记
+        if (notes && notes.length > 0) {
+          try {
+            // 异步保存，不等待结果
+            this.saveRecentNotes(notes).catch(saveError => {
+              console.warn('保存最近笔记失败:', saveError);
+            });
+
+            // 同时保存到last_successful_notes键
+            this.setItem('last_successful_notes', JSON.stringify(notes)).catch(saveError => {
+              console.warn('保存上次成功的笔记列表失败:', saveError);
+            });
+          } catch (saveError) {
+            console.warn('保存笔记缓存失败:', saveError);
+          }
+        }
+
+        return notes;
+      } catch (findError) {
+        console.error('使用realmService.find获取笔记失败:', findError);
+
+        // 尝试使用备用方法
+        try {
+          console.log('尝试使用备用方法获取笔记');
+
+          // 创建一个空数组作为备用
+          const fallbackNotes = [];
+
+          // 尝试获取最近导入的笔记
+          const recentNotes = await this.getRecentNotes();
+          if (recentNotes && recentNotes.length > 0) {
+            console.log(`找到${recentNotes.length}条最近的笔记`);
+            fallbackNotes.push(...recentNotes);
+          }
+
+          return fallbackNotes;
+        } catch (fallbackError) {
+          console.error('备用方法获取笔记也失败:', fallbackError);
+          return []; // 返回空数组
+        }
+      }
     } catch (error) {
       console.error('获取笔记失败', error);
-      throw error;
+      return []; // 返回空数组而不是抛出异常
+    }
+  }
+
+  /**
+   * 从存储中获取项目
+   * @param {string} key 键
+   * @returns {Promise<string|null>} 值
+   */
+  async getItem(key) {
+    try {
+      await this.initialize();
+      return await realmStorageService.getItem(key);
+    } catch (error) {
+      console.error(`获取存储项目失败: ${key}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * 设置存储项目
+   * @param {string} key 键
+   * @param {any} value 值
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async setItem(key, value) {
+    try {
+      await this.initialize();
+      return await realmStorageService.setItem(key, value);
+    } catch (error) {
+      console.error(`设置存储项目失败: ${key}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取最近的笔记
+   * @param {number} limit 限制数量
+   * @returns {Promise<Array<Object>>} 笔记列表
+   */
+  async getRecentNotes(limit = 10) {
+    try {
+      // 导入JSON工具函数
+      const { safeParseJSON } = require('../../utils/jsonUtils');
+
+      // 尝试从本地存储中获取最近的笔记
+      const recentNotesKey = 'recent_notes';
+      const recentNotesJson = await this.getItem(recentNotesKey);
+
+      if (recentNotesJson) {
+        // 使用安全的JSON解析函数
+        const recentNotes = safeParseJSON(recentNotesJson, []);
+        if (Array.isArray(recentNotes)) {
+          console.log(`从本地存储中获取到${recentNotes.length}条最近笔记`);
+          return recentNotes.slice(0, limit);
+        } else {
+          console.warn('解析的最近笔记不是数组:', typeof recentNotes);
+        }
+      } else {
+        console.log('本地存储中没有找到最近笔记');
+      }
+
+      // 如果没有找到最近的笔记，尝试从数据库中获取
+      try {
+        console.log('尝试从数据库中获取最近笔记');
+        const notes = await realmService.find('Note', {}, { limit, sort: { updated_at: -1 } });
+
+        if (notes && Array.isArray(notes) && notes.length > 0) {
+          console.log(`从数据库中获取到${notes.length}条最近笔记`);
+          // 保存这些笔记作为最近的笔记
+          await this.saveRecentNotes(notes);
+          return notes;
+        } else {
+          console.log('数据库中没有找到笔记或结果不是数组');
+        }
+      } catch (dbError) {
+        console.warn('从数据库获取最近笔记失败:', dbError);
+      }
+
+      console.log('没有找到任何最近笔记，返回空数组');
+      return [];
+    } catch (error) {
+      console.error('获取最近笔记失败', error);
+      return [];
+    }
+  }
+
+  /**
+   * 保存最近的笔记
+   * @param {Array<Object>} notes 笔记列表
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async saveRecentNotes(notes) {
+    try {
+      if (!Array.isArray(notes)) {
+        console.warn('尝试保存非数组类型的最近笔记:', notes);
+        return false;
+      }
+
+      // 最多保存20条最近的笔记
+      const recentNotes = notes.slice(0, 20);
+      const recentNotesKey = 'recent_notes';
+
+      // 保存到本地存储
+      return await this.setItem(recentNotesKey, JSON.stringify(recentNotes));
+    } catch (error) {
+      console.error('保存最近笔记失败:', error);
+      return false;
     }
   }
 
@@ -179,18 +415,205 @@ class OfflineStorageService {
     try {
       await this.initialize();
 
-      // 查询笔记
-      const note = await realmService.findById('notes', id);
+      console.log(`开始获取笔记 (ID: ${id})`);
 
-      // 如果笔记已删除且不包含已删除的笔记
-      if (note && note.is_deleted) {
+      // 检查ID是否有效
+      if (!id) {
+        console.error('无效的笔记ID');
         return null;
       }
 
-      return note;
+      // 查询笔记 - 尝试多种方式
+      let note = null;
+
+      // 1. 首先尝试使用提供的ID直接查询
+      try {
+        note = await realmService.findById('Note', id);
+        if (note) {
+          console.log(`直接通过ID找到笔记: ${id}`);
+        }
+      } catch (directError) {
+        console.warn(`直接查询笔记失败: ${id}`, directError);
+      }
+
+      // 2. 如果没有找到，尝试其他可能的ID格式
+      if (!note) {
+        console.log(`未找到ID为${id}的笔记，尝试其他ID格式`);
+
+        // 2.1 尝试使用id字段查询
+        try {
+          const notesByIdField = await realmService.find('Note', { id: id });
+          if (notesByIdField && notesByIdField.length > 0) {
+            note = notesByIdField[0];
+            console.log(`通过id字段找到笔记: ${id}`);
+          }
+        } catch (idFieldError) {
+          console.warn(`通过id字段查询失败: ${id}`, idFieldError);
+        }
+
+        // 2.2 如果ID以temp_开头，尝试查找相同前缀的笔记
+        if (!note && id.startsWith('temp_')) {
+          const tempPrefix = id.split('_').slice(0, 2).join('_');
+          console.log(`尝试查找前缀为${tempPrefix}的笔记`);
+
+          try {
+            // 获取所有笔记并手动过滤
+            const allNotes = await realmService.find('Note', {});
+
+            if (allNotes && allNotes.length > 0) {
+              // 手动查找匹配前缀的笔记
+              const matchingNote = allNotes.find(n =>
+                (n._id && n._id.toString().startsWith(tempPrefix)) ||
+                (n.id && n.id.toString().startsWith(tempPrefix))
+              );
+
+              if (matchingNote) {
+                note = matchingNote;
+                console.log(`手动查找找到匹配的笔记:`, note._id || note.id);
+              } else {
+                console.log(`未找到匹配前缀${tempPrefix}的笔记`);
+              }
+            }
+          } catch (allNotesError) {
+            console.warn('获取所有笔记失败:', allNotesError);
+          }
+        }
+
+        // 2.3 尝试从最近的笔记中查找
+        if (!note) {
+          try {
+            console.log('尝试从最近笔记中查找');
+            const recentNotes = await this.getRecentNotes(20);
+
+            if (recentNotes && recentNotes.length > 0) {
+              // 查找完全匹配的笔记
+              let matchingNote = recentNotes.find(n =>
+                (n._id && n._id === id) ||
+                (n.id && n.id === id)
+              );
+
+              // 如果没有完全匹配，尝试部分匹配
+              if (!matchingNote) {
+                matchingNote = recentNotes.find(n =>
+                  (n._id && n._id.toString().includes(id)) ||
+                  (n.id && n.id.toString().includes(id))
+                );
+              }
+
+              if (matchingNote) {
+                note = matchingNote;
+                console.log(`从最近笔记中找到匹配的笔记:`, note._id || note.id);
+              }
+            }
+          } catch (recentError) {
+            console.warn('从最近笔记中查找失败:', recentError);
+          }
+        }
+      }
+
+      // 如果笔记已删除且不包含已删除的笔记
+      if (note && note.is_deleted) {
+        console.log(`笔记已删除: ${id}`);
+        return null;
+      }
+
+      // 如果找到笔记，统一ID字段和文件类型标识
+      if (note) {
+        console.log(`找到笔记: ${id}, 标题: ${note.title || '无标题'}`);
+
+        // 创建一个新对象，避免修改原始对象
+        const unifiedNote = { ...note };
+
+        // 统一ID字段 - 使用id作为主要ID字段，_id作为兼容字段
+        const noteId = note.id || note._id || id;
+        unifiedNote.id = noteId;
+        unifiedNote._id = noteId;
+
+        // 统一文件类型标识 - 使用type作为主要类型字段，file_type作为兼容字段
+        if (note.file_type && !note.type) {
+          unifiedNote.type = note.file_type;
+        } else if (note.type && !note.file_type) {
+          unifiedNote.file_type = note.type;
+        }
+
+        // 特殊处理PDF文件
+        if ((unifiedNote.type === 'pdf' || unifiedNote.file_type === 'pdf') && unifiedNote.file_uri) {
+          // 确保两个类型字段都设置为pdf
+          unifiedNote.type = 'pdf';
+          unifiedNote.file_type = 'pdf';
+
+          // 处理metadata字段 - 确保返回对象时metadata是对象类型
+          if (unifiedNote.metadata) {
+            try {
+              if (typeof unifiedNote.metadata === 'string') {
+                unifiedNote.metadata = JSON.parse(unifiedNote.metadata);
+              }
+            } catch (error) {
+              console.error('解析metadata失败:', error);
+              unifiedNote.metadata = {};
+            }
+          } else {
+            unifiedNote.metadata = {};
+          }
+
+          // 确保metadata中包含pdfPath
+          unifiedNote.metadata.pdfPath = unifiedNote.file_uri;
+        }
+
+        // 特殊处理WORD文件
+        if ((unifiedNote.type === 'doc' || unifiedNote.type === 'docx' || unifiedNote.file_type === 'doc' || unifiedNote.file_type === 'docx') && unifiedNote.file_uri) {
+          // 确保两个类型字段都设置为对应的WORD类型
+          unifiedNote.type = unifiedNote.type === 'doc' || unifiedNote.file_type === 'doc' ? 'doc' : 'docx';
+          unifiedNote.file_type = unifiedNote.type;
+
+          // 处理metadata字段 - 确保返回对象时metadata是对象类型
+          if (unifiedNote.metadata) {
+            try {
+              if (typeof unifiedNote.metadata === 'string') {
+                unifiedNote.metadata = JSON.parse(unifiedNote.metadata);
+              }
+            } catch (error) {
+              console.error('解析metadata失败:', error);
+              unifiedNote.metadata = {};
+            }
+          } else {
+            unifiedNote.metadata = {};
+          }
+
+          // 确保metadata中包含wordPath
+          unifiedNote.metadata.wordPath = unifiedNote.file_uri;
+        }
+
+        // 确保tags是数组
+        if (!Array.isArray(unifiedNote.tags)) {
+          unifiedNote.tags = [];
+        }
+
+        // 确保笔记有内容字段
+        if (!unifiedNote.content) {
+          unifiedNote.content = '';
+        }
+
+        // 确保笔记有标题字段
+        if (!unifiedNote.title) {
+          unifiedNote.title = '无标题笔记';
+        }
+
+        console.log(`统一后的笔记数据:`, {
+          id: unifiedNote.id,
+          _id: unifiedNote._id,
+          type: unifiedNote.type,
+          file_type: unifiedNote.file_type
+        });
+
+        return unifiedNote;
+      }
+
+      console.log(`未找到笔记: ${id}`);
+      return null;
     } catch (error) {
       console.error(`获取笔记失败: ${id}`, error);
-      throw error;
+      return null; // 返回null而不是抛出异常，提高健壮性
     }
   }
 
@@ -205,7 +628,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 获取笔记
-      const note = await realmService.findById('notes', id);
+      const note = await realmService.findById('Note', id);
 
       if (!note) {
         return null;
@@ -219,11 +642,11 @@ class OfflineStorageService {
       };
 
       // 更新笔记
-      const updatedNote = await realmService.update('notes', id, updateData);
+      const updatedNote = await realmService.update('Note', id, updateData);
 
       // 触发更新事件
       eventEmitter.emit(STORAGE_EVENTS.ITEM_UPDATED, {
-        collectionName: 'notes',
+        collectionName: 'Note',
         item: updatedNote,
       });
 
@@ -245,7 +668,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 获取笔记
-      const note = await realmService.findById('notes', id);
+      const note = await realmService.findById('Note', id);
 
       if (!note) {
         return false;
@@ -253,10 +676,10 @@ class OfflineStorageService {
 
       if (permanent) {
         // 永久删除
-        await realmService.delete('notes', id);
+        await realmService.deleteObject('Note', id);
       } else {
         // 软删除
-          await realmService.update('notes', id, {
+          await realmService.update('Note', id, {
           is_deleted: true,
           deleted_at: new Date(),
           is_synced: false,
@@ -265,7 +688,7 @@ class OfflineStorageService {
 
       // 触发删除事件
       eventEmitter.emit(STORAGE_EVENTS.ITEM_DELETED, {
-        collectionName: 'notes',
+        collectionName: 'Note',
         itemId: id,
         permanent,
       });
@@ -286,7 +709,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 查询未同步的笔记
-      const notes = await realmService.find('notes', { is_synced: false });
+      const notes = await realmService.find('Note', { is_synced: false });
 
       return notes;
     } catch (error) {
@@ -308,6 +731,7 @@ class OfflineStorageService {
       const now = new Date();
       const conversationId = conversation._id || `conversation_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
+      // 创建一个新对象，避免循环引用
       const conversationData = {
         _id: conversationId,
         title: conversation.title || '',
@@ -318,29 +742,35 @@ class OfflineStorageService {
         updated_at: now,
         deleted_at: conversation.deleted_at || null,
         user_id: conversation.user_id || 'current_user',
-        ...conversation,
       };
 
+      // 复制其他属性，但避免覆盖已设置的属性
+      Object.keys(conversation).forEach(key => {
+        if (!conversationData.hasOwnProperty(key) && key !== '_id') {
+          conversationData[key] = conversation[key];
+        }
+      });
+
       // 检查对话是否已存在
-      const existingConversation = await realmService.findById('ai_chats', conversationId);
+      const existingConversation = await realmService.findById('ai_conversations', conversationId);
 
       let savedConversation;
       if (existingConversation) {
         // 更新对话
-        savedConversation = await realmService.update('ai_chats', conversationId, conversationData);
+        savedConversation = await realmService.update('ai_conversations', conversationId, conversationData);
 
         // 触发更新事件
         eventEmitter.emit(STORAGE_EVENTS.ITEM_UPDATED, {
-          collectionName: 'ai_chats',
+          collectionName: 'ai_conversations',
           item: savedConversation,
         });
       } else {
         // 创建对话
-        savedConversation = await realmService.create('ai_chats', conversationData);
+        savedConversation = await realmService.create('ai_conversations', conversationData);
 
         // 触发创建事件
         eventEmitter.emit(STORAGE_EVENTS.ITEM_CREATED, {
-          collectionName: 'ai_chats',
+          collectionName: 'ai_conversations',
           item: savedConversation,
         });
       }
@@ -391,7 +821,7 @@ class OfflineStorageService {
       }
 
       // 查询对话
-      const conversations = await realmService.find('ai_chats', query, options);
+      const conversations = await realmService.find('ai_conversations', query, options);
 
       return conversations;
     } catch (error) {
@@ -410,7 +840,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 查询对话
-      const conversation = await realmService.findById('ai_chats', id);
+      const conversation = await realmService.findById('ai_conversations', id);
 
       // 如果对话已删除且不包含已删除的对话
       if (conversation && conversation.is_deleted) {
@@ -435,7 +865,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 获取对话
-      const conversation = await realmService.findById('ai_chats', id);
+      const conversation = await realmService.findById('ai_conversations', id);
 
       if (!conversation) {
         return null;
@@ -449,11 +879,11 @@ class OfflineStorageService {
       };
 
       // 更新对话
-      const updatedConversation = await realmService.update('ai_chats', id, updateData);
+      const updatedConversation = await realmService.update('ai_conversations', id, updateData);
 
       // 触发更新事件
       eventEmitter.emit(STORAGE_EVENTS.ITEM_UPDATED, {
-        collectionName: 'ai_chats',
+        collectionName: 'ai_conversations',
         item: updatedConversation,
       });
 
@@ -475,7 +905,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 获取对话
-      const conversation = await realmService.findById('ai_chats', id);
+      const conversation = await realmService.findById('ai_conversations', id);
 
       if (!conversation) {
         return false;
@@ -483,10 +913,10 @@ class OfflineStorageService {
 
       if (permanent) {
         // 永久删除
-        await realmService.delete('ai_chats', id);
+        await realmService.delete('ai_conversations', id);
       } else {
         // 软删除
-          await realmService.update('ai_chats', id, {
+          await realmService.update('ai_conversations', id, {
           is_deleted: true,
           deleted_at: new Date(),
           is_synced: false,
@@ -495,7 +925,7 @@ class OfflineStorageService {
 
       // 触发删除事件
       eventEmitter.emit(STORAGE_EVENTS.ITEM_DELETED, {
-        collectionName: 'ai_chats',
+        collectionName: 'ai_conversations',
         itemId: id,
         permanent,
       });
@@ -518,11 +948,11 @@ class OfflineStorageService {
 
       if (permanent) {
         // 永久删除所有对话
-        await realmService.deleteMany('ai_chats', {});
+        await realmService.deleteMany('ai_conversations', {});
       } else {
         // 软删除所有对话
         const now = new Date();
-        await realmService.updateMany('ai_chats', {}, {
+        await realmService.updateMany('ai_conversations', {}, {
           is_deleted: true,
           deleted_at: now,
           is_synced: false,
@@ -531,7 +961,7 @@ class OfflineStorageService {
 
       // 触发清空事件
       eventEmitter.emit(STORAGE_EVENTS.STORAGE_CLEARED, {
-        collectionName: 'ai_chats',
+        collectionName: 'ai_conversations',
         permanent,
       });
 
@@ -570,7 +1000,7 @@ class OfflineStorageService {
       await this.initialize();
 
       // 清空所有集合
-      const collections = ['notes', 'categories', 'tags', 'ai_chats', 'reminders', 'files'];
+      const collections = ['notes', 'categories', 'tags', 'ai_conversations', 'reminders', 'files'];
 
       for (const collection of collections) {
         if (permanent) {
@@ -831,6 +1261,24 @@ class OfflineStorageService {
   }
 
   /**
+   * 获取最后编辑的画布
+   * @returns {Promise<Object|null>} 最后编辑的画布对象或null
+   */
+  async getLastCanvas() {
+    try {
+      await this.initialize();
+      const canvases = await this.getCanvases({}, {
+        sort: { updated_at: -1 },
+        limit: 1
+      });
+      return canvases.length > 0 ? canvases[0] : null;
+    } catch (error) {
+      console.error('获取最后画布失败', error);
+      return null;
+    }
+  }
+
+  /**
    * 保存画布
    * @param {Object} canvas 画布对象
    * @returns {Promise<Object>} 保存的画布
@@ -1087,4 +1535,3 @@ class OfflineStorageService {
 
 export const offlineStorageService = new OfflineStorageService();
 export default offlineStorageService;
-

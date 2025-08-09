@@ -161,8 +161,4 @@ MongoDB Realm支持自动数据同步，但需要配置MongoDB Realm App。目�
 3. 尝试重新初始化数据库
 4. 如果数据库损坏，可能需要删除数据库文件并重新创建
 
-## 参考资料
 
-- [MongoDB Realm文档](https://www.mongodb.com/docs/realm-sdks/react/)
-- [Realm JavaScript SDK](https://www.mongodb.com/docs/realm-sdks/js/)
-- [Realm React Native SDK](https://www.mongodb.com/docs/realm-sdks/react-native/)

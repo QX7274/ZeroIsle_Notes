@@ -3,7 +3,9 @@
  */
 
 import { fileService } from './fileService';
+import { realmFileService } from './realmFileService';
 
 export {
-  fileService
+  fileService,
+  realmFileService
 };

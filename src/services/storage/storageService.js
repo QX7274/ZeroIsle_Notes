@@ -189,6 +189,27 @@ class StorageService {
   }
 
   /**
+   * 获取待处理的同步请求
+   * @returns {Promise<Array>} 待处理请求列表
+   */
+  async getPendingRequests() {
+    console.log('getPendingRequests called - this:', this);
+    console.log('getPendingRequests exists:', typeof this.getPendingRequests);
+    try {
+      await this.initialize();
+      console.log('After initialize - this:', this);
+      const realm = await realmService.getRealm();
+      const pendingRequests = realm.objects('OfflineQueue').filtered('status = "pending"');
+      // 将Realm对象转换为普通数组返回
+      return Array.from(pendingRequests);
+    } catch (error) {
+      console.error('获取待处理请求失败详细错误:', error);
+      logService.error('获取待处理请求失败', error);
+      return [];
+    }
+  }
+
+  /**
    * 同步关键用户信息到服务器
    * @returns {Promise<boolean>} 是否成功
    */
@@ -398,4 +419,6 @@ storageService.initialize().catch(error => {
   logService.error('初始化存储服务失败', error);
 });
 
+
 export default storageService;
+export { storageService };

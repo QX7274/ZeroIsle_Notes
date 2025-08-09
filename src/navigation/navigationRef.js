@@ -71,7 +71,25 @@ export function navigate(name, params, options = {}) {
  */
 export function goBack() {
   if (navigationRef.current) {
-    navigationRef.current.goBack();
+    try {
+      // 尝试获取当前路由状态
+      const state = navigationRef.current.getState();
+      
+      // 检查是否有可返回的路由
+      if (state && state.routes && state.routes.length > 1) {
+        navigationRef.current.goBack();
+      } else {
+        console.warn('没有可返回的屏幕，导航栈为空');
+        // 备选方案：导航到首页
+        navigationRef.current.navigate('Home');
+      }
+    } catch (error) {
+      console.error('执行goBack失败:', error);
+      // 备选方案：导航到首页
+      navigationRef.current.navigate('Home');
+    }
+  } else {
+    console.warn('navigationRef.current不存在，无法执行goBack');
   }
 }
 

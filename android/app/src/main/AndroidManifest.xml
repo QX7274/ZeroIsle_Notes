@@ -10,6 +10,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android 13+ 需要明确的通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 13+ 媒体文件访问权限 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- 用于访问下载内容URI -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
+        tools:ignore="ScopedStorage" />
 
     <meta-data
         android:name="com.google.android.gms.vision.DEPENDENCIES"
@@ -46,6 +54,7 @@
         android:authorities="${applicationId}.fileprovider"
         android:exported="false"
         android:grantUriPermissions="true"
+        android:requestLegacyExternalStorage="true"
         tools:replace="android:authorities">
         <meta-data
           android:name="android.support.FILE_PROVIDER_PATHS"

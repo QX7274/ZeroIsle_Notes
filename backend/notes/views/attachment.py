@@ -174,3 +174,24 @@ class NoteAttachmentViewSet(viewsets.ViewSet):
                 {'error': '下载附件失败'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['get'])
+    def view(self, request, pk=None):
+        """直接查看文件"""
+        try:
+            attachment = NoteAttachment.objects.get(id=pk, user=request.user, is_deleted=False)
+            file_data = attachment.file.read()
+            response = Response(file_data, content_type=attachment.file_type)
+            response['Content-Disposition'] = f'inline; filename="{attachment.file_name}"'
+            return response
+        except NoteAttachment.DoesNotExist:
+            return Response(
+                {"detail": "附件不存在或已删除"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"查看文件失败: {str(e)}")
+            return Response(
+                {'error': '查看文件失败'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

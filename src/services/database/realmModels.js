@@ -4,7 +4,7 @@
  */
 
 import Realm from 'realm';
-
+import OfflineQueueSchema from '../../schemas/offlineQueueSchema';
 
 /**
  * 笔记模型
@@ -13,7 +13,7 @@ export const NoteSchema = {
   name: 'Note',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     title: 'string',
     content: 'string?',
     created_at: 'date',
@@ -31,6 +31,15 @@ export const NoteSchema = {
     is_locked: { type: 'bool', default: false },
     password: 'string?',
     metadata: 'string?', // JSON 字符串
+    // 新增文件相关字段
+    type: 'string?',
+    file_type: 'string?',
+    file_name: 'string?',
+    file_uri: 'string?',
+    uri: 'string?',
+    path: 'string?',
+    file_path: 'string?',
+    url: 'string?'
   }
 };
 
@@ -41,7 +50,7 @@ export const AttachmentSchema = {
   name: 'Attachment',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     name: 'string',
     type: 'string',
     url: 'string?',
@@ -64,7 +73,7 @@ export const CategorySchema = {
   name: 'Category',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     name: 'string',
     color: 'string?',
     icon: 'string?',
@@ -85,9 +94,10 @@ export const TagSchema = {
   name: 'Tag',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     name: 'string',
     color: 'string?',
+    count: { type: 'int', default: 0 },
     created_at: 'date',
     updated_at: 'date',
     is_deleted: { type: 'bool', default: false },
@@ -103,7 +113,7 @@ export const ReminderSchema = {
   name: 'Reminder',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     title: 'string',
     description: 'string?',
     due_date: 'date',
@@ -128,10 +138,10 @@ export const ReminderSchema = {
  * AI 聊天模型
  */
 export const AIChatSchema = {
-  name: 'AIChat',
+  name: 'ai_conversations',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     title: 'string',
     created_at: 'date',
     updated_at: 'date',
@@ -149,7 +159,7 @@ export const AIChatMessageSchema = {
   name: 'AIChatMessage',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     role: 'string', // user, assistant, system
     content: 'string',
     created_at: 'date',
@@ -165,7 +175,7 @@ export const KnowledgeGraphSchema = {
   name: 'KnowledgeGraph',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     title: 'string',
     description: 'string?',
     created_at: 'date',
@@ -185,7 +195,7 @@ export const KnowledgeNodeSchema = {
   name: 'KnowledgeNode',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     title: 'string',
     content: 'string?',
     type: 'string?', // concept, fact, question, etc.
@@ -207,7 +217,7 @@ export const KnowledgeEdgeSchema = {
   name: 'KnowledgeEdge',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     source_id: 'string',
     target_id: 'string',
     label: 'string?',
@@ -227,7 +237,7 @@ export const SyncInfoSchema = {
   name: 'SyncInfo',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     entity_id: 'string',
     entity_type: 'string',
     operation: 'string', // create, update, delete
@@ -278,7 +288,7 @@ export const AIToolHistorySchema = {
   name: 'AIToolHistory',
   primaryKey: '_id',
   properties: {
-    _id: 'objectId',
+    _id: 'string',
     tool: 'string', // 工具ID
     input: 'string', // 输入文本
     output: 'string', // 输出结果
@@ -311,6 +321,7 @@ export function getAllSchemas() {
     StorageItemSchema,
     SettingsSchema,
     AIToolHistorySchema,
+    OfflineQueueSchema,
   ];
 }
 

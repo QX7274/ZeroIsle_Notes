@@ -11,6 +11,16 @@ LogBox.ignoreLogs([
   'Reading from `value` during component render',
   'Animated: `useNativeDriver`',
   'Reanimated 2',
+  // Worklet相关警告
+  'You are trying to modify object passed to worklet',
+  'Modifying objects passed to worklets is not supported',
+  'Cannot modify objects passed to worklets',
+  'Tried to modify key `current` of an object which has been already passed to a worklet',
+  'Tried to modify key',
+  'object which has been already passed to a worklet',
+  // 其他Reanimated警告
+  'useAnimatedGestureHandler is deprecated',
+  'Gesture Handler',
 ]);
 
 // 全局错误处理
@@ -26,7 +36,10 @@ try {
       if (error && error.message && (
         error.message.includes('Reanimated') ||
         error.message.includes('strictMode') ||
-        error.message.includes('LoggerConfig')
+        error.message.includes('LoggerConfig') ||
+        error.message.includes('worklet') ||
+        error.message.includes('modify object') ||
+        error.message.includes('useAnimatedGestureHandler')
       )) {
         console.warn('已捕获 Reanimated 错误:', error.message);
         // 不向上传递 Reanimated 错误

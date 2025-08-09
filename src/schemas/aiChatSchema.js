@@ -37,7 +37,7 @@ const AIChatSchema = {
     model: { type: 'string', default: 'gpt-3.5-turbo' },
     system_prompt: { type: 'string', optional: true },
     metadata: { type: 'dictionary', default: {} },
-    _partition: { type: 'string', default: 'ai_chats' },
+    _partition: { type: 'string', default: 'ai_conversations' },
   },
 };
 

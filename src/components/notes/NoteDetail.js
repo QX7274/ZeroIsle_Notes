@@ -24,6 +24,7 @@ import { formatDate } from '../../utils/dateUtils';
  * @param {Function} onBack - 返回回调
  * @param {Array} relatedNotes - 相关笔记
  * @param {Function} onRelatedNotePress - 点击相关笔记回调
+ * @param {Function} onTextSelection - 文本选择回调
  */
 const NoteDetail = ({
   note = {},
@@ -32,9 +33,22 @@ const NoteDetail = ({
   onBack,
   relatedNotes = [],
   onRelatedNotePress,
+  onTextSelection,
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
+
+  // 确保笔记对象有基本字段
+  const safeNote = {
+    id: note.id || note._id || `temp_${Date.now()}`,
+    _id: note._id || note.id || `temp_${Date.now()}`,
+    title: note.title || '无标题笔记',
+    content: note.content || '',
+    type: note.type || 'note',
+    updated_at: note.updated_at || note.created_at || new Date().toISOString(),
+    created_at: note.created_at || note.updated_at || new Date().toISOString(),
+    ...note
+  };
 
   // 本地状态
   const [showFullContent, setShowFullContent] = useState(false);
@@ -43,8 +57,8 @@ const NoteDetail = ({
   const handleShare = async () => {
     try {
       await Share.share({
-        title: note.title,
-        message: `${note.title}\n\n${note.content}\n\n来自零屿笔记`,
+        title: safeNote.title,
+        message: `${safeNote.title}\n\n${safeNote.content}\n\n来自零屿笔记`,
       });
     } catch (error) {
       console.error('分享失败:', error);
@@ -65,13 +79,15 @@ const NoteDetail = ({
 
   // 渲染标签
   const renderTags = () => {
-    if (!note.tags || note.tags.length === 0) return null;
+    // 确保tags是一个数组
+    const tags = Array.isArray(safeNote.tags) ? safeNote.tags : [];
+    if (tags.length === 0) return null;
 
     return (
       <View style={styles.tagsContainer}>
-        {note.tags.map(tag => (
+        {tags.map(tag => (
           <View
-            key={tag.id}
+            key={tag.id || `tag_${Math.random().toString(36).substring(2, 9)}`}
             style={[
               styles.tagItem,
               { backgroundColor: colors.background }
@@ -82,7 +98,7 @@ const NoteDetail = ({
               size="small"
               color="hint"
             >
-              #{tag.name}
+              #{typeof tag === 'string' ? tag : (tag.name || '标签')}
             </Text>
           </View>
         ))}
@@ -140,13 +156,13 @@ const NoteDetail = ({
 
   // 渲染笔记内容
   const renderContent = () => {
-    if (!note.content) return null;
+    if (!safeNote.content) return null;
 
     const contentToShow = showFullContent
-      ? note.content
-      : note.content.length > 500
-        ? `${note.content.substring(0, 500)}...`
-        : note.content;
+      ? safeNote.content
+      : safeNote.content.length > 500
+        ? `${safeNote.content.substring(0, 500)}...`
+        : safeNote.content;
 
     return (
       <>
@@ -154,11 +170,19 @@ const NoteDetail = ({
           variant="body"
           size="medium"
           style={styles.noteContent}
+          selectable={true}
+          onSelectionChange={(event) => {
+            const { selection } = event.nativeEvent;
+            if (selection && selection.start !== selection.end && onTextSelection) {
+              const selectedText = safeNote.content.substring(selection.start, selection.end);
+              onTextSelection(selectedText);
+            }
+          }}
         >
           {contentToShow}
         </Text>
 
-        {note.content.length > 500 && (
+        {safeNote.content.length > 500 && (
           <TouchableOpacity
             style={styles.showMoreButton}
             onPress={() => setShowFullContent(!showFullContent)}
@@ -185,21 +209,21 @@ const NoteDetail = ({
             level="h2"
             style={styles.noteTitle}
           >
-            {note.title}
+            {safeNote.title}
           </Text>
 
           <View style={styles.metaContainer}>
-            {note.category && (
+            {safeNote.category && (
               <View style={[
                 styles.categoryBadge,
-                { backgroundColor: note.category.color || colors.primary }
+                { backgroundColor: safeNote.category.color || colors.primary }
               ]}>
                 <Text
                   variant="body"
                   size="small"
                   color="card"
                 >
-                  {note.category.name}
+                  {safeNote.category.name || '未分类'}
                 </Text>
               </View>
             )}
@@ -210,7 +234,7 @@ const NoteDetail = ({
               color="hint"
               style={styles.dateText}
             >
-              {formatDate(note.updated_at || note.created_at)}
+              {formatDate(safeNote.updated_at || safeNote.created_at)}
             </Text>
           </View>
 

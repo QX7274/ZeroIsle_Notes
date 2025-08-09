@@ -15,12 +15,9 @@ import {
   createNote,
   updateNote,
   deleteNote,
-  syncOfflineNotes,
-  importNote
+  syncOfflineNotes
 } from '../../redux/slices/notesSlice';
 import { fetchTags } from '../../redux/slices/tagsSlice';
-import DocumentPicker from 'react-native-document-picker';
-import ImagePicker from 'react-native-image-picker';
 import {
   NoteList,
   NoteEditor,
@@ -99,7 +96,12 @@ const NoteScreen = ({ navigation, route }) => {
     // 如果有路由参数，处理它们
     if (route.params) {
       if (route.params.noteId) {
+        // 如果有noteId参数，查看对应的笔记
         handleViewNote({ id: route.params.noteId });
+      } else if (route.params.note) {
+        // 如果有note参数，直接查看这个笔记
+        console.log('从route.params.note获取笔记:', route.params.note.title || '无标题');
+        handleViewNote(route.params.note);
       }
     }
 
@@ -139,12 +141,75 @@ const NoteScreen = ({ navigation, route }) => {
 
   // 查看笔记详情
   const handleViewNote = (note) => {
-    setSelectedNote(note);
+    // 检查笔记对象是否有效
+    if (!note) {
+      console.error('handleViewNote收到无效的笔记对象');
+      Alert.alert(
+        '错误',
+        '无法查看笔记：笔记数据无效',
+        [
+          {
+            text: '返回主页',
+            onPress: () => navigation.navigate('Home')
+          }
+        ]
+      );
+      return;
+    }
+
+    // 检查笔记类型，如果是PDF或Word但没有file_uri，显示错误提示
+    if ((note.type === 'pdf' || note.file_type === 'pdf' ||
+         (note.file_name && note.file_name.toLowerCase().endsWith('.pdf'))) &&
+        !note.file_uri) {
+      console.error('PDF笔记缺少file_uri:', note);
+      Alert.alert(
+        '文件错误',
+        '无法打开PDF文件，文件路径不存在或导入失败。请返回主页重新导入文件。',
+        [
+          {
+            text: '返回主页',
+            onPress: () => navigation.navigate('Home')
+          }
+        ]
+      );
+      return;
+    }
+
+    if ((note.type === 'word' || note.file_type === 'word' ||
+         (note.file_name && (note.file_name.toLowerCase().endsWith('.docx') ||
+                            note.file_name.toLowerCase().endsWith('.doc')))) &&
+        !note.file_uri) {
+      console.error('Word笔记缺少file_uri:', note);
+      Alert.alert(
+        '文件错误',
+        '无法打开Word文档，文件路径不存在或导入失败。请返回主页重新导入文件。',
+        [
+          {
+            text: '返回主页',
+            onPress: () => navigation.navigate('Home')
+          }
+        ]
+      );
+      return;
+    }
+
+    // 确保笔记对象有基本字段
+    const safeNote = {
+      id: note.id || note._id || `temp_${Date.now()}`,
+      _id: note._id || note.id || `temp_${Date.now()}`,
+      title: note.title || '无标题笔记',
+      content: note.content || '',
+      type: note.type || 'note',
+      ...note
+    };
+
+    console.log('查看笔记详情:', safeNote.title);
+    setSelectedNote(safeNote);
     setView('detail');
 
     // 更新导航标题
     navigation.setOptions({
-      title: note.title || '笔记详情',
+      title: safeNote.title || '笔记详情',
     });
   };
 
@@ -159,92 +224,17 @@ const NoteScreen = ({ navigation, route }) => {
     });
   };
 
-  // 创建新笔记
+  // 创建新笔记 - 简化版本，仅创建基本笔记
   const handleCreateNote = () => {
-    Alert.alert(
-      '新建笔记',
-      '选择笔记类型',
-      [
-        {
-          text: '空白笔记',
-          onPress: () => {
-            setSelectedNote({
-              title: '',
-              content: '',
-              type: 'note',
-              template: 'blank'
-            });
-            setView('edit');
-            navigation.setOptions({ title: '新建笔记' });
-          },
-        },
-        {
-          text: '横格笔记',
-          onPress: () => {
-            setSelectedNote({
-              title: '',
-              content: '',
-              type: 'note',
-              template: 'lined'
-            });
-            setView('edit');
-            navigation.setOptions({ title: '新建横格笔记' });
-          },
-        },
-        {
-          text: '方格笔记',
-          onPress: () => {
-            setSelectedNote({
-              title: '',
-              content: '',
-              type: 'note',
-              template: 'grid'
-            });
-            setView('edit');
-            navigation.setOptions({ title: '新建方格笔记' });
-          },
-        },
-        {
-          text: '清单笔记',
-          onPress: () => {
-            setSelectedNote({
-              title: '',
-              content: '- [ ] 待办事项1\n- [ ] 待办事项2\n- [ ] 待办事项3',
-              type: 'note',
-              template: 'checklist'
-            });
-            setView('edit');
-            navigation.setOptions({ title: '新建清单笔记' });
-          },
-        },
-        {
-          text: '日记模板',
-          onPress: () => {
-            const today = new Date().toLocaleDateString('zh-CN');
-            setSelectedNote({
-              title: `日记 - ${today}`,
-              content: `# ${today} 日记\n\n## 今日心情\n\n## 今日总结\n\n## 明日计划`,
-              type: 'note',
-              template: 'diary'
-            });
-            setView('edit');
-            navigation.setOptions({ title: '新建日记' });
-          },
-        },
-        {
-          text: '无限画布',
-          onPress: () => handleCreateCanvas(),
-        },
-        {
-          text: '导入文件',
-          onPress: () => handleImportNote(),
-        },
-        {
-          text: '取消',
-          style: 'cancel',
-        },
-      ]
-    );
+    // 创建一个基本的空白笔记
+    setSelectedNote({
+      title: '',
+      content: '',
+      type: 'note',
+      template: 'blank'
+    });
+    setView('edit');
+    navigation.setOptions({ title: '新建笔记' });
   };
 
   // 保存笔记
@@ -445,23 +435,15 @@ const NoteScreen = ({ navigation, route }) => {
     setLayout(layout === 'list' ? 'grid' : 'list');
   };
 
-  // 导入笔记
+  // 导入笔记 - 简化版本，引导用户返回主页
   const handleImportNote = () => {
     Alert.alert(
       '导入文件',
-      '选择要导入的文件类型',
+      '请返回主页使用更完善的导入功能',
       [
         {
-          text: 'PDF文档',
-          onPress: () => importPDF(),
-        },
-        {
-          text: 'Word文档',
-          onPress: () => importWord(),
-        },
-        {
-          text: '图片',
-          onPress: () => importImage(),
+          text: '返回主页',
+          onPress: () => navigation.navigate('Home')
         },
         {
           text: '取消',
@@ -471,169 +453,24 @@ const NoteScreen = ({ navigation, route }) => {
     );
   };
 
-  // 导入PDF
-  const importPDF = async () => {
-    try {
-      // 使用文档选择器选择PDF文件
-      const results = await DocumentPicker.pick({
-        type: [DocumentPicker.types.pdf],
-        allowMultiSelection: false,
-      });
+  // 导入函数已移至主页，这里不再需要
 
-      if (results && results.length > 0) {
-        const file = results[0];
-        console.log('选择的PDF文件:', file);
-
-        // 检查文件是否有效
-        if (!file.uri) {
-          throw new Error('无效的文件URI');
-        }
-
-        // 创建FormData对象
-        const formData = new FormData();
-
-        // 确保文件对象包含所有必要的属性
-        const fileObj = {
-          uri: file.uri || file.fileCopyUri,
-          type: file.type || 'application/pdf',
-          name: file.name || `document_${Date.now()}.pdf`,
-          size: file.size || 0,
-          path: file.path || file.uri,
-        };
-
-        console.log('准备添加到FormData的文件对象:', fileObj);
-        formData.append('file', fileObj);
-        formData.append('type', 'pdf');
-
-        console.log('准备导入PDF，FormData:', formData);
-
-        // 调用导入API
-        const result = await dispatch(importNote(formData)).unwrap();
-        console.log('PDF导入结果:', result);
-
-        // 导入成功后查看笔记
-        if (result) {
-          handleViewNote(result);
-          ToastAndroid.show('PDF导入成功', ToastAndroid.SHORT);
-        }
-      }
-    } catch (err) {
-      if (err.code !== 'DOCUMENT_PICKER_CANCELED') {
-        console.error('导入PDF错误:', err);
-        Alert.alert('导入失败', err.message || '请稍后重试');
-      }
-    }
-  };
-
-  // 导入Word
-  const importWord = async () => {
-    try {
-      // 使用文档选择器选择Word文件
-      const results = await DocumentPicker.pick({
-        type: [DocumentPicker.types.docx, DocumentPicker.types.doc],
-        allowMultiSelection: false,
-      });
-
-      if (results && results.length > 0) {
-        const file = results[0];
-        console.log('选择的Word文件:', file);
-
-        // 检查文件是否有效
-        if (!file.uri) {
-          throw new Error('无效的文件URI');
-        }
-
-        // 创建FormData对象
-        const formData = new FormData();
-
-        // 确保文件对象包含所有必要的属性
-        const fileObj = {
-          uri: file.uri || file.fileCopyUri,
-          type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          name: file.name || `document_${Date.now()}.docx`,
-          size: file.size || 0,
-          path: file.path || file.uri,
-        };
-
-        console.log('准备添加到FormData的文件对象:', fileObj);
-        formData.append('file', fileObj);
-        formData.append('type', 'word');
-
-        console.log('准备导入Word，FormData:', formData);
-
-        // 调用导入API
-        const result = await dispatch(importNote(formData)).unwrap();
-        console.log('Word导入结果:', result);
-
-        // 导入成功后查看笔记
-        if (result) {
-          handleViewNote(result);
-          ToastAndroid.show('Word文档导入成功', ToastAndroid.SHORT);
-        }
-      }
-    } catch (err) {
-      if (err.code !== 'DOCUMENT_PICKER_CANCELED') {
-        console.error('导入Word错误:', err);
-        Alert.alert('导入失败', err.message || '请稍后重试');
-      }
-    }
-  };
-
-  // 导入图片
-  const importImage = async () => {
-    try {
-      // 使用图片选择器选择图片
-      const res = await ImagePicker.launchImageLibrary({
-        mediaType: 'photo',
-        includeBase64: false,
-        maxHeight: 2000,
-        maxWidth: 2000,
-      });
-
-      if (res.didCancel) return;
-
-      // 创建FormData对象
-      const formData = new FormData();
-      formData.append('file', {
-        uri: res.assets[0].uri,
-        type: res.assets[0].type,
-        name: res.assets[0].fileName,
-        size: res.assets[0].fileSize || 0,
-        path: res.assets[0].uri,
-      });
-      formData.append('type', 'image');
-
-      // 调用导入API
-      const result = await dispatch(importNote(formData)).unwrap();
-
-      // 导入成功后查看笔记
-      if (result) {
-        handleViewNote(result);
-        ToastAndroid.show('图片导入成功', ToastAndroid.SHORT);
-      }
-    } catch (err) {
-      console.error('导入图片错误:', err);
-      Alert.alert('导入失败', err.message || '请稍后重试');
-    }
-  };
-
-  // 创建无限画布
+  // 创建无限画布 - 简化版本，引导用户返回主页
   const handleCreateCanvas = () => {
-    try {
-      console.log('开始创建无限画布...');
-
-      // 直接导航到InfiniteCanvas屏幕，而不是创建笔记
-      // 这样可以避免数据库操作和笔记保存过程中的问题
-      navigation.navigate('InfiniteCanvas');
-
-      // 记录分析事件
-      analyticsService.trackEvent('create_infinite_canvas');
-    } catch (error) {
-      console.error('创建无限画布失败:', error);
-
-      // 显示错误提示，但不阻止用户继续操作
-      ToastAndroid.show('创建画布失败，请重试', ToastAndroid.SHORT);
-    }
+    Alert.alert(
+      '创建画布',
+      '请返回主页使用更完善的画布创建功能',
+      [
+        {
+          text: '返回主页',
+          onPress: () => navigation.navigate('Home')
+        },
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   // 处理工具变化
@@ -927,7 +764,7 @@ const NoteScreen = ({ navigation, route }) => {
           refreshing={refreshing}
           loading={isLoading}
           layout={layout}
-          emptyText="暂无笔记，点击右下角按钮创建"
+          emptyText="暂无笔记"
         />
 
         {/* 浮动按钮 */}
