@@ -8,8 +8,10 @@ import { Platform } from 'react-native';
 const generateRandomString = (length) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
+  const randomValues = new Uint32Array(length);
+  crypto.getRandomValues(randomValues);
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(randomValues[i] % chars.length);
   }
   return result;
 };
@@ -17,9 +19,7 @@ const generateRandomString = (length) => {
 // 生成随机字节数组
 const getRandomBytes = (size) => {
   const bytes = new Uint8Array(size);
-  for (let i = 0; i < size; i++) {
-    bytes[i] = Math.floor(Math.random() * 256);
-  }
+  crypto.getRandomValues(bytes);
   return bytes;
 };
 

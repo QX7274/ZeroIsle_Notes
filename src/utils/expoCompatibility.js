@@ -109,11 +109,9 @@ export const Crypto = {
   // 生成随机字符串
   getRandomBytesAsync: async (length) => {
     try {
-      // 简单实现随机字节生成
+      // 使用安全的随机数生成器
       const randomBytes = new Uint8Array(length);
-      for (let i = 0; i < length; i++) {
-        randomBytes[i] = Math.floor(Math.random() * 256);
-      }
+      crypto.getRandomValues(randomBytes);
       return randomBytes;
     } catch (error) {
       console.error('生成随机字节错误:', error);

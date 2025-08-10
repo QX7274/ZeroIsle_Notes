@@ -44,6 +44,31 @@ export const NoteSchema = {
 };
 
 /**
+ * 画布集合（与后端集合名对齐）
+ * 注意：数组字段采用字符串(JSON)存储，以避免复杂嵌套导致的循环引用/迁移问题
+ */
+export const CanvasCollectionSchema = {
+  name: 'canvases',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    id: 'string',
+    title: 'string',
+    description: 'string?',
+    elements: { type: 'string', default: '[]' },   // JSON字符串
+    layers: { type: 'string', default: '[]' },     // JSON字符串
+    activeLayer: { type: 'string', default: 'default' },
+    viewState: { type: 'string', default: '{}' },  // JSON字符串
+    is_deleted: { type: 'bool', default: false },
+    is_synced: { type: 'bool', default: false },
+    created_at: 'date',
+    updated_at: 'date',
+    deleted_at: 'date?',
+    user_id: 'string?'
+  }
+};
+
+/**
  * 附件模型
  */
 export const AttachmentSchema = {
@@ -308,6 +333,7 @@ export const AIToolHistorySchema = {
 export function getAllSchemas() {
   return [
     NoteSchema,
+    CanvasCollectionSchema,
     AttachmentSchema,
     CategorySchema,
     TagSchema,

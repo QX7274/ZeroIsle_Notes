@@ -93,3 +93,32 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+// 响应拦截器 - 处理401未授权错误
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // 处理401错误
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // 尝试刷新令牌
+        const newToken = await tokenService.refreshToken();
+        if (newToken) {
+          // 更新请求头并重试原始请求
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('刷新令牌失败:', refreshError);
+        // 刷新失败，跳转登录页
+        authService.logout();
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);

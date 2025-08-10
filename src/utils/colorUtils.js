@@ -97,10 +97,14 @@ export const getRandomColor = (excludeColors = []) => {
   
   if (availableColors.length === 0) {
     // 如果所有颜色都被排除，生成随机颜色
-    return `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+    const randomValues = new Uint32Array(1);
+    crypto.getRandomValues(randomValues);
+    return `#${(randomValues[0] % 16777215).toString(16).padStart(6, '0')}`;
   }
   
-  const randomIndex = Math.floor(Math.random() * availableColors.length);
+  const randomValues = new Uint32Array(1);
+  crypto.getRandomValues(randomValues);
+  const randomIndex = randomValues[0] % availableColors.length;
   return availableColors[randomIndex];
 };
 

@@ -4,6 +4,7 @@
 import apiClient from './apiClient';
 import NetInfo from '@react-native-community/netinfo';
 import { EXAMPLE_MIND_MAPS } from '../../constants/examples/mindMapExamples';
+import { authService } from '../auth/authService';
 
 // 定义API端点
 const API_ENDPOINTS = {
@@ -36,6 +37,18 @@ export const getMindMaps = async (params = {}) => {
         }
       };
     }
+
+    // 打印请求头中的令牌内容
+    if (!authService) {
+      console.error('authService未初始化');
+      throw new Error('authService未初始化');
+    }
+    if (!authService.initialized) {
+      await authService.initialize();
+    }
+    const token = await authService.getAuthToken();
+    console.log('请求头中的令牌:', token);
+    console.log('完整的Authorization头:', `Bearer ${token}`);
 
     console.log('思维导图API: 开始获取思维导图列表');
     const response = await apiClient.get(API_ENDPOINTS.MIND_MAP.MAPS, { params });

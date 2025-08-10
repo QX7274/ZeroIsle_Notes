@@ -1,6 +1,7 @@
 import { realmService } from '../database/realmService';
 import { analyticsService } from '../analytics/analyticsService';
 import { apiService } from './api';
+import { authService } from '../auth/authService';
 
 class GroupService {
   constructor() {
@@ -216,10 +217,17 @@ class GroupService {
     } catch (error) {
       console.error('获取群组列表错误:', error);
       analyticsService.trackError(error, { action: 'get_groups' });
+      
+      // 特殊处理401错误
+      if (error.response && error.response.status === 401) {
+        // 触发令牌刷新或跳转登录
+        authService.handleUnauthorized();
+        return []; // 返回空数组避免UI报错
+      }
+      
       throw error;
-    }
   }
-
+  }
   async leaveGroup(groupId) {
     try {
       await apiService.post(`/groups/${groupId}/leave`);

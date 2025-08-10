@@ -17,11 +17,21 @@ export const getAllReminders = async (params = {}) => {
       data: response.data
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取提醒列表失败',
-      error
-    };
+    // 网络请求失败时，尝试从本地存储获取
+    try {
+      await reminderMongoDBService.initialize();
+      const localReminders = await reminderMongoDBService.getAllReminders();
+      return {
+        success: true,
+        data: localReminders
+      };
+    } catch (localError) {
+      return {
+        success: false,
+        message: error.message || '获取提醒列表失败',
+        error
+      };
+    }
   }
 };
 
@@ -59,11 +69,21 @@ export const createReminder = async (reminderData) => {
       data: response.data
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建提醒失败',
-      error
-    };
+    // 网络请求失败时，尝试保存到本地存储
+    try {
+      await reminderMongoDBService.initialize();
+      await reminderMongoDBService.saveReminder(reminderData);
+      return {
+        success: true,
+        data: reminderData
+      };
+    } catch (localError) {
+      return {
+        success: false,
+        message: error.message || '创建提醒失败',
+        error
+      };
+    }
   }
 };
 

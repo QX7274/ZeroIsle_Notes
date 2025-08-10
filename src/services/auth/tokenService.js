@@ -282,6 +282,14 @@ class TokenService {
   }
 
   /**
+   * 刷新令牌（别名）
+   * @returns {Promise<{token: string, expires_at: string}|null>} 新的访问令牌数据
+   */
+  async refreshToken() {
+    return this.refreshAccessToken();
+  }
+
+  /**
    * 清除所有令牌
    * @returns {Promise<boolean>} 是否成功
    */

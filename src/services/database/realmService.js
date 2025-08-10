@@ -550,15 +550,17 @@ class RealmService {
     try {
       const realm = await this.getRealm();
 
-      // 使用主键查询
-      const realmObject = realm.objectForPrimaryKey(collectionName, id);
+      // 兼容字符串集合名及特殊集合'canvases'的主键查询
+      const schemaName = collectionName;
+      const realmObject = realm.objectForPrimaryKey(schemaName, id);
 
       if (!realmObject) {
         return null;
       }
 
-      // 转换为普通对象
-      return this.realmObjectToPlain(realmObject);
+      // 转换为普通对象并做JSON字段解析
+      const plain = this.realmObjectToPlain(realmObject);
+      return this._postProcessRecord(schemaName, plain);
     } catch (error) {
       console.error(`根据ID查找${collectionName}失败`, error);
       throw error;
@@ -623,8 +625,8 @@ class RealmService {
         objects = objects.sorted(sortField, sortDirection);
       }
 
-      // 转换为普通对象数组
-      const plainData = Array.from(objects).map(obj => this.realmObjectToPlain(obj));
+      // 转换为普通对象数组并进行后处理（如JSON字段解析）
+      const plainData = Array.from(objects).map(obj => this._postProcessRecord(collectionName, this.realmObjectToPlain(obj)));
 
       // 分页
       let result = plainData;
@@ -669,6 +671,29 @@ class RealmService {
       console.error(`删除${collectionName}对象失败`, error);
       throw error;
     }
+  }
+
+  /**
+   * 对记录做后处理（解析JSON字段等）
+   */
+  _postProcessRecord(collectionName, record) {
+    if (!record) return record;
+
+    if (collectionName === 'canvases') {
+      try {
+        // 将字符串字段解析回对象/数组
+        if (typeof record.elements === 'string') record.elements = JSON.parse(record.elements || '[]');
+        if (typeof record.layers === 'string') record.layers = JSON.parse(record.layers || '[]');
+        if (typeof record.viewState === 'string') record.viewState = JSON.parse(record.viewState || '{}');
+      } catch (e) {
+        console.warn('解析画布JSON字段失败，将使用默认值', e);
+        if (!Array.isArray(record.elements)) record.elements = [];
+        if (!Array.isArray(record.layers)) record.layers = [{ id: 'default', name: '默认图层', visible: true, locked: false }];
+        if (typeof record.viewState !== 'object' || record.viewState == null) record.viewState = {};
+      }
+    }
+
+    return record;
   }
 }
 

@@ -65,7 +65,17 @@ class InfiniteCanvasStorage {
       const canvasesJson = await realmStorageService.getItem(STORAGE_KEYS.CANVAS_CACHE);
       
       if (canvasesJson) {
-        this.canvasCache = JSON.parse(canvasesJson);
+        // 增强JSON解析健壮性
+        if (typeof canvasesJson === 'string') {
+          this.canvasCache = JSON.parse(canvasesJson);
+        } else if (typeof canvasesJson === 'object') {
+          // 如果已经是对象，直接使用
+          this.canvasCache = canvasesJson;
+        } else {
+          // 处理意外格式
+          throw new Error('无效的缓存格式');
+        }
+        
         logService.info(`已加载${this.canvasCache.length}个画布到缓存`);
       } else {
         this.canvasCache = [];
@@ -75,6 +85,8 @@ class InfiniteCanvasStorage {
       return this.canvasCache;
     } catch (error) {
       logService.error('加载无限画布缓存失败', error);
+      // 清除无效缓存
+      await realmStorageService.removeItem(STORAGE_KEYS.CANVAS_CACHE);
       this.canvasCache = [];
       return [];
     }
@@ -102,26 +114,46 @@ class InfiniteCanvasStorage {
   async getCanvas(canvasId) {
     try {
       logService.info(`获取画布: ${canvasId}`);
-      
+
       // 确保缓存已加载
       if (this.canvasCache.length === 0) {
         await this.loadCache();
       }
-      
+
       // 从缓存中查找
-      const canvas = this.canvasCache.find(c => c.id === canvasId);
-      
+      let canvas = this.canvasCache.find(c => c.id === canvasId);
+
       if (canvas) {
         logService.info(`找到画布: ${canvasId}`);
         return canvas;
       }
-      
-      logService.warn(`未找到画布: ${canvasId}`);
-      return null;
+
+      // 未找到则创建一个空画布并加入缓存，避免后续加载失败
+      logService.warn(`未找到画布: ${canvasId}，创建空画布并加入缓存`);
+      const now = new Date().toISOString();
+      canvas = {
+        id: canvasId,
+        title: '新草稿',
+        elements: [],
+        layers: [{ id: 'default', name: '默认图层', visible: true, locked: false }],
+        activeLayer: 'default',
+        viewState: { scale: 1, translateX: 0, translateY: 0 },
+        createdAt: now,
+        updatedAt: now,
+        thumbnail: null,
+      };
+      this.canvasCache.push(canvas);
+      await this.saveCache();
+      return canvas;
     } catch (error) {
       logService.error(`获取画布失败: ${canvasId}`, error);
       return null;
     }
+  }
+
+  // 兼容旧接口：获取当前用户的所有画布
+  async getUserCanvases() {
+    return this.getCanvases();
   }
 
   /**

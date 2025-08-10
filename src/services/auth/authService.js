@@ -15,6 +15,13 @@ class AuthService {
     this.currentUser = null;
   }
 
+  async getAuthToken() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.currentUser?.accessToken;
+  }
+
   /**
    * 初始化认证服务
    * @returns {Promise<void>}
@@ -276,9 +283,13 @@ class AuthService {
 // 创建单例实例
 const authService = new AuthService();
 
-// 初始化
-authService.initialize().catch(error => {
-  console.error('初始化认证服务失败', error);
-});
+// 初始化并等待完成
+(async () => {
+  try {
+    await authService.initialize();
+  } catch (error) {
+    console.error('初始化认证服务失败', error);
+  }
+})();
 
 export default authService;
