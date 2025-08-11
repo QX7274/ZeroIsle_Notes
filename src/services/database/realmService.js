@@ -321,7 +321,32 @@ class RealmService {
       realm.write(() => {
         Object.keys(data).forEach(key => {
           if (key !== '_id') { // 不更新主键
-            object[key] = data[key];
+            try {
+              object[key] = data[key];
+            } catch (fieldError) {
+              console.error(`更新字段 ${key} 失败:`, fieldError);
+              console.error(`字段值:`, data[key]);
+              console.error(`字段类型:`, typeof data[key]);
+
+              // 如果是数组字段但传入了对象，尝试修复
+              if (fieldError.message && fieldError.message.includes('Expected value to be iterable')) {
+                if (key === 'tags' && typeof data[key] === 'object' && data[key] !== null) {
+                  if (Array.isArray(data[key])) {
+                    object[key] = data[key].map(tag => String(tag));
+                  } else if (data[key].results && Array.isArray(data[key].results)) {
+                    object[key] = data[key].results.map(tag => String(tag));
+                  } else {
+                    console.warn(`无法处理tags字段的对象值，设置为空数组`);
+                    object[key] = [];
+                  }
+                } else {
+                  console.warn(`跳过有问题的字段: ${key}`);
+                }
+              } else {
+                // 重新抛出其他类型的错误
+                throw fieldError;
+              }
+            }
           }
         });
       });

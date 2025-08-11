@@ -26,7 +26,6 @@ const PageControl = ({
       (e) => {
         // 只有在输入框获得焦点时才移动控件
         if (isInputFocused) {
-          originalPos.current = pos;
           setKeyboardHeight(e.endCoordinates.height);
           const { height } = Dimensions.get('window');
           setPos(prev => ({
@@ -41,7 +40,15 @@ const PageControl = ({
       () => {
         setKeyboardHeight(0);
         setIsInputFocused(false);
-        setPos(originalPos.current);
+        // 键盘隐藏后，始终回到底部中央位置
+        const { width, height } = Dimensions.get('window');
+        const bottomCenterPos = {
+          x: Math.max(16, width / 2 - 70),
+          y: Math.max(16, height - 120)
+        };
+        setPos(bottomCenterPos);
+        // 保存新位置
+        persistPos(bottomCenterPos);
       }
     );
 
@@ -49,7 +56,7 @@ const PageControl = ({
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
-  }, [pos, isInputFocused]);
+  }, [isInputFocused]);
 
   // 恢复位置
   useEffect(() => {
@@ -88,24 +95,32 @@ const PageControl = ({
   // 同步输入框
   useEffect(() => {
     setValue(String(current));
-    // 监听屏幕方向变化，调整位置
+  }, [current]);
+
+  // 监听屏幕方向变化，调整位置（但不在键盘操作时）
+  useEffect(() => {
     const updatePosition = () => {
+      // 如果键盘正在显示或输入框获得焦点，不调整位置
+      if (keyboardHeight > 0 || isInputFocused) {
+        return;
+      }
+
       const { width, height } = Dimensions.get('window');
       const orientation = width > height ? 'landscape' : 'portrait';
-      // 在竖屏模式下，确保控件在底部居中
-      const newPos = orientation === 'portrait' 
-        ? { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 110) }
-        : { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 110) };
+      // 确保控件在底部居中
+      const newPos = orientation === 'portrait'
+        ? { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 120) }
+        : { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 120) };
       setPos(newPos);
       persistPos(newPos);
     };
-    
+
     const dimensionsListener = Dimensions.addEventListener('change', updatePosition);
-    
+
     return () => {
       dimensionsListener.remove();
     };
-  }, [current]);
+  }, [keyboardHeight, isInputFocused]);
 
   const pan = useRef(
     PanResponder.create({

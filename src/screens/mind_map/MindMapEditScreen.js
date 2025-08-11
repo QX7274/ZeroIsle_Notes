@@ -24,7 +24,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Button, Toast } from '../../components/common';
 import MindMapToolbar from '../../components/mind_map/MindMapToolbar';
 import MindMapView from '../../components/mind_map/MindMapView';
-import apiService from '../../services/api/apiService';
+import mindMapApi from '../../services/api/mindMapApi';
 import analyticsService from '../../services/analytics/analyticsService';
 import mindMapService from '../../services/ai/mindMapService';
 
@@ -64,7 +64,10 @@ const MindMapEditScreen = () => {
     try {
       setLoading(true);
 
-      const response = await apiService.get(`/mind-map/maps/${mindMapId}/`);
+      const response = await mindMapApi.getMindMap(mindMapId);
+      if (!response.success) {
+        throw new Error(response.message || '加载思维导图失败');
+      }
       const data = response.data;
 
       setMindMap(data);
@@ -183,11 +186,17 @@ const MindMapEditScreen = () => {
 
       if (mindMapId && !isExample) {
         // 更新现有思维导图
-        response = await apiService.put(`/mind-map/maps/${mindMapId}/`, mindMapData);
+        response = await mindMapApi.updateMindMap(mindMapId, mindMapData);
+        if (!response.success) {
+          throw new Error(response.message || '更新思维导图失败');
+        }
         showToastMessage('思维导图已保存');
       } else {
         // 创建新思维导图
-        response = await apiService.post('/mind-map/maps/', mindMapData);
+        response = await mindMapApi.createMindMap(mindMapData);
+        if (!response.success) {
+          throw new Error(response.message || '创建思维导图失败');
+        }
         navigation.setParams({ mindMapId: response.data.id });
         showToastMessage('思维导图已创建');
       }

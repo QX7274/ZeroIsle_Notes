@@ -99,12 +99,21 @@ class OfflineStorageService {
       const safeFields = [
         'type', 'file_type', 'file_name', 'file_uri', 'uri', 'path', 'file_path', 'url',
         'imported', 'is_offline', 'preview_image', 'color', 'is_pinned', 'is_archived',
-        'is_locked', 'metadata', 'tags'
+        'is_locked', 'metadata', 'tags',
+        // 无限画布特殊字段
+        'canvasStyle', 'scale', 'translateX', 'translateY', 'paths', 'images',
+        // 分页笔记特殊字段
+        'noteStyle', 'currentPage', 'totalPages', 'pages'
       ];
 
       safeFields.forEach(field => {
         if (note[field] !== undefined) {
-          noteData[field] = note[field];
+          // 对于复杂对象字段，需要序列化为字符串
+          if (['paths', 'images', 'pages', 'metadata'].includes(field)) {
+            noteData[field] = typeof note[field] === 'object' ? JSON.stringify(note[field]) : note[field];
+          } else {
+            noteData[field] = note[field];
+          }
         }
       });
 
@@ -634,12 +643,43 @@ class OfflineStorageService {
         return null;
       }
 
-      // 准备更新数据
+      // 准备更新数据，确保数据类型正确
       const updateData = {
         ...update,
         updated_at: new Date(),
         is_synced: false,
       };
+
+      // 特殊处理可能导致"Expected value to be iterable"错误的字段
+      if (updateData.tags !== undefined) {
+        // 确保tags是字符串数组
+        if (Array.isArray(updateData.tags)) {
+          updateData.tags = updateData.tags.map(tag => String(tag));
+        } else if (typeof updateData.tags === 'object' && updateData.tags !== null) {
+          // 如果tags是对象，尝试提取数组
+          if (updateData.tags.results && Array.isArray(updateData.tags.results)) {
+            updateData.tags = updateData.tags.results.map(tag => String(tag));
+          } else {
+            console.warn('tags字段是对象但没有results属性，设置为空数组');
+            updateData.tags = [];
+          }
+        } else if (typeof updateData.tags === 'string') {
+          // 如果是字符串，尝试解析为JSON数组
+          try {
+            const parsed = JSON.parse(updateData.tags);
+            updateData.tags = Array.isArray(parsed) ? parsed.map(tag => String(tag)) : [];
+          } catch {
+            updateData.tags = [updateData.tags]; // 单个字符串转为数组
+          }
+        } else {
+          updateData.tags = [];
+        }
+      }
+
+      // 确保metadata是字符串
+      if (updateData.metadata !== undefined && typeof updateData.metadata === 'object') {
+        updateData.metadata = JSON.stringify(updateData.metadata);
+      }
 
       // 更新笔记
       const updatedNote = await realmService.update('Note', id, updateData);
@@ -653,6 +693,7 @@ class OfflineStorageService {
       return updatedNote;
     } catch (error) {
       console.error(`更新笔记失败: ${id}`, error);
+      console.error('更新数据:', JSON.stringify(update, null, 2));
       throw error;
     }
   }

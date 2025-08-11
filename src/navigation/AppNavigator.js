@@ -37,6 +37,8 @@ import PDFViewer from '../screens/viewers/PDFViewer';
 import DocViewer from '../screens/viewers/DocViewer';
 import MarkdownViewer from '../screens/viewers/MarkdownViewer';
 import PPTViewer from '../screens/viewers/PPTViewer';
+import InfiniteCanvasScreen from '../screens/canvas/InfiniteCanvasScreen';
+import PagedNoteScreen from '../screens/note/PagedNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
@@ -520,7 +522,24 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-      {/* 无限画布功能已移除 */}
+      <Stack.Screen
+        name="InfiniteCanvas"
+        component={InfiniteCanvasScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '无限画布',
+          headerShown: false,
+          gestureEnabled: true,
+        })}
+      />
+      <Stack.Screen
+        name="PagedNote"
+        component={PagedNoteScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '新建笔记',
+          headerShown: false,
+          gestureEnabled: true,
+        })}
+      />
       {/* ReminderScreen已移除，使用AddReminderScreen */}
       <Stack.Screen
         name="AddReminder"

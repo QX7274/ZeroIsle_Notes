@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Platform, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { AllInOneToolbar } from '../../components/common';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
@@ -14,6 +14,7 @@ import { offlineStorageService } from '../../services/offline';
 import PptxWebView from '../../components/viewer/web/PptxWebView';
 import LoadingIndicator, { LoadingMessages, ErrorIndicator } from '../../components/common/LoadingIndicator';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
+import documentCacheService from '../../services/document/documentCacheService';
 
 const PPTViewer = ({ route, navigation }) => {
   const { uri, title = '演示文稿', noteId } = route.params || {};
@@ -29,7 +30,10 @@ const PPTViewer = ({ route, navigation }) => {
   const [images, setImages] = useState([]);
   const [pptxB64, setPptxB64] = useState(null);
   const [totalSlides, setTotalSlides] = useState(1);
+  const [deselectTick, setDeselectTick] = useState(0);
 
+  const [loadingMessage, setLoadingMessage] = useState('正在加载PPT文档...');
+  const [loadingSubMessage, setLoadingSubMessage] = useState('');
 
   const docId = noteId || uri || title;
 
@@ -51,35 +55,58 @@ const PPTViewer = ({ route, navigation }) => {
         setIsLoading(true);
         setError(null);
 
-        // 读取PPT文件为base64，用WebView渲染
+        // 读取PPT文件为base64，用WebView渲染 - 集成后台加载机制
         if (uri) {
           console.log('PPTViewer: 开始处理PPT文件:', uri);
-          const RNFS = require('react-native-fs');
-          let path = uri;
+          setLoadingMessage('正在加载PPT文档...');
+          setLoadingSubMessage('正在检查缓存...');
 
-          // 设置超时机制
-          const createTimeout = (ms) => new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`操作超时(${ms}ms)`)), ms)
-          );
+          // 首先检查缓存
+          const cached = await documentCacheService.getCachedDocument(uri, 'pptx');
+          if (cached && cached.data) {
+            console.log('PPTViewer: 从缓存获取PPT文档');
+            setLoadingMessage('文档已缓存');
+            setLoadingSubMessage('正在渲染...');
+            setPptxB64(cached.data);
+            setIsLoading(false);
+            return;
+          }
 
-          // 处理content://协议的URI
-          if (path.startsWith('content://')) {
-            console.log('PPTViewer: 处理content://协议文件');
-            try {
-              // 直接尝试读取content://URI（设置超时）
-              console.log('PPTViewer: 直接读取content://URI...');
-              const data = await Promise.race([
-                RNFS.readFile(path, 'base64'),
-                createTimeout(15000) // 15秒超时
-              ]);
-              console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
-              setPptxB64(data);
-            } catch (e) {
-              console.warn('PPTViewer: 直接读取content://URI失败:', e);
+          // 定义加载函数
+          const loadFunction = async () => {
+            const RNFS = require('react-native-fs');
+            let path = uri;
 
-              // 如果直接读取失败，尝试复制到缓存目录
+            // 设置超时机制
+            const createTimeout = (ms) => new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`操作超时(${ms}ms)`)), ms)
+            );
+
+            // 处理content://协议的URI
+            if (path.startsWith('content://')) {
+              console.log('PPTViewer: 处理content://协议文件');
+              setLoadingMessage('正在读取PPT文件...');
+              setLoadingSubMessage('正在访问文件系统...');
+
               try {
+                // 直接尝试读取content://URI（设置超时）
+                console.log('PPTViewer: 直接读取content://URI...');
+                setLoadingSubMessage('正在读取文件内容...');
+                const data = await Promise.race([
+                  RNFS.readFile(path, 'base64'),
+                  createTimeout(15000) // 15秒超时
+                ]);
+                console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
+                setLoadingMessage('文件读取完成');
+                setLoadingSubMessage('正在解析PPT结构...');
+                return data;
+              } catch (e) {
+                console.warn('PPTViewer: 直接读取content://URI失败:', e);
+
+                // 如果直接读取失败，尝试复制到缓存目录
                 console.log('PPTViewer: 尝试复制到缓存目录...');
+                setLoadingMessage('正在处理文件...');
+                setLoadingSubMessage('正在复制到缓存目录...');
                 const dest = `${RNFS.CachesDirectoryPath}/ppt_${Date.now()}.pptx`;
                 await Promise.race([
                   RNFS.copyFile(path, dest),
@@ -90,36 +117,51 @@ const PPTViewer = ({ route, navigation }) => {
 
                 // 从缓存读取
                 console.log('PPTViewer: 从缓存读取文件...');
+                setLoadingSubMessage('正在从缓存读取文件...');
                 const data = await Promise.race([
                   RNFS.readFile(path, 'base64'),
                   createTimeout(10000) // 10秒超时
                 ]);
                 console.log('PPTViewer: 缓存文件读取成功，base64长度:', data ? data.length : 0);
-                setPptxB64(data);
-              } catch (copyErr) {
-                console.error('PPTViewer: 复制PPT文件失败:', copyErr);
-                setError('无法访问文件，请确保应用有权限访问该文件。您可能需要重新选择文件。');
+                setLoadingMessage('文件读取完成');
+                setLoadingSubMessage('正在解析PPT结构...');
+                return data;
               }
-            }
-          } else {
-            // 处理file://协议
-            console.log('PPTViewer: 处理file://协议文件');
-            if (path.startsWith('file://')) {
-              path = path.replace('file://', '');
-            }
+            } else {
+              // 处理file://协议
+              console.log('PPTViewer: 处理file://协议文件');
+              setLoadingMessage('正在读取PPT文件...');
+              setLoadingSubMessage('正在访问本地文件...');
 
-            try {
+              if (path.startsWith('file://')) {
+                path = path.replace('file://', '');
+              }
+
               console.log('PPTViewer: 读取本地文件:', path);
+              setLoadingSubMessage('正在读取文件内容...');
               const data = await Promise.race([
                 RNFS.readFile(path, 'base64'),
                 createTimeout(12000) // 12秒超时
               ]);
               console.log('PPTViewer: 本地文件读取成功，base64长度:', data ? data.length : 0);
-              setPptxB64(data);
-            } catch (readErr) {
-              console.error('PPTViewer: 读取本地PPTX文件失败:', readErr);
-              setError('读取文件失败，请确保文件格式正确且未损坏。');
+              setLoadingMessage('文件读取完成');
+              setLoadingSubMessage('正在解析PPT结构...');
+              return data;
             }
+          };
+
+          // 使用后台加载机制
+          try {
+            setLoadingMessage('正在解析PPT文档...');
+            setLoadingSubMessage('请稍候，这可能需要一些时间...');
+            const result = await documentCacheService.startBackgroundLoading(uri, 'pptx', loadFunction);
+            setLoadingMessage('PPT文档解析完成');
+            setLoadingSubMessage('正在渲染页面...');
+            setPptxB64(result.data);
+            console.log('PPTViewer: PPT文档后台加载完成');
+          } catch (error) {
+            console.error('PPTViewer: PPT文档加载失败:', error);
+            setError(error.message || '读取文件失败，请确保文件格式正确且未损坏。');
           }
         } else {
           console.warn('PPTViewer: 未提供文件URI');
@@ -156,11 +198,13 @@ const PPTViewer = ({ route, navigation }) => {
   const addImage = async (img) => { const item={ id:`img_${Date.now()}`, uri: img.uri || img, x:20, y:20, z:10 }; const next=[...images, item]; setImages(next); await persistImages(next); };
   const moveImage = async (id, pos) => { const next=images.map(it=>it.id===id?{...it,...pos}:it); setImages(next); await persistImages(next); };
 
-  const handleAddBookmark = async () => { await addBookmark(docId, { name:`书签_${currentPage}`, page: currentPage }); setBookmarkVisible(true); };
+  const handleAddBookmark = () => {
+    setBookmarkVisible(true);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* <ToolbarContainer>
+      <ToolbarContainer>
         <AllInOneToolbar
           onToolChange={() => {}}
           onColorChange={setStrokeColor}
@@ -169,21 +213,25 @@ const PPTViewer = ({ route, navigation }) => {
           onBookmarkAdd={handleAddBookmark}
           onBookmarkList={() => setBookmarkVisible(true)}
         />
-      </ToolbarContainer> */}
+      </ToolbarContainer>
 
       <ViewerLayout
         colors={colors}
         headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
         headerRight={
-          <SaveButton
-            onSave={saveToLocal}
-            text="保存"
-            showSuccessToast={true}
-            showErrorAlert={true}
-            style={styles.saveButtonCompact}
-          />
+          <View style={styles.headerRightContainer}>
+            <SaveButton
+              onSave={saveToLocal}
+              text="保存"
+              showSuccessToast={true}
+              showErrorAlert={true}
+              style={styles.saveButtonCompact}
+            />
+          </View>
         }
-        title={title}>
+        title={title}
+        hasExternalToolbar={true}
+        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}>
         {isLoading && (
           <LoadingIndicator
             message={LoadingMessages.PPT.LOADING}
@@ -240,16 +288,16 @@ const PPTViewer = ({ route, navigation }) => {
                 {/* 加载覆盖层 */}
                 {isLoading && (
                   <LoadingIndicator
-                    message={LoadingMessages.PPT.RENDERING}
-                    subMessage={LoadingMessages.PPT.FIRST_TIME}
+                    message={loadingMessage}
+                    subMessage={loadingSubMessage}
                     overlay={true}
                   />
                 )}
               </View>
             ) : isLoading ? (
               <LoadingIndicator
-                message={LoadingMessages.PPT.PARSING}
-                subMessage="请稍候，正在读取文件数据"
+                message={loadingMessage}
+                subMessage={loadingSubMessage}
               />
             ) : (
               <ErrorIndicator
@@ -283,6 +331,7 @@ const PPTViewer = ({ route, navigation }) => {
           onSubmitPage={(n)=>{ if (n>=1 && n<=totalPages) setCurrentPage(n); }}
           storageKey={`ppt_page_ctrl_${docId}`}
         />
+
         <BookmarkPanel visible={bookmarkVisible} onClose={() => setBookmarkVisible(false)} docId={docId} onJump={(bm)=>{ console.log('PPTViewer onJump:', bm); setBookmarkVisible(false); if (bm?.page) { setCurrentPage(bm.page); } }} />
       </ViewerLayout>
     </View>
@@ -343,6 +392,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     textAlign: 'center'
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   saveButtonCompact: {
     paddingHorizontal: 8,

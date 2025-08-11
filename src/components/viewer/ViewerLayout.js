@@ -14,7 +14,9 @@ const ViewerLayout = ({
   headerRight,
   title,
   showToolbar = true,
-  toolbarHeight = 56 // 标准工具栏高度
+  toolbarHeight = 56, // 标准工具栏高度
+  hasExternalToolbar = false, // 是否有外部的ToolbarContainer
+  externalToolbarHeight = 40 // 外部工具栏的高度（ToolbarContainer + AllInOneToolbar）
 }) => (
   <View style={[styles.container, { backgroundColor: colors?.background }, style]}>
     {/* 工具栏区域 */}
@@ -50,7 +52,9 @@ const ViewerLayout = ({
     <View style={[
       styles.contentContainer,
       {
-        marginTop: showToolbar ? 0 : (Platform.OS === 'ios' ? 44 : 24) // 如果没有工具栏，添加状态栏间距
+        marginTop: hasExternalToolbar ? externalToolbarHeight :
+                  (showToolbar ? 0 : (Platform.OS === 'ios' ? 44 : 24)), // 考虑外部工具栏或状态栏间距
+        paddingTop: hasExternalToolbar ? 8 : 0 // 外部工具栏下方添加小间距
       },
       contentStyle
     ]}>

@@ -166,11 +166,40 @@ export const SaveUtils = {
       try {
         const existingNote = await offlineStorageService.getNote(documentId);
         if (existingNote) {
+          // 创建一个干净的笔记对象，避免循环引用
           const updatedNote = {
-            ...existingNote,
+            _id: existingNote._id,
+            id: existingNote.id || existingNote._id,
+            title: existingNote.title,
             content: content,
+            type: existingNote.type,
+            file_type: existingNote.file_type,
+            file_name: existingNote.file_name,
+            file_uri: existingNote.file_uri,
+            uri: existingNote.uri,
+            path: existingNote.path,
+            created_at: existingNote.created_at,
             updated_at: new Date().toISOString(),
-            is_synced: false
+            is_synced: false,
+            is_offline: existingNote.is_offline,
+            imported: existingNote.imported,
+            // 确保metadata是字符串
+            metadata: typeof existingNote.metadata === 'object' ?
+                     JSON.stringify(existingNote.metadata) :
+                     (existingNote.metadata || '{}'),
+            // 确保tags是字符串数组，过滤掉循环引用对象
+            tags: Array.isArray(existingNote.tags) ?
+                  existingNote.tags.filter(tag =>
+                    typeof tag === 'string' ||
+                    (typeof tag === 'object' && tag !== null && !tag.reference)
+                  ).map(tag => String(tag)) : [],
+            // 处理attachments字段，过滤掉循环引用
+            attachments: Array.isArray(existingNote.attachments) ?
+                        existingNote.attachments.filter(attachment =>
+                          typeof attachment === 'object' &&
+                          attachment !== null &&
+                          !attachment.reference
+                        ) : []
           };
           await offlineStorageService.updateNote(documentId, updatedNote);
           console.log('SaveUtils: 笔记内容已更新');

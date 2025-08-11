@@ -1,7 +1,7 @@
+import NetInfo from '@react-native-community/netinfo';
 import { realmService } from '../database/realmService';
 import { analyticsService } from '../analytics/analyticsService';
 import { apiService } from './api';
-import { authService } from '../auth/authService';
 
 class GroupService {
   constructor() {
@@ -95,6 +95,12 @@ class GroupService {
 
   async createGroup(name, description) {
     try {
+      // 检查网络连接
+      const networkState = await NetInfo.fetch();
+      if (!networkState.isConnected) {
+        throw new Error('网络连接失败，无法创建群组');
+      }
+
       const response = await apiService.post('/groups', {
         name,
         description,
@@ -109,6 +115,12 @@ class GroupService {
     } catch (error) {
       console.error('创建群组错误:', error);
       analyticsService.trackError(error, { action: 'create_group' });
+
+      // 改进错误消息
+      if (error.isNetworkError || error.message.includes('网络')) {
+        throw new Error('网络连接失败，请检查网络设置后重试');
+      }
+
       throw error;
     }
   }
@@ -207,26 +219,53 @@ class GroupService {
 
   async getGroups() {
     try {
+      // 检查网络连接
+      const networkState = await NetInfo.fetch();
+      if (!networkState.isConnected) {
+        console.log('群组服务: 网络未连接，返回空群组列表');
+        return [];
+      }
+
       const response = await apiService.get('/groups');
 
-      analyticsService.trackGroupAction('get_groups', {
-        groupCount: response.data.groups.length,
-      });
+      // 检查响应数据结构
+      if (response && response.data) {
+        const groups = response.data.groups || response.data || [];
 
-      return response.data.groups;
+        analyticsService.trackGroupAction('get_groups', {
+          groupCount: Array.isArray(groups) ? groups.length : 0,
+        });
+
+        return Array.isArray(groups) ? groups : [];
+      }
+
+      return [];
     } catch (error) {
       console.error('获取群组列表错误:', error);
       analyticsService.trackError(error, { action: 'get_groups' });
-      
+
+      // 检查是否是网络错误
+      if (error.isNetworkError || error.message === '网络连接失败，请检查网络设置') {
+        console.log('群组服务: 网络错误，返回空群组列表');
+        return [];
+      }
+
       // 特殊处理401错误
       if (error.response && error.response.status === 401) {
-        // 触发令牌刷新或跳转登录
-        authService.handleUnauthorized();
+        console.log('群组服务: 401认证错误，可能需要重新登录');
         return []; // 返回空数组避免UI报错
       }
-      
- throw error;
-  }
+
+      // 特殊处理404错误
+      if (error.response && error.response.status === 404) {
+        console.log('群组服务: 404错误，可能是API端点不存在');
+        return [];
+      }
+
+      // 其他错误也返回空数组，避免应用崩溃
+      console.log('群组服务: 其他错误，返回空群组列表');
+      return [];
+    }
   }
   async leaveGroup(groupId) {
     try {

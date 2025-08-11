@@ -19,8 +19,7 @@ import DocumentPicker, { types } from 'react-native-document-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiWrapper } from '../../services/api/apiWrapper';
-import { setNotes as setNotesAction, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
-import { store } from '../../redux/store';
+import { setNotes as setNotesAction, addNote, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
@@ -29,6 +28,8 @@ import SortControl from '../../components/home/SortControl';
 import { offlineStorageService } from '../../services/offline';
 import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
+import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
+import NoteStyleModal from '../../components/note/NoteStyleModal';
 import RNFS from 'react-native-fs';
 
 const HomeScreen = ({ navigation }) => {
@@ -45,6 +46,8 @@ const HomeScreen = ({ navigation }) => {
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
   const [showCreateOptions, setShowCreateOptions] = useState(false);
+  const [showCanvasStyleModal, setShowCanvasStyleModal] = useState(false);
+  const [showNoteStyleModal, setShowNoteStyleModal] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
   const [renameDialogVisible, setRenameDialogVisible] = useState(false);
   const [noteToRename, setNoteToRename] = useState(null);
@@ -200,6 +203,41 @@ const HomeScreen = ({ navigation }) => {
   const handleSortChange = useCallback((newSortOption) => {
     setSortOption(newSortOption);
   }, []);
+
+  // 创建无限画布
+  const createCanvas = () => {
+    setShowCreateOptions(false);
+    setShowCanvasStyleModal(true);
+  };
+
+  // 处理画布样式选择
+  const handleCanvasStyleSelect = (style, name) => {
+    const canvasTitle = name || `无限画布 ${new Date().toLocaleString()}`;
+    const canvasId = `canvas_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+    navigation.navigate('InfiniteCanvas', {
+      title: canvasTitle,
+      noteId: canvasId,
+      canvasStyle: style
+    });
+  };
+
+  // 创建新建笔记
+  const createNote = () => {
+    setShowCreateOptions(false);
+    setShowNoteStyleModal(true);
+  };
+
+  // 处理笔记样式选择
+  const handleNoteStyleSelect = (style, name) => {
+    const noteId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+    navigation.navigate('PagedNote', {
+      title: name,
+      noteId: noteId,
+      noteStyle: style
+    });
+  };
 
   // 创建空笔记列表的函数
   const createTestNotes = () => {
@@ -410,18 +448,9 @@ const HomeScreen = ({ navigation }) => {
             console.warn('HomeScreen: PDF文件保存失败:', e);
           }
 
-          // 重要：使用当前最新的笔记列表，避免覆盖现有数据
-          try {
-            const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
-            const updatedNotes = [...currentNotes, localNote];
-            dispatch(setNotesAction(updatedNotes));
-            console.log('HomeScreen: PDF文件导入完成，当前笔记总数:', updatedNotes.length);
-          } catch (storeError) {
-            console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
-            const updatedNotes = [...(allNotes || []), localNote];
-            dispatch(setNotesAction(updatedNotes));
-            console.log('HomeScreen: PDF文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
-          }
+          // 使用addNote添加单个笔记，避免覆盖现有数据
+          dispatch(addNote(localNote));
+          console.log('HomeScreen: PDF文件导入完成，笔记ID:', localNote._id);
 
           // 日志已在上面的try-catch块中输出
           setIsLoading(false);
@@ -561,18 +590,9 @@ const HomeScreen = ({ navigation }) => {
           console.warn('HomeScreen: Word文件保存失败:', e);
         }
 
-        // 重要：使用当前最新的笔记列表，避免覆盖现有数据
-        try {
-          const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
-          const updatedNotes = [...currentNotes, localNote];
-          dispatch(setNotesAction(updatedNotes));
-          console.log('HomeScreen: PPT文件导入完成，当前笔记总数:', updatedNotes.length);
-        } catch (storeError) {
-          console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
-          const updatedNotes = [...(allNotes || []), localNote];
-          dispatch(setNotesAction(updatedNotes));
-          console.log('HomeScreen: PPT文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
-        }
+        // 使用addNote添加单个笔记，避免覆盖现有数据
+        dispatch(addNote(localNote));
+        console.log('HomeScreen: PPT文件导入完成，笔记ID:', localNote._id);
 
         // 日志已在上面的try-catch块中输出
         Alert.alert('成功', '已添加到列表，点击即可打开预览');
@@ -630,18 +650,9 @@ const HomeScreen = ({ navigation }) => {
           console.warn('HomeScreen: Markdown文件保存失败:', e);
         }
 
-        // 重要：使用当前最新的笔记列表，避免覆盖现有数据
-        try {
-          const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
-          const updatedNotes = [...currentNotes, localNote];
-          dispatch(setNotesAction(updatedNotes));
-          console.log('HomeScreen: Markdown文件导入完成，当前笔记总数:', updatedNotes.length);
-        } catch (storeError) {
-          console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
-          const updatedNotes = [...(allNotes || []), localNote];
-          dispatch(setNotesAction(updatedNotes));
-          console.log('HomeScreen: Markdown文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
-        }
+        // 使用addNote添加单个笔记，避免覆盖现有数据
+        dispatch(addNote(localNote));
+        console.log('HomeScreen: Markdown文件导入完成，笔记ID:', localNote._id);
 
         // 日志已在上面的try-catch块中输出
         Alert.alert('成功', '已添加到列表，点击即可打开预览');
@@ -739,7 +750,7 @@ const HomeScreen = ({ navigation }) => {
       };
 
       // 添加到Redux状态
-      dispatch(setNotesAction([...allNotes, localNote]));
+      dispatch(addNote(localNote));
 
       // 保存到本地存储 - 使用多种方式确保持久化
       try {
@@ -909,6 +920,18 @@ const HomeScreen = ({ navigation }) => {
           </View>
         );
       }
+      // 检查是否是分页笔记
+      else if (item.type === 'paged_note') {
+        console.log('handleFilePress - 检测到分页笔记文件，进入笔记分支:', item);
+        // 分页笔记封面 - 使用笔记本样式
+        return (
+          <View style={[styles.coverContainer, styles.textBackground]}>
+            <Icon name="note" size={30} color="#1976D2" />
+            <Text style={{ color: '#1976D2', fontSize: 12, marginTop: 4 }}>笔记</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#1976D2' }]} />
+          </View>
+        );
+      }
       // 默认文本笔记封面
       else {
         console.log('handleFilePress - 未匹配特定类型，进入默认文本笔记分支:', item); // 添加默认分支日志
@@ -1033,6 +1056,16 @@ const HomeScreen = ({ navigation }) => {
       if (item.type === 'canvas') {
         const canvasId = item._id || item.id || `temp_${Date.now()}`;
         navigation.navigate('InfiniteCanvas', { canvasId, title: item.title || '无限草稿' });
+        return;
+      }
+
+      if (item.type === 'paged_note') {
+        const noteId = item._id || item.id || `temp_${Date.now()}`;
+        navigation.navigate('PagedNote', {
+          noteId,
+          title: item.title || '新建笔记',
+          noteStyle: item.noteStyle || 'blank'
+        });
         return;
       }
 
@@ -1595,13 +1628,27 @@ const HomeScreen = ({ navigation }) => {
         <CreateContentModal
           visible={showCreateOptions}
           onClose={() => setShowCreateOptions(false)}
-          onCreateNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
+          onCreateNote={createNote}
           onCreateLinedNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
           onImportMarkdown={importMarkdown}
           onImportPDF={importPDF}
           onImportWord={importWord}
           onImportPPT={importPPT}
-          onCreateCanvas={() => Alert.alert('提示', '无限画布功能已移除')}
+          onCreateCanvas={createCanvas}
+        />
+
+        {/* 画布样式选择弹窗 */}
+        <CanvasStyleModal
+          visible={showCanvasStyleModal}
+          onClose={() => setShowCanvasStyleModal(false)}
+          onSelect={handleCanvasStyleSelect}
+        />
+
+        {/* 笔记样式选择弹窗 */}
+        <NoteStyleModal
+          visible={showNoteStyleModal}
+          onClose={() => setShowNoteStyleModal(false)}
+          onSelect={handleNoteStyleSelect}
         />
       </View>
 

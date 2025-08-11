@@ -10,7 +10,8 @@ import {
   TextInput,
   Platform,
   Share,
-  Keyboard
+  Keyboard,
+  Modal
 } from 'react-native';
 import Pdf from 'react-native-pdf';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -60,6 +61,22 @@ const PDFViewer = ({ route, navigation }) => {
   // 引用
   const pdfRef = useRef(null);
   const handwritingRef = useRef(null);
+
+  // 添加书签
+  const handleAddBookmark = () => {
+    setBookmarkVisible(true);
+  };
+
+  // 跳转到书签
+  const handleJumpToBookmark = (bookmark) => {
+    console.log('跳转到书签:', bookmark);
+    if (bookmark.page && pdfRef.current) {
+      setCurrentPage(bookmark.page);
+      // 使用PDF组件的setPage方法跳转
+      pdfRef.current.setPage(bookmark.page);
+    }
+    setBookmarkVisible(false);
+  };
   const pageChangeTimeout = useRef(null);
 
   useLayoutEffect(() => {
@@ -694,7 +711,7 @@ const PDFViewer = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-    { <ToolbarContainer>
+    <ToolbarContainer>
       <AllInOneToolbar
         onToolChange={() => {}}
         onColorChange={setStrokeColor}
@@ -703,7 +720,7 @@ const PDFViewer = ({ route, navigation }) => {
         onBookmarkAdd={handleAddBookmark}
         onBookmarkList={() => setBookmarkVisible(true)}
       />
-    </ToolbarContainer> }
+    </ToolbarContainer>
     <ViewerLayout
       colors={colors}
       headerLeft={
@@ -714,7 +731,7 @@ const PDFViewer = ({ route, navigation }) => {
         />
       }
       headerRight={
-        <View >
+        <View style={styles.headerRightContainer}>
           {/* 保存按钮 - 最右侧位置 */}
           <SaveButton
             onSave={saveToLocal}
@@ -726,6 +743,8 @@ const PDFViewer = ({ route, navigation }) => {
         </View>
       }
       title={title || 'PDF查看器'}
+      hasExternalToolbar={true}
+      externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}
     >
       
       {isLoading && (
@@ -955,7 +974,12 @@ const PDFViewer = ({ route, navigation }) => {
       )}
 
       {/* 书签面板 */}
-      <BookmarkPanel visible={bookmarkVisible} onClose={() => setBookmarkVisible(false)} docId={noteId} onJump={() => setBookmarkVisible(false)} />
+      <BookmarkPanel
+        visible={bookmarkVisible}
+        onClose={() => setBookmarkVisible(false)}
+        docId={noteId}
+        onJump={handleJumpToBookmark}
+      />
     </ViewerLayout>
     </View>
   );
@@ -1173,6 +1197,11 @@ const styles = StyleSheet.create({
   //   shadowOpacity: 0.25,
   //   shadowRadius: 3.84,
   // },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   saveButtonCompact: {
     paddingHorizontal: 8,
     paddingVertical: 4,

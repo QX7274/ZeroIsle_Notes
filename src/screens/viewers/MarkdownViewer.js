@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import { AllInOneToolbar } from '../../components/common';
@@ -30,6 +30,7 @@ function MarkdownViewer({ route, navigation }) {
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
   const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
   const [deselectTick, setDeselectTick] = useState(0);
+
   const scrollRef = useRef(null);
   const scrollYRef = useRef(0);
 
@@ -139,14 +140,12 @@ function MarkdownViewer({ route, navigation }) {
   };
 
   // 添加书签
-  const handleAddBookmark = async () => {
-    const name = `书签_${currentPage}`;
-    await addBookmark(docId, { name, page: currentPage });
+  const handleAddBookmark = () => {
     setBookmarkVisible(true);
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header 与工具栏 */}
       <ToolbarContainer>
         <AllInOneToolbar
@@ -165,15 +164,19 @@ function MarkdownViewer({ route, navigation }) {
         colors={colors}
         headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
         headerRight={
-          <SaveButton
-            onSave={saveToLocal}
-            text="保存"
-            showSuccessToast={true}
-            showErrorAlert={true}
-            style={styles.saveButtonCompact}
-          />
+          <View style={styles.headerRightContainer}>
+            <SaveButton
+              onSave={saveToLocal}
+              text="保存"
+              showSuccessToast={true}
+              showErrorAlert={true}
+              style={styles.saveButtonCompact}
+            />
+          </View>
         }
-        title={title}>
+        title={title}
+        hasExternalToolbar={true}
+        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}>
         {isLoading && (
           <LoadingIndicator
             message={LoadingMessages.MARKDOWN.LOADING}
@@ -295,6 +298,11 @@ const styles = StyleSheet.create({
     margin: 0,
   },
 
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   saveButtonCompact: {
     paddingHorizontal: 8,
     paddingVertical: 4,

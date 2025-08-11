@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, TextInput, ScrollView, TouchableOpacity, Text, Dimensions } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, TextInput, ScrollView, TouchableOpacity, Text, Dimensions, Modal, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import { AllInOneToolbar } from '../../components/common';
@@ -13,8 +13,9 @@ import BackButton from '../../components/viewer/BackButton';
 import { addBookmark } from '../../services/bookmarkService';
 import { offlineStorageService } from '../../services/offline';
 import DocxWebView from '../../components/viewer/web/DocxWebView';
-import LoadingIndicator, { LoadingMessages, ErrorIndicator } from '../../components/common/LoadingIndicator';
+import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
+import documentCacheService from '../../services/document/documentCacheService';
 
 const DocViewer = ({ route, navigation }) => {
   const { uri, title = '文档', noteId, type } = route.params || {};
@@ -32,6 +33,9 @@ const DocViewer = ({ route, navigation }) => {
   const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
   const [deselectTick, setDeselectTick] = useState(0);
   const [docxB64, setDocxB64] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [loadingSubMessage, setLoadingSubMessage] = useState('');
+
 
   const scrollRef = useRef(null);
   const docId = noteId || uri || title;
@@ -125,7 +129,7 @@ const DocViewer = ({ route, navigation }) => {
     return () => console.log('DocViewer: 组件卸载', { component: 'DocViewer', state: 'unmount' });
   }, [uri, type]);
 
-  // 读取docx文件为base64供WebView使用
+  // 读取docx文件为base64供WebView使用 - 集成后台加载机制
   useEffect(() => {
     (async () => {
       try {
@@ -133,34 +137,60 @@ const DocViewer = ({ route, navigation }) => {
         const isDoc = (type === 'doc') || ((uri || '').toLowerCase().endsWith('.doc'));
 
         if (isDocx || isDoc) {
-          console.log('DocViewer: 开始读取Word文档为base64', { type, uri });
+          console.log('DocViewer: 开始加载Word文档', { type, uri });
           setIsLoading(true);
+          setLoadingMessage('正在初始化Word文档加载...');
+          setLoadingSubMessage('正在检查缓存和准备加载环境...');
 
-          let path = uri;
+          // 首先检查缓存
+          setLoadingMessage('正在检查文档缓存...');
+          setLoadingSubMessage('查找已缓存的文档数据...');
+          const cached = await documentCacheService.getCachedDocument(uri, type);
+          if (cached && cached.data) {
+            console.log('DocViewer: 从缓存获取Word文档');
+            setLoadingMessage('找到缓存文档');
+            setLoadingSubMessage('正在从缓存加载，速度更快...');
+            setDocxB64(cached.data);
+            return;
+          }
 
-          // 处理content://协议
-          if (path.startsWith('content://')) {
-            const ext = isDocx ? 'docx' : 'doc';
-            const dest = `${RNFS.CachesDirectoryPath}/doc_${Date.now()}.${ext}`;
-            try {
-              console.log('DocViewer: 复制Word文档到缓存', { from: path, to: dest });
-              await RNFS.copyFile(path, dest);
-              path = dest;
-            } catch (e) {
-              console.warn('DocViewer: 复制Word文档失败', e);
+          // 开始后台加载
+          const loadFunction = async () => {
+            let path = uri;
+
+            // 处理content://协议
+            if (path.startsWith('content://')) {
+              const ext = isDocx ? 'docx' : 'doc';
+              const dest = `${RNFS.CachesDirectoryPath}/doc_${Date.now()}.${ext}`;
+              try {
+                console.log('DocViewer: 复制Word文档到缓存', { from: path, to: dest });
+                await RNFS.copyFile(path, dest);
+                path = dest;
+              } catch (e) {
+                console.warn('DocViewer: 复制Word文档失败', e);
+              }
             }
-          }
 
-          // 处理file://协议
-          if (path.startsWith('file://')) {
-            path = path.replace('file://', '');
-          }
+            // 处理file://协议
+            if (path.startsWith('file://')) {
+              path = path.replace('file://', '');
+            }
 
-          try {
             console.log('DocViewer: 读取Word文档文件为base64:', path);
             const data = await RNFS.readFile(path, 'base64');
             console.log('DocViewer: Word文档base64读取成功，长度:', data.length);
-            setDocxB64(data);
+            return data;
+          };
+
+          try {
+            setLoadingMessage('正在读取Word文档文件...');
+            setLoadingSubMessage('正在访问文件系统并读取文档数据...');
+
+            const result = await documentCacheService.startBackgroundLoading(uri, type, loadFunction);
+            setLoadingMessage('文档读取完成');
+            setLoadingSubMessage('正在解析Word文档结构，准备渲染...');
+            setDocxB64(result.data);
+            console.log('DocViewer: Word文档后台加载完成');
           } catch (e) {
             console.error('DocViewer: 读取Word文档失败:', e);
             setError('无法读取Word文档文件：' + e.message);
@@ -170,13 +200,6 @@ const DocViewer = ({ route, navigation }) => {
       } catch (e) {
         console.error('DocViewer: Word文档处理异常:', e);
         setError('Word文档处理失败：' + e.message);
-      } finally {
-        const isWordDoc = (type === 'docx') || (type === 'doc') ||
-                         ((uri || '').toLowerCase().endsWith('.docx')) ||
-                         ((uri || '').toLowerCase().endsWith('.doc'));
-        if (isWordDoc) {
-          setIsLoading(false);
-        }
       }
     })();
   }, [uri, type]);
@@ -195,14 +218,13 @@ const DocViewer = ({ route, navigation }) => {
   };
 
   // 书签
-  const handleAddBookmark = async () => {
-    await addBookmark(docId, { name:`书签_${currentPage}`, page: currentPage });
+  const handleAddBookmark = () => {
     setBookmarkVisible(true);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      { <ToolbarContainer>
+      <ToolbarContainer>
         <AllInOneToolbar
           onToolChange={() => {}}
           onColorChange={setStrokeColor}
@@ -211,27 +233,26 @@ const DocViewer = ({ route, navigation }) => {
           onBookmarkAdd={handleAddBookmark}
           onBookmarkList={() => setBookmarkVisible(true)}
         />
-      </ToolbarContainer> }
+      </ToolbarContainer>
 
-      <ViewerLayout 
-        colors={colors} 
-        headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 0 }} />} 
+      <ViewerLayout
+        colors={colors}
+        headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 0 }} />}
         headerRight={
-          <SaveButton
-            onSave={saveToLocal}
-            text="保存"
-            showSuccessToast={true}
-            showErrorAlert={true}
-            style={styles.saveButtonCompact}
-          />
+          <View style={styles.headerRightContainer}>
+            <SaveButton
+              onSave={saveToLocal}
+              text="保存"
+              showSuccessToast={true}
+              showErrorAlert={true}
+              style={styles.saveButtonCompact}
+            />
+          </View>
         }
-        title={title}>
-        {isLoading && (
-          <LoadingIndicator
-            message={LoadingMessages.WORD.LOADING}
-            subMessage={LoadingMessages.WORD.FIRST_TIME}
-          />
-        )}
+        title={title}
+        hasExternalToolbar={true}
+        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}>
+        {/* 移除通用加载状态，只在有具体进度信息时显示 */}
         {!isLoading && !!error && (
           <ErrorIndicator
             message="文档加载失败"
@@ -243,29 +264,49 @@ const DocViewer = ({ route, navigation }) => {
             }}
           />
         )}
-        {!isLoading && !error && (
+        {!error && (
           <View style={styles.viewer}>
             {/* Word文档显示 */}
             {((type === 'docx') || (type === 'doc') ||
               (uri||'').toLowerCase().endsWith('.docx') ||
               (uri||'').toLowerCase().endsWith('.doc')) ? (
-              docxB64 ? (
-                <View style={{ flex: 1 }}>
+              <View style={{ flex: 1 }}>
+                {/* 详细的加载进度显示 - 只在有具体进度信息时显示 */}
+                {(isLoading || !docxB64) && (loadingMessage || loadingSubMessage) && (
+                  <View style={styles.loadingOverlay}>
+                    <LoadingIndicator
+                      message={loadingMessage || '正在处理Word文档...'}
+                      subMessage={loadingSubMessage || '请稍候...'}
+                      overlay={true}
+                    />
+                  </View>
+                )}
+                {/* 只有在docxB64存在时才渲染WebView */}
+                {docxB64 && (
                   <DocxWebView
                     base64Docx={docxB64}
                     onReady={(message) => {
                       console.log('DocxWebView: Word文档渲染完成', message);
                       setIsLoading(false);
                     }}
+                    onMessage={(event) => {
+                      try {
+                        const data = JSON.parse(event.nativeEvent.data);
+                        if (data.type === 'loading') {
+                          setLoadingMessage(data.message || '正在渲染Word文档...');
+                          setLoadingSubMessage(data.subMessage || '');
+                        } else if (data.type === 'error') {
+                          setError(data.message || '文档加载失败');
+                          setIsLoading(false);
+                        }
+                      } catch (error) {
+                        console.log('解析WebView消息失败:', error);
+                      }
+                    }}
                     style={{ flex: 1 }}
                   />
-                </View>
-              ) : (
-                <LoadingIndicator
-                  message={LoadingMessages.WORD.PARSING}
-                  subMessage={LoadingMessages.WORD.FIRST_TIME}
-                />
-              )
+                )}
+              </View>
             ) : isTextMode ? (
               /* 文本编辑模式 */
               <ScrollView
@@ -360,6 +401,17 @@ const styles = StyleSheet.create({
   viewer: {
     flex: 1
   },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   input: {
     minHeight: 400,
     textAlignVertical: 'top',
@@ -367,6 +419,11 @@ const styles = StyleSheet.create({
     lineHeight: 24
   },
 
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   saveButtonCompact: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -388,7 +445,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'left'
-  }
+  },
 });
 
 export default DocViewer;

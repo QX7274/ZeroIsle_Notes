@@ -60,10 +60,8 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
 </head>
 <body>
   <div id="root">
-    <div class="loading" id="loading">
-      <div>正在加载Word文档...</div>
-      <div style="margin-top: 10px; font-size: 14px;">请稍候</div>
-    </div>
+    <!-- 移除HTML加载UI，统一使用React Native的LoadingIndicator -->
+    <div class="loading" id="loading" style="display: none;"></div>
     <div id="docx" style="display: none;"></div>
     <div id="error" style="display: none;"></div>
     <div id="fallback" style="display: none;"></div>
@@ -76,13 +74,20 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
     let loadAttempts = 0;
     const maxLoadAttempts = 3;
 
-    // 显示加载状态
-    function showLoading(message = '正在加载Word文档...') {
-      document.getElementById('loading').style.display = 'flex';
-      document.getElementById('loading').innerHTML = '<div>' + message + '</div>';
+    // 显示加载状态 - 只通知React Native，不显示HTML加载UI
+    function showLoading(message = '正在加载Word文档...', subMessage = '') {
+      // 隐藏所有内容区域
+      document.getElementById('loading').style.display = 'none';
       document.getElementById('docx').style.display = 'none';
       document.getElementById('error').style.display = 'none';
       document.getElementById('fallback').style.display = 'none';
+
+      // 通知React Native当前加载状态，让React Native的LoadingIndicator显示
+      window.postMessage(JSON.stringify({
+        type: 'loading',
+        message: message,
+        subMessage: subMessage
+      }), '*');
     }
 
     // 显示错误
@@ -144,10 +149,12 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
     async function loadDocxPreviewLibraries() {
       try {
         console.log('开始加载docx-preview库...');
+        showLoading('正在加载渲染库...', '首次加载需要下载必要的组件');
 
         // 检查库是否已经加载
         if (window.JSZip && window.docx) {
           console.log('库已加载，跳过重复加载');
+          showLoading('渲染库已就绪', '正在准备文档渲染');
           isLibrariesLoaded = true;
           return true;
         }
@@ -251,6 +258,7 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
             }
 
             console.log('开始渲染Word文档...');
+            showLoading('正在解析文档结构...', '正在处理Word文档内容');
 
             // 安全的base64解码
             function safeAtob(base64) {
@@ -273,6 +281,7 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 
             // 渲染文档
+            showLoading('正在渲染HTML内容...', '正在生成可编辑的文档视图');
             const container = document.getElementById('docx');
             container.innerHTML = '';
 
@@ -309,6 +318,7 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
             });
 
             console.log('Word文档渲染成功');
+            // 通知React Native文档加载完成，隐藏LoadingIndicator
             window.postMessage(JSON.stringify({
               type: 'ready',
               pages: 1,

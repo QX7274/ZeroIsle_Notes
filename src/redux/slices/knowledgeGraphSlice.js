@@ -25,6 +25,17 @@ export const fetchKnowledgeGraph = createAsyncThunk(
         });
       }
 
+      // 检查是否是认证错误但返回了空数据（401错误的特殊处理）
+      if (response.isAuthError) {
+        console.log('知识图谱Redux: 检测到认证错误，但API返回了空数据，继续处理');
+        // 不抛出错误，而是返回空数据
+        return {
+          nodes: [],
+          edges: [],
+          message: response.data?.message || '认证过期，显示空知识图谱'
+        };
+      }
+
       // 检查响应数据是否有效
       if (!response.data) {
         console.warn('知识图谱API返回的数据为空:', response);

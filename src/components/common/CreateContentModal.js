@@ -186,7 +186,7 @@ const CreateContentModal = ({
             }}
           >
             <View style={[styles.optionIcon, { backgroundColor: '#E3F2FD' }]}>
-              <MaterialIcon name="description" size={24} color="#1976D2" />
+              <MaterialIcon name="note-add" size={24} color="#1976D2" />
             </View>
             <Text
               variant="body"

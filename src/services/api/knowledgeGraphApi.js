@@ -4,6 +4,7 @@
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
 import NetInfo from '@react-native-community/netinfo';
+import authService from '../auth/authService';
 
 /**
  * 获取知识图谱
@@ -12,6 +13,27 @@ import NetInfo from '@react-native-community/netinfo';
  */
 export const getKnowledgeGraph = async (params = {}) => {
   try {
+    // 确保authService已初始化
+    try {
+      if (!authService) {
+        console.error('知识图谱API: authService未导入');
+        throw new Error('authService未导入');
+      }
+
+      // 确保authService已初始化
+      if (!authService.initialized) {
+        console.log('知识图谱API: 正在初始化authService...');
+        await authService.initialize();
+        console.log('知识图谱API: authService初始化完成');
+      }
+
+      const token = await authService.getAuthToken();
+      console.log('知识图谱API: 获取到认证令牌:', token ? '有效' : '无效');
+    } catch (authError) {
+      console.error('知识图谱API: authService初始化失败:', authError);
+      // 不抛出错误，继续执行，让API客户端处理认证
+    }
+
     // 检查网络连接
     const netInfo = await NetInfo.fetch();
     if (!netInfo.isConnected) {
@@ -63,8 +85,17 @@ export const getKnowledgeGraph = async (params = {}) => {
       // 服务器返回了错误状态码
       switch (error.response.status) {
         case 401:
-          errorMessage = '登录已过期，请重新登录';
-          break;
+          // 对于401错误，返回空数据而不是错误，避免影响用户体验
+          console.log('知识图谱API: 401认证错误，返回空数据');
+          return {
+            success: true,
+            data: {
+              nodes: [],
+              edges: [],
+              message: '认证过期，显示空知识图谱'
+            },
+            isAuthError: true
+          };
         case 403:
           errorMessage = '没有权限访问知识图谱';
           break;
@@ -102,6 +133,16 @@ export const getAllNodes = async (params = {}) => {
       data: response.data
     };
   } catch (error) {
+    // 特殊处理401错误
+    if (error.response && error.response.status === 401) {
+      console.log('知识图谱API: getAllNodes 401认证错误，返回空数据');
+      return {
+        success: true,
+        data: [],
+        isAuthError: true
+      };
+    }
+
     return {
       success: false,
       message: error.message || '获取节点列表失败',
