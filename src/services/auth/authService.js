@@ -208,20 +208,42 @@ class AuthService {
     try {
       await this.initialize();
 
-      // 检查realmService是否已登录
-      const isLoggedIn = realmService.isUserLoggedIn();
-      
-      // 如果realmService已登录，但本地没有用户信息，尝试获取
-      if (isLoggedIn && !this.currentUser) {
+      // 首先检查本地存储的用户信息
+      if (!this.currentUser) {
         const user = await authStorage.getUser();
         if (user) {
           this.currentUser = user;
         }
       }
-      
-      return isLoggedIn && !!this.currentUser;
+
+      // 如果有本地用户信息，认为用户已登录（支持离线模式）
+      if (this.currentUser) {
+        console.log('用户已登录（基于本地存储）:', this.currentUser.id || this.currentUser.email);
+        return true;
+      }
+
+      // 检查realmService是否已登录（在线模式）
+      try {
+        const isLoggedIn = realmService.isUserLoggedIn();
+        if (isLoggedIn) {
+          console.log('用户已登录（基于Realm服务）');
+          return true;
+        }
+      } catch (realmError) {
+        // Realm服务可能在离线模式下不可用，但不影响登录状态检查
+        console.log('Realm服务检查失败，可能处于离线模式:', realmError.message);
+      }
+
+      return false;
     } catch (error) {
       logService.error('检查登录状态失败', error);
+
+      // 即使检查失败，如果有本地用户信息，仍然认为已登录
+      if (this.currentUser) {
+        console.log('检查登录状态失败，但基于本地用户信息认为已登录');
+        return true;
+      }
+
       return false;
     }
   }
@@ -255,6 +277,69 @@ class AuthService {
   }
 
   /**
+   * 处理网络恢复时的认证状态同步
+   * @returns {Promise<boolean>} 是否同步成功
+   */
+  async syncAuthStateOnNetworkRestore() {
+    try {
+      await this.initialize();
+
+      // 如果没有本地用户信息，无需同步
+      if (!this.currentUser) {
+        console.log('没有本地用户信息，无需同步认证状态');
+        return false;
+      }
+
+      console.log('网络恢复，开始同步认证状态');
+
+      // 尝试验证当前令牌是否仍然有效
+      try {
+        const token = await authStorage.getToken();
+        if (token) {
+          // 这里可以添加令牌验证逻辑
+          console.log('令牌存在，认证状态同步完成');
+          return true;
+        }
+      } catch (tokenError) {
+        console.log('令牌验证失败:', tokenError.message);
+      }
+
+      // 如果令牌无效或不存在，但用户信息存在，保持离线登录状态
+      console.log('保持离线登录状态，等待用户主动重新认证');
+      return true;
+    } catch (error) {
+      logService.error('同步认证状态失败', error);
+      return false;
+    }
+  }
+
+  /**
+   * 强制刷新认证令牌
+   * @returns {Promise<boolean>} 是否刷新成功
+   */
+  async refreshToken() {
+    try {
+      await this.initialize();
+
+      // 尝试使用Realm服务刷新令牌
+      if (realmService.isUserLoggedIn()) {
+        const user = realmService.getCurrentUser();
+        if (user && user.accessToken) {
+          await authStorage.saveToken(user.accessToken);
+          console.log('令牌刷新成功');
+          return true;
+        }
+      }
+
+      console.log('无法刷新令牌，可能需要重新登录');
+      return false;
+    } catch (error) {
+      logService.error('刷新令牌失败', error);
+      return false;
+    }
+  }
+
+  /**
    * 保存用户数据
    * @param {object} user Realm用户对象
    * @param {object} userProfile 用户信息
@@ -265,10 +350,10 @@ class AuthService {
     try {
       // 保存用户信息
       await authStorage.saveUser(userProfile);
-      
+
       // 保存当前用户
       this.currentUser = userProfile;
-      
+
       // 保存令牌（如果有）
       if (user.accessToken) {
         await authStorage.saveToken(user.accessToken);

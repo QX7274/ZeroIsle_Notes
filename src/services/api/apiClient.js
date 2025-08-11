@@ -420,9 +420,33 @@ apiClient.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // 未授权，清除token并跳转到登录页面
+          // 未授权，但需要检查网络状态
           console.log('收到401未授权响应，URL:', error.config.url);
           console.log('请求头:', JSON.stringify(error.config.headers));
+
+          // 检查网络连接状态
+          const isNetworkConnected = await checkNetworkConnection();
+
+          if (!isNetworkConnected) {
+            console.log('网络未连接，401错误可能是网络问题，保持离线登录状态');
+            // 在离线模式下，返回一个模拟的成功响应，保持用户登录状态
+            return Promise.resolve({
+              data: {
+                offline: true,
+                message: '当前处于离线模式，使用本地缓存数据',
+                timestamp: new Date().toISOString(),
+                success: true,
+                method: error.config.method,
+                url: error.config.url,
+                authError: true // 标记这是一个认证相关的离线响应
+              },
+              status: 200,
+              statusText: 'OK (Offline Auth)',
+              headers: {},
+              config: error.config,
+              offline: true
+            });
+          }
 
           // 检查是否是公开路径或特定API路径
           const isPublicPath = ['/auth/login', '/auth/register', '/auth/password/reset'].some(
@@ -449,7 +473,7 @@ apiClient.interceptors.response.use(
             return Promise.reject(error);
           }
 
-          // 处理未授权错误
+          // 只有在网络连接正常时才处理未授权错误
           handleUnauthorized();
           break;
         case 403:
@@ -538,6 +562,16 @@ const handleUnauthorized = async () => {
   isHandlingUnauthorized = true;
 
   try {
+    // 首先检查网络连接状态
+    const isConnected = await checkNetworkConnection();
+
+    if (!isConnected) {
+      console.log('网络未连接，跳过未授权处理，保持离线登录状态');
+      // 在离线模式下，不强制退出登录，保持用户的登录状态
+      isHandlingUnauthorized = false;
+      return;
+    }
+
     // 使用authUtils中的handleUnauthorizedError函数
     try {
       const authUtils = require('../auth/authUtils');

@@ -101,6 +101,9 @@ class NetworkService {
       if (this.isOnlineValue) {
         eventEmitter.emit(NETWORK_EVENTS.ONLINE);
         console.info('网络已连接');
+
+        // 网络恢复时，触发认证状态同步
+        this.handleNetworkRestore();
       } else {
         eventEmitter.emit(NETWORK_EVENTS.OFFLINE);
         console.info('网络已断开');
@@ -161,6 +164,26 @@ class NetworkService {
    */
   getConnectionQuality() {
     return this.connectionQuality;
+  }
+
+  /**
+   * 处理网络恢复
+   * @private
+   */
+  async handleNetworkRestore() {
+    try {
+      console.log('网络恢复，开始处理认证状态同步');
+
+      // 动态导入authService以避免循环依赖
+      const { default: authService } = await import('../auth/authService');
+
+      // 同步认证状态
+      await authService.syncAuthStateOnNetworkRestore();
+
+      console.log('网络恢复处理完成');
+    } catch (error) {
+      console.error('网络恢复处理失败:', error);
+    }
   }
 
   /**
