@@ -6,13 +6,19 @@
 
 import PDFViewer from './PDFViewer';
 import DocViewer from './DocViewer';
+import MarkdownViewer from './MarkdownViewer';
+import PPTViewer from './PPTViewer';
 
 export {
   PDFViewer,
   DocViewer,
+  MarkdownViewer,
+  PPTViewer,
 };
 
 export default {
   PDFViewer,
   DocViewer,
+  MarkdownViewer,
+  PPTViewer,
 };

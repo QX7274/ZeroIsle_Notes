@@ -207,7 +207,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
         navigation.navigate('NodeDetail', { nodeId: result.id });
         break;
       case 'canvas':
-        navigation.navigate('Canvas', { canvasId: result.id });
+        navigation.navigate('InfiniteCanvas', { canvasId: result.id, title: result.title || '无限草稿' });
         break;
       default:
         break;

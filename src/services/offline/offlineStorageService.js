@@ -1297,17 +1297,17 @@ class OfflineStorageService {
         title: canvas.title || '新画布',
         description: canvas.description || '',
         // Realm中按字符串存储，便于解析
-        elements: Array.isArray(canvas.elements) ? JSON.stringify(canvas.elements) : (canvas.elements || '[]'),
-        layers: Array.isArray(canvas.layers) ? JSON.stringify(canvas.layers) : (canvas.layers || JSON.stringify([{ id: 'default', name: '默认图层', visible: true, locked: false }])),
+        elements: Array.isArray(canvas.elements) ? JSON.stringify(canvas.elements) : (typeof canvas.elements === 'string' ? canvas.elements : '[]'),
+        layers: Array.isArray(canvas.layers) ? JSON.stringify(canvas.layers) : (typeof canvas.layers === 'string' ? canvas.layers : JSON.stringify([{ id: 'default', name: '默认图层', visible: true, locked: false }])),
         activeLayer: canvas.activeLayer || 'default',
-        viewState: typeof canvas.viewState === 'object' ? JSON.stringify(canvas.viewState) : (canvas.viewState || '{}'),
-        is_deleted: canvas.is_deleted || false,
+        viewState: typeof canvas.viewState === 'object' ? JSON.stringify(canvas.viewState) : (typeof canvas.viewState === 'string' ? canvas.viewState : '{}'),
+        is_deleted: !!canvas.is_deleted,
         is_synced: false,
-        created_at: canvas.created_at || canvas.createdAt || now,
+        // 确保为 Date 类型
+        created_at: canvas.created_at instanceof Date ? canvas.created_at : (canvas.createdAt ? new Date(canvas.createdAt) : now),
         updated_at: now,
         deleted_at: canvas.deleted_at || null,
-        user_id: canvas.user_id || 'current_user',
-        ...canvas,
+        user_id: canvas.user_id || 'current_user'
       };
 
       // 检查画布是否已存在

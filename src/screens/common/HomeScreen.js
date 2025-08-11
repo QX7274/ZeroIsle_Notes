@@ -20,12 +20,13 @@ import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiWrapper } from '../../services/api/apiWrapper';
 import { setNotes as setNotesAction, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
+import { store } from '../../redux/store';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
 import SortControl from '../../components/home/SortControl';
 // OfflineIndicator 已移除
-import { offlineStorageService, infiniteCanvasStorage } from '../../services/offline';
+import { offlineStorageService } from '../../services/offline';
 import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
 import RNFS from 'react-native-fs';
@@ -37,10 +38,7 @@ const HomeScreen = ({ navigation }) => {
   const allNotes = useSelector(selectAllNotes);
 
   // 记录Redux状态
-  const notesState = useSelector(state => {
-    console.log('Redux笔记状态:', state.notes);
-    return state.notes;
-  });
+  const notesState = useSelector(state => state.notes);
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -99,11 +97,7 @@ const HomeScreen = ({ navigation }) => {
             console.log('离线存储服务已初始化');
           }
 
-          // 在后台初始化无限画布存储，不阻塞UI
-          console.log('在后台初始化无限画布存储...');
-          infiniteCanvasStorage.initTables().catch(err => {
-            console.warn('后台初始化无限画布存储失败:', err);
-          });
+          // 无限画布存储已移除
 
           console.log('HomeScreen 初始化完成');
         } catch (innerError) {
@@ -123,6 +117,8 @@ const HomeScreen = ({ navigation }) => {
 
     initialize();
   }, []);
+
+
 
   // 网络状态监听已移除
 
@@ -406,9 +402,28 @@ const HomeScreen = ({ navigation }) => {
             tags: []
           };
 
-          // 添加到Redux状态
-          dispatch(setNotesAction([...allNotes, localNote]));
+          // 保存到离线存储
+          try {
+            await offlineStorageService.saveNote(localNote);
+            console.log('HomeScreen: PDF文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
+          } catch (e) {
+            console.warn('HomeScreen: PDF文件保存失败:', e);
+          }
 
+          // 重要：使用当前最新的笔记列表，避免覆盖现有数据
+          try {
+            const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
+            const updatedNotes = [...currentNotes, localNote];
+            dispatch(setNotesAction(updatedNotes));
+            console.log('HomeScreen: PDF文件导入完成，当前笔记总数:', updatedNotes.length);
+          } catch (storeError) {
+            console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
+            const updatedNotes = [...(allNotes || []), localNote];
+            dispatch(setNotesAction(updatedNotes));
+            console.log('HomeScreen: PDF文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
+          }
+
+          // 日志已在上面的try-catch块中输出
           setIsLoading(false);
           Alert.alert('成功', '导入PDF成功（本地模式）');
           return;
@@ -505,7 +520,140 @@ const HomeScreen = ({ navigation }) => {
         Alert.alert('错误', error.message || '导入Word文档失败，请稍后重试');
       }
     }
+  }
+  // 导入PPT文件
+  const importPPT = async () => {
+    try {
+      const pptTypes = Platform.select({
+        android: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        ios: ['com.microsoft.powerpoint.ppt', 'org.openxmlformats.presentationml.presentation']
+      });
+      const results = await DocumentPicker.pick({ type: pptTypes, allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' });
+      if (results && results.length > 0) {
+        const file = results[0];
+        const noteId = `${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+        const localNote = {
+          id: noteId,
+          _id: noteId,
+          title: file.name ? file.name.replace(/\.(pptx|ppt)$/i, '') : 'PPT文档',
+          content: `PPT文件: ${file.name || '未命名'}`,
+          type: (file.name||'').toLowerCase().endsWith('.pptx') ? 'pptx' : 'ppt',
+          file_type: (file.name||'').toLowerCase().endsWith('.pptx') ? 'pptx' : 'ppt',
+          file_name: file.name || `document_${Date.now()}.pptx`,
+          file_uri: file.uri || file.fileCopyUri,
+          uri: file.uri || file.fileCopyUri,
+          path: file.uri || file.fileCopyUri,
+          file_path: file.uri || file.fileCopyUri,
+          url: file.uri || file.fileCopyUri,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_synced: false,
+          is_offline: true,
+          imported: true,
+          preview_image: null,
+          metadata: JSON.stringify({ filePath: file.uri || file.fileCopyUri, fileSize: file.size || null, lastOpenedTime: new Date().toISOString() }),
+          tags: []
+        };
+        try {
+          await offlineStorageService.saveNote(localNote);
+          console.log('HomeScreen: Word文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
+        } catch (e) {
+          console.warn('HomeScreen: Word文件保存失败:', e);
+        }
+
+        // 重要：使用当前最新的笔记列表，避免覆盖现有数据
+        try {
+          const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
+          const updatedNotes = [...currentNotes, localNote];
+          dispatch(setNotesAction(updatedNotes));
+          console.log('HomeScreen: PPT文件导入完成，当前笔记总数:', updatedNotes.length);
+        } catch (storeError) {
+          console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
+          const updatedNotes = [...(allNotes || []), localNote];
+          dispatch(setNotesAction(updatedNotes));
+          console.log('HomeScreen: PPT文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
+        }
+
+        // 日志已在上面的try-catch块中输出
+        Alert.alert('成功', '已添加到列表，点击即可打开预览');
+      }
+    } catch (error) {
+      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
+        console.error('导入PPT失败:', error);
+        Alert.alert('错误', error.message || '导入PPT失败，请稍后重试');
+      }
+    }
   };
+
+  // 导入Markdown/TXT 文件
+  const importMarkdown = useCallback(async () => {
+    try {
+      const mdTypes = Platform.select({ ios: ['net.daringfireball.markdown', types.plainText], android: ['text/markdown', 'text/plain'] });
+      let results = await DocumentPicker.pick({ type: mdTypes, allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' });
+      const okExt = (name='') => /\.(md|markdown|txt)$/i.test(name);
+      if (!results || results.length === 0 || !okExt(results[0]?.name || results[0]?.fileCopyUri || '')) {
+        try { results = await DocumentPicker.pick({ type: [types.allFiles], allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' }); } catch (err) {
+          console.error('导入Markdown文件失败:', err);
+          Alert.alert('导入失败', '无法选择文件，请检查权限或重试。');
+          return;
+        }
+      }
+      if (results && results.length > 0) {
+        const file = results[0];
+        const noteId = `${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+        const localNote = {
+          id: noteId,
+          _id: noteId,
+          title: file.name ? file.name.replace(/\.(md|markdown|txt)$/i, '') : 'Markdown/TXT',
+          content: '',
+          type: 'markdown',
+          file_type: 'markdown',
+          file_name: file.name || `document_${Date.now()}.md`,
+          file_uri: file.uri || file.fileCopyUri,
+          uri: file.uri || file.fileCopyUri,
+          path: file.uri || file.fileCopyUri,
+          file_path: file.uri || file.fileCopyUri,
+          url: file.uri || file.fileCopyUri,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_synced: false,
+          is_offline: true,
+          imported: true,
+          preview_image: null,
+          metadata: JSON.stringify({ filePath: file.uri || file.fileCopyUri, fileSize: file.size || null, lastOpenedTime: new Date().toISOString() }),
+          tags: []
+        };
+        try {
+          await offlineStorageService.saveNote(localNote);
+          console.log('HomeScreen: Markdown文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
+        } catch (e) {
+          console.warn('HomeScreen: Markdown文件保存失败:', e);
+        }
+
+        // 重要：使用当前最新的笔记列表，避免覆盖现有数据
+        try {
+          const currentNotes = store?.getState()?.notes?.notes || allNotes || [];
+          const updatedNotes = [...currentNotes, localNote];
+          dispatch(setNotesAction(updatedNotes));
+          console.log('HomeScreen: Markdown文件导入完成，当前笔记总数:', updatedNotes.length);
+        } catch (storeError) {
+          console.warn('HomeScreen: 无法访问store，使用allNotes作为备用:', storeError);
+          const updatedNotes = [...(allNotes || []), localNote];
+          dispatch(setNotesAction(updatedNotes));
+          console.log('HomeScreen: Markdown文件导入完成（备用方式），当前笔记总数:', updatedNotes.length);
+        }
+
+        // 日志已在上面的try-catch块中输出
+        Alert.alert('成功', '已添加到列表，点击即可打开预览');
+      }
+    } catch (error) {
+      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
+        console.error('导入Markdown/TXT失败:', error);
+        Alert.alert('错误', error.message || '导入失败，请稍后重试');
+      }
+    }
+  }, []);
+
 
   // 本地导入处理函数
   const handleLocalImport = async (file) => {
@@ -723,6 +871,32 @@ const HomeScreen = ({ navigation }) => {
           </View>
         );
       }
+      // 检查是否是Markdown/TXT
+      else if (
+        fileType === 'markdown' || type === 'markdown' ||
+        (item.file_name && (item.file_name.toLowerCase().endsWith('.md') || item.file_name.toLowerCase().endsWith('.markdown') || item.file_name.toLowerCase().endsWith('.txt')))
+      ) {
+        return (
+          <View style={[styles.coverContainer, styles.markdownBackground]}>
+            <Icon name="code-slash" size={30} color="#455A64" />
+            <Text style={{ color: '#455A64', fontSize: 12, marginTop: 4 }}>Markdown</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#455A64' }]} />
+          </View>
+        );
+      }
+      // 检查是否是PPT/PPTX
+      else if (
+        fileType === 'ppt' || fileType === 'pptx' || type === 'ppt' || type === 'pptx' ||
+        (item.file_name && (item.file_name.toLowerCase().endsWith('.ppt') || item.file_name.toLowerCase().endsWith('.pptx')))
+      ) {
+        return (
+          <View style={[styles.coverContainer, styles.pptBackground]}>
+            <Icon name="easel" size={30} color="#FF7043" />
+            <Text style={{ color: '#FF7043', fontSize: 12, marginTop: 4 }}>PPT</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF7043' }]} />
+          </View>
+        );
+      }
       // 检查是否是画布
       else if (item.type === 'canvas') {
         console.log('handleFilePress - 检测到画布文件，进入画布分支:', item); // 添加画布分支日志
@@ -784,168 +958,88 @@ const HomeScreen = ({ navigation }) => {
       }
     };
 
-    // 检查是否有云同步图标
-    const hasCloudIcon = item.is_synced || item.synced;
-
     // 处理文件点击
-    const handleFilePress = (item) => { // 显式接收item参数
-      console.log('handleFilePress - 开始处理文件:', item); // 增强日志
+    const handleFilePress = (item) => {
+      // 统一提取可能的文件 uri
+      const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
 
-      // 根据文件类型选择不同的导航目标
-      if (item.file_type === 'pdf' || item.type === 'pdf' ||
-          (item.file_name && item.file_name.toLowerCase().endsWith('.pdf')) ||
-          (item.file_uri && item.file_uri.toLowerCase().endsWith('.pdf'))) {
-          console.log('handleFilePress - 检测到PDF文件，进入PDF分支:', item); // 添加PDF分支日志
+      // 文件类型判定（统一小写）
+      const name = (item.file_name || item.title || '').toLowerCase();
+      const uri = (possibleUris[0] || '').toLowerCase();
+      const type = (item.file_type || item.type || '').toLowerCase().trim();
 
-        // 尝试获取文件URI
-        const possibleUris = [
-          item.file_uri,
-          item.uri,
-          item.path,
-          item.file_path,
-          item.url
-        ].filter(Boolean);
+      const isPdf = type === 'pdf' || name.endsWith('.pdf') || uri.endsWith('.pdf');
+      const isDoc = ['doc', 'docx', 'word'].some(t => type === t) || name.endsWith('.doc') || name.endsWith('.docx') || uri.endsWith('.doc') || uri.endsWith('.docx');
+      const isPpt = ['ppt', 'pptx'].some(t => type === t) || name.endsWith('.ppt') || name.endsWith('.pptx') || uri.endsWith('.ppt') || uri.endsWith('.pptx');
+      const isMd  = ['markdown', 'txt', 'text'].some(t => type === t) || name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.txt') || uri.endsWith('.md') || uri.endsWith('.markdown') || uri.endsWith('.txt');
 
-        if (possibleUris.length === 0) {
-          // 文件URI为空，显示错误提示
-          console.error('PDF文件URI为空:', item);
-          Alert.alert(
-            '文件错误',
-            '无法打开PDF文件，文件路径不存在或导入失败。请删除此文件并重新导入。',
-            [
-              {
-                text: '删除此文件',
-                style: 'destructive',
-                onPress: () => {
-                  // 安全地获取ID，优先使用_id，其次使用id
-                  const noteId = item._id || item.id;
-                  handleDeleteNote(noteId);
-                }
-              },
-              {
-                text: '重新导入',
-                onPress: () => importPDF()
-              },
-              {
-                text: '取消',
-                style: 'cancel'
-              }
-            ]
-          );
-          return;
-        }
+      const detection = {
+        fileName: item.file_name || item.title || '',
+        fileType: item.file_type || item.type || '',
+        fileUri: possibleUris[0] || null,
+        detectedType: { isPdf, isDoc, isPpt, isMd }
+      };
+      console.log('File type detection:', detection);
 
-        // 确保笔记有ID
-        const noteId = item._id || item.id || `temp_${Date.now()}`;
-        console.log('打开PDF文件，ID:', noteId, '文件URI:', possibleUris[0]);
+      if (!possibleUris.length && (isPdf || isDoc || isPpt || isMd)) {
+        console.log('Routing decision:', { decision: 'invalid-file-uri', ...detection });
+        Alert.alert('文件错误', '无法打开文件，路径不存在或导入失败。请删除后重新导入。');
+        return;
+      }
 
-        // 使用viewers文件夹下的PDFViewer组件
-        console.log('准备打开PDF文件，使用路由PDFViewer，URI:', possibleUris[0]);
-
-        // 直接导航到PDFViewer，让PDFViewer自己处理文件检查
-        // 使用navigate创建新的屏幕，这样goBack()可以正常工作
-        navigation.navigate('PDFViewer', {
+      if (isPdf) {
+        const params = {
           uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名PDF'),
-          noteId: noteId
-        });
+          noteId: item._id || item.id || `temp_${Date.now()}`,
+        };
+        console.log('Navigation params:', { screen: 'PDFViewer', params });
+        navigation.navigate('PDFViewer', params);
+        return;
       }
-      else if (item.file_type === 'doc' || item.file_type === 'docx' ||
-               item.type === 'doc' || item.type === 'docx' ||
-               item.file_type === 'word' || item.type === 'word' ||
-              (item.file_name && (item.file_name.toLowerCase().endsWith('.docx') ||
-                                 item.file_name.toLowerCase().endsWith('.doc'))) ||
-              (item.file_uri && (item.file_uri.toLowerCase().endsWith('.docx') ||
-                                 item.file_uri.toLowerCase().endsWith('.doc')))) {
-              console.log('handleFilePress - 检测到Word文件，进入Word分支:', item); // 添加Word分支日志
-
-        // 尝试获取文件URI
-        const possibleUris = [
-          item.file_uri,
-          item.uri,
-          item.path,
-          item.file_path,
-          item.url
-        ].filter(Boolean);
-
-        if (possibleUris.length === 0) {
-          // 文件URI为空，显示错误提示
-          console.error('Word文件URI为空:', item);
-          Alert.alert(
-            '文件错误',
-            '无法打开Word文档，文件路径不存在或导入失败。请删除此文件并重新导入。',
-            [
-              {
-                text: '删除此文件',
-                style: 'destructive',
-                onPress: () => {
-                  // 安全地获取ID，优先使用_id，其次使用id
-                  const noteId = item._id || item.id;
-                  handleDeleteNote(noteId);
-                }
-              },
-              {
-                text: '重新导入',
-                onPress: () => importWord()
-              },
-              {
-                text: '取消',
-                style: 'cancel'
-              }
-            ]
-          );
-          return;
-        }
-
-        // Word文件 - 导航到Word查看器
-        console.log('准备打开Word文件，使用路由DocViewer，URI:', possibleUris[0]);
-
-        // 直接导航到DocViewer，让DocViewer自己处理文件检查
-        // 使用navigate创建新的屏幕，这样goBack()可以正常工作
-        navigation.navigate('DocViewer', {
+      if (isDoc) {
+        const params = {
           uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
-          noteId: item._id || item.id || `temp_${Date.now()}`
-        });
+          noteId: item._id || item.id || `temp_${Date.now()}`,
+          type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc'
+        };
+        console.log('Navigation params:', { screen: 'DocViewer', params });
+        navigation.navigate('DocViewer', params);
+        return;
       }
-      else if (item.type === 'canvas') {
-        console.log('handleFilePress - 检测到画布文件，进入画布分支:', item); // 添加画布分支日志
-        // 画布 - 导航到画布编辑器
+      if (isPpt) {
+        const params = {
+          uri: possibleUris[0],
+          title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
+          noteId: item._id || item.id || `temp_${Date.now()}`,
+          type: 'pptx'
+        };
+        console.log('Navigation params:', { screen: 'PPTViewer', params });
+        navigation.navigate('PPTViewer', params);
+        return;
+      }
+      if (isMd) {
+        const params = {
+          uri: possibleUris[0],
+          title: item.title || (item.file_name ? item.file_name.split('.')[0] : 'Markdown'),
+          noteId: item._id || item.id || `temp_${Date.now()}`,
+        };
+        console.log('Navigation params:', { screen: 'MarkdownViewer', params });
+        navigation.navigate('MarkdownViewer', params);
+        return;
+      }
+
+      if (item.type === 'canvas') {
         const canvasId = item._id || item.id || `temp_${Date.now()}`;
-        navigation.navigate('Canvas', { canvasId });
+        navigation.navigate('InfiniteCanvas', { canvasId, title: item.title || '无限草稿' });
+        return;
       }
-      else {
-        console.log('handleFilePress - 未匹配特定类型，进入默认文本笔记分支:', item); // 添加默认分支日志
-        // 默认文本笔记 - 导航到笔记编辑器
-        navigation.navigate('Note', { note: item });
-      }
+
+      // 默认文本笔记
+      navigation.navigate('Note', { note: item });
     };
 
-    // 处理更多操作
-    const handleMoreOptions = (e) => {
-      e.stopPropagation(); // 防止触发父元素的点击事件
-
-      // 显示操作菜单（删除、分享等）
-      Alert.alert(
-        item.title || '笔记操作',
-        '选择操作',
-        [
-          {
-            text: '编辑',
-            onPress: handleFilePress
-          },
-          {
-            text: '删除',
-            onPress: () => handleDeleteNote(item.id),
-            style: 'destructive'
-          },
-          {
-            text: '取消',
-            style: 'cancel'
-          }
-        ]
-      );
-    };
 
     // 根据屏幕方向计算笔记项的宽度
     const columnCount = isLandscape ? 4 : 3; // 横屏4列，竖屏3列
@@ -1501,11 +1595,13 @@ const HomeScreen = ({ navigation }) => {
         <CreateContentModal
           visible={showCreateOptions}
           onClose={() => setShowCreateOptions(false)}
-          onCreateNote={() => navigation.navigate('Note', { note: null, type: 'text' })}
-          onCreateLinedNote={() => navigation.navigate('Note', { note: null, type: 'lined' })}
+          onCreateNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
+          onCreateLinedNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
+          onImportMarkdown={importMarkdown}
           onImportPDF={importPDF}
           onImportWord={importWord}
-          onCreateCanvas={() => navigation.navigate('Canvas')}
+          onImportPPT={importPPT}
+          onCreateCanvas={() => Alert.alert('提示', '无限画布功能已移除')}
         />
       </View>
 
@@ -1533,6 +1629,7 @@ const HomeScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1563,7 +1660,7 @@ const styles = StyleSheet.create({
   },
   // 搜索栏容器
   searchBarContainer: {
-    flex: 0.85, // 占��85%的空间
+    flex: 0.85, // 占85%的空间
     marginRight: 10, // 右侧添加间距
   },
   // 排序控件容器
@@ -1694,6 +1791,12 @@ const styles = StyleSheet.create({
   },
   imageBackground: {
     backgroundColor: '#E8F5E9', // 淡绿色背景用于图片
+  },
+  markdownBackground: {
+    backgroundColor: '#ECEFF1', // 灰蓝色背景用于Markdown/TXT
+  },
+  pptBackground: {
+    backgroundColor: '#FBE9E7', // 淡橙色背景用于PPT
   },
   canvasBackground: {
     backgroundColor: '#F3E5F5', // 淡紫色背景用于画布
@@ -2027,5 +2130,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   }
 });
+
 
 export default HomeScreen;

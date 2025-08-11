@@ -3,7 +3,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '../context/ThemeContext';
 
 // 导入屏幕
-import ReminderScreen from '../screens/notes/ReminderScreen';
 import AddReminderScreen from '../screens/reminder/AddReminderScreen';
 import ReminderDetailScreen from '../screens/reminder/ReminderDetailScreen';
 import ReminderExportScreen from '../screens/reminder/ReminderExportScreen';

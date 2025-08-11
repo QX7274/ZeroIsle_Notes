@@ -117,6 +117,10 @@ const AllInOneToolbar = ({
   selectedText,
   onAIProcessResult,
   onImageUpload,
+
+  // 书签相关
+  onBookmarkAdd,
+  onBookmarkList,
 }) => {
   const { colors } = useTheme();
   const [activeTool, setActiveTool] = useState(initialTool);
@@ -808,6 +812,13 @@ const AllInOneToolbar = ({
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarSection} contentContainerStyle={styles.toolbarContentContainer}>
         {/* 绘图工具组 */}
         <View style={styles.toolGroup}>
+          {/* 书签按钮（列表入口移除，保留加书签） */}
+          <TouchableOpacity style={styles.toolButton} onPress={onBookmarkAdd}>
+            <Text style={styles.toolLabel}>加书签</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          
           <TouchableOpacity
             style={[
               styles.toolButton,

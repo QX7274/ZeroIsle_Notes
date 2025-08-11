@@ -20,7 +20,7 @@ import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { PDFViewer as EnhancedPDFViewer, DocViewer as EnhancedDocViewer } from '../../screens/viewers';
+import { PDFViewer as EnhancedPDFViewer, DocViewer as EnhancedDocViewer, MarkdownViewer as EnhancedMarkdownViewer, PPTViewer as EnhancedPPTViewer } from '../../screens/viewers';
 import RNFS from 'react-native-fs';
 import { useNavigation } from '@react-navigation/native';
 
@@ -54,6 +54,8 @@ const FileViewerScreen = ({ route }) => {
       setError('未提供文件路径');
       return;
     }
+
+    console.log('Component mount/unmount:', { component: 'FileViewerScreen', state: 'mount' });
 
     const loadFileInfo = async () => {
       try {
@@ -111,23 +113,24 @@ const FileViewerScreen = ({ route }) => {
         let fileType = type;
         if (!fileType) {
           // 根据文件扩展名确定类型
-          const extension = uri.split('.').pop().toLowerCase();
-          if (['pdf'].includes(extension)) {
+          const extension = uri.includes('.') ? uri.split('.').pop().toLowerCase() : '';
+          if (extension === 'pdf') {
             fileType = 'pdf';
-          } else if (['doc', 'docx'].includes(extension)) {
+          } else if (extension === 'docx') {
+            fileType = 'docx';
+          } else if (extension === 'doc') {
             fileType = 'doc';
-          } else if (['xls', 'xlsx'].includes(extension)) {
-            fileType = 'excel';
-          } else if (['ppt', 'pptx'].includes(extension)) {
+          } else if (extension === 'ppt' || extension === 'pptx') {
             fileType = 'powerpoint';
-          } else if (['txt', 'md'].includes(extension)) {
-            fileType = 'text';
-          } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extension)) {
-            fileType = 'image';
+          } else if (extension === 'md' || extension === 'markdown' || extension === 'txt') {
+            fileType = (extension === 'md' || extension === 'markdown') ? 'markdown' : 'text';
           } else {
-            fileType = 'unknown';
+            // 无扩展名时，根据上游传入的 type 再次兜底
+            fileType = type || 'unknown';
           }
         }
+
+        console.log('File type detection:', { fileName: name, fileType, fileUri: uri, detectedType: fileType, routingDecision: 'renderViewer' });
 
         // 设置文件信息
         setFileInfo({
@@ -147,6 +150,10 @@ const FileViewerScreen = ({ route }) => {
     };
 
     loadFileInfo();
+
+    return () => {
+      console.log('Component mount/unmount:', { component: 'FileViewerScreen', state: 'unmount' });
+    };
   }, [uri, name, type]);
 
   // 切换手写模式
@@ -160,13 +167,8 @@ const FileViewerScreen = ({ route }) => {
 
     switch (fileInfo.type) {
       case 'pdf':
-        console.log('渲染PDF查看器:', {
-          uri: fileInfo.uri,
-          name: fileInfo.name,
-          size: fileInfo.size,
-          noteId: route.params.noteId
-        });
-        
+        console.log('Navigation params:', { screen: 'PDFViewer(inner)', params: { uri: fileInfo.uri, title: fileInfo.name, noteId: route.params.noteId } });
+
         // 检查文件大小
         if (fileInfo.size === 0) {
           return (
@@ -197,15 +199,15 @@ const FileViewerScreen = ({ route }) => {
 
         return (
           <View style={styles.pdfContainer}>
-            <EnhancedPDFViewer 
-              route={{ 
+            <EnhancedPDFViewer
+              route={{
                 params: {
                   uri: fileInfo.uri,
                   title: fileInfo.name,
                   noteId: route.params.noteId,
                   isHandwritingMode
                 }
-              }} 
+              }}
             />
           </View>
         );
@@ -216,36 +218,26 @@ const FileViewerScreen = ({ route }) => {
           uri: fileInfo.uri,
           title: fileInfo.name,
           noteId: route.params.noteId,
+          type: fileInfo.type,
           isHandwritingMode
         }}} />;
 
-      case 'image':
-        // 图片查看器
-        return (
-          <View style={styles.unsupportedContainer}>
-            <Icon name="image" size={48} color={colors.primary} />
-            <Text
-              variant="body"
-              size="medium"
-              style={{ marginTop: 16, color: colors.text }}
-            >
-              图片查看器正在开发中
-            </Text>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.goBack()}
-            >
-              <Text
-                variant="body"
-                size="medium"
-                style={{ color: colors.onPrimary }}
-              >
-                返回
-              </Text>
-            </TouchableOpacity>
-          </View>
-        );
+      case 'markdown':
+      case 'text':
+        return <EnhancedMarkdownViewer route={{ params: {
+          uri: fileInfo.uri,
+          title: fileInfo.name,
+          noteId: route.params.noteId
+        }}} />;
 
+      case 'powerpoint':
+        return <EnhancedPPTViewer route={{ params: {
+          uri: fileInfo.uri,
+          title: fileInfo.name,
+          noteId: route.params.noteId
+        }}} />;
+
+      
       default:
         // 不支持的文件类型
         return (
@@ -342,8 +334,6 @@ const FileViewerScreen = ({ route }) => {
       />
       <View style={styles.contentContainer}>
         {renderFileViewer()}
-        {/* 全局轻量手写覆盖层（仅触控笔激活） */}
-        <GlobalStylusOverlay />
       </View>
     </SafeAreaView>
   );

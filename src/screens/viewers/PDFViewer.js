@@ -25,6 +25,14 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { AllInOneToolbar } from '../../components/common';
 import PageControl from '../../components/viewer/PageControl';
 import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
+import DraggableImage from '../../components/viewer/DraggableImage';
+import BookmarkPanel from '../../components/viewer/BookmarkPanel';
+import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
+import ViewerLayout from '../../components/viewer/ViewerLayout';
+import BackButton from '../../components/viewer/BackButton';
+import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
+import ToolbarContainer from '../../components/viewer/ToolbarContainer';
+import { addBookmark } from '../../services/bookmarkService';
 
 const PDFViewer = ({ route, navigation }) => {
   const { uri, title, noteId } = route.params;
@@ -37,7 +45,7 @@ const PDFViewer = ({ route, navigation }) => {
   const [pdfSource, setPdfSource] = useState(null);
   const [localFilePath, setLocalFilePath] = useState(null);
 
-  
+
   // 手写相关状态
   // 手写模式逻辑交由触控笔事件内部处理（无额外遮罩画布）
   const [isHandwritingMode, setIsHandwritingMode] = useState(false);
@@ -46,7 +54,9 @@ const PDFViewer = ({ route, navigation }) => {
   const [annotations, setAnnotations] = useState({});
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [pageInputValue, setPageInputValue] = useState('1');
-  
+  const [bookmarkVisible, setBookmarkVisible] = useState(false);
+
+
   // 引用
   const pdfRef = useRef(null);
   const handwritingRef = useRef(null);
@@ -68,40 +78,7 @@ const PDFViewer = ({ route, navigation }) => {
   }, [currentPage, totalPages, isHandwritingMode, isLoading, error]);
 
   useEffect(() => {
-    // 设置导航标题
-    navigation.setOptions({
-      title: title || '查看PDF',
-      headerLeft: () => (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
-      ),
-      headerRight: () => (
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleShare}
-          >
-            <Icon name="share-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleExport}
-          >
-            <Icon name="download-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleRename}
-          >
-            <Icon name="create-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      ),
-    });
+    // 移除重复的头部按钮设置，现在使用ViewerLayout统一管理
 
     // 加载PDF文件
     loadPDF();
@@ -111,7 +88,7 @@ const PDFViewer = ({ route, navigation }) => {
       if (handwritingRef.current) {
         saveAnnotations();
       }
-      
+
       // 清理临时文件
       if (localFilePath && localFilePath.startsWith(RNFS.CachesDirectoryPath)) {
         RNFS.unlink(localFilePath).catch(err => console.error('清理临时文件失败:', err));
@@ -123,7 +100,7 @@ const PDFViewer = ({ route, navigation }) => {
       }
     };
   }, []);
-  
+
   // 监听手写模式状态变化和页面变化
   useEffect(() => {
     if (isHandwritingMode && currentPage > 0) {
@@ -152,8 +129,8 @@ const PDFViewer = ({ route, navigation }) => {
         try {
           const note = await offlineStorageService.getNote(noteId);
           if (note && note.metadata) {
-            const metadata = typeof note.metadata === 'string' 
-              ? JSON.parse(note.metadata) 
+            const metadata = typeof note.metadata === 'string'
+              ? JSON.parse(note.metadata)
               : (note.metadata || {});
             if (metadata.localCachedPath) {
               // 检查本地缓存文件是否存在
@@ -168,7 +145,7 @@ const PDFViewer = ({ route, navigation }) => {
                 console.log('本地缓存文件不存在，需要重新加载');
               }
             }
-            
+
             // 如果有fileCopyUri，优先使用它
             if (metadata.fileCopyUri) {
               console.log('使用文件复制URI:', metadata.fileCopyUri);
@@ -199,28 +176,28 @@ const PDFViewer = ({ route, navigation }) => {
           // 使用RNFS.stat检查文件是否可访问
           if (uri.startsWith('content://')) {
             console.log('处理content URI:', uri);
-            
+
             try {
               // 对于content URI，直接复制到应用缓存目录
               await RNFS.copyFile(uri, destPath);
               console.log('文件复制成功:', destPath);
-              
+
               // 设置本地文件路径和PDF源
               setLocalFilePath(destPath);
               setPdfSource({ uri: `file://${destPath}`, cache: true });
-              
+
               // 保存文件路径到笔记元数据中，以便下次打开
               if (noteId) {
                 try {
                   const note = await offlineStorageService.getNote(noteId);
                   if (note) {
-                    let metadata = note.metadata 
-                      ? (typeof note.metadata === 'string' 
-                          ? JSON.parse(note.metadata) 
-                          : note.metadata) 
+                    let metadata = note.metadata
+                      ? (typeof note.metadata === 'string'
+                          ? JSON.parse(note.metadata)
+                          : note.metadata)
                       : {};
                     metadata.localCachedPath = destPath;
-                    
+
                     // 更新笔记元数据
                     await offlineStorageService.updateNote(noteId, {
                       metadata: JSON.stringify(metadata)
@@ -393,7 +370,7 @@ const PDFViewer = ({ route, navigation }) => {
     setIsHandwritingMode(prev => {
       const newMode = !prev;
       console.log(`切换手写模式: ${newMode ? '开启' : '关闭'}`);
-      
+
       // 如果开启手写模式，加载当前页面的注释
       if (newMode) {
         loadAnnotations(currentPage);
@@ -401,16 +378,28 @@ const PDFViewer = ({ route, navigation }) => {
         // 如果关闭手写模式，保存当前注释
         saveAnnotations();
       }
-      
+
       return newMode;
     });
   };
-  
+
   // 保存注释按钮处理函数
   const handleSaveAnnotations = () => {
     saveAnnotations();
   };
-  
+
+  // 统一保存功能
+  const saveToLocal = async () => {
+    const pdfData = {
+      annotations: annotations || [],
+      images: images || [],
+      currentPage: currentPage || 1,
+      totalPages: totalPages || 1,
+      updatedAt: new Date().toISOString()
+    };
+    await SaveUtils.savePDFAnnotations(noteId || uri || title, pdfData, offlineStorageService);
+  };
+
   // 关闭手写模式按钮处理函数
   const handleCloseHandwritingMode = () => {
     toggleHandwritingMode();
@@ -454,8 +443,46 @@ const PDFViewer = ({ route, navigation }) => {
     });
   };
 
+  // 浮动图片状态与持久化
+  const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
+  const [deselectTick, setDeselectTick] = useState(0);
+
+  useEffect(() => { (async () => {
+    try {
+      const key = `pdf_images_${noteId || uri || title}`;
+      const raw = (await offlineStorageService.getItem(key)) || '[]';
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) setImages(list);
+    } catch (e) { console.warn('加载PDF图片浮层失败', e); }
+  })(); }, [noteId, uri, title]);
+
+  const persistImages = async (next) => {
+    try {
+      const key = `pdf_images_${noteId || uri || title}`;
+      await offlineStorageService.setItem(key, JSON.stringify(next));
+    } catch (e) { console.warn('保存PDF图片浮层失败', e); }
+  };
+
+  const addFloatingImage = async (img) => {
+    const item = { id: `img_${Date.now()}`, uri: img.uri, x: 20, y: 20, z: 10 };
+    const next = [...images, item];
+    setImages(next); await persistImages(next);
+  };
+
+  const handleMoveFloatingImage = async (id, pos) => {
+    const next = images.map(it => it.id === id ? { ...it, ...pos } : it);
+    setImages(next); await persistImages(next);
+  };
+
+  // 图层功能已取消（保留历史代码以便回溯），不再使用
+
+  const handleRemoveFloatingImage = async (id) => {
+    const next = images.filter(it => it.id !== id);
+    setImages(next); await persistImages(next);
+  };
+
   // 图片插入处理函数
-  const handleImageInsert = (imageData) => {
+  const handleImageInsert = async (imageData) => {
     console.log('=== 开始处理图片插入 ===');
     console.log('图片数据:', imageData);
 
@@ -464,6 +491,72 @@ const PDFViewer = ({ route, navigation }) => {
       Alert.alert('错误', '无效的图片数据');
       return;
     }
+
+    // 作为漂浮图片加入层（不直接嵌入PDF内容）
+    try {
+      await addFloatingImage({ uri: imageData.uri });
+      Alert.alert('已添加', '图片已作为浮层加入，可拖拽移动');
+    } catch (e) {
+      console.warn('添加图片浮层失败', e);
+    }
+    
+    try {
+      // 计算图片在PDF页面中的合适尺寸
+      const screenWidth = Dimensions.get('window').width;
+      const maxImageWidth = screenWidth * 0.3; // 图片最大宽度为屏幕宽度的30%
+      const maxImageHeight = 200; // 最大高度200px
+
+      let imageWidth = imageData.width;
+      let imageHeight = imageData.height;
+
+      // 按比例缩放图片
+      if (imageWidth > maxImageWidth) {
+        const ratio = maxImageWidth / imageWidth;
+        imageWidth = maxImageWidth;
+        imageHeight = imageHeight * ratio;
+      }
+
+      if (imageHeight > maxImageHeight) {
+        const ratio = maxImageHeight / imageHeight;
+        imageHeight = maxImageHeight;
+        imageWidth = imageWidth * ratio;
+      }
+
+      // 默认插入位置（屏幕中央）
+      const defaultX = (screenWidth - imageWidth) / 2;
+      const defaultY = 200; // 距离顶部200px
+
+      const imageInsertData = {
+        uri: imageData.uri,
+        width: imageWidth,
+        height: imageHeight,
+        x: defaultX,
+        y: defaultY,
+        fileName: imageData.fileName || 'image.jpg',
+        type: imageData.type || 'image/jpeg'
+      };
+
+      console.log('处理后的图片插入数据:', imageInsertData);
+
+      // 将图片添加到手写画布中
+      if (handwritingRef.current) {
+        if (typeof handwritingRef.current.addImage === 'function') {
+          handwritingRef.current.addImage(imageInsertData);
+          console.log('✅ 图片已添加到手写画布');
+        } else {
+          console.warn('❌ HandwritingCanvas没有addImage方法，需要实现');
+          Alert.alert('提示', '图片插入功能正在开发中');
+        }
+      } else {
+        // 手写画布未启用时，忽略该步骤；图片已作为浮层加入
+        console.log('手写画布未初始化：已改为添加漂浮图片层，不再报错');
+      }
+    } catch (error) {
+      console.error('图片插入处理失败:', error);
+      Alert.alert('错误', '图片插入失败: ' + error.message);
+    }
+
+    console.log('=== 图片插入处理结束 ===');
 
     try {
       // 计算图片在PDF页面中的合适尺寸
@@ -513,8 +606,7 @@ const PDFViewer = ({ route, navigation }) => {
           Alert.alert('提示', '图片插入功能正在开发中');
         }
       } else {
-        console.error('❌ 手写画布引用不存在');
-        Alert.alert('错误', '手写画布未初始化');
+        console.log('手写画布未初始化：已改为添加漂浮图片层，不再报错');
       }
     } catch (error) {
       console.error('图片插入处理失败:', error);
@@ -530,14 +622,14 @@ const PDFViewer = ({ route, navigation }) => {
       try {
         // 触发HandwritingCanvas的captureCanvas方法
         handwritingRef.current.captureCanvas();
-        
+
         // 注意：实际的保存操作会在HandwritingCanvas的onCapture回调中处理
         // 如果有noteId，将注释保存到存储中
         if (noteId && annotations[currentPage]) {
           const annotationKey = `annotation_${noteId}_${currentPage}`;
           await offlineStorageService.setItem(annotationKey, annotations[currentPage]);
           console.log('保存注释到存储:', annotationKey);
-          
+
           Alert.alert('成功', '注释已保存');
         }
       } catch (error) {
@@ -546,17 +638,17 @@ const PDFViewer = ({ route, navigation }) => {
       }
     }
   };
-  
+
   // 加载手写注释
   const loadAnnotations = async (page) => {
     try {
       let annotationData = annotations[page];
-      
+
       // 如果内存中没有注释数据且有noteId，尝试从存储中加载
       if (!annotationData && noteId) {
         const annotationKey = `annotation_${noteId}_${page}`;
         annotationData = await offlineStorageService.getItem(annotationKey);
-        
+
         // 如果找到了存储的注释，更新内存中的状态
         if (annotationData) {
           console.log(`从存储中加载页面${page}的注释数据`);
@@ -566,15 +658,15 @@ const PDFViewer = ({ route, navigation }) => {
           }));
         }
       }
-      
+
       // 如果有注释数据，加载到画布
       if (annotationData && handwritingRef.current) {
         console.log('加载页面注释到画布:', page);
-        
+
         // 检查HandwritingCanvas是否有loadImageData方法
         if (typeof handwritingRef.current.loadImageData === 'function') {
           handwritingRef.current.loadImageData(annotationData);
-        } 
+        }
         // 检查是否有setImageData方法
         else if (typeof handwritingRef.current.setImageData === 'function') {
           handwritingRef.current.setImageData(annotationData);
@@ -602,39 +694,53 @@ const PDFViewer = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* 顶部返回按钮 - 增强可见性 */}
-      <View style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: colors.primary + '20' }]}
+    { <ToolbarContainer>
+      <AllInOneToolbar
+        onToolChange={() => {}}
+        onColorChange={setStrokeColor}
+        onStrokeWidthChange={setStrokeWidth}
+        onImageUpload={(image) => addImage(image?.uri || image)}
+        onBookmarkAdd={handleAddBookmark}
+        onBookmarkList={() => setBookmarkVisible(true)}
+      />
+    </ToolbarContainer> }
+    <ViewerLayout
+      colors={colors}
+      headerLeft={
+        <BackButton
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-back" size={28} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-          {title || 'PDF查看器'}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>加载PDF中...</Text>
+          color={colors.primary}
+          background={colors.primary + '20'}
+        />
+      }
+      headerRight={
+        <View >
+          {/* 保存按钮 - 最右侧位置 */}
+          <SaveButton
+            onSave={saveToLocal}
+            text="保存"
+            showSuccessToast={true}
+            showErrorAlert={true}
+            style={styles.saveButtonCompact}
+          />
         </View>
+      }
+      title={title || 'PDF查看器'}
+    >
+      
+      {isLoading && (
+        <LoadingIndicator
+          message="正在加载PDF文档..."
+          subMessage="大文件首次加载可能较慢"
+        />
       )}
 
       {error && (
-        <View style={styles.errorContainer}>
-          <Icon name="alert-circle-outline" size={48} color={colors.error} />
-          <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-          <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: colors.primary }]}
-            onPress={loadPDF}
-          >
-            <Text style={styles.retryButtonText}>重试</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorIndicator
+          message="PDF文档加载失败"
+          subMessage={error}
+          onRetry={loadPDF}
+        />
       )}
 
       {pdfSource && !error && (
@@ -767,6 +873,7 @@ const PDFViewer = ({ route, navigation }) => {
             maxScale={4.0}            // 放大更多
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={true}
+          
             // 优化加载指示器
             activityIndicator={() => (
               <View style={styles.loadingContainer}>
@@ -789,155 +896,67 @@ const PDFViewer = ({ route, navigation }) => {
               </View>
             )}
           />
+          {/* 漂浮图片层（在 Pdf 组件之后渲染）*/}
+          <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t+1); return false; }}>
+            {Array.isArray(images) && images.map(img => (
+              <DraggableImage
+                key={img.id}
+                id={img.id}
+                uri={img.uri}
+                initial={{ x: img.x, y: img.y }}
+                initialScale={img.scale || 1}
+                deselectSignal={deselectTick}
+                onMove={handleMoveFloatingImage}
+                onResize={(id, data)=>{
+                  const next = images.map(it=>it.id===id?{...it, scale:data.scale}:it);
+                  setImages(next); persistImages(next);
+                }}
+                onRemove={handleRemoveFloatingImage}
+              />
+            ))}
+          </View>
           {/* 全局轻量手写覆盖层（仅触控笔激活） */}
           <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
         </View>
       )}
-
-      {/* AllInOneToolbar - 横向铺满屏幕 */}
-      {pdfSource && !error && (
-        <View style={styles.toolbarContainer}>
-          <AllInOneToolbar
-            style={styles.toolbar}
-            onToolChange={(toolInfo) => {
-              console.log('工具变更:', toolInfo.type);
-              // 这里可将 toolInfo 保存到状态，供后续触控笔事件使用
-            }}
-            onColorChange={(color) => {
-              console.log('颜色变更:', color);
-              setStrokeColor(color);
-            }}
-            onStrokeWidthChange={(width) => {
-              console.log('线宽变更:', width);
-              setStrokeWidth(width);
-            }}
-            onUndo={() => {
-              console.log('执行撤销');
-              if (handwritingRef.current && typeof handwritingRef.current.undoLastStroke === 'function') {
-                handwritingRef.current.undoLastStroke();
-              }
-            }}
-            onRedo={() => {
-              console.log('执行重做');
-              if (handwritingRef.current && typeof handwritingRef.current.redoLastStroke === 'function') {
-                handwritingRef.current.redoLastStroke();
-              }
-            }}
-            onClear={() => {
-              console.log('清除画布');
-              if (handwritingRef.current && typeof handwritingRef.current.clearCanvas === 'function') {
-                handwritingRef.current.clearCanvas();
-              }
-            }}
-            onSave={() => {
-              console.log('保存注释');
-              saveAnnotations();
-            }}
-            initialTool="pen"
-            initialColor={strokeColor}
-            initialStrokeWidth={strokeWidth}
-            canUndo={true}
-            canRedo={true}
-            showSaveButton={true}
-            onImageUpload={(imageData) => {
-              console.log('PDF查看器 - 接收到图片数据:', imageData);
-              handleImageInsert(imageData);
-            }}
-          />
-        </View>
-      )}
-      
-      {/* 手写模式始终开启，不需要切换按钮 */}
-      
-
-      
-      {/* 页面指示器和跳转控件 */}
+      {/* 使用PageControl组件 */}
       {pdfSource && !error && totalPages > 0 && (
-        <View style={[styles.pageIndicator, { backgroundColor: colors.card }]}>
-          <TouchableOpacity
-            style={[
-              styles.pageButton,
-              currentPage <= 1 && styles.pageButtonDisabled
-            ]}
-            onPress={() => {
-              if (currentPage > 1) {
-                const newPage = currentPage - 1;
-                setCurrentPage(newPage);
-                if (pdfRef.current) {
-                  pdfRef.current.setPage(newPage);
-                }
+        <PageControl
+          total={totalPages}
+          current={currentPage}
+          onPrev={() => {
+            if (currentPage > 1) {
+              const newPage = currentPage - 1;
+              setCurrentPage(newPage);
+              if (pdfRef.current) {
+                pdfRef.current.setPage(newPage);
               }
-            }}
-            disabled={currentPage <= 1}
-          >
-            <Icon name="chevron-back" size={24} color={currentPage <= 1 ? colors.border : colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.pageTextContainer}
-            onPress={() => setIsEditingPage(true)}
-          >
-            {isEditingPage ? (
-              <TextInput
-                style={[styles.pageInput, { color: colors.text, borderColor: colors.primary }]}
-                value={pageInputValue}
-                onChangeText={setPageInputValue}
-                keyboardType="number-pad"
-                autoFocus={true}
-                selectTextOnFocus={true}
-                onBlur={() => {
-                  setIsEditingPage(false);
-                  const pageNum = parseInt(pageInputValue, 10);
-                  if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-                    setCurrentPage(pageNum);
-                    if (pdfRef.current) {
-                      pdfRef.current.setPage(pageNum);
-                    }
-                  } else {
-                    setPageInputValue(currentPage.toString());
-                  }
-                }}
-                onSubmitEditing={() => {
-                  setIsEditingPage(false);
-                  const pageNum = parseInt(pageInputValue, 10);
-                  if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-                    setCurrentPage(pageNum);
-                    if (pdfRef.current) {
-                      pdfRef.current.setPage(pageNum);
-                    }
-                  } else {
-                    setPageInputValue(currentPage.toString());
-                  }
-                  Keyboard.dismiss();
-                }}
-              />
-            ) : (
-              <Text style={[styles.pageText, { color: colors.text }]}>
-                {currentPage} / {totalPages}
-              </Text>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.pageButton,
-              currentPage >= totalPages && styles.pageButtonDisabled
-            ]}
-            onPress={() => {
-              if (currentPage < totalPages) {
-                const newPage = currentPage + 1;
-                setCurrentPage(newPage);
-                if (pdfRef.current) {
-                  pdfRef.current.setPage(newPage);
-                }
+            }
+          }}
+          onNext={() => {
+            if (currentPage < totalPages) {
+              const newPage = currentPage + 1;
+              setCurrentPage(newPage);
+              if (pdfRef.current) {
+                pdfRef.current.setPage(newPage);
               }
-            }}
-            disabled={currentPage >= totalPages}
-          >
-            <Icon name="chevron-forward" size={24} color={currentPage >= totalPages ? colors.border : colors.primary} />
-          </TouchableOpacity>
-        </View>
+            }
+          }}
+          onSubmitPage={(pageNum) => {
+            if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+              setCurrentPage(pageNum);
+              if (pdfRef.current) {
+                pdfRef.current.setPage(pageNum);
+              }
+            }
+          }}
+          storageKey="pdf_viewer_pagecontrol_pos"
+        />
       )}
+
+      {/* 书签面板 */}
+      <BookmarkPanel visible={bookmarkVisible} onClose={() => setBookmarkVisible(false)} docId={noteId} onJump={() => setBookmarkVisible(false)} />
+    </ViewerLayout>
     </View>
   );
 };
@@ -946,43 +965,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: Platform.OS === 'ios' ? 50 : 12, // 适配iOS状态栏
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    zIndex: 90,
-  },
-  backButton: {
-    marginTop: 20,
-    padding: 12,
-    marginRight: 10,
-    borderRadius: 8,
-    maxWidth: 48,
-    maxHeight: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40, // 平衡左侧返回按钮的宽度
-  },
+  // headerContainer: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   paddingHorizontal: 16,
+  //   paddingVertical: 12,
+  //   paddingTop: Platform.OS === 'ios' ? 50 : 12, // 适配iOS状态栏
+  //   elevation: 4,
+  //   shadowColor: '#000',
+  //   shadowOffset: { width: 0, height: 2 },
+  //   shadowOpacity: 0.1,
+  //   shadowRadius: 2,
+  //   zIndex: 90,
+  // },
+  // backButton: {
+  //   marginTop: 20,
+  //   padding: 12,
+  //   marginRight: 10,
+  //   borderRadius: 8,
+  //   maxWidth: 48,
+  //   maxHeight: 25,
+  //   alignItems: 'center',
+  //   justifyContent: 'center',
+  // },
+  // headerTitle: {
+  //   flex: 1,
+  //   fontSize: 18,
+  //   fontWeight: '600',
+  //   textAlign: 'center',
+  // },
+  // headerSpacer: {
+  //   width: 40, // 平衡左侧返回按钮的宽度
+  // },
   pdfContainer: {
     flex: 1,
     width: '100%',
     position: 'relative',
-    paddingTop: Platform.OS === 'ios' ? 40 : 30, // 向下留白，避免工具栏覆盖内容
+    paddingTop: 0,
     backgroundColor: 'transparent',
   },
   pdf: {
@@ -990,25 +1009,26 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: 'transparent', // 移除灰色边
+    paddingTop: 20, // 增加顶部内边距，避免被工具栏遮挡
   },
   headerButtons: {
     flexDirection: 'row',
   },
-  headerButton: {
-    marginHorizontal: 8,
-    padding: 4,
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    zIndex: 1000,
-  },
+  // headerButton: {
+  //   marginHorizontal: 6,
+  //   padding: 3,
+  // },
+  // loadingContainer: {
+  //   position: 'absolute',
+  //   top: 0,
+  //   left: 0,
+  //   right: 0,
+  //   bottom: 0,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   backgroundColor: 'rgba(0,0,0,0.3)',
+  //   zIndex: 1000,
+  // },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
@@ -1034,24 +1054,24 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
   },
-  pageIndicator: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 24 : 20,
-    left: '40%',
-    right: '40%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 0,
-    paddingHorizontal: 1,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    opacity: 0.9,
-  },
+  // pageIndicator: {
+  //   position: 'absolute',
+  //   bottom: Platform.OS === 'ios' ? 24 : 20,
+  //   left: '40%',
+  //   right: '40%',
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   justifyContent: 'center',
+  //   paddingVertical: 0,
+  //   paddingHorizontal: 1,
+  //   borderRadius: 20,
+  //   shadowColor: '#000',
+  //   shadowOffset: { width: 0, height: 2 },
+  //   shadowOpacity: 0.25,
+  //   shadowRadius: 3.84,
+  //   elevation: 5,
+  //   opacity: 0.9,
+  // },
   pageIndicatorWithToolbar: {
     bottom: Platform.OS === 'ios' ? 90 : 72, // 避免与工具栏重叠
   },
@@ -1066,16 +1086,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-  pageInput: {
-    fontSize: 10,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 20,
-    maxWidth: 60,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
+  // pageInput: {
+  //   fontSize: 10,
+  //   fontWeight: '500',
+  //   textAlign: 'center',
+  //   paddingVertical: 4,
+  //   paddingHorizontal: 20,
+  //   maxWidth: 60,
+  //   borderWidth: 1,
+  //   borderRadius: 8,
+  // },
   pageButton: {
     width: 40,
     height: 40,
@@ -1100,15 +1120,16 @@ const styles = StyleSheet.create({
   //   height: '100%', // 确保高度覆盖整个PDF区域
   //   width: '100%', // 确保宽度覆盖整个PDF区域
   // },
-  toolbarContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 70 : 60, // 稍微向下移动
-    left: 0,
-    right: 0,
-    zIndex: 180,
-    backgroundColor: 'transparent',
-    paddingHorizontal: 0,
-  },
+  // toolbarContainer: {
+  //   position: 'absolute',
+  //   top: 0, // 将工具栏移到顶部
+  //   left: 0,
+  //   right: 0,
+  //   zIndex: 180,
+  //   backgroundColor: 'transparent',
+  //   paddingHorizontal: 0,
+  //   paddingTop: 0, 
+  // },
   toolbar: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 0, // 移除圆角，让工具栏完全贴合屏幕边缘
@@ -1118,6 +1139,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
     width: '100%', // 确保工具栏宽度为100%
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
@@ -1135,22 +1158,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  handwritingButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+  // handwritingButton: {
+  //   position: 'absolute',
+  //   bottom: 20,
+  //   right: 20,
+  //   width: 50,
+  //   height: 50,
+  //   borderRadius: 25,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   elevation: 5,
+  //   shadowColor: '#000',
+  //   shadowOffset: { width: 0, height: 2 },
+  //   shadowOpacity: 0.25,
+  //   shadowRadius: 3.84,
+  // },
+  saveButtonCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 4,
+    minHeight: 24,
   },
-  
+
 });
 
 export default PDFViewer;

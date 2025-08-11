@@ -161,19 +161,24 @@ const MarkdownPreview = ({
   };
   
   // 渲染内容
-  const renderContent = () => (
-    <Markdown
-      style={markdownStyles}
-      onLinkPress={(url) => {
-        if (onLinkPress) {
-          return onLinkPress(url);
-        }
-        return true; // 默认行为
-      }}
-    >
-      {content}
-    </Markdown>
-  );
+  const renderContent = () => {
+    // 确保内容不为空
+    if (!content) return <Text>没有内容</Text>;
+    
+    return (
+      <Markdown
+        style={markdownStyles}
+        onLinkPress={(url) => {
+          if (onLinkPress) {
+            return onLinkPress(url);
+          }
+          return true; // 默认行为
+        }}
+      >
+        {content}
+      </Markdown>
+    );
+  };
   
   // 如果启用滚动，则使用ScrollView包装
   if (scrollEnabled) {

@@ -557,8 +557,6 @@ const LoginScreen = ({ navigation }) => {
                     注册
                   </Text>
                 </TouchableOpacity>
-
-
               </View>
             </View>
           )}

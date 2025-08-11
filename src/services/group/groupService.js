@@ -225,7 +225,7 @@ class GroupService {
         return []; // 返回空数组避免UI报错
       }
       
-      throw error;
+ throw error;
   }
   }
   async leaveGroup(groupId) {

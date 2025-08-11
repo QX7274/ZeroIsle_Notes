@@ -16,8 +16,11 @@ const BackButton = ({ onPress, color = '#007AFF', background = 'transparent', si
 
 const styles = StyleSheet.create({
   backButton: {
+    marginTop: 1,
+    padding: 12,
+    marginRight: 10,
     width: 48,
-    height: 40,
+    height: 25,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,

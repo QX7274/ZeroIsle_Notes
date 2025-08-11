@@ -105,7 +105,17 @@ class RealmStorageService {
         stringValue = value;
       } else {
         try {
-          stringValue = JSON.stringify(value);
+          const getCircularReplacer = () => {
+            const seen = new WeakSet();
+            return (key, value) => {
+              if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) return;
+                seen.add(value);
+              }
+              return value;
+            };
+          };
+          stringValue = JSON.stringify(value, getCircularReplacer());
         } catch (jsonError) {
           console.error(`[RealmStorage] 无法序列化值: ${key}`, jsonError);
           return false;

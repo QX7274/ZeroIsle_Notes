@@ -26,22 +26,17 @@ import ReminderNavigator from './ReminderNavigator';
 
 // 导入屏幕
 import { HomeScreen } from '../screens/common';
-// 直接导入 ReminderScreen 组件，避免通过索引导入
-import ReminderScreen from '../screens/notes/ReminderScreen';
-// 直接导入 VoiceToTextScreen 和 RealtimeTranscriptionScreen 组件，避免通过索引导入
-import VoiceToTextScreen from '../screens/notes/VoiceToTextScreen';
-import RealtimeTranscriptionScreen from '../screens/notes/RealtimeTranscriptionScreen';
 import { AddReminderScreen, ReminderDetailScreen } from '../screens/reminder';
 import { SettingsScreen, ThemeSettingsScreen, AIAssistantSettingsScreen } from '../screens/settings';
 import { ThemeCustomizationScreen } from '../screens/theme';
 import { AnalyticsScreen } from '../screens/analytics';
 import { GroupScreen } from '../screens/groups';
 import { CodeEditorScreen } from '../screens/code';
-// 直接导入笔记相关组件
-import NoteScreen from '../screens/notes/NoteScreen';
 // 导入文件查看器组件
 import PDFViewer from '../screens/viewers/PDFViewer';
 import DocViewer from '../screens/viewers/DocViewer';
+import MarkdownViewer from '../screens/viewers/MarkdownViewer';
+import PPTViewer from '../screens/viewers/PPTViewer';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
@@ -52,8 +47,6 @@ import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 // 导入思维导图相关组件
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
-// 导入画布组件
-import { CanvasScreen, InfiniteCanvasScreen } from '../screens/canvas';
 // 导入群组导航
 import GroupsNavigator from './GroupsNavigator';
 
@@ -66,7 +59,7 @@ const getTabBarStyle = (route, colors) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
 
   // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'ImageViewer', 'VideoPlayer', 'MindMapEdit', 'InfiniteCanvas'];
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'ImageViewer', 'VideoPlayer', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer'];
 
   // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
   if (hideTabBarScreens.includes(routeName)) {
@@ -462,23 +455,7 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-      <Stack.Screen
-        name="Note"
-        component={NoteScreen || (() => {
-          // 如果 NoteScreen 为 undefined，提供一个备用组件
-          console.error('NoteScreen 组件未定义，使用备用组件');
-          return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 18, color: 'red' }}>笔记组件加载失败</Text>
-              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
-            </View>
-          );
-        })}
-        options={({ route }) => ({
-          title: route.params?.title || '笔记详情',
-          headerBackTitleVisible: false,
-        })}
-      />
+      {/* 普通笔记功能已移除 */}
       <Stack.Screen
         name="PDFNote"
         component={PDFViewer}
@@ -543,39 +520,8 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-      <Stack.Screen
-        name="Canvas"
-        component={CanvasScreen}
-        options={{
-          title: '无限画布',
-          headerBackTitleVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="InfiniteCanvas"
-        component={InfiniteCanvasScreen}
-        options={{
-          title: '无限草稿',
-          headerBackTitleVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="Reminder"
-        component={ReminderScreen || (() => {
-          // 如果 ReminderScreen 为 undefined，提供一个备用组件
-          console.error('ReminderScreen 组件未定义，使用备用组件');
-          return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 18, color: 'red' }}>日程管理组件加载失败</Text>
-              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
-            </View>
-          );
-        })}
-        options={{
-          title: '日程管理',
-          headerBackTitleVisible: false,
-        }}
-      />
+      {/* 无限画布功能已移除 */}
+      {/* ReminderScreen已移除，使用AddReminderScreen */}
       <Stack.Screen
         name="AddReminder"
         component={AddReminderScreen}
@@ -592,40 +538,7 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         })}
       />
-      <Stack.Screen
-        name="VoiceToText"
-        component={VoiceToTextScreen || (() => {
-          // 如果 VoiceToTextScreen 为 undefined，提供一个备用组件
-          console.error('VoiceToTextScreen 组件未定义，使用备用组件');
-          return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 18, color: 'red' }}>语音转文本组件加载失败</Text>
-              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
-            </View>
-          );
-        })}
-        options={{
-          title: '语音转文本',
-          headerBackTitleVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="RealtimeTranscription"
-        component={RealtimeTranscriptionScreen || (() => {
-          // 如果 RealtimeTranscriptionScreen 为 undefined，提供一个备用组件
-          console.error('RealtimeTranscriptionScreen 组件未定义，使用备用组件');
-          return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 18, color: 'red' }}>实时转写组件加载失败</Text>
-              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
-            </View>
-          );
-        })}
-        options={{
-          title: '实时转写',
-          headerBackTitleVisible: false,
-        }}
-      />
+
 
 
       {/* 增强型文件查看器组件 */}
@@ -650,6 +563,24 @@ const HomeStack = () => {
               },
             };
           },
+        })}
+      />
+      <Stack.Screen
+        name="MarkdownViewer"
+        component={MarkdownViewer}
+        options={({ navigation, route }) => ({
+          title: route.params?.title || 'Markdown',
+          headerShown: false,
+          gestureEnabled: true,
+        })}
+      />
+      <Stack.Screen
+        name="PPTViewer"
+        component={PPTViewer}
+        options={({ navigation, route }) => ({
+          title: route.params?.title || '演示文稿',
+          headerShown: false,
+          gestureEnabled: true,
         })}
       />
       <Stack.Screen
@@ -738,23 +669,7 @@ const CategoryStack = () => {
         component={CategoryScreen}
         options={{ title: '分类' }}
       />
-      <Stack.Screen
-        name="NoteList"
-        component={NoteScreen || (() => {
-          // 如果 NoteScreen 为 undefined，提供一个备用组件
-          console.error('NoteScreen 组件未定义，使用备用组件');
-          return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 18, color: 'red' }}>笔记组件加载失败</Text>
-              <Text style={{ fontSize: 14, marginTop: 10 }}>请联系开发者解决此问题</Text>
-            </View>
-          );
-        })}
-        options={({ route }) => ({
-          title: route.params?.title || '笔记列表',
-          headerBackTitleVisible: false,
-        })}
-      />
+      {/* 笔记列表功能已移除 */}
     </Stack.Navigator>
   );
 };

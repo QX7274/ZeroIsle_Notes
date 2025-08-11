@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import CategoryManager from '../../components/notes/CategoryManager';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UnifiedSearchBar } from '../../components/search';
 import { IconButton } from '../../components/common';

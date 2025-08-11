@@ -97,8 +97,9 @@ class User extends Realm.Object {
    * @param {Realm} realm Realm实例
    */
   generateVerificationToken(realm) {
-    const token = Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
+    const buffer = new Uint8Array(16);
+    crypto.getRandomValues(buffer);
+    const token = Array.from(buffer, byte => byte.toString(36)).join('').substring(0, 26);
 
     realm.write(() => {
       this.verification_token = token;
@@ -114,8 +115,9 @@ class User extends Realm.Object {
    * @param {number} expires 过期时间（小时）
    */
   generateResetPasswordToken(realm, expires = 1) {
-    const token = Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
+    const buffer = new Uint8Array(16);
+    crypto.getRandomValues(buffer);
+    const token = Array.from(buffer, byte => byte.toString(36)).join('').substring(0, 26);
 
     realm.write(() => {
       this.reset_password_token = token;
