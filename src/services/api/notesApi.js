@@ -51,7 +51,7 @@ const getAllNotes = async (params = {}) => {
         console.log('离线存储中没有笔记，尝试从Redux状态获取');
 
         // 从Redux状态获取笔记
-        const { store } = require('../../redux/store');
+        const { store } = require('../../store');
         const state = store.getState();
         const reduxNotes = state.notes.entities ? Object.values(state.notes.entities) : [];
 
@@ -452,7 +452,7 @@ const notesApi = {
 
       // 1. 首先尝试从Redux状态获取笔记
       try {
-        const { store } = require('../../redux/store');
+        const { store } = require('../../store');
         const state = store.getState();
 
         // 检查Redux状态中是否有该笔记

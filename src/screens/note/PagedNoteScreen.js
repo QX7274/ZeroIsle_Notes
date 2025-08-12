@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image } from 'react-native';
+import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image, StatusBar } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
@@ -9,9 +10,10 @@ import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import PageControl from '../../components/viewer/PageControl';
 import { addBookmark } from '../../services/bookmarkService';
-import Svg, { Rect, Path, Circle, Line } from 'react-native-svg';
+// 手写功能临时移除
+// import Svg, { Rect, Path, Circle, Line } from 'react-native-svg';
 import { offlineStorageService } from '../../services/offline';
-import { useInputMode, enhanceTouchEvent } from '../../utils/inputDetection';
+import { useInputMode } from '../../utils/inputDetection';
 import { useDispatch } from 'react-redux';
 import { addNote } from '../../redux/slices/notesSlice';
 
@@ -29,12 +31,13 @@ const PagedNoteScreen = ({ route, navigation }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [scale, setScale] = useState(1);
+  // 手写功能临时移除
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentTool, setCurrentTool] = useState('pen');
   const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [pages, setPages] = useState([{ paths: [], images: [] }]); // 每页的内容
-  const [currentPath, setCurrentPath] = useState('');
+  // const [currentPath, setCurrentPath] = useState('');
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
   
   // 引用
@@ -42,13 +45,19 @@ const PagedNoteScreen = ({ route, navigation }) => {
   const lastTap = useRef(null);
   const initialDistance = useRef(0);
   const initialScale = useRef(1);
+
+  // 性能优化：使用ref存储临时缩放值，减少重新渲染
+  const tempScale = useRef(1);
+  const isScaling = useRef(false);
   
   const docId = noteId || `note_${Date.now()}`;
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-  
-  // 固定页面尺寸（A4比例）
+
+  // A4页面尺寸计算 - 简化版本
+  // A4纸的标准比例是 210:297 (约1:1.414)
+  const A4_RATIO = 297 / 210;
   const pageWidth = screenWidth - 40; // 留出边距
-  const pageHeight = pageWidth * 1.414; // A4比例
+  const pageHeight = pageWidth * A4_RATIO; // 保持A4比例
   
   // 笔记样式配置
   const noteStyles = {
@@ -79,50 +88,67 @@ const PagedNoteScreen = ({ route, navigation }) => {
   };
   
   const currentNoteStyle = noteStyles[noteStyle] || noteStyles.blank;
+
+  // 组件加载时自动保存初始状态
+  useEffect(() => {
+    const saveInitialState = async () => {
+      try {
+        const initialNoteData = {
+          _id: docId,
+          id: docId,
+          title,
+          type: 'paged_note',
+          noteStyle,
+          currentPage: 1,
+          totalPages: 1,
+          pages: [{ paths: [], images: [] }],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // 保存到离线存储
+        await offlineStorageService.saveNote(initialNoteData);
+
+        // 添加到Redux store
+        dispatch(addNote(initialNoteData));
+
+        console.log('PagedNoteScreen: 初始状态已保存', initialNoteData);
+      } catch (error) {
+        console.error('PagedNoteScreen: 保存初始状态失败:', error);
+      }
+    };
+
+    saveInitialState();
+  }, []); // 只在组件挂载时执行一次
+
   
-  // 手势处理
+  // 手势处理 - 简化版本，专注于缩放和翻页
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    
-    onPanResponderGrant: (evt) => {
-      const { locationX, locationY, touches } = evt.nativeEvent;
-      const enhancedEvent = enhanceTouchEvent(evt.nativeEvent);
-      const operationType = getOperationType(evt.nativeEvent);
 
-      if (touches.length === 1) {
-        // 单指操作 - 根据输入设备类型决定行为
-        if (operationType === 'draw' && enhancedEvent.isStylusInput && currentTool !== 'hand') {
-          // 触控笔操作 - 绘画
-          setIsDrawing(true);
-          const x = locationX / scale;
-          const y = locationY / scale;
-          setCurrentPath(`M${x},${y}`);
-        }
-        // 手指操作用于翻页，在手势结束时处理
-      } else if (touches.length === 2) {
+    onPanResponderGrant: (evt) => {
+      const { touches } = evt.nativeEvent;
+
+      if (touches.length === 2) {
         // 双指操作 - 缩放
         const touch1 = touches[0];
         const touch2 = touches[1];
         const distance = Math.sqrt(
-          Math.pow(touch2.pageX - touch1.pageX, 2) + 
+          Math.pow(touch2.pageX - touch1.pageX, 2) +
           Math.pow(touch2.pageY - touch1.pageY, 2)
         );
         initialDistance.current = distance;
         initialScale.current = scale;
+        tempScale.current = scale;
+        isScaling.current = true;
       }
     },
     
     onPanResponderMove: (evt, gestureState) => {
       const { touches } = evt.nativeEvent;
-      const enhancedEvent = enhanceTouchEvent(evt.nativeEvent);
 
-      if (touches.length === 1 && isDrawing && enhancedEvent.isStylusInput && currentTool !== 'hand') {
-        // 触控笔绘画
-        const x = evt.nativeEvent.locationX / scale;
-        const y = evt.nativeEvent.locationY / scale;
-        setCurrentPath(prev => `${prev} L${x},${y}`);
-      } else if (touches.length === 2) {
+      if (touches.length === 2) {
         // 缩放
         const touch1 = touches[0];
         const touch2 = touches[1];
@@ -131,47 +157,62 @@ const PagedNoteScreen = ({ route, navigation }) => {
           Math.pow(touch2.pageY - touch1.pageY, 2)
         );
         
-        const newScale = Math.max(0.5, Math.min(3, initialScale.current * (distance / initialDistance.current)));
-        setScale(newScale);
+        if (isScaling.current) {
+          const newScale = Math.max(0.5, Math.min(3, initialScale.current * (distance / initialDistance.current)));
+          tempScale.current = newScale;
+
+          // 节流更新状态（每16ms更新一次，约60fps）
+          const now = Date.now();
+          if (!lastTap.current || now - lastTap.current > 16) {
+            setScale(newScale);
+            lastTap.current = now;
+          }
+        }
       }
     },
     
     onPanResponderRelease: (evt, gestureState) => {
-      const enhancedEvent = enhanceTouchEvent(evt.nativeEvent);
 
-      if (isDrawing && currentPath) {
-        const newPages = [...pages];
-        if (!newPages[currentPage - 1]) {
-          newPages[currentPage - 1] = { paths: [], images: [] };
-        }
-        newPages[currentPage - 1].paths.push({
-          path: currentPath,
-          color: strokeColor,
-          width: strokeWidth,
-          tool: currentTool
-        });
-        setPages(newPages);
-        setCurrentPath('');
-      }
+      // 手写功能临时移除
+      // if (isDrawing && currentPath) {
+      //   const newPages = [...pages];
+      //   if (!newPages[currentPage - 1]) {
+      //     newPages[currentPage - 1] = { paths: [], images: [] };
+      //   }
+      //   newPages[currentPage - 1].paths.push({
+      //     path: currentPath,
+      //     color: strokeColor,
+      //     width: strokeWidth,
+      //     tool: currentTool
+      //   });
+      //   setPages(newPages);
+      //   setCurrentPath('');
+      // }
 
-      // 手指滑动翻页检测
-      if (enhancedEvent.isFingerInput && Math.abs(gestureState.dx) > 50 && Math.abs(gestureState.dy) < 100) {
-        if (gestureState.dx > 0) {
-          // 向右滑动 - 上一页
-          if (currentPage > 1) {
-            goToPage(currentPage - 1);
-          }
-        } else {
-          // 向左滑动 - 下一页
+      // 手指上下滑动翻页检测 - 简化版本
+      if (evt.nativeEvent.touches.length <= 1 && Math.abs(gestureState.dy) > 50 && Math.abs(gestureState.dx) < 100) {
+        if (gestureState.dy < 0) {
+          // 向上滑动 - 下一页
           if (currentPage < totalPages) {
             goToPage(currentPage + 1);
           } else {
             addNewPage();
           }
+        } else {
+          // 向下滑动 - 上一页
+          if (currentPage > 1) {
+            goToPage(currentPage - 1);
+          }
         }
       }
 
       setIsDrawing(false);
+
+      // 结束缩放操作，确保最终状态正确
+      if (isScaling.current) {
+        setScale(tempScale.current);
+        isScaling.current = false;
+      }
     }
   });
   
@@ -222,13 +263,40 @@ const PagedNoteScreen = ({ route, navigation }) => {
   const goToPage = (pageNum) => {
     if (pageNum >= 1 && pageNum <= totalPages) {
       setCurrentPage(pageNum);
+      console.log(`PagedNoteScreen: 切换到第 ${pageNum} 页，共 ${totalPages} 页`);
     }
   };
-  
+
   const addNewPage = () => {
     setPages(prev => [...prev, { paths: [], images: [] }]);
     setTotalPages(prev => prev + 1);
     setCurrentPage(totalPages + 1);
+    console.log(`PagedNoteScreen: 添加新页面，当前第 ${totalPages + 1} 页`);
+  };
+
+  // 删除当前页面（如果不是最后一页）
+  const deleteCurrentPage = () => {
+    if (totalPages > 1) {
+      const newPages = pages.filter((_, index) => index !== currentPage - 1);
+      setPages(newPages);
+      setTotalPages(newPages.length);
+
+      // 调整当前页码
+      if (currentPage > newPages.length) {
+        setCurrentPage(newPages.length);
+      }
+      console.log(`PagedNoteScreen: 删除页面，剩余 ${newPages.length} 页`);
+    }
+  };
+
+  // 在当前页面后插入新页面
+  const insertPageAfterCurrent = () => {
+    const newPages = [...pages];
+    newPages.splice(currentPage, 0, { paths: [], images: [] });
+    setPages(newPages);
+    setTotalPages(newPages.length);
+    setCurrentPage(currentPage + 1);
+    console.log(`PagedNoteScreen: 在第 ${currentPage} 页后插入新页面`);
   };
   
   // 书签功能
@@ -265,9 +333,10 @@ const PagedNoteScreen = ({ route, navigation }) => {
     }
   };
   
-  // 渲染背景图案
+  // 手写功能临时移除 - 背景图案渲染
   const renderPattern = () => {
-    if (!currentNoteStyle.pattern) return null;
+    // 临时返回null，移除SVG渲染
+    return null;
     
     const patternSize = 20;
     const lines = [];
@@ -420,15 +489,14 @@ const PagedNoteScreen = ({ route, navigation }) => {
             ]}
             {...panResponder.panHandlers}
           >
-            <Svg
+            {/* 手写功能临时移除 - SVG 绘画层 */}
+            {/* <Svg
               style={StyleSheet.absoluteFillObject}
               width={pageWidth}
               height={pageHeight}
             >
-              {/* 背景图案 */}
               {renderPattern()}
-              
-              {/* 绘制路径 */}
+
               {currentPageData.paths.map((pathData, index) => (
                 <Path
                   key={index}
@@ -440,8 +508,7 @@ const PagedNoteScreen = ({ route, navigation }) => {
                   strokeLinejoin="round"
                 />
               ))}
-              
-              {/* 当前绘制路径 */}
+
               {currentPath && (
                 <Path
                   d={currentPath}
@@ -452,7 +519,7 @@ const PagedNoteScreen = ({ route, navigation }) => {
                   strokeLinejoin="round"
                 />
               )}
-            </Svg>
+            </Svg> */}
 
             {/* 渲染图片 */}
             {currentPageData.images.map((imageData, index) => (
@@ -470,6 +537,8 @@ const PagedNoteScreen = ({ route, navigation }) => {
                 resizeMode="contain"
               />
             ))}
+
+
           </View>
         </View>
       </ViewerLayout>
@@ -524,6 +593,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+
 });
 
 export default PagedNoteScreen;

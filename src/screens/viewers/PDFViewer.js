@@ -32,6 +32,7 @@ import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
 import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
+import ZoomIndicator from '../../components/common/ZoomIndicator';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import { addBookmark } from '../../services/bookmarkService';
 
@@ -56,6 +57,8 @@ const PDFViewer = ({ route, navigation }) => {
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [pageInputValue, setPageInputValue] = useState('1');
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const [currentScale, setCurrentScale] = useState(1);
 
 
   // 引用
@@ -481,9 +484,41 @@ const PDFViewer = ({ route, navigation }) => {
   };
 
   const addFloatingImage = async (img) => {
-    const item = { id: `img_${Date.now()}`, uri: img.uri, x: 20, y: 20, z: 10 };
+    // 计算合适的图片尺寸和中央位置
+    const maxWidth = screenWidth * 0.6; // 最大宽度为屏幕宽度的60%
+    const maxHeight = screenHeight * 0.4; // 最大高度为屏幕高度的40%
+
+    let imageWidth = img.width || 200;
+    let imageHeight = img.height || 200;
+
+    // 按比例缩放图片以适应最大尺寸
+    if (imageWidth > maxWidth || imageHeight > maxHeight) {
+      const widthRatio = maxWidth / imageWidth;
+      const heightRatio = maxHeight / imageHeight;
+      const ratio = Math.min(widthRatio, heightRatio);
+
+      imageWidth = imageWidth * ratio;
+      imageHeight = imageHeight * ratio;
+    }
+
+    // 计算中央位置
+    const centerX = (screenWidth - imageWidth) / 2;
+    const centerY = (screenHeight - imageHeight) / 2;
+
+    const item = {
+      id: `img_${Date.now()}`,
+      uri: img.uri,
+      x: centerX,
+      y: centerY,
+      z: 10,
+      width: imageWidth,
+      height: imageHeight
+    };
     const next = [...images, item];
-    setImages(next); await persistImages(next);
+    setImages(next);
+    await persistImages(next);
+
+    console.log('PDFViewer: 图片已添加到中央位置:', item);
   };
 
   const handleMoveFloatingImage = async (id, pos) => {
@@ -716,7 +751,7 @@ const PDFViewer = ({ route, navigation }) => {
         onToolChange={() => {}}
         onColorChange={setStrokeColor}
         onStrokeWidthChange={setStrokeWidth}
-        onImageUpload={(image) => addImage(image?.uri || image)}
+        onImageUpload={(image) => addFloatingImage(image)}
         onBookmarkAdd={handleAddBookmark}
         onBookmarkList={() => setBookmarkVisible(true)}
       />
@@ -725,7 +760,18 @@ const PDFViewer = ({ route, navigation }) => {
       colors={colors}
       headerLeft={
         <BackButton
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            try {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Home');
+              }
+            } catch (error) {
+              console.warn('PDFViewer: 导航返回失败:', error);
+              navigation.navigate('Home');
+            }
+          }}
           color={colors.primary}
           background={colors.primary + '20'}
         />
@@ -914,6 +960,17 @@ const PDFViewer = ({ route, navigation }) => {
                 </Text>
               </View>
             )}
+
+            // 缩放事件处理
+            onScaleChanged={(scale) => {
+              setCurrentScale(scale);
+              setShowZoomIndicator(true);
+
+              // 延迟隐藏指示器
+              setTimeout(() => {
+                setShowZoomIndicator(false);
+              }, 100);
+            }}
           />
           {/* 漂浮图片层（在 Pdf 组件之后渲染）*/}
           <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t+1); return false; }}>
@@ -972,6 +1029,13 @@ const PDFViewer = ({ route, navigation }) => {
           storageKey="pdf_viewer_pagecontrol_pos"
         />
       )}
+
+      {/* 缩放指示器 */}
+      <ZoomIndicator
+        scale={currentScale}
+        visible={showZoomIndicator}
+        autoHideDelay={2000}
+      />
 
       {/* 书签面板 */}
       <BookmarkPanel

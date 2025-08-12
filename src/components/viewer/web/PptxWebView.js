@@ -99,11 +99,43 @@ const Inner = ({ base64Pptx, onMeta, onPage, onError, style }, ref) => {
             await Promise.race([loadJSZipIfNeeded(), timeout]);
             console.log('PptxWebView: JSZip库加载成功');
 
-            // 解码base64数据
+            // 解码base64数据 - 优化内存使用
             let buf;
             try {
-              buf = Uint8Array.from(atob(data.base64), c => c.charCodeAt(0));
-              console.log('PptxWebView: base64解码成功，数据长度:', buf.length);
+              console.log('PptxWebView: 开始解码base64数据，长度:', data.base64.length);
+
+              // 对于大文件，分块解码以减少内存压力
+              if (data.base64.length > 50 * 1024 * 1024) { // 50MB
+                console.log('PptxWebView: 大文件检测，使用分块解码');
+                const chunkSize = 1024 * 1024; // 1MB chunks
+                const chunks = [];
+
+                for (let i = 0; i < data.base64.length; i += chunkSize) {
+                  const chunk = data.base64.slice(i, i + chunkSize);
+                  const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+                  chunks.push(decodedChunk);
+
+                  // 给浏览器一些时间处理
+                  if (i % (chunkSize * 10) === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                  }
+                }
+
+                // 合并所有块
+                const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+                buf = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                  buf.set(chunk, offset);
+                  offset += chunk.length;
+                }
+
+                console.log('PptxWebView: 分块解码完成，总长度:', buf.length);
+              } else {
+                // 小文件直接解码
+                buf = Uint8Array.from(atob(data.base64), c => c.charCodeAt(0));
+                console.log('PptxWebView: base64解码成功，数据长度:', buf.length);
+              }
             } catch (decodeError) {
               throw new Error('base64数据解码失败：' + decodeError.message);
             }

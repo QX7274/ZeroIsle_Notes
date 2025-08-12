@@ -30,6 +30,7 @@ import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
 import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
+import preloadService from '../../services/document/preloadService';
 import RNFS from 'react-native-fs';
 
 const HomeScreen = ({ navigation }) => {
@@ -309,6 +310,21 @@ const HomeScreen = ({ navigation }) => {
 
         // 使用导出的action creator设置笔记
         dispatch(setNotesAction(offlineResponse.data));
+
+        // 调试：检查canvas类型的笔记
+        const canvasNotes = offlineResponse.data.filter(note => note.type === 'canvas');
+        console.log('HomeScreen: 加载的canvas类型笔记数量:', canvasNotes.length);
+        canvasNotes.forEach(note => {
+          console.log('HomeScreen: canvas笔记详情:', {
+            id: note._id || note.id,
+            title: note.title,
+            type: note.type,
+            canvasStyle: note.canvasStyle
+          });
+        });
+
+        // 启动智能预加载
+        startIntelligentPreload(offlineResponse.data);
       } else {
         // 如果没有笔记，返回空数组
         console.log('没有笔记，返回空数组');
@@ -330,6 +346,35 @@ const HomeScreen = ({ navigation }) => {
       setIsLoading(false);
     }
     // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
+  };
+
+  // 智能预加载
+  const startIntelligentPreload = (notesList) => {
+    try {
+      // 过滤出文档类型的笔记
+      const documentNotes = notesList.filter(note => {
+        const fileType = note.file_type || '';
+        return ['pdf', 'docx', 'doc', 'pptx', 'ppt'].includes(fileType.toLowerCase());
+      });
+
+      // 按更新时间排序，获取最近访问的文档
+      const recentDocuments = documentNotes
+        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+        .slice(0, 10) // 只预加载前10个
+        .map(note => ({
+          uri: note.uri || note.file_uri || note.file_path,
+          type: note.file_type?.toLowerCase(),
+          title: note.title
+        }))
+        .filter(doc => doc.uri && doc.type);
+
+      if (recentDocuments.length > 0) {
+        console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
+        preloadService.intelligentPreload(recentDocuments);
+      }
+    } catch (error) {
+      console.error('HomeScreen: 智能预加载失败:', error);
+    }
   };
 
   // 导入PDF文件
@@ -553,13 +598,44 @@ const HomeScreen = ({ navigation }) => {
   // 导入PPT文件
   const importPPT = async () => {
     try {
-      const pptTypes = Platform.select({
-        android: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-        ios: ['com.microsoft.powerpoint.ppt', 'org.openxmlformats.presentationml.presentation']
-      });
-      const results = await DocumentPicker.pick({ type: pptTypes, allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' });
+      console.log('HomeScreen: 开始导入PPT文件');
+
+      // 使用更宽松的文件类型选择
+      let results;
+      try {
+        const pptTypes = Platform.select({
+          android: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+          ios: ['com.microsoft.powerpoint.ppt', 'org.openxmlformats.presentationml.presentation']
+        });
+        results = await DocumentPicker.pick({
+          type: pptTypes,
+          allowMultiSelection: false,
+          mode: 'import',
+          copyTo: 'documentDirectory'
+        });
+      } catch (typeError) {
+        console.warn('HomeScreen: 特定类型选择失败，尝试所有文件类型:', typeError);
+        // 如果特定类型失败，尝试所有文件类型
+        results = await DocumentPicker.pick({
+          type: [DocumentPicker.types.allFiles],
+          allowMultiSelection: false,
+          mode: 'import',
+          copyTo: 'documentDirectory'
+        });
+      }
       if (results && results.length > 0) {
         const file = results[0];
+        console.log('HomeScreen: 选择的PPT文件:', file);
+
+        // 验证文件扩展名
+        const fileName = file.name || '';
+        const isPPTFile = /\.(ppt|pptx)$/i.test(fileName);
+
+        if (!isPPTFile) {
+          Alert.alert('错误', '请选择PPT或PPTX格式的文件');
+          return;
+        }
+
         const noteId = `${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
         const localNote = {
           id: noteId,
@@ -910,7 +986,12 @@ const HomeScreen = ({ navigation }) => {
       }
       // 检查是否是画布
       else if (item.type === 'canvas') {
-        console.log('handleFilePress - 检测到画布文件，进入画布分支:', item); // 添加画布分支日志
+        console.log('HomeScreen: 渲染画布封面，数据:', {
+          type: item.type,
+          title: item.title,
+          canvasStyle: item.canvasStyle,
+          id: item._id || item.id
+        });
         // 画布封面 - 使用纯色背景
         return (
           <View style={[styles.coverContainer, styles.canvasBackground]}>
@@ -920,26 +1001,15 @@ const HomeScreen = ({ navigation }) => {
           </View>
         );
       }
-      // 检查是否是分页笔记
-      else if (item.type === 'paged_note') {
-        console.log('handleFilePress - 检测到分页笔记文件，进入笔记分支:', item);
-        // 分页笔记封面 - 使用笔记本样式
-        return (
-          <View style={[styles.coverContainer, styles.textBackground]}>
-            <Icon name="note" size={30} color="#1976D2" />
-            <Text style={{ color: '#1976D2', fontSize: 12, marginTop: 4 }}>笔记</Text>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#1976D2' }]} />
-          </View>
-        );
-      }
+      
       // 默认文本笔记封面
       else {
-        console.log('handleFilePress - 未匹配特定类型，进入默认文本笔记分支:', item); // 添加默认分支日志
+        console.log('handleFilePress - 进入默认文本笔记分支:', item); // 添加默认分支日志
         return (
           <View style={[styles.coverContainer, styles.textBackground]}>
-            <Icon name="document-text-outline" size={30} color="#FF9800" />
-            <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>笔记</Text>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF9800' }]} />
+            <Icon name="document-text-outline" size={30} color="#2196F3" />
+            <Text style={{ color: '#2196F3', fontSize: 12, marginTop: 4 }}>笔记</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#2196F3' }]} />
           </View>
         );
       }
@@ -1849,7 +1919,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3E5F5', // 淡紫色背景用于画布
   },
   textBackground: {
-    backgroundColor: '#FFF8E1', // 淡黄色背景用于文本
+    backgroundColor: '#cee7faff', // 淡蓝色背景用于文本
+    //backgroundColor: '#FFF8E1', // 淡黄色背景用于文本
   },
   // PDF预览样式
   pdfPreview: {

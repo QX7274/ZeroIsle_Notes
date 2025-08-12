@@ -61,12 +61,12 @@ export const PAGINATION = {
   COMMUNITY_POSTS_PER_PAGE: 15,
 };
 
-// 文件上传限制
+// 文件上传限制 - 移除大小限制，支持大文件处理
 export const UPLOAD_LIMITS = {
-  IMAGE_MAX_SIZE: 5 * 1024 * 1024, // 5MB
-  DOCUMENT_MAX_SIZE: 10 * 1024 * 1024, // 10MB
+  IMAGE_MAX_SIZE: 100 * 1024 * 1024, // 100MB - 大幅提升图片限制
+  DOCUMENT_MAX_SIZE: 500 * 1024 * 1024, // 500MB - 大幅提升文档限制
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  ALLOWED_DOCUMENT_TYPES: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ALLOWED_DOCUMENT_TYPES: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
 };
 
 // 特性开关

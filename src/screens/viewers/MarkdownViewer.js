@@ -133,10 +133,36 @@ function MarkdownViewer({ route, navigation }) {
   })(); }, [docId]);
 
   // 添加图片（示例：通过工具栏 onImageUpload 回调注入）
-  const addImage = async (uri) => {
-    const item = { id: `img_${Date.now()}`, uri, x: 20, y: 20, z: 10 };
+  const addImage = async (img) => {
+    // 计算合适的图片尺寸和中央位置
+    const maxWidth = screenWidth * 0.6;
+    const maxHeight = screenHeight * 0.4;
+
+    let imageWidth = img.width || 200;
+    let imageHeight = img.height || 200;
+
+    // 按比例缩放
+    if (imageWidth > maxWidth || imageHeight > maxHeight) {
+      const ratio = Math.min(maxWidth / imageWidth, maxHeight / imageHeight);
+      imageWidth = imageWidth * ratio;
+      imageHeight = imageHeight * ratio;
+    }
+
+    const centerX = (screenWidth - imageWidth) / 2;
+    const centerY = (screenHeight - imageHeight) / 2;
+
+    const item = {
+      id: `img_${Date.now()}`,
+      uri: img.uri || img,
+      x: centerX,
+      y: centerY,
+      z: 10,
+      width: imageWidth,
+      height: imageHeight
+    };
     setImages(prev => [...prev, item]);
     await handleMoveImage(item.id, { x: item.x, y: item.y });
+    console.log('MarkdownViewer: 图片已添加到中央位置:', item);
   };
 
   // 添加书签

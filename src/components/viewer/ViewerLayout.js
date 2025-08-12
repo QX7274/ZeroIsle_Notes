@@ -109,9 +109,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     position: 'relative',
-    // 确保内容区域紧贴工具栏，无额外间距
-    marginTop: 0,
-    paddingTop: 0,
+    // 动态样式会覆盖这些默认值
   },
 });
 

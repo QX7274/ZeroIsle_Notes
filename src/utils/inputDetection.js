@@ -14,47 +14,90 @@ export const detectInputType = (nativeEvent) => {
   // 检查是否有触控笔相关属性
   if (nativeEvent.touches && nativeEvent.touches.length > 0) {
     const touch = nativeEvent.touches[0];
-    
-    // 检查触控笔特有属性
-    // 1. pressure - 压力值，触控笔通常有更精确的压力检测
-    // 2. radiusX/radiusY - 触摸半径，触控笔通常更小
-    // 3. force - 力度值（iOS特有）
-    // 4. touchType - 触摸类型（部分设备支持）
-    
-    const hasPressure = typeof touch.pressure !== 'undefined';
-    const hasRadius = typeof touch.radiusX !== 'undefined' && typeof touch.radiusY !== 'undefined';
-    const hasForce = typeof touch.force !== 'undefined';
-    
-    // 触控笔检测逻辑
-    if (hasPressure && touch.pressure > 0) {
-      // 触控笔通常有更精确的压力值
-      if (touch.pressure < 0.1 || touch.pressure > 0.8) {
-        return 'stylus';
-      }
-    }
-    
-    if (hasRadius) {
-      // 触控笔的触摸半径通常更小
-      const avgRadius = (touch.radiusX + touch.radiusY) / 2;
-      if (avgRadius < 5) {
-        return 'stylus';
-      }
-    }
-    
-    if (hasForce && touch.force > 0.5) {
-      // iOS设备上，触控笔通常有更高的力度值
-      return 'stylus';
-    }
-    
-    // 检查touchType属性（如果支持）
+
+    // 详细调试信息
+    console.log('InputDetection: 触摸事件详情:', {
+      touchType: touch.touchType,
+      pressure: touch.pressure,
+      radiusX: touch.radiusX,
+      radiusY: touch.radiusY,
+      force: touch.force,
+      toolType: touch.toolType,
+      type: touch.type,
+      identifier: touch.identifier
+    });
+
+    // 优先检查明确的touchType属性（最可靠）
     if (touch.touchType === 'stylus' || touch.touchType === 'pen') {
+      console.log('InputDetection: 检测到触控笔 (touchType)');
       return 'stylus';
     }
-    
-    // 如果没有明确的触控笔特征，判断为手指
+
+    // Android特有的toolType检测
+    if (touch.toolType === 2 || touch.type === 'stylus') {
+      console.log('InputDetection: 检测到触控笔 (Android toolType)');
+      return 'stylus';
+    }
+
+    // 检查触控笔特有属性
+    const hasPressure = typeof touch.pressure !== 'undefined' && touch.pressure !== null;
+    const hasRadius = typeof touch.radiusX !== 'undefined' && typeof touch.radiusY !== 'undefined';
+    const hasForce = typeof touch.force !== 'undefined' && touch.force !== null;
+
+    let stylusScore = 0;
+
+    // 压力检测 - 触控笔通常有压力感应
+    if (hasPressure) {
+      // 更宽松的压力检测
+      if (touch.pressure > 0 && touch.pressure !== 1) {
+        stylusScore += 3; // 有压力值是强指标
+        console.log('InputDetection: 检测到压力值:', touch.pressure);
+      } else if (touch.pressure === 0) {
+        // 有些触控笔在轻触时压力为0
+        stylusScore += 1;
+        console.log('InputDetection: 检测到零压力值（可能是触控笔）');
+      }
+    }
+
+    // 触摸半径检测 - 触控笔通常更小更精确
+    if (hasRadius) {
+      const avgRadius = (touch.radiusX + touch.radiusY) / 2;
+      if (avgRadius < 12) { // 进一步放宽条件
+        stylusScore += 2;
+        console.log('InputDetection: 检测到小半径:', avgRadius);
+      } else if (avgRadius < 20) {
+        stylusScore += 1;
+        console.log('InputDetection: 检测到中等半径:', avgRadius);
+      }
+    }
+
+    // 力度检测（iOS）
+    if (hasForce) {
+      if (touch.force > 0.1) { // 大幅降低阈值
+        stylusScore += 2;
+        console.log('InputDetection: 检测到力度值:', touch.force);
+      }
+    }
+
+    // 更宽松的判断条件
+    if (stylusScore >= 1) {
+      console.log('InputDetection: 检测到触控笔 (综合评分):', stylusScore);
+      return 'stylus';
+    }
+
+    // 备用检测：基于触摸点位置精度
+    // 如果触摸点坐标是整数，可能是触控笔（更精确）
+    const hasIntegerCoords = (touch.pageX % 1 === 0) && (touch.pageY % 1 === 0);
+    if (hasIntegerCoords && (touch.pageX !== 0 && touch.pageY !== 0)) {
+      console.log('InputDetection: 基于坐标精度检测到可能的触控笔');
+      return 'stylus';
+    }
+
+    // 默认判断为手指
+    console.log('InputDetection: 检测到手指输入');
     return 'finger';
   }
-  
+
   return 'unknown';
 };
 
@@ -118,7 +161,9 @@ export class InputModeManager {
     } else {
       // 自动模式：根据输入设备类型决定
       const inputType = detectInputType(nativeEvent);
-      return inputType === 'stylus' ? 'draw' : 'navigate';
+      const operationType = inputType === 'stylus' ? 'draw' : 'navigate';
+      console.log('InputModeManager: 操作类型:', operationType, '输入类型:', inputType);
+      return operationType;
     }
   }
   

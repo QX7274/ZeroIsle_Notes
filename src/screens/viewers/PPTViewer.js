@@ -27,6 +27,55 @@ const PPTViewer = ({ route, navigation }) => {
   const [strokeColor, setStrokeColor] = useState('#000');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
+
+  // 分块读取大文件的方法
+  const readLargeFileInChunks = async (filePath, createTimeout) => {
+    const RNFS = require('react-native-fs');
+    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+
+    try {
+      // 获取文件大小
+      const stat = await RNFS.stat(filePath);
+      const fileSize = stat.size;
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+
+      console.log(`PPTViewer: 开始分块读取，文件大小: ${fileSize}, 分块数: ${totalChunks}`);
+
+      let base64Data = '';
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        const progress = ((i + 1) / totalChunks * 100).toFixed(1);
+
+        setLoadingSubMessage(`正在读取文件块 ${i + 1}/${totalChunks} (${progress}%)`);
+
+        try {
+          // 读取文件块
+          const chunkData = await Promise.race([
+            RNFS.read(filePath, chunkSize, start, 'base64'),
+            createTimeout(10000) // 每块10秒超时
+          ]);
+
+          base64Data += chunkData;
+
+          // 给UI一些时间更新
+          if (i % 5 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        } catch (chunkError) {
+          console.error(`PPTViewer: 读取文件块 ${i + 1} 失败:`, chunkError);
+          throw new Error(`读取文件块 ${i + 1} 失败: ${chunkError.message}`);
+        }
+      }
+
+      console.log(`PPTViewer: 分块读取完成，总长度: ${base64Data.length}`);
+      return base64Data;
+    } catch (error) {
+      console.error('PPTViewer: 分块读取失败:', error);
+      throw error;
+    }
+  };
   const [images, setImages] = useState([]);
   const [pptxB64, setPptxB64] = useState(null);
   const [totalSlides, setTotalSlides] = useState(1);
@@ -89,17 +138,55 @@ const PPTViewer = ({ route, navigation }) => {
               setLoadingSubMessage('正在访问文件系统...');
 
               try {
-                // 直接尝试读取content://URI（设置超时）
-                console.log('PPTViewer: 直接读取content://URI...');
-                setLoadingSubMessage('正在读取文件内容...');
-                const data = await Promise.race([
-                  RNFS.readFile(path, 'base64'),
-                  createTimeout(15000) // 15秒超时
-                ]);
-                console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
-                setLoadingMessage('文件读取完成');
-                setLoadingSubMessage('正在解析PPT结构...');
-                return data;
+                // 检查文件大小，如果太大则使用分块读取
+                console.log('PPTViewer: 检查文件大小...');
+                setLoadingSubMessage('正在检查文件大小...');
+
+                let fileSize = 0;
+                try {
+                  const stat = await RNFS.stat(path);
+                  fileSize = stat.size;
+                  console.log('PPTViewer: 文件大小:', fileSize, 'bytes');
+                } catch (statError) {
+                  console.warn('PPTViewer: 无法获取文件大小，使用默认处理:', statError);
+                }
+
+                // 如果文件大于200MB，提示用户并拒绝加载
+                if (fileSize > 200 * 1024 * 1024) {
+                  throw new Error(`文件过大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，请使用较小的PPT文件`);
+                }
+
+                // 如果文件大于50MB，使用分块处理
+                if (fileSize > 50 * 1024 * 1024) {
+                  console.log('PPTViewer: 文件较大，使用优化处理...');
+                  setLoadingSubMessage('文件较大，正在优化处理...');
+
+                  // 先复制到缓存目录，然后分块读取
+                  const dest = `${RNFS.CachesDirectoryPath}/large_ppt_${Date.now()}.pptx`;
+                  await Promise.race([
+                    RNFS.copyFile(path, dest),
+                    createTimeout(30000) // 30秒超时
+                  ]);
+
+                  setLoadingSubMessage('正在分块读取大文件...');
+                  const data = await this.readLargeFileInChunks(dest, createTimeout);
+                  console.log('PPTViewer: 大文件分块读取成功，base64长度:', data ? data.length : 0);
+                  setLoadingMessage('大文件读取完成');
+                  setLoadingSubMessage('正在解析PPT结构...');
+                  return data;
+                } else {
+                  // 小文件直接读取
+                  console.log('PPTViewer: 直接读取content://URI...');
+                  setLoadingSubMessage('正在读取文件内容...');
+                  const data = await Promise.race([
+                    RNFS.readFile(path, 'base64'),
+                    createTimeout(15000) // 15秒超时
+                  ]);
+                  console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
+                  setLoadingMessage('文件读取完成');
+                  setLoadingSubMessage('正在解析PPT结构...');
+                  return data;
+                }
               } catch (e) {
                 console.warn('PPTViewer: 直接读取content://URI失败:', e);
 
@@ -195,7 +282,38 @@ const PPTViewer = ({ route, navigation }) => {
   }, [docId, uri]);
 
   const persistImages = async (next) => { try { await offlineStorageService.setItem(`ppt_images_${docId}`, JSON.stringify(next)); } catch {} };
-  const addImage = async (img) => { const item={ id:`img_${Date.now()}`, uri: img.uri || img, x:20, y:20, z:10 }; const next=[...images, item]; setImages(next); await persistImages(next); };
+  const addImage = async (img) => {
+    // 计算合适的图片尺寸和中央位置
+    const maxWidth = screenWidth * 0.6;
+    const maxHeight = screenHeight * 0.4;
+
+    let imageWidth = img.width || 200;
+    let imageHeight = img.height || 200;
+
+    // 按比例缩放
+    if (imageWidth > maxWidth || imageHeight > maxHeight) {
+      const ratio = Math.min(maxWidth / imageWidth, maxHeight / imageHeight);
+      imageWidth = imageWidth * ratio;
+      imageHeight = imageHeight * ratio;
+    }
+
+    const centerX = (screenWidth - imageWidth) / 2;
+    const centerY = (screenHeight - imageHeight) / 2;
+
+    const item = {
+      id: `img_${Date.now()}`,
+      uri: img.uri || img,
+      x: centerX,
+      y: centerY,
+      z: 10,
+      width: imageWidth,
+      height: imageHeight
+    };
+    const next = [...images, item];
+    setImages(next);
+    await persistImages(next);
+    console.log('PPTViewer: 图片已添加到中央位置:', item);
+  };
   const moveImage = async (id, pos) => { const next=images.map(it=>it.id===id?{...it,...pos}:it); setImages(next); await persistImages(next); };
 
   const handleAddBookmark = () => {
@@ -217,7 +335,18 @@ const PPTViewer = ({ route, navigation }) => {
 
       <ViewerLayout
         colors={colors}
-        headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
+        headerLeft={<BackButton onPress={() => {
+          try {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          } catch (error) {
+            console.warn('PPTViewer: 导航返回失败:', error);
+            navigation.navigate('Home');
+          }
+        }} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
         headerRight={
           <View style={styles.headerRightContainer}>
             <SaveButton

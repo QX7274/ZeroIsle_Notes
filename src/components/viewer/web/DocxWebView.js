@@ -175,14 +175,15 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
           }
         ];
 
-        // 动态加载脚本
-        const loadScript = (url, timeout = 10000) => {
+        // 动态加载脚本 - 优化超时和错误处理
+        const loadScript = (url, timeout = 8000) => {
           return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = url;
             script.async = true;
 
             const timer = setTimeout(() => {
+              script.remove(); // 清理失败的脚本标签
               reject(new Error('脚本加载超时: ' + url));
             }, timeout);
 
@@ -194,6 +195,7 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
 
             script.onerror = () => {
               clearTimeout(timer);
+              script.remove(); // 清理失败的脚本标签
               reject(new Error('脚本加载失败: ' + url));
             };
 
@@ -201,18 +203,31 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
           });
         };
 
-        // 尝试不同的CDN源
+        // 尝试不同的CDN源 - 添加总体超时控制
+        const totalTimeout = 25000; // 25秒总超时
+        const startTime = Date.now();
+
         for (let i = 0; i < cdnSources.length; i++) {
           try {
+            // 检查总体超时
+            if (Date.now() - startTime > totalTimeout) {
+              console.error('总体加载超时，直接显示文本模式');
+              showFallback();
+              return false;
+            }
+
             console.log('尝试CDN源', i + 1, ':', cdnSources[i]);
+            showLoading('正在加载渲染库... ',{i + 1}/{cdnSources.length}, '正在从CDN下载必要组件');
 
             // 先加载JSZip
             if (!window.JSZip) {
+              console.log('加载JSZip...');
               await loadScript(cdnSources[i].jszip);
             }
 
             // 再加载docx-preview
             if (!window.docx) {
+              console.log('加载docx-preview...');
               await loadScript(cdnSources[i].docx);
             }
 
@@ -225,7 +240,9 @@ export default function DocxWebView({ base64Docx, onReady, style }) {
           } catch (error) {
             console.warn('CDN源', i + 1, '加载失败:', error.message);
             if (i === cdnSources.length - 1) {
-              throw new Error('所有CDN源都加载失败');
+              console.error('所有CDN源都加载失败，显示文本模式');
+              showFallback();
+              return false;
             }
           }
         }

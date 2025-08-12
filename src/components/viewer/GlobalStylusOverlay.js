@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Canvas, Path, Skia, PaintStyle } from '@shopify/react-native-skia';
+import { detectInputType, isStylusInput } from '../../utils/inputDetection';
 
 // 轻量的全局手写笔覆盖层：
 // - 默认 pointerEvents=none，不阻挡任何交互
@@ -17,22 +18,55 @@ export default function GlobalStylusOverlay({
   const [strokes, setStrokes] = useState([]);
   const current = useRef(null);
 
-  const isStylusInput = (evt) => {
+  const isStylusInputWorklet = (evt) => {
     'worklet';
     try {
       const e = evt.allTouches?.[0] || evt;
-      // Android: toolType=2 为 stylus；iOS 部分版本可通过 touch.radius/force/azimuth 判断
-      if (e?.toolType === 2 || e?.type === 'stylus' || e?.touchType === 'stylus') return true;
-      if (typeof e?.pressure === 'number' && e.pressure > 0 && e.pressure !== 1 && e?.force !== 0) return true;
+
+      // 使用统一的检测逻辑
+      // 优先检查明确的touchType属性
+      if (e?.touchType === 'stylus' || e?.touchType === 'pen') {
+        return true;
+      }
+
+      // Android: toolType=2 为 stylus
+      if (e?.toolType === 2 || e?.type === 'stylus') {
+        return true;
+      }
+
+      // 检查压力值 - 触控笔通常有压力感应
+      if (typeof e?.pressure === 'number' && e.pressure > 0 && e.pressure < 1) {
+        return true;
+      }
+
+      // 检查触摸半径 - 触控笔通常更小更精确
+      if (typeof e?.radiusX === 'number' && typeof e?.radiusY === 'number') {
+        const avgRadius = (e.radiusX + e.radiusY) / 2;
+        if (avgRadius < 8) {
+          return true;
+        }
+      }
+
+      // 检查力度值（iOS）
+      if (typeof e?.force === 'number' && e.force > 0.3) {
+        return true;
+      }
+
       return false;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   };
 
   const pan = useMemo(() => Gesture.Pan()
     .manualActivation(true)
     .onTouchesDown((evt, state) => {
       'worklet';
-      try { isStylusInput(evt) ? state.activate() : state.fail(); } catch { state.fail(); }
+      try {
+        isStylusInputWorklet(evt) ? state.activate() : state.fail();
+      } catch {
+        state.fail();
+      }
     })
     .onStart((e) => {
       setActive(true);

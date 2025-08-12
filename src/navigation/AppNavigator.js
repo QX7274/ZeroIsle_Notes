@@ -61,7 +61,7 @@ const getTabBarStyle = (route, colors) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
 
   // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'ImageViewer', 'VideoPlayer', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer'];
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer'];
 
   // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
   if (hideTabBarScreens.includes(routeName)) {

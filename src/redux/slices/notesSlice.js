@@ -1043,6 +1043,38 @@ export const selectAutoSaveState = (state) => state.notes.autoSave;
 export const selectHistoryState = (state) => state.notes.history;
 export const selectOfflineState = (state) => state.notes.offline;
 
-// 导出Reducer
+// 导出Actions
+export const {
+  addNote,
+  addNotes,
+  updateOneNote,
+  updateNotes,
+  deleteNotes,
+  clearNotes,
+  setLoading,
+  setError,
+  setSearchQuery,
+  clearSearchQuery,
+  setSortBy,
+  setFilterBy,
+  clearFilter,
+  setSelectedNotes,
+  clearSelectedNotes,
+  toggleNoteSelection,
+  deselectAllNotes,
+  setImageUploadProgress,
+  setImageUploadError,
+  clearImageUploadState,
+  setAutoSaveEnabled,
+  setAutoSaveInterval,
+  addHistoryEntry,
+  clearHistory,
+  setOfflineMode,
+  setSyncStatus,
+  addPendingSync,
+  removePendingSync,
+  clearPendingSync
+} = notesSlice.actions;
 
+// 导出Reducer
 export default notesSlice.reducer;

@@ -141,7 +141,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
               onPress={onClose}
             >
               <Text style={[styles.closeButtonText, { color: colors.textLight }]}>
-                ✕
+                ×
               </Text>
             </TouchableOpacity>
           </View>
@@ -196,7 +196,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
                   color: colors.text
                 }
               ]}
-              placeholder="输入画布名称（默认日期）"
+              placeholder="输入名称（默认日期）"
               placeholderTextColor={colors.textLight}
               value={canvasName}
               onChangeText={setCanvasName}
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     flex: 2,
-    paddingVertical: 12,
+    paddingVertical: 7,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,

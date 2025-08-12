@@ -30,6 +30,55 @@ const DocViewer = ({ route, navigation }) => {
   const [strokeColor, setStrokeColor] = useState('#000');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
+
+  // 分块读取大文件的方法
+  const readLargeFileInChunks = async (filePath, createTimeout) => {
+    const RNFS = require('react-native-fs');
+    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+
+    try {
+      // 获取文件大小
+      const stat = await RNFS.stat(filePath);
+      const fileSize = stat.size;
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+
+      console.log(`DocViewer: 开始分块读取，文件大小: ${fileSize}, 分块数: ${totalChunks}`);
+
+      let base64Data = '';
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        const progress = ((i + 1) / totalChunks * 100).toFixed(1);
+
+        setLoadingSubMessage(`正在读取文件块 ${i + 1}/${totalChunks} (${progress}%)`);
+
+        try {
+          // 读取文件块
+          const chunkData = await Promise.race([
+            RNFS.read(filePath, chunkSize, start, 'base64'),
+            createTimeout(10000) // 每块10秒超时
+          ]);
+
+          base64Data += chunkData;
+
+          // 给UI一些时间更新
+          if (i % 5 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        } catch (chunkError) {
+          console.error(`DocViewer: 读取文件块 ${i + 1} 失败:`, chunkError);
+          throw new Error(`读取文件块 ${i + 1} 失败: ${chunkError.message}`);
+        }
+      }
+
+      console.log(`DocViewer: 分块读取完成，总长度: ${base64Data.length}`);
+      return base64Data;
+    } catch (error) {
+      console.error('DocViewer: 分块读取失败:', error);
+      throw error;
+    }
+  };
   const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
   const [deselectTick, setDeselectTick] = useState(0);
   const [docxB64, setDocxB64] = useState(null);
@@ -151,6 +200,9 @@ const DocViewer = ({ route, navigation }) => {
             setLoadingMessage('找到缓存文档');
             setLoadingSubMessage('正在从缓存加载，速度更快...');
             setDocxB64(cached.data);
+            // 重要：设置加载完成状态
+            setIsLoading(false);
+            console.log('DocViewer: 缓存文档加载完成');
             return;
           }
 
@@ -176,10 +228,37 @@ const DocViewer = ({ route, navigation }) => {
               path = path.replace('file://', '');
             }
 
-            console.log('DocViewer: 读取Word文档文件为base64:', path);
-            const data = await RNFS.readFile(path, 'base64');
-            console.log('DocViewer: Word文档base64读取成功，长度:', data.length);
-            return data;
+            // 检查文件大小，决定使用哪种读取方式
+            console.log('DocViewer: 检查Word文档文件大小...');
+            let fileSize = 0;
+            try {
+              const stat = await RNFS.stat(path);
+              fileSize = stat.size;
+              console.log('DocViewer: Word文档大小:', fileSize, 'bytes');
+            } catch (statError) {
+              console.warn('DocViewer: 无法获取文件大小，使用默认处理:', statError);
+            }
+
+            // 如果文件大于50MB，提示用户并拒绝加载
+            if (fileSize > 50 * 1024 * 1024) {
+              throw new Error(`文件过大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，请使用较小的Word文档`);
+            }
+
+            // 如果文件大于20MB，使用分块处理
+            if (fileSize > 20 * 1024 * 1024) {
+              console.log('DocViewer: Word文档较大，使用分块读取...');
+              const data = await readLargeFileInChunks(path, (ms) => new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`操作超时(${ms}ms)`)), ms)
+              ));
+              console.log('DocViewer: Word文档分块读取成功，长度:', data.length);
+              return data;
+            } else {
+              // 小文件直接读取
+              console.log('DocViewer: 读取Word文档文件为base64:', path);
+              const data = await RNFS.readFile(path, 'base64');
+              console.log('DocViewer: Word文档base64读取成功，长度:', data.length);
+              return data;
+            }
           };
 
           try {
@@ -208,7 +287,38 @@ const DocViewer = ({ route, navigation }) => {
     try { const raw = (await offlineStorageService.getItem(`doc_images_${docId}`)) || '[]'; const list = JSON.parse(raw); if (Array.isArray(list)) setImages(list); } catch {}
   })(); }, [docId]);
   const persistImages = async (next) => { try { await offlineStorageService.setItem(`doc_images_${docId}`, JSON.stringify(next)); } catch {} };
-  const addImage = async (img) => { const item = { id:`img_${Date.now()}`, uri: img.uri || img, x:20, y:20, z:10 }; const next = [...images, item]; setImages(next); await persistImages(next); };
+  const addImage = async (img) => {
+    // 计算合适的图片尺寸和中央位置
+    const maxWidth = screenWidth * 0.6;
+    const maxHeight = screenHeight * 0.4;
+
+    let imageWidth = img.width || 200;
+    let imageHeight = img.height || 200;
+
+    // 按比例缩放
+    if (imageWidth > maxWidth || imageHeight > maxHeight) {
+      const ratio = Math.min(maxWidth / imageWidth, maxHeight / imageHeight);
+      imageWidth = imageWidth * ratio;
+      imageHeight = imageHeight * ratio;
+    }
+
+    const centerX = (screenWidth - imageWidth) / 2;
+    const centerY = (screenHeight - imageHeight) / 2;
+
+    const item = {
+      id: `img_${Date.now()}`,
+      uri: img.uri || img,
+      x: centerX,
+      y: centerY,
+      z: 10,
+      width: imageWidth,
+      height: imageHeight
+    };
+    const next = [...images, item];
+    setImages(next);
+    await persistImages(next);
+    console.log('DocViewer: 图片已添加到中央位置:', item);
+  };
   const moveImage = async (id, pos) => { const next = images.map(it => it.id===id?{...it, ...pos}:it); setImages(next); await persistImages(next); };
 
   // 保存文档内容
@@ -237,7 +347,18 @@ const DocViewer = ({ route, navigation }) => {
 
       <ViewerLayout
         colors={colors}
-        headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 0 }} />}
+        headerLeft={<BackButton onPress={() => {
+          try {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          } catch (error) {
+            console.warn('DocViewer: 导航返回失败:', error);
+            navigation.navigate('Home');
+          }
+        }} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 0 }} />}
         headerRight={
           <View style={styles.headerRightContainer}>
             <SaveButton
