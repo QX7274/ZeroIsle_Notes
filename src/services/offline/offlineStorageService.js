@@ -110,12 +110,29 @@ class OfflineStorageService {
         if (note[field] !== undefined) {
           // 对于复杂对象字段，需要序列化为字符串
           if (['paths', 'images', 'pages', 'metadata'].includes(field)) {
-            noteData[field] = typeof note[field] === 'object' ? JSON.stringify(note[field]) : note[field];
+            // 确保复杂对象字段都序列化为JSON字符串存储
+            if (typeof note[field] === 'object') {
+              try {
+                noteData[field] = JSON.stringify(note[field]);
+              } catch (stringifyError) {
+                console.warn(`序列化字段${field}失败:`, stringifyError);
+                noteData[field] = Array.isArray(note[field]) ? '[]' : '{}';
+              }
+            } else if (typeof note[field] === 'string') {
+              // 如果已经是字符串，直接使用
+              noteData[field] = note[field];
+            } else {
+              // 其他类型转换为字符串
+              noteData[field] = String(note[field]);
+            }
           } else {
             noteData[field] = note[field];
           }
         }
       });
+
+      // 确保id字段与_id字段一致
+      noteData.id = noteData._id;
 
       console.log('准备保存的笔记数据:', JSON.stringify(noteData, null, 2).substring(0, 500) + '...');
 
@@ -351,16 +368,19 @@ class OfflineStorageService {
 
       // 尝试从本地存储中获取最近的笔记
       const recentNotesKey = 'recent_notes';
-      const recentNotesJson = await this.getItem(recentNotesKey);
+      const recentNotesData = await this.getItem(recentNotesKey);
 
-      if (recentNotesJson) {
+      if (recentNotesData) {
+        console.log('获取到最近笔记数据，类型:', typeof recentNotesData);
+
         // 使用安全的JSON解析函数
-        const recentNotes = safeParseJSON(recentNotesJson, []);
+        const recentNotes = safeParseJSON(recentNotesData, []);
         if (Array.isArray(recentNotes)) {
           console.log(`从本地存储中获取到${recentNotes.length}条最近笔记`);
           return recentNotes.slice(0, limit);
         } else {
-          console.warn('解析的最近笔记不是数组:', typeof recentNotes);
+          console.warn('解析的最近笔记不是数组:', typeof recentNotes, recentNotes);
+          return [];
         }
       } else {
         console.log('本地存储中没有找到最近笔记');
@@ -449,15 +469,24 @@ class OfflineStorageService {
       if (!note) {
         console.log(`未找到ID为${id}的笔记，尝试其他ID格式`);
 
-        // 2.1 尝试使用id字段查询
+        // 2.1 尝试使用_id字段的不同格式查询
         try {
-          const notesByIdField = await realmService.find('Note', { id: id });
-          if (notesByIdField && notesByIdField.length > 0) {
-            note = notesByIdField[0];
-            console.log(`通过id字段找到笔记: ${id}`);
+          // 尝试查找所有笔记，然后手动匹配
+          const allNotes = await realmService.find('Note', {});
+          if (allNotes && allNotes.length > 0) {
+            const matchingNote = allNotes.find(n =>
+              n._id === id ||
+              (n.id && n.id === id) ||
+              (n._id && n._id.toString() === id) ||
+              (n.id && n.id.toString() === id)
+            );
+            if (matchingNote) {
+              note = matchingNote;
+              console.log(`通过手动匹配找到笔记: ${id}`);
+            }
           }
-        } catch (idFieldError) {
-          console.warn(`通过id字段查询失败: ${id}`, idFieldError);
+        } catch (matchError) {
+          console.warn(`手动匹配查询失败: ${id}`, matchError);
         }
 
         // 2.2 如果ID以temp_开头，尝试查找相同前缀的笔记
@@ -543,6 +572,12 @@ class OfflineStorageService {
           unifiedNote.type = note.file_type;
         } else if (note.type && !note.file_type) {
           unifiedNote.file_type = note.type;
+        } else if (!note.type && !note.file_type) {
+          // 如果两个字段都不存在，根据ID判断是否为画布
+          if (id.includes('canvas_')) {
+            unifiedNote.type = 'canvas';
+            unifiedNote.file_type = 'canvas';
+          }
         }
 
         // 特殊处理PDF文件
@@ -673,6 +708,34 @@ class OfflineStorageService {
           }
         } else {
           updateData.tags = [];
+        }
+      }
+      
+      // 特殊处理画布类型的paths和images字段
+      if (updateData.type === 'canvas') {
+        // 确保paths和images保持数组格式
+        if (updateData.paths !== undefined && !Array.isArray(updateData.paths)) {
+          if (typeof updateData.paths === 'string') {
+            try {
+              updateData.paths = JSON.parse(updateData.paths);
+            } catch {
+              updateData.paths = [];
+            }
+          } else {
+            updateData.paths = [];
+          }
+        }
+        
+        if (updateData.images !== undefined && !Array.isArray(updateData.images)) {
+          if (typeof updateData.images === 'string') {
+            try {
+              updateData.images = JSON.parse(updateData.images);
+            } catch {
+              updateData.images = [];
+            }
+          } else {
+            updateData.images = [];
+          }
         }
       }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Platform, Modal, TextInput, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Platform, Modal, TextInput, TouchableOpacity, Dimensions } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { AllInOneToolbar } from '../../components/common';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
@@ -142,51 +142,37 @@ const PPTViewer = ({ route, navigation }) => {
                 console.log('PPTViewer: 检查文件大小...');
                 setLoadingSubMessage('正在检查文件大小...');
 
+                // 简化文件大小检查，不阻止主流程
                 let fileSize = 0;
+                let fileSizeAvailable = false;
                 try {
                   const stat = await RNFS.stat(path);
                   fileSize = stat.size;
+                  fileSizeAvailable = true;
                   console.log('PPTViewer: 文件大小:', fileSize, 'bytes');
+
+                  // 如果文件大于500MB，仅提示警告
+                  if (fileSize > 500 * 1024 * 1024) {
+                    console.warn(`PPTViewer: 文件较大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，加载可能较慢`);
+                    setLoadingMessage('文件较大，请耐心等待...');
+                  }
                 } catch (statError) {
-                  console.warn('PPTViewer: 无法获取文件大小，使用默认处理:', statError);
+                  console.log('PPTViewer: 无法获取文件大小，继续正常处理:', statError.message);
+                  fileSizeAvailable = false;
                 }
 
-                // 如果文件大于200MB，提示用户并拒绝加载
-                if (fileSize > 200 * 1024 * 1024) {
-                  throw new Error(`文件过大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，请使用较小的PPT文件`);
-                }
+                // 默认处理：直接读取
+                console.log('PPTViewer: 直接读取content://URI...');
+                setLoadingSubMessage('正在读取文件内容...');
+                const data = await Promise.race([
+                  RNFS.readFile(path, 'base64'),
+                  createTimeout(15000) // 15秒超时
+                ]);
+                console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
+                setLoadingMessage('文件读取完成');
+                setLoadingSubMessage('正在解析PPT结构...');
+                return data;
 
-                // 如果文件大于50MB，使用分块处理
-                if (fileSize > 50 * 1024 * 1024) {
-                  console.log('PPTViewer: 文件较大，使用优化处理...');
-                  setLoadingSubMessage('文件较大，正在优化处理...');
-
-                  // 先复制到缓存目录，然后分块读取
-                  const dest = `${RNFS.CachesDirectoryPath}/large_ppt_${Date.now()}.pptx`;
-                  await Promise.race([
-                    RNFS.copyFile(path, dest),
-                    createTimeout(30000) // 30秒超时
-                  ]);
-
-                  setLoadingSubMessage('正在分块读取大文件...');
-                  const data = await this.readLargeFileInChunks(dest, createTimeout);
-                  console.log('PPTViewer: 大文件分块读取成功，base64长度:', data ? data.length : 0);
-                  setLoadingMessage('大文件读取完成');
-                  setLoadingSubMessage('正在解析PPT结构...');
-                  return data;
-                } else {
-                  // 小文件直接读取
-                  console.log('PPTViewer: 直接读取content://URI...');
-                  setLoadingSubMessage('正在读取文件内容...');
-                  const data = await Promise.race([
-                    RNFS.readFile(path, 'base64'),
-                    createTimeout(15000) // 15秒超时
-                  ]);
-                  console.log('PPTViewer: content://直接读取成功，base64长度:', data ? data.length : 0);
-                  setLoadingMessage('文件读取完成');
-                  setLoadingSubMessage('正在解析PPT结构...');
-                  return data;
-                }
               } catch (e) {
                 console.warn('PPTViewer: 直接读取content://URI失败:', e);
 
@@ -283,6 +269,9 @@ const PPTViewer = ({ route, navigation }) => {
 
   const persistImages = async (next) => { try { await offlineStorageService.setItem(`ppt_images_${docId}`, JSON.stringify(next)); } catch {} };
   const addImage = async (img) => {
+    // 获取屏幕尺寸
+    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
     // 计算合适的图片尺寸和中央位置
     const maxWidth = screenWidth * 0.6;
     const maxHeight = screenHeight * 0.4;

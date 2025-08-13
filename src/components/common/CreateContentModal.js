@@ -23,6 +23,8 @@ import DocumentPicker from 'react-native-document-picker';
  * @param {function} onImportWord - 导入Word的回调函数
  * @param {function} onCreateCanvas - 创建无限画布的回调函数
  * @param {function} onImportPPT - 导入PPT的回调函数
+ * @param {object} navigation - 导航对象
+ * @param {function} onFileSelected - 文件选择回调函数
  */
 const CreateContentModal = ({
   visible,
@@ -32,7 +34,9 @@ const CreateContentModal = ({
   onImportPDF,
   onImportWord,
   onCreateCanvas,
-  onImportPPT
+  onImportPPT,
+  navigation,
+  onFileSelected
 }) => {
   const { colors } = useTheme();
 
@@ -147,10 +151,34 @@ const CreateContentModal = ({
           console.warn('系统未按扩展过滤，但已选择：', picked?.name);
         }
         console.log('选择的PPT文件:', picked);
+
+        // 处理选择的PPT文件
+        const fileUri = picked.fileCopyUri || picked.uri;
+        const fileName = picked.name || 'PPT文档';
+
+        // 导航到PPT查看器
+        if (navigation) {
+          navigation.navigate('FileViewer', {
+            uri: fileUri,
+            title: fileName,
+            type: 'powerpoint'
+          });
+        } else if (onFileSelected) {
+          onFileSelected({
+            uri: fileUri,
+            title: fileName,
+            type: 'powerpoint',
+            fileType: 'ppt'
+          });
+        }
+
+        onClose();
+        return;
       }
     } catch (err) {
       if (err.code !== 'DOCUMENT_PICKER_CANCELED') {
         console.error('导入PPT错误:', err);
+        Alert.alert('错误', '导入PPT文件失败，请重试');
       }
     }
     onClose();

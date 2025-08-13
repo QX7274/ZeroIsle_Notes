@@ -6,7 +6,7 @@
 /**
  * 安全解析JSON字符串
  * 处理可能存在的特殊字符和格式问题
- * @param {string} jsonString - 要解析的JSON字符串
+ * @param {string|object} jsonString - 要解析的JSON字符串或对象
  * @param {any} defaultValue - 解析失败时返回的默认值
  * @returns {any} 解析结果或默认值
  */
@@ -17,9 +17,27 @@ export const safeParseJSON = (jsonString, defaultValue = null) => {
     return defaultValue;
   }
 
-  // 如果已经是对象，直接返回
-  if (typeof jsonString === 'object' && !Array.isArray(jsonString)) {
+  // 如果已经是对象（包括数组），直接返回
+  if (typeof jsonString === 'object') {
+    console.log('输入已经是对象类型，直接返回');
     return jsonString;
+  }
+
+  // 如果不是字符串类型，记录警告并尝试转换
+  if (typeof jsonString !== 'string') {
+    console.log('JSON输入不是字符串类型:', typeof jsonString);
+    try {
+      // 尝试将其转换为字符串再解析
+      const stringified = String(jsonString);
+      if (stringified === '[object Object]') {
+        console.warn('无法正确序列化对象，返回默认值');
+        return defaultValue;
+      }
+      return JSON.parse(stringified);
+    } catch (conversionError) {
+      console.error('类型转换和JSON解析都失败:', conversionError);
+      return defaultValue;
+    }
   }
 
   // 处理空字符串

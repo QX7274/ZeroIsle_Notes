@@ -1705,6 +1705,7 @@ const HomeScreen = ({ navigation }) => {
           onImportWord={importWord}
           onImportPPT={importPPT}
           onCreateCanvas={createCanvas}
+          navigation={navigation}
         />
 
         {/* 画布样式选择弹窗 */}

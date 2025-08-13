@@ -469,21 +469,45 @@ const PDFViewer = ({ route, navigation }) => {
 
   useEffect(() => { (async () => {
     try {
+      // 导入JSON工具函数
+      const { safeParseJSON } = require('../../utils/jsonUtils');
+
       const key = `pdf_images_${noteId || uri || title}`;
       const raw = (await offlineStorageService.getItem(key)) || '[]';
-      const list = JSON.parse(raw);
-      if (Array.isArray(list)) setImages(list);
-    } catch (e) { console.warn('加载PDF图片浮层失败', e); }
+      console.log('PDF图片浮层数据类型:', typeof raw);
+
+      const list = safeParseJSON(raw, []);
+      if (Array.isArray(list)) {
+        setImages(list);
+        console.log('PDF图片浮层加载成功，数量:', list.length);
+      } else {
+        console.warn('PDF图片浮层数据不是数组:', typeof list);
+        setImages([]);
+      }
+    } catch (e) {
+      console.warn('加载PDF图片浮层失败', e);
+      setImages([]);
+    }
   })(); }, [noteId, uri, title]);
 
   const persistImages = async (next) => {
     try {
+      // 导入JSON工具函数
+      const { safeStringifyJSON } = require('../../utils/jsonUtils');
+
       const key = `pdf_images_${noteId || uri || title}`;
-      await offlineStorageService.setItem(key, JSON.stringify(next));
-    } catch (e) { console.warn('保存PDF图片浮层失败', e); }
+      const jsonString = safeStringifyJSON(next, '[]');
+      await offlineStorageService.setItem(key, jsonString);
+      console.log('PDF图片浮层保存成功，数量:', Array.isArray(next) ? next.length : 0);
+    } catch (e) {
+      console.warn('保存PDF图片浮层失败', e);
+    }
   };
 
   const addFloatingImage = async (img) => {
+    // 获取屏幕尺寸
+    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
     // 计算合适的图片尺寸和中央位置
     const maxWidth = screenWidth * 0.6; // 最大宽度为屏幕宽度的60%
     const maxHeight = screenHeight * 0.4; // 最大高度为屏幕高度的40%

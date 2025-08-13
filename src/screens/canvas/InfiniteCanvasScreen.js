@@ -13,7 +13,7 @@ import Svg, { Rect, Path, Circle, Line } from 'react-native-svg';
 import { offlineStorageService } from '../../services/offline';
 import { useInputMode, enhanceTouchEvent } from '../../utils/inputDetection';
 import { useDispatch } from 'react-redux';
-import { addNote } from '../../redux/slices/notesSlice';
+import { addNote, updateNote } from '../../redux/slices/notesSlice';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
 
 /**
@@ -91,53 +91,86 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         if (existingCanvas && existingCanvas.type === 'canvas') {
           console.log('InfiniteCanvasScreen: 恢复现有画布数据:', existingCanvas.title);
 
+          // 导入JSON工具函数
+          const { safeParseJSON } = require('../../utils/jsonUtils');
+
           // 恢复画布状态
           setScale(existingCanvas.scale || 1);
           setTranslateX(existingCanvas.translateX || 0);
           setTranslateY(existingCanvas.translateY || 0);
-          setPaths(existingCanvas.paths || []);
-          setImages(existingCanvas.images || []);
+
+          // 安全解析paths和images字段
+          const paths = safeParseJSON(existingCanvas.paths, []);
+          const images = safeParseJSON(existingCanvas.images, []);
+          setPaths(Array.isArray(paths) ? paths : []);
+          setImages(Array.isArray(images) ? images : []);
 
           // 恢复画布样式
           if (existingCanvas.canvasStyle) {
             setCanvasStyle(existingCanvas.canvasStyle);
             console.log('InfiniteCanvasScreen: 恢复画布样式:', existingCanvas.canvasStyle);
+          } else {
+            // 如果没有保存的样式，使用传入的初始样式
+            setCanvasStyle(initialCanvasStyle);
+            console.log('InfiniteCanvasScreen: 使用初始画布样式:', initialCanvasStyle);
           }
+        } else if (existingCanvas) {
+          // 存在笔记但不是画布类型，可能是从其他类型转换而来
+          console.log('InfiniteCanvasScreen: 现有笔记ID但不是画布类型，转换为画布');
+          
+          // 创建新画布，保留原有笔记的ID和标题
+          const convertedCanvasData = {
+            _id: docId,
+            id: docId,
+            title: existingCanvas.title || title,
+            type: 'canvas',
+            file_type: 'canvas',
+            canvasStyle: initialCanvasStyle,
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            paths: [],
+            images: [],
+            created_at: existingCanvas.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          // 更新到离线存储
+          await offlineStorageService.updateNote(docId, convertedCanvasData);
+          
+          // 更新Redux store
+          dispatch(updateNote(convertedCanvasData));
+          console.log('InfiniteCanvasScreen: 笔记已转换为画布');
         } else {
           // 如果不存在，检查是否是从其他界面传递过来的现有画布
           console.log('InfiniteCanvasScreen: 画布不存在，检查是否需要创建新画布');
 
-          // 只有在docId不是现有画布ID时才创建新画布
-          const isNewCanvas = !docId.includes('canvas_');
+          // 如果画布数据不存在，创建新画布
+          console.log('InfiniteCanvasScreen: 创建新画布，docId:', docId);
+          const initialCanvasData = {
+            _id: docId,
+            id: docId,
+            title,
+            type: 'canvas',
+            file_type: 'canvas',
+            canvasStyle: initialCanvasStyle,
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            paths: [],
+            images: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
 
-          if (isNewCanvas) {
-            console.log('InfiniteCanvasScreen: 创建全新画布');
-            const initialCanvasData = {
-              _id: docId,
-              id: docId,
-              title,
-              type: 'canvas',
-              canvasStyle,
-              scale: 1,
-              translateX: 0,
-              translateY: 0,
-              paths: [],
-              images: [],
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
+          // 保存到离线存储
+          await offlineStorageService.saveNote(initialCanvasData);
 
-            // 保存到离线存储
-            await offlineStorageService.saveNote(initialCanvasData);
+          // 添加到Redux store
+          dispatch(addNote(initialCanvasData));
+          console.log('InfiniteCanvasScreen: 新画布已添加到Redux store');
 
-            // 添加到Redux store（只在创建新画布时）
-            dispatch(addNote(initialCanvasData));
-            console.log('InfiniteCanvasScreen: 新画布已添加到Redux store');
-
-            console.log('InfiniteCanvasScreen: 初始状态已保存', initialCanvasData);
-          } else {
-            console.log('InfiniteCanvasScreen: 现有画布ID但数据不存在，使用默认状态');
-          }
+          console.log('InfiniteCanvasScreen: 初始状态已保存', initialCanvasData);
         }
       } catch (error) {
         console.error('InfiniteCanvasScreen: 加载/保存画布失败:', error);
@@ -145,8 +178,40 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
     };
 
     loadOrSaveCanvas();
-  }, [docId, title]); // 当docId或title变化时重新加载
+  }, []); // 只在组件挂载时执行一次，防止重复创建
 
+  // 自动保存功能
+  useEffect(() => {
+    const autoSave = async () => {
+      try {
+        const canvasData = {
+          _id: docId,
+          id: docId,
+          title,
+          type: 'canvas',
+          file_type: 'canvas',
+          canvasStyle, // 确保画布样式被保存
+          scale,
+          translateX,
+          translateY,
+          paths,
+          images,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // 自动保存到离线存储
+        await offlineStorageService.saveNote(canvasData);
+        console.log('InfiniteCanvasScreen: 自动保存完成，样式:', canvasStyle);
+      } catch (error) {
+        console.error('InfiniteCanvasScreen: 自动保存失败:', error);
+      }
+    };
+
+    // 延迟自动保存，避免频繁保存
+    const timeoutId = setTimeout(autoSave, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [docId, title, scale, translateX, translateY, paths, images, canvasStyle]); // 当画布数据变化时自动保存
 
   // 手势处理
   const panResponder = PanResponder.create({
@@ -201,9 +266,9 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
             tempTransform.current.translateX = initialTranslate.current.x + gestureState.dx;
             tempTransform.current.translateY = initialTranslate.current.y + gestureState.dy;
 
-            // 节流更新状态（每16ms更新一次，约60fps）
+            // 优化节流更新，提高流畅度（每8ms更新一次，约120fps）
             const now = Date.now();
-            if (!lastTap.current || now - lastTap.current > 16) {
+            if (!lastTap.current || now - lastTap.current > 8) {
               setTranslateX(tempTransform.current.translateX);
               setTranslateY(tempTransform.current.translateY);
               lastTap.current = now;
@@ -225,16 +290,47 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
             Math.pow(touch2.pageY - touch1.pageY, 2)
           );
 
-          const newScale = Math.max(0.1, Math.min(5, initialScale.current * (distance / initialDistance.current)));
+          // 改进缩放算法，提供更好的控制和敏感度
+          const scaleRatio = distance / initialDistance.current;
+          let newScale = initialScale.current * scaleRatio;
+
+          // 扩大缩放范围：0.05到10倍，提供更大的缩放空间
+          newScale = Math.max(0.05, Math.min(10, newScale));
+
+          // 优化缩放曲线，提供更自然的缩放体验
+          if (newScale < 0.2) {
+            // 小缩放时减少阻尼，提高精度
+            newScale = 0.05 + (newScale - 0.05) * 0.9;
+          } else if (newScale > 5) {
+            // 大缩放时增加阻尼，避免过度缩放
+            newScale = 5 + (newScale - 5) * 0.3;
+          }
+
+          // 计算缩放中心点，实现以双指中心为基准的缩放
+          const centerX = (touch1.pageX + touch2.pageX) / 2;
+          const centerY = (touch1.pageY + touch2.pageY) / 2;
+
+          // 计算相对于画布的缩放中心
+          const canvasCenterX = (centerX - translateX) / scale;
+          const canvasCenterY = (centerY - translateY) / scale;
+
+          // 计算新的平移量，保持缩放中心不变
+          const newTranslateX = centerX - canvasCenterX * newScale;
+          const newTranslateY = centerY - canvasCenterY * newScale;
+
           tempTransform.current.scale = newScale;
+          tempTransform.current.translateX = newTranslateX;
+          tempTransform.current.translateY = newTranslateY;
 
           // 显示缩放指示器
           setShowZoomIndicator(true);
 
-          // 节流更新状态
+          // 优化节流更新，提高响应性和流畅度
           const now = Date.now();
-          if (!lastTap.current || now - lastTap.current > 16) {
+          if (!lastTap.current || now - lastTap.current > 8) {
             setScale(newScale);
+            setTranslateX(newTranslateX);
+            setTranslateY(newTranslateY);
             lastTap.current = now;
           }
         }
@@ -318,7 +414,8 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         id: docId,
         title,
         type: 'canvas',
-        canvasStyle,
+        file_type: 'canvas',
+        canvasStyle, // 确保画布样式被保存
         scale,
         translateX,
         translateY,
@@ -328,11 +425,13 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         updated_at: new Date().toISOString()
       };
 
+      console.log('保存画布数据，样式:', canvasStyle);
+
       // 保存到离线存储
       await offlineStorageService.saveNote(canvasData);
 
-      // 添加到Redux store
-      dispatch(addNote(canvasData));
+      // 更新Redux store
+      dispatch(updateNote(canvasData));
 
       Alert.alert('成功', '画布已保存');
     } catch (error) {
@@ -493,6 +592,7 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         scale={scale}
         visible={showZoomIndicator}
         autoHideDelay={2000}
+        topOffset={30} // 画布中的缩放指示器向下偏移30px
       />
 
       <BookmarkPanel
@@ -518,3 +618,4 @@ const styles = StyleSheet.create({
 });
 
 export default InfiniteCanvasScreen;
+      

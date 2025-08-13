@@ -14,6 +14,7 @@ export const NoteSchema = {
   primaryKey: '_id',
   properties: {
     _id: 'string',
+    id: 'string?', // 添加id属性作为备用标识符
     title: 'string',
     content: 'string?',
     created_at: 'date',
@@ -39,7 +40,19 @@ export const NoteSchema = {
     uri: 'string?',
     path: 'string?',
     file_path: 'string?',
-    url: 'string?'
+    url: 'string?',
+    // 画布相关字段
+    canvasStyle: 'string?',
+    scale: { type: 'double', default: 1.0 },
+    translateX: { type: 'double', default: 0.0 },
+    translateY: { type: 'double', default: 0.0 },
+    paths: 'string?', // JSON字符串存储绘制路径
+    images: 'string?', // JSON字符串存储图片信息
+    // 分页笔记相关字段
+    noteStyle: 'string?',
+    currentPage: { type: 'int', default: 1 },
+    totalPages: { type: 'int', default: 1 },
+    pages: 'string?' // JSON字符串存储页面数据
   }
 };
 

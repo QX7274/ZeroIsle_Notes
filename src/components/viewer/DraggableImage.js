@@ -41,18 +41,33 @@ export default function DraggableImage({
   })).current;
   const moveOffset = useRef({ x: 0, y: 0 });
 
-  // 角点缩放（四角）
+  // 角点缩放（四角）- 优化缩放体验
   const startSize = useRef(size * scale);
+  const startPos = useRef({ x: 0, y: 0 });
   const createResizeResponder = () => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { setSelected(true); startSize.current = size * scale; },
-    onPanResponderMove: (_, g) => {
-      const base = Math.max(60, startSize.current + g.dx + g.dy);
-      const s = base / size;
-      const clamped = Math.max(0.3, Math.min(4, s));
-      setScale(clamped);
-      onResize?.(id, { scale: clamped });
+    onMoveShouldSetPanResponder: (_, g) => g.dx * g.dx + g.dy * g.dy > 0.5, // 进一步降低阈值
+    onPanResponderGrant: (evt) => {
+      setSelected(true);
+      startSize.current = size * scale;
+      startPos.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
+    },
+    onPanResponderMove: (evt, g) => {
+      // 使用距离变化来计算缩放，提供更自然的缩放体验
+      const currentPos = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
+      const distance = Math.sqrt(
+        Math.pow(currentPos.x - startPos.current.x, 2) +
+        Math.pow(currentPos.y - startPos.current.y, 2)
+      );
+
+      // 根据拖拽方向决定缩放方向
+      const direction = (g.dx + g.dy) > 0 ? 1 : -1;
+      const scaleFactor = 2.0; // 优化缩放敏感度
+      const deltaScale = (distance * direction * scaleFactor) / 100;
+
+      const newScale = Math.max(0.1, Math.min(8, scale + deltaScale * 0.01)); // 扩大缩放范围
+      setScale(newScale);
+      onResize?.(id, { scale: newScale });
     },
     onPanResponderRelease: () => {},
   });
@@ -70,20 +85,24 @@ export default function DraggableImage({
         onResponderGrant={() => setSelected(true)}
       >
         <Image source={{ uri }} style={{ width: size * scale, height: size * scale, borderRadius: 6 }} resizeMode="contain" />
-        {/* 删除按钮（仅选中时显示）*/}
+        {/* 删除按钮（仅选中时显示）- 移动到顶部居中 */}
         {selected && (
-          <TouchableOpacity style={styles.close} onPress={() => onRemove?.(id)}>
+          <TouchableOpacity style={styles.closeTopCenter} onPress={() => onRemove?.(id)}>
             <View style={styles.closeInnerX}>
               <View style={styles.bar1} />
               <View style={styles.bar2} />
             </View>
           </TouchableOpacity>
         )}
-        {/* 四角缩放手柄 */}
-        <View style={[styles.handle, { right: -8, bottom: -8 }]} {...resizeBR.panHandlers} />
-        <View style={[styles.handle, { right: -8, top: -8 }]} {...resizeTR.panHandlers} />
-        <View style={[styles.handle, { left: -8, bottom: -8 }]} {...resizeBL.panHandlers} />
-        <View style={[styles.handle, { left: -8, top: -8 }]} {...resizeTL.panHandlers} />
+        {/* 四角缩放手柄 - 增大尺寸提高操作性 */}
+        {selected && (
+          <>
+            <View style={[styles.handle, { right: -10, bottom: -10 }]} {...resizeBR.panHandlers} />
+            <View style={[styles.handle, { right: -10, top: -10 }]} {...resizeTR.panHandlers} />
+            <View style={[styles.handle, { left: -10, bottom: -10 }]} {...resizeBL.panHandlers} />
+            <View style={[styles.handle, { left: -10, top: -10 }]} {...resizeTL.panHandlers} />
+          </>
+        )}
       </View>
     </View>
   );
@@ -92,8 +111,25 @@ export default function DraggableImage({
 const styles = StyleSheet.create({
   wrap: { position: 'absolute' },
   box: { position: 'relative' },
-  handle: { position: 'absolute', width: 16, height: 16, backgroundColor: '#0080ff', borderRadius: 8 },
-  close: { position: 'absolute', right: -8, top: -8, width: 18, height: 18, borderRadius: 9, backgroundColor: 'red', alignItems: 'center', justifyContent: 'center' },
+  handle: { position: 'absolute', width: 20, height: 20, backgroundColor: '#0080ff', borderRadius: 10, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2, elevation: 3 },
+  close: { position: 'absolute', right: -12, top: -12, width: 20, height: 20, borderRadius: 10, backgroundColor: 'red', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2, elevation: 3 },
+  closeTopCenter: {
+    position: 'absolute',
+    left: '50%',
+    top: -12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'red',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+    marginLeft: -10 // 居中偏移
+  },
   closeInnerX: { position:'relative', width:12, height:12 },
   bar1: { position:'absolute', left:1, right:1, top:5, height:2, backgroundColor:'#fff', transform:[{ rotate:'45deg' }] },
   bar2: { position:'absolute', left:1, right:1, top:5, height:2, backgroundColor:'#fff', transform:[{ rotate:'-45deg' }] },

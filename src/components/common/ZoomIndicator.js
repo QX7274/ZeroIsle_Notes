@@ -1,21 +1,23 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
  * 通用缩放指示器组件
  * 在界面顶部居中位置显示当前缩放比例，只在进行缩放操作时显示
  */
-const ZoomIndicator = ({ 
-  scale = 1, 
-  visible = false, 
+const ZoomIndicator = ({
+  scale = 1,
+  visible = false,
   autoHideDelay = 2000,
   style,
-  textStyle 
+  textStyle,
+  topOffset = 0 // 额外的顶部偏移量
 }) => {
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const hideTimeoutRef = useRef(null);
+  const styles = createStyles(topOffset);
 
   // 格式化缩放比例显示
   const formatScale = (scaleValue) => {
@@ -91,10 +93,11 @@ const ZoomIndicator = ({
   );
 };
 
-const styles = StyleSheet.create({
+// 创建动态样式函数
+const createStyles = (topOffset = 0) => StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 80, // 距离顶部80px，避免与状态栏重叠
+    top: (Platform.OS === 'ios' ? 95 : 75) + topOffset, // 紧贴通用工具栏下方，留5px间距，加上额外偏移
     left: '50%',
     transform: [{ translateX: -30 }], // 居中对齐（假设宽度约60px）
     paddingHorizontal: 12,

@@ -314,7 +314,27 @@ class RealmService {
       const object = realm.objectForPrimaryKey(schemaName, id);
 
       if (!object) {
-        throw new Error(`${schemaName}对象(ID: ${id})不存在`);
+        console.log(`${schemaName}对象(ID: ${id})不存在，尝试创建新对象`);
+        
+        // 如果对象不存在，尝试创建新对象
+        try {
+          let newObject;
+          realm.write(() => {
+            // 确保数据包含主键
+            const createData = { ...data };
+            if (!createData._id) {
+              createData._id = id;
+            }
+            
+            newObject = realm.create(schemaName, createData);
+          });
+          
+          // 返回新创建的对象
+          return this.realmObjectToPlain(newObject);
+        } catch (createError) {
+          console.error(`创建${schemaName}对象失败:`, createError);
+          throw createError;
+        }
       }
 
       // 更新对象
@@ -373,7 +393,27 @@ class RealmService {
       const object = realm.objectForPrimaryKey(schemaName, id);
 
       if (!object) {
-        throw new Error(`${schemaName}对象(ID: ${id})不存在`);
+        console.log(`${schemaName}对象(ID: ${id})不存在，尝试创建新对象`);
+        
+        // 如果对象不存在，尝试创建新对象
+        try {
+          let newObject;
+          realm.write(() => {
+            // 确保数据包含主键
+            const createData = { ...data };
+            if (!createData._id) {
+              createData._id = id;
+            }
+            
+            newObject = realm.create(schemaName, createData);
+          });
+          
+          // 返回新创建的对象
+          return this.realmObjectToPlain(newObject);
+        } catch (createError) {
+          console.error(`创建${schemaName}对象失败:`, createError);
+          throw createError;
+        }
       }
 
       // 删除对象
@@ -637,7 +677,21 @@ class RealmService {
           }
         } catch (filterError) {
           console.warn('应用过滤条件失败，返回所有对象:', filterError);
-          // 如果过滤失败，返回所有对象
+          // 如果过滤失败，尝试手动过滤
+          if (filter.id) {
+            // 手动过滤id字段 - 转换为数组进行过滤
+            const allObjects = Array.from(objects);
+            const filteredObjects = allObjects.filter(obj => {
+              // 检查对象是否有_id属性，并且值等于filter.id
+              return (obj._id && obj._id.toString() === filter.id.toString()) ||
+                     // 或者检查对象是否有id属性，并且值等于filter.id
+                     (obj.id && obj.id.toString() === filter.id.toString());
+            });
+            console.log(`通过id字段找到笔记: ${filter.id}`);
+            // 将过滤结果转换回Realm Results格式
+            objects = filteredObjects;
+          }
+          // 如果过滤失败且没有手动过滤成功，返回所有对象
         }
       }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal, Dimensions } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import { AllInOneToolbar } from '../../components/common';
@@ -134,6 +134,9 @@ function MarkdownViewer({ route, navigation }) {
 
   // 添加图片（示例：通过工具栏 onImageUpload 回调注入）
   const addImage = async (img) => {
+    // 获取屏幕尺寸
+    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
     // 计算合适的图片尺寸和中央位置
     const maxWidth = screenWidth * 0.6;
     const maxHeight = screenHeight * 0.4;

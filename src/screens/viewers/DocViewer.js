@@ -239,8 +239,8 @@ const DocViewer = ({ route, navigation }) => {
               console.warn('DocViewer: 无法获取文件大小，使用默认处理:', statError);
             }
 
-            // 如果文件大于50MB，提示用户并拒绝加载
-            if (fileSize > 50 * 1024 * 1024) {
+            // 如果文件大于300MB，提示用户并拒绝加载
+            if (fileSize > 300 * 1024 * 1024) {
               throw new Error(`文件过大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，请使用较小的Word文档`);
             }
 
@@ -288,6 +288,9 @@ const DocViewer = ({ route, navigation }) => {
   })(); }, [docId]);
   const persistImages = async (next) => { try { await offlineStorageService.setItem(`doc_images_${docId}`, JSON.stringify(next)); } catch {} };
   const addImage = async (img) => {
+    // 获取屏幕尺寸
+    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
     // 计算合适的图片尺寸和中央位置
     const maxWidth = screenWidth * 0.6;
     const maxHeight = screenHeight * 0.4;
