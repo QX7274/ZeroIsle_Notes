@@ -10,7 +10,9 @@ const ToolbarContainer = ({ children, style }) => (
 const styles = StyleSheet.create({
   toolbarContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 70 : 50,
+    // 调整位置以避免遮盖文件历史控件
+    // 标题栏高度 + 文件历史控件高度 + 小间距
+    top: Platform.OS === 'ios' ? 135 : 115,
     left: 0,
     right: 0,
     zIndex: 20,

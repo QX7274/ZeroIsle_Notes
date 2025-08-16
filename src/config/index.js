@@ -5,11 +5,13 @@
 
 // API配置
 export const API_URL = __DEV__
-  ? 'http://192.168.18.232:8000'  // 本地开发地址
+  ? 'http://192.168.175.232:8000'  // 本地开发地址 - 请根据实际情况修改
   : 'https://api.zeroislenotes.com'; // 生产环境地址
 
 // 调试信息
 console.log('当前API_URL:', API_URL);
+console.log('开发模式:', __DEV__);
+console.log('如果无法连接，请检查后端服务是否在此地址运行:', API_URL);
 
 export const API_VERSION = 'v1';
 export const API_TIMEOUT = 15000;
@@ -37,6 +39,25 @@ export const APP_VERSION = '1.0.0';
 export const AUTH_TOKEN_KEY = 'auth_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
 export const TOKEN_EXPIRY_KEY = 'token_expiry';
+
+// 开发模式配置
+export const DEV_CONFIG = {
+  // 开发模式下跳过登录
+  SKIP_LOGIN: __DEV__ && true, // 设置为 true 时在开发模式下跳过登录
+  // 开发模式下使用的默认用户信息
+  DEFAULT_USER: {
+    id: 'dev-user-001',
+    username: 'developer',
+    email: 'dev@zeroislenotes.com',
+    nickname: '开发者',
+    avatar: null,
+    isAnonymous: false,
+    isDeveloper: true,
+    createdAt: new Date().toISOString(),
+  },
+  // 开发模式下使用的默认令牌
+  DEFAULT_TOKEN: 'dev-token-' + Date.now(),
+};
 
 // 存储键
 export const STORAGE_KEYS = {

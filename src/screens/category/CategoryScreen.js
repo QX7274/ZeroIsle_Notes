@@ -8,7 +8,6 @@ import { useTheme } from '../../context/ThemeContext';
 
 const CategoryScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const categoryManagerRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
@@ -40,9 +39,8 @@ const CategoryScreen = ({ navigation }) => {
 
   // 处理创建新分类
   const handleCreateCategory = () => {
-    if (categoryManagerRef.current && categoryManagerRef.current.setModalVisible) {
-      categoryManagerRef.current.setModalVisible(true);
-    }
+    // TODO: 实现创建分类功能
+    console.log('创建新分类');
   };
 
   // 接收分类数据
@@ -74,12 +72,12 @@ const CategoryScreen = ({ navigation }) => {
           placeholder="搜索分类、标签、内容..."
         />
       </View>
-      <CategoryManager
-        ref={categoryManagerRef}
-        onSelectCategory={handleSelectCategory}
-        onCategoriesLoaded={handleCategoriesLoaded}
-        filteredCategories={filteredCategories}
-      />
+      {/* TODO: 实现CategoryManager组件 */}
+      <View style={styles.placeholder}>
+        <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
+          分类管理功能正在开发中
+        </Text>
+      </View>
     </SafeAreaView>
   );
 };
@@ -116,6 +114,16 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  placeholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  placeholderText: {
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
 

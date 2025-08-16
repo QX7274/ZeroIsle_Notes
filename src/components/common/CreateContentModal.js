@@ -30,6 +30,7 @@ const CreateContentModal = ({
   visible,
   onClose,
   onCreateNote,
+  onCreateCardNote,
   onImportMarkdown,
   onImportPDF,
   onImportWord,
@@ -222,6 +223,26 @@ const CreateContentModal = ({
               style={styles.optionText}
             >
               新建笔记
+            </Text>
+          </TouchableOpacity>
+
+          {/* 卡片笔记 */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => {
+              onClose();
+              if (onCreateCardNote) onCreateCardNote();
+            }}
+          >
+            <View style={[styles.optionIcon, { backgroundColor: '#FFF3E0' }]}>
+              <MaterialIcon name="credit-card" size={24} color="#F57C00" />
+            </View>
+            <Text
+              variant="body"
+              size="medium"
+              style={styles.optionText}
+            >
+              卡片笔记
             </Text>
           </TouchableOpacity>
 

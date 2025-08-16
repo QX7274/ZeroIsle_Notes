@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { navigate, navigationRef } from '../../navigation/navigationRef';
 import tokenService from '../../services/auth/tokenService';
 import authUtils from '../../services/auth/authUtils';
+import authStorage from '../../services/auth/authStorage';
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -291,7 +292,6 @@ export const logout = createAsyncThunk(
   }
 );
 
-// 临时用户功能已移除
 
 // 异步action：检查认证状态
 export const checkAuthState = createAsyncThunk(
@@ -299,6 +299,47 @@ export const checkAuthState = createAsyncThunk(
   async (_, { rejectWithValue, dispatch }) => {
     try {
       console.log('Redux: 检查认证状态...');
+
+      // 检查开发模式 - 直接使用内联配置避免导入问题
+      const DEV_CONFIG = {
+        SKIP_LOGIN: __DEV__ && true,
+        DEFAULT_USER: {
+          id: 'dev-user-001',
+          username: 'developer',
+          email: 'dev@zeroislenotes.com',
+          nickname: '开发者',
+          avatar: null,
+          isAnonymous: false,
+          isDeveloper: true,
+          createdAt: new Date().toISOString(),
+        },
+        DEFAULT_TOKEN: 'dev-token-' + Date.now(),
+      };
+
+      if (DEV_CONFIG && DEV_CONFIG.SKIP_LOGIN) {
+        console.log('Redux: 开发模式 - 跳过认证检查，自动设置为已认证');
+
+        // 设置开发模式的用户和令牌
+        const devUser = DEV_CONFIG.DEFAULT_USER;
+        const devToken = DEV_CONFIG.DEFAULT_TOKEN;
+
+        // 保存到本地存储
+        try {
+          await authStorage.saveUser(devUser);
+          await tokenService.saveAccessToken(devToken);
+          await tokenService.saveRefreshToken(devToken);
+          console.log('Redux: 开发模式 - 已保存默认用户和令牌');
+        } catch (saveError) {
+          console.warn('Redux: 开发模式 - 保存用户信息失败:', saveError);
+        }
+
+        // 设置Redux状态
+        dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+        dispatch({ type: 'auth/setUserInfo', payload: devUser });
+        dispatch({ type: 'auth/setAuthToken', payload: devToken });
+
+        return { user: devUser, token: devToken, refreshToken: devToken };
+      }
 
       // 使用统一的认证信息获取函数
       const { token, refreshToken, user } = await authUtils.getAuthInfo();

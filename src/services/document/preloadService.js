@@ -117,21 +117,31 @@ class PreloadService {
         } else {
           data = uri;
         }
-      } else if (type === 'docx' || type === 'pptx') {
+      } else if (type === 'docx' || type === 'pptx' || type === 'word' || type === 'ppt') {
         // Word/PPT预加载：读取完整内容为base64
         let path = uri;
-        
+
         if (path.startsWith('content://')) {
-          const ext = type === 'docx' ? 'docx' : 'pptx';
+          const ext = (type === 'docx' || type === 'word') ? 'docx' : 'pptx';
           const dest = `${RNFS.CachesDirectoryPath}/preload_${Date.now()}.${ext}`;
           await RNFS.copyFile(path, dest);
           path = dest;
         }
-        
+
+        // 确保以base64格式读取二进制文件
         data = await RNFS.readFile(path, 'base64');
-      } else {
-        // 其他类型文档
+      } else if (type === 'md' || type === 'txt' || type === 'markdown') {
+        // 文本类型文档
         data = await RNFS.readFile(uri, 'utf8');
+      } else {
+        // 其他类型文档，默认为文本
+        try {
+          data = await RNFS.readFile(uri, 'utf8');
+        } catch (error) {
+          // 如果UTF-8读取失败，尝试base64
+          console.warn(`PreloadService: UTF-8读取失败，尝试base64: ${error.message}`);
+          data = await RNFS.readFile(uri, 'base64');
+        }
       }
 
       // 缓存预加载的数据

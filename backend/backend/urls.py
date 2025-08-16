@@ -107,6 +107,7 @@ urlpatterns = [
     path(f'{api_prefix}notifications/', include('notification.urls')),
     path(f'{api_prefix}groups/', include('groups.urls')),
     path(f'{api_prefix}sync/', include('sync.urls')),
+    path(f'{api_prefix}document-converter/', include('document_converter.urls')),
 ]
 
 # 添加媒体文件URL

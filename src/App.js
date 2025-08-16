@@ -86,6 +86,15 @@ const AuthStateManager = () => {
       try {
         console.log('正在检查认证状态...');
 
+        // 检查开发模式
+        const { DEV_CONFIG } = require('./config');
+        if (DEV_CONFIG.SKIP_LOGIN) {
+          console.log('开发模式：跳过令牌检查，直接进行认证状态检查');
+          // 在开发模式下，直接检查Redux认证状态，不进行令牌验证
+          await dispatch(checkAuthState()).unwrap();
+          return;
+        }
+
         // 首先检查令牌是否过期
         const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
 
@@ -108,6 +117,12 @@ const AuthStateManager = () => {
         await dispatch(checkAuthState()).unwrap();
       } catch (error) {
         console.error('检查认证状态失败:', error);
+
+        // 在开发模式下，即使出错也不阻止应用启动
+        const { DEV_CONFIG } = require('./config');
+        if (DEV_CONFIG.SKIP_LOGIN) {
+          console.log('开发模式：认证检查失败，但继续启动应用');
+        }
       } finally {
         setIsCheckingAuth(false);
       }

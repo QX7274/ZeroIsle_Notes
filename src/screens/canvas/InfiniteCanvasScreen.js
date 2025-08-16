@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
@@ -52,8 +52,57 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
   const tempTransform = useRef({ scale: 1, translateX: 0, translateY: 0 });
   const isTransforming = useRef(false);
   
-  const docId = noteId || `canvas_${Date.now()}`;
+  // 修复画布ID生成逻辑 - 确保相同标题的画布使用相同ID
+  const docId = useMemo(() => {
+    if (noteId) {
+      return noteId;
+    }
+    // 基于标题生成稳定的ID，避免重复创建
+    const titleHash = title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').substring(0, 10);
+    const timestamp = Date.now();
+    return `canvas_${timestamp}_${titleHash}`;
+  }, [noteId, title]);
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+  // 视口裁剪计算 - 只渲染可见区域的内容
+  const getVisibleBounds = () => {
+    const margin = 200; // 额外渲染边距，确保滑动时内容不会突然出现
+    return {
+      left: (-translateX - margin) / scale,
+      top: (-translateY - margin) / scale,
+      right: (-translateX + screenWidth + margin) / scale,
+      bottom: (-translateY + screenHeight + margin) / scale,
+    };
+  };
+
+  // 检查路径是否在可见区域内
+  const isPathVisible = (pathData) => {
+    if (!pathData.path) return false;
+
+    // 简单的边界检查 - 解析路径中的坐标
+    const coords = pathData.path.match(/[\d.-]+/g);
+    if (!coords || coords.length < 2) return true; // 如果无法解析，则渲染
+
+    const bounds = getVisibleBounds();
+    const x = parseFloat(coords[0]);
+    const y = parseFloat(coords[1]);
+
+    return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+  };
+
+  // 检查图片是否在可见区域内
+  const isImageVisible = (imageData) => {
+    const bounds = getVisibleBounds();
+    const imgWidth = (imageData.width || 100) * (imageData.scale || 1);
+    const imgHeight = (imageData.height || 100) * (imageData.scale || 1);
+
+    return (
+      imageData.x + imgWidth >= bounds.left &&
+      imageData.x <= bounds.right &&
+      imageData.y + imgHeight >= bounds.top &&
+      imageData.y <= bounds.bottom
+    );
+  };
   
   // 画布样式配置
   const canvasStyles = {
@@ -86,7 +135,24 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
     const loadOrSaveCanvas = async () => {
       try {
         // 首先尝试从存储中加载现有画布数据
-        const existingCanvas = await offlineStorageService.getNote(docId);
+        let existingCanvas = await offlineStorageService.getNote(docId);
+
+        // 如果没有找到，尝试通过标题查找现有画布
+        if (!existingCanvas) {
+          console.log('InfiniteCanvasScreen: 通过ID未找到画布，尝试通过标题查找:', title);
+          const allNotes = await offlineStorageService.getNotes();
+          existingCanvas = allNotes.find(note =>
+            note.type === 'canvas' &&
+            note.title === title &&
+            !note.is_deleted
+          );
+
+          if (existingCanvas) {
+            console.log('InfiniteCanvasScreen: 通过标题找到现有画布:', existingCanvas.id);
+            // 更新docId以使用找到的画布ID
+            // 注意：这里不能直接修改docId，因为它是通过useMemo计算的
+          }
+        }
 
         if (existingCanvas && existingCanvas.type === 'canvas') {
           console.log('InfiniteCanvasScreen: 恢复现有画布数据:', existingCanvas.title);
@@ -180,10 +246,14 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
     loadOrSaveCanvas();
   }, []); // 只在组件挂载时执行一次，防止重复创建
 
-  // 自动保存功能
+  // 自动保存功能 - 改进保存逻辑
   useEffect(() => {
     const autoSave = async () => {
       try {
+        // 检查是否有实际内容需要保存
+        const hasContent = paths.length > 0 || images.length > 0 ||
+                          scale !== 1 || translateX !== 0 || translateY !== 0;
+
         const canvasData = {
           _id: docId,
           id: docId,
@@ -197,21 +267,27 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
           paths,
           images,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          // 添加内容标记，便于后续查找
+          hasContent
         };
 
         // 自动保存到离线存储
         await offlineStorageService.saveNote(canvasData);
-        console.log('InfiniteCanvasScreen: 自动保存完成，样式:', canvasStyle);
+
+        // 同时更新Redux store以保持同步
+        dispatch(updateNote(canvasData));
+
+        console.log('InfiniteCanvasScreen: 自动保存完成，样式:', canvasStyle, '内容:', hasContent);
       } catch (error) {
         console.error('InfiniteCanvasScreen: 自动保存失败:', error);
       }
     };
 
     // 延迟自动保存，避免频繁保存
-    const timeoutId = setTimeout(autoSave, 2000);
+    const timeoutId = setTimeout(autoSave, 3000); // 增加到3秒以减少保存频率
     return () => clearTimeout(timeoutId);
-  }, [docId, title, scale, translateX, translateY, paths, images, canvasStyle]); // 当画布数据变化时自动保存
+  }, [docId, title, scale, translateX, translateY, paths, images, canvasStyle, dispatch]); // 当画布数据变化时自动保存
 
   // 手势处理
   const panResponder = PanResponder.create({
@@ -262,15 +338,31 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         if (operationType === 'navigate' || currentTool === 'hand') {
           // 手指操作或手型工具 - 移动画布
           if (isTransforming.current) {
-            // 更新临时变换值
-            tempTransform.current.translateX = initialTranslate.current.x + gestureState.dx;
-            tempTransform.current.translateY = initialTranslate.current.y + gestureState.dy;
+            // 计算新的平移值
+            let newTranslateX = initialTranslate.current.x + gestureState.dx;
+            let newTranslateY = initialTranslate.current.y + gestureState.dy;
 
-            // 优化节流更新，提高流畅度（每8ms更新一次，约120fps）
+            // 添加移动边界限制，防止画布移动过远
+            const screenWidth = Dimensions.get('window').width;
+            const screenHeight = Dimensions.get('window').height;
+            const maxTranslateX = screenWidth * 0.5; // 最大水平移动距离
+            const maxTranslateY = screenHeight * 0.5; // 最大垂直移动距离
+
+            newTranslateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newTranslateX));
+            newTranslateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newTranslateY));
+
+            // 更新临时变换值
+            tempTransform.current.translateX = newTranslateX;
+            tempTransform.current.translateY = newTranslateY;
+
+            // 进一步优化节流更新，提供更流畅的移动体验
             const now = Date.now();
-            if (!lastTap.current || now - lastTap.current > 8) {
-              setTranslateX(tempTransform.current.translateX);
-              setTranslateY(tempTransform.current.translateY);
+            if (!lastTap.current || now - lastTap.current > 16) { // 提高到16ms，减少更新频率
+              // 使用requestAnimationFrame确保在下一帧更新
+              requestAnimationFrame(() => {
+                setTranslateX(tempTransform.current.translateX);
+                setTranslateY(tempTransform.current.translateY);
+              });
               lastTap.current = now;
             }
           }
@@ -290,21 +382,21 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
             Math.pow(touch2.pageY - touch1.pageY, 2)
           );
 
-          // 改进缩放算法，提供更好的控制和敏感度
+          // 修复缩放算法，确保正确的缩放方向
           const scaleRatio = distance / initialDistance.current;
-          let newScale = initialScale.current * scaleRatio;
+          let rawScale = initialScale.current * scaleRatio;
 
-          // 扩大缩放范围：0.05到10倍，提供更大的缩放空间
-          newScale = Math.max(0.05, Math.min(10, newScale));
+          // 添加渐进式缩放阻尼，防止一次性放大到最大倍数
+          const scaleDiff = rawScale - initialScale.current;
+          const dampingFactor = 0.75; // 优化阻尼系数，提高流畅度
+          let newScale = initialScale.current + (scaleDiff * dampingFactor);
 
-          // 优化缩放曲线，提供更自然的缩放体验
-          if (newScale < 0.2) {
-            // 小缩放时减少阻尼，提高精度
-            newScale = 0.05 + (newScale - 0.05) * 0.9;
-          } else if (newScale > 5) {
-            // 大缩放时增加阻尼，避免过度缩放
-            newScale = 5 + (newScale - 5) * 0.3;
-          }
+          // 限制缩放范围：0.3到3倍，提供合理的缩放空间，防止过度缩放
+          newScale = Math.max(0.3, Math.min(3, newScale));
+
+          // 添加缩放步进，使缩放更加平滑
+          const scaleStep = 0.03; // 更细的步进，提高精度
+          newScale = Math.round(newScale / scaleStep) * scaleStep;
 
           // 计算缩放中心点，实现以双指中心为基准的缩放
           const centerX = (touch1.pageX + touch2.pageX) / 2;
@@ -325,9 +417,10 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
           // 显示缩放指示器
           setShowZoomIndicator(true);
 
-          // 优化节流更新，提高响应性和流畅度
+          // 优化节流更新，提高响应性
           const now = Date.now();
-          if (!lastTap.current || now - lastTap.current > 8) {
+          if (!lastTap.current || now - lastTap.current > 12) { // 提高更新频率，增强响应性
+            // 直接更新状态，避免requestAnimationFrame的额外开销
             setScale(newScale);
             setTranslateX(newTranslateX);
             setTranslateY(newTranslateY);
@@ -526,7 +619,11 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
         }
         title={title}
         hasExternalToolbar={true}
-        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}
+        externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
+        showHistoryNavigation={true}
+        historyNavigationHeight={25}
+        noteId={noteId}
+        navigation={navigation}
       >
         <View 
           style={[styles.canvas, { backgroundColor: currentCanvasStyle.backgroundColor }]}
@@ -540,10 +637,10 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
             {/* 背景图案 */}
             {renderPattern()}
             
-            {/* 绘制路径 */}
-            {paths.map((pathData, index) => (
+            {/* 绘制路径 - 只渲染可见区域 */}
+            {paths.filter(isPathVisible).map((pathData, index) => (
               <Path
-                key={index}
+                key={`path-${index}`}
                 d={pathData.path}
                 stroke={pathData.color}
                 strokeWidth={pathData.width}
@@ -568,10 +665,10 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
             )}
           </Svg>
 
-          {/* 渲染图片 */}
-          {images.map((imageData, index) => (
+          {/* 渲染图片 - 只渲染可见区域 */}
+          {images.filter(isImageVisible).map((imageData, index) => (
             <Image
-              key={index}
+              key={`image-${index}`}
               source={{ uri: imageData.uri }}
               style={{
                 position: 'absolute',

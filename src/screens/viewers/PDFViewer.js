@@ -23,7 +23,7 @@ import DocumentPicker from 'react-native-document-picker';
 import { launchImageLibrary } from 'react-native-image-picker';
 
 // import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
-import { AllInOneToolbar } from '../../components/common';
+import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import PageControl from '../../components/viewer/PageControl';
 import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import DraggableImage from '../../components/viewer/DraggableImage';
@@ -35,11 +35,24 @@ import LoadingIndicator, { ErrorIndicator } from '../../components/common/Loadin
 import ZoomIndicator from '../../components/common/ZoomIndicator';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import { addBookmark } from '../../services/bookmarkService';
+import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
+import fileHistoryService from '../../services/fileHistoryService';
 
 const PDFViewer = ({ route, navigation }) => {
-  const { uri, title, noteId } = route.params;
+  const { uri, title, noteId, fromFileHistory } = route.params || {};
   const { colors } = useTheme();
   const dispatch = useDispatch();
+
+  // 处理返回逻辑
+  const handleGoBack = () => {
+    if (fromFileHistory) {
+      // 从文件历史进入，返回主页
+      navigation.navigate('Home');
+    } else {
+      // 正常返回上一页
+      navigation.goBack();
+    }
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -102,6 +115,17 @@ const PDFViewer = ({ route, navigation }) => {
 
     // 加载PDF文件
     loadPDF();
+
+    // 添加到文件历史记录
+    if (uri && title) {
+      fileHistoryService.addFile({
+        uri,
+        title,
+        type: 'pdf',
+        fileName: title,
+        noteId
+      });
+    }
 
     return () => {
       // 保存当前页面的注释
@@ -784,18 +808,7 @@ const PDFViewer = ({ route, navigation }) => {
       colors={colors}
       headerLeft={
         <BackButton
-          onPress={() => {
-            try {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate('Home');
-              }
-            } catch (error) {
-              console.warn('PDFViewer: 导航返回失败:', error);
-              navigation.navigate('Home');
-            }
-          }}
+          onPress={handleGoBack}
           color={colors.primary}
           background={colors.primary + '20'}
         />
@@ -814,7 +827,11 @@ const PDFViewer = ({ route, navigation }) => {
       }
       title={title || 'PDF查看器'}
       hasExternalToolbar={true}
-      externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}
+      externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
+      showHistoryNavigation={true}
+      historyNavigationHeight={25}
+      noteId={noteId}
+      navigation={navigation}
     >
       
       {isLoading && (
@@ -839,6 +856,19 @@ const PDFViewer = ({ route, navigation }) => {
             key={(pdfSource && pdfSource.uri) || 'pdf'}
             ref={pdfRef}
             source={pdfSource}
+            // 内存优化配置
+            enablePaging={true}
+            enableRTL={false}
+            enableAnnotationRendering={false}
+            enableDoubleTapZoom={true}
+            maxZoom={3}
+            minZoom={0.5}
+            scale={1.0}
+            spacing={10}
+            style={styles.pdf}
+            // 性能优化
+            renderActivityIndicator={() => null}
+            activityIndicator={null}
             onLoadComplete={(numberOfPages, filePath, width, height, ...args) => {
               console.log('=== PDF加载完成回调触发 ===');
               console.log(`参数 - 页数: ${numberOfPages}, 文件路径: ${filePath}`);

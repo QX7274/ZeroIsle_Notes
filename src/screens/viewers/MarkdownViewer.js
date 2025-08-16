@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal, Dimensions } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
-import { AllInOneToolbar } from '../../components/common';
+import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
@@ -15,10 +15,23 @@ import { offlineStorageService } from '../../services/offline';
 import MarkdownPreview from '../../components/common/MarkdownPreview';
 import LoadingIndicator, { LoadingMessages, ErrorIndicator } from '../../components/common/LoadingIndicator';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
+import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
+import fileHistoryService from '../../services/fileHistoryService';
 
 function MarkdownViewer({ route, navigation }) {
-  const { uri, title = 'Markdown', noteId } = route.params || {};
+  const { uri, title = 'Markdown', noteId, fromFileHistory } = route.params || {};
   const { colors } = useTheme();
+
+  // 处理返回逻辑
+  const handleGoBack = () => {
+    if (fromFileHistory) {
+      // 从文件历史进入，返回主页
+      navigation.navigate('Home');
+    } else {
+      // 正常返回上一页
+      navigation.goBack();
+    }
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [content, setContent] = useState('');
@@ -38,6 +51,18 @@ function MarkdownViewer({ route, navigation }) {
 
   useEffect(() => {
     console.log('MarkdownViewer: 组件挂载，开始加载内容');
+
+    // 添加到文件历史记录
+    if (uri && title) {
+      fileHistoryService.addFile({
+        uri,
+        title,
+        type: 'markdown',
+        fileName: title,
+        noteId
+      });
+    }
+
     (async () => {
       try {
         setIsLoading(true);
@@ -191,7 +216,7 @@ function MarkdownViewer({ route, navigation }) {
 
       <ViewerLayout
         colors={colors}
-        headerLeft={<BackButton onPress={() => navigation.goBack()} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
+        headerLeft={<BackButton onPress={handleGoBack} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
         headerRight={
           <View style={styles.headerRightContainer}>
             <SaveButton
@@ -205,7 +230,11 @@ function MarkdownViewer({ route, navigation }) {
         }
         title={title}
         hasExternalToolbar={true}
-        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}>
+        externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
+        showHistoryNavigation={true}
+        historyNavigationHeight={25}
+        noteId={noteId}
+        navigation={navigation}>
         {isLoading && (
           <LoadingIndicator
             message={LoadingMessages.MARKDOWN.LOADING}

@@ -1,367 +1,325 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, TextInput, ScrollView, TouchableOpacity, Text, Dimensions, Modal, Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+  TouchableOpacity,
+  Alert,
+  Text,
+  Platform,
+  Modal,
+  ScrollView,
+  Linking,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import Pdf from 'react-native-pdf';
 import { useTheme } from '../../context/ThemeContext';
-import { AllInOneToolbar } from '../../components/common';
-import ViewerLayout from '../../components/viewer/ViewerLayout';
-import ToolbarContainer from '../../components/viewer/ToolbarContainer';
-import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
-import PageControl from '../../components/viewer/PageControl';
-import BookmarkPanel from '../../components/viewer/BookmarkPanel';
-import DraggableImage from '../../components/viewer/DraggableImage';
-import BackButton from '../../components/viewer/BackButton';
-import { addBookmark } from '../../services/bookmarkService';
+import { useDispatch } from 'react-redux';
 import { offlineStorageService } from '../../services/offline';
-import DocxWebView from '../../components/viewer/web/DocxWebView';
-import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
+import RNFS from 'react-native-fs';
+import { launchImageLibrary } from 'react-native-image-picker';
+import documentConverter from '../../services/document/documentConverter';
+
+// 导入与PDF查看器相同的组件
+import AllInOneToolbar from '../../components/common/AllInOneToolbar';
+import PageControl from '../../components/viewer/PageControl';
+import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
+import DraggableImage from '../../components/viewer/DraggableImage';
+import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
-import documentCacheService from '../../services/document/documentCacheService';
+import ViewerLayout from '../../components/viewer/ViewerLayout';
+import BackButton from '../../components/viewer/BackButton';
+import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
+import ZoomIndicator from '../../components/common/ZoomIndicator';
+import ToolbarContainer from '../../components/viewer/ToolbarContainer';
+import { addBookmark } from '../../services/bookmarkService';
+import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
+import fileHistoryService from '../../services/fileHistoryService';
 
+/**
+ * Word文档查看器
+ * 布局与PDF查看器保持一致，包括完整的工具栏、页码器、缩放指示器等功能
+ */
 const DocViewer = ({ route, navigation }) => {
-  const { uri, title = '文档', noteId, type } = route.params || {};
+  const { uri, title, noteId, fileName, fromFileHistory } = route.params;
   const { colors } = useTheme();
+  const dispatch = useDispatch();
 
+  // 处理返回逻辑
+  const handleGoBack = () => {
+    if (fromFileHistory) {
+      // 从文件历史进入，返回主页
+      navigation.navigate('Home');
+    } else {
+      // 正常返回上一页
+      navigation.goBack();
+    }
+  };
+  
+  // 状态管理 - 与PDF查看器保持一致
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [content, setContent] = useState(''); // 简易文本编辑模式
-  const [isTextMode, setIsTextMode] = useState(true); // 默认直接编辑模式
-  const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pdfSource, setPdfSource] = useState(null);
+  const [localFilePath, setLocalFilePath] = useState(null);
+  const [conversionProgress, setConversionProgress] = useState(0);
+  const [conversionMessage, setConversionMessage] = useState('');
+  
+  // 工具栏相关状态
   const [strokeColor, setStrokeColor] = useState('#000');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
-
-  // 分块读取大文件的方法
-  const readLargeFileInChunks = async (filePath, createTimeout) => {
-    const RNFS = require('react-native-fs');
-    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-
-    try {
-      // 获取文件大小
-      const stat = await RNFS.stat(filePath);
-      const fileSize = stat.size;
-      const totalChunks = Math.ceil(fileSize / chunkSize);
-
-      console.log(`DocViewer: 开始分块读取，文件大小: ${fileSize}, 分块数: ${totalChunks}`);
-
-      let base64Data = '';
-
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, fileSize);
-        const progress = ((i + 1) / totalChunks * 100).toFixed(1);
-
-        setLoadingSubMessage(`正在读取文件块 ${i + 1}/${totalChunks} (${progress}%)`);
-
-        try {
-          // 读取文件块
-          const chunkData = await Promise.race([
-            RNFS.read(filePath, chunkSize, start, 'base64'),
-            createTimeout(10000) // 每块10秒超时
-          ]);
-
-          base64Data += chunkData;
-
-          // 给UI一些时间更新
-          if (i % 5 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-        } catch (chunkError) {
-          console.error(`DocViewer: 读取文件块 ${i + 1} 失败:`, chunkError);
-          throw new Error(`读取文件块 ${i + 1} 失败: ${chunkError.message}`);
-        }
-      }
-
-      console.log(`DocViewer: 分块读取完成，总长度: ${base64Data.length}`);
-      return base64Data;
-    } catch (error) {
-      console.error('DocViewer: 分块读取失败:', error);
-      throw error;
-    }
-  };
-  const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
+  const [images, setImages] = useState([]);
   const [deselectTick, setDeselectTick] = useState(0);
-  const [docxB64, setDocxB64] = useState(null);
-  const [loadingMessage, setLoadingMessage] = useState('');
-  const [loadingSubMessage, setLoadingSubMessage] = useState('');
+  
+  // 缩放相关状态
+  const [currentScale, setCurrentScale] = useState(1);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
 
+  // 预览功能状态
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewInfo, setPreviewInfo] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
 
-  const scrollRef = useRef(null);
-  const docId = noteId || uri || title;
+  // 引用
+  const scrollViewRef = useRef(null);
+  const pdfRef = useRef(null);
 
-  // 在命令行中显示错误信息
-  const logErrorToConsole = (errorType, message) => {
-    console.error(`[${errorType}加载失败] ${message}`);
-  };
-
-  // 初始化：处理不同类型的文档
   useEffect(() => {
-    console.log('DocViewer: 组件挂载', { component: 'DocViewer', state: 'mount' });
-    (async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        let path = uri;
+    loadDocument();
 
-        console.log('DocViewer: 初始化参数', { uri, type, title });
-
-        if (!path) {
-          throw new Error('无效的文档路径');
-        }
-
-        // 处理content://协议的URI
-        if (path.startsWith('content://')) {
-          const guessedExt = (type === 'docx' || (uri || '').toLowerCase().endsWith('.docx')) ? 'docx'
-            : ((type === 'doc' || (uri || '').toLowerCase().endsWith('.doc')) ? 'doc' : 'txt');
-          const fname = `doc_${Date.now()}.${guessedExt}`;
-          const dest = `${RNFS.CachesDirectoryPath}/${fname}`;
-
-          try {
-            console.log('DocViewer: 复制content://文件到缓存', { from: path, to: dest });
-            await RNFS.copyFile(path, dest);
-            path = dest;
-            console.log('DocViewer: 文件复制成功:', dest);
-          } catch (e) {
-            console.warn('DocViewer: 复制文档失败，使用原URI', e);
-          }
-        }
-
-        // 处理file://协议
-        if (path.startsWith('file://')) {
-          path = path.replace('file://', '');
-        }
-
-        // 判断文件类型并处理
-        const isDocx = (type === 'docx') || ((uri || '').toLowerCase().endsWith('.docx'));
-        const isDoc = (type === 'doc') || ((uri || '').toLowerCase().endsWith('.doc'));
-        const isWordDoc = isDocx || isDoc;
-
-        console.log('DocViewer: 文件类型判断', { isDocx, isDoc, isWordDoc, type });
-
-        if (isWordDoc) {
-          // Word文档：不尝试文本读取，交给DocxWebView处理
-          console.log('DocViewer: 检测到Word文档，将使用DocxWebView渲染');
-          setIsTextMode(false);
-          setContent(''); // 清空内容，让DocxWebView处理
-        } else {
-          // 其他文档：尝试文本读取
-          try {
-            console.log('DocViewer: 尝试读取文本文件:', path);
-            const txt = await RNFS.readFile(path, 'utf8');
-            console.log('DocViewer: 文本读取成功，字节数:', txt.length);
-            setContent(txt);
-            setIsTextMode(true);
-          } catch (err) {
-            console.log('DocViewer: 文本读取失败:', err?.message);
-            // 对于无法读取的文件，提供占位内容
-            setContent('此文档暂不支持直接文本读取。\n\n您可以使用以下功能：\n• 手写注释覆盖层\n• 图片浮层标注\n• 书签功能');
-            setIsTextMode(false);
-          }
-        }
-
-      } catch (e) {
-        console.error('DocViewer: 文档加载失败', e);
-        const errorMsg = e.message || '加载失败';
-        setError(errorMsg);
-        logErrorToConsole('文档', errorMsg);
-      } finally {
-        // 对于Word文档，不在这里设置loading为false，让DocxWebView处理
-        const isWordDoc = (type === 'docx') || (type === 'doc') ||
-                         ((uri || '').toLowerCase().endsWith('.docx')) ||
-                         ((uri || '').toLowerCase().endsWith('.doc'));
-        if (!isWordDoc) {
-          setIsLoading(false);
-        }
-      }
-    })();
-
-    return () => console.log('DocViewer: 组件卸载', { component: 'DocViewer', state: 'unmount' });
-  }, [uri, type]);
-
-  // 读取docx文件为base64供WebView使用 - 集成后台加载机制
-  useEffect(() => {
-    (async () => {
-      try {
-        const isDocx = (type === 'docx') || ((uri || '').toLowerCase().endsWith('.docx'));
-        const isDoc = (type === 'doc') || ((uri || '').toLowerCase().endsWith('.doc'));
-
-        if (isDocx || isDoc) {
-          console.log('DocViewer: 开始加载Word文档', { type, uri });
-          setIsLoading(true);
-          setLoadingMessage('正在初始化Word文档加载...');
-          setLoadingSubMessage('正在检查缓存和准备加载环境...');
-
-          // 首先检查缓存
-          setLoadingMessage('正在检查文档缓存...');
-          setLoadingSubMessage('查找已缓存的文档数据...');
-          const cached = await documentCacheService.getCachedDocument(uri, type);
-          if (cached && cached.data) {
-            console.log('DocViewer: 从缓存获取Word文档');
-            setLoadingMessage('找到缓存文档');
-            setLoadingSubMessage('正在从缓存加载，速度更快...');
-            setDocxB64(cached.data);
-            // 重要：设置加载完成状态
-            setIsLoading(false);
-            console.log('DocViewer: 缓存文档加载完成');
-            return;
-          }
-
-          // 开始后台加载
-          const loadFunction = async () => {
-            let path = uri;
-
-            // 处理content://协议
-            if (path.startsWith('content://')) {
-              const ext = isDocx ? 'docx' : 'doc';
-              const dest = `${RNFS.CachesDirectoryPath}/doc_${Date.now()}.${ext}`;
-              try {
-                console.log('DocViewer: 复制Word文档到缓存', { from: path, to: dest });
-                await RNFS.copyFile(path, dest);
-                path = dest;
-              } catch (e) {
-                console.warn('DocViewer: 复制Word文档失败', e);
-              }
-            }
-
-            // 处理file://协议
-            if (path.startsWith('file://')) {
-              path = path.replace('file://', '');
-            }
-
-            // 检查文件大小，决定使用哪种读取方式
-            console.log('DocViewer: 检查Word文档文件大小...');
-            let fileSize = 0;
-            try {
-              const stat = await RNFS.stat(path);
-              fileSize = stat.size;
-              console.log('DocViewer: Word文档大小:', fileSize, 'bytes');
-            } catch (statError) {
-              console.warn('DocViewer: 无法获取文件大小，使用默认处理:', statError);
-            }
-
-            // 如果文件大于300MB，提示用户并拒绝加载
-            if (fileSize > 300 * 1024 * 1024) {
-              throw new Error(`文件过大(${(fileSize / (1024 * 1024)).toFixed(1)}MB)，请使用较小的Word文档`);
-            }
-
-            // 如果文件大于20MB，使用分块处理
-            if (fileSize > 20 * 1024 * 1024) {
-              console.log('DocViewer: Word文档较大，使用分块读取...');
-              const data = await readLargeFileInChunks(path, (ms) => new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(`操作超时(${ms}ms)`)), ms)
-              ));
-              console.log('DocViewer: Word文档分块读取成功，长度:', data.length);
-              return data;
-            } else {
-              // 小文件直接读取
-              console.log('DocViewer: 读取Word文档文件为base64:', path);
-              const data = await RNFS.readFile(path, 'base64');
-              console.log('DocViewer: Word文档base64读取成功，长度:', data.length);
-              return data;
-            }
-          };
-
-          try {
-            setLoadingMessage('正在读取Word文档文件...');
-            setLoadingSubMessage('正在访问文件系统并读取文档数据...');
-
-            const result = await documentCacheService.startBackgroundLoading(uri, type, loadFunction);
-            setLoadingMessage('文档读取完成');
-            setLoadingSubMessage('正在解析Word文档结构，准备渲染...');
-            setDocxB64(result.data);
-            console.log('DocViewer: Word文档后台加载完成');
-          } catch (e) {
-            console.error('DocViewer: 读取Word文档失败:', e);
-            setError('无法读取Word文档文件：' + e.message);
-            logErrorToConsole('Word文档', '文件读取失败：' + e.message);
-          }
-        }
-      } catch (e) {
-        console.error('DocViewer: Word文档处理异常:', e);
-        setError('Word文档处理失败：' + e.message);
-      }
-    })();
-  }, [uri, type]);
-
-  useEffect(() => { (async () => {
-    try { const raw = (await offlineStorageService.getItem(`doc_images_${docId}`)) || '[]'; const list = JSON.parse(raw); if (Array.isArray(list)) setImages(list); } catch {}
-  })(); }, [docId]);
-  const persistImages = async (next) => { try { await offlineStorageService.setItem(`doc_images_${docId}`, JSON.stringify(next)); } catch {} };
-  const addImage = async (img) => {
-    // 获取屏幕尺寸
-    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-    // 计算合适的图片尺寸和中央位置
-    const maxWidth = screenWidth * 0.6;
-    const maxHeight = screenHeight * 0.4;
-
-    let imageWidth = img.width || 200;
-    let imageHeight = img.height || 200;
-
-    // 按比例缩放
-    if (imageWidth > maxWidth || imageHeight > maxHeight) {
-      const ratio = Math.min(maxWidth / imageWidth, maxHeight / imageHeight);
-      imageWidth = imageWidth * ratio;
-      imageHeight = imageHeight * ratio;
+    // 添加到文件历史记录
+    if (uri && title) {
+      fileHistoryService.addFile({
+        uri,
+        title,
+        type: 'word',
+        fileName: fileName || title,
+        noteId
+      });
     }
+  }, [uri, title, fileName, noteId]);
 
-    const centerX = (screenWidth - imageWidth) / 2;
-    const centerY = (screenHeight - imageHeight) / 2;
+  const loadDocument = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setConversionProgress(0);
+      setConversionMessage('正在准备文档...');
 
-    const item = {
-      id: `img_${Date.now()}`,
-      uri: img.uri || img,
-      x: centerX,
-      y: centerY,
-      z: 10,
-      width: imageWidth,
-      height: imageHeight
-    };
-    const next = [...images, item];
-    setImages(next);
-    await persistImages(next);
-    console.log('DocViewer: 图片已添加到中央位置:', item);
+      console.log('DocViewer: 开始加载Word文档:', uri);
+
+      let documentPath = uri;
+
+      // 如果是content://协议，复制到本地
+      if (uri.startsWith('content://')) {
+        setConversionMessage('正在复制文档到本地...');
+        const fileExtension = getFileExtension(fileName || 'document.docx');
+        const localFileName = `doc_${Date.now()}.${fileExtension}`;
+        const localPath = `${RNFS.CachesDirectoryPath}/${localFileName}`;
+
+        await RNFS.copyFile(uri, localPath);
+        documentPath = localPath;
+        setLocalFilePath(localPath);
+
+        console.log('DocViewer: 文件复制到本地:', localPath);
+      }
+
+      // 立即显示预览信息，提高用户体验
+      const fileStats = await RNFS.stat(documentPath);
+      setPreviewInfo({
+        fileName: fileName || title || '文档',
+        fileSize: fileStats.size,
+        filePath: documentPath,
+        lastModified: fileStats.mtime
+      });
+      setShowPreview(true);
+      setIsLoading(false); // 预览准备完成，停止加载指示器
+
+      // 在后台异步进行文档转换
+      setIsConverting(true);
+      setConversionMessage('正在后台转换文档格式...');
+
+      try {
+        const pdfPath = await documentConverter.convertWordToPDF(
+          documentPath,
+          (progress, message) => {
+            setConversionProgress(progress);
+            setConversionMessage(message);
+          }
+        );
+
+        if (pdfPath) {
+          // 转换成功，设置PDF源
+          const pdfSource = { uri: `file://${pdfPath}`, cache: true };
+          setPdfSource(pdfSource);
+          setShowPreview(false); // 隐藏预览，显示实际内容
+          console.log('DocViewer: 文档转换完成，PDF路径:', pdfPath);
+        } else {
+          // 转换失败但有fallback，保持预览模式
+          console.log('DocViewer: 使用预览模式显示文档');
+          setConversionMessage('文档转换服务暂时不可用，以预览模式显示');
+        }
+
+        setIsConverting(false);
+      } catch (conversionError) {
+        console.error('DocViewer: 文档转换失败:', conversionError);
+        setIsConverting(false);
+        // 转换失败时保持预览模式，但显示错误信息
+        setError(`文档转换失败: ${conversionError.message}`);
+      }
+
+    } catch (error) {
+      console.error('DocViewer: 文档加载失败:', error);
+      setError(error.message || '文档加载失败');
+      setIsLoading(false);
+      setIsConverting(false);
+    }
   };
-  const moveImage = async (id, pos) => { const next = images.map(it => it.id===id?{...it, ...pos}:it); setImages(next); await persistImages(next); };
 
-  // 保存文档内容
+  const getFileExtension = (fileName) => {
+    if (!fileName) return 'docx';
+    const parts = fileName.split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : 'docx';
+  };
+
+  const openWithExternalApp = async () => {
+    try {
+      const filePath = localFilePath || uri;
+
+      if (!filePath) {
+        Alert.alert('错误', '文件路径不存在');
+        return;
+      }
+
+      console.log('尝试使用外部应用打开Word文档:', filePath);
+
+      // 使用react-native-doc-viewer
+      const OpenFile = require('react-native-doc-viewer');
+
+      await OpenFile.openDoc([{
+        url: filePath,
+        fileName: fileName || title || 'document.docx',
+        cache: true,
+        fileType: 'docx'
+      }], (error, url) => {
+        if (error) {
+          console.error('打开外部应用失败:', error);
+          Alert.alert(
+            '无法打开文件',
+            '请确保设备上安装了支持Word文档的应用（如Microsoft Word、WPS Office等）',
+            [
+              { text: '确定', style: 'default' }
+            ]
+          );
+        } else {
+          console.log('Word文档外部打开成功:', url);
+        }
+      });
+
+    } catch (error) {
+      console.error('打开外部应用异常:', error);
+      Alert.alert(
+        '无法打开文件',
+        '请确保设备上安装了支持Word文档的应用（如Microsoft Word、WPS Office等）',
+        [
+          { text: '确定', style: 'default' }
+        ]
+      );
+    }
+  };
+
+  // 工具栏事件处理 - 与PDF查看器保持一致
+  const handleToolChange = (tool) => {
+    console.log('DocViewer: 工具切换:', tool);
+  };
+
+  const handleColorChange = (color) => {
+    setStrokeColor(color);
+  };
+
+  const handleStrokeWidthChange = (width) => {
+    setStrokeWidth(width);
+  };
+
+  const handleImageUpload = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      },
+      (response) => {
+        if (response.assets && response.assets[0]) {
+          const asset = response.assets[0];
+          const newImage = {
+            id: Date.now().toString(),
+            uri: asset.uri,
+            x: 100,
+            y: 100,
+            scale: 1,
+          };
+          setImages(prev => [...prev, newImage]);
+        }
+      }
+    );
+  };
+
+  const handleAddBookmark = async () => {
+    try {
+      await addBookmark({
+        docId: noteId,
+        page: currentPage,
+        title: `第${currentPage}页`,
+        note: ''
+      });
+      Alert.alert('成功', '书签已添加');
+    } catch (error) {
+      Alert.alert('错误', '添加书签失败');
+    }
+  };
+
+  const handleMoveFloatingImage = (id, position) => {
+    setImages(prev => prev.map(img => 
+      img.id === id ? { ...img, ...position } : img
+    ));
+  };
+
+  const handleRemoveFloatingImage = (id) => {
+    setImages(prev => prev.filter(img => img.id !== id));
+  };
+
   const saveToLocal = async () => {
-    // 直接保存编辑的文本内容
-    await SaveUtils.saveMarkdownContent(docId, content, offlineStorageService);
-  };
-
-  // 书签
-  const handleAddBookmark = () => {
-    setBookmarkVisible(true);
+    try {
+      // 保存文档状态
+      const docData = {
+        _id: noteId,
+        id: noteId,
+        title: title || fileName,
+        content: docContent,
+        type: 'word',
+        file_type: 'docx',
+        currentPage,
+        totalPages,
+        images,
+        updated_at: new Date().toISOString()
+      };
+      
+      await offlineStorageService.saveNote(docData);
+      return true;
+    } catch (error) {
+      console.error('DocViewer: 保存失败:', error);
+      return false;
+    }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ToolbarContainer>
-        <AllInOneToolbar
-          onToolChange={() => {}}
-          onColorChange={setStrokeColor}
-          onStrokeWidthChange={setStrokeWidth}
-          onImageUpload={(image) => addImage(image?.uri || image)}
-          onBookmarkAdd={handleAddBookmark}
-          onBookmarkList={() => setBookmarkVisible(true)}
-        />
-      </ToolbarContainer>
-
       <ViewerLayout
-        colors={colors}
-        headerLeft={<BackButton onPress={() => {
-          try {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('Home');
-            }
-          } catch (error) {
-            console.warn('DocViewer: 导航返回失败:', error);
-            navigation.navigate('Home');
-          }
-        }} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 0 }} />}
+        headerLeft={<BackButton onPress={handleGoBack} color={colors.primary} background={colors.primary + '20'} />}
         headerRight={
           <View style={styles.headerRightContainer}>
             <SaveButton
@@ -373,119 +331,147 @@ const DocViewer = ({ route, navigation }) => {
             />
           </View>
         }
-        title={title}
-        hasExternalToolbar={true}
-        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}>
-        {/* 移除通用加载状态，只在有具体进度信息时显示 */}
-        {!isLoading && !!error && (
-          <ErrorIndicator
-            message="文档加载失败"
-            subMessage={error}
-            onRetry={() => {
-              setError(null);
-              setIsLoading(true);
-              // 可以在这里添加重新加载逻辑
-            }}
+        title={title || 'Word文档'}
+        showToolbar={true}
+        hasExternalToolbar={false}
+        showHistoryNavigation={true}
+        historyNavigationHeight={25}
+        noteId={noteId}
+        navigation={navigation}
+        colors={colors}
+      >
+
+        {/* 工具栏容器 - 始终显示 */}
+        {!isLoading && !error && (
+          <ToolbarContainer>
+            <AllInOneToolbar
+              onToolChange={handleToolChange}
+              onColorChange={handleColorChange}
+              onStrokeWidthChange={handleStrokeWidthChange}
+              onImageUpload={handleImageUpload}
+              onBookmarkAdd={handleAddBookmark}
+              onBookmarkList={() => setBookmarkVisible(true)}
+            />
+          </ToolbarContainer>
+        )}
+
+        {/* 加载指示器 */}
+        {isLoading && (
+          <LoadingIndicator
+            message={conversionMessage || "正在加载Word文档..."}
+            subMessage={conversionProgress > 0 ? `转换进度: ${conversionProgress}%` : "正在准备文档查看器"}
+            progress={conversionProgress}
           />
         )}
-        {!error && (
-          <View style={styles.viewer}>
-            {/* Word文档显示 */}
-            {((type === 'docx') || (type === 'doc') ||
-              (uri||'').toLowerCase().endsWith('.docx') ||
-              (uri||'').toLowerCase().endsWith('.doc')) ? (
-              <View style={{ flex: 1 }}>
-                {/* 详细的加载进度显示 - 只在有具体进度信息时显示 */}
-                {(isLoading || !docxB64) && (loadingMessage || loadingSubMessage) && (
-                  <View style={styles.loadingOverlay}>
-                    <LoadingIndicator
-                      message={loadingMessage || '正在处理Word文档...'}
-                      subMessage={loadingSubMessage || '请稍候...'}
-                      overlay={true}
+
+        {/* 错误指示器 */}
+        {error && (
+          <ErrorIndicator
+            message="Word文档加载失败"
+            subMessage={error}
+            onRetry={loadDocument}
+          />
+        )}
+
+        {/* 文档预览 - 在转换完成前显示 */}
+        {showPreview && previewInfo && !pdfSource && (
+          <ScrollView style={styles.previewContainer} contentContainerStyle={styles.previewContent}>
+            <View style={styles.previewCard}>
+              <Text style={[styles.previewTitle, { color: colors.text }]}>
+                {previewInfo.fileName}
+              </Text>
+              <Text style={[styles.previewInfo, { color: colors.onSurfaceVariant }]}>
+                文件大小: {(previewInfo.fileSize / 1024 / 1024).toFixed(2)} MB
+              </Text>
+              <Text style={[styles.previewInfo, { color: colors.onSurfaceVariant }]}>
+                文档类型: Word文档
+              </Text>
+
+              {isConverting && (
+                <View style={styles.conversionStatus}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.conversionText, { color: colors.primary }]}>
+                    {conversionMessage}
+                  </Text>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          backgroundColor: colors.primary,
+                          width: `${conversionProgress}%`
+                        }
+                      ]}
                     />
                   </View>
-                )}
-                {/* 只有在docxB64存在时才渲染WebView */}
-                {docxB64 && (
-                  <DocxWebView
-                    base64Docx={docxB64}
-                    onReady={(message) => {
-                      console.log('DocxWebView: Word文档渲染完成', message);
-                      setIsLoading(false);
-                    }}
-                    onMessage={(event) => {
-                      try {
-                        const data = JSON.parse(event.nativeEvent.data);
-                        if (data.type === 'loading') {
-                          setLoadingMessage(data.message || '正在渲染Word文档...');
-                          setLoadingSubMessage(data.subMessage || '');
-                        } else if (data.type === 'error') {
-                          setError(data.message || '文档加载失败');
-                          setIsLoading(false);
-                        }
-                      } catch (error) {
-                        console.log('解析WebView消息失败:', error);
-                      }
-                    }}
-                    style={{ flex: 1 }}
-                  />
-                )}
-              </View>
-            ) : isTextMode ? (
-              /* 文本编辑模式 */
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ padding: 16 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                <TextInput
-                  style={[styles.input, {
-                    color: colors.text,
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    padding: 12
-                  }]}
-                  multiline
-                  value={content}
-                  onChangeText={setContent}
-                  placeholder="在此编辑文档内容..."
-                  placeholderTextColor={colors.textLight}
-                  textAlignVertical="top"
-                  autoCorrect={false}
-                  spellCheck={false}
-                />
-              </ScrollView>
-            ) : (
-              /* 只读模式 */
-              <View style={styles.errorContainer}>
-                <Text style={[styles.errorText, { color: colors.text }]}>此文档当前以只读模式显示</Text>
-                <Text style={[styles.errorText, { color: colors.textLight, marginTop: 8, fontSize: 14 }]}>
-                  您可以使用以下功能：
-                </Text>
-                <Text style={[styles.errorText, { color: colors.textLight, marginTop: 4, fontSize: 14 }]}>
-                  • 手写注释覆盖层
-                </Text>
-                <Text style={[styles.errorText, { color: colors.textLight, marginTop: 4, fontSize: 14 }]}>
-                  • 图片浮层标注
-                </Text>
-                <Text style={[styles.errorText, { color: colors.textLight, marginTop: 4, fontSize: 14 }]}>
-                  • 书签功能
-                </Text>
-                <ScrollView
-                  style={{ flex: 1, marginTop: 20, width: '100%' }}
-                  contentContainerStyle={{ padding: 16 }}
-                >
-                  <Text style={[styles.contentText, { color: colors.text }]}>
-                    {content}
-                  </Text>
-                </ScrollView>
-              </View>
-            )}
+                </View>
+              )}
 
-            <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t+1); return false; }}>
-              {images.map(img => (
+              {!isConverting && (
+                <View style={styles.previewActions}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                    onPress={openWithExternalApp}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.onPrimary }]}>
+                      用外部应用打开
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+                    onPress={handleGoBack}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.onSecondary }]}>
+                      返回主页
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* PDF内容显示 */}
+        {pdfSource && !error && (
+          <View style={styles.pdfContainer}>
+            {/* 主PDF显示组件 */}
+            <Pdf
+              ref={pdfRef}
+              source={pdfSource}
+              onLoadComplete={(numberOfPages, filePath, width, height) => {
+                console.log('DocViewer: PDF加载完成，页数:', numberOfPages);
+                setTotalPages(numberOfPages || 1);
+              }}
+              onPageChanged={(page, numberOfPages) => {
+                console.log('DocViewer: 页面切换到:', page);
+                setCurrentPage(page);
+              }}
+              onError={(error) => {
+                console.error('DocViewer: PDF显示错误:', error);
+                setError('PDF显示失败');
+              }}
+              style={styles.pdf}
+              enablePaging={true}
+              enableRTL={false}
+              enableAnnotationRendering={true}
+              password=""
+              spacing={0}
+              minScale={0.5}
+              maxScale={3.0}
+              scale={currentScale}
+              horizontal={false}
+              page={currentPage}
+              onScaleChanged={(scale) => {
+                setCurrentScale(scale);
+                setShowZoomIndicator(true);
+                setTimeout(() => setShowZoomIndicator(false), 2000);
+              }}
+            />
+
+            {/* 浮动图片 */}
+            <View onStartShouldSetResponder={() => { setDeselectTick(t => t + 1); return false; }}>
+              {Array.isArray(images) && images.map(img => (
                 <DraggableImage
                   key={img.id}
                   id={img.id}
@@ -493,20 +479,86 @@ const DocViewer = ({ route, navigation }) => {
                   initial={{ x: img.x, y: img.y }}
                   initialScale={img.scale || 1}
                   deselectSignal={deselectTick}
-                  onMove={moveImage}
-                  onResize={(id, data)=>{ const next = images.map(it=>it.id===id?{...it, scale:data.scale}:it); setImages(next); persistImages(next); }}
-                  onRemove={(id)=>{ const next = images.filter(it=>it.id!==id); setImages(next); persistImages(next); }}
+                  onMove={handleMoveFloatingImage}
+                  onResize={(id, data) => {
+                    const next = images.map(it => it.id === id ? { ...it, scale: data.scale } : it);
+                    setImages(next);
+                  }}
+                  onRemove={handleRemoveFloatingImage}
                 />
               ))}
             </View>
 
+            {/* 全局轻量手写覆盖层 */}
             <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
           </View>
         )}
 
-        <PageControl total={totalPages} current={currentPage} onPrev={() => {}} onNext={() => {}} onSubmitPage={() => {}} storageKey={`doc_page_ctrl_${docId}`} />
+        {/* 外部应用打开按钮 */}
+        {pdfSource && !error && (
+          <TouchableOpacity
+            style={[styles.externalButton, { backgroundColor: colors.secondary }]}
+            onPress={openWithExternalApp}
+          >
+            <Icon name="open-outline" size={16} color={colors.onSecondary} />
+            <Text style={[styles.externalButtonText, { color: colors.onSecondary }]}>
+              外部应用
+            </Text>
+          </TouchableOpacity>
+        )}
 
-        <BookmarkPanel visible={bookmarkVisible} onClose={() => setBookmarkVisible(false)} docId={docId} onJump={(bm)=>{ console.log('DocViewer onJump:', bm); setBookmarkVisible(false); if (bm?.page) { setCurrentPage(bm.page); } }} />
+        {/* 页码控制器 */}
+        {pdfSource && !error && totalPages > 0 && (
+          <PageControl
+            total={totalPages}
+            current={currentPage}
+            onPrev={() => {
+              if (currentPage > 1) {
+                const newPage = currentPage - 1;
+                setCurrentPage(newPage);
+                if (pdfRef.current) {
+                  pdfRef.current.setPage(newPage);
+                }
+              }
+            }}
+            onNext={() => {
+              if (currentPage < totalPages) {
+                const newPage = currentPage + 1;
+                setCurrentPage(newPage);
+                if (pdfRef.current) {
+                  pdfRef.current.setPage(newPage);
+                }
+              }
+            }}
+            onSubmitPage={(pageNum) => {
+              if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+                setCurrentPage(pageNum);
+                if (pdfRef.current) {
+                  pdfRef.current.setPage(pageNum);
+                }
+              }
+            }}
+            storageKey="doc_viewer_pagecontrol_pos"
+          />
+        )}
+
+        {/* 缩放指示器 */}
+        <ZoomIndicator
+          scale={currentScale}
+          visible={showZoomIndicator}
+          autoHideDelay={2000}
+        />
+
+        {/* 书签面板 */}
+        <BookmarkPanel
+          visible={bookmarkVisible}
+          onClose={() => setBookmarkVisible(false)}
+          docId={noteId}
+          onJump={(bookmark) => {
+            setCurrentPage(bookmark.page);
+            setBookmarkVisible(false);
+          }}
+        />
       </ViewerLayout>
     </View>
   );
@@ -514,39 +566,11 @@ const DocViewer = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
-  },
-  center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16
   },
-  viewer: {
-    flex: 1
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  input: {
-    minHeight: 400,
-    textAlignVertical: 'top',
-    fontSize: 16,
-    lineHeight: 24
-  },
-
   headerRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
   },
   saveButtonCompact: {
     paddingHorizontal: 8,
@@ -554,21 +578,108 @@ const styles = StyleSheet.create({
     marginRight: 4,
     minHeight: 24,
   },
-  errorContainer: {
+  pdfContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  pdf: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  externalButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    gap: 4,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  externalButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // 预览组件样式
+  previewContainer: {
+    flex: 1,
+  },
+  previewContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  previewCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    minWidth: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  previewInfo: {
+    fontSize: 14,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  conversionStatus: {
+    marginTop: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
+  conversionText: {
+    fontSize: 14,
+    marginTop: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  previewActions: {
+    marginTop: 24,
+    gap: 12,
+    width: '100%',
+  },
+  actionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
   },
-  errorText: {
+  actionButtonText: {
     fontSize: 16,
-    textAlign: 'center',
-    marginTop: 8
-  },
-  contentText: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'left'
+    fontWeight: '600',
   },
 });
 

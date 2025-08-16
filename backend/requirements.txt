@@ -36,6 +36,12 @@ python-pptx==0.6.23  # PowerPoint处理
 pytesseract==0.3.10  # OCR文字识别
 python-magic==0.4.27  # 文件类型检测
 openpyxl==3.1.2  # Excel处理
+reportlab-4.4.3  # PDF生成
+
+
+# Windows文档转换 (仅Windows系统需要)
+comtypes==1.2.0  # Windows COM接口
+pywin32==306  # Windows API
 
 # AI和机器学习
 openai==1.3.7  # OpenAI API

@@ -3,7 +3,7 @@
 """
 
 from .base import *
-from pymongo import MongoClient
+from pymongo import MongoClient  
 
 # 调试模式
 DEBUG = True
@@ -18,7 +18,7 @@ ALLOWED_HOSTS = ['*']
 RUNSERVERPLUS_HOST = '0.0.0.0'
 RUNSERVERPLUS_PORT = 8000
 
-# MongoDB Realm配置
+# MongoDB Realm配置 
 # 直接使用PyMongo客户端进行原生操作
 mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
 if 'mongodb+srv' in mongo_uri:

@@ -122,6 +122,38 @@ class AuthService {
   }
 
   /**
+   * 开发模式自动登录
+   * @returns {Promise<object>} 用户对象
+   */
+  async loginAsDeveloper() {
+    try {
+      await this.initialize();
+
+      const { DEV_CONFIG } = require('../../config');
+
+      if (!DEV_CONFIG.SKIP_LOGIN) {
+        throw new Error('开发模式自动登录未启用');
+      }
+
+      console.log('开发模式：执行自动登录');
+
+      // 设置开发用户信息
+      this.currentUser = DEV_CONFIG.DEFAULT_USER;
+
+      // 保存到本地存储
+      await authStorage.saveUser(this.currentUser);
+      await authStorage.saveToken(DEV_CONFIG.DEFAULT_TOKEN);
+
+      console.log('开发模式：自动登录成功', this.currentUser);
+
+      return this.currentUser;
+    } catch (error) {
+      logService.error('开发模式自动登录失败', error);
+      throw error;
+    }
+  }
+
+  /**
    * 匿名登录
    * @returns {Promise<object>} 用户对象
    */
@@ -131,17 +163,17 @@ class AuthService {
 
       // 使用realmService匿名登录
       const user = await realmService.loginAnonymously();
-      
+
       // 创建匿名用户信息
       const userProfile = {
         id: user.id,
         isAnonymous: true,
         createdAt: new Date().toISOString(),
       };
-      
+
       // 保存到本地存储
       await this.saveUserData(user, userProfile);
-      
+
       return userProfile;
     } catch (error) {
       logService.error('匿名登录失败', error);
@@ -207,6 +239,23 @@ class AuthService {
   async isLoggedIn() {
     try {
       await this.initialize();
+
+      // 开发模式下跳过登录检查
+      const { DEV_CONFIG } = require('../../config');
+      if (DEV_CONFIG.SKIP_LOGIN) {
+        console.log('开发模式：跳过登录检查，自动设置为已登录状态');
+
+        // 如果没有当前用户，设置默认开发用户
+        if (!this.currentUser) {
+          this.currentUser = DEV_CONFIG.DEFAULT_USER;
+          // 保存到本地存储
+          await authStorage.saveUser(this.currentUser);
+          await authStorage.saveToken(DEV_CONFIG.DEFAULT_TOKEN);
+          console.log('开发模式：已设置默认用户和令牌');
+        }
+
+        return true;
+      }
 
       // 首先检查本地存储的用户信息
       if (!this.currentUser) {

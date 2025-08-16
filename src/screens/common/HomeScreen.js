@@ -16,10 +16,12 @@ import {
 import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
 import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
+import documentPickerService from '../../services/document/documentPickerService';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiWrapper } from '../../services/api/apiWrapper';
 import { setNotes as setNotesAction, addNote, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
+import notesApi from '../../services/api/notesApi';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
@@ -28,6 +30,7 @@ import SortControl from '../../components/home/SortControl';
 import { offlineStorageService } from '../../services/offline';
 import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
+import CardTypeModal from '../../components/common/CardTypeModal';
 import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
 import preloadService from '../../services/document/preloadService';
@@ -47,6 +50,7 @@ const HomeScreen = ({ navigation }) => {
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
   const [showCreateOptions, setShowCreateOptions] = useState(false);
+  const [showCardTypeModal, setShowCardTypeModal] = useState(false);
   const [showCanvasStyleModal, setShowCanvasStyleModal] = useState(false);
   const [showNoteStyleModal, setShowNoteStyleModal] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
@@ -229,6 +233,76 @@ const HomeScreen = ({ navigation }) => {
     setShowNoteStyleModal(true);
   };
 
+  // 显示卡片类型选择
+  const createCardNote = () => {
+    console.log('HomeScreen: 创建卡片笔记，显示类型选择器');
+    console.log('HomeScreen: 当前showCardTypeModal状态:', showCardTypeModal);
+    setShowCreateOptions(false);
+    setShowCardTypeModal(true);
+    console.log('HomeScreen: 设置showCardTypeModal为true');
+  };
+
+  // 处理卡片类型选择
+  const handleCardTypeSelect = async (cardType) => {
+    setIsLoading(true);
+
+    try {
+      const noteId = `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // 根据卡片类型生成初始内容
+      const initialContent = getInitialContentForCardType(cardType);
+
+      // 创建卡片笔记数据
+      const cardNoteData = {
+        id: noteId,
+        _id: noteId,
+        title: cardType.title,
+        content: initialContent,
+        type: 'card',
+        noteType: 'card',
+        file_type: 'card', // 添加file_type字段
+        cardType: cardType.id, // 保存卡片类型
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        imported: false,
+        is_deleted: false,
+        user_id: 'current_user',
+        metadata: JSON.stringify({
+          noteType: 'card',
+          cardType: cardType.id,
+          createdAt: new Date().toISOString()
+        })
+      };
+
+      // 使用createNote API保存卡片笔记
+      const result = await notesApi.createNote(cardNoteData);
+
+      if (result.success) {
+        console.log('卡片笔记已创建:', result.data);
+
+        // 刷新笔记列表
+        await loadNotes();
+
+        // 直接导航到卡片笔记编辑界面
+        navigation.navigate('CardNote', {
+          noteId: noteId,
+          title: cardType.title,
+          content: initialContent
+        });
+      } else {
+        throw new Error(result.message || '创建卡片笔记失败');
+      }
+
+    } catch (error) {
+      console.error('创建卡片笔记失败:', error);
+      Alert.alert('创建失败', error.message || '创建卡片笔记失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 处理笔记样式选择
   const handleNoteStyleSelect = (style, name) => {
     const noteId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
@@ -238,6 +312,94 @@ const HomeScreen = ({ navigation }) => {
       noteId: noteId,
       noteStyle: style
     });
+  };
+
+  // 根据卡片类型生成初始内容
+  const getInitialContentForCardType = (cardType) => {
+    const templates = {
+      blank: '',
+      meeting: `会议主题：
+时间：${new Date().toLocaleDateString()}
+参与人员：
+
+会议要点：
+•
+
+决议事项：
+•
+
+后续行动：
+• `,
+      todo: `待办事项清单
+
+□
+□
+□
+
+已完成：
+☑ `,
+      diary: `${new Date().toLocaleDateString()} 日记
+
+今天的心情：😊
+
+今日要事：
+•
+
+感想与收获：
+`,
+      idea: `💡 创意想法
+
+灵感来源：
+
+核心想法：
+
+实现方案：
+•
+
+备注：`,
+      reading: `📚 读书笔记
+
+书名：
+作者：
+阅读日期：${new Date().toLocaleDateString()}
+
+主要内容：
+
+精彩摘录：
+"
+
+个人感悟：`,
+      project: `📋 项目规划
+
+项目名称：
+开始时间：${new Date().toLocaleDateString()}
+预计完成：
+
+项目目标：
+•
+
+主要任务：
+□
+□
+□
+
+风险评估：`,
+      learning: `📖 学习笔记
+
+学习主题：
+学习时间：${new Date().toLocaleDateString()}
+
+重点内容：
+•
+
+知识要点：
+
+练习题目：
+
+总结：`
+    };
+
+    return templates[cardType.id] || '';
   };
 
   // 创建空笔记列表的函数
@@ -348,33 +510,37 @@ const HomeScreen = ({ navigation }) => {
     // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
   };
 
-  // 智能预加载
+  // 智能预加载 - 完全异步，不阻塞UI
   const startIntelligentPreload = (notesList) => {
-    try {
-      // 过滤出文档类型的笔记
-      const documentNotes = notesList.filter(note => {
-        const fileType = note.file_type || '';
-        return ['pdf', 'docx', 'doc', 'pptx', 'ppt'].includes(fileType.toLowerCase());
-      });
+    // 使用setTimeout确保预加载不阻塞UI渲染
+    setTimeout(() => {
+      try {
+        // 过滤出文档类型的笔记
+        const documentNotes = notesList.filter(note => {
+          const fileType = note.file_type || '';
+          return ['pdf', 'docx', 'doc', 'pptx', 'ppt'].includes(fileType.toLowerCase());
+        });
 
-      // 按更新时间排序，获取最近访问的文档
-      const recentDocuments = documentNotes
-        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
-        .slice(0, 10) // 只预加载前10个
-        .map(note => ({
-          uri: note.uri || note.file_uri || note.file_path,
-          type: note.file_type?.toLowerCase(),
-          title: note.title
-        }))
-        .filter(doc => doc.uri && doc.type);
+        // 按更新时间排序，获取最近访问的文档
+        const recentDocuments = documentNotes
+          .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+          .slice(0, 3) // 减少预加载数量，避免阻塞
+          .map(note => ({
+            uri: note.uri || note.file_uri || note.file_path,
+            type: note.file_type?.toLowerCase(),
+            title: note.title
+          }))
+          .filter(doc => doc.uri && doc.type);
 
-      if (recentDocuments.length > 0) {
-        console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
-        preloadService.intelligentPreload(recentDocuments);
+        if (recentDocuments.length > 0) {
+          console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
+          // 异步执行预加载，不等待结果
+          preloadService.intelligentPreload(recentDocuments);
+        }
+      } catch (error) {
+        console.error('HomeScreen: 智能预加载失败:', error);
       }
-    } catch (error) {
-      console.error('HomeScreen: 智能预加载失败:', error);
-    }
+    }, 1000); // 延迟1秒执行，确保UI完全渲染
   };
 
   // 导入PDF文件
@@ -515,169 +681,94 @@ const HomeScreen = ({ navigation }) => {
   // 导入Word文件
   const importWord = async () => {
     try {
-      const results = await DocumentPicker.pick({
-        type: [types.docx, types.doc],
-        allowMultiSelection: false,
-        mode: 'import',  // 使用import模式而不是open模式
-        copyTo: 'documentDirectory', // 复制到文档目录而不是缓存目录
-      });
+      const documentInfo = await documentPickerService.pickWordDocument();
 
-      if (results && results.length > 0) {
-        const file = results[0];
-        console.log('选择的Word文件:', file);
+      if (documentInfo) {
+        console.log('选择的Word文件:', documentInfo);
         setIsLoading(true);
 
-        // 检查文件是否有效
-        if (!file.uri) {
-          throw new Error('无效的文件URI');
-        }
-
-        // 检查文件大小，如果太大，直接使用本地导入
-        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-        if (file.size && file.size > MAX_FILE_SIZE) {
-          console.log('文件过大，使用本地导入方式');
-          await handleLocalImport(file);
-          return;
-        }
-
-        // 创建FormData对象
-        const formData = new FormData();
-
-        // 确保文件对象包含所有必要的属性
-        const fileObj = {
-          uri: file.uri || file.fileCopyUri,
-          type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          name: file.name || `document_${Date.now()}.docx`,
-        };
-
-        console.log('准备添加到FormData的文件对象:', fileObj);
-        formData.append('file', fileObj);
-        formData.append('type', 'word');
-
-        console.log('准备导入Word，FormData:', formData);
+        // 生成唯一的笔记ID
+        const noteId = `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         try {
-          // 设置导入超时
-          const importTimeout = setTimeout(() => {
-            console.log('导入操作超时，切换到本地导入');
-            handleLocalImport(file);
-          }, 30000); // 30秒超时
+          // 创建FormData来导入Word文档
+          const formData = new FormData();
+          formData.append('type', 'word');
+          formData.append('file', {
+            uri: documentInfo.localPath || documentInfo.uri,
+            name: documentInfo.name,
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          });
 
-          // 调用实际的导入API
-          const response = await apiWrapper.importNote(formData);
+          // 使用importNote API保存文档
+          const savedNote = await notesApi.importNote(formData);
 
-          // 清除超时
-          clearTimeout(importTimeout);
+          console.log('Word文件已保存到本地:', savedNote);
 
-          console.log('Word导入结果:', response);
+          // 显示成功提示
+          Alert.alert('导入成功', 'Word文档已成功导入，您可以在主页中查看');
 
-          // 即使API返回失败，只要有数据就继续处理
-          if (response.success || (response.data && response.data.id)) {
-            setIsLoading(false);
-            Alert.alert('成功', '导入Word文档成功');
-            loadNotes(); // 重新加载笔记列表
-            return;
-          }
+          // 刷新笔记列表
+          await loadNotes();
 
-          // 如果没有数据，使用本地导入
-          console.log('API返回失败，使用本地导入方式');
-          await handleLocalImport(file);
-        } catch (importError) {
-          console.error('导入Word过程中出错:', importError);
-          await handleLocalImport(file);
+        } catch (saveError) {
+          console.error('保存Word文件失败:', saveError);
+          Alert.alert('保存失败', saveError.message || '保存Word文件失败，请重试');
+        } finally {
+          setIsLoading(false);
         }
       }
+
     } catch (error) {
+      console.error('选择Word文件失败:', error);
+      Alert.alert('错误', error.message || '选择Word文件失败，请重试');
       setIsLoading(false);
-      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
-        console.error('导入Word失败:', error);
-        Alert.alert('错误', error.message || '导入Word文档失败，请稍后重试');
-      }
     }
-  }
+  };
   // 导入PPT文件
   const importPPT = async () => {
     try {
-      console.log('HomeScreen: 开始导入PPT文件');
+      const documentInfo = await documentPickerService.pickPPTDocument();
 
-      // 使用更宽松的文件类型选择
-      let results;
-      try {
-        const pptTypes = Platform.select({
-          android: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-          ios: ['com.microsoft.powerpoint.ppt', 'org.openxmlformats.presentationml.presentation']
-        });
-        results = await DocumentPicker.pick({
-          type: pptTypes,
-          allowMultiSelection: false,
-          mode: 'import',
-          copyTo: 'documentDirectory'
-        });
-      } catch (typeError) {
-        console.warn('HomeScreen: 特定类型选择失败，尝试所有文件类型:', typeError);
-        // 如果特定类型失败，尝试所有文件类型
-        results = await DocumentPicker.pick({
-          type: [DocumentPicker.types.allFiles],
-          allowMultiSelection: false,
-          mode: 'import',
-          copyTo: 'documentDirectory'
-        });
-      }
-      if (results && results.length > 0) {
-        const file = results[0];
-        console.log('HomeScreen: 选择的PPT文件:', file);
+      if (documentInfo) {
+        console.log('选择的PPT文件:', documentInfo);
+        setIsLoading(true);
 
-        // 验证文件扩展名
-        const fileName = file.name || '';
-        const isPPTFile = /\.(ppt|pptx)$/i.test(fileName);
+        // 生成唯一的笔记ID
+        const noteId = `ppt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        if (!isPPTFile) {
-          Alert.alert('错误', '请选择PPT或PPTX格式的文件');
-          return;
-        }
-
-        const noteId = `${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
-        const localNote = {
-          id: noteId,
-          _id: noteId,
-          title: file.name ? file.name.replace(/\.(pptx|ppt)$/i, '') : 'PPT文档',
-          content: `PPT文件: ${file.name || '未命名'}`,
-          type: (file.name||'').toLowerCase().endsWith('.pptx') ? 'pptx' : 'ppt',
-          file_type: (file.name||'').toLowerCase().endsWith('.pptx') ? 'pptx' : 'ppt',
-          file_name: file.name || `document_${Date.now()}.pptx`,
-          file_uri: file.uri || file.fileCopyUri,
-          uri: file.uri || file.fileCopyUri,
-          path: file.uri || file.fileCopyUri,
-          file_path: file.uri || file.fileCopyUri,
-          url: file.uri || file.fileCopyUri,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_synced: false,
-          is_offline: true,
-          imported: true,
-          preview_image: null,
-          metadata: JSON.stringify({ filePath: file.uri || file.fileCopyUri, fileSize: file.size || null, lastOpenedTime: new Date().toISOString() }),
-          tags: []
-        };
         try {
-          await offlineStorageService.saveNote(localNote);
-          console.log('HomeScreen: Word文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
-        } catch (e) {
-          console.warn('HomeScreen: Word文件保存失败:', e);
+          // 创建FormData来导入PPT文档
+          const formData = new FormData();
+          formData.append('type', 'ppt');
+          formData.append('file', {
+            uri: documentInfo.localPath || documentInfo.uri,
+            name: documentInfo.name,
+            type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+          });
+
+          // 使用importNote API保存文档
+          const savedNote = await notesApi.importNote(formData);
+
+          console.log('PPT文件已保存到本地:', savedNote);
+
+          // 显示成功提示
+          Alert.alert('导入成功', 'PPT演示文稿已成功导入，您可以在主页中查看');
+
+          // 刷新笔记列表
+          await loadNotes();
+
+        } catch (saveError) {
+          console.error('保存PPT文件失败:', saveError);
+          Alert.alert('保存失败', saveError.message || '保存PPT文件失败，请重试');
+        } finally {
+          setIsLoading(false);
         }
-
-        // 使用addNote添加单个笔记，避免覆盖现有数据
-        dispatch(addNote(localNote));
-        console.log('HomeScreen: PPT文件导入完成，笔记ID:', localNote._id);
-
-        // 日志已在上面的try-catch块中输出
-        Alert.alert('成功', '已添加到列表，点击即可打开预览');
       }
     } catch (error) {
-      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
-        console.error('导入PPT失败:', error);
-        Alert.alert('错误', error.message || '导入PPT失败，请稍后重试');
-      }
+      console.error('选择PPT文件失败:', error);
+      Alert.alert('错误', error.message || '选择PPT文件失败，请重试');
+      setIsLoading(false);
     }
   };
 
@@ -984,6 +1075,23 @@ const HomeScreen = ({ navigation }) => {
           </View>
         );
       }
+      // 检查是否是卡片笔记
+      else if (item.type === 'card' || item.noteType === 'card') {
+        console.log('HomeScreen: 渲染卡片笔记封面，数据:', {
+          type: item.type,
+          noteType: item.noteType,
+          title: item.title,
+          id: item._id || item.id
+        });
+        // 卡片笔记封面 - 使用纯色背景
+        return (
+          <View style={[styles.coverContainer, styles.cardBackground]}>
+            <Icon name="card" size={30} color="#FF9800" />
+            <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>卡片</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF9800' }]} />
+          </View>
+        );
+      }
       // 检查是否是画布
       else if (item.type === 'canvas') {
         console.log('HomeScreen: 渲染画布封面，数据:', {
@@ -1139,8 +1247,30 @@ const HomeScreen = ({ navigation }) => {
         return;
       }
 
-      // 默认文本笔记
-      navigation.navigate('Note', { note: item });
+      if (item.type === 'card' || item.noteType === 'card') {
+        const noteId = item._id || item.id || `temp_${Date.now()}`;
+        navigation.navigate('CardNote', {
+          noteId,
+          title: item.title || '新建卡片笔记',
+          content: item.content || ''
+        });
+        return;
+      }
+
+      // 默认情况：如果没有明确的类型，尝试根据内容判断或创建为卡片笔记
+      console.warn('未识别的笔记类型，使用默认处理:', {
+        type: item.type,
+        noteType: item.noteType,
+        file_type: item.file_type
+      });
+
+      // 如果有内容但没有明确类型，当作卡片笔记处理
+      const noteId = item._id || item.id || `temp_${Date.now()}`;
+      navigation.navigate('CardNote', {
+        noteId,
+        title: item.title || '笔记',
+        content: item.content || ''
+      });
     };
 
 
@@ -1699,6 +1829,7 @@ const HomeScreen = ({ navigation }) => {
           visible={showCreateOptions}
           onClose={() => setShowCreateOptions(false)}
           onCreateNote={createNote}
+          onCreateCardNote={createCardNote}
           onCreateLinedNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
           onImportMarkdown={importMarkdown}
           onImportPDF={importPDF}
@@ -1706,6 +1837,13 @@ const HomeScreen = ({ navigation }) => {
           onImportPPT={importPPT}
           onCreateCanvas={createCanvas}
           navigation={navigation}
+        />
+
+        {/* 卡片类型选择弹窗 */}
+        <CardTypeModal
+          visible={showCardTypeModal}
+          onClose={() => setShowCardTypeModal(false)}
+          onSelectType={handleCardTypeSelect}
         />
 
         {/* 画布样式选择弹窗 */}
@@ -1915,6 +2053,9 @@ const styles = StyleSheet.create({
   },
   pptBackground: {
     backgroundColor: '#FBE9E7', // 淡橙色背景用于PPT
+  },
+  cardBackground: {
+    backgroundColor: '#FFF3E0', // 淡橙色背景用于卡片笔记
   },
   canvasBackground: {
     backgroundColor: '#F3E5F5', // 淡紫色背景用于画布

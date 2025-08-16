@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'notification',
     'groups',
     'sync',
+    'document_converter',
 ]
 
 # 中间件配置
@@ -106,7 +107,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 连接到MongoDB
+# 连接到MongoDB 
 mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
 mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
 

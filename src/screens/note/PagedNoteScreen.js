@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image, StatusBar } from 'react-native';
+import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image, StatusBar,Text} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
@@ -16,6 +16,7 @@ import { useInputMode } from '../../utils/inputDetection';
 import { useDispatch } from 'react-redux';
 import { addNote } from '../../redux/slices/notesSlice';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
+
 
 /**
  * 分页式笔记屏幕
@@ -214,14 +215,25 @@ const PagedNoteScreen = ({ route, navigation }) => {
       const { touches } = evt.nativeEvent;
 
       if (touches.length === 1) {
-        // 单指平移
+        // 单指平移 - 严格限制边界，防止大幅移动
         if (isTransforming.current) {
-          tempTransform.current.translateX = initialTranslate.current.x + gestureState.dx;
-          tempTransform.current.translateY = initialTranslate.current.y + gestureState.dy;
+          const maxTranslateX = 30;  // 进一步减少水平移动距离
+          const maxTranslateY = 15;  // 进一步减少垂直移动距离
+          const minTranslateY = -5;  // 防止顶部被拖到下方
+
+          let newTranslateX = initialTranslate.current.x + gestureState.dx * 0.5; // 添加阻尼
+          let newTranslateY = initialTranslate.current.y + gestureState.dy * 0.5; // 添加阻尼
+
+          // 严格限制移动范围
+          newTranslateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newTranslateX));
+          newTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, newTranslateY));
+
+          tempTransform.current.translateX = newTranslateX;
+          tempTransform.current.translateY = newTranslateY;
 
           // 节流更新状态
           const now = Date.now();
-          if (!lastTap.current || now - lastTap.current > 8) {
+          if (!lastTap.current || now - lastTap.current > 16) {
             setTranslateX(tempTransform.current.translateX);
             setTranslateY(tempTransform.current.translateY);
             lastTap.current = now;
@@ -237,17 +249,48 @@ const PagedNoteScreen = ({ route, navigation }) => {
         );
 
         if (isScaling.current) {
-          const newScale = Math.max(0.3, Math.min(5, initialScale.current * (distance / initialDistance.current)));
+          // 计算缩放比例 - 添加阻尼效果，提高流畅度
+          const scaleRatio = distance / initialDistance.current;
+          let rawScale = initialScale.current * scaleRatio;
+
+          // 添加渐进式缩放阻尼，防止一次性放大到最大倍数
+          const scaleDiff = rawScale - initialScale.current;
+          const dampingFactor = 0.8; // 阻尼系数，降低缩放敏感度
+          let newScale = initialScale.current + (scaleDiff * dampingFactor);
+
+          // 限制缩放范围：0.5到3倍，适合笔记阅读
+          newScale = Math.max(0.5, Math.min(3, newScale));
+
+          // 添加缩放步进，使缩放更加平滑
+          const scaleStep = 0.05;
+          newScale = Math.round(newScale / scaleStep) * scaleStep;
+
+          // 计算缩放中心点（屏幕坐标）
+          const centerX = (touch1.pageX + touch2.pageX) / 2;
+          const centerY = (touch1.pageY + touch2.pageY) / 2;
+
+          // 计算相对于内容的缩放中心点
+          const contentCenterX = (centerX - translateX) / scale;
+          const contentCenterY = (centerY - translateY) / scale;
+
+          // 计算新的平移量，确保缩放中心保持固定
+          const newTranslateX = centerX - contentCenterX * newScale;
+          const newTranslateY = centerY - contentCenterY * newScale;
+
           tempScale.current = newScale;
           tempTransform.current.scale = newScale;
+          tempTransform.current.translateX = newTranslateX;
+          tempTransform.current.translateY = newTranslateY;
 
           // 显示缩放指示器
           setShowZoomIndicator(true);
 
-          // 节流更新状态
+          // 优化节流更新状态，提高响应性
           const now = Date.now();
-          if (!lastTap.current || now - lastTap.current > 8) {
+          if (!lastTap.current || now - lastTap.current > 12) { // 减少节流间隔，提高响应性
             setScale(newScale);
+            setTranslateX(newTranslateX);
+            setTranslateY(newTranslateY);
             lastTap.current = now;
           }
         }
@@ -270,16 +313,16 @@ const PagedNoteScreen = ({ route, navigation }) => {
 
       isScaling.current = false;
 
-      // 手指上下滑动翻页检测 - 简化版本
-      if (evt.nativeEvent.touches.length <= 1 && Math.abs(gestureState.dy) > 50 && Math.abs(gestureState.dx) < 100) {
-        if (gestureState.dy < 0) {
-          // 向上滑动 - 下一页
+      // 手指上下滑动翻页检测 - 降低阈值，提高敏感度
+      if (evt.nativeEvent.touches.length <= 1 && Math.abs(gestureState.dy) > 30 && Math.abs(gestureState.dx) < 80) {
+        if (gestureState.dy < -30) {
+          // 向上滑动 - 下一页或添加新页面
           if (currentPage < totalPages) {
             goToPage(currentPage + 1);
           } else {
             addNewPage();
           }
-        } else {
+        } else if (gestureState.dy > 30) {
           // 向下滑动 - 上一页
           if (currentPage > 1) {
             goToPage(currentPage - 1);
@@ -545,16 +588,19 @@ const PagedNoteScreen = ({ route, navigation }) => {
   
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ToolbarContainer>
-        <AllInOneToolbar
-          onToolChange={handleToolChange}
-          onColorChange={handleColorChange}
-          onStrokeWidthChange={handleStrokeWidthChange}
-          onImageUpload={handleImageUpload}
-          onBookmarkAdd={handleAddBookmark}
-          onBookmarkList={() => setBookmarkVisible(true)}
-        />
-      </ToolbarContainer>
+      {/* 工具栏容器 - 确保在最上层 */}
+      <View style={styles.toolbarWrapper}>
+        <ToolbarContainer>
+          <AllInOneToolbar
+            onToolChange={handleToolChange}
+            onColorChange={handleColorChange}
+            onStrokeWidthChange={handleStrokeWidthChange}
+            onImageUpload={handleImageUpload}
+            onBookmarkAdd={handleAddBookmark}
+            onBookmarkList={() => setBookmarkVisible(true)}
+          />
+        </ToolbarContainer>
+      </View>
 
       <ViewerLayout
         colors={colors}
@@ -569,7 +615,11 @@ const PagedNoteScreen = ({ route, navigation }) => {
         }
         title={title}
         hasExternalToolbar={true}
-        externalToolbarHeight={Platform.OS === 'ios' ? 65 : 35}
+        externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
+        showHistoryNavigation={true}
+        historyNavigationHeight={25}
+        noteId={docId}
+        navigation={navigation}
       >
         <View style={styles.pageContainer}>
           <View
@@ -710,18 +760,29 @@ const PagedNoteScreen = ({ route, navigation }) => {
               />
             ))}
 
-            {/* 页面分隔线和指示器 - 只在有多页时显示 */}
-            {totalPages > 1 && (
-              <>
-                <View style={styles.pageSeparator} />
-                <View style={styles.pageIndicator} />
-              </>
+            {/* 页面分隔线和指示器 - 增强可见性 */}
+            <>
+              <View style={styles.pageSeparator} />
+              <View style={styles.pageIndicator} />
+              {/* 添加页面编号显示 */}
+              <View style={styles.pageNumber}>
+                <Text style={styles.pageNumberText}>{currentPage}</Text>
+              </View>
+              {/* 添加页面边框，使页面边界更清晰 */}
+              <View style={styles.pageBorder} />
+            </>
+
+            {/* 添加新页面提示 - 在最后一页显示 */}
+            {currentPage === totalPages && (
+              <View style={styles.addPageHint}>
+                <Text style={styles.addPageHintText}>向上滑动或点击{'>'}添加新页面</Text>
+              </View>
             )}
           </View>
         </View>
       </ViewerLayout>
 
-      {/* 页码控制器 */}
+      {/* 页码控制器 - 使用内置定位系统，与其他查看器保持一致 */}
       <PageControl
         total={totalPages}
         current={currentPage}
@@ -750,12 +811,13 @@ const PagedNoteScreen = ({ route, navigation }) => {
         }}
       />
 
-      {/* 缩放指示器 */}
+      {/* 缩放指示器 - 确保在工具栏下方显示 */}
       <ZoomIndicator
         visible={showZoomIndicator}
         scale={scale}
         autoHideDelay={2000}
-        topOffset={30} // 笔记中的缩放指示器向下偏移30px，与画布保持一致
+        topOffset={80} // 增加偏移量以避免被工具栏遮挡
+        style={styles.zoomIndicator}
       />
     </View>
   );
@@ -765,23 +827,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // 工具栏包装器 - 确保在最上层
+  toolbarWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000, // 确保工具栏在最上层
+    elevation: 10, // Android阴影
+  },
   pageContainer: {
     flex: 1,
-    justifyContent: 'flex-start', // 改为顶部对齐，确保内容从工具栏下方开始
+    justifyContent: 'flex-start', // 确保内容从工具栏下方开始
     alignItems: 'center',
-    paddingTop: 10, // 减少顶部间距
+    paddingTop: 0, // 移除顶部间距，让内容紧贴工具栏
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 80, // 为底部页码控制器留出空间
   },
   page: {
-    borderRadius: 8,
-    elevation: 3,
+    borderRadius: 12,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginBottom: 20, // 添加页面间距，提供分隔提示
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    marginBottom: 60, // 大幅增加页面间距，提供非常明显的分隔
     position: 'relative',
+    // 添加明显的边框以增强页面分隔效果
+    borderWidth: 3,
+    borderColor: '#B0B0B0', // 使用更深的边框颜色
+    // 添加强烈的页面阴影效果
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+    // 添加背景色区分
+    backgroundColor: '#FAFAFA',
   },
   // 添加页面样式背景
   pageBackground: {
@@ -792,36 +874,107 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 8,
   },
-  // 页面分隔指示器
+  // 页面分隔指示器 - 修复位置，确保可见
   pageIndicator: {
     position: 'absolute',
-    bottom: -20,
+    bottom: 10, // 修复位置，确保在页面内可见
     left: '50%',
-    transform: [{ translateX: -30 }],
-    width: 60,
-    height: 4,
-    backgroundColor: '#BDBDBD',
-    borderRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    transform: [{ translateX: -60 }],
+    width: 120,
+    height: 8,
+    backgroundColor: '#FF4500', // 使用更醒目的橙红色
+    borderRadius: 4,
+    shadowColor: '#FF4500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 8,
+    // 添加双重边框增强效果
+    borderWidth: 2,
+    borderColor: '#DC143C',
+    zIndex: 5, // 确保在其他元素之上但不遮挡重要内容
   },
-  // 页面分隔线
+  // 页面分隔线 - 修复位置，确保可见
   pageSeparator: {
     position: 'absolute',
-    bottom: -5,
+    bottom: 25, // 修复位置，确保在页面内可见
+    left: 10,
+    right: 10,
+    height: 4,
+    backgroundColor: '#FF6B6B', // 使用醒目的红色
+    borderRadius: 2,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 6,
+    // 添加边框增强效果
+    borderWidth: 1,
+    borderColor: '#FF4444',
+    zIndex: 5, // 确保在其他元素之上但不遮挡重要内容
+  },
+
+  // 缩放指示器样式
+  zoomIndicator: {
+    zIndex: 999, // 确保在工具栏下方但在内容上方
+  },
+  // 页面边框 - 清晰的页面边界
+  pageBorder: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    borderStyle: 'solid',
+  },
+  // 页面编号显示 - 增强视觉效果
+  pageNumber: {
+    position: 'absolute',
+    bottom: -40,
+    right: 15,
+    backgroundColor: '#FF4500', // 使用醒目的橙红色
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // 添加边框和阴影
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF4500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  pageNumberText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  // 添加新页面提示
+  addPageHint: {
+    position: 'absolute',
+    bottom: -60,
     left: 20,
     right: 20,
-    height: 2,
-    backgroundColor: '#BDBDBD',
-    borderRadius: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  addPageHintText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    textAlign: 'center',
   },
 
 });

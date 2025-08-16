@@ -39,6 +39,7 @@ import MarkdownViewer from '../screens/viewers/MarkdownViewer';
 import PPTViewer from '../screens/viewers/PPTViewer';
 import InfiniteCanvasScreen from '../screens/canvas/InfiniteCanvasScreen';
 import PagedNoteScreen from '../screens/note/PagedNoteScreen';
+import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
@@ -61,7 +62,7 @@ const getTabBarStyle = (route, colors) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
 
   // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer'];
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote'];
 
   // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
   if (hideTabBarScreens.includes(routeName)) {
@@ -457,15 +458,6 @@ const HomeStack = () => {
           headerBackTitleVisible: false,
         }}
       />
-      {/* 普通笔记功能已移除 */}
-      <Stack.Screen
-        name="PDFNote"
-        component={PDFViewer}
-        options={({ route }) => ({
-          title: route.params?.title || 'PDF查看器',
-          headerBackTitleVisible: false,
-        })}
-      />
       <Stack.Screen
         name="KnowledgeGraph"
         component={KnowledgeGraphScreen}
@@ -623,6 +615,15 @@ const HomeStack = () => {
               },
             };
           },
+        })}
+      />
+      <Stack.Screen
+        name="CardNote"
+        component={CardNoteScreen}
+        options={({ navigation, route }) => ({
+          title: route.params?.title || '卡片笔记',
+          headerShown: false,
+          gestureEnabled: true,
         })}
       />
     </Stack.Navigator>

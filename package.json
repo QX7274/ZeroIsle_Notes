@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-clipboard/clipboard": "^1.16.2",
     "@react-native-community/blur": "^4.4.1",
     "@react-native-community/datetimepicker": "^8.3.0",
@@ -63,6 +64,7 @@
     "react-native-document-opener": "^1.0.0",
     "react-native-document-picker": "^9.3.1",
     "react-native-event-source": "^1.1.0",
+    "react-native-file-viewer": "^2.1.5",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-image-picker": "^8.2.1",
