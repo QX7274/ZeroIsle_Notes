@@ -41,18 +41,35 @@ const SimpleDocumentViewer = ({
 
       // 如果是content://协议，需要复制到本地
       if (uri.startsWith('content://')) {
-        console.log('SimpleDocumentViewer: 检测到content://协议，复制到本地');
-        
-        const fileExtension = getFileExtension(fileName || fileType);
-        const localFileName = `document_${Date.now()}.${fileExtension}`;
-        const localFilePath = `${RNFS.CachesDirectoryPath}/${localFileName}`;
+        console.log('SimpleDocumentViewer: 检测到content://协议，使用持久化服务');
 
-        // 复制文件到本地
-        await RNFS.copyFile(uri, localFilePath);
-        documentPath = localFilePath;
-        setLocalPath(localFilePath);
-        
-        console.log('SimpleDocumentViewer: 文件复制完成:', localFilePath);
+        try {
+          const filePersistenceService = require('../../services/files/filePersistenceService').default;
+          const persistedFile = await filePersistenceService.persistFile(
+            uri,
+            fileName || `document_${Date.now()}`,
+            fileType || 'document'
+          );
+
+          documentPath = persistedFile.localPath;
+          setLocalPath(persistedFile.localPath);
+
+          console.log('SimpleDocumentViewer: 文件持久化完成:', persistedFile.localPath);
+        } catch (persistError) {
+          console.error('SimpleDocumentViewer: 文件持久化失败，回退到缓存目录:', persistError);
+
+          // 如果持久化失败，回退到原来的缓存目录方式
+          const fileExtension = getFileExtension(fileName || fileType);
+          const localFileName = `document_${Date.now()}.${fileExtension}`;
+          const localFilePath = `${RNFS.CachesDirectoryPath}/${localFileName}`;
+
+          // 复制文件到本地
+          await RNFS.copyFile(uri, localFilePath);
+          documentPath = localFilePath;
+          setLocalPath(localFilePath);
+
+          console.log('SimpleDocumentViewer: 文件复制到缓存目录完成:', localFilePath);
+        }
       }
 
       // 使用react-native-doc-viewer打开文档

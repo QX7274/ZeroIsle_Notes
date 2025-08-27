@@ -17,6 +17,7 @@ import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
 import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import documentPickerService from '../../services/document/documentPickerService';
+import filePersistenceService from '../../services/files/filePersistenceService';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiWrapper } from '../../services/api/apiWrapper';
@@ -564,54 +565,67 @@ const HomeScreen = ({ navigation }) => {
           throw new Error('无效的文件URI');
         }
 
-        // 创建FormData对象
-        const formData = new FormData();
-
-        // 确保文件对象包含所有必要的属性
-        const fileObj = {
-          uri: file.uri || file.fileCopyUri,
-          type: file.type || 'application/pdf',
-          name: file.name || `document_${Date.now()}.pdf`,
-        };
-
-        console.log('准备添加到FormData的文件对象:', fileObj);
-        formData.append('file', fileObj);
-        formData.append('type', 'pdf');
-
-        console.log('准备导入PDF，FormData:', formData);
-
         try {
-          // 调用实际的导入API
-          const response = await apiWrapper.importNote(formData);
-          console.log('PDF导入结果:', response);
+          // 使用文件持久化服务将文件复制到应用私有目录
+          console.log('HomeScreen: 开始持久化PDF文件');
+          const persistedFile = await filePersistenceService.persistFile(
+            file.uri || file.fileCopyUri,
+            file.name || `document_${Date.now()}.pdf`,
+            'pdf'
+          );
 
-          // 即使API返回失败，只要有数据就继续处理
-          if (response.success || (response.data && response.data.id)) {
-            setIsLoading(false);
-            Alert.alert('成功', '导入PDF成功');
-            loadNotes(); // 重新加载笔记列表
-            return;
+          console.log('HomeScreen: PDF文件持久化完成:', persistedFile);
+
+          // 创建FormData对象用于API调用
+          const formData = new FormData();
+          const fileObj = {
+            uri: persistedFile.localUri,
+            type: file.type || 'application/pdf',
+            name: persistedFile.fileName,
+          };
+
+          console.log('准备添加到FormData的文件对象:', fileObj);
+          formData.append('file', fileObj);
+          formData.append('type', 'pdf');
+
+          try {
+            // 调用实际的导入API
+            const response = await apiWrapper.importNote(formData);
+            console.log('PDF导入结果:', response);
+
+            // 即使API返回失败，只要有数据就继续处理
+            if (response.success || (response.data && response.data.id)) {
+              setIsLoading(false);
+              Alert.alert('成功', '导入PDF成功');
+              loadNotes(); // 重新加载笔记列表
+              return;
+            }
+
+            // 如果没有数据，抛出错误
+            throw new Error(response.message || '导入PDF失败');
+          } catch (importError) {
+            console.error('导入PDF API调用失败，使用本地导入:', importError);
           }
 
-          // 如果没有数据，抛出错误
-          throw new Error(response.message || '导入PDF失败');
-        } catch (importError) {
-          console.error('导入PDF过程中出错:', importError);
-
-          // 即使API调用失败，也尝试使用本地导入
-          console.log('尝试使用本地导入方式');
+          // API调用失败或没有返回数据，使用本地导入
+          console.log('HomeScreen: 使用本地导入方式');
 
           // 创建本地笔记对象
           const noteId = Date.now() + '_' + Math.random().toString(36).substring(2, 11);
 
-          // 创建metadata对象
+          // 创建metadata对象，使用持久化后的文件信息
           const metadataObj = {
-            pdfPath: file.uri,
-            fileSize: file.size || null,
+            originalUri: persistedFile.originalUri,
+            localPath: persistedFile.localPath,
+            localUri: persistedFile.localUri,
+            fileName: persistedFile.fileName,
+            fileSize: persistedFile.fileSize,
+            fileType: persistedFile.fileType,
+            isPersistent: persistedFile.isPersistent,
             pageCount: null, // PDF页数，后续可以添加
             lastOpenedPage: 1, // 上次打开的页码
             lastOpenedTime: new Date().toISOString(), // 上次打开时间
-            fileCopyUri: file.fileCopyUri || null // 保存文件复制后的URI
+            createdAt: persistedFile.createdAt
           };
 
           // 将metadata转换为字符串
@@ -623,17 +637,17 @@ const HomeScreen = ({ navigation }) => {
             title: file.name ? file.name.split('.')[0] : 'PDF文档', // 使用文件名作为标题
             content: `PDF文件: ${file.name || '未命名文档'}`, // 明确标记为PDF文件
 
-            // 统一文件类型标识 - 确保这些字段被正确设置
+            // 统一文件类型标识
             type: 'pdf',
             file_type: 'pdf',
 
-            // 文件信息 - 确保这些字段被正确设置
-            file_name: file.name || `document_${Date.now()}.pdf`, // 保存原始文件名
-            file_uri: file.uri,
-            uri: file.uri, // 添加uri字段作为备用
-            path: file.uri, // 添加path字段作为备用
-            file_path: file.uri, // 添加file_path字段作为备用
-            url: file.uri, // 添加url字段作为备用
+            // 文件信息 - 使用持久化后的路径
+            file_name: persistedFile.fileName,
+            file_uri: persistedFile.localUri,
+            uri: persistedFile.localUri,
+            path: persistedFile.localPath,
+            file_path: persistedFile.localPath,
+            url: persistedFile.localUri,
 
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -654,7 +668,12 @@ const HomeScreen = ({ navigation }) => {
           // 保存到离线存储
           try {
             await offlineStorageService.saveNote(localNote);
-            console.log('HomeScreen: PDF文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
+            console.log('HomeScreen: PDF文件保存成功:', {
+              action: 'saveNote',
+              id: localNote._id || localNote.id,
+              type: localNote.file_type || localNote.type,
+              localPath: persistedFile.localPath
+            });
           } catch (e) {
             console.warn('HomeScreen: PDF文件保存失败:', e);
           }
@@ -663,9 +682,14 @@ const HomeScreen = ({ navigation }) => {
           dispatch(addNote(localNote));
           console.log('HomeScreen: PDF文件导入完成，笔记ID:', localNote._id);
 
-          // 日志已在上面的try-catch块中输出
           setIsLoading(false);
-          Alert.alert('成功', '导入PDF成功（本地模式）');
+          Alert.alert('成功', 'PDF文件已成功导入并持久化存储');
+          return;
+
+        } catch (persistError) {
+          console.error('HomeScreen: PDF文件持久化失败:', persistError);
+          setIsLoading(false);
+          Alert.alert('错误', `文件持久化失败: ${persistError.message}`);
           return;
         }
       }

@@ -148,18 +148,36 @@ const PPTViewer = ({ route, navigation }) => {
 
       let presentationPath = uri;
 
-      // 如果是content://协议，复制到本地
+      // 如果是content://协议，使用持久化服务复制到本地
       if (uri.startsWith('content://')) {
         setConversionMessage('正在复制演示文稿到本地...');
-        const fileExtension = getFileExtension(fileName || 'presentation.pptx');
-        const localFileName = `ppt_${Date.now()}.${fileExtension}`;
-        const localPath = `${RNFS.CachesDirectoryPath}/${localFileName}`;
 
-        await RNFS.copyFile(uri, localPath);
-        presentationPath = localPath;
-        setLocalFilePath(localPath);
+        try {
+          const filePersistenceService = require('../../services/files/filePersistenceService').default;
+          const persistedFile = await filePersistenceService.persistFile(
+            uri,
+            fileName || 'presentation.pptx',
+            'pptx'
+          );
 
-        console.log('PPTViewer: 文件复制到本地:', localPath);
+          presentationPath = persistedFile.localPath;
+          setLocalFilePath(persistedFile.localPath);
+
+          console.log('PPTViewer: 文件持久化完成:', persistedFile.localPath);
+        } catch (persistError) {
+          console.error('PPTViewer: 文件持久化失败，回退到缓存目录:', persistError);
+
+          // 如果持久化失败，回退到原来的缓存目录方式
+          const fileExtension = getFileExtension(fileName || 'presentation.pptx');
+          const localFileName = `ppt_${Date.now()}.${fileExtension}`;
+          const localPath = `${RNFS.CachesDirectoryPath}/${localFileName}`;
+
+          await RNFS.copyFile(uri, localPath);
+          presentationPath = localPath;
+          setLocalFilePath(localPath);
+
+          console.log('PPTViewer: 文件复制到缓存目录:', localPath);
+        }
       }
 
       // 立即显示预览信息，提高用户体验

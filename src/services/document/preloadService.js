@@ -103,23 +103,69 @@ class PreloadService {
    */
   async preloadDocument(uri, type) {
     const RNFS = require('react-native-fs');
-    
+    const { offlineStorageService } = require('../offline');
+
     try {
       let data;
-      
+      let actualPath = uri;
+
+      // 首先尝试从笔记元数据中获取本地路径
+      try {
+        // 查找使用此URI的笔记
+        const notes = await offlineStorageService.getAllNotes();
+        const relatedNote = notes.find(note => {
+          if (!note.metadata) return false;
+
+          let metadata;
+          try {
+            metadata = typeof note.metadata === 'string' ? JSON.parse(note.metadata) : note.metadata;
+          } catch (e) {
+            return false;
+          }
+
+          // 检查是否有本地路径信息
+          return metadata.originalUri === uri ||
+                 metadata.localPath ||
+                 metadata.localUri === uri ||
+                 note.file_uri === uri ||
+                 note.uri === uri;
+        });
+
+        if (relatedNote && relatedNote.metadata) {
+          const metadata = typeof relatedNote.metadata === 'string'
+            ? JSON.parse(relatedNote.metadata)
+            : relatedNote.metadata;
+
+          // 优先使用本地路径
+          if (metadata.localPath && await RNFS.exists(metadata.localPath)) {
+            actualPath = metadata.localPath;
+            console.log('PreloadService: 使用笔记元数据中的本地路径:', actualPath);
+          } else if (metadata.localUri && await RNFS.exists(metadata.localUri.replace('file://', ''))) {
+            actualPath = metadata.localUri.replace('file://', '');
+            console.log('PreloadService: 使用笔记元数据中的本地URI路径:', actualPath);
+          } else if (relatedNote.file_path && await RNFS.exists(relatedNote.file_path)) {
+            actualPath = relatedNote.file_path;
+            console.log('PreloadService: 使用笔记中的file_path:', actualPath);
+          }
+        }
+      } catch (metadataError) {
+        console.warn('PreloadService: 获取笔记元数据失败，使用原始URI:', metadataError);
+      }
+
       if (type === 'pdf') {
         // PDF预加载：只读取文件头部信息
-        if (uri.startsWith('content://')) {
+        if (actualPath.startsWith('content://')) {
           // 对于content://协议，先复制到缓存目录
           const dest = `${RNFS.CachesDirectoryPath}/preload_${Date.now()}.pdf`;
-          await RNFS.copyFile(uri, dest);
+          await RNFS.copyFile(actualPath, dest);
           data = dest; // 存储文件路径而不是内容
         } else {
-          data = uri;
+          // 使用本地路径或已处理的路径
+          data = actualPath;
         }
       } else if (type === 'docx' || type === 'pptx' || type === 'word' || type === 'ppt') {
         // Word/PPT预加载：读取完整内容为base64
-        let path = uri;
+        let path = actualPath;
 
         if (path.startsWith('content://')) {
           const ext = (type === 'docx' || type === 'word') ? 'docx' : 'pptx';
@@ -132,21 +178,21 @@ class PreloadService {
         data = await RNFS.readFile(path, 'base64');
       } else if (type === 'md' || type === 'txt' || type === 'markdown') {
         // 文本类型文档
-        data = await RNFS.readFile(uri, 'utf8');
+        data = await RNFS.readFile(actualPath, 'utf8');
       } else {
         // 其他类型文档，默认为文本
         try {
-          data = await RNFS.readFile(uri, 'utf8');
+          data = await RNFS.readFile(actualPath, 'utf8');
         } catch (error) {
           // 如果UTF-8读取失败，尝试base64
           console.warn(`PreloadService: UTF-8读取失败，尝试base64: ${error.message}`);
-          data = await RNFS.readFile(uri, 'base64');
+          data = await RNFS.readFile(actualPath, 'base64');
         }
       }
 
       // 缓存预加载的数据
       await documentCacheService.cacheDocument(uri, type, data);
-      
+
     } catch (error) {
       throw new Error(`预加载文档失败: ${error.message}`);
     }

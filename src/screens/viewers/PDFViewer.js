@@ -176,23 +176,54 @@ const PDFViewer = ({ route, navigation }) => {
             const metadata = typeof note.metadata === 'string'
               ? JSON.parse(note.metadata)
               : (note.metadata || {});
+
+            console.log('PDFViewer: 笔记元数据:', metadata);
+
+            // 优先使用持久化的本地路径
+            if (metadata.localPath) {
+              const exists = await RNFS.exists(metadata.localPath);
+              if (exists) {
+                console.log('PDFViewer: 使用持久化的本地路径:', metadata.localPath);
+                setLocalFilePath(metadata.localPath);
+                setPdfSource({ uri: `file://${metadata.localPath}`, cache: true });
+                setIsLoading(false);
+                return;
+              } else {
+                console.log('PDFViewer: 持久化文件不存在:', metadata.localPath);
+              }
+            }
+
+            // 如果有本地URI，尝试使用
+            if (metadata.localUri) {
+              const localPath = metadata.localUri.replace('file://', '');
+              const exists = await RNFS.exists(localPath);
+              if (exists) {
+                console.log('PDFViewer: 使用本地URI路径:', localPath);
+                setLocalFilePath(localPath);
+                setPdfSource({ uri: metadata.localUri, cache: true });
+                setIsLoading(false);
+                return;
+              }
+            }
+
+            // 如果有本地缓存路径，优先使用
             if (metadata.localCachedPath) {
               // 检查本地缓存文件是否存在
               const exists = await RNFS.exists(metadata.localCachedPath);
               if (exists) {
-                console.log('使用本地缓存文件:', metadata.localCachedPath);
+                console.log('PDFViewer: 使用本地缓存文件:', metadata.localCachedPath);
                 setLocalFilePath(metadata.localCachedPath);
                 setPdfSource({ uri: `file://${metadata.localCachedPath}`, cache: true });
                 setIsLoading(false);
                 return;
               } else {
-                console.log('本地缓存文件不存在，需要重新加载');
+                console.log('PDFViewer: 本地缓存文件不存在，需要重新加载');
               }
             }
 
             // 如果有fileCopyUri，优先使用它
             if (metadata.fileCopyUri) {
-              console.log('使用文件复制URI:', metadata.fileCopyUri);
+              console.log('PDFViewer: 使用文件复制URI:', metadata.fileCopyUri);
               const exists = await RNFS.exists(metadata.fileCopyUri.replace('file://', ''));
               if (exists) {
                 setPdfSource({ uri: metadata.fileCopyUri, cache: true });

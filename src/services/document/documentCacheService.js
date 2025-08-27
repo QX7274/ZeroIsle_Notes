@@ -38,9 +38,24 @@ class DocumentCacheService {
 
   /**
    * 生成缓存键
+   * 支持本地文件路径和content URI
    */
   generateCacheKey(uri, type) {
-    const key = `${type}_${encodeURIComponent(uri)}`;
+    // 对于本地文件路径，使用文件名和修改时间作为键的一部分
+    let keyBase = uri;
+
+    // 如果是本地文件路径，尝试获取文件信息
+    if (!uri.startsWith('content://') && !uri.startsWith('http')) {
+      try {
+        const fileName = uri.split('/').pop() || 'unknown';
+        keyBase = `local_${fileName}_${uri.length}`;
+      } catch (error) {
+        // 如果获取文件信息失败，使用原始URI
+        keyBase = uri;
+      }
+    }
+
+    const key = `${type}_${encodeURIComponent(keyBase)}`;
     return key.replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
@@ -88,18 +103,40 @@ class DocumentCacheService {
 
   /**
    * 缓存文档数据
+   * 支持本地文件路径的缓存
    */
   async cacheDocument(uri, type, data) {
     await this.initialize();
-    
+
     const cacheKey = this.generateCacheKey(uri, type);
+
+    // 对于本地文件路径，添加文件信息
+    let fileInfo = {};
+    if (!uri.startsWith('content://') && !uri.startsWith('http')) {
+      try {
+        const exists = await RNFS.exists(uri);
+        if (exists) {
+          const stats = await RNFS.stat(uri);
+          fileInfo = {
+            isLocalFile: true,
+            fileSize: stats.size,
+            lastModified: stats.mtime,
+            filePath: uri
+          };
+        }
+      } catch (error) {
+        console.warn('DocumentCacheService: 获取本地文件信息失败:', error);
+      }
+    }
+
     const cacheData = {
       uri,
       type,
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...fileInfo
     };
-    
+
     // 保存到内存缓存
     this.cache.set(cacheKey, cacheData);
     

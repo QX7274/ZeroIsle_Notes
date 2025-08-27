@@ -1,6 +1,7 @@
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import { Platform } from 'react-native';
+import filePersistenceService from '../files/filePersistenceService';
 
 /**
  * 文档选择器服务
@@ -145,21 +146,49 @@ class DocumentPickerService {
         lastModified: document.lastModified || Date.now(),
       };
 
-      // 如果是content://协议，复制到应用缓存目录
+      // 如果是content://协议，使用文件持久化服务复制到应用私有目录
       if (document.uri.startsWith('content://')) {
-        const fileName = document.name || `document_${Date.now()}`;
-        const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
-        
-        console.log('DocumentPickerService: 复制文档到本地:', localPath);
-        await RNFS.copyFile(document.uri, localPath);
-        
-        documentInfo.localPath = localPath;
-        documentInfo.originalUri = document.uri;
-        documentInfo.uri = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+        console.log('DocumentPickerService: 检测到content://协议，使用持久化服务');
+
+        try {
+          const persistedFile = await filePersistenceService.persistFile(
+            document.uri,
+            document.name || `document_${Date.now()}`,
+            type
+          );
+
+          console.log('DocumentPickerService: 文档持久化完成:', persistedFile);
+
+          // 更新文档信息，使用持久化后的路径
+          documentInfo.localPath = persistedFile.localPath;
+          documentInfo.localUri = persistedFile.localUri;
+          documentInfo.originalUri = persistedFile.originalUri;
+          documentInfo.uri = persistedFile.localUri;
+          documentInfo.fileName = persistedFile.fileName;
+          documentInfo.uniqueFileName = persistedFile.uniqueFileName;
+          documentInfo.isPersistent = persistedFile.isPersistent;
+          documentInfo.persistedAt = persistedFile.createdAt;
+
+        } catch (persistError) {
+          console.error('DocumentPickerService: 文档持久化失败，回退到缓存目录:', persistError);
+
+          // 如果持久化失败，回退到原来的缓存目录方式
+          const fileName = document.name || `document_${Date.now()}`;
+          const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+
+          console.log('DocumentPickerService: 复制文档到缓存目录:', localPath);
+          await RNFS.copyFile(document.uri, localPath);
+
+          documentInfo.localPath = localPath;
+          documentInfo.originalUri = document.uri;
+          documentInfo.uri = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+          documentInfo.isPersistent = false;
+        }
       }
 
       // 验证文件是否存在
-      const exists = await RNFS.exists(documentInfo.localPath || documentInfo.uri.replace('file://', ''));
+      const pathToCheck = documentInfo.localPath || documentInfo.uri.replace('file://', '');
+      const exists = await RNFS.exists(pathToCheck);
       if (!exists) {
         throw new Error('文档文件不存在或无法访问');
       }
