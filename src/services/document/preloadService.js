@@ -112,7 +112,7 @@ class PreloadService {
       // 首先尝试从笔记元数据中获取本地路径
       try {
         // 查找使用此URI的笔记
-        const notes = await offlineStorageService.getAllNotes();
+        const notes = await offlineStorageService.getNotes();
         const relatedNote = notes.find(note => {
           if (!note.metadata) return false;
 

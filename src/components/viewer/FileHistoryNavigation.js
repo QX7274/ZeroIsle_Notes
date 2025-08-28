@@ -19,12 +19,10 @@ const FileHistoryNavigation = ({
   currentFileId,
   onFileSelect,
   navigation,
-  visible = true,
-  compact = false // 新增紧凑模式参数
+  visible = true
 }) => {
   const { colors } = useTheme();
   const [history, setHistory] = useState([]);
-  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     // 加载历史记录
@@ -60,39 +58,67 @@ const FileHistoryNavigation = ({
   };
 
   const navigateToViewer = (file) => {
-    const { type, uri, title, fileName, id } = file;
-    
-    let screenName = 'PDFViewer'; // 默认
-    
-    switch (type) {
-      case 'pdf':
-        screenName = 'PDFViewer';
-        break;
-      case 'word':
-      case 'doc':
-      case 'docx':
-        screenName = 'DocViewer';
-        break;
-      case 'powerpoint':
-      case 'ppt':
-      case 'pptx':
-        screenName = 'PPTViewer';
-        break;
-      case 'markdown':
-      case 'md':
-        screenName = 'MarkdownViewer';
-        break;
-      default:
-        screenName = 'PDFViewer';
-    }
+    const { type, uri, title, fileName, id, noteType } = file;
 
-    navigation.navigate(screenName, {
+    let screenName = 'PDFViewer'; // 默认
+    let params = {
       uri,
       title,
       fileName,
       noteId: id,
       type,
       fromFileHistory: true // 标识从文件历史进入
+    };
+
+    // 根据文件类型或笔记类型确定导航目标
+    if (noteType === 'card') {
+      screenName = 'CardNote';
+      params = {
+        noteId: id,
+        title: title || fileName,
+        content: '',
+        fromFileHistory: true
+      };
+    } else if (noteType === 'paged') {
+      screenName = 'PagedNote';
+      params = {
+        noteId: id,
+        title: title || fileName,
+        noteStyle: 'blank',
+        fromFileHistory: true
+      };
+    } else {
+      // 文档类型
+      switch (type) {
+        case 'pdf':
+          screenName = 'PDFViewer';
+          break;
+        case 'word':
+        case 'doc':
+        case 'docx':
+          screenName = 'DocViewer';
+          break;
+        case 'powerpoint':
+        case 'ppt':
+        case 'pptx':
+          screenName = 'PPTViewer';
+          break;
+        case 'markdown':
+        case 'md':
+          screenName = 'MarkdownViewer';
+          break;
+        default:
+          screenName = 'PDFViewer';
+      }
+    }
+
+    // 导航时重置到主页，然后导航到目标页面
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home' },
+        { name: screenName, params }
+      ],
     });
   };
 
@@ -133,26 +159,6 @@ const FileHistoryNavigation = ({
     }
   };
 
-  const getFileColor = (type) => {
-    switch (type) {
-      case 'pdf':
-        return '#D32F2F';
-      case 'word':
-      case 'doc':
-      case 'docx':
-        return '#1976D2';
-      case 'powerpoint':
-      case 'ppt':
-      case 'pptx':
-        return '#FF6F00';
-      case 'markdown':
-      case 'md':
-        return '#388E3C';
-      default:
-        return colors.onSurfaceVariant;
-    }
-  };
-
   const truncateFileName = (name, maxLength = 15) => {
     if (name.length <= maxLength) return name;
     return name.substring(0, maxLength - 3) + '...';
@@ -162,42 +168,17 @@ const FileHistoryNavigation = ({
     return null;
   }
 
-  const displayHistory = isExpanded ? history : history.slice(0, 5);
-
   return (
-    <View style={[
-      compact ? styles.compactContainer : styles.container,
-      { backgroundColor: colors.surface }
-    ]}>
-      <View style={compact ? styles.compactHeader : styles.header}>
-        <View style={styles.headerLeft}>
-          <Icon name="history" size={compact ? 14 : 16} color={colors.onSurfaceVariant} />
-        </View>
-
-        {history.length > 5 && !compact && (
-          <TouchableOpacity
-            style={styles.expandButton}
-            onPress={() => setIsExpanded(!isExpanded)}
-          >
-            <Icon
-              name={isExpanded ? 'expand-less' : 'expand-more'}
-              size={16}
-              color={colors.onSurfaceVariant}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        {displayHistory.map((file, index) => {
+        {history.slice(0, 8).map((file) => {
           const isCurrentFile = file.id === currentFileId;
-          const fileColor = getFileColor(file.type);
-          
+
           return (
             <TouchableOpacity
               key={file.id}
@@ -211,44 +192,26 @@ const FileHistoryNavigation = ({
               onPress={() => handleFileSelect(file)}
               activeOpacity={0.7}
             >
-              <View style={styles.fileContent}>
-                <View style={styles.fileHeader}>
-                  <Icon 
-                    name={getFileIcon(file.type)} 
-                    size={16} 
-                    color={fileColor} 
-                  />
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => handleRemoveFile(file.id, file.fileName)}
-                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                  >
-                    <Icon name="close" size={12} color={colors.onSurfaceVariant} />
-                  </TouchableOpacity>
-                </View>
-                
-                <Text 
-                  style={[
-                    styles.fileName,
-                    { 
-                      color: isCurrentFile ? colors.onPrimaryContainer : colors.onSurface,
-                      fontWeight: isCurrentFile ? '600' : '400'
-                    }
-                  ]}
-                  numberOfLines={1}
-                >
-                  {truncateFileName(file.fileName)}
-                </Text>
-                
-                <Text 
-                  style={[
-                    styles.fileType,
-                    { color: isCurrentFile ? colors.onPrimaryContainer : colors.onSurfaceVariant }
-                  ]}
-                >
-                  {file.type.toUpperCase()}
-                </Text>
-              </View>
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => handleRemoveFile(file.id, file.fileName)}
+                hitSlop={{ top: 3, bottom: 3, left: 3, right: 3 }}
+              >
+                <Icon name="close" size={8} color={colors.onSurfaceVariant} />
+              </TouchableOpacity>
+
+              <Text
+                style={[
+                  styles.fileName,
+                  {
+                    color: isCurrentFile ? colors.onPrimaryContainer : colors.onSurface,
+                    fontWeight: isCurrentFile ? '600' : '400'
+                  }
+                ]}
+                numberOfLines={1}
+              >
+                {truncateFileName(file.fileName || file.title, 10)}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -259,87 +222,46 @@ const FileHistoryNavigation = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 2, // 进一步减少垂直padding
-    paddingHorizontal: 6, // 进一步减少水平padding
+    paddingVertical: 1,
+    paddingHorizontal: 2,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2, // 进一步减少间距
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3, // 减少间距
-  },
-  headerTitle: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  expandButton: {
-    padding: 2,
+    height: 30,
   },
   scrollView: {
     flexGrow: 0,
   },
   scrollContent: {
-    gap: 6, // 减少间距
+    gap: 6,
     paddingRight: 6,
   },
   fileItem: {
-    width: 70, // 缩小宽度
-    height: 50, // 缩小高度
+    minWidth: 70,
+    height: 20,
     borderRadius: 6,
     borderWidth: 1,
-    padding: 4, // 减少内边距
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  fileContent: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-  },
-  fileHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 2,
+    position: 'relative',
   },
   removeButton: {
-    padding: 1,
+    position: 'absolute',
+    top: 2,
+    right: -5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(245, 7, 7, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
   },
   fileName: {
-    fontSize: 9, // 缩小字体
+    fontSize: 8,
     textAlign: 'center',
-    marginBottom: 1,
-    lineHeight: 10,
-  },
-  fileType: {
-    fontSize: 7, // 缩小字体
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  // 紧凑模式样式
-  compactContainer: {
-    paddingVertical: 1, // 进一步减少垂直内边距
-    paddingHorizontal: 4, // 进一步减少水平内边距
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  compactHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 1, // 进一步减少间距
-  },
-  compactHeaderTitle: {
-    fontSize: 9, // 缩小字体
-    fontWeight: '500',
+    lineHeight: 12,
   },
 });
 

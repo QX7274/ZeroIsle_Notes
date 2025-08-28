@@ -151,14 +151,44 @@ const PagedNoteScreen = ({ route, navigation }) => {
     loadOrCreateNote();
   }, []); // 只在组件挂载时执行一次
 
+  // 添加到文件历史
+  useEffect(() => {
+    try {
+      const fileHistoryService = require('../../services/fileHistoryService').default;
+      if (docId && title && fileHistoryService && fileHistoryService.addFile) {
+        fileHistoryService.addFile({
+          uri: docId,
+          title: title,
+          type: 'paged_note',
+          noteType: 'paged',
+          fileName: title,
+          noteId: docId
+        });
+      }
+    } catch (e) {
+      // 静默处理，不影响主功能
+    }
+  }, [docId, title]);
+
   // 自动保存功能
   useEffect(() => {
     const autoSave = async () => {
       try {
+        // 检查是否有实际内容需要保存
+        const hasContent = pages.some(page =>
+          page.paths.length > 0 || page.images.length > 0
+        );
+
+        // 只有在有实际内容或标题时才保存
+        if (!hasContent && !title.trim()) {
+          console.log('PagedNoteScreen: 没有内容，跳过自动保存');
+          return;
+        }
+
         const noteData = {
           _id: docId,
           id: docId,
-          title,
+          title: title.trim() || '无标题笔记',
           type: 'paged_note',
           noteStyle,
           currentPage,
@@ -177,9 +207,9 @@ const PagedNoteScreen = ({ route, navigation }) => {
     };
 
     // 延迟自动保存，避免频繁保存
-    const timeoutId = setTimeout(autoSave, 2000);
+    const timeoutId = setTimeout(autoSave, 3000);
     return () => clearTimeout(timeoutId);
-  }, [currentPage, totalPages, pages]); // 当页面数据变化时自动保存
+  }, [currentPage, totalPages, pages, title]); // 当页面数据变化时自动保存
 
   
   // 手势处理 - 简化版本，专注于缩放和翻页
@@ -448,10 +478,20 @@ const PagedNoteScreen = ({ route, navigation }) => {
   // 保存功能
   const saveNote = async () => {
     try {
+      // 检查是否有实际内容需要保存
+      const hasContent = pages.some(page =>
+        page.paths.length > 0 || page.images.length > 0
+      );
+
+      if (!hasContent && !title.trim()) {
+        Alert.alert('提示', '没有内容需要保存');
+        return;
+      }
+
       const noteData = {
         _id: docId,
         id: docId,
-        title,
+        title: title.trim() || '无标题笔记',
         type: 'paged_note',
         noteStyle,
         currentPage,

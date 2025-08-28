@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import {
   View,
   FlatList,
@@ -14,6 +14,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import documentPickerService from '../../services/document/documentPickerService';
@@ -67,18 +68,11 @@ const HomeScreen = ({ navigation }) => {
 
         // 加载排序偏好
         try {
-          // 确保离线存储服务已初始化
-          if (!offlineStorageService.initialized) {
-            await offlineStorageService.initialize();
-          }
-
-          // 使用realmService直接获取数据
-          const { realmService } = require('../../services/database/realmService');
-          const sortPreference = await realmService.findOne('settings', { key: 'home_sort_preference' });
-
-          if (sortPreference && sortPreference.value) {
-            setSortOption(sortPreference.value);
-            console.log('已加载排序偏好:', sortPreference.value);
+          // 使用AsyncStorage替代Realm来存储排序偏好，避免Realm关闭问题
+          const savedSortOption = await AsyncStorage.getItem('home_sort_preference');
+          if (savedSortOption) {
+            setSortOption(savedSortOption);
+            console.log('已加载排序偏好:', savedSortOption);
           }
         } catch (sortError) {
           console.warn('加载排序偏好失败:', sortError);
@@ -206,8 +200,16 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   // 处理排序变化
-  const handleSortChange = useCallback((newSortOption) => {
+  const handleSortChange = useCallback(async (newSortOption) => {
     setSortOption(newSortOption);
+
+    // 保存到AsyncStorage
+    try {
+      await AsyncStorage.setItem('home_sort_preference', newSortOption);
+      console.log('排序偏好已保存:', newSortOption);
+    } catch (error) {
+      console.warn('保存排序偏好失败:', error);
+    }
   }, []);
 
   // 创建无限画布
@@ -397,7 +399,311 @@ const HomeScreen = ({ navigation }) => {
 
 练习题目：
 
-总结：`
+总结：`,
+      review: `🔄 周期回顾
+📅 回顾期间：${new Date().toLocaleDateString()}
+
+✅ 完成的事情：
+•
+•
+•
+
+❌ 未完成的事情：
+•
+•
+
+💡 经验教训：
+
+🎯 下期目标：
+•
+•
+
+📊 整体评价：/10`,
+      research: `🔍 研究调研
+📋 研究主题：
+📅 研究日期：${new Date().toLocaleDateString()}
+🎯 研究目的：
+
+📚 资料来源：
+•
+•
+•
+
+🔑 关键发现：
+•
+•
+•
+
+📊 数据分析：
+
+💭 结论总结：
+
+📝 后续行动：
+•
+• `,
+      travel: `✈️ 旅行记录
+📍 目的地：
+📅 旅行日期：${new Date().toLocaleDateString()}
+👥 同行人员：
+
+🗺️ 行程安排：
+Day 1:
+Day 2:
+Day 3:
+
+💰 费用预算：
+交通：
+住宿：
+餐饮：
+门票：
+其他：
+
+📸 精彩瞬间：
+•
+•
+•
+
+💡 旅行心得：
+
+⭐ 推荐指数：/10`,
+      health: `💊 健康管理
+📅 记录日期：${new Date().toLocaleDateString()}
+
+🏃‍♂️ 运动记录：
+运动类型：
+运动时长：
+消耗卡路里：
+
+🍎 饮食记录：
+早餐：
+午餐：
+晚餐：
+加餐：
+
+💤 睡眠记录：
+入睡时间：
+起床时间：
+睡眠质量：/10
+
+🩺 健康指标：
+体重：
+血压：
+心率：
+
+💊 用药记录：
+•
+•
+
+📝 健康笔记：`,
+      finance: `💰 财务管理
+📅 记录日期：${new Date().toLocaleDateString()}
+
+💸 支出记录：
+类别 | 金额 | 备注
+餐饮 | ¥ |
+交通 | ¥ |
+购物 | ¥ |
+娱乐 | ¥ |
+其他 | ¥ |
+
+💵 收入记录：
+来源 | 金额 | 备注
+工资 | ¥ |
+兼职 | ¥ |
+投资 | ¥ |
+其他 | ¥ |
+
+📊 月度预算：
+总预算：¥
+已支出：¥
+剩余：¥
+
+🎯 理财目标：
+•
+•
+•
+
+📈 投资记录：
+股票：
+基金：
+其他：`,
+      cooking: `👨‍🍳 美食烹饪
+🍽️ 菜品名称：
+📅 制作日期：${new Date().toLocaleDateString()}
+👥 份量：人份
+⏱️ 制作时间：分钟
+
+🛒 食材清单：
+•
+•
+•
+•
+•
+
+👩‍🍳 制作步骤：
+1.
+2.
+3.
+4.
+5.
+
+💡 烹饪技巧：
+•
+•
+
+🌶️ 口味调整：
+咸淡：
+辣度：
+甜度：
+
+📸 成品照片：
+[添加照片]
+
+⭐ 满意度：/10
+📝 改进建议：`,
+      workout: `💪 运动健身
+📅 训练日期：${new Date().toLocaleDateString()}
+🏋️‍♂️ 训练类型：
+⏱️ 训练时长：分钟
+
+🔥 热身运动：
+•
+•
+
+💪 主要训练：
+动作 | 组数 | 次数/重量 | 休息时间
+ |  |  |
+ |  |  |
+ |  |  |
+ |  |  |
+
+🧘‍♂️ 拉伸放松：
+•
+•
+
+💧 补水记录：ml
+🍎 训练前后饮食：
+训练前：
+训练后：
+
+📊 身体状态：
+精力：/10
+肌肉酸痛：/10
+整体感受：
+
+🎯 下次目标：
+•
+• `,
+      music: `🎵 音乐笔记
+📅 记录日期：${new Date().toLocaleDateString()}
+
+🎼 曲目信息：
+曲名：
+作者/演奏者：
+风格：
+调性：
+节拍：
+
+🎹 学习内容：
+•
+•
+•
+
+🎯 练习重点：
+•
+•
+
+⏱️ 练习时长：分钟
+
+📝 技巧要点：
+•
+•
+•
+
+🎧 听后感：
+
+📊 掌握程度：/10
+
+🎯 下次练习计划：
+•
+• `,
+      shopping: `🛒 购物清单
+📅 购物日期：${new Date().toLocaleDateString()}
+🏪 购物地点：
+
+🛍️ 必需品：
+□
+□
+□
+□
+
+🎁 想要的：
+□
+□
+□
+
+💰 预算控制：
+总预算：¥
+已花费：¥
+剩余：¥
+
+🏷️ 优惠信息：
+•
+•
+•
+
+📊 价格比较：
+商品 | 店铺A | 店铺B | 店铺C | 最优选择
+ | ¥ | ¥ | ¥ |
+ | ¥ | ¥ | ¥ |
+
+✅ 已购买：
+☑
+☑
+
+📝 购物心得：`,
+      habit: `📈 习惯养成
+📅 开始日期：${new Date().toLocaleDateString()}
+
+🎯 目标习惯：
+习惯名称：
+期望频率：
+目标时长：
+
+📊 追踪记录：
+Week 1: □□□□□□□
+Week 2: □□□□□□□
+Week 3: □□□□□□□
+Week 4: □□□□□□□
+
+💪 完成情况：
+本周完成：/7天
+本月完成：/30天
+完成率：%
+
+🏆 里程碑：
+□ 连续7天
+□ 连续14天
+□ 连续21天
+□ 连续30天
+
+💡 心得体会：
+•
+•
+•
+
+🚧 遇到的困难：
+•
+•
+
+✨ 改进方法：
+•
+•
+
+🎉 奖励机制：
+7天奖励：
+21天奖励：
+30天奖励：`
     };
 
     return templates[cardType.id] || '';
@@ -980,14 +1286,12 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const renderNoteItem = ({ item, index }) => {
+  // 优化的笔记项组件，使用memo避免不必要的重新渲染
+  const NoteItem = memo(({ item, index, onPress, onLongPress }) => {
     // 防止item为null或undefined
     if (!item) {
-      console.warn('renderNoteItem收到无效的item:', item);
       return null;
     }
-
-    console.log('渲染笔记项:', item, '索引:', index);
 
     // 根据笔记类型渲染不同的封面
     const renderCover = () => {
@@ -1378,7 +1682,109 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
     );
-  };
+  }, (prevProps, nextProps) => {
+    // 自定义比较函数，只有关键属性变化时才重新渲染
+    return (
+      prevProps.item?._id === nextProps.item?._id &&
+      prevProps.item?.id === nextProps.item?.id &&
+      prevProps.item?.title === nextProps.item?.title &&
+      prevProps.item?.updated_at === nextProps.item?.updated_at
+    );
+  });
+
+  // 渲染笔记项的包装函数
+  const renderNoteItem = useCallback(({ item, index }) => {
+    const columnCount = isLandscape ? 4 : 3;
+    const screenWidth = Dimensions.get('window').width;
+    const totalPadding = 32;
+    const totalGap = (columnCount - 1) * 16;
+    const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
+
+    return (
+      <NoteItem
+        item={item}
+        index={index}
+        onPress={() => {
+          const handleFilePress = (item) => {
+            // 处理文件点击的逻辑...
+            const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
+            const name = item.file_name || item.title || '';
+            const uri = possibleUris[0] || '';
+
+            const isPdf = name.toLowerCase().includes('.pdf') || uri.toLowerCase().includes('.pdf') || (item.file_type && item.file_type.toLowerCase().includes('pdf'));
+            const isDoc = name.toLowerCase().includes('.doc') || uri.toLowerCase().includes('.doc') || (item.file_type && item.file_type.toLowerCase().includes('doc'));
+            const isPpt = name.toLowerCase().includes('.ppt') || uri.toLowerCase().includes('.ppt') || (item.file_type && item.file_type.toLowerCase().includes('ppt'));
+            const isMd = name.toLowerCase().includes('.md') || uri.toLowerCase().includes('.md') || (item.file_type && item.file_type.toLowerCase().includes('md'));
+
+            if (isPdf && possibleUris.length > 0) {
+              navigation.navigate('PDFViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名PDF'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+              });
+            } else if (isDoc && possibleUris.length > 0) {
+              navigation.navigate('DocViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+                type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc'
+              });
+            } else if (isPpt && possibleUris.length > 0) {
+              navigation.navigate('PPTViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+                type: 'pptx'
+              });
+            } else if (isMd && possibleUris.length > 0) {
+              navigation.navigate('MarkdownViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : 'Markdown'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+              });
+            } else {
+              // 处理其他类型的笔记
+              const noteId = item._id || item.id;
+              const noteType = item.noteType || item.note_type || 'card';
+
+              if (noteType === 'paged') {
+                navigation.navigate('PagedNote', {
+                  noteId,
+                  title: item.title || '分页笔记',
+                  content: item.content || ''
+                });
+              } else if (noteType === 'canvas') {
+                navigation.navigate('InfiniteCanvas', {
+                  noteId,
+                  title: item.title || '无限画布',
+                  content: item.content || ''
+                });
+              } else {
+                navigation.navigate('CardNote', {
+                  noteId,
+                  title: item.title || '笔记',
+                  content: item.content || ''
+                });
+              }
+            }
+          };
+          handleFilePress(item);
+        }}
+        onLongPress={() => {
+          Alert.alert(
+            '笔记操作',
+            `选择对"${item.title || '未命名笔记'}"的操作`,
+            [
+              { text: '重命名', onPress: () => handleRenameNote(item) },
+              { text: '导出/分享', onPress: () => handleExportNote(item) },
+              { text: '删除', onPress: () => handleDeleteNote(item._id || item.id), style: 'destructive' },
+              { text: '取消', style: 'cancel' }
+            ]
+          );
+        }}
+      />
+    );
+  }, [isLandscape, navigation, handleRenameNote, handleExportNote, handleDeleteNote]);
 
   // 处理笔记重命名 - 优化为立即响应
   const handleRenameNote = (note) => {
@@ -1599,24 +2005,29 @@ const HomeScreen = ({ navigation }) => {
             style: 'destructive',
             onPress: async () => {
               try {
-                const result = await apiWrapper.deleteNote(id);
-                if (result && result.success) {
-                  console.log('笔记已通过API删除:', result);
-                  dispatch(deleteNote(id));
+                // 1. 立即更新UI，提供快速响应
+                dispatch(deleteNote(id));
+                const updatedNotes = notes.filter(note => {
+                  const noteId = note._id || note.id;
+                  return noteId !== id;
+                });
+                setNotes(updatedNotes);
 
-                  // 从本地笔记列表中移除
-                  const updatedNotes = notes.filter(note => {
-                    const noteId = note._id || note.id;
-                    return noteId !== id;
-                  });
-                  setNotes(updatedNotes);
-                } else {
-                  console.warn('API返回成功但结果异常:', result);
-                  Alert.alert('部分成功', '笔记可能未完全从数据库中删除');
-                }
-              } catch (deleteError) {
-                console.error('删除笔记失败:', deleteError);
-                Alert.alert('错误', '删除失败: ' + (deleteError.message || '未知错误'));
+                // 2. 在后台执行API删除
+                setTimeout(async () => {
+                  try {
+                    await apiWrapper.deleteNote(id);
+                    console.log('笔记已从后台删除:', id);
+                  } catch (deleteError) {
+                    console.warn('后台删除失败，但UI已更新:', deleteError);
+                    // 如果后台删除失败，可以考虑回滚UI状态
+                    // 但为了用户体验，这里选择静默处理
+                  }
+                }, 0);
+
+              } catch (error) {
+                console.error('删除笔记失败:', error);
+                Alert.alert('错误', '删除失败: ' + (error.message || '未知错误'));
               }
             }
           }
@@ -1811,6 +2222,12 @@ const HomeScreen = ({ navigation }) => {
               };
             }}
             scrollEnabled={false} // 禁用FlatList的滚动，由外层ScrollView处理
+            // 性能优化配置
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={6}
+            updateCellsBatchingPeriod={100}
+            initialNumToRender={12}
+            windowSize={10}
           />
         ) : (
           renderEmptyState()

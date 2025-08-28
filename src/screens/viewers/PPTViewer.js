@@ -375,6 +375,19 @@ const PPTViewer = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 工具栏容器 - 始终显示在最顶部 */}
+      {!isLoading && !error && (
+        <ToolbarContainer>
+          <AllInOneToolbar
+            onToolChange={handleToolChange}
+            onColorChange={handleColorChange}
+            onStrokeWidthChange={handleStrokeWidthChange}
+            onImageUpload={handleImageUpload}
+            onBookmarkAdd={handleAddBookmark}
+            onBookmarkList={() => setBookmarkVisible(true)}
+          />
+        </ToolbarContainer>
+      )}
       <ViewerLayout
         headerLeft={<BackButton onPress={handleGoBack} color={colors.primary} background={colors.primary + '20'} />}
         headerRight={
@@ -390,27 +403,14 @@ const PPTViewer = ({ route, navigation }) => {
         }
         title={title || 'PPT演示文稿'}
         showToolbar={true}
-        hasExternalToolbar={false}
+        hasExternalToolbar={true}
+        externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
         showHistoryNavigation={true}
-        historyNavigationHeight={25}
+        historyNavigationHeight={30}
         noteId={noteId}
         navigation={navigation}
         colors={colors}
       >
-
-        {/* 工具栏容器 - 始终显示 */}
-        {!isLoading && !error && (
-          <ToolbarContainer>
-            <AllInOneToolbar
-              onToolChange={handleToolChange}
-              onColorChange={handleColorChange}
-              onStrokeWidthChange={handleStrokeWidthChange}
-              onImageUpload={handleImageUpload}
-              onBookmarkAdd={handleAddBookmark}
-              onBookmarkList={() => setBookmarkVisible(true)}
-            />
-          </ToolbarContainer>
-        )}
 
         {/* 加载指示器 */}
         {isLoading && (

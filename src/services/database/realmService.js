@@ -161,11 +161,16 @@ class RealmService {
    * @returns {Promise<Realm>} Realm实例
    */
   async getRealm() {
-    if (this.realm && !this.realm.isClosed) {
-      return this.realm;
-    }
+    try {
+      if (this.realm && !this.realm.isClosed) {
+        return this.realm;
+      }
 
-    return this.openRealm();
+      return await this.openRealm();
+    } catch (error) {
+      console.error('获取Realm实例失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -176,12 +181,12 @@ class RealmService {
     try {
       await this.initialize();
 
-      // 关闭现有的Realm实例
-      this.closeRealm();
-
-      // 使用realmConfig中的openRealm函数 - 不再需要同步选项
-      this.realm = await openRealm();
-      console.info('Realm数据库打开成功');
+      // 只有在Realm实例不存在或已关闭时才重新打开
+      if (!this.realm || this.realm.isClosed) {
+        // 使用realmConfig中的openRealm函数 - 不再需要同步选项
+        this.realm = await openRealm();
+        console.info('Realm数据库打开成功');
+      }
 
       return this.realm;
     } catch (error) {

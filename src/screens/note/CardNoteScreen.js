@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  TextInput, 
-  ScrollView, 
-  TouchableOpacity, 
-  Text, 
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  ScrollView,
+  TouchableOpacity,
+  Text,
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Dimensions
+  PermissionsAndroid
 } from 'react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import Voice from '@react-native-voice/voice';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import { updateNote } from '../../redux/slices/notesSlice';
 import { offlineStorageService } from '../../services/offline';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
-import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
-import fileHistoryService from '../../services/fileHistoryService';
 import CheckboxTextInput from '../../components/note/CheckboxTextInput';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import BackButton from '../../components/viewer/BackButton';
 import SaveButton from '../../components/common/SaveButton';
+import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
 
 /**
  * 卡片笔记屏幕
@@ -32,17 +33,47 @@ const CardNoteScreen = ({ route, navigation }) => {
   const { noteId, title: initialTitle = '新建笔记', content: initialContent = '' } = route.params || {};
   const { colors } = useTheme();
   const dispatch = useDispatch();
-  const { width: screenWidth } = Dimensions.get('window');
+
   
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
-  const [isEditing, setIsEditing] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [showToolbar, setShowToolbar] = useState(false);
-  
+  const [recordTime, setRecordTime] = useState('00:00');
+  const [isListening, setIsListening] = useState(false);
+  const [recognizedText, setRecognizedText] = useState('');
+  const [audioFiles, setAudioFiles] = useState([]);
+
   const contentInputRef = useRef(null);
   const autoSaveTimeoutRef = useRef(null);
+  const audioRecorderPlayer = useRef(null);
+  
+  // 在组件挂载时初始化 AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      // 检查 AudioRecorderPlayer 是否可用
+      if (AudioRecorderPlayer) {
+        audioRecorderPlayer.current = new AudioRecorderPlayer();
+        console.log('AudioRecorderPlayer初始化成功');
+      } else {
+        console.warn('AudioRecorderPlayer模块不可用');
+      }
+    } catch (error) {
+      console.warn('AudioRecorderPlayer初始化失败:', error);
+    }
+
+    return () => {
+      // 组件卸载时清理资源
+      if (audioRecorderPlayer.current) {
+        try {
+          audioRecorderPlayer.current.removeRecordBackListener();
+          audioRecorderPlayer.current.removePlayBackListener();
+        } catch (error) {
+          console.warn('清理AudioRecorderPlayer失败:', error);
+        }
+      }
+    };
+  }, []);
 
   // 组件加载时恢复笔记数据
   useEffect(() => {
@@ -73,15 +104,17 @@ const CardNoteScreen = ({ route, navigation }) => {
     const count = content.replace(/\s/g, '').length;
     setWordCount(count);
 
-    // 自动保存（仅在有内容变化时）
-    if (content.trim() || title.trim()) {
+    // 自动保存（仅在有实际内容时）
+    const hasRealContent = content.trim().length > 5 && title.trim().length > 0;
+
+    if (hasRealContent) {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
 
       autoSaveTimeoutRef.current = setTimeout(() => {
         saveNote();
-      }, 2000); // 2秒后自动保存
+      }, 5000); // 5秒后自动保存，避免频繁保存
     }
 
     return () => {
@@ -91,19 +124,87 @@ const CardNoteScreen = ({ route, navigation }) => {
     };
   }, [title, content]);
 
+  // 添加到文件历史（进入页面或标题变化时）
+  useEffect(() => {
+    try {
+      const fileHistoryService = require('../../services/fileHistoryService').default;
+      const effectiveTitle = (title || initialTitle || '卡片笔记').trim();
+      if ((noteId || effectiveTitle) && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
+        fileHistoryService.addFile({
+          uri: noteId || effectiveTitle,
+          title: effectiveTitle,
+          type: 'card',
+          noteType: 'card',
+          fileName: effectiveTitle,
+          noteId: noteId
+        });
+      }
+    } catch (e) {
+      // 静默处理，不影响主功能
+    }
+  }, [noteId, title]);
+
+  // 初始化语音识别
+  useEffect(() => {
+    Voice.onSpeechStart = () => setIsListening(true);
+    Voice.onSpeechEnd = () => setIsListening(false);
+    Voice.onSpeechError = (error) => {
+      console.error('语音识别错误:', error);
+      setIsListening(false);
+    };
+    Voice.onSpeechResults = (result) => {
+      if (result.value && result.value.length > 0) {
+        const recognizedText = result.value[0];
+        setRecognizedText(recognizedText);
+
+        // 自动插入识别的文字到笔记中
+        if (recognizedText.trim()) {
+          Alert.alert(
+            '语音识别完成',
+            `识别结果: "${recognizedText}"\n\n是否插入到笔记中？`,
+            [
+              { text: '取消', style: 'cancel' },
+              {
+                text: '插入',
+                onPress: () => {
+                  const timestamp = new Date().toLocaleString();
+                  const textToInsert = `\n\n[🎤 语音转文字 - ${timestamp}]\n${recognizedText}\n\n`;
+                  setContent(prev => prev + textToInsert);
+                  setRecognizedText('');
+                }
+              }
+            ]
+          );
+        }
+      }
+    };
+    Voice.onSpeechPartialResults = (result) => {
+      if (result.value && result.value.length > 0) {
+        setRecognizedText(result.value[0]);
+      }
+    };
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
+
   const saveNote = async () => {
     try {
-      // 如果没有内容，不保存
-      if (!content.trim() && !title.trim()) {
+      // 如果没有实际内容，不保存
+      if (content.trim().length < 5) {
         return { success: true };
       }
 
       const currentNoteId = noteId || `card_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
+      // 确保有标题
+      const finalTitle = title.trim() || `卡片笔记_${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
+
       const noteData = {
         _id: currentNoteId,
         id: currentNoteId,
-        title: title || '无标题',
+        title: finalTitle,
         content,
         type: 'card',
         noteType: 'card', // 添加noteType字段
@@ -117,256 +218,239 @@ const CardNoteScreen = ({ route, navigation }) => {
         user_id: 'current_user'
       };
 
-      console.log('CardNoteScreen: 开始保存笔记:', noteData);
       await offlineStorageService.saveNote(noteData);
-      dispatch(updateNote(noteData));
-
-      console.log('CardNoteScreen: 笔记保存成功');
+      try {
+        if (dispatch) {
+          dispatch(updateNote(noteData));
+        }
+      } catch (reduxError) {
+        console.warn('Redux更新失败:', reduxError);
+        // Redux失败不影响保存功能
+      }
       return { success: true };
     } catch (error) {
-      console.error('CardNoteScreen: 笔记保存失败:', error);
+      console.error('保存失败:', error.message);
       throw error;
     }
   };
 
-  const handleStartRecording = () => {
-    Alert.alert(
-      '语音转文字',
-      '语音转文字功能正在开发中，敬请期待！',
-      [{ text: '确定', style: 'default' }]
-    );
+  // 请求录音权限
+  const requestRecordPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: '录音权限',
+            message: '需要录音权限来使用语音功能',
+            buttonNeutral: '稍后询问',
+            buttonNegative: '取消',
+            buttonPositive: '确定',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
   };
 
-  const handleExportNote = () => {
+  // 开始录音
+  const startRecording = async () => {
+    try {
+      const hasPermission = await requestRecordPermission();
+      if (!hasPermission) {
+        Alert.alert('权限不足', '需要录音权限才能使用语音功能');
+        return;
+      }
+
+      const path = Platform.select({
+        ios: 'voice_recording.m4a',
+        android: 'sdcard/voice_recording.mp4',
+      });
+
+      if (!audioRecorderPlayer.current) {
+        Alert.alert('错误', '录音器未初始化');
+        return;
+      }
+
+      await audioRecorderPlayer.current.startRecorder(path);
+      setIsRecording(true);
+      setRecordTime('00:00');
+
+      audioRecorderPlayer.current.addRecordBackListener((e) => {
+        const minutes = Math.floor(e.currentPosition / 60000);
+        const seconds = Math.floor((e.currentPosition % 60000) / 1000);
+        setRecordTime(
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        );
+      });
+    } catch (error) {
+      console.error('开始录音失败:', error);
+      Alert.alert('错误', '开始录音失败，请重试');
+    }
+  };
+
+  // 停止录音
+  const stopRecording = async () => {
+    try {
+      if (!audioRecorderPlayer.current) {
+        setIsRecording(false);
+        return;
+      }
+
+      const result = await audioRecorderPlayer.current.stopRecorder();
+      audioRecorderPlayer.current.removeRecordBackListener();
+      setIsRecording(false);
+      setRecordTime('00:00');
+
+      if (result) {
+        // 保存录音文件信息
+        const audioFile = {
+          path: result,
+          duration: recordTime,
+          timestamp: new Date().toLocaleString()
+        };
+        setAudioFiles(prev => [...prev, audioFile]);
+
+        Alert.alert(
+          '录音完成',
+          `录音时长: ${recordTime}\n请选择操作`,
+          [
+            { text: '取消', style: 'cancel' },
+            {
+              text: '插入录音',
+              onPress: () => {
+                const timestamp = new Date().toLocaleString();
+                const audioId = `audio_${Date.now()}`;
+                const placeholder = `\n\n[🎵 语音录音 - ${timestamp}]\n录音时长: ${recordTime}\n音频ID: ${audioId}\n[点击播放录音]\n\n`;
+                setContent(prev => prev + placeholder);
+
+                // 保存音频文件映射
+                setAudioFiles(prev => [...prev, { id: audioId, path: result, duration: recordTime }]);
+              }
+            },
+            {
+              text: '转为文字',
+              onPress: async () => {
+                Alert.alert(
+                  '语音转文字',
+                  '请重新说一遍内容，系统将自动识别并转换为文字',
+                  [
+                    { text: '取消', style: 'cancel' },
+                    {
+                      text: '开始识别',
+                      onPress: () => startSpeechRecognition()
+                    }
+                  ]
+                );
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('停止录音失败:', error);
+      Alert.alert('错误', '停止录音失败');
+      setIsRecording(false);
+    }
+  };
+
+  // 开始语音识别
+  const startSpeechRecognition = async () => {
+    try {
+      const hasPermission = await requestRecordPermission();
+      if (!hasPermission) {
+        Alert.alert('权限不足', '需要录音权限才能使用语音识别功能');
+        return;
+      }
+
+      setRecognizedText('');
+      await Voice.start('zh-CN'); // 使用中文识别
+    } catch (error) {
+      console.error('开始语音识别失败:', error);
+      Alert.alert('错误', '开始语音识别失败，请重试');
+    }
+  };
+
+  // 停止语音识别
+  const stopSpeechRecognition = async () => {
+    try {
+      await Voice.stop();
+      setIsListening(false);
+    } catch (error) {
+      console.error('停止语音识别失败:', error);
+    }
+  };
+
+  // 播放录音文件
+  const playAudio = async (filePath) => {
+    try {
+      if (!audioRecorderPlayer.current) {
+        Alert.alert('错误', '播放器未初始化');
+        return;
+      }
+
+      await audioRecorderPlayer.current.startPlayer(filePath);
+      audioRecorderPlayer.current.addPlayBackListener((e) => {
+        if (e.currentPosition === e.duration) {
+          if (audioRecorderPlayer.current) {
+            audioRecorderPlayer.current.stopPlayer();
+            audioRecorderPlayer.current.removePlayBackListener();
+          }
+        }
+      });
+    } catch (error) {
+      console.error('播放录音失败:', error);
+      Alert.alert('错误', '播放录音失败');
+    }
+  };
+
+  // 主语音按钮处理函数
+  const handleVoiceAction = () => {
     Alert.alert(
-      '导出笔记',
-      '选择导出格式',
+      '语音功能',
+      '请选择语音功能类型',
       [
-        { text: '取消', style: 'cancel' },
-        { text: '纯文本', onPress: () => exportAsText() },
-        { text: 'Markdown', onPress: () => exportAsMarkdown() },
-        { text: '分享', onPress: () => shareNote() }
+        {
+          text: '录音',
+          onPress: () => {
+            if (isRecording) {
+              stopRecording();
+            } else {
+              startRecording();
+            }
+          }
+        },
+        {
+          text: '语音转文字',
+          onPress: () => {
+            if (isListening) {
+              stopSpeechRecognition();
+            } else {
+              startSpeechRecognition();
+            }
+          }
+        },
+        {
+          text: '取消',
+          style: 'cancel'
+        }
       ]
     );
   };
 
-  const exportAsText = () => {
-    // 导出为纯文本功能
-    Alert.alert('提示', '纯文本导出功能正在开发中');
-  };
 
-  const exportAsMarkdown = () => {
-    // 导出为Markdown功能
-    Alert.alert('提示', 'Markdown导出功能正在开发中');
-  };
 
-  const shareNote = () => {
-    // 分享笔记功能
-    Alert.alert('提示', '分享功能正在开发中');
-  };
 
-  const handleFormatText = (format) => {
-    const selection = contentInputRef.current?.selection || { start: 0, end: 0 };
-    const beforeText = content.substring(0, selection.start);
-    const selectedText = content.substring(selection.start, selection.end);
-    const afterText = content.substring(selection.end);
 
-    let formattedText = selectedText;
 
-    switch (format) {
-      case 'bold':
-        formattedText = `**${selectedText}**`;
-        break;
-      case 'italic':
-        formattedText = `*${selectedText}*`;
-        break;
-      case 'heading':
-        formattedText = `# ${selectedText}`;
-        break;
-      case 'bullet':
-        formattedText = `• ${selectedText}`;
-        break;
-      case 'number':
-        formattedText = `1. ${selectedText}`;
-        break;
-      default:
-        break;
-    }
 
-    setContent(beforeText + formattedText + afterText);
-  };
 
-  const handleMeetingNotes = () => {
-    const meetingTemplate = `会议纪要
-时间：${new Date().toLocaleString()}
-参会人员：
-会议主题：
-会议内容：
-1. 
-2. 
-3. 
 
-待办事项：
-□ 
-□ 
-□ 
 
-下次会议时间：
-`;
-    setContent(content + '\n\n' + meetingTemplate);
-    setShowToolbar(false);
-  };
-
-  const handleInsertTemplate = (template) => {
-    let templateText = '';
-
-    switch (template) {
-      case 'todo':
-        templateText = `📋 待办清单
-□
-□
-□
-□
-
-完成情况：0/4`;
-        break;
-      case 'diary':
-        templateText = `📖 日记 - ${new Date().toLocaleDateString()}
-
-🌤️ 今天的心情：
-📝 今天做了什么：
-💡 今天学到了什么：
-🎯 明天的计划：
-⭐ 今日亮点：`;
-        break;
-      case 'idea':
-        templateText = `💡 创意想法
-⏰ 时间：${new Date().toLocaleString()}
-🎯 想法描述：
-
-📊 可行性分析：
-✅ 下一步行动：
-🔗 相关资源：`;
-        break;
-      case 'reading':
-        templateText = `📚 读书笔记
-📖 书名：
-✍️ 作者：
-📅 阅读日期：${new Date().toLocaleDateString()}
-
-🔑 核心观点：
-💭 个人感悟：
-📝 重要摘录：
-⭐ 评分：/10`;
-        break;
-      case 'project':
-        templateText = `🚀 项目规划
-📋 项目名称：
-🎯 项目目标：
-📅 开始时间：${new Date().toLocaleDateString()}
-⏰ 预计完成：
-
-📝 主要任务：
-□
-□
-□
-
-🎯 里程碑：
-📊 进度跟踪：0%`;
-        break;
-      case 'review':
-        templateText = `🔄 周/月回顾
-📅 回顾期间：${new Date().toLocaleDateString()}
-
-✅ 完成的事情：
-•
-•
-•
-
-❌ 未完成的事情：
-•
-•
-
-💡 经验教训：
-🎯 下期目标：`;
-        break;
-      default:
-        break;
-    }
-
-    setContent(content + '\n\n' + templateText);
-    setShowToolbar(false);
-  };
-
-  const renderToolbar = () => (
-    <View style={[styles.toolbar, { backgroundColor: colors.surface }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <TouchableOpacity 
-          style={[styles.toolButton, { backgroundColor: colors.primary }]}
-          onPress={handleStartRecording}
-        >
-          <Icon name="mic" size={20} color={colors.onPrimary} />
-          <Text style={[styles.toolButtonText, { color: colors.onPrimary }]}>语音转文字</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.toolButton, { backgroundColor: colors.secondary }]}
-          onPress={handleMeetingNotes}
-        >
-          <Icon name="event-note" size={20} color={colors.onSecondary} />
-          <Text style={[styles.toolButtonText, { color: colors.onSecondary }]}>会议纪要</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#4CAF50' }]}
-          onPress={() => handleInsertTemplate('todo')}
-        >
-          <Icon name="check-box" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>待办清单</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#FF9800' }]}
-          onPress={() => handleInsertTemplate('diary')}
-        >
-          <Icon name="book" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>日记模板</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#9C27B0' }]}
-          onPress={() => handleInsertTemplate('idea')}
-        >
-          <Icon name="lightbulb-outline" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>创意想法</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#607D8B' }]}
-          onPress={() => handleInsertTemplate('reading')}
-        >
-          <Icon name="library-books" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>读书笔记</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#795548' }]}
-          onPress={() => handleInsertTemplate('project')}
-        >
-          <Icon name="assignment" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>项目规划</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toolButton, { backgroundColor: '#009688' }]}
-          onPress={() => handleInsertTemplate('review')}
-        >
-          <Icon name="rate-review" size={20} color="white" />
-          <Text style={[styles.toolButtonText, { color: 'white' }]}>周期回顾</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
 
   return (
     <KeyboardAvoidingView 
@@ -379,6 +463,8 @@ const CardNoteScreen = ({ route, navigation }) => {
         noteId={noteId}
         navigation={navigation}
         showHistoryNavigation={true}
+        historyNavigationHeight={20}
+        contentStyle={{ paddingTop: 0 }}
         onBack={() => {
           saveNote();
           navigation.goBack();
@@ -388,7 +474,11 @@ const CardNoteScreen = ({ route, navigation }) => {
           <BackButton
             onPress={() => {
               saveNote();
-              navigation.goBack();
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Home');
+              }
             }}
             color={colors.primary}
             background={colors.primary + '20'}
@@ -401,20 +491,23 @@ const CardNoteScreen = ({ route, navigation }) => {
               text="保存"
               showSuccessToast={true}
               showErrorAlert={true}
-              style={styles.saveButton}
+              style={[styles.saveButton, { backgroundColor: colors.primary }]}
             />
             <Text style={[styles.wordCount, { color: colors.onSurface }]}>
-              {wordCount} 字
+              {wordCount}字
             </Text>
           </View>
         }
       >
+        {/* 文件历史导航 */}
+        <FileHistoryNavigation />
+
         <View style={styles.content}>
           {/* 标题输入 */}
           <TextInput
-            style={[styles.titleInput, { 
-              color: colors.onSurface, 
-              borderBottomColor: colors.outline 
+            style={[styles.titleInput, {
+              color: colors.onSurface,
+              borderBottomColor: colors.outline
             }]}
             value={title}
             onChangeText={setTitle}
@@ -426,44 +519,85 @@ const CardNoteScreen = ({ route, navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => contentInputRef.current?.focus()}
           />
-          
-          {/* 工具栏 */}
-          {showToolbar && renderToolbar()}
-          
+
           {/* 内容输入 */}
           <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
             <CheckboxTextInput
+              ref={contentInputRef}
               value={content}
               onChangeText={setContent}
               placeholder="开始输入内容..."
               style={[styles.contentInput, {
-                color: colors.onSurface,
-                minHeight: screenWidth * 0.8 // 确保有足够的输入空间
+                color: colors.onSurface
               }]}
               multiline
-              onFocus={() => setIsEditing(true)}
-              onBlur={() => setIsEditing(false)}
             />
+
+            {/* 音频播放提示 */}
+            {audioFiles.length > 0 && (
+              <TouchableOpacity
+                style={[styles.audioHint, { backgroundColor: colors.primaryContainer }]}
+                onPress={() => {
+                  Alert.alert(
+                    '音频文件管理',
+                    `共有 ${audioFiles.length} 个录音文件`,
+                    [
+                      { text: '取消', style: 'cancel' },
+                      {
+                        text: '播放最新录音',
+                        onPress: () => {
+                          const latestAudio = audioFiles[audioFiles.length - 1];
+                          if (latestAudio) {
+                            playAudio(latestAudio.path);
+                          }
+                        }
+                      }
+                    ]
+                  );
+                }}
+              >
+                <Icon name="audiotrack" size={16} color={colors.onPrimaryContainer} />
+                <Text style={[styles.audioHintText, { color: colors.onPrimaryContainer }]}>
+                  {audioFiles.length} 个录音文件
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
 
-        {/* 底部浮动工具栏 */}
-        <View style={[styles.floatingToolbar, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity
-            style={[styles.floatingButton, { backgroundColor: colors.secondary }]}
-            onPress={handleExportNote}
-          >
-            <Icon name="share" size={16} color={colors.onSecondary} />
-            <Text style={[styles.buttonText, { color: colors.onSecondary }]}>导出</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.floatingButton, { backgroundColor: colors.primary }]}
-            onPress={() => {/* TODO: 实现语音转文字功能 */}}
-          >
-            <Icon name="mic" size={16} color={colors.onPrimary} />
-            <Text style={[styles.buttonText, { color: colors.onPrimary }]}>语音</Text>
-          </TouchableOpacity>
-        </View>
+        {/* 右下角语音按钮 */}
+        <TouchableOpacity
+          style={[
+            styles.voiceButton,
+            {
+              backgroundColor: isRecording ? colors.error : colors.primary
+            }
+          ]}
+          onPress={handleVoiceAction}
+        >
+          <Icon
+            name={isRecording ? "stop" : isListening ? "mic-outline" : "mic"}
+            size={16}
+            color={colors.onPrimary}
+          />
+          <Text style={[styles.voiceButtonText, { color: colors.onPrimary }]}>
+            {isRecording ? recordTime : isListening ? '识别中...' : '语音'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* 语音识别状态显示 */}
+        {isListening && (
+          <View style={[styles.recognitionStatus, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.recognitionText, { color: colors.onSurface }]}>
+              🎤 正在识别语音...
+            </Text>
+            {recognizedText ? (
+              <Text style={[styles.recognizedText, { color: colors.primary }]}>
+                "{recognizedText}"
+              </Text>
+            ) : null}
+          </View>
+        )}
       </ViewerLayout>
     </KeyboardAvoidingView>
   );
@@ -475,102 +609,113 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+    paddingTop: 8, // 减少顶部间距，使其紧贴文件历史导航
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   saveButton: {
-    // 保存按钮样式
-  },
-  wordCount: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  exportButton: {
-    padding: 8,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  toolbarToggle: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  titleInput: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-    borderBottomWidth: 1,
-    marginBottom: 16,
-  },
-  toolbar: {
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    marginBottom: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  toolButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 4,
-    gap: 6,
-  },
-  toolButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  contentScroll: {
-    flex: 1,
-  },
-  contentInput: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlignVertical: 'top',
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-  floatingToolbar: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  floatingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    marginRight: 4,
+    minHeight: 24,
   },
-  buttonText: {
-    fontSize: 12,
+  wordCount: {
+    fontSize: 11,
+    opacity: 0.8,
     fontWeight: '500',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  titleInput: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 2,
+    marginBottom: 0,
+    borderRadius: 8,
+  },
+  contentScroll: {
+    flex: 1,
+    marginTop: 0,
+  },
+  contentInput: {
+    fontSize: 17,
+    lineHeight: 26,
+    textAlignVertical: 'top',
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    minHeight: 400,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  voiceButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  voiceButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recognitionStatus: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    padding: 16,
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  recognitionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  recognizedText: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  audioHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    marginTop: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  audioHintText: {
+    fontSize: 12,
     marginLeft: 4,
+    fontWeight: '500',
   },
 });
 

@@ -6,6 +6,7 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
 import SaveButton from '../../components/common/SaveButton';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
+import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import { addBookmark } from '../../services/bookmarkService';
@@ -246,18 +247,42 @@ const InfiniteCanvasScreen = ({ route, navigation }) => {
     loadOrSaveCanvas();
   }, []); // 只在组件挂载时执行一次，防止重复创建
 
+  // 添加到文件历史
+  useEffect(() => {
+    try {
+      const fileHistoryService = require('../../services/fileHistoryService').default;
+      if (docId && title && fileHistoryService && fileHistoryService.addFile) {
+        fileHistoryService.addFile({
+          uri: docId,
+          title: title,
+          type: 'canvas',
+          noteType: 'canvas',
+          fileName: title,
+          noteId: docId
+        });
+      }
+    } catch (e) {
+      // 静默处理，不影响主功能
+    }
+  }, [docId, title]);
+
   // 自动保存功能 - 改进保存逻辑
   useEffect(() => {
     const autoSave = async () => {
       try {
         // 检查是否有实际内容需要保存
-        const hasContent = paths.length > 0 || images.length > 0 ||
-                          scale !== 1 || translateX !== 0 || translateY !== 0;
+        const hasContent = paths.length > 0 || images.length > 0;
+
+        // 只有在有实际内容或标题时才保存
+        if (!hasContent && !title.trim()) {
+          console.log('InfiniteCanvasScreen: 没有内容，跳过自动保存');
+          return;
+        }
 
         const canvasData = {
           _id: docId,
           id: docId,
-          title,
+          title: title.trim() || '无标题画布',
           type: 'canvas',
           file_type: 'canvas',
           canvasStyle, // 确保画布样式被保存

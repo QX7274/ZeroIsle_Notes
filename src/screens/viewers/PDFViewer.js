@@ -888,18 +888,10 @@ const PDFViewer = ({ route, navigation }) => {
             ref={pdfRef}
             source={pdfSource}
             // 内存优化配置
-            enablePaging={true}
-            enableRTL={false}
-            enableAnnotationRendering={false}
-            enableDoubleTapZoom={true}
             maxZoom={3}
             minZoom={0.5}
             scale={1.0}
-            spacing={10}
             style={styles.pdf}
-            // 性能优化
-            renderActivityIndicator={() => null}
-            activityIndicator={null}
             onLoadComplete={(numberOfPages, filePath, width, height, ...args) => {
               console.log('=== PDF加载完成回调触发 ===');
               console.log(`参数 - 页数: ${numberOfPages}, 文件路径: ${filePath}`);
@@ -1007,7 +999,7 @@ const PDFViewer = ({ route, navigation }) => {
             onPressLink={(uri) => {
               console.log(`链接点击: ${uri}`);
             }}
-            style={styles.pdf}
+    
             enablePaging={false} // 连续滚动
             horizontal={false} // 垂直方向
             enableRTL={false}

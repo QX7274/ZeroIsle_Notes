@@ -117,7 +117,11 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
   };
   
   const handleConfirm = () => {
-    const finalName = canvasName.trim() || `无限画布 ${new Date().toLocaleString()}`;
+    const trimmedName = canvasName.trim();
+    const finalName = trimmedName || `无限画布_${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
+
+    console.log('创建画布:', { originalName: canvasName, trimmedName, finalName });
+
     onSelect(selectedStyle, finalName);
     onClose();
     setCanvasName('');

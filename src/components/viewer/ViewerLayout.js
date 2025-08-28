@@ -69,11 +69,11 @@ const ViewerLayout = ({
     <View style={[
       styles.contentContainer,
       {
-        // 计算上方所有组件的总高度
+        // 计算上方所有组件的总高度，确保紧密贴合
         marginTop: hasExternalToolbar
-          ? externalToolbarHeight + (showHistoryNavigation ? historyNavigationHeight : 0) + 24 // 外部工具栏 + 历史导航 + 更大间距
-          : (showToolbar ? toolbarHeight : 0) + (showHistoryNavigation ? historyNavigationHeight : 0) + 24, // 内部工具栏 + 历史导航 + 更大间距
-        paddingTop: 0 // 移除额外的paddingTop，使用marginTop统一控制
+          ? externalToolbarHeight + (showHistoryNavigation ? 40 : 0) // 外部工具栏 + 历史导航固定高度
+          : (showToolbar ? toolbarHeight : 0) + (showHistoryNavigation ? 40 : 0), // 内部工具栏 + 历史导航固定高度
+        paddingTop: 0
       },
       contentStyle
     ]}>

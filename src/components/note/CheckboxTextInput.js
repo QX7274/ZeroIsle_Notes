@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,14 @@ import { useTheme } from '../../context/ThemeContext';
 /**
  * 支持复选框功能的文本输入组件
  */
-const CheckboxTextInput = ({ 
-  value, 
-  onChangeText, 
+const CheckboxTextInput = forwardRef(({
+  value,
+  onChangeText,
   placeholder = '开始输入内容...',
   multiline = true,
   style,
-  ...props 
-}) => {
+  ...props
+}, ref) => {
   const { colors } = useTheme();
   const [processedText, setProcessedText] = useState('');
   const [checkboxItems, setCheckboxItems] = useState([]);
@@ -181,7 +181,7 @@ const CheckboxTextInput = ({
       {renderContent()}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

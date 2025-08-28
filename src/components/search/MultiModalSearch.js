@@ -67,7 +67,7 @@ const MultiModalSearch = ({
 
   // 引用
   const searchInputRef = useRef(null);
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
+  const audioRecorderPlayer = useRef(null);
   const recordingTimerRef = useRef(null);
   const recordingPathRef = useRef('');
 
@@ -104,11 +104,28 @@ const MultiModalSearch = ({
     }
   }, [reduxSearchMode]);
 
+  // 初始化AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        audioRecorderPlayer.current = new AudioRecorderPlayer();
+      }
+    } catch (error) {
+      console.warn('AudioRecorderPlayer初始化失败:', error);
+    }
+  }, []);
+
   // 清理资源
   useEffect(() => {
     return () => {
       recordingTimerRef.current && clearInterval(recordingTimerRef.current);
-      audioRecorderPlayer.current.stopRecorder();
+      if (audioRecorderPlayer.current) {
+        try {
+          audioRecorderPlayer.current.stopRecorder();
+        } catch (error) {
+          console.warn('停止录音失败:', error);
+        }
+      }
     };
   }, []);
 
@@ -122,6 +139,11 @@ const MultiModalSearch = ({
         ios: `${RNFS.LibraryDirectoryPath}/recording.m4a`,
         android: `${RNFS.ExternalDirectoryPath}/recording_${Date.now()}.mp3`,
       });
+
+      if (!audioRecorderPlayer.current) {
+        Alert.alert('错误', '录音器未初始化');
+        return;
+      }
 
       await audioRecorderPlayer.current.startRecorder(path);
       audioRecorderPlayer.current.addRecordBackListener(() => {});
@@ -146,8 +168,10 @@ const MultiModalSearch = ({
         recordingTimerRef.current = null;
       }
 
-      await audioRecorderPlayer.current.stopRecorder();
-      audioRecorderPlayer.current.removeRecordBackListener();
+      if (audioRecorderPlayer.current) {
+        await audioRecorderPlayer.current.stopRecorder();
+        audioRecorderPlayer.current.removeRecordBackListener();
+      }
 
       setIsRecording(false);
 

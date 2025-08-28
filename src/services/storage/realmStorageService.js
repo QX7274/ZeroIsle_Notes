@@ -52,6 +52,12 @@ class RealmStorageService {
       // 获取Realm实例
       const realm = await realmService.getRealm();
 
+      // 检查Realm实例是否有效
+      if (!realm || realm.isClosed) {
+        console.error('[RealmStorage] Realm实例无效或已关闭');
+        return null;
+      }
+
       // 查询存储项目
       const item = realm.objectForPrimaryKey('StorageItem', key);
 
@@ -96,6 +102,12 @@ class RealmStorageService {
 
       // 获取Realm实例
       const realm = await realmService.getRealm();
+
+      // 检查Realm实例是否有效
+      if (!realm || realm.isClosed) {
+        console.error('[RealmStorage] Realm实例无效或已关闭');
+        return false;
+      }
 
       // 准备存储值
       let stringValue;
