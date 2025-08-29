@@ -131,7 +131,7 @@ const ReminderStatisticsView = ({ navigation }) => {
                 <View style={[styles.priorityDot, { backgroundColor: color }]} />
                 <Text style={[styles.priorityName, { color: theme.text }]}>{data.name}</Text>
                 <Text style={[styles.priorityCount, { color }]}>{data.count}</Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>

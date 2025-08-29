@@ -1,85 +1,115 @@
-import React, { useState, useEffect, forwardRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
+  TouchableOpacity,
+  Text,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
- * 支持复选框功能的文本输入组件
+ * 支持复选框的文本输入组件
+ * 支持多种卡片类型：待办事项、笔记、提醒等
  */
-const CheckboxTextInput = forwardRef(({
-  value,
+const CheckboxTextInput = React.forwardRef(({
+  value = '',
   onChangeText,
-  placeholder = '开始输入内容...',
-  multiline = true,
+  placeholder = '输入内容...',
   style,
+  multiline = true,
+  editable = true,
+  cardType = 'note', // 'todo', 'note', 'reminder', 'important'
+  onCardTypeChange,
   ...props
 }, ref) => {
   const { colors } = useTheme();
-  const [processedText, setProcessedText] = useState('');
-  const [checkboxItems, setCheckboxItems] = useState([]);
+  const [localValue, setLocalValue] = useState(value);
+  const [parsedContent, setParsedContent] = useState([]);
+  const textInputRef = useRef(null);
 
-  // 处理文本中的复选框
+  // 同步外部value变化
   useEffect(() => {
-    if (value) {
-      const lines = value.split('\n');
-      const items = [];
-      let processedLines = [];
+    setLocalValue(value);
+    setParsedContent(parseContent(value));
+  }, [value, cardType]);
 
-      lines.forEach((line, index) => {
-        // 检测复选框模式：□ 或 ☑ 或 ✓ 或 ×
-        const checkboxMatch = line.match(/^(□|☑|✓|×)\s*(.*)$/);
-        if (checkboxMatch) {
-          const [, checkbox, text] = checkboxMatch;
-          const isChecked = checkbox === '☑' || checkbox === '✓';
-          const isCanceled = checkbox === '×';
-          
-          items.push({
-            index,
-            text: text.trim(),
-            isChecked,
-            isCanceled,
-            originalLine: line,
-          });
-          
-          // 替换为可点击的组件占位符
-          processedLines.push(`__CHECKBOX_${index}__`);
-        } else {
-          processedLines.push(line);
-        }
-      });
-
-      setCheckboxItems(items);
-      setProcessedText(processedLines.join('\n'));
-    } else {
-      setProcessedText('');
-      setCheckboxItems([]);
+  // 处理文本变化
+  const handleTextChange = (text) => {
+    setLocalValue(text);
+    setParsedContent(parseContent(text));
+    if (onChangeText) {
+      onChangeText(text);
     }
-  }, [value]);
+  };
 
-  // 切换复选框状态
-  const toggleCheckbox = (itemIndex) => {
-    const item = checkboxItems.find(item => item.index === itemIndex);
-    if (!item) return;
+  // 解析不同类型的内容
+  const parseContent = (text) => {
+    if (!text) return [];
 
-    let newCheckbox;
-    if (item.isChecked) {
-      newCheckbox = '×'; // 已完成 -> 取消
-    } else if (item.isCanceled) {
-      newCheckbox = '□'; // 取消 -> 未完成
-    } else {
-      newCheckbox = '☑'; // 未完成 -> 已完成
+    const lines = text.split('\n');
+    return lines.map((line, index) => {
+      // 待办事项格式：- [ ] 或 - [x]
+      const todoMatch = line.match(/^(\s*)(- \[[ x]\])\s*(.*)$/);
+      if (todoMatch && cardType === 'todo') {
+        const [, indent, checkbox, content] = todoMatch;
+        const isChecked = checkbox.includes('x');
+        return {
+          type: 'todo',
+          indent,
+          isChecked,
+          content: content.trim(),
+          originalLine: line,
+          lineIndex: index
+        };
+
+      // 重要标记格式：! 内容
+      const importantMatch = line.match(/^(\s*)(!)\s*(.*)$/);
+      if (importantMatch && cardType === 'important') {
+        return {
+          type: 'important',
+          content: importantMatch[3].trim(),
+          originalLine: line,
+          lineIndex: index
+        };
+      }
+
+      // 提醒格式：@ 时间 内容
+      const reminderMatch = line.match(/^(\s*)(@)\s*(.*)$/);
+      if (reminderMatch && cardType === 'reminder') {
+        return {
+          type: 'reminder',
+          content: reminderMatch[3].trim(),
+          originalLine: line,
+          lineIndex: index
+        };
+      }
+
+      // 普通文本
+      return {
+        type: 'text',
+        content: line,
+        originalLine: line,
+        lineIndex: index
+      };
+    });
+  };
+
+  // 切换待办事项状态
+  const toggleTodo = (lineIndex) => {
+    const lines = localValue.split('\n');
+    const line = lines[lineIndex];
+
+    if (line.includes('- [ ]')) {
+      lines[lineIndex] = line.replace('- [ ]', '- [x]');
+    } else if (line.includes('- [x]')) {
+      lines[lineIndex] = line.replace('- [x]', '- [ ]');
     }
 
-    // 更新原始文本
-    const lines = value.split('\n');
-    lines[itemIndex] = `${newCheckbox} ${item.text}`;
     const newValue = lines.join('\n');
+    handleTextChange(newValue);
     
     onChangeText(newValue);
   };

@@ -54,8 +54,22 @@ const VoiceReminderScreen = ({ navigation, route }) => {
   const [showToast, setShowToast] = useState(false);
 
   // 引用
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const audioRecorderPlayer = useRef(null);
   const durationTimerRef = useRef(null);
+
+  // 初始化AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        audioRecorderPlayer.current = new AudioRecorderPlayer();
+        console.log('VoiceReminderScreen: AudioRecorderPlayer初始化成功');
+      } else {
+        console.warn('VoiceReminderScreen: AudioRecorderPlayer模块不可用或不是构造函数');
+      }
+    } catch (error) {
+      console.warn('VoiceReminderScreen: AudioRecorderPlayer初始化失败:', error);
+    }
+  }, []);
 
   // 清理函数
   useEffect(() => {
@@ -63,8 +77,14 @@ const VoiceReminderScreen = ({ navigation, route }) => {
       if (durationTimerRef.current) {
         clearInterval(durationTimerRef.current);
       }
-      audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
+      if (audioRecorderPlayer.current) {
+        try {
+          audioRecorderPlayer.current.stopRecorder();
+          audioRecorderPlayer.current.removeRecordBackListener();
+        } catch (error) {
+          console.warn('VoiceReminderScreen: 清理AudioRecorderPlayer失败:', error);
+        }
+      }
     };
   }, []);
 
@@ -117,8 +137,13 @@ const VoiceReminderScreen = ({ navigation, route }) => {
         android: `${RNFS.ExternalDirectoryPath}/voice_reminder_${Date.now()}.mp3`,
       });
 
-      await audioRecorderPlayer.startRecorder(path);
-      audioRecorderPlayer.addRecordBackListener(() => {});
+      if (!audioRecorderPlayer.current) {
+        displayToast('录音器未初始化');
+        return;
+      }
+
+      await audioRecorderPlayer.current.startRecorder(path);
+      audioRecorderPlayer.current.addRecordBackListener(() => {});
 
       setRecordingPath(path);
       setIsRecording(true);

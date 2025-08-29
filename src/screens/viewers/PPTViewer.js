@@ -33,6 +33,7 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
 import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
+import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import { addBookmark } from '../../services/bookmarkService';
 import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';

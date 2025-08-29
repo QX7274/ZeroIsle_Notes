@@ -225,12 +225,52 @@ class RealmService {
       const realm = await this.getRealm();
 
       let createdObject;
+      const objectId = data._id || this.createObjectId();
 
       realm.write(() => {
-        createdObject = realm.create(schemaName, {
-          ...data,
-          _id: data._id || this.createObjectId(),
-        });
+        try {
+          // 处理数据，确保所有字段类型正确
+          const safeData = { ...data };
+          safeData._id = objectId;
+          
+          // 检查模式定义中的字段类型
+          const schema = realm.schema.find(s => s.name === schemaName);
+          if (schema && schema.properties) {
+            Object.keys(schema.properties).forEach(propName => {
+              const propType = schema.properties[propName];
+              // 处理数组类型字段
+              if (propType === 'string[]' && safeData[propName] && !Array.isArray(safeData[propName])) {
+                try {
+                  // 尝试解析JSON字符串为数组
+                  if (typeof safeData[propName] === 'string') {
+                    safeData[propName] = JSON.parse(safeData[propName]);
+                  }
+                } catch (e) {
+                  console.warn(`无法解析字段 ${propName} 为数组，设置为空数组`);
+                  safeData[propName] = [];
+                }
+              }
+            });
+          }
+          
+          // 首先尝试使用upsert模式（如果存在则更新，不存在则创建）
+          createdObject = realm.create(schemaName, safeData, 'modified');
+        } catch (createError) {
+          console.log(`使用upsert模式创建${schemaName}失败，尝试删除后重新创建:`, createError.message);
+
+          // 如果upsert失败，可能是主键冲突，尝试删除后重新创建
+          const existingObject = realm.objectForPrimaryKey(schemaName, objectId);
+          if (existingObject) {
+            console.log(`删除现有的${schemaName}对象:`, objectId);
+            realm.delete(existingObject);
+          }
+
+          // 重新创建
+          createdObject = realm.create(schemaName, {
+            ...data,
+            _id: objectId,
+          });
+        }
       });
 
       // 转换为普通对象

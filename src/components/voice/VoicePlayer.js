@@ -57,7 +57,21 @@ const VoicePlayer = ({
   const [fileExists, setFileExists] = useState(false);
   
   // 引用
-  const audioPlayer = useRef(new AudioRecorderPlayer());
+  const audioPlayer = useRef(null);
+
+  // 初始化AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        audioPlayer.current = new AudioRecorderPlayer();
+        console.log('VoicePlayer: AudioRecorderPlayer初始化成功');
+      } else {
+        console.warn('VoicePlayer: AudioRecorderPlayer模块不可用或不是构造函数');
+      }
+    } catch (error) {
+      console.warn('VoicePlayer: AudioRecorderPlayer初始化失败:', error);
+    }
+  }, []);
   
   // 组件挂载时检查文件
   useEffect(() => {

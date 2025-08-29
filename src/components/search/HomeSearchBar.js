@@ -82,6 +82,7 @@ const HomeSearchBar = ({ onSearch }) => {
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <MultiModalSearch
+            navigation={navigation}
             onSearch={handleSearchResult}
             onCancel={() => setShowSearch(false)}
           />

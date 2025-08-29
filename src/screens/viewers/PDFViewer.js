@@ -22,7 +22,7 @@ import RNFS from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
 import { launchImageLibrary } from 'react-native-image-picker';
 
-// import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
+import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import PageControl from '../../components/viewer/PageControl';
 import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
@@ -61,8 +61,7 @@ const PDFViewer = ({ route, navigation }) => {
   const [localFilePath, setLocalFilePath] = useState(null);
 
 
-  // 手写相关状态
-  // 手写模式逻辑交由触控笔事件内部处理（无额外遮罩画布）
+  // 企业级手写相关状态
   const [isHandwritingMode, setIsHandwritingMode] = useState(false);
   const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(3);
@@ -72,6 +71,14 @@ const PDFViewer = ({ route, navigation }) => {
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [currentScale, setCurrentScale] = useState(1);
+
+  // 企业级手写笔检测状态
+  const [inputType, setInputType] = useState('finger'); // 'finger' | 'pen'
+  const [isPenActive, setIsPenActive] = useState(false);
+  const [currentPressure, setCurrentPressure] = useState(0.5);
+  const [handwritingPaths, setHandwritingPaths] = useState({});
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [isStylusActive, setIsStylusActive] = useState(false);
 
 
   // 引用
@@ -1009,8 +1016,8 @@ const PDFViewer = ({ route, navigation }) => {
             fitPolicy={0} // 0=Fit width
             spacing={0} // 去除页间距，避免边框感
             singlePage={false}
-            enableSwipe={true}
-            scrollEnabled={true}
+            enableSwipe={!isStylusActive}
+            scrollEnabled={!isStylusActive}
             minScale={0.5}            // 允许缩小
             maxScale={4.0}            // 放大更多
             showsHorizontalScrollIndicator={false}
@@ -1068,8 +1075,13 @@ const PDFViewer = ({ route, navigation }) => {
               />
             ))}
           </View>
-          {/* 全局轻量手写覆盖层（仅触控笔激活） */}
-          <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+          {/* 暂时禁用手写覆盖层 */}
+          {/* <GlobalStylusOverlay
+            color={strokeColor}
+            width={strokeWidth}
+            onStrokeStart={() => setIsStylusActive(true)}
+            onStrokeEnd={() => setTimeout(() => setIsStylusActive(false), 120)}
+          /> */}
         </View>
       )}
       {/* 使用PageControl组件 */}

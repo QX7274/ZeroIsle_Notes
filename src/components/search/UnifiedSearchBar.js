@@ -155,6 +155,7 @@ const UnifiedSearchBar = ({
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <MultiModalSearch
+            navigation={navigation}
             onSearch={handleSearchResult}
             onCancel={() => {
               setShowSearch(false);
@@ -177,11 +178,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     marginVertical: 0,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    elevation: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },

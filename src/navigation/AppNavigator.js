@@ -38,7 +38,9 @@ import DocViewer from '../screens/viewers/DocViewer';
 import MarkdownViewer from '../screens/viewers/MarkdownViewer';
 import PPTViewer from '../screens/viewers/PPTViewer';
 import InfiniteCanvasScreen from '../screens/canvas/InfiniteCanvasScreen';
+import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
 import PagedNoteScreen from '../screens/note/PagedNoteScreen';
+import FluidPagedNoteScreen from '../screens/note/FluidPagedNoteScreen';
 import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
@@ -62,7 +64,7 @@ const getTabBarStyle = (route, colors) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
 
   // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote'];
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'FluidPagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote'];
 
   // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
   if (hideTabBarScreens.includes(routeName)) {
@@ -516,7 +518,7 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="InfiniteCanvas"
-        component={InfiniteCanvasScreen}
+        component={FluidInfiniteCanvasScreen}
         options={({ route }) => ({
           title: route.params?.title || '无限画布',
           headerShown: false,
@@ -525,9 +527,18 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="PagedNote"
-        component={PagedNoteScreen}
+        component={FluidPagedNoteScreen}
         options={({ route }) => ({
           title: route.params?.title || '新建笔记',
+          headerShown: false,
+          gestureEnabled: true,
+        })}
+      />
+      <Stack.Screen
+        name="FluidPagedNote"
+        component={FluidPagedNoteScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '流畅笔记',
           headerShown: false,
           gestureEnabled: true,
         })}

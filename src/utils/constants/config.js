@@ -42,7 +42,7 @@ export const STORAGE_KEYS = {
 export const DEFAULT_SETTINGS = {
   theme: 'light', // light, dark, system
   fontSize: 'medium', // small, medium, large
-  handwritingRecognitionMode: 'realtime', // realtime, manual
+  handwritingRecognitionMode: 'disabled', // realtime, manual, disabled
   autoSave: true,
   offlineMode: false,
   notificationEnabled: true,
@@ -73,7 +73,7 @@ export const UPLOAD_LIMITS = {
 export const FEATURES = {
   KNOWLEDGE_GRAPH: true,
   VOICE_RECOGNITION: true,
-  HANDWRITING_RECOGNITION: true,
+  HANDWRITING_RECOGNITION: false,
   COMMUNITY: true,
   OFFLINE_MODE: true,
 };

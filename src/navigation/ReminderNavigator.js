@@ -7,6 +7,18 @@ import AddReminderScreen from '../screens/reminder/AddReminderScreen';
 import ReminderDetailScreen from '../screens/reminder/ReminderDetailScreen';
 import ReminderExportScreen from '../screens/reminder/ReminderExportScreen';
 
+// 创建一个临时的提醒列表屏幕
+import { ReminderListView } from '../components/reminder';
+import { View } from 'react-native';
+
+const ReminderScreen = () => {
+  return (
+    <View style={{ flex: 1 }}>
+      <ReminderListView />
+    </View>
+  );
+};
+
 const Stack = createStackNavigator();
 
 /**

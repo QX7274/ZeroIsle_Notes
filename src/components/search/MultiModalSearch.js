@@ -12,6 +12,7 @@ import {
   Keyboard,
   Image,
   Platform,
+  ScrollView,
   PermissionsAndroid,
   Animated,
 } from 'react-native';
@@ -19,6 +20,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   search,
+  localSearch,
   setSearchMode,
   selectSearchMode,
   selectIsLoading,
@@ -28,7 +30,7 @@ import {
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import nativeAudioService from '../../services/audio/nativeAudioService';
 import RNFS from 'react-native-fs';
 import SearchSuggestions from './SearchSuggestions';
 import SearchHistory from './SearchHistory';
@@ -42,6 +44,7 @@ import SearchHistory from './SearchHistory';
  * @param {string} props.searchScope - 搜索范围，可选值：'home', 'category', 'community'
  */
 const MultiModalSearch = ({
+  navigation,
   onSearch,
   onCancel,
   initialQuery = '',
@@ -58,18 +61,74 @@ const MultiModalSearch = ({
 
   // 本地状态
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const [recognizedText, setRecognizedText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [localError, setLocalError] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
 
+  // 语音录制和播放状态
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUri, setRecordingUri] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioPlayer, setAudioPlayer] = useState(null);
+
+  // 搜索历史状态
+  const [searchHistory, setSearchHistory] = useState([]);
+
+  // 加载搜索历史
+  useEffect(() => {
+    const loadSearchHistory = async () => {
+      try {
+        // 从本地存储加载真实搜索历史
+        const historyKey = 'search_history';
+        const storedHistory = await AsyncStorage.getItem(historyKey);
+
+        if (storedHistory) {
+          const parsedHistory = JSON.parse(storedHistory);
+          setSearchHistory(parsedHistory.slice(0, 10)); // 最多显示10条
+        } else {
+          setSearchHistory([]);
+        }
+      } catch (error) {
+        console.error('加载搜索历史失败:', error);
+        setSearchHistory([]);
+      }
+    };
+
+    loadSearchHistory();
+  }, []);
+
+  // 保存搜索历史
+  const saveSearchHistory = async (query) => {
+    try {
+      const historyKey = 'search_history';
+      const storedHistory = await AsyncStorage.getItem(historyKey);
+      let history = storedHistory ? JSON.parse(storedHistory) : [];
+
+      // 移除重复项
+      history = history.filter(item => item.query !== query);
+
+      // 添加新的搜索记录到开头
+      history.unshift({
+        query,
+        timestamp: Date.now()
+      });
+
+      // 限制历史记录数量
+      history = history.slice(0, 20);
+
+      await AsyncStorage.setItem(historyKey, JSON.stringify(history));
+      setSearchHistory(history.slice(0, 10));
+    } catch (error) {
+      console.error('保存搜索历史失败:', error);
+    }
+  };
+
   // 引用
   const searchInputRef = useRef(null);
-  const audioRecorderPlayer = useRef(null);
-  const recordingTimerRef = useRef(null);
-  const recordingPathRef = useRef('');
 
   // 合并错误
   const error = localError || reduxError;
@@ -104,87 +163,114 @@ const MultiModalSearch = ({
     }
   }, [reduxSearchMode]);
 
-  // 初始化AudioRecorderPlayer
+  // 初始化语音识别服务
   useEffect(() => {
-    try {
-      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
-        audioRecorderPlayer.current = new AudioRecorderPlayer();
+    // 添加语音识别事件监听器
+    nativeAudioService.addListener('speechResults', (e) => {
+      if (e.value && e.value.length > 0) {
+        const recognizedText = e.value[0];
+        setRecognizedText(recognizedText);
+        setSearchQuery(recognizedText); // 直接设置到搜索框
+        setIsListening(false);
+
+        // 自动执行搜索
+        setTimeout(() => {
+          handleSearch();
+        }, 500);
       }
-    } catch (error) {
-      console.warn('AudioRecorderPlayer初始化失败:', error);
-    }
+    });
+
+    nativeAudioService.addListener('speechError', (e) => {
+      console.error('语音识别错误:', e);
+      setIsListening(false);
+      setLocalError('语音识别失败，请重试');
+    });
+
+    nativeAudioService.addListener('speechEnd', () => {
+      setIsListening(false);
+    });
+
+    return () => {
+      nativeAudioService.destroy();
+    };
   }, []);
 
   // 清理资源
   useEffect(() => {
     return () => {
-      recordingTimerRef.current && clearInterval(recordingTimerRef.current);
-      if (audioRecorderPlayer.current) {
-        try {
-          audioRecorderPlayer.current.stopRecorder();
-        } catch (error) {
-          console.warn('停止录音失败:', error);
-        }
+      if (isListening) {
+        nativeAudioService.stopSpeechToText().catch(console.error);
       }
     };
-  }, []);
+  }, [isListening]);
 
-  // 开始录音
-  const startRecording = async () => {
+  // 开始语音识别和录制
+  const startVoiceRecognition = async () => {
     try {
-      const hasPermission = await checkAudioPermission();
-      if (!hasPermission) throw new Error('麦克风权限被拒绝');
-
-      const path = Platform.select({
-        ios: `${RNFS.LibraryDirectoryPath}/recording.m4a`,
-        android: `${RNFS.ExternalDirectoryPath}/recording_${Date.now()}.mp3`,
-      });
-
-      if (!audioRecorderPlayer.current) {
-        Alert.alert('错误', '录音器未初始化');
-        return;
-      }
-
-      await audioRecorderPlayer.current.startRecorder(path);
-      audioRecorderPlayer.current.addRecordBackListener(() => {});
-
-      recordingPathRef.current = path;
+      setLocalError(null);
+      setRecognizedText('');
+      setIsListening(true);
       setIsRecording(true);
       setRecordingDuration(0);
 
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
+      // 开始语音识别
+      await nativeAudioService.startSpeechToText('zh-CN');
+
+      // 启动录音计时器
+      const timer = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
       }, 1000);
-    } catch (err) {
-      setLocalError('无法开始录音: ' + err.message);
+
+      // 保存计时器引用
+      setAudioPlayer({ timer });
+
+    } catch (error) {
+      console.error('开始语音识别失败:', error);
+      setIsListening(false);
+      setIsRecording(false);
+      setLocalError('语音识别启动失败: ' + error.message);
     }
   };
 
-  // 停止录音
-  const stopRecording = async () => {
+  // 停止语音识别
+  const stopVoiceRecognition = async () => {
     try {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-
-      if (audioRecorderPlayer.current) {
-        await audioRecorderPlayer.current.stopRecorder();
-        audioRecorderPlayer.current.removeRecordBackListener();
-      }
-
+      await nativeAudioService.stopSpeechToText();
+      setIsListening(false);
       setIsRecording(false);
 
-      if (recordingDuration < 1) {
-        recordingPathRef.current = '';
-        setLocalError('录音时间太短');
-        return;
+      // 清除计时器
+      if (audioPlayer?.timer) {
+        clearInterval(audioPlayer.timer);
       }
 
-      handleSearch();
-    } catch (err) {
-      setLocalError('录音失败: ' + err.message);
+    } catch (error) {
+      console.error('停止语音识别失败:', error);
+      setIsListening(false);
+      setIsRecording(false);
     }
+  };
+
+  // 播放录音
+  const playRecording = async () => {
+    if (!recordingUri) return;
+
+    try {
+      setIsPlaying(true);
+      // 模拟播放录音
+      setTimeout(() => {
+        setIsPlaying(false);
+      }, recordingDuration * 1000);
+
+    } catch (error) {
+      console.error('播放录音失败:', error);
+      setIsPlaying(false);
+    }
+  };
+
+  // 停止播放
+  const stopPlaying = () => {
+    setIsPlaying(false);
   };
 
   // 处理搜索
@@ -207,9 +293,8 @@ const MultiModalSearch = ({
           break;
 
         case 'voice':
-          if (!recordingPathRef.current) throw new Error('没有录音文件');
-          const audioData = await RNFS.readFile(recordingPathRef.current, 'base64');
-          searchData.audioBase64 = audioData;
+          if (!searchQuery.trim()) throw new Error('没有识别到语音内容');
+          searchData.query = searchQuery.trim();
           break;
 
         case 'image':
@@ -222,19 +307,54 @@ const MultiModalSearch = ({
           throw new Error('不支持的搜索模式');
       }
 
-      // 分发搜索Action
-      const resultAction = await dispatch(search(searchData));
+      // 使用本地搜索
+      console.log('MultiModalSearch: 执行本地搜索', searchData);
+      const resultAction = await dispatch(localSearch(searchData));
 
-      if (search.fulfilled.match(resultAction)) {
-        // 检查是否是离线搜索结果
-        const isOfflineSearch = resultAction.payload?.isOfflineSearch || false;
+      if (localSearch.fulfilled.match(resultAction)) {
+        const results = resultAction.payload?.results || [];
+        const hasResults = resultAction.payload?.hasResults || false;
 
-        // 将搜索结果和离线状态传递给回调函数
-        onSearch?.(resultAction.payload?.results || resultAction.payload, searchQuery, {
-          isOfflineSearch,
+        if (!hasResults) {
+          setLocalError('未找到相关内容，请尝试其他关键词');
+        }
+
+        // 将搜索结果传递给回调函数，包含跳转功能
+        onSearch?.(results, searchQuery, {
+          isLocalSearch: true,
           searchMode: reduxSearchMode,
-          searchScope: searchScope
+          searchScope: searchScope,
+          hasResults,
+          onNavigateToFile: handleNavigateToFile
         });
+
+        // 如果有结果，导航到搜索结果页面
+        if (hasResults && results.length > 0) {
+          console.log('搜索成功，准备导航到结果页面，结果数量:', results.length);
+
+          // 确保navigation对象存在
+          if (navigation && navigation.navigate) {
+            navigation.navigate('SearchResults', {
+              results,
+              query: searchQuery,
+              searchMode: reduxSearchMode,
+              onNavigateToFile: handleNavigateToFile
+            });
+          } else {
+            console.error('Navigation对象不可用，无法跳转到搜索结果页面');
+            // 如果navigation不可用，直接调用onSearch回调
+            onSearch?.(results, searchQuery, {
+              isLocalSearch: true,
+              searchMode: reduxSearchMode,
+              searchScope: searchScope,
+              hasResults,
+              onNavigateToFile: handleNavigateToFile
+            });
+          }
+        } else {
+          // 没有结果时显示提示
+          setLocalError('未找到相关内容，请尝试其他关键词');
+        }
 
         // 保存搜索历史
         dispatch(addToSearchHistory({
@@ -255,17 +375,107 @@ const MultiModalSearch = ({
     setTimeout(() => handleSearch(), 100);
   };
 
+
   // 处理历史记录点击
-  const handleHistoryItemPress = (query, mode) => {
-    setSearchQuery(query);
-    dispatch(setSearchMode(mode || 'text'));
+  const handleHistoryItemPress = (historyItem) => {
+    setSearchQuery(historyItem.query);
     setShowHistory(false);
-    setTimeout(() => handleSearch(), 100);
+
+    // 立即执行搜索
+    setTimeout(() => {
+      handleSearch();
+    }, 100);
+  };
+
+  // 处理文件跳转 - 智能识别所有类型
+  const handleNavigateToFile = (file) => {
+    console.log('跳转到文件:', file);
+
+    try {
+      const fileId = file.id || file._id;
+      const fileTitle = file.title || file.name || file.fileName || '未命名';
+
+      // 优先根据sourceType判断
+      if (file.sourceType === 'note' || file.type === 'note' || file.noteType === 'paged') {
+        navigation.navigate('FluidPagedNote', {
+          noteId: fileId,
+          title: fileTitle
+        });
+      } else if (file.sourceType === 'canvas' || file.type === 'canvas' || file.noteType === 'canvas') {
+        navigation.navigate('InfiniteCanvas', {
+          noteId: fileId,
+          title: fileTitle
+        });
+      } else if (file.type === 'card' || file.noteType === 'card') {
+        navigation.navigate('CardNote', {
+          noteId: fileId,
+          title: fileTitle
+        });
+      } else if (file.type === 'pdf' || file.file_type === 'pdf' ||
+                 (fileTitle && fileTitle.toLowerCase().includes('.pdf'))) {
+        navigation.navigate('PDFViewer', {
+          uri: file.path || file.uri || file.filePath,
+          title: fileTitle
+        });
+      } else if (file.type === 'ppt' || file.file_type === 'ppt' ||
+                 (fileTitle && (fileTitle.toLowerCase().includes('.ppt') ||
+                                fileTitle.toLowerCase().includes('.pptx')))) {
+        navigation.navigate('PPTViewer', {
+          uri: file.path || file.uri || file.filePath,
+          title: fileTitle
+        });
+      } else if (file.type === 'doc' || file.file_type === 'doc' ||
+                 (fileTitle && (fileTitle.toLowerCase().includes('.doc') ||
+                                fileTitle.toLowerCase().includes('.docx')))) {
+        navigation.navigate('DocViewer', {
+          uri: file.path || file.uri || file.filePath,
+          title: fileTitle
+        });
+      } else if (file.type === 'md' || file.file_type === 'markdown' ||
+                 (fileTitle && fileTitle.toLowerCase().includes('.md'))) {
+        navigation.navigate('MarkdownViewer', {
+          uri: file.path || file.uri || file.filePath,
+          title: fileTitle
+        });
+      } else if (fileId) {
+        // 有ID的默认当作笔记处理
+        if (fileId.includes('canvas')) {
+          navigation.navigate('InfiniteCanvas', {
+            noteId: fileId,
+            title: fileTitle
+          });
+        } else if (fileId.includes('card')) {
+          navigation.navigate('CardNote', {
+            noteId: fileId,
+            title: fileTitle
+          });
+        } else {
+          navigation.navigate('FluidPagedNote', {
+            noteId: fileId,
+            title: fileTitle
+          });
+        }
+      } else {
+        // 最后的兜底：创建新笔记
+        navigation.navigate('FluidPagedNote', {
+          title: fileTitle,
+          createNew: true // 明确标记为新建
+        });
+      }
+
+      // 关闭搜索界面
+      onCancel?.();
+    } catch (error) {
+      console.error('文件跳转失败:', error);
+      Alert.alert('跳转失败', '无法打开该文件，请稍后重试');
+    }
   };
 
   // 取消操作
   const handleCancel = () => {
-    isRecording && stopRecording();
+    if (isListening) {
+      stopVoiceRecognition();
+    }
     onCancel?.();
   };
 
@@ -273,8 +483,8 @@ const MultiModalSearch = ({
   const switchSearchMode = (mode) => {
     if (mode === reduxSearchMode) return;
 
-    if (reduxSearchMode === 'voice' && isRecording) {
-      stopRecording();
+    if (reduxSearchMode === 'voice' && isListening) {
+      stopVoiceRecognition();
     }
 
     // 更新Redux状态
@@ -350,12 +560,7 @@ const MultiModalSearch = ({
     }
   };
 
-  // 格式化录音时间
-  const formatRecordingTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  // 删除不需要的录音时间格式化函数
 
   // 根据搜索范围获取占位文本
   const getPlaceholderText = () => {
@@ -426,24 +631,35 @@ const MultiModalSearch = ({
   const renderVoiceSearch = () => (
     <View style={styles.voiceSearchContainer}>
       <View style={styles.recordingInfo}>
-        {isRecording ? (
+        {isListening ? (
           <Text
             variant="body"
             size="medium"
-            color="error"
+            color="primary"
             center
           >
-            正在录音... {formatRecordingTime(recordingDuration)}
+            正在识别语音...
           </Text>
-        ) : recordingPathRef.current ? (
-          <Text
-            variant="body"
-            size="medium"
-            color="text"
-            center
-          >
-            录音完成 ({formatRecordingTime(recordingDuration)})
-          </Text>
+        ) : recognizedText ? (
+          <View style={styles.recognizedTextContainer}>
+            <Text
+              variant="body"
+              size="medium"
+              color="text"
+              center
+            >
+              识别结果：
+            </Text>
+            <Text
+              variant="body"
+              size="large"
+              color="primary"
+              center
+              style={styles.recognizedText}
+            >
+              "{recognizedText}"
+            </Text>
+          </View>
         ) : (
           <Text
             variant="body"
@@ -451,7 +667,7 @@ const MultiModalSearch = ({
             color="hint"
             center
           >
-            点击开始录音
+            点击开始语音识别
           </Text>
         )}
       </View>
@@ -459,19 +675,44 @@ const MultiModalSearch = ({
       <TouchableOpacity
         style={[
           styles.recordButton,
-          isRecording ? { backgroundColor: colors.error } : { backgroundColor: colors.primary },
+          isListening ? { backgroundColor: colors.error } : { backgroundColor: colors.primary },
         ]}
-        onPress={isRecording ? stopRecording : startRecording}
+        onPress={isListening ? stopVoiceRecognition : startVoiceRecognition}
         disabled={isLoading}
       >
         {isLoading ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Icon name={isRecording ? 'stop' : 'mic'} size={32} color="#FFFFFF" />
+          <Icon name={isListening ? 'stop' : 'keyboard-voice'} size={32} color="#FFFFFF" />
         )}
       </TouchableOpacity>
 
-      {recordingPathRef.current && (
+      {/* 录音播放控件 */}
+      {recordingUri && !isListening && (
+        <View style={[styles.recordingControls, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity
+            style={[styles.playButton, { backgroundColor: colors.primary }]}
+            onPress={isPlaying ? stopPlaying : playRecording}
+          >
+            <Icon
+              name={isPlaying ? 'pause' : 'play-arrow'}
+              size={20}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+
+          <View style={styles.recordingInfo}>
+            <Text style={[styles.recordingDuration, { color: colors.text }]}>
+              {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+            </Text>
+            <Text style={[styles.recordingLabel, { color: colors.textSecondary }]}>
+              录音时长
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {recognizedText && !isListening && (
         <TouchableOpacity
           style={[styles.searchButton, { backgroundColor: colors.primary, marginTop: 16 }]}
           onPress={handleSearch}
@@ -624,9 +865,39 @@ const MultiModalSearch = ({
         {reduxSearchMode === 'voice' && renderVoiceSearch()}
         {reduxSearchMode === 'image' && renderImageSearch()}
 
-        {/* 搜索历史 */}
+        {/* 快速搜索历史 - 在输入框下方显示 */}
+        {reduxSearchMode === 'text' && !searchQuery && searchHistory.length > 0 && (
+          <View style={[styles.quickHistoryContainer, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.quickHistoryTitle, { color: colors.textSecondary }]}>
+              最近搜索
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.quickHistoryScrollView}
+            >
+              {searchHistory.slice(0, 8).map((item, index) => (
+                <TouchableOpacity
+                  key={`quick-${item.query}-${index}`}
+                  style={[styles.quickHistoryChip, {
+                    backgroundColor: colors.primary + '15',
+                    borderColor: colors.primary + '30'
+                  }]}
+                  onPress={() => handleHistoryItemPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.quickHistoryChipText, { color: colors.primary }]}>
+                    {item.query}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* 完整搜索历史面板 */}
         {reduxSearchMode === 'text' && !searchQuery && showHistory && (
-          <View style={styles.historyContainer}>
+          <View style={[styles.historyContainer, { elevation: 0 }]}>
             <SearchHistory
               onHistoryItemPress={handleHistoryItemPress}
               visible={true}
@@ -657,7 +928,7 @@ const MultiModalSearch = ({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: 'visible', // 改为visible，避免遮挡点击事件
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -727,6 +998,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 24,
+    pointerEvents: 'auto', // 确保可以接收点击事件
   },
   textSearchContainer: {
     flexDirection: 'row',
@@ -798,6 +1070,38 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     borderWidth: 1,
     borderColor: '#2196F3',
+  },
+  recordingControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    backgroundColor: '#FFFFFF', // 纯白背景，与文件背景一致
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  recordingInfo: {
+    flex: 1,
+  },
+  recordingDuration: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  recordingLabel: {
+    fontSize: 12,
   },
   imageSearchContainer: {
     alignItems: 'center',
@@ -893,17 +1197,59 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
   },
   historyContainer: {
-    marginTop: 16,
-    borderRadius: 16,
+    marginTop: 8,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#2196F3',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    maxHeight: 300,
+    borderColor: '#E3F2FD',
+    elevation: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    maxHeight: 220,
+  },
+  recognizedTextContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.3)',
+  },
+  recognizedText: {
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  quickHistoryContainer: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    elevation: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+  },
+  quickHistoryTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  quickHistoryScrollView: {
+    flexDirection: 'row',
+  },
+  quickHistoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  quickHistoryChipText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 

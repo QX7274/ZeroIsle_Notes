@@ -61,9 +61,153 @@ const HandwritingCanvas = forwardRef(({
   const [canvasHeight, setCanvasHeight] = useState(height);
   const [stylusActive, setStylusActive] = useState(false);
 
+  // 企业级手写功能状态
+  const [inputType, setInputType] = useState('finger'); // 'finger' | 'pen'
+  const [isPenActive, setIsPenActive] = useState(false);
+  const [currentPressure, setCurrentPressure] = useState(0.5);
+  const [strokeVelocity, setStrokeVelocity] = useState(0);
+  const [lastTouchTime, setLastTouchTime] = useState(0);
+
   // 图像状态
   const [imageUrl, setImageUrl] = useState(null);
   const backgroundImage = useImage(imageUrl);
+
+  /**
+   * 企业级手写笔检测算法 v3.0
+   * 基于多维特征融合和机器学习启发的判断逻辑
+   * 增强多点触控检测，避免双指缩放误识别
+   */
+  const detectInputType = (event) => {
+    const currentTime = Date.now();
+    const timeDelta = currentTime - lastTouchTime;
+
+    // 初始化特征权重
+    let penScore = 0;
+    let confidence = 0;
+
+    // === 多点触控检测（优先级最高）===
+    const touches = event.allTouches || event.touches || [];
+    const touchCount = touches.length;
+    
+    // 如果检测到多点触控，直接判定为手指操作
+    if (touchCount > 1) {
+      console.log(`检测到多点触控(${touchCount}个触点)，判定为手指操作`);
+      return 'finger';
+    }
+
+    // === 硬件特征检测 ===
+
+    // 特征1: 压感检测（最重要特征，权重40%）
+    const pressure = event.pressure || event.force || 0.5;
+    if (pressure !== undefined && pressure > 0) {
+      if (pressure > 0.05 && pressure < 0.95) {
+        // 手写笔通常有细腻的压感变化
+        const pressureVariation = Math.abs(pressure - 0.5);
+        penScore += 4 + (pressureVariation * 2);
+        confidence += 0.4;
+      }
+    }
+
+    // 特征2: 触控面积检测（权重25%）
+    const radiusX = event.radiusX || event.touchMajor || 5;
+    const radiusY = event.radiusY || event.touchMinor || 5;
+    const touchArea = radiusX * radiusY * Math.PI;
+
+    if (touchArea < 80) {
+      penScore += 3; // 手写笔触控面积小且精确
+      confidence += 0.25;
+    } else if (touchArea > 200) {
+      penScore -= 2; // 大面积触控更可能是手指
+    }
+
+    // 特征3: 倾斜角度检测（权重20%）
+    const tiltX = event.tiltX || 0;
+    const tiltY = event.tiltY || 0;
+    const hasTilt = Math.abs(tiltX) > 0 || Math.abs(tiltY) > 0;
+
+    if (hasTilt) {
+      penScore += 4; // 倾斜角度是手写笔独有特征
+      confidence += 0.2;
+    }
+
+    // 特征4: 指针类型检测（权重30%）
+    if (event.pointerType === 'pen') {
+      penScore += 5; // 系统明确识别为笔
+      confidence += 0.3;
+    } else if (event.pointerType === 'touch') {
+      penScore -= 1; // 系统识别为触摸
+    }
+
+    // === 行为特征检测 ===
+
+    // 特征5: 移动精度和速度检测（权重15%）
+    if (timeDelta > 0 && timeDelta < 1000) {
+      const velocityX = event.velocityX || 0;
+      const velocityY = event.velocityY || 0;
+      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+
+      // 手写笔移动更精确，速度变化更平滑
+      if (velocity < 800) {
+        penScore += 1;
+      }
+
+      const acceleration = Math.abs(velocity - strokeVelocity);
+      if (acceleration < 200) {
+        penScore += 1;
+        confidence += 0.15;
+      }
+
+      setStrokeVelocity(velocity);
+    }
+
+    // 特征6: 连续性检测（权重10%）
+    if (isPenActive && timeDelta < 150) {
+      penScore += 2;
+      confidence += 0.1;
+    }
+
+    setLastTouchTime(currentTime);
+
+    // === 动态阈值判断 ===
+    const baseThreshold = 4;
+    const confidenceAdjustment = confidence * 2;
+    const dynamicThreshold = baseThreshold - confidenceAdjustment;
+
+    const detectedType = penScore >= dynamicThreshold ? 'pen' : 'finger';
+
+    if (detectedType === 'pen') {
+      setIsPenActive(true);
+      setCurrentPressure(pressure);
+      setTimeout(() => setIsPenActive(false), 300);
+    }
+
+    if (__DEV__) {
+      console.log(`手写检测: ${detectedType} (得分: ${penScore.toFixed(1)}, 置信度: ${confidence.toFixed(2)}, 压感: ${pressure.toFixed(3)}, 触点: ${touchCount})`);
+    }
+
+    return detectedType;
+  };
+
+  /**
+   * 计算动态笔画宽度
+   * 基于压感、速度和输入类型
+   */
+  const calculateDynamicStrokeWidth = (pressure, velocity, inputType) => {
+    let dynamicWidth = strokeWidth;
+
+    if (inputType === 'pen') {
+      // 手写笔支持压感变化
+      const pressureFactor = Math.max(0.3, Math.min(2.0, pressure * 2));
+      const velocityFactor = Math.max(0.5, Math.min(1.5, 1 - velocity / 1000));
+      dynamicWidth = strokeWidth * pressureFactor * velocityFactor;
+    } else {
+      // 手指使用相对固定的宽度，但可以根据速度微调
+      const velocityFactor = Math.max(0.8, Math.min(1.2, 1 - velocity / 2000));
+      dynamicWidth = strokeWidth * velocityFactor;
+    }
+
+    return Math.max(1, Math.min(15, dynamicWidth));
+  };
 
   // 添加图片到画布
   const addImage = (imageData) => {
@@ -272,35 +416,36 @@ const HandwritingCanvas = forwardRef(({
       }
     })
     .onStart((event) => {
-      runOnJS(setStylusActive)(true);
       'worklet';
       try {
-        // 安全地调用isStylusInput函数
-        let isStylusDetected = false;
-        try {
-          isStylusDetected = isStylusInput(event);
-        } catch (stylusError) {
-          console.error('触控笔检测错误:', stylusError);
-          // 出错时默认为手指输入
+        // 使用企业级检测算法
+        const detectedType = runOnJS(detectInputType)(event);
+        runOnJS(setInputType)(detectedType);
+        runOnJS(setStylusActive)(detectedType === 'pen');
+        runOnJS(setCurrentPressure)(event.pressure || 0.5);
+
+        // 计算初始速度
+        const velocity = Math.sqrt(
+          Math.pow(event.velocityX || 0, 2) +
+          Math.pow(event.velocityY || 0, 2)
+        );
+        runOnJS(setStrokeVelocity)(velocity);
+
+        if (detectedType === 'finger' && runOnJS(() => isPenActive)) {
+          console.log('❌ 手写笔激活时忽略手指输入');
           return false;
         }
 
-        if (!isStylusDetected) {
-          try {
-            console.log('❌ 检测到手指触摸，忽略绘制，允许PDF处理滑动');
-          } catch (logError) {
-            // 忽略日志错误
-          }
-          // 手指触摸时不处理，让底层PDF处理
-          return false;
-        }
+        console.log(`✅ 检测到${detectedType === 'pen' ? '手写笔' : '手指'}输入，开始绘制`);
+        console.log(`压感: ${event.pressure || 0.5}, 速度: ${velocity.toFixed(2)}`);
 
-        // 确保所有后续操作都在try-catch块中
-        try {
-          console.log('✅ 检测到触控笔输入，开始绘制');
-        } catch (logError) {
-          // 忽略日志错误
-        }
+        // 根据输入类型调整笔画宽度
+        const dynamicWidth = runOnJS(calculateDynamicStrokeWidth)(
+          event.pressure || 0.5,
+          velocity,
+          detectedType
+        );
+        runOnJS(setStrokeWidth)(dynamicWidth);
         
         // 安全地获取坐标
         let x = 0, y = 0;

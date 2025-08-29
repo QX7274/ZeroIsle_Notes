@@ -170,19 +170,23 @@ const SearchResultsScreen = ({ navigation, route }) => {
     setShowFilters(false);
   };
 
-  // 处理历史项点击
+  // 处理历史项点击（接收完整对象）
   const handleHistoryItemPress = (historyItem) => {
-    setCurrentQuery(historyItem.query);
+    const history = typeof historyItem === 'string'
+      ? { query: historyItem, mode: 'text' }
+      : (historyItem || {});
+
+    setCurrentQuery(history.query);
     setIsLoading(true);
 
     // 执行搜索
     dispatch({
       type: 'search/search',
-      payload: { query: historyItem.query, mode: historyItem.mode || 'text' }
+      payload: { query: history.query, mode: history.mode || 'text' }
     })
       .then(action => {
         if (action.payload) {
-          handleSearch(action.payload, historyItem.query);
+          handleSearch(action.payload, history.query);
         }
       })
       .catch(err => {
@@ -194,23 +198,84 @@ const SearchResultsScreen = ({ navigation, route }) => {
       });
   };
 
-  // 处理结果点击
+  // 处理结果点击 - 增强版文件跳转
   const handleResultPress = (result) => {
-    switch (result.type) {
-      case 'note':
-        navigation.navigate('Note', { note: result });
-        break;
-      case 'tag':
-        navigation.navigate('TagNotes', { tagId: result.id, tagName: result.title });
-        break;
-      case 'knowledge':
-        navigation.navigate('NodeDetail', { nodeId: result.id });
-        break;
-      case 'canvas':
-        navigation.navigate('InfiniteCanvas', { canvasId: result.id, title: result.title || '无限草稿' });
-        break;
-      default:
-        break;
+    console.log('点击搜索结果:', result);
+
+    try {
+      switch (result.type) {
+        case 'note':
+          // 优先使用新的流畅笔记界面
+          navigation.navigate('FluidPagedNote', {
+            noteId: result.id || result._id,
+            title: result.title || result.name
+          });
+          break;
+
+        case 'card':
+          navigation.navigate('CardNote', {
+            noteId: result.id || result._id,
+            title: result.title || result.name
+          });
+          break;
+
+        case 'canvas':
+          navigation.navigate('InfiniteCanvas', {
+            canvasId: result.id,
+            title: result.title || '无限草稿'
+          });
+          break;
+
+        case 'pdf':
+          navigation.navigate('PDFViewer', {
+            uri: result.path || result.uri || result.filePath,
+            title: result.title || result.name || result.fileName
+          });
+          break;
+
+        case 'ppt':
+          navigation.navigate('PPTViewer', {
+            uri: result.path || result.uri || result.filePath,
+            title: result.title || result.name || result.fileName
+          });
+          break;
+
+        case 'doc':
+          navigation.navigate('DocViewer', {
+            uri: result.path || result.uri || result.filePath,
+            title: result.title || result.name || result.fileName
+          });
+          break;
+
+        case 'md':
+          navigation.navigate('MarkdownViewer', {
+            uri: result.path || result.uri || result.filePath,
+            title: result.title || result.name || result.fileName
+          });
+          break;
+
+        case 'tag':
+          navigation.navigate('TagNotes', {
+            tagId: result.id,
+            tagName: result.title
+          });
+          break;
+
+        case 'knowledge':
+          navigation.navigate('NodeDetail', { nodeId: result.id });
+          break;
+
+        default:
+          // 默认跳转到流畅笔记界面
+          navigation.navigate('FluidPagedNote', {
+            noteId: result.id || result._id,
+            title: result.title || result.name || '未命名文件'
+          });
+          break;
+      }
+    } catch (error) {
+      console.error('搜索结果跳转失败:', error);
+      Alert.alert('跳转失败', '无法打开该文件，请稍后重试');
     }
   };
 

@@ -55,11 +55,26 @@ const fallbackRandom = (len) => {
 };
 
 // 设置bcrypt的随机回退函数
-try {
-  bcrypt.setRandomFallback(secureRandom);
-  console.log('成功设置bcrypt的安全随机回退函数');
-} catch (error) {
-  console.error('设置bcrypt随机回退函数失败:', error);
-}
+const initializeBcrypt = () => {
+  try {
+    // 检查bcrypt是否可用
+    if (bcrypt && typeof bcrypt.setRandomFallback === 'function') {
+      bcrypt.setRandomFallback(secureRandom);
+      console.log('成功设置bcrypt的安全随机回退函数');
+      return true;
+    } else {
+      console.warn('bcrypt.setRandomFallback方法不可用');
+      return false;
+    }
+  } catch (error) {
+    console.error('设置bcrypt随机回退函数失败:', error);
+    return false;
+  }
+};
+
+// 延迟初始化，确保在应用启动后执行
+setTimeout(() => {
+  initializeBcrypt();
+}, 100);
 
 export default bcrypt;

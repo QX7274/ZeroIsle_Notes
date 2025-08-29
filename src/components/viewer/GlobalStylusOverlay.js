@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Canvas, Path, Skia, PaintStyle } from '@shopify/react-native-skia';
 import { detectInputType, isStylusInput } from '../../utils/inputDetection';
+import HardwarePenDetection from '../../services/handwriting/HardwarePenDetection';
 
 // 轻量的全局手写笔覆盖层：
 // - 默认 pointerEvents=none，不阻挡任何交互
@@ -12,6 +13,7 @@ export default function GlobalStylusOverlay({
   color = '#000',
   width = 3,
   style,
+  onStrokeStart,
   onStrokeEnd,
 }) {
   const [active, setActive] = useState(false);
@@ -63,8 +65,39 @@ export default function GlobalStylusOverlay({
     .onTouchesDown((evt, state) => {
       'worklet';
       try {
-        isStylusInputWorklet(evt) ? state.activate() : state.fail();
-      } catch {
+        // 使用更宽松的检测策略，优先激活手写
+        const shouldActivate = isStylusInputWorklet(evt);
+
+        if (shouldActivate) {
+          console.log('✅ GlobalStylusOverlay: 激活手写');
+          state.activate();
+        } else {
+          // 大幅降低检测门槛，让更多输入被识别为手写笔
+          const e = evt.allTouches?.[0] || evt;
+
+          // 检查多种可能的手写笔特征
+          const hasPressure = e?.pressure > 0.05;
+          const hasSmallRadius = e?.radiusX && e.radiusX < 15;
+          const hasToolType = e?.toolType === 2;
+          const hasTouchType = e?.touchType === 'stylus' || e?.touchType === 'pen';
+
+          // 任何一个特征满足就激活
+          if (hasPressure || hasSmallRadius || hasToolType || hasTouchType) {
+            console.log('✅ GlobalStylusOverlay: 降低门槛激活', {
+              pressure: e?.pressure,
+              radiusX: e?.radiusX,
+              toolType: e?.toolType,
+              touchType: e?.touchType
+            });
+            state.activate();
+          } else {
+            // 最后的兜底：如果没有明确的手指特征，也激活（用于测试）
+            console.log('⚠️ GlobalStylusOverlay: 兜底激活（测试模式）');
+            state.activate(); // 临时：总是激活，用于测试
+          }
+        }
+      } catch (error) {
+        console.error('手写检测错误:', error);
         state.fail();
       }
     })
@@ -73,6 +106,7 @@ export default function GlobalStylusOverlay({
       const { x, y } = e;
       current.current = { path: `M ${x} ${y}`, pts: [{ x, y }], color, width };
       setStrokes((prev) => [...prev, current.current]);
+      try { onStrokeStart && onStrokeStart({ x, y }); } catch {}
     })
     .onUpdate((e) => {
       if (!current.current) return;

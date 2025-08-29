@@ -39,7 +39,7 @@ import { ChatMessage, ChatInput, ChatHistorySidebar } from '../../components/ai'
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AIAssistantModule from '../../native/AIAssistantModule';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import nativeAudioService from '../../services/audio/nativeAudioService';
 import RNFS from 'react-native-fs';
 
 // 存储键
@@ -87,10 +87,37 @@ const AIAssistantScreen = ({ navigation }) => {
   // 引用
   const flatListRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const audioRecorderPlayer = useRef(null);
   const audioFilePath = useRef(Platform.OS === 'android' ?
     `${RNFS.CachesDirectoryPath}/audio_message.mp3` :
     `${RNFS.CachesDirectoryPath}/audio_message.m4a`).current;
+
+  // 初始化语音识别服务
+  useEffect(() => {
+    // 添加语音识别事件监听器
+    nativeAudioService.addListener('speechResults', (e) => {
+      if (e.value && e.value.length > 0) {
+        const recognizedText = e.value[0];
+        setInputText(recognizedText);
+        setIsRecording(false);
+        console.log('语音识别结果:', recognizedText);
+      }
+    });
+
+    nativeAudioService.addListener('speechError', (e) => {
+      console.error('语音识别错误:', e);
+      setIsRecording(false);
+      Alert.alert('语音识别失败', '请重试或检查网络连接');
+    });
+
+    nativeAudioService.addListener('speechEnd', () => {
+      setIsRecording(false);
+    });
+
+    return () => {
+      nativeAudioService.destroy();
+    };
+  }, []);
 
   // 加载设置和聊天历史
   useEffect(() => {
@@ -198,30 +225,47 @@ const AIAssistantScreen = ({ navigation }) => {
   const requestRecordPermission = async () => {
     if (Platform.OS === 'android') {
       try {
-        const grants = await PermissionsAndroid.requestMultiple([
+        const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-        ]);
+          {
+            title: '麦克风权限申请',
+            message: '需要访问您的麦克风以进行语音输入',
+            buttonNeutral: '稍后询问',
+            buttonNegative: '取消',
+            buttonPositive: '确定',
+          }
+        );
 
-        if (
-          grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED &&
-          grants[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED
-        ) {
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           return true;
         } else {
-          Alert.alert('权限错误', '需要录音和存储权限才能使用语音功能');
+          Alert.alert(
+            '权限被拒绝',
+            '语音功能需要麦克风权限。请在设置中手动开启权限。',
+            [
+              { text: '取消', style: 'cancel' },
+              {
+                text: '去设置',
+                onPress: () => {
+                  // 可以添加跳转到设置的逻辑
+                  Alert.alert('提示', '请在应用设置中开启麦克风权限');
+                }
+              }
+            ]
+          );
           return false;
         }
       } catch (err) {
         console.error('权限请求错误:', err);
+        Alert.alert('错误', '权限请求失败，请重试');
         return false;
       }
     }
     return true; // iOS默认返回true，权限在Info.plist中配置
   };
 
-  // 开始录音
-  const startRecording = async () => {
+  // 开始语音输入
+  const startVoiceInput = async () => {
     const hasPermission = await requestRecordPermission();
     if (!hasPermission) return;
 
@@ -231,17 +275,9 @@ const AIAssistantScreen = ({ navigation }) => {
       const dirPath = audioFilePath.substring(0, audioFilePath.lastIndexOf('/'));
       await RNFS.mkdir(dirPath);
 
-      // 开始录音
-      const result = await audioRecorderPlayer.startRecorder(audioFilePath);
-      audioRecorderPlayer.addRecordBackListener((e) => {
-        const seconds = Math.floor(e.currentPosition / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        setRecordTime(
-          `${minutes < 10 ? '0' + minutes : minutes}:${remainingSeconds < 10 ? '0' + remainingSeconds : remainingSeconds}`
-        );
-      });
-      console.log('开始录音:', result);
+      // 开始语音识别
+      await nativeAudioService.startSpeechToText('zh-CN');
+      console.log('开始语音识别');
     } catch (error) {
       console.error('录音失败:', error);
       Alert.alert('错误', `录音失败: ${error.message}`);
@@ -249,16 +285,14 @@ const AIAssistantScreen = ({ navigation }) => {
     }
   };
 
-  // 停止录音
-  const stopRecording = async () => {
+  // 停止语音识别
+  const stopVoiceInput = async () => {
     if (!isRecording) return;
 
     try {
-      const result = await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
+      await nativeAudioService.stopSpeechToText();
       setIsRecording(false);
-      setRecordTime('00:00');
-      console.log('录音结束:', result);
+      console.log('语音识别结束');
 
       // 转写音频
       transcribeAudio();
@@ -626,8 +660,8 @@ const AIAssistantScreen = ({ navigation }) => {
         onSend={handleSendMessage}
         isLoading={isLoading}
         voiceEnabled={voiceEnabled}
-        onStartVoice={startRecording}
-        onStopVoice={stopRecording}
+        onStartVoice={startVoiceInput}
+        onStopVoice={stopVoiceInput}
         isRecording={isRecording}
         onCancel={handleCancel}
       />

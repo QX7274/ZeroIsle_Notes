@@ -147,55 +147,131 @@ const HomeScreen = ({ navigation }) => {
 
     const sorted = [...notesToSort];
 
+    // 统一日期字段处理函数
+    const getDate = (item, field) => {
+      return new Date(
+        item[field] ||
+        item[field + 'At'] ||
+        item[field.replace('At', '')] ||
+        item.created_at ||
+        item.createdAt ||
+        item.updated_at ||
+        item.updatedAt ||
+        0
+      );
+    };
+
+    // 统一标题处理函数
+    const getTitle = (item) => {
+      return (item.title || item.name || item.fileName || '').toLowerCase();
+    };
+
+    // 统一类型处理函数
+    const getType = (item) => {
+      return item.type || item.file_type || item.noteType || item.fileType || 'unknown';
+    };
+
     switch (option) {
       case 'created_desc':
         return sorted.sort((a, b) => {
-          const dateA = new Date(a.createdAt || 0);
-          const dateB = new Date(b.createdAt || 0);
+          const dateA = getDate(a, 'createdAt');
+          const dateB = getDate(b, 'createdAt');
           return dateB - dateA;
         });
 
       case 'created_asc':
         return sorted.sort((a, b) => {
-          const dateA = new Date(a.createdAt || 0);
-          const dateB = new Date(b.createdAt || 0);
+          const dateA = getDate(a, 'createdAt');
+          const dateB = getDate(b, 'createdAt');
           return dateA - dateB;
         });
 
       case 'updated_desc':
         return sorted.sort((a, b) => {
-          const dateA = new Date(a.updatedAt || a.createdAt || 0);
-          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+          const dateA = getDate(a, 'updatedAt');
+          const dateB = getDate(b, 'updatedAt');
           return dateB - dateA;
         });
 
       case 'updated_asc':
         return sorted.sort((a, b) => {
-          const dateA = new Date(a.updatedAt || a.createdAt || 0);
-          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+          const dateA = getDate(a, 'updatedAt');
+          const dateB = getDate(b, 'updatedAt');
           return dateA - dateB;
         });
 
       case 'title_asc':
-        return sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        return sorted.sort((a, b) => {
+          const titleA = getTitle(a);
+          const titleB = getTitle(b);
+          return titleA.localeCompare(titleB, 'zh-CN', { numeric: true });
+        });
 
       case 'title_desc':
-        return sorted.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+        return sorted.sort((a, b) => {
+          const titleA = getTitle(a);
+          const titleB = getTitle(b);
+          return titleB.localeCompare(titleA, 'zh-CN', { numeric: true });
+        });
 
       case 'type':
         return sorted.sort((a, b) => {
+          const typeA = getType(a);
+          const typeB = getType(b);
+
           // 首先按类型排序
-          if (a.type !== b.type) {
-            return (a.type || '').localeCompare(b.type || '');
+          if (typeA !== typeB) {
+            // 定义类型优先级
+            const typePriority = {
+              'note': 1,
+              'card': 2,
+              'canvas': 3,
+              'pdf': 4,
+              'doc': 5,
+              'ppt': 6,
+              'image': 7,
+              'audio': 8,
+              'video': 9,
+              'unknown': 10
+            };
+
+            const priorityA = typePriority[typeA] || 10;
+            const priorityB = typePriority[typeB] || 10;
+
+            if (priorityA !== priorityB) {
+              return priorityA - priorityB;
+            }
+
+            return typeA.localeCompare(typeB);
           }
-          // 然后按更新时间排序
-          const dateA = new Date(a.updatedAt || a.createdAt || 0);
-          const dateB = new Date(b.updatedAt || b.createdAt || 0);
+
+          // 同类型按更新时间排序
+          const dateA = getDate(a, 'updatedAt');
+          const dateB = getDate(b, 'updatedAt');
           return dateB - dateA;
         });
 
+      case 'size_desc':
+        return sorted.sort((a, b) => {
+          const sizeA = a.size || a.fileSize || a.content?.length || 0;
+          const sizeB = b.size || b.fileSize || b.content?.length || 0;
+          return sizeB - sizeA;
+        });
+
+      case 'size_asc':
+        return sorted.sort((a, b) => {
+          const sizeA = a.size || a.fileSize || a.content?.length || 0;
+          const sizeB = b.size || b.fileSize || b.content?.length || 0;
+          return sizeA - sizeB;
+        });
+
       default:
-        return sorted;
+        // 默认按更新时间降序排序
+        return sorted.sort((a, b) => {
+          const dateA = getDate(a, 'updatedAt');
+          const dateB = getDate(b, 'updatedAt');
+          return dateB - dateA;
+        });
     }
   }, []);
 
@@ -226,7 +302,8 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('InfiniteCanvas', {
       title: canvasTitle,
       noteId: canvasId,
-      canvasStyle: style
+      canvasStyle: style,
+      createNew: true // 明确标记为新建
     });
   };
 
@@ -247,62 +324,29 @@ const HomeScreen = ({ navigation }) => {
 
   // 处理卡片类型选择
   const handleCardTypeSelect = async (cardType) => {
-    setIsLoading(true);
-
     try {
-      const noteId = `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      console.log('HomeScreen: 处理卡片类型选择:', cardType);
+      
+      const cardTitle = `卡片笔记 ${new Date().toLocaleString()}`;
+      const cardId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
-      // 根据卡片类型生成初始内容
-      const initialContent = getInitialContentForCardType(cardType);
+      console.log('HomeScreen: 准备导航到CardNote，参数:', {
+        noteId: cardId,
+        title: cardTitle,
+        createNew: true
+      });
 
-      // 创建卡片笔记数据
-      const cardNoteData = {
-        id: noteId,
-        _id: noteId,
-        title: cardType.title,
-        content: initialContent,
-        type: 'card',
-        noteType: 'card',
-        file_type: 'card', // 添加file_type字段
-        cardType: cardType.id, // 保存卡片类型
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_synced: false,
-        is_offline: true,
-        imported: false,
-        is_deleted: false,
-        user_id: 'current_user',
-        metadata: JSON.stringify({
-          noteType: 'card',
-          cardType: cardType.id,
-          createdAt: new Date().toISOString()
-        })
-      };
+      navigation.navigate('CardNote', {
+        noteId: cardId,
+        title: cardTitle,
+        createNew: true // 明确标记为新建
+      });
 
-      // 使用createNote API保存卡片笔记
-      const result = await notesApi.createNote(cardNoteData);
-
-      if (result.success) {
-        console.log('卡片笔记已创建:', result.data);
-
-        // 刷新笔记列表
-        await loadNotes();
-
-        // 直接导航到卡片笔记编辑界面
-        navigation.navigate('CardNote', {
-          noteId: noteId,
-          title: cardType.title,
-          content: initialContent
-        });
-      } else {
-        throw new Error(result.message || '创建卡片笔记失败');
-      }
-
+      setShowCardTypeModal(false);
+      console.log('HomeScreen: 导航完成，关闭卡片类型选择器');
     } catch (error) {
-      console.error('创建卡片笔记失败:', error);
-      Alert.alert('创建失败', error.message || '创建卡片笔记失败，请重试');
-    } finally {
-      setIsLoading(false);
+      console.error('HomeScreen: 处理卡片类型选择失败:', error);
+      Alert.alert('错误', '创建卡片笔记失败，请重试');
     }
   };
 
@@ -310,10 +354,11 @@ const HomeScreen = ({ navigation }) => {
   const handleNoteStyleSelect = (style, name) => {
     const noteId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
-    navigation.navigate('PagedNote', {
+    navigation.navigate('FluidPagedNote', {
       title: name,
       noteId: noteId,
-      noteStyle: style
+      noteStyle: style,
+      createNew: true // 明确标记为新建
     });
   };
 

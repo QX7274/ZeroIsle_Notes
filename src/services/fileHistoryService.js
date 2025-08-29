@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { eventEmitter } from './utils/eventEmitter';
+import { STORAGE_EVENTS } from './offline/offlineStorageService';
 
 /**
  * 文件历史服务
@@ -10,6 +12,28 @@ class FileHistoryService {
     this.maxHistorySize = 30;
     this.history = [];
     this.listeners = [];
+    
+    // 监听文件删除事件，同步清理历史记录
+    this.setupEventListeners();
+  }
+
+  /**
+   * 设置事件监听器
+   */
+  setupEventListeners() {
+    // 监听笔记删除事件
+    eventEmitter.on(STORAGE_EVENTS.ITEM_DELETED, (data) => {
+      if (data.collectionName === 'Note') {
+        this.removeFileByNoteId(data.itemId);
+      }
+    });
+
+    // 监听文件删除事件
+    eventEmitter.on('FILE_DELETED', (data) => {
+      if (data.fileId) {
+        this.removeFile(data.fileId);
+      }
+    });
   }
 
   /**
@@ -88,6 +112,83 @@ class FileHistoryService {
     } catch (error) {
       console.error('FileHistoryService: 添加文件失败:', error);
     }
+  }
+
+  /**
+   * 根据笔记ID移除文件历史记录
+   * @param {string} noteId - 笔记ID
+   */
+  async removeFileByNoteId(noteId) {
+    try {
+      const initialLength = this.history.length;
+      this.history = this.history.filter(item => item.noteId !== noteId);
+      
+      if (this.history.length < initialLength) {
+        await this.saveHistory();
+        this.notifyListeners();
+        console.log('FileHistoryService: 根据笔记ID移除文件历史记录:', noteId);
+      }
+    } catch (error) {
+      console.error('FileHistoryService: 根据笔记ID移除文件失败:', error);
+    }
+  }
+
+  /**
+   * 批量清理不存在的文件历史记录
+   * @param {Array} existingFileIds - 当前存在的文件ID列表
+   */
+  async cleanupNonExistentFiles(existingFileIds = []) {
+    try {
+      const initialLength = this.history.length;
+      
+      // 过滤掉不存在的文件
+      this.history = this.history.filter(item => {
+        // 检查文件ID是否在现有文件列表中
+        const exists = existingFileIds.includes(item.id) || 
+                      existingFileIds.includes(item.noteId) ||
+                      existingFileIds.includes(item.fileName);
+        
+        if (!exists) {
+          console.log('FileHistoryService: 清理不存在的文件历史记录:', item.title);
+        }
+        
+        return exists;
+      });
+      
+      if (this.history.length < initialLength) {
+        await this.saveHistory();
+        this.notifyListeners();
+        console.log(`FileHistoryService: 批量清理完成，移除了 ${initialLength - this.history.length} 条记录`);
+      }
+    } catch (error) {
+      console.error('FileHistoryService: 批量清理失败:', error);
+    }
+  }
+
+  /**
+   * 检查文件是否存在
+   * @param {string} fileId - 文件ID
+   * @returns {boolean} 是否存在
+   */
+  hasFile(fileId) {
+    return this.history.some(item => 
+      item.id === fileId || 
+      item.noteId === fileId || 
+      item.fileName === fileId
+    );
+  }
+
+  /**
+   * 获取文件历史记录
+   * @param {string} fileId - 文件ID
+   * @returns {Object|null} 文件历史记录
+   */
+  getFileHistory(fileId) {
+    return this.history.find(item => 
+      item.id === fileId || 
+      item.noteId === fileId || 
+      item.fileName === fileId
+    ) || null;
   }
 
   /**

@@ -69,6 +69,14 @@ LogBox.ignoreLogs([
   'Reading from `value` during component render',
   'Animated: `useNativeDriver`',
   'Reanimated 2',
+  // NativeEventEmitter相关警告
+  '`new NativeEventEmitter()` was called with a non-null argument without the required `addListener` method',
+  '`new NativeEventEmitter()` was called with a non-null argument without the required `removeListeners` method',
+  // 其他常见警告
+  'Using Math.random is not cryptographically secure',
+  'componentWillReceiveProps has been renamed',
+  'componentWillMount has been renamed',
+  'componentWillUpdate has been renamed',
 ]);
 
 // 预加载关键模块

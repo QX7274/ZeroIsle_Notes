@@ -47,7 +47,7 @@ const RealtimeTranscription = ({
   const [animatedDots, setAnimatedDots] = useState(''); // 动画点
 
   // 引用
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const audioRecorderPlayer = useRef(null);
   const recordingPathRef = useRef('');
   const pollingIntervalRef = useRef(null);
   const durationTimerRef = useRef(null);
@@ -56,6 +56,20 @@ const RealtimeTranscription = ({
   const charIndexRef = useRef(0);
   const resultScrollRef = useRef(null);
   const dotsTimerRef = useRef(null);
+
+  // 初始化AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        audioRecorderPlayer.current = new AudioRecorderPlayer();
+        console.log('RealtimeTranscription: AudioRecorderPlayer初始化成功');
+      } else {
+        console.warn('RealtimeTranscription: AudioRecorderPlayer模块不可用或不是构造函数');
+      }
+    } catch (error) {
+      console.warn('RealtimeTranscription: AudioRecorderPlayer初始化失败:', error);
+    }
+  }, []);
 
   // 清理函数
   useEffect(() => {
@@ -159,11 +173,17 @@ const RealtimeTranscription = ({
 
       recordingPathRef.current = path;
 
+      // 检查录音器是否初始化
+      if (!audioRecorderPlayer.current) {
+        setError('录音器未初始化');
+        return;
+      }
+
       // 开始录音
-      await audioRecorderPlayer.startRecorder(path);
+      await audioRecorderPlayer.current.startRecorder(path);
 
       // 添加录音回调，获取音量信息
-      audioRecorderPlayer.addRecordBackListener((e) => {
+      audioRecorderPlayer.current.addRecordBackListener((e) => {
         // 计算振幅（0-1之间的值）
         const currentAmplitude = Math.min(1, e.currentMetering / 100);
         setAmplitude(currentAmplitude);

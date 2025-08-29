@@ -59,6 +59,7 @@
     "react-native-bcrypt": "^2.4.0",
     "react-native-blob-util": "^0.19.6",
     "react-native-calendar-events": "^2.2.0",
+    "react-native-calendars": "^1.1313.0",
     "react-native-camera": "^4.2.1",
     "react-native-chart-kit": "^6.12.0",
     "react-native-device-info": "^14.0.4",

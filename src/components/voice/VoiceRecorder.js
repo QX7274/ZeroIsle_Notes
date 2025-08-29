@@ -52,8 +52,22 @@ const VoiceRecorder = ({
   const [hasPermission, setHasPermission] = useState(false);
   
   // 引用
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
+  const audioRecorderPlayer = useRef(null);
   const recordingTimeout = useRef(null);
+
+  // 初始化AudioRecorderPlayer
+  useEffect(() => {
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        audioRecorderPlayer.current = new AudioRecorderPlayer();
+        console.log('VoiceRecorder: AudioRecorderPlayer初始化成功');
+      } else {
+        console.warn('VoiceRecorder: AudioRecorderPlayer模块不可用或不是构造函数');
+      }
+    } catch (error) {
+      console.warn('VoiceRecorder: AudioRecorderPlayer初始化失败:', error);
+    }
+  }, []);
   
   // 组件挂载时检查权限
   useEffect(() => {

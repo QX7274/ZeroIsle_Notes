@@ -83,7 +83,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
   const renderHistoryItem = ({ item }) => (
     <TouchableOpacity
       style={styles.historyItem}
-      onPress={() => onHistoryItemPress(item.query, item.mode)}
+      onPress={() => onHistoryItemPress(item)}
     >
       <View style={styles.historyItemContent}>
         <Icon
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 16,
   },
   historyItemContent: {

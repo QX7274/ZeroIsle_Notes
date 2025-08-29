@@ -196,28 +196,90 @@ const DocViewer = ({ route, navigation }) => {
 
       console.log('尝试使用外部应用打开Word文档:', filePath);
 
-      // 使用react-native-doc-viewer
-      const OpenFile = require('react-native-doc-viewer');
+      // 尝试多种方式打开文件
+      let opened = false;
 
-      await OpenFile.openDoc([{
-        url: filePath,
-        fileName: fileName || title || 'document.docx',
-        cache: true,
-        fileType: 'docx'
-      }], (error, url) => {
-        if (error) {
-          console.error('打开外部应用失败:', error);
-          Alert.alert(
-            '无法打开文件',
-            '请确保设备上安装了支持Word文档的应用（如Microsoft Word、WPS Office等）',
-            [
-              { text: '确定', style: 'default' }
-            ]
-          );
+      // 方法1: 使用react-native-doc-viewer
+      try {
+        const OpenFile = require('react-native-doc-viewer');
+        
+        if (OpenFile && OpenFile.openDoc) {
+          await OpenFile.openDoc([{
+            url: filePath,
+            fileName: fileName || title || 'document.docx',
+            cache: true,
+            fileType: 'docx'
+          }], (error, url) => {
+            if (error) {
+              console.error('react-native-doc-viewer打开失败:', error);
+            } else {
+              console.log('Word文档外部打开成功:', url);
+              opened = true;
+            }
+          });
         } else {
-          console.log('Word文档外部打开成功:', url);
+          console.warn('OpenFile.openDoc方法不可用');
         }
-      });
+      } catch (openFileError) {
+        console.error('react-native-doc-viewer异常:', openFileError);
+      }
+
+      // 方法2: 使用react-native-file-viewer
+      if (!opened) {
+        try {
+          const FileViewer = require('react-native-file-viewer');
+          
+          if (FileViewer && FileViewer.open) {
+            const mimeType = filePath.endsWith('.docx') 
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+              : undefined;
+            await FileViewer.open(filePath, { showOpenWithDialog: true, onDismiss: () => {}, mimeType });
+            console.log('使用FileViewer打开成功');
+            opened = true;
+          } else {
+            console.warn('FileViewer.open方法不可用');
+          }
+        } catch (fileViewerError) {
+          console.error('react-native-file-viewer异常:', fileViewerError);
+        }
+      }
+
+      // 方法3: 使用系统默认应用
+      if (!opened) {
+        try {
+          const fileUrl = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
+          const canOpen = await Linking.canOpenURL(fileUrl);
+          
+          if (canOpen) {
+            await Linking.openURL(fileUrl);
+            console.log('使用系统默认应用打开成功');
+            opened = true;
+          } else {
+            console.warn('系统无法打开此文件类型');
+          }
+        } catch (linkingError) {
+          console.error('Linking打开异常:', linkingError);
+        }
+      }
+
+      // 如果所有方法都失败
+      if (!opened) {
+        Alert.alert(
+          '无法打开文件',
+          '请确保设备上安装了支持Word文档的应用（如Microsoft Word、WPS Office等）\n\n文件路径: ' + filePath,
+          [
+            { text: '复制路径', onPress: () => {
+              // 复制文件路径到剪贴板
+              const Clipboard = require('@react-native-clipboard/clipboard').default;
+              if (Clipboard) {
+                Clipboard.setString(filePath);
+                Alert.alert('提示', '文件路径已复制到剪贴板');
+              }
+            }},
+            { text: '确定', style: 'default' }
+          ]
+        );
+      }
 
     } catch (error) {
       console.error('打开外部应用异常:', error);

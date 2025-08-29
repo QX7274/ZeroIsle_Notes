@@ -73,10 +73,10 @@ const PageControl = ({
       // 默认放在底部居中的位置，确保可见
       if (!cancelled) {
         const { width, height } = Dimensions.get('window');
-        // 底部居中位置，上移到更合适的位置
+        // 底部居中位置，确保始终在底部
         const def = {
           x: Math.max(16, width / 2 - 60),
-          y: Math.max(16, height - 200) // 上移80像素，确保在可见区域内
+          y: Math.max(16, height - 120) // 保持在底部，但留出安全距离
         };
         setPos(def);
       }
@@ -107,10 +107,10 @@ const PageControl = ({
 
       const { width, height } = Dimensions.get('window');
       const orientation = width > height ? 'landscape' : 'portrait';
-      // 确保控件在底部居中，上移到更合适的位置
+      // 确保控件始终在底部居中
       const newPos = orientation === 'portrait'
-        ? { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 200) }
-        : { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 200) };
+        ? { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 120) }
+        : { x: Math.max(16, width / 2 - 70), y: Math.max(16, height - 100) }; // 横屏时稍微上移
       setPos(newPos);
       persistPos(newPos);
     };

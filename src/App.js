@@ -980,7 +980,36 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('应用错误边界捕获到错误:', error, errorInfo);
+    console.error('应用错误边界捕获到错误:', error);
+    console.error('错误详情:', errorInfo);
+    
+    // 记录更多错误信息
+    if (error.message && error.message.includes('Malformed calls from JS: field sizes are different')) {
+      console.error('检测到字段大小不匹配错误，可能是数据序列化问题');
+      
+      // 尝试清理可能导致问题的本地存储
+      try {
+        // 异步清理，不阻塞UI
+        this.cleanupLocalStorage();
+      } catch (cleanupError) {
+        console.error('清理本地存储失败:', cleanupError);
+      }
+    }
+  }
+  
+  // 清理可能导致问题的本地存储
+  cleanupLocalStorage = async () => {
+    try {
+      // 导入存储服务
+      const { default: offlineStorageService } = require('./services/offline/offlineStorageService');
+      
+      // 清理最近的笔记缓存
+      await offlineStorageService.setItem('recent_notes', '[]');
+      console.log('已清理最近笔记缓存');
+      
+    } catch (error) {
+      console.error('清理存储失败:', error);
+    }
   }
 
   // 重启应用
@@ -1002,23 +1031,49 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      // 确保所有样式属性都是有效的数字或字符串
+      const safeStyles = {
+        container: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#f0f0f0'
+        },
+        errorTitle: {
+          fontSize: 18,
+          color: 'red',
+          marginBottom: 10
+        },
+        errorMessage: {
+          fontSize: 14,
+          color: '#333',
+          textAlign: 'center',
+          padding: 20
+        },
+        button: {
+          backgroundColor: '#2196F3',
+          paddingVertical: 10,
+          paddingHorizontal: 20,
+          borderRadius: 5,
+          marginTop: 20
+        },
+        buttonText: {
+          color: 'white',
+          fontSize: 16
+        }
+      };
+      
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-          <Text style={{ fontSize: 18, color: 'red', marginBottom: 10 }}>应用发生错误</Text>
-          <Text style={{ fontSize: 14, color: '#333', textAlign: 'center', padding: 20 }}>
+        <View style={safeStyles.container}>
+          <Text style={safeStyles.errorTitle}>应用发生错误</Text>
+          <Text style={safeStyles.errorMessage}>
             {this.state.error?.message || '未知错误'}
           </Text>
           <TouchableOpacity 
-            style={{ 
-              backgroundColor: '#2196F3', 
-              paddingVertical: 10, 
-              paddingHorizontal: 20, 
-              borderRadius: 5,
-              marginTop: 20
-            }}
+            style={safeStyles.button}
             onPress={this.restartApp}
           >
-            <Text style={{ color: 'white', fontSize: 16 }}>重启应用</Text>
+            <Text style={safeStyles.buttonText}>重启应用</Text>
           </TouchableOpacity>
         </View>
       );

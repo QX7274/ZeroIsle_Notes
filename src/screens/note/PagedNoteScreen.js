@@ -1,5 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder, Alert, Platform, Image, StatusBar,Text} from 'react-native';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  Alert,
+  Platform,
+  ActivityIndicator,
+  ScrollView,
+  Text
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
@@ -10,12 +19,13 @@ import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import PageControl from '../../components/viewer/PageControl';
 import { addBookmark } from '../../services/bookmarkService';
-import Svg, { Rect, Path, Circle, Line } from 'react-native-svg';
 import { offlineStorageService } from '../../services/offline';
-import { useInputMode } from '../../utils/inputDetection';
 import { useDispatch } from 'react-redux';
 import { addNote } from '../../redux/slices/notesSlice';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
+import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
+import DraggableImage from '../../components/viewer/DraggableImage';
+import LoadingIndicator, { ErrorIndicator } from '../../components/common/LoadingIndicator';
 
 
 /**
@@ -25,7 +35,7 @@ import ZoomIndicator from '../../components/common/ZoomIndicator';
 const PagedNoteScreen = ({ route, navigation }) => {
   const { title = '新建笔记', noteId, noteStyle = 'blank' } = route.params || {};
   const { colors } = useTheme();
-  const { getOperationType } = useInputMode();
+  // const { getOperationType } = useInputMode(); // 暂时移除
   const dispatch = useDispatch();
   
   // 页面状态
@@ -35,14 +45,21 @@ const PagedNoteScreen = ({ route, navigation }) => {
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
-  // 手写功能临时移除
+  // 企业级手写功能状态
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentTool, setCurrentTool] = useState('pen');
   const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [pages, setPages] = useState([{ paths: [], images: [] }]); // 每页的内容
-  // const [currentPath, setCurrentPath] = useState('');
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
+
+  // 企业级手写笔检测状态
+  const [inputType, setInputType] = useState('finger'); // 'finger' | 'pen'
+  const [isPenActive, setIsPenActive] = useState(false);
+  const [currentPressure, setCurrentPressure] = useState(0.5);
+  const [lastTouchTime, setLastTouchTime] = useState(0);
+  const [strokeVelocity, setStrokeVelocity] = useState(0);
+  const [handwritingEnabled, setHandwritingEnabled] = useState(true);
   
   // 引用
   const noteRef = useRef(null);
@@ -95,6 +112,98 @@ const PagedNoteScreen = ({ route, navigation }) => {
   };
   
   const currentNoteStyle = noteStyles[noteStyle] || noteStyles.blank;
+
+  /**
+   * 企业级手写笔检测算法 v2.0
+   * 专为普通笔记界面优化
+   */
+  const detectInputType = (event) => {
+    const currentTime = Date.now();
+    const timeDelta = currentTime - lastTouchTime;
+
+    let penScore = 0;
+    let confidence = 0;
+
+    // 硬件特征检测
+    const pressure = event.pressure || event.force || 0.5;
+    if (pressure > 0.05 && pressure < 0.95) {
+      const pressureVariation = Math.abs(pressure - 0.5);
+      penScore += 4 + (pressureVariation * 2);
+      confidence += 0.4;
+    }
+
+    // 触控面积检测
+    const radiusX = event.radiusX || 5;
+    const radiusY = event.radiusY || 5;
+    const touchArea = radiusX * radiusY * Math.PI;
+
+    if (touchArea < 80) {
+      penScore += 3;
+      confidence += 0.25;
+    } else if (touchArea > 200) {
+      penScore -= 2;
+    }
+
+    // 倾斜角度检测
+    const hasTilt = Math.abs(event.tiltX || 0) > 0 || Math.abs(event.tiltY || 0) > 0;
+    if (hasTilt) {
+      penScore += 4;
+      confidence += 0.2;
+    }
+
+    // 指针类型检测
+    if (event.pointerType === 'pen') {
+      penScore += 5;
+      confidence += 0.3;
+    }
+
+    // 速度和精度检测
+    if (timeDelta > 0 && timeDelta < 1000) {
+      const velocity = Math.sqrt(
+        Math.pow(event.velocityX || 0, 2) +
+        Math.pow(event.velocityY || 0, 2)
+      );
+
+      if (velocity < 800) {
+        penScore += 1;
+      }
+
+      const acceleration = Math.abs(velocity - strokeVelocity);
+      if (acceleration < 200) {
+        penScore += 1;
+        confidence += 0.15;
+      }
+
+      setStrokeVelocity(velocity);
+    }
+
+    // 连续性检测
+    if (isPenActive && timeDelta < 150) {
+      penScore += 2;
+      confidence += 0.1;
+    }
+
+    setLastTouchTime(currentTime);
+
+    // 动态阈值判断
+    const baseThreshold = 4;
+    const confidenceAdjustment = confidence * 2;
+    const dynamicThreshold = baseThreshold - confidenceAdjustment;
+
+    const detectedType = penScore >= dynamicThreshold ? 'pen' : 'finger';
+
+    if (detectedType === 'pen') {
+      setIsPenActive(true);
+      setCurrentPressure(pressure);
+      setTimeout(() => setIsPenActive(false), 300);
+    }
+
+    if (__DEV__) {
+      console.log(`普通笔记手写检测: ${detectedType} (得分: ${penScore.toFixed(1)}, 置信度: ${confidence.toFixed(2)})`);
+    }
+
+    return detectedType;
+  };
 
   // 组件加载时恢复或创建笔记
   useEffect(() => {
@@ -193,7 +302,8 @@ const PagedNoteScreen = ({ route, navigation }) => {
           noteStyle,
           currentPage,
           totalPages,
-          pages,
+          // 确保写入时为字符串，避免Realm字段类型不匹配
+          pages: JSON.stringify(pages),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -245,18 +355,37 @@ const PagedNoteScreen = ({ route, navigation }) => {
       const { touches } = evt.nativeEvent;
 
       if (touches.length === 1) {
-        // 单指平移 - 严格限制边界，防止大幅移动
+        // 企业级单指平移 - 超流畅响应
         if (isTransforming.current) {
-          const maxTranslateX = 30;  // 进一步减少水平移动距离
-          const maxTranslateY = 15;  // 进一步减少垂直移动距离
-          const minTranslateY = -5;  // 防止顶部被拖到下方
+          // 智能动态范围计算
+          const scaleFactor = Math.max(1, scale);
+          const screenWidth = Dimensions.get('window').width;
+          const screenHeight = Dimensions.get('window').height;
 
-          let newTranslateX = initialTranslate.current.x + gestureState.dx * 0.5; // 添加阻尼
-          let newTranslateY = initialTranslate.current.y + gestureState.dy * 0.5; // 添加阻尼
+          // 基于屏幕尺寸和缩放级别的智能边界
+          const maxTranslateX = (screenWidth * 0.3) * scaleFactor;
+          const maxTranslateY = (screenHeight * 0.2) * scaleFactor;
+          const minTranslateY = -(screenHeight * 0.1) * scaleFactor;
 
-          // 严格限制移动范围
-          newTranslateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newTranslateX));
-          newTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, newTranslateY));
+          // 高响应性移动（接近1:1响应）
+          const responsiveness = 0.95; // 提高到95%响应性
+          let newTranslateX = initialTranslate.current.x + gestureState.dx * responsiveness;
+          let newTranslateY = initialTranslate.current.y + gestureState.dy * responsiveness;
+
+          // 软边界：接近边界时逐渐增加阻力
+          const softBoundary = (value, min, max) => {
+            if (value < min) {
+              const overshoot = min - value;
+              return min - overshoot * 0.3; // 30%的超出缓冲
+            } else if (value > max) {
+              const overshoot = value - max;
+              return max + overshoot * 0.3;
+            }
+            return value;
+          };
+
+          newTranslateX = softBoundary(newTranslateX, -maxTranslateX, maxTranslateX);
+          newTranslateY = softBoundary(newTranslateY, minTranslateY, maxTranslateY);
 
           tempTransform.current.translateX = newTranslateX;
           tempTransform.current.translateY = newTranslateY;
@@ -279,21 +408,33 @@ const PagedNoteScreen = ({ route, navigation }) => {
         );
 
         if (isScaling.current) {
-          // 计算缩放比例 - 添加阻尼效果，提高流畅度
+          // 企业级缩放算法 - 超平滑响应
           const scaleRatio = distance / initialDistance.current;
           let rawScale = initialScale.current * scaleRatio;
 
-          // 添加渐进式缩放阻尼，防止一次性放大到最大倍数
+          // 智能阻尼：根据缩放速度动态调整
+          const scaleSpeed = Math.abs(rawScale - scale);
+          const adaptiveDamping = scaleSpeed > 0.1 ? 0.85 : 0.98; // 快速缩放时增加阻尼
+
           const scaleDiff = rawScale - initialScale.current;
-          const dampingFactor = 0.8; // 阻尼系数，降低缩放敏感度
-          let newScale = initialScale.current + (scaleDiff * dampingFactor);
+          let newScale = initialScale.current + (scaleDiff * adaptiveDamping);
 
-          // 限制缩放范围：0.5到3倍，适合笔记阅读
-          newScale = Math.max(0.5, Math.min(3, newScale));
+          // 智能缩放范围：根据内容类型调整
+          const minScale = 0.2; // 允许更小的缩放
+          const maxScale = 8.0;  // 允许更大的缩放
 
-          // 添加缩放步进，使缩放更加平滑
-          const scaleStep = 0.05;
-          newScale = Math.round(newScale / scaleStep) * scaleStep;
+          // 软边界缩放：接近极限时增加阻力
+          if (newScale < minScale) {
+            const overshoot = minScale - newScale;
+            newScale = minScale - overshoot * 0.2;
+          } else if (newScale > maxScale) {
+            const overshoot = newScale - maxScale;
+            newScale = maxScale + overshoot * 0.2;
+          }
+
+          // 微步进平滑：消除缩放抖动
+          const microStep = 0.005;
+          newScale = Math.round(newScale / microStep) * microStep;
 
           // 计算缩放中心点（屏幕坐标）
           const centerX = (touch1.pageX + touch2.pageX) / 2;
@@ -866,6 +1007,7 @@ const PagedNoteScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8f9fa', // 更轻的背景色
   },
   // 工具栏包装器 - 确保在最上层
   toolbarWrapper: {
@@ -878,10 +1020,10 @@ const styles = StyleSheet.create({
   },
   pageContainer: {
     flex: 1,
-    justifyContent: 'flex-start', // 确保内容从工具栏下方开始
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 0, // 移除顶部间距，让内容紧贴工具栏
-    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingHorizontal: 16, // 减少水平间距
     paddingBottom: 80, // 为底部页码控制器留出空间
   },
   page: {

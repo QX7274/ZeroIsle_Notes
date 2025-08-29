@@ -3,14 +3,20 @@
  * 统一管理应用的配置项
  */
 
-// API配置
+// API配置 - 根据设备网络环境自动选择
+// 如果平板和手机在同一WiFi网络下，使用WiFi网络地址
+// 如果需要使用手机热点，请确保平板连接到手机热点，然后使用热点地址
 export const API_URL = __DEV__
-  ? 'http://192.168.175.232:8000'  // 本地开发地址 - 请根据实际情况修改
+  //? 'http://192.168.1.100:8000'  // WiFi网络地址 - 请根据实际网络情况修改
+  ? 'http://192.168.175.232:8000'  // 手机热点地址 - 如果使用热点请取消注释此行并注释上一行
   : 'https://api.zeroislenotes.com'; // 生产环境地址
 
 // 调试信息
 console.log('当前API_URL:', API_URL);
 console.log('开发模式:', __DEV__);
+console.log('网络配置说明:');
+console.log('- 如果平板和手机在同一WiFi下，使用WiFi网络地址');
+console.log('- 如果使用手机热点，请确保平板连接热点后使用热点地址');
 console.log('如果无法连接，请检查后端服务是否在此地址运行:', API_URL);
 
 export const API_VERSION = 'v1';

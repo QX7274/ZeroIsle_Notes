@@ -19,13 +19,15 @@ import useOrientation from '../../utils/hooks/useOrientation';
 
 // 排序选项
 const SORT_OPTIONS = [
-  { id: 'created_desc', label: '最新创建', icon: 'schedule', description: '按创建时间从新到旧排序', color: '#4CAF50' }, // 绿色
-  { id: 'created_asc', label: '最早创建', icon: 'schedule', description: '按创建时间从旧到新排序', color: '#8BC34A' }, // 浅绿色
   { id: 'updated_desc', label: '最近更新', icon: 'update', description: '按更新时间从新到旧排序', color: '#2196F3' }, // 蓝色
-  { id: 'updated_asc', label: '最早更新', icon: 'update', description: '按更新时间从旧到新排序', color: '#03A9F4' }, // 浅蓝色
+  { id: 'created_desc', label: '最新创建', icon: 'schedule', description: '按创建时间从新到旧排序', color: '#4CAF50' }, // 绿色
   { id: 'title_asc', label: '名称 A-Z', icon: 'sort-by-alpha', description: '按名称字母顺序排序', color: '#9C27B0' }, // 紫色
   { id: 'title_desc', label: '名称 Z-A', icon: 'sort-by-alpha', description: '按名称字母倒序排序', color: '#673AB7' }, // 深紫色
   { id: 'type', label: '文件类型', icon: 'category', description: '按文件类型分组排序', color: '#FF9800' }, // 橙色
+  { id: 'size_desc', label: '文件大小↓', icon: 'storage', description: '按文件大小从大到小排序', color: '#E91E63' }, // 粉色
+  { id: 'size_asc', label: '文件大小↑', icon: 'storage', description: '按文件大小从小到大排序', color: '#F06292' }, // 浅粉色
+  { id: 'created_asc', label: '最早创建', icon: 'schedule', description: '按创建时间从旧到新排序', color: '#8BC34A' }, // 浅绿色
+  { id: 'updated_asc', label: '最早更新', icon: 'update', description: '按更新时间从旧到新排序', color: '#03A9F4' }, // 浅蓝色
 ];
 
 // 存储键

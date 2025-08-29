@@ -109,18 +109,44 @@ class OfflineStorageService {
       safeFields.forEach(field => {
         if (note[field] !== undefined) {
           // 对于复杂对象字段，需要序列化为字符串
-          if (['paths', 'images', 'pages', 'metadata'].includes(field)) {
+          if (['paths', 'images', 'pages', 'metadata', 'annotations'].includes(field)) {
             // 确保复杂对象字段都序列化为JSON字符串存储
-            if (typeof note[field] === 'object') {
+            if (typeof note[field] === 'object' && note[field] !== null) {
               try {
-                noteData[field] = JSON.stringify(note[field]);
+                // 检查是否已经是JSON字符串
+                if (typeof note[field] === 'string') {
+                  try {
+                    // 尝试解析，如果成功则是有效的JSON字符串
+                    JSON.parse(note[field]);
+                    noteData[field] = note[field];
+                  } catch (parseError) {
+                    // 不是有效的JSON字符串，重新序列化
+                    noteData[field] = JSON.stringify(note[field]);
+                  }
+                } else {
+                  // 对象或数组，直接序列化
+                  noteData[field] = JSON.stringify(note[field]);
+                }
               } catch (stringifyError) {
                 console.warn(`序列化字段${field}失败:`, stringifyError);
                 noteData[field] = Array.isArray(note[field]) ? '[]' : '{}';
               }
             } else if (typeof note[field] === 'string') {
-              // 如果已经是字符串，直接使用
-              noteData[field] = note[field];
+              // 如果已经是字符串，检查是否是有效的JSON
+              try {
+                JSON.parse(note[field]);
+                noteData[field] = note[field];
+              } catch (parseError) {
+                // 不是有效的JSON字符串，尝试序列化
+                try {
+                  noteData[field] = JSON.stringify(note[field]);
+                } catch (stringifyError) {
+                  noteData[field] = note[field];
+                }
+              }
+            } else if (note[field] === undefined || note[field] === null) {
+              // 处理空值
+              noteData[field] = note[field] === undefined ? undefined : 'null';
             } else {
               // 其他类型转换为字符串
               noteData[field] = String(note[field]);
@@ -423,8 +449,36 @@ class OfflineStorageService {
         return false;
       }
 
+      // 仅保存必要且可序列化字段，避免原生桥错误
+      const sanitize = (n) => {
+        const id = n._id || n.id;
+        const base = {
+          _id: String(id || ''),
+          id: String(id || ''),
+          title: n.title || '',
+          type: n.type || n.file_type || 'text',
+          file_type: n.file_type || n.type || 'text',
+          is_deleted: !!n.is_deleted,
+          created_at: n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString(),
+          updated_at: n.updated_at ? new Date(n.updated_at).toISOString() : new Date().toISOString(),
+        };
+        // 将复杂字段统一为字符串（JSON）
+        const toStr = (v, fallback) => {
+          if (v == null) return fallback;
+          if (typeof v === 'string') return v;
+          try { return JSON.stringify(v); } catch { return fallback; }
+        };
+        return {
+          ...base,
+          metadata: toStr(n.metadata, '{}'),
+          paths: toStr(n.paths, '[]'),
+          images: toStr(n.images, '[]'),
+          pages: toStr(n.pages, '[]'),
+        };
+      };
+
       // 最多保存20条最近的笔记
-      const recentNotes = notes.slice(0, 20);
+      const recentNotes = notes.slice(0, 20).map(sanitize);
       const recentNotesKey = 'recent_notes';
 
       // 保存到本地存储
@@ -578,6 +632,38 @@ class OfflineStorageService {
             unifiedNote.type = 'canvas';
             unifiedNote.file_type = 'canvas';
           }
+        }
+
+        // 在返回前，尝试将字符串形式的复杂字段解析为对象/数组
+        try {
+          // 解析 metadata
+          if (unifiedNote.metadata && typeof unifiedNote.metadata === 'string') {
+            try { unifiedNote.metadata = JSON.parse(unifiedNote.metadata); } catch { unifiedNote.metadata = {}; }
+          } else if (!unifiedNote.metadata) {
+            unifiedNote.metadata = {};
+          }
+
+          // 解析画布/分页笔记的数组字段
+          const parseArrayField = (val) => {
+            if (Array.isArray(val)) return val;
+            if (typeof val === 'string') {
+              try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+            }
+            return [];
+          };
+
+          // 画布字段
+          if (unifiedNote.type === 'canvas' || unifiedNote.file_type === 'canvas') {
+            unifiedNote.paths = parseArrayField(unifiedNote.paths);
+            unifiedNote.images = parseArrayField(unifiedNote.images);
+          }
+
+          // 分页笔记字段
+          if (unifiedNote.type === 'paged_note') {
+            unifiedNote.pages = parseArrayField(unifiedNote.pages);
+          }
+        } catch (parseError) {
+          console.warn('解析笔记复杂字段失败:', parseError);
         }
 
         // 特殊处理PDF文件
@@ -796,6 +882,28 @@ class OfflineStorageService {
         itemId: id,
         permanent,
       });
+
+      // 从最近缓存中移除该ID，避免刷新后复现
+      try {
+        const recentKey = 'recent_notes';
+        const lastKey = 'last_successful_notes';
+        const recent = await this.getItem(recentKey);
+        const last = await this.getItem(lastKey);
+        const purge = async (key, raw) => {
+          if (!raw) return;
+          try {
+            const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (Array.isArray(arr)) {
+              const filtered = arr.filter(n => (n && (n._id || n.id)) && (String(n._id || n.id) !== String(id)));
+              await this.setItem(key, JSON.stringify(filtered));
+            }
+          } catch {}
+        };
+        await purge(recentKey, recent);
+        await purge(lastKey, last);
+      } catch (cacheErr) {
+        console.warn('清理最近笔记缓存失败:', cacheErr);
+      }
 
       return true;
     } catch (error) {

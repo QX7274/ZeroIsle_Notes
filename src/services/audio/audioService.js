@@ -9,7 +9,22 @@ Sound.setCategory('Playback');
 
 class AudioService {
   constructor() {
-    this.audioRecorderPlayer = new AudioRecorderPlayer();
+    try {
+      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
+        this.audioRecorderPlayer = new AudioRecorderPlayer();
+      } else if (
+        AudioRecorderPlayer &&
+        typeof AudioRecorderPlayer.default === 'function'
+      ) {
+        this.audioRecorderPlayer = new AudioRecorderPlayer.default();
+      } else {
+        console.warn('AudioService: AudioRecorderPlayer 不可用或不是构造函数');
+        this.audioRecorderPlayer = null;
+      }
+    } catch (e) {
+      console.warn('AudioService: 初始化 AudioRecorderPlayer 失败:', e);
+      this.audioRecorderPlayer = null;
+    }
     this.isRecording = false;
     this.currentSound = null;
   }
@@ -36,6 +51,37 @@ class AudioService {
     return true;
   }
 
+  /**
+   * 获取安全的音频配置常量
+   */
+  getAudioConstants() {
+    try {
+      // 尝试获取AudioRecorderPlayer的常量
+      if (AudioRecorderPlayer) {
+        return {
+          AudioEncoderAndroid: AudioRecorderPlayer.AudioEncoderAndroid?.AAC || 3,
+          AudioSourceAndroid: AudioRecorderPlayer.AudioSourceAndroid?.MIC || 1,
+          AVEncoderAudioQualityKeyIOS: AudioRecorderPlayer.AVEncoderAudioQualityIOSType?.high || 2,
+          AVNumberOfChannelsKeyIOS: 2,
+          AVFormatIDKeyIOS: AudioRecorderPlayer.AVEncodingOption?.aac || 'aac',
+          OutputFormatAndroid: AudioRecorderPlayer.OutputFormatAndroid?.AAC_ADTS || 3,
+        };
+      }
+    } catch (error) {
+      console.warn('AudioService: 获取音频常量失败，使用默认值:', error);
+    }
+    
+    // 降级到默认值
+    return {
+      AudioEncoderAndroid: 3, // AAC
+      AudioSourceAndroid: 1,  // MIC
+      AVEncoderAudioQualityKeyIOS: 2, // high
+      AVNumberOfChannelsKeyIOS: 2,
+      AVFormatIDKeyIOS: 'aac',
+      OutputFormatAndroid: 3, // AAC_ADTS
+    };
+  }
+
   async startRecording(options = {}) {
     try {
       const hasPermission = await this.requestPermissions();
@@ -43,14 +89,14 @@ class AudioService {
         throw new Error('没有录音权限');
       }
 
+      // 检查AudioRecorderPlayer是否可用
+      if (!this.audioRecorderPlayer) {
+        throw new Error('音频录制器不可用');
+      }
+
       // 设置录音参数
       const audioSet = {
-        AudioEncoderAndroid: AudioRecorderPlayer.AudioEncoderAndroid.AAC,
-        AudioSourceAndroid: AudioRecorderPlayer.AudioSourceAndroid.MIC,
-        AVEncoderAudioQualityKeyIOS: AudioRecorderPlayer.AVEncoderAudioQualityIOSType.high,
-        AVNumberOfChannelsKeyIOS: 2,
-        AVFormatIDKeyIOS: AudioRecorderPlayer.AVEncodingOption.aac,
-        OutputFormatAndroid: AudioRecorderPlayer.OutputFormatAndroid.AAC_ADTS,
+        ...this.getAudioConstants(),
         ...options,
       };
 
@@ -60,19 +106,19 @@ class AudioService {
         android: `sdcard/recording_${Date.now()}.mp3`,
       });
 
-      // 开始录�?
+      // 开始录音
       const result = await this.audioRecorderPlayer.startRecorder(path, audioSet);
       this.isRecording = true;
 
-      // 开始计�?
+      // 开始计时
       this.audioRecorderPlayer.addRecordBackListener((e) => {
-        // 可以在这里处理录音时间更�?
+        // 可以在这里处理录音时间更新
       });
 
       analyticsService.trackAudioAction('start_recording');
       return result;
     } catch (error) {
-      console.error('开始录音错�?', error);
+      console.error('开始录音错误:', error);
       analyticsService.trackError(error, { action: 'start_recording' });
       throw error;
     }
