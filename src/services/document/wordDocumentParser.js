@@ -8,8 +8,6 @@ import '../../utils/mammothPolyfill';
 
 // 动态导入各种Word文档解析库
 let mammoth = null;
-let docx = null;
-let docx4js = null;
 
 // 尝试加载mammoth库
 try {
@@ -25,21 +23,11 @@ try {
   }
 }
 
-// 尝试加载docx库
-try {
-  docx = require('docx');
-  console.log('WordDocumentParser: docx库加载成功');
-} catch (error) {
-  console.warn('WordDocumentParser: docx库不可用:', error.message);
-}
+// docx库在React Native环境中不可用，已移除
+// 该库依赖Node.js模块，在移动端无法使用
 
-// 尝试加载docx4js库
-try {
-  docx4js = require('docx4js');
-  console.log('WordDocumentParser: docx4js库加载成功');
-} catch (error) {
-  console.warn('WordDocumentParser: docx4js库不可用:', error.message);
-}
+// docx4js库在React Native环境中不兼容，已移除
+// 该库依赖Node.js的fs模块，在移动端无法使用
 
 class WordDocumentParser {
   constructor() {
@@ -85,31 +73,9 @@ class WordDocumentParser {
         }
       }
 
-      // 方法2: docx库解析
-      if (docx && fileName.toLowerCase().endsWith('.docx')) {
-        try {
-          result = await this.parseWithDocx(filePath, fileName, fileStats);
-          if (result) {
-            this.addToCache(cacheKey, result);
-            return result;
-          }
-        } catch (error) {
-          console.warn('WordDocumentParser: docx库解析失败:', error.message);
-        }
-      }
+      // docx库解析方法已移除（React Native不兼容）
 
-      // 方法3: docx4js库解析
-      if (docx4js && fileName.toLowerCase().endsWith('.docx')) {
-        try {
-          result = await this.parseWithDocx4js(filePath, fileName, fileStats);
-          if (result) {
-            this.addToCache(cacheKey, result);
-            return result;
-          }
-        } catch (error) {
-          console.warn('WordDocumentParser: docx4js库解析失败:', error.message);
-        }
-      }
+      // docx4js库解析方法已移除（React Native不兼容）
 
       // 方法4: 原生文本提取
       try {
@@ -193,88 +159,14 @@ class WordDocumentParser {
   }
 
   /**
-   * 使用docx库解析
+   * docx库解析方法已移除（React Native不兼容）
+   * 该库依赖Node.js模块，在移动端无法使用
    */
-  async parseWithDocx(filePath, fileName, fileStats) {
-    console.log('WordDocumentParser: 使用docx库解析');
-    
-    const fileBase64 = await RNFS.readFile(filePath, 'base64');
-    const buffer = Buffer.from(fileBase64, 'base64');
-    
-    const doc = await docx.Document.load(buffer);
-    const text = doc.getText();
-    
-    if (!text || text.trim().length === 0) {
-      throw new Error('docx库解析结果为空');
-    }
-    
-    const html = this.convertTextToHtml(text);
-    
-    return {
-      type: 'word',
-      content: text,
-      htmlContent: this.enhanceHtmlContent(html),
-      formattedContent: this.enhanceHtmlContent(html),
-      messages: [{ message: '使用docx库成功解析文档', type: 'success' }],
-      structure: {
-        hasHtml: true,
-        paragraphs: text.split('\n\n').length,
-        tables: 0,
-        images: 0
-      },
-      metadata: {
-        filePath,
-        fileName,
-        fileSize: fileStats.size,
-        lastModified: new Date(fileStats.mtime).toISOString(),
-        extractionMethod: 'docx',
-        requiresNativeApp: false,
-        fileType: 'docx'
-      }
-    };
-  }
 
   /**
-   * 使用docx4js库解析
+   * docx4js库解析方法已移除（React Native不兼容）
+   * 该库依赖Node.js的fs模块，在移动端无法使用
    */
-  async parseWithDocx4js(filePath, fileName, fileStats) {
-    console.log('WordDocumentParser: 使用docx4js库解析');
-    
-    const fileBase64 = await RNFS.readFile(filePath, 'base64');
-    const buffer = Buffer.from(fileBase64, 'base64');
-    
-    const doc = await docx4js.load(buffer);
-    const text = doc.getText();
-    
-    if (!text || text.trim().length === 0) {
-      throw new Error('docx4js库解析结果为空');
-    }
-    
-    const html = this.convertTextToHtml(text);
-    
-    return {
-      type: 'word',
-      content: text,
-      htmlContent: this.enhanceHtmlContent(html),
-      formattedContent: this.enhanceHtmlContent(html),
-      messages: [{ message: '使用docx4js库成功解析文档', type: 'success' }],
-      structure: {
-        hasHtml: true,
-        paragraphs: text.split('\n\n').length,
-        tables: 0,
-        images: 0
-      },
-      metadata: {
-        filePath,
-        fileName,
-        fileSize: fileStats.size,
-        lastModified: new Date(fileStats.mtime).toISOString(),
-        extractionMethod: 'docx4js',
-        requiresNativeApp: false,
-        fileType: 'docx'
-      }
-    };
-  }
 
   /**
    * 使用原生方法解析

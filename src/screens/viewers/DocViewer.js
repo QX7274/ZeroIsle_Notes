@@ -268,18 +268,23 @@ const DocViewer = ({ route, navigation }) => {
         const OpenFile = require('react-native-doc-viewer');
         
         if (OpenFile && OpenFile.openDoc) {
-          await OpenFile.openDoc([{
-            url: filePath,
-            fileName: fileName || title || 'document.docx',
-            cache: true,
-            fileType: 'docx'
-          }], (error, url) => {
-            if (error) {
-              console.error('react-native-doc-viewer打开失败:', error);
-            } else {
-              console.log('Word文档外部打开成功:', url);
-              opened = true;
-            }
+          // 修复API调用方式
+          await new Promise((resolve, reject) => {
+            OpenFile.openDoc([{
+              url: filePath,
+              fileName: fileName || title || 'document.docx',
+              cache: true,
+              fileType: 'docx'
+            }], (error, url) => {
+              if (error) {
+                console.error('react-native-doc-viewer打开失败:', error);
+                reject(error);
+              } else {
+                console.log('Word文档外部打开成功:', url);
+                opened = true;
+                resolve(url);
+              }
+            });
           });
         } else {
           console.warn('OpenFile.openDoc方法不可用');

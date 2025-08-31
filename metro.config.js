@@ -22,6 +22,19 @@ const config = {
       events: require.resolve('events'),
       crypto: require.resolve('crypto-browserify'),
       url: require.resolve('url'),
+      process: require.resolve('process'),
+      'text-encoding': require.resolve('text-encoding'),
+    },
+    // 拦截所有对fs模块的请求
+    resolveRequest: (context, moduleName, platform) => {
+      // 拦截字符串拼接的fs模块请求
+      if (moduleName === 'f' + 's' || moduleName === 'fs') {
+        return {
+          filePath: require.resolve('react-native-fs'),
+          type: 'sourceFile',
+        };
+      }
+      return context.resolveRequest(context, moduleName, platform);
     },
   },
   transformer: {

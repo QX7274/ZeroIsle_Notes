@@ -36,9 +36,6 @@ if (typeof global.util === 'undefined') {
 let mammoth = null;
 let XLSX = null;
 let OpenFile = null;
-let pptxgen = null;
-let docx = null;
-let docxPreview = null;
 
 // 使用mammoth标准版本（适配React Native环境）
 try {
@@ -70,36 +67,11 @@ try {
   console.warn('EnhancedDocumentViewer: react-native-doc-viewer库不可用:', error);
 }
 
-try {
-  pptxgen = require('pptxgenjs');
-  console.log('EnhancedDocumentViewer: pptxgenjs库加载成功');
-} catch (error) {
-  console.warn('EnhancedDocumentViewer: pptxgenjs库不可用:', error);
-}
+// pptxgenjs、docx、docx-preview库在React Native环境中不可用，已移除
+// 这些库依赖Node.js模块，在移动端无法使用
 
-try {
-  docx = require('docx');
-  console.log('EnhancedDocumentViewer: docx库加载成功');
-} catch (error) {
-  console.warn('EnhancedDocumentViewer: docx库不可用:', error);
-}
-
-// 尝试加载docx-preview库
-try {
-  docxPreview = require('docx-preview');
-  console.log('EnhancedDocumentViewer: docx-preview库加载成功');
-} catch (error) {
-  console.warn('EnhancedDocumentViewer: docx-preview库不可用:', error);
-}
-
-// 尝试加载docx4js库作为mammoth的替代方案
-let docx4js = null;
-try {
-  docx4js = require('docx4js');
-  console.log('EnhancedDocumentViewer: docx4js库加载成功');
-} catch (error) {
-  console.warn('EnhancedDocumentViewer: docx4js库不可用:', error);
-}
+// docx4js库在React Native环境中不兼容，已移除
+// 该库依赖Node.js的fs模块，在移动端无法使用
 
 /**
  * 增强的文档查看服务
@@ -290,114 +262,14 @@ class EnhancedDocumentViewer {
   }
 
   /**
-   * 使用docx4js库解析Word文档（mammoth的替代方案）
+   * docx4js库解析方法已移除（React Native不兼容）
+   * 该库依赖Node.js的fs模块，在移动端无法使用
    */
-  async parseWithDocx4js(filePath, fileName, fileStats) {
-    console.log('EnhancedDocumentViewer: 使用docx4js库解析Word文档');
-    
-    if (!docx4js) {
-      console.warn('EnhancedDocumentViewer: docx4js库未加载');
-      return null;
-    }
-    
-    try {
-      const fileBase64 = await RNFS.readFile(filePath, 'base64');
-      const buffer = Buffer.from(fileBase64, 'base64');
-      
-      // 使用docx4js库解析
-      const doc = await docx4js.load(buffer);
-      const text = doc.getText();
-      
-      if (!text || text.trim().length === 0) {
-        console.warn('EnhancedDocumentViewer: docx4js库解析结果为空');
-        return null;
-      }
-      
-      // 生成HTML内容
-      const html = this.convertTextToHtml(text);
-      
-      return {
-        type: 'word',
-        content: text,
-        htmlContent: this.enhanceHtmlContent(html),
-        formattedContent: this.enhanceHtmlContent(html),
-        messages: [{ message: '使用docx4js库成功解析文档', type: 'success' }],
-        structure: {
-          hasHtml: true,
-          paragraphs: text.split('\n\n').length,
-          tables: 0,
-          images: 0
-        },
-        metadata: {
-          filePath,
-          fileName,
-          fileSize: fileStats.size,
-          lastModified: new Date(fileStats.mtime).toISOString(),
-          extractionMethod: 'docx4js',
-          requiresNativeApp: false,
-          fileType: 'docx'
-        }
-      };
-    } catch (error) {
-      console.warn('EnhancedDocumentViewer: docx4js库解析失败:', error.message);
-      return null;
-    }
-  }
 
   /**
-   * 使用docx库解析Word文档
+   * docx库解析方法已移除（React Native不兼容）
+   * 该库依赖Node.js模块，在移动端无法使用
    */
-  async parseWithDocx(filePath, fileName, fileStats) {
-    console.log('EnhancedDocumentViewer: 使用docx库解析Word文档');
-    
-    if (!docx) {
-      console.warn('EnhancedDocumentViewer: docx库未加载');
-      return null;
-    }
-    
-    try {
-      const fileBase64 = await RNFS.readFile(filePath, 'base64');
-      const buffer = Buffer.from(fileBase64, 'base64');
-      
-      // 使用docx库解析
-      const doc = await docx.Document.load(buffer);
-      const text = doc.getText();
-      
-      if (!text || text.trim().length === 0) {
-        console.warn('EnhancedDocumentViewer: docx库解析结果为空');
-        return null;
-      }
-      
-      // 生成HTML内容
-      const html = this.convertTextToHtml(text);
-      
-      return {
-        type: 'word',
-        content: text,
-        htmlContent: this.enhanceHtmlContent(html),
-        formattedContent: this.enhanceHtmlContent(html),
-        messages: [{ message: '使用docx库成功解析文档', type: 'success' }],
-        structure: {
-          hasHtml: true,
-          paragraphs: text.split('\n\n').length,
-          tables: 0,
-          images: 0
-        },
-        metadata: {
-          filePath,
-          fileName,
-          fileSize: fileStats.size,
-          lastModified: new Date(fileStats.mtime).toISOString(),
-          extractionMethod: 'docx',
-          requiresNativeApp: false,
-          fileType: 'docx'
-        }
-      };
-    } catch (error) {
-      console.warn('EnhancedDocumentViewer: docx库解析失败:', error.message);
-      return null;
-    }
-  }
 
   /**
    * 使用原生方法解析Word文档
@@ -550,18 +422,7 @@ class EnhancedDocumentViewer {
       // 尝试多种解析方法
       let documentData = null;
 
-      // 方法1: 使用pptxgenjs解析
-      if (pptxgen && fileName.toLowerCase().endsWith('.pptx')) {
-        try {
-          documentData = await this.parsePPTWithPptxgen(filePath, fileName, fileStats);
-          if (documentData) {
-            this.addToCache(cacheKey, documentData);
-            return documentData;
-          }
-        } catch (error) {
-          console.warn('EnhancedDocumentViewer: pptxgenjs解析失败:', error.message);
-        }
-      }
+      // pptxgenjs解析方法已移除（React Native不兼容）
 
       // 方法2: 使用原生解析
       try {
@@ -586,62 +447,9 @@ class EnhancedDocumentViewer {
   }
 
   /**
-   * 使用pptxgenjs解析PPT文档
+   * pptxgenjs解析方法已移除（React Native不兼容）
+   * 该库依赖Node.js模块，在移动端无法使用
    */
-  async parsePPTWithPptxgen(filePath, fileName, fileStats) {
-    console.log('EnhancedDocumentViewer: 使用pptxgenjs解析PPT文档');
-    
-    try {
-      const fileBase64 = await RNFS.readFile(filePath, 'base64');
-      const buffer = Buffer.from(fileBase64, 'base64');
-      
-      // 使用pptxgenjs解析
-      const pptx = new pptxgen();
-      await pptx.load(buffer);
-      
-      const slides = pptx.getSlides();
-      let allText = '';
-      let slideCount = 0;
-      
-      slides.forEach((slide, index) => {
-        slideCount++;
-        allText += `幻灯片 ${index + 1}:\n`;
-        
-        // 提取幻灯片文本
-        if (slide.text) {
-          allText += slide.text + '\n\n';
-        }
-      });
-      
-      const html = this.createPPTPreviewHtml(fileName, fileStats.size, true, slideCount);
-      
-      return {
-        type: 'powerpoint',
-        content: allText,
-        htmlContent: html,
-        formattedContent: html,
-        messages: [{ message: '使用pptxgenjs成功解析演示文稿', type: 'success' }],
-        structure: {
-          hasHtml: true,
-          slides: slideCount,
-          tables: 0,
-          images: 0
-        },
-        metadata: {
-          filePath,
-          fileName,
-          fileSize: fileStats.size,
-          lastModified: new Date(fileStats.mtime).toISOString(),
-          extractionMethod: 'pptxgenjs',
-          requiresNativeApp: false,
-          fileType: 'pptx'
-        }
-      };
-    } catch (error) {
-      console.warn('EnhancedDocumentViewer: pptxgenjs解析失败:', error);
-      return null;
-    }
-  }
 
   /**
    * 使用原生方法解析PPT文档
@@ -1318,33 +1126,87 @@ class EnhancedDocumentViewer {
     try {
       console.log('EnhancedDocumentViewer: 尝试使用原生应用打开文档:', { filePath, fileName, fileType });
       
-      if (!OpenFile) {
-        throw new Error('react-native-doc-viewer库不可用');
+      // 方法1: 使用react-native-doc-viewer
+      if (OpenFile && typeof OpenFile.openDoc === 'function') {
+        try {
+          const docType = this.getFileTypeForOpenFile(fileType);
+          
+          return new Promise((resolve, reject) => {
+            OpenFile.openDoc([{
+              url: filePath,
+              fileName: fileName,
+              cache: true,
+              fileType: docType
+            }], (error, url) => {
+              if (error) {
+                console.error('EnhancedDocumentViewer: react-native-doc-viewer打开失败:', error);
+                reject(error);
+              } else {
+                console.log('EnhancedDocumentViewer: react-native-doc-viewer打开成功:', url);
+                resolve(true);
+              }
+            });
+          });
+        } catch (openError) {
+          console.error('EnhancedDocumentViewer: react-native-doc-viewer异常:', openError);
+          throw openError;
+        }
       }
 
-      const docType = this.getFileTypeForOpenFile(fileType);
-      
-      return new Promise((resolve, reject) => {
-        OpenFile.openDoc([{
-          url: filePath,
-          fileName: fileName,
-          cache: true,
-          fileType: docType
-        }], (error, url) => {
-          if (error) {
-            console.error('EnhancedDocumentViewer: 原生应用打开失败:', error);
-            reject(error);
-          } else {
-            console.log('EnhancedDocumentViewer: 原生应用打开成功:', url);
-            resolve(true);
-          }
-        });
-      });
+      // 方法2: 使用react-native-file-viewer
+      try {
+        const FileViewer = require('react-native-file-viewer');
+        if (FileViewer && typeof FileViewer.open === 'function') {
+          const mimeType = this.getMimeType(fileType);
+          await FileViewer.open(filePath, { 
+            showOpenWithDialog: true, 
+            onDismiss: () => {}, 
+            mimeType 
+          });
+          console.log('EnhancedDocumentViewer: react-native-file-viewer打开成功');
+          return true;
+        }
+      } catch (fileViewerError) {
+        console.warn('EnhancedDocumentViewer: react-native-file-viewer不可用:', fileViewerError);
+      }
+
+      // 方法3: 使用react-native-document-opener
+      try {
+        const DocumentOpener = require('react-native-document-opener');
+        if (DocumentOpener && typeof DocumentOpener.open === 'function') {
+          await DocumentOpener.open(filePath);
+          console.log('EnhancedDocumentViewer: react-native-document-opener打开成功');
+          return true;
+        }
+      } catch (documentOpenerError) {
+        console.warn('EnhancedDocumentViewer: react-native-document-opener不可用:', documentOpenerError);
+      }
+
+      // 所有方法都失败
+      throw new Error('所有外部应用打开方法都不可用');
       
     } catch (error) {
       console.error('EnhancedDocumentViewer: 原生应用打开异常:', error);
       throw error;
     }
+  }
+
+  /**
+   * 获取MIME类型
+   */
+  getMimeType(fileType) {
+    const mimeMap = {
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pdf': 'application/pdf',
+      'txt': 'text/plain'
+    };
+    
+    return mimeMap[fileType.toLowerCase()] || 'application/octet-stream';
   }
 
   /**
