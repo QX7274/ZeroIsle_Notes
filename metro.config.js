@@ -13,6 +13,16 @@ const config = {
   resolver: {
     assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
+    alias: {
+      fs: false,
+      path: require.resolve('path-browserify'),
+      stream: require.resolve('stream-browserify'),
+      buffer: require.resolve('buffer'),
+      util: require.resolve('util'),
+      events: require.resolve('events'),
+      crypto: require.resolve('crypto-browserify'),
+      url: require.resolve('url'),
+    },
   },
   transformer: {
     babelTransformerPath: require.resolve('react-native-svg-transformer'),

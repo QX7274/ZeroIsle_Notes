@@ -323,11 +323,12 @@ const HomeScreen = ({ navigation }) => {
   };
 
   // 处理卡片类型选择
-  const handleCardTypeSelect = async (cardType) => {
+  const handleCardTypeSelect = async (cardType, cardName) => {
     try {
-      console.log('HomeScreen: 处理卡片类型选择:', cardType);
+      console.log('HomeScreen: 处理卡片类型选择:', cardType, '卡片名称:', cardName);
       
-      const cardTitle = `卡片笔记 ${new Date().toLocaleString()}`;
+      // 使用用户输入的卡片名称，如果没有则使用默认名称
+      const cardTitle = cardName && cardName.trim() ? cardName.trim() : `卡片笔记 ${new Date().toLocaleString()}`;
       const cardId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
       console.log('HomeScreen: 准备导航到CardNote，参数:', {
@@ -1610,9 +1611,9 @@ Week 4: □□□□□□□
         return;
       }
 
-      if (item.type === 'paged_note') {
+      if (item.type === 'paged_note' || item.noteType === 'paged_note') {
         const noteId = item._id || item.id || `temp_${Date.now()}`;
-        navigation.navigate('PagedNote', {
+        navigation.navigate('FluidPagedNote', {
           noteId,
           title: item.title || '新建笔记',
           noteStyle: item.noteStyle || 'blank'
@@ -1792,8 +1793,8 @@ Week 4: □□□□□□□
               const noteId = item._id || item.id;
               const noteType = item.noteType || item.note_type || 'card';
 
-              if (noteType === 'paged') {
-                navigation.navigate('PagedNote', {
+              if (noteType === 'paged_note') {
+                navigation.navigate('FluidPagedNote', {
                   noteId,
                   title: item.title || '分页笔记',
                   content: item.content || ''

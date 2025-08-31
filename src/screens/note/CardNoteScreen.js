@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,13 +9,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  PermissionsAndroid
+  PermissionsAndroid,
+  Keyboard
 } from 'react-native';
 import Voice from '@react-native-voice/voice';
 import nativeAudioService from '../../services/audio/nativeAudioService';
 import { useTheme } from '../../context/ThemeContext';
-import { useDispatch } from 'react-redux';
-import { updateNote } from '../../redux/slices/notesSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { addNote, updateOneNote } from '../../redux/slices/notesSlice';
 import { offlineStorageService } from '../../services/offline';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 // 删除复杂的组件，使用简单的TextInput
@@ -32,6 +33,7 @@ const CardNoteScreen = ({ route, navigation }) => {
   const { noteId, title: initialTitle = '新建笔记', content: initialContent = '' } = route.params || {};
   const { colors } = useTheme();
   const dispatch = useDispatch();
+  const notesEntities = useSelector(state => state.notes.entities);
 
   
   const [title, setTitle] = useState(initialTitle);
@@ -47,27 +49,63 @@ const CardNoteScreen = ({ route, navigation }) => {
   const [partialText, setPartialText] = useState(''); // 实时显示的部分识别结果
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [currentRecordingPath, setCurrentRecordingPath] = useState('');
+  const [noteCreated, setNoteCreated] = useState(false); // 跟踪笔记是否已创建
 
   const contentInputRef = useRef(null);
   const autoSaveTimeoutRef = useRef(null);
   const recordingTimerRef = useRef(null);
   
+  // 添加键盘状态监听
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  
+  // 缓存语音按钮文本，减少重新渲染
+  const voiceButtonText = useMemo(() => {
+    if (isRecording) {
+      // 只在录音状态下显示时间，避免频繁更新
+      return recordTime || '录音中...';
+    } else if (isListening) {
+      return '识别中...';
+    } else {
+      return '语音';
+    }
+  }, [isRecording, isListening, recordTime]);
+  
+  // 缓存语音按钮图标名称
+  const voiceButtonIcon = useMemo(() => {
+    if (isRecording) {
+      return "stop";
+    } else if (isListening) {
+      return "hearing";
+    } else {
+      return "keyboard-voice";
+    }
+  }, [isRecording, isListening]);
+  
   // 初始化音频服务
   useEffect(() => {
+    let isMounted = true;
+    
     // 添加音频事件监听器
-    nativeAudioService.addListener('recordingProgress', (data) => {
-      setRecordTime(data.formattedTime);
-    });
+    const recordingProgressListener = (data) => {
+      if (isMounted && data.formattedTime !== recordTime) {
+        // 使用 requestAnimationFrame 来节流更新，减少闪烁
+        requestAnimationFrame(() => {
+          if (isMounted) {
+            setRecordTime(data.formattedTime);
+          }
+        });
+      }
+    };
 
-    nativeAudioService.addListener('speechPartialResults', (e) => {
-      if (e.value && e.value.length > 0) {
+    const speechPartialResultsListener = (e) => {
+      if (isMounted && e.value && e.value.length > 0) {
         const partialResult = e.value[0];
         setPartialText(partialResult);
       }
-    });
+    };
 
-    nativeAudioService.addListener('speechResults', (e) => {
-      if (e.value && e.value.length > 0) {
+    const speechResultsListener = (e) => {
+      if (isMounted && e.value && e.value.length > 0) {
         const finalText = e.value[0];
         setRecognizedText(finalText);
 
@@ -79,23 +117,39 @@ const CardNoteScreen = ({ route, navigation }) => {
         setPartialText(''); // 清除部分结果
         setIsListening(false);
       }
-    });
+    };
 
-    nativeAudioService.addListener('speechError', (e) => {
-      console.error('语音识别错误:', e);
-      setIsListening(false);
-      setPartialText('');
-      Alert.alert('语音识别失败', '请重试或检查网络连接');
-    });
+    const speechErrorListener = (e) => {
+      if (isMounted) {
+        console.error('语音识别错误:', e);
+        setIsListening(false);
+        setPartialText('');
+        Alert.alert('语音识别失败', '请重试或检查网络连接');
+      }
+    };
+
+    // 注册监听器
+    nativeAudioService.addListener('recordingProgress', recordingProgressListener);
+    nativeAudioService.addListener('speechPartialResults', speechPartialResultsListener);
+    nativeAudioService.addListener('speechResults', speechResultsListener);
+    nativeAudioService.addListener('speechError', speechErrorListener);
 
     return () => {
+      isMounted = false;
+      // 清理监听器
+      nativeAudioService.removeListener('recordingProgress', recordingProgressListener);
+      nativeAudioService.removeListener('speechPartialResults', speechPartialResultsListener);
+      nativeAudioService.removeListener('speechResults', speechResultsListener);
+      nativeAudioService.removeListener('speechError', speechErrorListener);
       // 清理资源
       nativeAudioService.destroy();
     };
-  }, []);
+  }, []); // 移除 recordTime 依赖项，避免频繁重新注册监听器
 
   // 组件加载时恢复笔记数据
   useEffect(() => {
+    let isMounted = true;
+    
     const loadNote = async () => {
       try {
         if (noteId) {
@@ -104,11 +158,12 @@ const CardNoteScreen = ({ route, navigation }) => {
           // 尝试从离线存储加载笔记
           const existingNote = await offlineStorageService.getNote(noteId);
           
-          if (existingNote) {
+          if (isMounted && existingNote) {
             console.log('CardNoteScreen: 找到现有笔记:', existingNote.title);
             setTitle(existingNote.title || initialTitle);
             setContent(existingNote.content || initialContent);
             setWordCount(existingNote.word_count || 0);
+            setNoteCreated(true); // 标记笔记已存在
             
             // 恢复其他状态
             if (existingNote.audioFiles) {
@@ -116,7 +171,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             }
             
             console.log('CardNoteScreen: 笔记数据恢复完成');
-          } else {
+          } else if (isMounted) {
             console.log('CardNoteScreen: 未找到笔记:', noteId);
             // 如果找不到笔记，检查是否应该创建新的
             if (route.params?.createNew || route.params?.isNew) {
@@ -127,7 +182,7 @@ const CardNoteScreen = ({ route, navigation }) => {
               // 保持初始状态，不创建新笔记
             }
           }
-        } else {
+        } else if (isMounted) {
           console.log('CardNoteScreen: 没有noteId，检查是否需要创建新笔记');
           // 只有在明确指定创建新笔记时才创建
           if (route.params?.createNew || route.params?.isNew) {
@@ -141,23 +196,51 @@ const CardNoteScreen = ({ route, navigation }) => {
       } catch (error) {
         console.error('CardNoteScreen: 加载笔记失败:', error);
         // 即使加载失败，也不自动创建新笔记
-        Alert.alert('错误', '加载笔记失败，请重试');
+        if (isMounted) {
+          Alert.alert('错误', '加载笔记失败，请重试');
+        }
       }
     };
 
     loadNote();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [noteId, initialTitle, initialContent, route.params?.createNew, route.params?.isNew]);
+
+  // 监听键盘状态
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+    };
+  }, []);
 
   // 创建新笔记
   const createNewNote = async () => {
     try {
-      const newNoteId = `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log('CardNoteScreen: 创建新笔记，ID:', newNoteId);
+      // 检查是否已经创建过笔记，避免重复创建
+      if (noteCreated) {
+        console.log('CardNoteScreen: 笔记已创建，跳过重复创建');
+        return;
+      }
+      
+      // 优先使用传入的noteId，如果没有则生成新的
+      const newNoteId = noteId || `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log('CardNoteScreen: 创建新笔记，ID:', newNoteId, '使用传入ID:', !!noteId, '传入ID:', noteId);
       
       const newNote = {
         _id: newNoteId,
         id: newNoteId,
-        title: initialTitle || '新建笔记',
+        title: title || initialTitle || '新建笔记',
         content: initialContent || '',
         type: 'card',
         noteType: 'card',
@@ -168,23 +251,37 @@ const CardNoteScreen = ({ route, navigation }) => {
         is_deleted: false,
         is_synced: false,
         is_offline: true,
-        user_id: 'current_user'
+        user_id: 'current_user',
+        // 添加文件URI用于识别
+        file_uri: `card://${newNoteId}`,
+        uri: `card://${newNoteId}`
       };
 
       // 保存到离线存储
-      await offlineStorageService.saveNote(newNote);
+      const saveResult = await offlineStorageService.saveNote(newNote);
       
-      // 更新Redux store
-      if (dispatch) {
-        dispatch(updateNote(newNote));
+      if (saveResult.success) {
+        // 更新Redux store
+        if (dispatch) {
+          dispatch(addNote(newNote));
+        }
+        
+        console.log('CardNoteScreen: 新笔记创建成功');
+        
+        // 更新本地状态
+        setTitle(newNote.title);
+        setContent(newNote.content);
+        setWordCount(newNote.word_count);
+        setNoteCreated(true); // 标记笔记已创建
+        
+        // 重要：更新noteId，确保后续保存使用正确的ID
+        // 由于noteId是从route.params来的，我们需要通过navigation.setParams来更新
+        if (navigation && navigation.setParams) {
+          navigation.setParams({ noteId: newNoteId });
+        }
+      } else {
+        throw new Error('保存新笔记失败');
       }
-      
-      console.log('CardNoteScreen: 新笔记创建成功');
-      
-      // 更新本地状态
-      setTitle(newNote.title);
-      setContent(newNote.content);
-      setWordCount(newNote.word_count);
       
     } catch (error) {
       console.error('CardNoteScreen: 创建新笔记失败:', error);
@@ -220,34 +317,73 @@ const CardNoteScreen = ({ route, navigation }) => {
 
   // 添加到文件历史（进入页面或标题变化时）
   useEffect(() => {
+    let isMounted = true;
+    
     try {
       const fileHistoryService = require('../../services/fileHistoryService').default;
       const effectiveTitle = (title || initialTitle || '卡片笔记').trim();
-      if ((noteId || effectiveTitle) && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
+      if (isMounted && (noteId || effectiveTitle) && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
         fileHistoryService.addFile({
           uri: noteId || effectiveTitle,
           title: effectiveTitle,
           type: 'card',
           noteType: 'card',
-          fileName: effectiveTitle,
+          fileName: title || initialTitle || '新建笔记',
           noteId: noteId
         });
       }
     } catch (e) {
       // 静默处理，不影响主功能
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [noteId, title]);
+
+  // 组件卸载时的清理函数
+  useEffect(() => {
+    return () => {
+      // 清理所有定时器
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      
+      // 停止录音和语音识别
+      if (isRecording) {
+        stopRecording();
+      }
+      if (isListening) {
+        stopSpeechRecognition();
+      }
+      
+      // 保存当前笔记 - 只有在有noteId且有内容时才保存，避免创建重复笔记
+      if (noteId && (title.trim() || content.trim())) {
+        saveNote().catch(err => console.warn('组件卸载时保存笔记失败:', err));
+      }
+      // 移除没有noteId时的保存逻辑，避免创建重复笔记
+    };
+  }, []);
 
   // 初始化语音识别
   useEffect(() => {
-    Voice.onSpeechStart = () => setIsListening(true);
-    Voice.onSpeechEnd = () => setIsListening(false);
+    let isMounted = true;
+    
+    Voice.onSpeechStart = () => {
+      if (isMounted) setIsListening(true);
+    };
+    Voice.onSpeechEnd = () => {
+      if (isMounted) setIsListening(false);
+    };
     Voice.onSpeechError = (error) => {
       console.error('语音识别错误:', error);
-      setIsListening(false);
+      if (isMounted) setIsListening(false);
     };
     Voice.onSpeechResults = (result) => {
-      if (result.value && result.value.length > 0) {
+      if (isMounted && result.value && result.value.length > 0) {
         const recognizedText = result.value[0];
         setRecognizedText(recognizedText);
 
@@ -273,12 +409,13 @@ const CardNoteScreen = ({ route, navigation }) => {
       }
     };
     Voice.onSpeechPartialResults = (result) => {
-      if (result.value && result.value.length > 0) {
+      if (isMounted && result.value && result.value.length > 0) {
         setRecognizedText(result.value[0]);
       }
     };
 
     return () => {
+      isMounted = false;
       Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
@@ -286,16 +423,16 @@ const CardNoteScreen = ({ route, navigation }) => {
   const saveNote = async () => {
     try {
       // 如果没有实际内容，不保存
-      if (content.trim().length < 5) {
+      if (content.trim().length < 5 && title.trim().length < 2) {
         return { success: true };
       }
 
-      // 必须使用现有的noteId，不能生成新的
-      if (!noteId) {
-        console.error('保存失败：缺少noteId');
-        throw new Error('缺少笔记ID，无法保存');
+      // 如果没有noteId，不保存，避免创建重复笔记
+      let currentNoteId = noteId;
+      if (!currentNoteId) {
+        console.log('CardNoteScreen: 没有noteId，跳过保存，避免创建重复笔记');
+        return { success: false, error: 'No noteId available' };
       }
-      const currentNoteId = noteId;
 
       // 确保有标题
       const finalTitle = title.trim() || `卡片笔记_${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
@@ -314,19 +451,80 @@ const CardNoteScreen = ({ route, navigation }) => {
         is_deleted: false,
         is_synced: false,
         is_offline: true, // 标记为离线笔记
-        user_id: 'current_user'
+        user_id: 'current_user',
+        // 确保有文件URI
+        file_uri: `card://${currentNoteId}`,
+        uri: `card://${currentNoteId}`
       };
 
-      await offlineStorageService.saveNote(noteData);
-      try {
-        if (dispatch) {
-          dispatch(updateNote(noteData));
+      const result = await offlineStorageService.saveNote(noteData);
+      
+      if (result.success) {
+        // 使用保存后返回的笔记数据，确保ID字段一致
+        const savedNote = result.note || noteData;
+        
+        // 确保ID字段一致
+        const finalNote = {
+          ...savedNote,
+          id: savedNote.id || savedNote._id || currentNoteId,
+          _id: savedNote._id || savedNote.id || currentNoteId,
+          file_uri: savedNote.file_uri || `card://${savedNote.id || savedNote._id || currentNoteId}`,
+          uri: savedNote.uri || `card://${savedNote.id || savedNote._id || currentNoteId}`,
+          // 确保所有必要字段都是正确的类型
+          type: 'card',
+          noteType: 'card',
+          file_type: 'card',
+          title: finalTitle,
+          content: content,
+          word_count: wordCount,
+          created_at: savedNote.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_deleted: false,
+          is_synced: false,
+          is_offline: true,
+          user_id: 'current_user'
+        };
+        
+        try {
+          if (dispatch) {
+            // 检查笔记是否已存在于Redux状态中
+            const existingNote = notesEntities[finalNote.id];
+            
+            if (existingNote) {
+              // 如果笔记已存在，使用updateOneNote（同步action）
+              dispatch(updateOneNote({
+                id: finalNote.id,
+                changes: finalNote
+              }));
+            } else {
+              // 如果是新笔记，使用addNote
+              dispatch(addNote(finalNote));
+            }
+          }
+        } catch (reduxError) {
+          console.warn('Redux更新失败:', reduxError);
+          // Redux失败不影响保存功能
         }
-      } catch (reduxError) {
-        console.warn('Redux更新失败:', reduxError);
-        // Redux失败不影响保存功能
+        
+        // 如果noteId是新创建的，更新路由参数
+        if (!noteId && currentNoteId) {
+          if (navigation && navigation.setParams) {
+            navigation.setParams({ noteId: currentNoteId });
+          }
+        }
+        
+        console.log('卡片笔记保存成功:', finalNote.id);
+        console.log('保存的笔记数据:', {
+          id: finalNote.id,
+          title: finalNote.title,
+          type: finalNote.type,
+          noteType: finalNote.noteType,
+          file_type: finalNote.file_type
+        });
+        return { success: true, note: finalNote };
+      } else {
+        throw new Error('保存失败');
       }
-      return { success: true };
     } catch (error) {
       console.error('保存失败:', error.message);
       throw error;
@@ -367,9 +565,14 @@ const CardNoteScreen = ({ route, navigation }) => {
       setRecordingDuration(0);
       setCurrentRecordingPath(recordingPath);
 
-      // 开始计时
+      // 开始计时 - 使用更高效的计时方式，减少更新频率
+      let startTime = Date.now();
       const timer = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        // 使用 requestAnimationFrame 来节流更新
+        requestAnimationFrame(() => {
+          setRecordingDuration(elapsed);
+        });
       }, 1000);
 
       // 保存计时器引用
@@ -501,52 +704,58 @@ const CardNoteScreen = ({ route, navigation }) => {
 
   // 主语音按钮处理函数
   const handleVoiceAction = () => {
-    Alert.alert(
-      '语音功能',
-      '请选择语音功能类型',
-      [
-        {
-          text: '录音',
-          onPress: () => {
-            if (isRecording) {
-              stopRecording();
-            } else {
-              startRecording();
-            }
-          }
-        },
-        {
-          text: '语音转文字',
-          onPress: () => {
-            if (isListening) {
-              if (isVoicePaused) {
-                resumeVoiceRecognition();
+    // 立即隐藏键盘，确保语音按钮可见
+    Keyboard.dismiss();
+    
+    // 添加一个小延迟，确保键盘完全隐藏
+    setTimeout(() => {
+      Alert.alert(
+        '语音功能',
+        '请选择语音功能类型',
+        [
+          {
+            text: '录音',
+            onPress: () => {
+              if (isRecording) {
+                stopRecording();
               } else {
-                Alert.alert(
-                  '语音识别中',
-                  '请选择操作',
-                  [
-                    {
-                      text: '暂停',
-                      onPress: pauseVoiceRecognition
-                    },
-                    {
-                      text: '停止',
-                      onPress: stopSpeechRecognition,
-                      style: 'destructive'
-                    },
-                    { text: '取消', style: 'cancel' }
-                  ]
-                );
+                startRecording();
               }
-            } else {
-              startSpeechRecognition();
             }
-          }
-        },
-        { text: '取消', style: 'cancel' }
-      ]
-    );
+          },
+          {
+            text: '语音转文字',
+            onPress: () => {
+              if (isListening) {
+                if (isVoicePaused) {
+                  resumeVoiceRecognition();
+                } else {
+                  Alert.alert(
+                    '语音识别中',
+                    '请选择操作',
+                    [
+                      {
+                        text: '暂停',
+                        onPress: pauseVoiceRecognition
+                      },
+                      {
+                        text: '停止',
+                        onPress: stopSpeechRecognition,
+                        style: 'destructive'
+                      },
+                      { text: '取消', style: 'cancel' }
+                    ]
+                  );
+                }
+              } else {
+                startSpeechRecognition();
+              }
+            }
+          },
+          { text: '取消', style: 'cancel' }
+        ]
+      );
+    }, 100);
   };
 
 
@@ -560,202 +769,215 @@ const CardNoteScreen = ({ route, navigation }) => {
 
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      enabled={true}
-    >
-      <ViewerLayout
-        colors={colors}
-        title={title}
-        noteId={noteId}
-        navigation={navigation}
-        showHistoryNavigation={true}
-        historyNavigationHeight={25}
-        contentStyle={{ paddingTop: 0, marginTop: -8 }}
-        onBack={() => {
-          saveNote();
-          navigation.goBack();
-        }}
-        showToolbar={true}
-        headerLeft={
-          <BackButton
-            onPress={() => {
-              saveNote();
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate('Home');
-              }
-            }}
-            color={colors.primary}
-            background={colors.primary + '20'}
-          />
-        }
-        headerRight={
-          <View style={styles.headerRight}>
-            <SaveButton
-              onSave={saveNote}
-              text="保存"
-              showSuccessToast={true}
-              showErrorAlert={true}
-              style={[styles.saveButton, { backgroundColor: colors.primary }]}
-            />
-            <Text style={[styles.wordCount, { color: colors.onSurface }]}>
-              {wordCount}字
-            </Text>
-          </View>
-        }
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
+        enabled={true}
       >
-        <View style={styles.content}>
-          {/* 标题输入 */}
-          <TextInput
-            style={[styles.titleInput, {
-              color: colors.onSurface,
-              borderBottomColor: colors.outline
-            }]}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="输入标题..."
-            placeholderTextColor={colors.onSurfaceVariant}
-            fontSize={20}
-            fontWeight="bold"
-            multiline={false}
-            returnKeyType="next"
-            onSubmitEditing={() => contentInputRef.current?.focus()}
-          />
-
-          {/* 内容输入 */}
-          <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
+        <ViewerLayout
+          colors={colors}
+          title={title}
+          noteId={noteId}
+          navigation={navigation}
+          showHistoryNavigation={true}
+          historyNavigationHeight={25}
+          contentStyle={{ paddingTop: 0, marginTop: -8 }}
+          onBack={() => {
+            saveNote();
+            navigation.goBack();
+          }}
+          showToolbar={true}
+          headerLeft={
+            <BackButton
+              onPress={() => {
+                saveNote();
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('Home');
+                }
+              }}
+              color={colors.primary}
+              background={colors.primary + '20'}
+            />
+          }
+          headerRight={
+            <View style={styles.headerRight}>
+              <SaveButton
+                onSave={saveNote}
+                text="保存"
+                showSuccessToast={true}
+                showErrorAlert={true}
+                style={[styles.saveButton, { backgroundColor: colors.primary }]}
+              />
+              <Text style={[styles.wordCount, { color: colors.onSurface }]}>
+                {wordCount}字
+              </Text>
+            </View>
+          }
+        >
+          <View style={styles.content}>
+            {/* 标题输入 */}
             <TextInput
-              ref={contentInputRef}
-              value={content}
-              onChangeText={setContent}
-              placeholder="开始输入内容..."
-              placeholderTextColor={colors.onSurfaceVariant}
-              style={[styles.contentInput, {
+              style={[styles.titleInput, {
                 color: colors.onSurface,
-                backgroundColor: colors.surface,
-                borderColor: colors.outline,
+                borderBottomColor: colors.outline
               }]}
-              multiline
-              textAlignVertical="top"
+              value={title}
+              onChangeText={setTitle}
+              placeholder="输入标题..."
+              placeholderTextColor={colors.onSurfaceVariant}
+              fontSize={20}
+              fontWeight="bold"
+              multiline={false}
+              returnKeyType="next"
+              onSubmitEditing={() => contentInputRef.current?.focus()}
             />
 
-            {/* 音频播放提示 */}
-            {audioFiles.length > 0 && (
-              <TouchableOpacity
-                style={[styles.audioHint, { backgroundColor: colors.primaryContainer }]}
-                onPress={() => {
-                  Alert.alert(
-                    '音频文件管理',
-                    `共有 ${audioFiles.length} 个录音文件`,
-                    [
-                      { text: '取消', style: 'cancel' },
-                      {
-                        text: '播放最新录音',
-                        onPress: () => {
-                          const latestAudio = audioFiles[audioFiles.length - 1];
-                          if (latestAudio) {
-                            playAudio(latestAudio.path);
+            {/* 内容输入 */}
+            <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
+              <TextInput
+                ref={contentInputRef}
+                value={content}
+                onChangeText={setContent}
+                placeholder="开始输入内容..."
+                placeholderTextColor={colors.onSurfaceVariant}
+                style={[styles.contentInput, {
+                  color: colors.onSurface,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.outline,
+                }]}
+                multiline
+                textAlignVertical="top"
+              />
+
+              {/* 音频播放提示 */}
+              {audioFiles.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.audioHint, { backgroundColor: colors.primaryContainer }]}
+                  onPress={() => {
+                    Alert.alert(
+                      '音频文件管理',
+                      `共有 ${audioFiles.length} 个录音文件`,
+                      [
+                        { text: '取消', style: 'cancel' },
+                        {
+                          text: '播放最新录音',
+                          onPress: () => {
+                            const latestAudio = audioFiles[audioFiles.length - 1];
+                            if (latestAudio) {
+                              playAudio(latestAudio.path);
+                            }
                           }
                         }
-                      }
-                    ]
-                  );
-                }}
-              >
-                <Icon name="music-note" size={16} color={colors.onPrimaryContainer} />
-                <Text style={[styles.audioHintText, { color: colors.onPrimaryContainer }]}>
-                  {audioFiles.length} 个录音文件
-                </Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* 右下角语音按钮 */}
-        <TouchableOpacity
-          style={[
-            styles.voiceButton,
-            {
-              backgroundColor: isRecording ? colors.error : colors.primary
-            }
-          ]}
-          onPress={handleVoiceAction}
-        >
-          <Icon
-            name={isRecording ? "stop" : isListening ? "hearing" : "keyboard-voice"}
-            size={16}
-            color={colors.onPrimary}
-          />
-          <Text style={[styles.voiceButtonText, { color: colors.onPrimary }]}>
-            {isRecording ? recordTime : isListening ? '识别中...' : '语音'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* 语音识别状态显示 */}
-        {isListening && (
-          <View style={[styles.voiceRecognitionStatus, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-            <View style={styles.voiceStatusHeader}>
-              <Text style={[styles.voiceStatusTitle, { color: colors.primary }]}>
-                {isVoicePaused ? '语音识别已暂停' : '正在识别语音...'}
-              </Text>
-              <TouchableOpacity
-                style={styles.voiceCloseButton}
-                onPress={stopSpeechRecognition}
-              >
-                <Icon name="close" size={16} color={colors.onSurfaceVariant} />
-              </TouchableOpacity>
-            </View>
-
-            {/* 实时显示识别结果 */}
-            {partialText && !isVoicePaused && (
-              <View style={styles.partialTextContainer}>
-                <Text style={[styles.partialText, { color: colors.onSurfaceVariant }]}>
-                  {partialText}
-                </Text>
-              </View>
-            )}
-
-            {/* 控制按钮 */}
-            <View style={styles.voiceControlButtons}>
-              <TouchableOpacity
-                style={[styles.voiceControlButton, { backgroundColor: isVoicePaused ? colors.primary : colors.outline }]}
-                onPress={isVoicePaused ? resumeVoiceRecognition : pauseVoiceRecognition}
-              >
-                <Icon
-                  name={isVoicePaused ? 'play-arrow' : 'pause'}
-                  size={16}
-                  color={isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant}
-                />
-                <Text style={[styles.voiceControlText, {
-                  color: isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant
-                }]}>
-                  {isVoicePaused ? '继续' : '暂停'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.voiceControlButton, { backgroundColor: colors.error }]}
-                onPress={stopSpeechRecognition}
-              >
-                <Icon name="stop" size={16} color={colors.onError} />
-                <Text style={[styles.voiceControlText, { color: colors.onError }]}>
-                  停止
-                </Text>
-              </TouchableOpacity>
-            </View>
+                      ]
+                    );
+                  }}
+                >
+                  <Icon name="music-note" size={16} color={colors.onPrimaryContainer} />
+                  <Text style={[styles.audioHintText, { color: colors.onPrimaryContainer }]}>
+                    {audioFiles.length} 个录音文件
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
           </View>
-        )}
-      </ViewerLayout>
-    </KeyboardAvoidingView>
+
+          {/* 语音识别状态显示 */}
+          {isListening && (
+            <View style={[styles.voiceRecognitionStatus, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+              <View style={styles.voiceStatusHeader}>
+                <Text style={[styles.voiceStatusTitle, { color: colors.primary }]}>
+                  {isVoicePaused ? '语音识别已暂停' : '正在识别语音...'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.voiceCloseButton}
+                  onPress={stopSpeechRecognition}
+                >
+                  <Icon name="close" size={16} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              </View>
+
+              {/* 实时显示识别结果 */}
+              {partialText && !isVoicePaused && (
+                <View style={styles.partialTextContainer}>
+                  <Text style={[styles.partialText, { color: colors.onSurfaceVariant }]}>
+                    {partialText}
+                  </Text>
+                </View>
+              )}
+
+              {/* 控制按钮 */}
+              <View style={styles.voiceControlButtons}>
+                <TouchableOpacity
+                  style={[styles.voiceControlButton, { backgroundColor: isVoicePaused ? colors.primary : colors.outline }]}
+                  onPress={isVoicePaused ? resumeVoiceRecognition : pauseVoiceRecognition}
+                >
+                  <Icon
+                    name={isVoicePaused ? 'play-arrow' : 'pause'}
+                    size={16}
+                    color={isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant}
+                  />
+                  <Text style={[styles.voiceControlText, {
+                    color: isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant
+                  }]}>
+                    {isVoicePaused ? '继续' : '暂停'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.voiceControlButton, { backgroundColor: colors.error }]}
+                  onPress={stopSpeechRecognition}
+                >
+                  <Icon name="stop" size={16} color={colors.onError} />
+                  <Text style={[styles.voiceControlText, { color: colors.onError }]}>
+                    停止
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </ViewerLayout>
+      </KeyboardAvoidingView>
+
+      {/* 右下角语音按钮 - 使用绝对定位，确保不受键盘影响 */}
+      <TouchableOpacity
+        style={[
+          styles.voiceButton,
+          {
+            backgroundColor: isRecording ? colors.error : (isListening ? colors.secondary : colors.primary),
+            // 确保按钮位置固定，不受键盘影响
+            bottom: 30,
+            right: 20,
+            position: 'absolute',
+            zIndex: 9999,
+          }
+        ]}
+        onPress={handleVoiceAction}
+        activeOpacity={0.8}
+      >
+        <Icon
+          name={voiceButtonIcon}
+          size={16}
+          color={colors.onPrimary}
+        />
+        <Text style={[styles.voiceButtonText, { color: colors.onPrimary }]} numberOfLines={1}>
+          {voiceButtonText}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    // 确保容器支持绝对定位
+    position: 'relative',
+  },
+  keyboardAvoidingView: {
     flex: 1,
   },
   content: {
@@ -813,9 +1035,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   voiceButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
+    // 移除position: 'absolute'，因为我们在内联样式中设置
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 6,
@@ -827,10 +1047,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
+    minWidth: 80,
+    minHeight: 44,
+    justifyContent: 'center',
+    // 添加稳定性样式，减少布局抖动
+    backfaceVisibility: 'hidden',
   },
   voiceButtonText: {
     fontSize: 14,
     fontWeight: '600',
+    // 添加稳定性样式，减少文本抖动
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   recognitionStatus: {
     position: 'absolute',

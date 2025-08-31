@@ -122,9 +122,32 @@ export const SaveUtils = {
    */
   async saveWordDocument(documentId, content, offlineStorageService) {
     try {
-      const key = `doc_content_${documentId}`;
-      await offlineStorageService.setItem(key, content);
-      console.log('SaveUtils: Word文档保存成功');
+      // 获取现有文档数据
+      const existingNote = await offlineStorageService.getNote(documentId);
+      
+      // 创建完整的文档对象进行整体存储
+      const documentData = {
+        _id: documentId,
+        id: documentId,
+        title: existingNote?.title || 'Word文档',
+        content: content,
+        type: 'word',
+        file_type: 'docx',
+        file_name: existingNote?.file_name || 'document.docx',
+        file_uri: existingNote?.file_uri || `word://${documentId}`,
+        uri: existingNote?.uri || `word://${documentId}`,
+        created_at: existingNote?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        imported: existingNote?.imported || false,
+        metadata: existingNote?.metadata || '{}',
+        tags: existingNote?.tags || []
+      };
+      
+      // 使用整体存储
+      await offlineStorageService.saveNote(documentData);
+      console.log('SaveUtils: Word文档整体保存成功');
       return true;
     } catch (error) {
       console.error('SaveUtils: Word文档保存失败:', error);
@@ -137,9 +160,33 @@ export const SaveUtils = {
    */
   async savePDFAnnotations(documentId, annotations, offlineStorageService) {
     try {
-      const key = `pdf_annotations_${documentId}`;
-      await offlineStorageService.setItem(key, JSON.stringify(annotations));
-      console.log('SaveUtils: PDF注释保存成功');
+      // 获取现有PDF数据
+      const existingNote = await offlineStorageService.getNote(documentId);
+      
+      // 创建完整的PDF对象进行整体存储
+      const pdfData = {
+        _id: documentId,
+        id: documentId,
+        title: existingNote?.title || 'PDF文档',
+        content: existingNote?.content || '',
+        type: 'pdf',
+        file_type: 'pdf',
+        file_name: existingNote?.file_name || 'document.pdf',
+        file_uri: existingNote?.file_uri || `pdf://${documentId}`,
+        uri: existingNote?.uri || `pdf://${documentId}`,
+        annotations: JSON.stringify(annotations),
+        created_at: existingNote?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        imported: existingNote?.imported || false,
+        metadata: existingNote?.metadata || '{}',
+        tags: existingNote?.tags || []
+      };
+      
+      // 使用整体存储
+      await offlineStorageService.saveNote(pdfData);
+      console.log('SaveUtils: PDF注释整体保存成功');
       return true;
     } catch (error) {
       console.error('SaveUtils: PDF注释保存失败:', error);
@@ -152,63 +199,32 @@ export const SaveUtils = {
    */
   async saveMarkdownContent(documentId, content, offlineStorageService) {
     try {
-      // 保存到多个位置确保数据不丢失
-      const key = `markdown_content_${documentId}`;
-      const backupKey = `markdown_${documentId}`;
-
-      // 主要保存位置
-      await offlineStorageService.setItem(key, content);
-
-      // 备份保存位置（兼容旧版本）
-      await offlineStorageService.setItem(backupKey, content);
-
-      // 更新笔记内容（如果是笔记）
-      try {
-        const existingNote = await offlineStorageService.getNote(documentId);
-        if (existingNote) {
-          // 创建一个干净的笔记对象，避免循环引用
-          const updatedNote = {
-            _id: existingNote._id,
-            id: existingNote.id || existingNote._id,
-            title: existingNote.title,
-            content: content,
-            type: existingNote.type,
-            file_type: existingNote.file_type,
-            file_name: existingNote.file_name,
-            file_uri: existingNote.file_uri,
-            uri: existingNote.uri,
-            path: existingNote.path,
-            created_at: existingNote.created_at,
-            updated_at: new Date().toISOString(),
-            is_synced: false,
-            is_offline: existingNote.is_offline,
-            imported: existingNote.imported,
-            // 确保metadata是字符串
-            metadata: typeof existingNote.metadata === 'object' ?
-                     JSON.stringify(existingNote.metadata) :
-                     (existingNote.metadata || '{}'),
-            // 确保tags是字符串数组，过滤掉循环引用对象
-            tags: Array.isArray(existingNote.tags) ?
-                  existingNote.tags.filter(tag =>
-                    typeof tag === 'string' ||
-                    (typeof tag === 'object' && tag !== null && !tag.reference)
-                  ).map(tag => String(tag)) : [],
-            // 处理attachments字段，过滤掉循环引用
-            attachments: Array.isArray(existingNote.attachments) ?
-                        existingNote.attachments.filter(attachment =>
-                          typeof attachment === 'object' &&
-                          attachment !== null &&
-                          !attachment.reference
-                        ) : []
-          };
-          await offlineStorageService.updateNote(documentId, updatedNote);
-          console.log('SaveUtils: 笔记内容已更新');
-        }
-      } catch (noteError) {
-        console.warn('SaveUtils: 更新笔记内容失败:', noteError);
-      }
-
-      console.log('SaveUtils: Markdown内容保存成功');
+      // 获取现有Markdown数据
+      const existingNote = await offlineStorageService.getNote(documentId);
+      
+      // 创建完整的Markdown对象进行整体存储
+      const markdownData = {
+        _id: documentId,
+        id: documentId,
+        title: existingNote?.title || 'Markdown文档',
+        content: content,
+        type: 'markdown',
+        file_type: 'md',
+        file_name: existingNote?.file_name || 'document.md',
+        file_uri: existingNote?.file_uri || `markdown://${documentId}`,
+        uri: existingNote?.uri || `markdown://${documentId}`,
+        created_at: existingNote?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        imported: existingNote?.imported || false,
+        metadata: existingNote?.metadata || '{}',
+        tags: existingNote?.tags || []
+      };
+      
+      // 使用整体存储
+      await offlineStorageService.saveNote(markdownData);
+      console.log('SaveUtils: Markdown内容整体保存成功');
       return true;
     } catch (error) {
       console.error('SaveUtils: Markdown内容保存失败:', error);
@@ -221,9 +237,33 @@ export const SaveUtils = {
    */
   async savePPTAnnotations(documentId, annotations, offlineStorageService) {
     try {
-      const key = `ppt_annotations_${documentId}`;
-      await offlineStorageService.setItem(key, JSON.stringify(annotations));
-      console.log('SaveUtils: PPT注释保存成功');
+      // 获取现有PPT数据
+      const existingNote = await offlineStorageService.getNote(documentId);
+      
+      // 创建完整的PPT对象进行整体存储
+      const pptData = {
+        _id: documentId,
+        id: documentId,
+        title: existingNote?.title || 'PPT文档',
+        content: existingNote?.content || '',
+        type: 'powerpoint',
+        file_type: 'pptx',
+        file_name: existingNote?.file_name || 'document.pptx',
+        file_uri: existingNote?.file_uri || `powerpoint://${documentId}`,
+        uri: existingNote?.uri || `powerpoint://${documentId}`,
+        annotations: JSON.stringify(annotations),
+        created_at: existingNote?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_synced: false,
+        is_offline: true,
+        imported: existingNote?.imported || false,
+        metadata: existingNote?.metadata || '{}',
+        tags: existingNote?.tags || []
+      };
+      
+      // 使用整体存储
+      await offlineStorageService.saveNote(pptData);
+      console.log('SaveUtils: PPT注释整体保存成功');
       return true;
     } catch (error) {
       console.error('SaveUtils: PPT注释保存失败:', error);

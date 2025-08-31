@@ -79,12 +79,20 @@ const FileHistoryNavigation = ({
         content: '',
         fromFileHistory: true
       };
-    } else if (noteType === 'paged') {
-      screenName = 'PagedNote';
+    } else if (noteType === 'paged_note') {
+      screenName = 'FluidPagedNote';
       params = {
         noteId: id,
         title: title || fileName,
         noteStyle: 'blank',
+        fromFileHistory: true
+      };
+    } else if (noteType === 'canvas' || type === 'canvas') {
+      screenName = 'InfiniteCanvas';
+      params = {
+        noteId: id,
+        title: title || fileName,
+        canvasStyle: 'white',
         fromFileHistory: true
       };
     } else {

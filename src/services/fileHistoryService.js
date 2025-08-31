@@ -58,20 +58,25 @@ class FileHistoryService {
    */
   async addFile(fileInfo) {
     try {
-      const { uri, title, type, fileName, noteId } = fileInfo;
+      const { uri, title, type, fileName, noteId, noteType, file_uri } = fileInfo;
       
-      if (!uri || !title) {
-        console.warn('FileHistoryService: 文件信息不完整，跳过添加');
+      // 对于笔记类型，如果没有uri但有noteId，使用noteId作为uri
+      const effectiveUri = uri || (noteId ? `${noteType || 'note'}://${noteId}` : null);
+      
+      if (!effectiveUri || !title) {
+        console.warn('FileHistoryService: 文件信息不完整，跳过添加', { uri, effectiveUri, title, noteId });
         return;
       }
 
       // 创建历史记录项
       const historyItem = {
         id: noteId || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        uri,
+        uri: effectiveUri,
         title,
         type: type || 'unknown',
         fileName: fileName || title,
+        noteType: noteType || null,
+        file_uri: file_uri || effectiveUri,
         lastOpened: new Date().toISOString(),
         openCount: 1
       };

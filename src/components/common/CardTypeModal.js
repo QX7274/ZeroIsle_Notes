@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
@@ -154,7 +156,7 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
     const finalName = cardName.trim() || selectedTypeData.title;
 
     console.log('CardTypeModal: 创建卡片:', { type: selectedTypeData, name: finalName });
-    onSelectType({ ...selectedTypeData, title: finalName });
+    onSelectType(selectedTypeData.id, finalName);
     onClose();
     setCardName('');
     setSelectedType('blank');
@@ -173,7 +175,11 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
       statusBarTranslucent={true}
       presentationStyle="overFullScreen"
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView 
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
         <View style={[styles.container, { backgroundColor: colors.surface }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>
@@ -257,7 +263,7 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

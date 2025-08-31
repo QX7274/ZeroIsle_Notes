@@ -14,12 +14,15 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Pdf from 'react-native-pdf';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import { offlineStorageService } from '../../services/offline';
 import RNFS from 'react-native-fs';
 import { launchImageLibrary } from 'react-native-image-picker';
 import documentConverter from '../../services/document/documentConverter';
+import nativeDocumentViewer from '../../services/document/quickPreviewService';
+import enhancedDocumentViewer from '../../services/document/enhancedDocumentViewer';
 
 // 导入与PDF查看器相同的组件
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
@@ -82,6 +85,10 @@ const DocViewer = ({ route, navigation }) => {
   const [showPreview, setShowPreview] = useState(true);
   const [previewInfo, setPreviewInfo] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
+  
+  // 原生前端浏览状态
+  const [nativeContent, setNativeContent] = useState(null);
+  const [useNativeViewer, setUseNativeViewer] = useState(false);
 
   // 引用
   const scrollViewRef = useRef(null);
@@ -138,7 +145,46 @@ const DocViewer = ({ route, navigation }) => {
       setShowPreview(true);
       setIsLoading(false); // 预览准备完成，停止加载指示器
 
-      // 在后台异步进行文档转换
+      // 尝试使用增强文档查看器解析
+      try {
+        setConversionMessage('正在使用增强文档查看器解析文档...');
+        
+        // 确保传递正确的文件名（包含扩展名）
+        const correctFileName = fileName || `${title}.docx`;
+        console.log('DocViewer: 传递文件名给增强解析器:', correctFileName);
+        
+        // 性能优化：添加超时处理
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('解析超时')), 15000); // 15秒超时
+        });
+
+        const parsePromise = (async () => {
+          // 优先使用enhancedDocumentViewer
+          let documentData = null;
+          try {
+            documentData = await enhancedDocumentViewer.readDocument(documentPath, correctFileName);
+          } catch (enhancedError) {
+            console.warn('DocViewer: 增强解析器失败，尝试原生解析器:', enhancedError);
+            // 回退到原生解析器
+            documentData = await nativeDocumentViewer.readDocument(documentPath, correctFileName);
+          }
+          return documentData;
+        })();
+
+        const documentData = await Promise.race([parsePromise, timeoutPromise]);
+        
+        if (documentData && (documentData.content || documentData.htmlContent)) {
+          setNativeContent(documentData);
+          setUseNativeViewer(true);
+          setShowPreview(false);
+          console.log('DocViewer: 文档解析成功，使用增强查看器');
+          return;
+        }
+      } catch (nativeError) {
+        console.warn('DocViewer: 所有原生解析失败，回退到后端转换:', nativeError);
+      }
+
+      // 如果原生解析失败，在后台异步进行文档转换
       setIsConverting(true);
       setConversionMessage('正在后台转换文档格式...');
 
@@ -196,7 +242,25 @@ const DocViewer = ({ route, navigation }) => {
 
       console.log('尝试使用外部应用打开Word文档:', filePath);
 
-      // 尝试多种方式打开文件
+      // 使用enhancedDocumentViewer的原生应用打开功能
+      try {
+        const fileType = getFileExtension(fileName || title);
+        await enhancedDocumentViewer.openWithNativeApp(filePath, fileName || title, fileType);
+        console.log('Word文档外部打开成功');
+        return;
+      } catch (enhancedError) {
+        console.error('增强查看器打开失败，尝试原生查看器:', enhancedError);
+        try {
+          const fileType = getFileExtension(fileName || title);
+          await nativeDocumentViewer.openWithNativeApp(filePath, fileName || title, fileType);
+          console.log('Word文档外部打开成功');
+          return;
+        } catch (nativeError) {
+          console.error('原生应用打开失败:', nativeError);
+        }
+      }
+
+      // 回退到原来的方法
       let opened = false;
 
       // 方法1: 使用react-native-doc-viewer
@@ -494,8 +558,108 @@ const DocViewer = ({ route, navigation }) => {
           </ScrollView>
         )}
 
+        {/* 原生前端Word内容显示 */}
+        {useNativeViewer && nativeContent && !error && (
+          <View style={styles.nativeContainer}>
+            <ScrollView 
+              style={styles.nativeScrollView}
+              contentContainerStyle={styles.nativeContentContainer}
+              showsVerticalScrollIndicator={true}
+              showsHorizontalScrollIndicator={false}
+            >
+              <View style={[styles.nativeDocument, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.nativeTitle, { color: colors.text }]}>
+                  {previewInfo?.fileName || 'Word文档'}
+                </Text>
+                
+                {/* 显示解析信息 */}
+                {nativeContent.metadata && (
+                  <View style={styles.metadataContainer}>
+                    <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                      解析方式: {nativeContent.metadata.extractionMethod}
+                    </Text>
+                    <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                      文件大小: {(nativeContent.metadata.fileSize / 1024).toFixed(2)} KB
+                    </Text>
+                    {nativeContent.structure && (
+                      <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                        段落数: {nativeContent.structure.paragraphs} | 
+                        表格: {nativeContent.structure.tables} | 
+                        图片: {nativeContent.structure.images}
+                      </Text>
+                    )}
+                  </View>
+                )}
+                
+                {/* 显示解析消息 */}
+                {nativeContent.messages && nativeContent.messages.length > 0 && (
+                  <View style={styles.messagesContainer}>
+                    {nativeContent.messages.map((msg, index) => (
+                      <Text key={index} style={[styles.messageText, { color: colors.error }]}>
+                        {msg.message}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+                
+                {/* 显示文档内容 */}
+                {nativeContent.structure?.hasHtml && nativeContent.htmlContent ? (
+                  <View style={styles.htmlContainer}>
+                    <WebView
+                      source={{ html: nativeContent.htmlContent }}
+                      style={styles.webView}
+                      scrollEnabled={false}
+                      showsHorizontalScrollIndicator={false}
+                      showsVerticalScrollIndicator={false}
+                      javaScriptEnabled={true}
+                      domStorageEnabled={true}
+                      startInLoadingState={true}
+                      scalesPageToFit={true}
+                      onError={(syntheticEvent) => {
+                        const { nativeEvent } = syntheticEvent;
+                        console.warn('WebView error:', nativeEvent);
+                      }}
+                      onHttpError={(syntheticEvent) => {
+                        const { nativeEvent } = syntheticEvent;
+                        console.warn('WebView HTTP error:', nativeEvent);
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <Text style={[styles.nativeContent, { color: colors.text }]}>
+                    {nativeContent.formattedContent || nativeContent.content}
+                  </Text>
+                )}
+              </View>
+            </ScrollView>
+
+            {/* 浮动图片 */}
+            <View onStartShouldSetResponder={() => { setDeselectTick(t => t + 1); return false; }}>
+              {Array.isArray(images) && images.map(img => (
+                <DraggableImage
+                  key={img.id}
+                  id={img.id}
+                  uri={img.uri}
+                  initial={{ x: img.x, y: img.y }}
+                  initialScale={img.scale || 1}
+                  deselectSignal={deselectTick}
+                  onMove={handleMoveFloatingImage}
+                  onResize={(id, data) => {
+                    const next = images.map(it => it.id === id ? { ...it, scale: data.scale } : it);
+                    setImages(next);
+                  }}
+                  onRemove={handleRemoveFloatingImage}
+                />
+              ))}
+            </View>
+
+            {/* 全局轻量手写覆盖层 */}
+            <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+          </View>
+        )}
+
         {/* PDF内容显示 */}
-        {pdfSource && !error && (
+        {pdfSource && !error && !useNativeViewer && (
           <View style={styles.pdfContainer}>
             {/* 主PDF显示组件 */}
             <Pdf
@@ -557,7 +721,7 @@ const DocViewer = ({ route, navigation }) => {
         )}
 
         {/* 外部应用打开按钮 */}
-        {pdfSource && !error && (
+        {(pdfSource || (useNativeViewer && nativeContent)) && !error && (
           <TouchableOpacity
             style={[styles.externalButton, { backgroundColor: colors.secondary }]}
             onPress={openWithExternalApp}
@@ -570,7 +734,7 @@ const DocViewer = ({ route, navigation }) => {
         )}
 
         {/* 页码控制器 */}
-        {pdfSource && !error && totalPages > 0 && (
+        {((pdfSource && !error) || (useNativeViewer && nativeContent)) && totalPages > 0 && (
           <PageControl
             total={totalPages}
             current={currentPage}
@@ -578,7 +742,7 @@ const DocViewer = ({ route, navigation }) => {
               if (currentPage > 1) {
                 const newPage = currentPage - 1;
                 setCurrentPage(newPage);
-                if (pdfRef.current) {
+                if (pdfRef.current && !useNativeViewer) {
                   pdfRef.current.setPage(newPage);
                 }
               }
@@ -587,7 +751,7 @@ const DocViewer = ({ route, navigation }) => {
               if (currentPage < totalPages) {
                 const newPage = currentPage + 1;
                 setCurrentPage(newPage);
-                if (pdfRef.current) {
+                if (pdfRef.current && !useNativeViewer) {
                   pdfRef.current.setPage(newPage);
                 }
               }
@@ -595,7 +759,7 @@ const DocViewer = ({ route, navigation }) => {
             onSubmitPage={(pageNum) => {
               if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
                 setCurrentPage(pageNum);
-                if (pdfRef.current) {
+                if (pdfRef.current && !useNativeViewer) {
                   pdfRef.current.setPage(pageNum);
                 }
               }
@@ -742,6 +906,71 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  // 原生前端样式
+  nativeContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  nativeScrollView: {
+    flex: 1,
+  },
+  nativeContentContainer: {
+    padding: 20,
+  },
+  nativeDocument: {
+    padding: 24,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  nativeTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  nativeContent: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'left',
+  },
+  htmlContainer: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderRadius: 8,
+    borderLeft: 4,
+    borderLeftColor: '#2196F3',
+    minHeight: 400,
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  metadataContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 8,
+  },
+  metadataText: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  messagesContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    borderRadius: 8,
+    borderLeft: 4,
+    borderLeftColor: '#FFC107',
+  },
+  messageText: {
+    fontSize: 12,
+    marginBottom: 2,
   },
 });
 

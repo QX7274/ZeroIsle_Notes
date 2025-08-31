@@ -97,7 +97,7 @@ class OfflineStorageService {
 
       // 安全地复制其他必要的字段
       const safeFields = [
-        'type', 'file_type', 'file_name', 'file_uri', 'uri', 'path', 'file_path', 'url',
+        'type', 'noteType', 'file_type', 'file_name', 'file_uri', 'uri', 'path', 'file_path', 'url',
         'imported', 'is_offline', 'preview_image', 'color', 'is_pinned', 'is_archived',
         'is_locked', 'metadata', 'tags',
         // 无限画布特殊字段
@@ -656,11 +656,15 @@ class OfflineStorageService {
           if (unifiedNote.type === 'canvas' || unifiedNote.file_type === 'canvas') {
             unifiedNote.paths = parseArrayField(unifiedNote.paths);
             unifiedNote.images = parseArrayField(unifiedNote.images);
+            // 确保noteType字段被正确设置
+            unifiedNote.noteType = 'canvas';
           }
 
           // 分页笔记字段
-          if (unifiedNote.type === 'paged_note') {
+          if (unifiedNote.type === 'paged_note' || unifiedNote.file_type === 'paged_note') {
             unifiedNote.pages = parseArrayField(unifiedNote.pages);
+            // 确保noteType字段被正确设置
+            unifiedNote.noteType = 'paged_note';
           }
         } catch (parseError) {
           console.warn('解析笔记复杂字段失败:', parseError);
@@ -729,11 +733,27 @@ class OfflineStorageService {
           unifiedNote.title = '无标题笔记';
         }
 
+        // 确保noteType字段存在
+        if (!unifiedNote.noteType) {
+          // 根据type和file_type推断noteType
+          if (unifiedNote.type === 'canvas' || unifiedNote.file_type === 'canvas') {
+            unifiedNote.noteType = 'canvas';
+          } else if (unifiedNote.type === 'paged_note' || unifiedNote.file_type === 'paged_note') {
+            unifiedNote.noteType = 'paged_note';
+          } else if (unifiedNote.type === 'card' || unifiedNote.file_type === 'card') {
+            unifiedNote.noteType = 'card';
+          } else {
+            // 默认为卡片笔记
+            unifiedNote.noteType = 'card';
+          }
+        }
+
         console.log(`统一后的笔记数据:`, {
           id: unifiedNote.id,
           _id: unifiedNote._id,
           type: unifiedNote.type,
-          file_type: unifiedNote.file_type
+          file_type: unifiedNote.file_type,
+          noteType: unifiedNote.noteType
         });
 
         return unifiedNote;
@@ -1743,6 +1763,37 @@ class OfflineStorageService {
    */
   removeListener(event, listener) {
     eventEmitter.removeListener(event, listener);
+  }
+
+  /**
+   * 销毁服务实例
+   * 清理资源，移除监听器等
+   */
+  async destroy() {
+    try {
+      console.log('正在销毁离线存储服务...');
+      
+      // 清理事件监听器
+      eventEmitter.removeAllListeners();
+      
+      // 清理定时器
+      if (this.connectionCheckInterval) {
+        clearInterval(this.connectionCheckInterval);
+        this.connectionCheckInterval = null;
+      }
+      
+      // 清理初始化状态
+      this.initialized = false;
+      this.initializationPromise = null;
+      
+      // 清理缓存数据
+      this.localProfile = null;
+      this.recentNotes = null;
+      
+      console.log('离线存储服务销毁完成');
+    } catch (error) {
+      console.error('销毁离线存储服务失败:', error);
+    }
   }
 }
 

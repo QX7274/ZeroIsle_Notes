@@ -34,6 +34,7 @@ export const NoteSchema = {
     metadata: 'string?', // JSON 字符串
     // 新增文件相关字段
     type: 'string?',
+    noteType: 'string?',
     file_type: 'string?',
     file_name: 'string?',
     file_uri: 'string?',

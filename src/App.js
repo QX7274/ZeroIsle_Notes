@@ -832,8 +832,15 @@ const AppContainer = () => {
 
       // 销毁离线数据服务
       try {
-        offlineDataService.destroy();
-        console.log('离线数据服务已销毁');
+        if (offlineDataService && typeof offlineDataService.destroy === 'function') {
+          offlineDataService.destroy();
+          console.log('离线数据服务已销毁');
+        } else if (offlineStorageService && typeof offlineStorageService.destroy === 'function') {
+          offlineStorageService.destroy();
+          console.log('离线存储服务已销毁');
+        } else {
+          console.log('离线服务没有 destroy 方法，跳过销毁');
+        }
       } catch (error) {
         console.error('销毁离线数据服务失败:', error);
       }

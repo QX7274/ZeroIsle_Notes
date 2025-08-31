@@ -15,12 +15,15 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Pdf from 'react-native-pdf';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import { offlineStorageService } from '../../services/offline';
 import RNFS from 'react-native-fs';
 import { launchImageLibrary } from 'react-native-image-picker';
 import documentConverter from '../../services/document/documentConverter';
+import nativeDocumentViewer from '../../services/document/quickPreviewService';
+import enhancedDocumentViewer from '../../services/document/enhancedDocumentViewer';
 
 // 导入与PDF查看器相同的组件
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
@@ -82,6 +85,9 @@ const PPTViewer = ({ route, navigation }) => {
   // 内存管理：只保留当前页面和相邻页面的图片
   const [loadedSlides, setLoadedSlides] = useState(new Set());
   const [slideCache, setSlideCache] = useState(new Map());
+  
+  // 性能优化：添加防抖
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
 
   // 内存管理：清理不需要的幻灯片缓存
   const cleanupSlideCache = (currentPageNum) => {
@@ -118,6 +124,10 @@ const PPTViewer = ({ route, navigation }) => {
   const [showPreview, setShowPreview] = useState(true);
   const [previewInfo, setPreviewInfo] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
+  
+  // 原生前端浏览状态
+  const [nativeContent, setNativeContent] = useState(null);
+  const [useNativeViewer, setUseNativeViewer] = useState(false);
 
   // 引用
   const scrollViewRef = useRef(null);
@@ -149,11 +159,12 @@ const PPTViewer = ({ route, navigation }) => {
 
       let presentationPath = uri;
 
-      // 如果是content://协议，使用持久化服务复制到本地
+      // 如果是content://协议，复制到本地
       if (uri.startsWith('content://')) {
         setConversionMessage('正在复制演示文稿到本地...');
-
+        
         try {
+          // 尝试使用持久化服务
           const filePersistenceService = require('../../services/files/filePersistenceService').default;
           const persistedFile = await filePersistenceService.persistFile(
             uri,
@@ -192,7 +203,50 @@ const PPTViewer = ({ route, navigation }) => {
       setShowPreview(true);
       setIsLoading(false); // 预览准备完成，停止加载指示器
 
-      // 在后台异步进行文档转换
+      // 尝试使用增强文档查看器解析
+      try {
+        setConversionMessage('正在使用增强文档查看器解析演示文稿...');
+        setIsLoadingDocument(true);
+        
+        // 确保传递正确的文件名（包含扩展名）
+        const correctFileName = fileName || `${title}.pptx`;
+        console.log('PPTViewer: 传递文件名给增强解析器:', correctFileName);
+        
+        // 性能优化：添加超时处理
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('解析超时')), 15000); // 15秒超时
+        });
+
+        const parsePromise = (async () => {
+          // 优先使用enhancedDocumentViewer
+          let documentData = null;
+          try {
+            documentData = await enhancedDocumentViewer.readDocument(presentationPath, correctFileName);
+          } catch (enhancedError) {
+            console.warn('PPTViewer: 增强解析器失败，尝试原生解析器:', enhancedError);
+            // 回退到原生解析器
+            documentData = await nativeDocumentViewer.readDocument(presentationPath, correctFileName);
+          }
+          return documentData;
+        })();
+
+        const documentData = await Promise.race([parsePromise, timeoutPromise]);
+        
+        if (documentData && documentData.slides && documentData.slides.length > 0) {
+          setNativeContent(documentData);
+          setUseNativeViewer(true);
+          setShowPreview(false);
+          setTotalPages(documentData.slides.length);
+          console.log('PPTViewer: 演示文稿解析成功，幻灯片数量:', documentData.slides.length);
+          return;
+        }
+      } catch (nativeError) {
+        console.warn('PPTViewer: 所有原生解析失败，回退到后端转换:', nativeError);
+      } finally {
+        setIsLoadingDocument(false);
+      }
+
+      // 如果原生解析失败，在后台异步进行文档转换
       setIsConverting(true);
       setConversionMessage('正在后台转换演示文稿格式...');
 
@@ -250,28 +304,57 @@ const PPTViewer = ({ route, navigation }) => {
 
       console.log('尝试使用外部应用打开PPT文件:', filePath);
 
-      // 使用react-native-doc-viewer
-      const OpenFile = require('react-native-doc-viewer');
-
-      await OpenFile.openDoc([{
-        url: filePath,
-        fileName: fileName || title || 'presentation.pptx',
-        cache: true,
-        fileType: 'pptx'
-      }], (error, url) => {
-        if (error) {
-          console.error('打开外部应用失败:', error);
-          Alert.alert(
-            '无法打开文件',
-            '请确保设备上安装了支持PPT文件的应用（如Microsoft PowerPoint、WPS Office等）',
-            [
-              { text: '确定', style: 'default' }
-            ]
-          );
-        } else {
-          console.log('PPT文件外部打开成功:', url);
+      // 使用enhancedDocumentViewer的原生应用打开功能
+      try {
+        const fileType = getFileExtension(fileName || title);
+        await enhancedDocumentViewer.openWithNativeApp(filePath, fileName || title, fileType);
+        console.log('PPT文件外部打开成功');
+        return;
+      } catch (enhancedError) {
+        console.error('增强查看器打开失败，尝试原生查看器:', enhancedError);
+        try {
+          const fileType = getFileExtension(fileName || title);
+          await nativeDocumentViewer.openWithNativeApp(filePath, fileName || title, fileType);
+          console.log('PPT文件外部打开成功');
+          return;
+        } catch (nativeError) {
+          console.error('原生应用打开失败:', nativeError);
         }
-      });
+      }
+
+      // 回退到react-native-doc-viewer
+      try {
+        const OpenFile = require('react-native-doc-viewer');
+
+        await OpenFile.openDoc([{
+          url: filePath,
+          fileName: fileName || title || 'presentation.pptx',
+          cache: true,
+          fileType: 'pptx'
+        }], (error, url) => {
+          if (error) {
+            console.error('打开外部应用失败:', error);
+            Alert.alert(
+              '无法打开文件',
+              '请确保设备上安装了支持PPT文件的应用（如Microsoft PowerPoint、WPS Office等）',
+              [
+                { text: '确定', style: 'default' }
+              ]
+            );
+          } else {
+            console.log('PPT文件外部打开成功:', url);
+          }
+        });
+      } catch (openFileError) {
+        console.error('react-native-doc-viewer异常:', openFileError);
+        Alert.alert(
+          '无法打开文件',
+          '请确保设备上安装了支持PPT文件的应用（如Microsoft PowerPoint、WPS Office等）',
+          [
+            { text: '确定', style: 'default' }
+          ]
+        );
+      }
 
     } catch (error) {
       console.error('打开外部应用异常:', error);
@@ -489,8 +572,174 @@ const PPTViewer = ({ route, navigation }) => {
           </ScrollView>
         )}
 
+        {/* 原生前端PPT内容显示 */}
+        {useNativeViewer && nativeContent && !error && (
+          <View style={styles.nativeContainer}>
+            <ScrollView 
+              style={styles.nativeScrollView}
+              contentContainerStyle={styles.nativeContentContainer}
+              showsVerticalScrollIndicator={true}
+              showsHorizontalScrollIndicator={false}
+            >
+              {/* 显示解析信息 */}
+              {nativeContent.metadata && (
+                <View style={styles.metadataContainer}>
+                  <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                    解析方式: {nativeContent.metadata.extractionMethod}
+                  </Text>
+                  <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                    文件大小: {(nativeContent.metadata.fileSize / 1024).toFixed(2)} KB
+                  </Text>
+                  <Text style={[styles.metadataText, { color: colors.onSurfaceVariant }]}>
+                    幻灯片数量: {nativeContent.slides ? nativeContent.slides.length : 0}
+                  </Text>
+                </View>
+              )}
+              
+              {/* 显示解析消息 */}
+              {nativeContent.messages && nativeContent.messages.length > 0 && (
+                <View style={styles.messagesContainer}>
+                  {nativeContent.messages.map((msg, index) => (
+                    <Text key={index} style={[styles.messageText, { color: colors.error }]}>
+                      {msg.message}
+                    </Text>
+                  ))}
+                </View>
+              )}
+              
+              {/* 显示HTML内容 */}
+              {nativeContent.structure?.hasHtml && nativeContent.htmlContent ? (
+                <View style={styles.htmlContainer}>
+                  <WebView
+                    source={{ html: nativeContent.htmlContent }}
+                    style={styles.webView}
+                    scrollEnabled={false}
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
+                    javaScriptEnabled={true}
+                    domStorageEnabled={true}
+                    startInLoadingState={true}
+                    scalesPageToFit={true}
+                    onError={(syntheticEvent) => {
+                      const { nativeEvent } = syntheticEvent;
+                      console.warn('WebView error:', nativeEvent);
+                    }}
+                    onHttpError={(syntheticEvent) => {
+                      const { nativeEvent } = syntheticEvent;
+                      console.warn('WebView HTTP error:', nativeEvent);
+                    }}
+                  />
+                </View>
+              ) : (
+                /* 显示幻灯片内容 */
+                nativeContent.slides && nativeContent.slides.map((slide, index) => (
+                  <View 
+                    key={slide.id || index} 
+                    style={[
+                      styles.nativeSlide, 
+                      { 
+                        backgroundColor: colors.surface,
+                        display: index === currentPage - 1 ? 'flex' : 'none'
+                      }
+                    ]}
+                  >
+                    <View style={styles.slideHeader}>
+                      <Text style={[styles.slideTitle, { color: colors.text }]}>
+                        {slide.title || `幻灯片 ${index + 1}`}
+                      </Text>
+                      <Text style={[styles.slideNumber, { color: colors.onSurfaceVariant }]}>
+                        {index + 1} / {nativeContent.slides.length}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.slideContent}>
+                      {/* 显示幻灯片文本内容 */}
+                      {slide.content && (
+                        <Text style={[styles.slideText, { color: colors.text }]}>
+                          {slide.content}
+                        </Text>
+                      )}
+                      
+                      {/* 显示幻灯片图片 */}
+                      {slide.images && slide.images.length > 0 && (
+                        <View style={styles.slideImages}>
+                          {slide.images.map((image, imgIndex) => (
+                            <Image
+                              key={imgIndex}
+                              source={{ uri: image.uri }}
+                              style={styles.slideImage}
+                              resizeMode="contain"
+                            />
+                          ))}
+                        </View>
+                      )}
+                      
+                      {/* 显示幻灯片表格 */}
+                      {slide.tables && slide.tables.length > 0 && (
+                        <View style={styles.slideTables}>
+                          {slide.tables.map((table, tableIndex) => (
+                            <View key={tableIndex} style={styles.slideTable}>
+                              <Text style={[styles.tableTitle, { color: colors.text }]}>
+                                表格 {tableIndex + 1}
+                              </Text>
+                              <Text style={[styles.tableContent, { color: colors.text }]}>
+                                {table.content}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      
+                      {/* 如果没有内容，显示提示 */}
+                      {!slide.content && (!slide.images || slide.images.length === 0) && (!slide.tables || slide.tables.length === 0) && (
+                        <Text style={[styles.slideText, { color: colors.onSurfaceVariant }]}>
+                          此幻灯片暂无内容
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* 外部打开按钮 */}
+            <TouchableOpacity
+              style={[styles.externalButton, { backgroundColor: colors.primary }]}
+              onPress={openWithExternalApp}
+            >
+              <Icon name="play-outline" size={16} color={colors.onPrimary} />
+              <Text style={[styles.externalButtonText, { color: colors.onPrimary }]}>
+                外部播放
+              </Text>
+            </TouchableOpacity>
+
+            {/* 浮动图片 */}
+            <View onStartShouldSetResponder={() => { setDeselectTick(t => t + 1); return false; }}>
+              {Array.isArray(images) && images.map(img => (
+                <DraggableImage
+                  key={img.id}
+                  id={img.id}
+                  uri={img.uri}
+                  initial={{ x: img.x, y: img.y }}
+                  initialScale={img.scale || 1}
+                  deselectSignal={deselectTick}
+                  onMove={handleMoveFloatingImage}
+                  onResize={(id, data) => {
+                    const next = images.map(it => it.id === id ? { ...it, scale: data.scale } : it);
+                    setImages(next);
+                  }}
+                  onRemove={handleRemoveFloatingImage}
+                />
+              ))}
+            </View>
+
+            {/* 全局轻量手写覆盖层 */}
+            <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+          </View>
+        )}
+
         {/* PDF内容显示 */}
-        {pdfSource && !error && (
+        {pdfSource && !error && !useNativeViewer && (
           <View style={styles.pdfContainer}>
             {/* 主PDF显示组件 */}
             <Pdf
@@ -771,6 +1020,121 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  // 原生前端样式
+  nativeContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  nativeScrollView: {
+    flex: 1,
+  },
+  nativeContentContainer: {
+    padding: 20,
+  },
+  nativeSlide: {
+    minHeight: 500,
+    padding: 20,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    marginBottom: 20,
+  },
+  slideHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  slideTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  slideNumber: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  slideContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  slideText: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  // 原生前端样式
+  htmlContainer: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderRadius: 8,
+    borderLeft: 4,
+    borderLeftColor: '#2196F3',
+    minHeight: 400,
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  metadataContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 8,
+  },
+  metadataText: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  messagesContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    borderRadius: 8,
+    borderLeft: 4,
+    borderLeftColor: '#FFC107',
+  },
+  messageText: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  // 幻灯片内容样式
+  slideImages: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  slideImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  slideTables: {
+    marginTop: 16,
+  },
+  slideTable: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  tableTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  tableContent: {
+    fontSize: 12,
+    lineHeight: 18,
   },
 });
 

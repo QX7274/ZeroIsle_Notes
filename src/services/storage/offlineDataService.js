@@ -254,6 +254,33 @@ class OfflineDataService {
     await this.saveSyncQueue();
     console.log('OfflineDataService: 已清除同步队列');
   }
+
+  /**
+   * 销毁服务实例
+   * 清理资源，移除监听器等
+   */
+  async destroy() {
+    try {
+      console.log('OfflineDataService: 正在销毁服务...');
+      
+      // 清理同步队列
+      this.syncQueue = [];
+      
+      // 清理状态
+      this.syncInProgress = false;
+      this.lastSyncTime = null;
+      
+      // 清理网络监听器
+      if (this.unsubscribeNetInfo) {
+        this.unsubscribeNetInfo();
+        this.unsubscribeNetInfo = null;
+      }
+      
+      console.log('OfflineDataService: 服务销毁完成');
+    } catch (error) {
+      console.error('OfflineDataService: 销毁服务失败:', error);
+    }
+  }
 }
 
 // 创建单例实例

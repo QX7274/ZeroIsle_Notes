@@ -12,7 +12,8 @@ import { colors } from '../utils/constants/colors';
 // 导入知识图谱和手写识别组件
 import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
-import { InfiniteCanvasScreen, InfiniteCanvasListScreen } from '../screens/canvas';
+import { InfiniteCanvasListScreen } from '../screens/canvas';
+import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import { SearchScreen } from '../screens/search';
 import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen, SyncSettingsScreen } from '../screens/settings';
@@ -45,7 +46,7 @@ const NotesNavigator = () => (
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="InfiniteCanvasList" component={InfiniteCanvasListScreen} options={{ title: '我的草稿' }} />
-    <Stack.Screen name="InfiniteCanvas" component={InfiniteCanvasScreen} options={{ title: '无限草稿' }} />
+    <Stack.Screen name="InfiniteCanvas" component={FluidInfiniteCanvasScreen} options={{ title: '无限草稿' }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
