@@ -37,7 +37,7 @@ import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import { addBookmark } from '../../services/bookmarkService';
 import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
 import fileHistoryService from '../../services/fileHistoryService';
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const PDFViewer = ({ route, navigation }) => {
   const { uri, title, noteId, fromFileHistory } = route.params || {};
   const { colors } = useTheme();
@@ -59,7 +59,7 @@ const PDFViewer = ({ route, navigation }) => {
   const [totalPages, setTotalPages] = useState(0);
   const [pdfSource, setPdfSource] = useState(null);
   const [localFilePath, setLocalFilePath] = useState(null);
-
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
   // 企业级手写相关状态
   const [isHandwritingMode, setIsHandwritingMode] = useState(false);
@@ -70,7 +70,7 @@ const PDFViewer = ({ route, navigation }) => {
   const [pageInputValue, setPageInputValue] = useState('1');
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
-  const [currentScale, setCurrentScale] = useState(1);
+  const [scale, setScale] = useState(1);
 
   // 企业级手写笔检测状态
   const [inputType, setInputType] = useState('finger'); // 'finger' | 'pen'
@@ -1047,7 +1047,7 @@ const PDFViewer = ({ route, navigation }) => {
 
             // 缩放事件处理
             onScaleChanged={(scale) => {
-              setCurrentScale(scale);
+              setScale(scale);
               setShowZoomIndicator(true);
 
               // 延迟隐藏指示器
@@ -1084,8 +1084,26 @@ const PDFViewer = ({ route, navigation }) => {
           /> */}
         </View>
       )}
-      {/* 使用PageControl组件 */}
-      {pdfSource && !error && totalPages > 0 && (
+
+    
+      {/* 缩放指示器 */}
+      <ZoomIndicator
+        scale={scale}
+        visible={showZoomIndicator}
+        autoHideDelay={2000}
+        topOffset={-90}
+      />
+
+      {/* 书签面板 */}
+      <BookmarkPanel
+        visible={bookmarkVisible}
+        onClose={() => setBookmarkVisible(false)}
+        docId={noteId}
+        onJump={handleJumpToBookmark}
+      />
+    </ViewerLayout>
+     {/* 使用PageControl组件 */}
+     {pdfSource && !error && totalPages > 0 && (
         <PageControl
           total={totalPages}
           current={currentPage}
@@ -1119,21 +1137,6 @@ const PDFViewer = ({ route, navigation }) => {
         />
       )}
 
-      {/* 缩放指示器 */}
-      <ZoomIndicator
-        scale={currentScale}
-        visible={showZoomIndicator}
-        autoHideDelay={2000}
-      />
-
-      {/* 书签面板 */}
-      <BookmarkPanel
-        visible={bookmarkVisible}
-        onClose={() => setBookmarkVisible(false)}
-        docId={noteId}
-        onJump={handleJumpToBookmark}
-      />
-    </ViewerLayout>
     </View>
   );
 };
@@ -1249,6 +1252,7 @@ const styles = StyleSheet.create({
   //   elevation: 5,
   //   opacity: 0.9,
   // },
+
   pageIndicatorWithToolbar: {
     bottom: Platform.OS === 'ios' ? 90 : 72, // 避免与工具栏重叠
   },

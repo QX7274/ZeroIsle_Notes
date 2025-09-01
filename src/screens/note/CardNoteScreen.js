@@ -323,6 +323,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       const fileHistoryService = require('../../services/fileHistoryService').default;
       const effectiveTitle = (title || initialTitle || '卡片笔记').trim();
       if (isMounted && (noteId || effectiveTitle) && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
+        console.log('CardNoteScreen: 添加到文件历史记录:', { noteId, effectiveTitle });
         fileHistoryService.addFile({
           uri: noteId || effectiveTitle,
           title: effectiveTitle,
@@ -331,9 +332,17 @@ const CardNoteScreen = ({ route, navigation }) => {
           fileName: title || initialTitle || '新建笔记',
           noteId: noteId
         });
+      } else {
+        console.log('CardNoteScreen: 跳过添加到文件历史记录:', { 
+          isMounted, 
+          noteId, 
+          effectiveTitle, 
+          hasFileHistoryService: !!fileHistoryService,
+          hasAddFile: !!(fileHistoryService && fileHistoryService.addFile)
+        });
       }
     } catch (e) {
-      // 静默处理，不影响主功能
+      console.error('CardNoteScreen: 添加到文件历史记录失败:', e);
     }
     
     return () => {

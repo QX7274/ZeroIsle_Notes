@@ -44,6 +44,8 @@ class FileHistoryService {
       const stored = await AsyncStorage.getItem(this.storageKey);
       if (stored) {
         this.history = JSON.parse(stored);
+        // 确保加载的历史记录按最近更新时间排序
+        this.sortHistoryByLastOpened();
         console.log('FileHistoryService: 历史记录加载完成，共', this.history.length, '条记录');
       }
     } catch (error) {
@@ -81,24 +83,66 @@ class FileHistoryService {
         openCount: 1
       };
 
-      // 检查是否已存在
-      const existingIndex = this.history.findIndex(item => 
-        item.uri === uri || item.id === historyItem.id
-      );
+      // 检查是否已存在 - 优化匹配逻辑
+      console.log('FileHistoryService: 查找现有记录，参数:', { noteId, effectiveUri, fileName, title });
+      console.log('FileHistoryService: 当前历史记录数量:', this.history.length);
+      
+      const existingIndex = this.history.findIndex(item => {
+        // 优先匹配noteId（对于笔记类型）
+        if (noteId && item.id === noteId) {
+          console.log('FileHistoryService: 通过noteId匹配到现有记录:', item.title);
+          return true;
+        }
+        if (noteId && item.noteId === noteId) {
+          console.log('FileHistoryService: 通过noteId字段匹配到现有记录:', item.title);
+          return true;
+        }
+        
+        // 匹配uri
+        if (item.uri === effectiveUri) {
+          console.log('FileHistoryService: 通过uri匹配到现有记录:', item.title);
+          return true;
+        }
+        if (item.file_uri === effectiveUri) {
+          console.log('FileHistoryService: 通过file_uri匹配到现有记录:', item.title);
+          return true;
+        }
+        
+        // 匹配文件名（作为备用）
+        if (item.fileName === fileName && item.title === title) {
+          console.log('FileHistoryService: 通过文件名和标题匹配到现有记录:', item.title);
+          return true;
+        }
+        
+        return false;
+      });
+      
+      console.log('FileHistoryService: 查找结果，existingIndex:', existingIndex);
 
       if (existingIndex !== -1) {
         // 更新现有记录
-        this.history[existingIndex] = {
-          ...this.history[existingIndex],
+        const existingItem = this.history[existingIndex];
+        const oldTime = existingItem.lastOpened;
+        const newTime = new Date().toISOString();
+        
+        const updatedItem = {
+          ...existingItem,
           ...historyItem,
-          openCount: this.history[existingIndex].openCount + 1
+          openCount: existingItem.openCount + 1,
+          lastOpened: newTime // 确保更新时间戳
         };
-        // 移动到最前面
-        const updatedItem = this.history.splice(existingIndex, 1)[0];
+        
+        // 从原位置移除
+        this.history.splice(existingIndex, 1);
+        // 添加到最前面
         this.history.unshift(updatedItem);
+        
+        console.log('FileHistoryService: 更新现有文件记录:', title, '打开次数:', updatedItem.openCount);
+        console.log('FileHistoryService: 时间戳更新:', oldTime, '->', newTime);
       } else {
         // 添加新记录到最前面
         this.history.unshift(historyItem);
+        console.log('FileHistoryService: 添加新文件记录:', title);
       }
 
       // 限制历史记录数量
@@ -222,7 +266,14 @@ class FileHistoryService {
    * @returns {Array} 历史记录数组
    */
   getHistory(limit = this.maxHistorySize) {
-    return this.history.slice(0, limit);
+    // 确保按最近更新时间排序
+    const sortedHistory = [...this.history].sort((a, b) => {
+      const dateA = new Date(a.lastOpened || 0);
+      const dateB = new Date(b.lastOpened || 0);
+      return dateB - dateA; // 降序排列，最新的在前面
+    });
+    
+    return sortedHistory.slice(0, limit);
   }
 
   /**
@@ -271,10 +322,23 @@ class FileHistoryService {
    */
   async saveHistory() {
     try {
+      // 保存前确保按最近更新时间排序
+      this.sortHistoryByLastOpened();
       await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.history));
     } catch (error) {
       console.error('FileHistoryService: 保存历史记录失败:', error);
     }
+  }
+
+  /**
+   * 按最近更新时间排序历史记录
+   */
+  sortHistoryByLastOpened() {
+    this.history.sort((a, b) => {
+      const dateA = new Date(a.lastOpened || 0);
+      const dateB = new Date(b.lastOpened || 0);
+      return dateB - dateA; // 降序排列，最新的在前面
+    });
   }
 
   /**
@@ -283,6 +347,7 @@ class FileHistoryService {
    */
   addListener(listener) {
     this.listeners.push(listener);
+    console.log('FileHistoryService: 添加监听器，当前监听器数量:', this.listeners.length);
   }
 
   /**
@@ -291,14 +356,17 @@ class FileHistoryService {
    */
   removeListener(listener) {
     this.listeners = this.listeners.filter(l => l !== listener);
+    console.log('FileHistoryService: 移除监听器，当前监听器数量:', this.listeners.length);
   }
 
   /**
    * 通知所有监听器
    */
   notifyListeners() {
-    this.listeners.forEach(listener => {
+    console.log('FileHistoryService: 通知监听器，监听器数量:', this.listeners.length);
+    this.listeners.forEach((listener, index) => {
       try {
+        console.log('FileHistoryService: 执行监听器', index);
         listener(this.history);
       } catch (error) {
         console.error('FileHistoryService: 监听器执行失败:', error);
@@ -346,6 +414,8 @@ class FileHistoryService {
     try {
       if (data && data.history && Array.isArray(data.history)) {
         this.history = data.history.slice(0, this.maxHistorySize);
+        // 确保导入的数据也按时间排序
+        this.sortHistoryByLastOpened();
         await this.saveHistory();
         this.notifyListeners();
         console.log('FileHistoryService: 历史记录导入完成，共', this.history.length, '条记录');
@@ -353,6 +423,27 @@ class FileHistoryService {
     } catch (error) {
       console.error('FileHistoryService: 导入历史记录失败:', error);
     }
+  }
+
+  /**
+   * 测试排序功能
+   * 用于调试和验证排序逻辑
+   */
+  testSorting() {
+    console.log('FileHistoryService: 测试排序功能');
+    console.log('排序前:', this.history.map(item => ({
+      title: item.title,
+      lastOpened: item.lastOpened,
+      openCount: item.openCount
+    })));
+    
+    this.sortHistoryByLastOpened();
+    
+    console.log('排序后:', this.history.map(item => ({
+      title: item.title,
+      lastOpened: item.lastOpened,
+      openCount: item.openCount
+    })));
   }
 }
 

@@ -37,6 +37,7 @@ import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
 import preloadService from '../../services/document/preloadService';
 import RNFS from 'react-native-fs';
+import fileHistoryService from '../../services/fileHistoryService';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -58,6 +59,8 @@ const HomeScreen = ({ navigation }) => {
   const [sortOption, setSortOption] = useState('updated_desc');
   const [renameDialogVisible, setRenameDialogVisible] = useState(false);
   const [noteToRename, setNoteToRename] = useState(null);
+  const [fileHistoryCache, setFileHistoryCache] = useState([]);
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
@@ -78,6 +81,9 @@ const HomeScreen = ({ navigation }) => {
           console.warn('加载排序偏好失败:', sortError);
           // 使用默认排序选项
         }
+
+        // 初始化文件历史记录缓存
+        setFileHistoryCache(fileHistoryService.getHistory());
 
         // 设置超时，确保加载状态不会一直显示
         const timeoutId = setTimeout(() => {
@@ -127,19 +133,53 @@ const HomeScreen = ({ navigation }) => {
 
   // 同步功能已移除
 
+  // 文件历史记录监听器
+  useEffect(() => {
+    const historyListener = () => {
+      console.log('HomeScreen: 文件历史记录更新，刷新缓存');
+      // 更新缓存
+      const newHistory = fileHistoryService.getHistory();
+      console.log('HomeScreen: 新的历史记录:', newHistory.length, '条');
+      console.log('HomeScreen: 历史记录前3条:', newHistory.slice(0, 3).map(h => ({ title: h.title, lastOpened: h.lastOpened })));
+      setFileHistoryCache(newHistory);
+      // 强制触发重新排序
+      setForceUpdate(prev => prev + 1);
+    };
+    
+    fileHistoryService.addListener(historyListener);
+    console.log('HomeScreen: 文件历史记录监听器已添加');
+    
+    // 测试：立即获取一次历史记录
+    const initialHistory = fileHistoryService.getHistory();
+    console.log('HomeScreen: 初始历史记录:', initialHistory.length, '条');
+    setFileHistoryCache(initialHistory);
+    
+    return () => {
+      fileHistoryService.removeListener(historyListener);
+      console.log('HomeScreen: 文件历史记录监听器已移除');
+    };
+  }, []);
+
   // 当笔记或排序选项变化时，重新排序
   useEffect(() => {
-    console.log('Redux中的笔记状态变化:', allNotes ? allNotes.length : 0, '条笔记');
+    console.log('HomeScreen: 重新排序触发，原因:', {
+      allNotesLength: allNotes ? allNotes.length : 0,
+      sortOption,
+      isLoading,
+      notesStateLoading: notesState.isLoading,
+      fileHistoryCacheLength: fileHistoryCache.length
+    });
 
     if (allNotes && allNotes.length > 0) {
       const sortedNotes = sortNotes(allNotes, sortOption);
-      console.log('排序后的笔记:', sortedNotes.length, '条笔记');
+      console.log('HomeScreen: 排序完成，结果:', sortedNotes.length, '条笔记');
+      console.log('HomeScreen: 排序后前3条:', sortedNotes.slice(0, 3).map(n => n.title || n.name));
       setNotes(sortedNotes);
     } else {
-      console.log('没有笔记可显示，设置空数组');
+      console.log('HomeScreen: 没有笔记可显示，设置空数组');
       setNotes([]);
     }
-  }, [allNotes, sortOption, isLoading, notesState.isLoading]);
+  }, [allNotes, sortOption, isLoading, notesState.isLoading, fileHistoryCache, forceUpdate]);
 
   // 排序笔记
   const sortNotes = useCallback((notesToSort, option) => {
@@ -171,6 +211,98 @@ const HomeScreen = ({ navigation }) => {
       return item.type || item.file_type || item.noteType || item.fileType || 'unknown';
     };
 
+    // 获取最近访问时间函数
+    const getLastAccessTime = (item) => {
+      // 直接从fileHistoryService获取最新历史记录，避免缓存延迟问题
+      const history = fileHistoryService.getHistory();
+      
+      console.log('HomeScreen: 查找访问记录，项目:', {
+        _id: item._id,
+        id: item.id,
+        title: item.title,
+        name: item.name,
+        file_uri: item.file_uri,
+        uri: item.uri,
+        fileName: item.fileName
+      });
+      
+      console.log('HomeScreen: 当前历史记录前3条:', history.slice(0, 3).map(h => ({ 
+        id: h.id, 
+        noteId: h.noteId, 
+        title: h.title, 
+        lastOpened: h.lastOpened 
+      })));
+      
+      // 查找匹配的历史记录
+      const historyItem = history.find(hist => {
+        // 优先匹配noteId（对于笔记类型）
+        if (item._id && hist.id === item._id) {
+          console.log('HomeScreen: 通过item._id匹配:', item._id);
+          return true;
+        }
+        if (item.id && hist.id === item.id) {
+          console.log('HomeScreen: 通过item.id匹配:', item.id);
+          return true;
+        }
+        if (item._id && hist.noteId === item._id) {
+          console.log('HomeScreen: 通过hist.noteId匹配:', item._id);
+          return true;
+        }
+        if (item.id && hist.noteId === item.id) {
+          console.log('HomeScreen: 通过hist.noteId匹配:', item.id);
+          return true;
+        }
+        
+        // 匹配URI（对于文件类型）
+        if (item.file_uri && hist.uri === item.file_uri) {
+          console.log('HomeScreen: 通过file_uri匹配:', item.file_uri);
+          return true;
+        }
+        if (item.file_uri && hist.file_uri === item.file_uri) {
+          console.log('HomeScreen: 通过hist.file_uri匹配:', item.file_uri);
+          return true;
+        }
+        if (item.uri && hist.uri === item.uri) {
+          console.log('HomeScreen: 通过uri匹配:', item.uri);
+          return true;
+        }
+        if (item.uri && hist.file_uri === item.uri) {
+          console.log('HomeScreen: 通过hist.file_uri匹配:', item.uri);
+          return true;
+        }
+        
+        // 匹配标题（作为备用）
+        if (item.title && hist.title === item.title) {
+          console.log('HomeScreen: 通过标题匹配:', item.title);
+          return true;
+        }
+        if (item.name && hist.title === item.name) {
+          console.log('HomeScreen: 通过name匹配:', item.name);
+          return true;
+        }
+        
+        // 匹配文件名（作为备用）
+        if (item.fileName && hist.fileName === item.fileName) {
+          console.log('HomeScreen: 通过文件名匹配:', item.fileName);
+          return true;
+        }
+        if (item.title && hist.fileName === item.title) {
+          console.log('HomeScreen: 通过标题匹配文件名:', item.title);
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (historyItem) {
+        console.log('HomeScreen: 找到访问记录:', item.title || item.name, '访问时间:', historyItem.lastOpened);
+        return new Date(historyItem.lastOpened);
+      } else {
+        console.log('HomeScreen: 未找到访问记录:', item.title || item.name);
+        return new Date(0);
+      }
+    };
+
     switch (option) {
       case 'created_desc':
         return sorted.sort((a, b) => {
@@ -188,16 +320,36 @@ const HomeScreen = ({ navigation }) => {
 
       case 'updated_desc':
         return sorted.sort((a, b) => {
-          const dateA = getDate(a, 'updatedAt');
-          const dateB = getDate(b, 'updatedAt');
-          return dateB - dateA;
+          // 获取更新时间
+          const updateTimeA = getDate(a, 'updatedAt');
+          const updateTimeB = getDate(b, 'updatedAt');
+          
+          // 获取最近访问时间
+          const accessTimeA = getLastAccessTime(a);
+          const accessTimeB = getLastAccessTime(b);
+          
+          // 取两个时间中的较新者进行比较
+          const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
+          const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
+          
+          return latestTimeB - latestTimeA; // 降序排列，最新的在前面
         });
 
       case 'updated_asc':
         return sorted.sort((a, b) => {
-          const dateA = getDate(a, 'updatedAt');
-          const dateB = getDate(b, 'updatedAt');
-          return dateA - dateB;
+          // 获取更新时间
+          const updateTimeA = getDate(a, 'updatedAt');
+          const updateTimeB = getDate(b, 'updatedAt');
+          
+          // 获取最近访问时间
+          const accessTimeA = getLastAccessTime(a);
+          const accessTimeB = getLastAccessTime(b);
+          
+          // 取两个时间中的较新者进行比较
+          const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
+          const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
+          
+          return latestTimeA - latestTimeB; // 升序排列，最早的在前面
         });
 
       case 'title_asc':
@@ -245,10 +397,17 @@ const HomeScreen = ({ navigation }) => {
             return typeA.localeCompare(typeB);
           }
 
-          // 同类型按更新时间排序
-          const dateA = getDate(a, 'updatedAt');
-          const dateB = getDate(b, 'updatedAt');
-          return dateB - dateA;
+          // 同类型按最近更新和访问时间排序
+          const updateTimeA = getDate(a, 'updatedAt');
+          const updateTimeB = getDate(b, 'updatedAt');
+          
+          const accessTimeA = getLastAccessTime(a);
+          const accessTimeB = getLastAccessTime(b);
+          
+          const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
+          const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
+          
+          return latestTimeB - latestTimeA;
         });
 
       case 'size_desc':
@@ -266,11 +425,21 @@ const HomeScreen = ({ navigation }) => {
         });
 
       default:
-        // 默认按更新时间降序排序
+        // 默认按最近更新和访问时间排序
         return sorted.sort((a, b) => {
-          const dateA = getDate(a, 'updatedAt');
-          const dateB = getDate(b, 'updatedAt');
-          return dateB - dateA;
+          // 获取更新时间
+          const updateTimeA = getDate(a, 'updatedAt');
+          const updateTimeB = getDate(b, 'updatedAt');
+          
+          // 获取最近访问时间
+          const accessTimeA = getLastAccessTime(a);
+          const accessTimeB = getLastAccessTime(b);
+          
+          // 取两个时间中的较新者进行比较
+          const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
+          const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
+          
+          return latestTimeB - latestTimeA; // 降序排列，最新的在前面
         });
     }
   }, []);
@@ -2280,36 +2449,29 @@ Week 4: □□□□□□□
         )}
       </ScrollView>
 
-      {/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
-      <View style={[
-        styles.buttonContainer,
-        // 横屏模式下的样式调整
-        isLandscape && {
-          right: 32,
-          bottom: 32,
-        }
-      ]}>
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            { backgroundColor: colors.primary },
-            // 横屏模式下的样式调整
-            isLandscape && {
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-            }
-          ]}
-          onPress={() => {
-            // 显示创建选项
-            setShowCreateOptions(true);
-          }}
-        >
-          <View style={styles.addButtonInner}>
-            <Icon name="add" size={30} color={colors.onPrimary} />
-          </View>
-          <View style={styles.addButtonPulse} />
-        </TouchableOpacity>
+{/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
+<View style={[
+  styles.buttonContainer,
+  isLandscape && { right: 32, bottom: 32 }
+]}>
+  <TouchableOpacity
+    style={[
+      styles.addButton,
+      { backgroundColor: colors.primary },
+      isLandscape && { width: 60, height: 60, borderRadius: 30 }
+    ]}
+    onPress={() => setShowCreateOptions(true)}
+  >
+    {/* 确保"+"图标居中 */}
+    <Icon 
+      name="add" 
+      size={isLandscape ? 36 : 30}  // 横屏时稍大
+      color={colors.onPrimary} 
+      style={{ textAlign: 'center' }}  // 强制居中
+    />
+    <View style={styles.addButtonPulse} />
+  </TouchableOpacity>
+
 
         {/* 创建内容弹窗 */}
         <CreateContentModal

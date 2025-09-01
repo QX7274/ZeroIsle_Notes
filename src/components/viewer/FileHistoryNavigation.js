@@ -44,6 +44,21 @@ const FileHistoryNavigation = ({
     setHistory(historyData);
   };
 
+  // 监听历史记录变化，自动更新显示
+  useEffect(() => {
+    const listener = (newHistory) => {
+      // 确保获取最新的排序结果
+      const sortedHistory = fileHistoryService.getHistory(10);
+      setHistory(sortedHistory);
+    };
+    
+    fileHistoryService.addListener(listener);
+    
+    return () => {
+      fileHistoryService.removeListener(listener);
+    };
+  }, []);
+
   const handleFileSelect = (file) => {
     if (file.id === currentFileId) {
       return; // 当前文件，不需要切换

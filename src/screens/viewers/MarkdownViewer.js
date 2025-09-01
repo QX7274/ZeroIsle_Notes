@@ -36,6 +36,7 @@ function MarkdownViewer({ route, navigation }) {
   const [error, setError] = useState(null);
   const [content, setContent] = useState('');
   const [preview, setPreview] = useState(false); // 默认编辑模式
+  const [lastSavedContent, setLastSavedContent] = useState(''); // 记录上次保存的内容
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [strokeColor, setStrokeColor] = useState('#000');
@@ -85,6 +86,7 @@ function MarkdownViewer({ route, navigation }) {
           if (loadedContent) {
             console.log('MarkdownViewer: 找到保存的内容，长度:', loadedContent.length);
             setContent(loadedContent);
+            setLastSavedContent(loadedContent); // 设置上次保存的内容
             return; // 成功加载保存的内容，直接返回
           }
         } catch (savedError) {
@@ -96,16 +98,122 @@ function MarkdownViewer({ route, navigation }) {
         let path = uri;
         if (!path) throw new Error('无效的Markdown路径');
 
-        if (path.startsWith('content://')) {
-          const fname = `md_${Date.now()}.md`;
-          const dest = `${RNFS.CachesDirectoryPath}/${fname}`;
-          await RNFS.copyFile(path, dest);
-          path = dest;
-        }
+        try {
+          // 检查是否有noteId，尝试从笔记元数据中获取本地缓存路径
+          if (noteId) {
+            try {
+              const note = await offlineStorageService.getNote(noteId);
+              if (note && note.metadata) {
+                const metadata = typeof note.metadata === 'string'
+                  ? JSON.parse(note.metadata)
+                  : (note.metadata || {});
 
-        const txt = await RNFS.readFile(path, 'utf8');
-        console.log('MarkdownViewer: 原始文件读取成功，长度:', txt.length);
-        setContent(txt);
+                console.log('MarkdownViewer: 笔记元数据:', metadata);
+
+                // 优先使用持久化的本地路径
+                if (metadata.localCachedPath) {
+                  const exists = await RNFS.exists(metadata.localCachedPath);
+                  if (exists) {
+                    console.log('MarkdownViewer: 使用持久化的本地路径:', metadata.localCachedPath);
+                    const txt = await RNFS.readFile(metadata.localCachedPath, 'utf8');
+                    setContent(txt);
+                    setLastSavedContent(txt);
+                    return;
+                  }
+                }
+              }
+            } catch (metadataError) {
+              console.error('读取笔记元数据失败:', metadataError);
+            }
+          }
+
+          // 处理不同类型的URI
+          if (path.startsWith('http://') || path.startsWith('https://')) {
+            // 网络URI，直接读取
+            const response = await fetch(path);
+            const txt = await response.text();
+            setContent(txt);
+            setLastSavedContent(txt);
+          } else if (path.startsWith('content://') || path.startsWith('file://')) {
+            // 内容URI或文件URI，需要复制到应用缓存目录
+            const fileName = `md_${Date.now()}.md`;
+            const destPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+
+            try {
+              if (path.startsWith('content://')) {
+                console.log('处理content URI:', path);
+                await RNFS.copyFile(path, destPath);
+                console.log('文件复制成功:', destPath);
+                path = destPath;
+              } else {
+                // 对于file URI，先检查是否可访问
+                await RNFS.stat(path.replace('file://', ''));
+                // 如果可访问，复制到缓存目录
+                await RNFS.copyFile(path, destPath);
+                path = destPath;
+              }
+
+              const txt = await RNFS.readFile(path, 'utf8');
+              console.log('MarkdownViewer: 原始文件读取成功，长度:', txt.length);
+              setContent(txt);
+              setLastSavedContent(txt);
+
+              // 保存文件路径到笔记元数据中，以便下次打开
+              if (noteId) {
+                try {
+                  const note = await offlineStorageService.getNote(noteId);
+                  if (note) {
+                    let metadata = note.metadata
+                      ? (typeof note.metadata === 'string'
+                          ? JSON.parse(note.metadata)
+                          : note.metadata)
+                      : {};
+                    metadata.localCachedPath = path;
+
+                    // 更新笔记元数据
+                    await offlineStorageService.updateNote(noteId, {
+                      metadata: JSON.stringify(metadata)
+                    });
+                    console.log('已更新笔记元数据，保存本地缓存路径');
+                  }
+                } catch (metadataError) {
+                  console.error('更新笔记元数据失败:', metadataError);
+                }
+              }
+
+              // 立即保存到本地存储
+              try {
+                const savedKey = `markdown_content_${docId}`;
+                await offlineStorageService.setItem(savedKey, txt);
+                console.log('MarkdownViewer: 内容已保存到本地存储');
+              } catch (saveError) {
+                console.warn('MarkdownViewer: 保存到本地存储失败:', saveError);
+              }
+
+            } catch (copyError) {
+              console.error('复制文件失败:', copyError);
+              // 如果复制失败，尝试直接读取原始文件
+              const txt = await RNFS.readFile(path, 'utf8');
+              setContent(txt);
+              setLastSavedContent(txt);
+            }
+          } else {
+            // 其他情况，直接读取
+            const txt = await RNFS.readFile(path, 'utf8');
+            setContent(txt);
+            setLastSavedContent(txt);
+          }
+          
+        } catch (fileError) {
+          console.error('MarkdownViewer: 读取原始文件失败:', fileError);
+          
+          // 如果是权限错误，提供更详细的错误信息
+          if (fileError.message && fileError.message.includes('Permission')) {
+            setError('文件访问权限不足。文件已被复制到应用缓存目录，下次打开时将不会出现此问题。');
+          } else {
+            setError(fileError.message || '读取文件失败');
+          }
+        }
 
       } catch (e) {
         console.error('MarkdownViewer: 读取Markdown失败', e);
@@ -115,7 +223,17 @@ function MarkdownViewer({ route, navigation }) {
       }
     })();
 
-    return () => console.log('MarkdownViewer: 组件卸载');
+    return () => {
+      console.log('MarkdownViewer: 组件卸载');
+      // 清理定时器
+      if (debouncedAutoSave.current) {
+        clearTimeout(debouncedAutoSave.current);
+      }
+      // 确保最后的内容被保存
+      if (content !== lastSavedContent) {
+        autoSave(content);
+      }
+    };
   }, [uri, docId]);
 
   // 渲染引擎
@@ -130,7 +248,47 @@ function MarkdownViewer({ route, navigation }) {
 
   // 保存到本地
   const saveToLocal = async () => {
-    await SaveUtils.saveMarkdownContent(docId, content, offlineStorageService);
+    try {
+      await SaveUtils.saveMarkdownContent(docId, content, offlineStorageService);
+      setLastSavedContent(content); // 更新上次保存的内容
+      console.log('MarkdownViewer: 内容已手动保存');
+    } catch (error) {
+      console.error('MarkdownViewer: 手动保存失败:', error);
+      throw error;
+    }
+  };
+
+  // 自动保存功能
+  const autoSave = async (newContent) => {
+    try {
+      // 如果内容没有变化，不保存
+      if (newContent === lastSavedContent) {
+        return;
+      }
+      
+      const savedKey = `markdown_content_${docId}`;
+      await offlineStorageService.setItem(savedKey, newContent);
+      setLastSavedContent(newContent);
+      console.log('MarkdownViewer: 内容已自动保存');
+    } catch (error) {
+      console.warn('MarkdownViewer: 自动保存失败:', error);
+    }
+  };
+
+  // 防抖自动保存
+  const debouncedAutoSave = useRef(null);
+  const handleContentChange = (newContent) => {
+    setContent(newContent);
+    
+    // 清除之前的定时器
+    if (debouncedAutoSave.current) {
+      clearTimeout(debouncedAutoSave.current);
+    }
+    
+    // 设置新的定时器，2秒后自动保存
+    debouncedAutoSave.current = setTimeout(() => {
+      autoSave(newContent);
+    }, 2000);
   };
 
   // 页码（Markdown 默认1页，保留控件统一样式）
@@ -250,6 +408,25 @@ function MarkdownViewer({ route, navigation }) {
               setError(null);
               setIsLoading(true);
             }}
+            extraActions={[
+              {
+                title: '重新选择文件',
+                onPress: () => {
+                  // 这里可以添加重新选择文件的逻辑
+                  Alert.alert(
+                    '重新选择文件',
+                    '请返回主页，重新选择Markdown文件。',
+                    [
+                      { text: '取消', style: 'cancel' },
+                      { 
+                        text: '返回主页', 
+                        onPress: () => navigation.navigate('Home')
+                      }
+                    ]
+                  );
+                }
+              }
+            ]}
           />
         )}
         {!isLoading && !error && (
@@ -262,7 +439,7 @@ function MarkdownViewer({ route, navigation }) {
               }]}
               multiline
               value={content}
-              onChangeText={setContent}
+              onChangeText={handleContentChange}
               placeholder="在此编辑 Markdown 内容..."
               placeholderTextColor={colors.textLight}
               textAlignVertical="top"

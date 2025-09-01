@@ -31,7 +31,7 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
 import PageControl from '../../components/viewer/PageControl';
-import CustomScrollIndicator from '../../components/common/CustomScrollIndicator';
+// 移除自定义滑动指示器导入
 import Svg, { Rect, Line, Circle } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -56,9 +56,10 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
   const [scale, setScale] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   
-  // 滑动指示器状态
-  const [scrollOffset, setScrollOffset] = useState(0);
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  // 移除滑动指示器状态，使用原生滚动指示器
+  
+  // 笔记样式状态
+  const [currentNoteStyleKey, setCurrentNoteStyleKey] = useState(noteStyle);
   
   // 引用
   const scrollViewRef = useRef(null);
@@ -96,11 +97,11 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
     }
   };
 
-  const currentNoteStyle = noteStyles[noteStyle] || noteStyles.blank;
+  const currentNoteStyle = noteStyles[currentNoteStyleKey] || noteStyles.blank;
   
   // 调试日志：显示当前样式状态
   console.log('当前样式状态:', {
-    noteStyle: noteStyle,
+    noteStyle: currentNoteStyleKey,
     currentNoteStyle: currentNoteStyle,
     availableStyles: Object.keys(noteStyles)
   });
@@ -136,7 +137,7 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
         type: 'note',
         noteType: 'paged_note',
         file_type: 'paged_note',
-        noteStyle: noteStyle,
+        noteStyle: currentNoteStyleKey,
         pages: [{ content: '', pageNumber: 1 }],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -224,7 +225,7 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
           // 恢复笔记样式
           if (unifiedNote.noteStyle) {
             console.log('恢复笔记样式:', unifiedNote.noteStyle);
-            setNoteStyle(unifiedNote.noteStyle);
+            setCurrentNoteStyleKey(unifiedNote.noteStyle);
           } else {
             console.log('未找到笔记样式，使用默认样式');
           }
@@ -437,7 +438,7 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
         title: noteTitle,
         content: content,
         pages: Array.isArray(pages) ? pages : [{ content: content || '', pageNumber: 1 }],
-        noteStyle: noteStyle,
+        noteStyle: currentNoteStyleKey,
         noteType: 'paged_note',
         updated_at: new Date().toISOString(),
         // 确保有文件URI
@@ -597,36 +598,7 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
     return dots;
   };
   
-  // 计算滑动指示器参数
-  const getScrollIndicatorProps = () => {
-    // 确保totalPages是有效数字
-    const safeTotalPages = typeof totalPages === 'number' && totalPages > 0 ? totalPages : 1;
-    const scrollViewHeight = safeTotalPages * screenHeight;
-    const visibleHeight = screenHeight;
-    const toolbarHeight = Platform.OS === 'ios' ? 50 : 28;
-    
-    return {
-      scrollOffset: scrollOffset,
-      contentHeight: scrollViewHeight,
-      visibleHeight: visibleHeight,
-      visible: safeTotalPages > 1 && showScrollIndicator,
-      autoHideDelay: 2000,
-      position: 'right',
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      activeColor: 'rgba(0, 0, 0, 0.6)',
-      borderRadius: 3,
-      minSize: 30,
-      maxSize: 100,
-      toolbarHeight: toolbarHeight,
-      toolbarOffset: 20,
-      showPageDividers: true,
-      pageHeight: screenHeight,
-      dividerColor: 'rgba(255, 255, 255, 0.3)',
-      dividerWidth: 1,
-      fadeInDuration: 200,
-      fadeOutDuration: 300
-    };
-  };
+  // 移除滑动指示器参数计算函数
 
   if (isLoading) {
     return (
@@ -719,16 +691,12 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
               ]
             }
           ]}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
           scrollEnabled={true}
           bounces={true}
           onScroll={(event) => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            
-            // 更新滑动偏移量
-            setScrollOffset(contentOffset.y);
-            setShowScrollIndicator(true);
             
             // 当滚动到底部附近时，自动添加新页面
             if (contentOffset.y + layoutMeasurement.height > contentSize.height - 200) {
@@ -797,15 +765,14 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
         ) : null;
       })()}
 
-      {/* 自定义滑动指示器 */}
-      <CustomScrollIndicator {...getScrollIndicatorProps()} />
+      {/* 移除自定义滑动指示器，使用原生滚动指示器 */}
       
       {/* 缩放指示器 */}
       <ZoomIndicator
         scale={scale}
         visible={showZoomIndicator}
         autoHideDelay={3000}
-        topOffset={30}
+        topOffset={60}
       />
     </View>
   );
@@ -824,10 +791,9 @@ const styles = StyleSheet.create({
   pageContainer: {
     position: 'relative',
     minHeight: screenHeight,
-    padding: 20,
-    // 确保在缩放时顶部没有过大空隙
-    paddingTop: 10,
-    paddingBottom: 10,
+    padding: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   paperBackground: {
     position: 'absolute',

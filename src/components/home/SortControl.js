@@ -19,7 +19,7 @@ import useOrientation from '../../utils/hooks/useOrientation';
 
 // 排序选项
 const SORT_OPTIONS = [
-  { id: 'updated_desc', label: '最近更新', icon: 'update', description: '按更新时间从新到旧排序', color: '#2196F3' }, // 蓝色
+  { id: 'updated_desc', label: '最近更新', icon: 'update', description: '按最近更新和访问时间排序', color: '#2196F3' }, // 蓝色
   { id: 'created_desc', label: '最新创建', icon: 'schedule', description: '按创建时间从新到旧排序', color: '#4CAF50' }, // 绿色
   { id: 'title_asc', label: '名称 A-Z', icon: 'sort-by-alpha', description: '按名称字母顺序排序', color: '#9C27B0' }, // 紫色
   { id: 'title_desc', label: '名称 Z-A', icon: 'sort-by-alpha', description: '按名称字母倒序排序', color: '#673AB7' }, // 深紫色
