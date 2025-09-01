@@ -24,6 +24,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import documentConverter from '../../services/document/documentConverter';
 import nativeDocumentViewer from '../../services/document/quickPreviewService';
 import enhancedDocumentViewer from '../../services/document/enhancedDocumentViewer';
+import pptOptimizationService from '../../services/document/pptOptimizationService';
+import largeMemoryAllocator from '../../utils/largeMemoryAllocator';
 
 // 导入与PDF查看器相同的组件
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
@@ -134,6 +136,22 @@ const PPTViewer = ({ route, navigation }) => {
   const pdfRef = useRef(null);
 
   useEffect(() => {
+    // 初始化大内存分配器
+    const initializeLargeMemory = async () => {
+      try {
+        console.log('PPTViewer: 初始化大内存分配器...');
+        const memoryResult = await largeMemoryAllocator.initializeMemoryPool(1); // 1GB初始内存池
+        if (memoryResult.success) {
+          console.log(`PPTViewer: 大内存分配器初始化成功，分配了 ${memoryResult.allocatedGB}GB 内存`);
+        } else {
+          console.warn('PPTViewer: 大内存分配器初始化失败:', memoryResult.error);
+        }
+      } catch (error) {
+        console.warn('PPTViewer: 大内存分配器初始化出错:', error);
+      }
+    };
+
+    initializeLargeMemory();
     loadPresentation();
 
     // 添加到文件历史记录
@@ -203,45 +221,126 @@ const PPTViewer = ({ route, navigation }) => {
       setShowPreview(true);
       setIsLoading(false); // 预览准备完成，停止加载指示器
 
-      // 尝试使用增强文档查看器解析
+      // 尝试使用优化的PPT解析服务 - 异步处理避免阻塞
       try {
-        setConversionMessage('正在使用增强文档查看器解析演示文稿...');
+        setConversionMessage('正在使用优化解析器解析演示文稿...');
         setIsLoadingDocument(true);
         
-        // 确保传递正确的文件名（包含扩展名）
-        const correctFileName = fileName || `${title}.pptx`;
-        console.log('PPTViewer: 传递文件名给增强解析器:', correctFileName);
+        // 使用setTimeout确保UI更新，避免阻塞
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // 性能优化：添加超时处理
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('解析超时')), 15000); // 15秒超时
-        });
+        // 对于大文件，先显示快速预览
+        if (fileStats.size > 20 * 1024 * 1024) { // 20MB以上
+          setConversionMessage('文件较大，正在准备快速预览...');
+          await new Promise(resolve => setTimeout(resolve, 500)); // 给UI时间更新
+        }
+        
+        // 使用PPT优化服务进行解析 - 增强内存管理
+        const optimizationResult = await Promise.race([
+          pptOptimizationService.readPPTFile(presentationPath, {
+            readTimeout: 30000, // 30秒，给大文件更多时间
+            analysisTimeout: 15000, // 15秒
+            enableCache: true,
+            chunkSize: 512 * 1024, // 512KB分块读取，减少内存使用
+            onProgress: (progress, message) => {
+              // 更新进度信息
+              setConversionMessage(`${message} (${progress}%)`);
+              console.log(`PPTViewer: 解析进度 ${progress}% - ${message}`);
+            }
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('解析超时')), 25000) // 25秒总超时
+          )
+        ]);
 
-        const parsePromise = (async () => {
-          // 优先使用enhancedDocumentViewer
-          let documentData = null;
-          try {
-            documentData = await enhancedDocumentViewer.readDocument(presentationPath, correctFileName);
-          } catch (enhancedError) {
-            console.warn('PPTViewer: 增强解析器失败，尝试原生解析器:', enhancedError);
-            // 回退到原生解析器
-            documentData = await nativeDocumentViewer.readDocument(presentationPath, correctFileName);
+        if (optimizationResult.success) {
+          const documentData = optimizationResult.data;
+          
+          // 优先使用图片格式的内容
+          if (documentData.hasImageFormat && documentData.imageContent) {
+            console.log('PPTViewer: 使用图片格式内容');
+            setNativeContent(documentData.imageContent);
+            setUseNativeViewer(true);
+            setShowPreview(false);
+            setTotalPages(documentData.imageContent.structure.slides || 1);
+            console.log('PPTViewer: 图片格式解析成功，幻灯片数量:', documentData.imageContent.structure.slides);
+          } else {
+            console.log('PPTViewer: 使用原始格式内容');
+            setNativeContent(documentData);
+            setUseNativeViewer(true);
+            setShowPreview(false);
+            setTotalPages(documentData.structure.slides || 1);
+            console.log('PPTViewer: 原始格式解析成功，幻灯片数量:', documentData.structure.slides);
           }
-          return documentData;
-        })();
-
-        const documentData = await Promise.race([parsePromise, timeoutPromise]);
-        
-        if (documentData && documentData.slides && documentData.slides.length > 0) {
-          setNativeContent(documentData);
-          setUseNativeViewer(true);
-          setShowPreview(false);
-          setTotalPages(documentData.slides.length);
-          console.log('PPTViewer: 演示文稿解析成功，幻灯片数量:', documentData.slides.length);
           return;
+        } else {
+          // 优化服务失败，回退到原有解析器
+          console.warn('PPTViewer: 优化解析器失败，尝试原有解析器:', optimizationResult.error);
+          
+          // 确保传递正确的文件名（包含扩展名）
+          const correctFileName = fileName || `${title}.pptx`;
+          console.log('PPTViewer: 传递文件名给增强解析器:', correctFileName);
+          
+          // 性能优化：添加超时处理
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('解析超时')), 10000); // 10秒超时
+          });
+
+          const parsePromise = (async () => {
+            // 优先使用enhancedDocumentViewer
+            let documentData = null;
+            try {
+              documentData = await enhancedDocumentViewer.readDocument(presentationPath, correctFileName);
+            } catch (enhancedError) {
+              console.warn('PPTViewer: 增强解析器失败，尝试原生解析器:', enhancedError);
+              // 回退到原生解析器
+              documentData = await nativeDocumentViewer.readDocument(presentationPath, correctFileName);
+            }
+            return documentData;
+          })();
+
+          const documentData = await Promise.race([parsePromise, timeoutPromise]);
+          
+          if (documentData && documentData.slides && documentData.slides.length > 0) {
+            setNativeContent(documentData);
+            setUseNativeViewer(true);
+            setShowPreview(false);
+            setTotalPages(documentData.slides.length);
+            console.log('PPTViewer: 原有解析器成功，幻灯片数量:', documentData.slides.length);
+            return;
+          }
         }
       } catch (nativeError) {
-        console.warn('PPTViewer: 所有原生解析失败，回退到后端转换:', nativeError);
+        console.warn('PPTViewer: 所有解析器失败，回退到后端转换:', nativeError);
+        
+        // 如果解析失败，显示友好的错误信息
+        if (nativeError.message.includes('超时')) {
+          setError({
+            message: '演示文稿解析超时',
+            details: '文件可能过大或格式复杂，建议使用PowerPoint应用打开以获得完整体验',
+            type: 'timeout',
+            suggestions: [
+              '尝试使用PowerPoint应用打开',
+              '检查文件是否损坏',
+              '如果文件较大，建议分批处理'
+            ]
+          });
+          setIsLoading(false);
+          return;
+        } else if (nativeError.message.includes('文件过大')) {
+          setError({
+            message: '文件过大',
+            details: '此文件超过了应用的处理限制，建议使用PowerPoint应用打开',
+            type: 'file_too_large',
+            suggestions: [
+              '使用PowerPoint应用打开',
+              '尝试压缩文件',
+              '分批处理大文件'
+            ]
+          });
+          setIsLoading(false);
+          return;
+        }
       } finally {
         setIsLoadingDocument(false);
       }

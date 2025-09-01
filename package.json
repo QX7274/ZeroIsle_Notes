@@ -52,6 +52,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.10.0",
     "mongodb": "^5.8.1",
+    "officegen": "^0.6.5",
     "pptxgenjs": "^4.0.1",
     "pptxjs": "^0.0.0",
     "process": "^0.11.10",

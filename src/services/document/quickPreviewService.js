@@ -240,24 +240,41 @@ class NativeDocumentViewer {
         return this.cache.get(cacheKey);
       }
 
-      // 检查文件是否存在
-      const fileExists = await RNFS.exists(filePath);
+      // 检查文件是否存在 - 添加超时
+      const fileExists = await this.withTimeout(
+        RNFS.exists(filePath),
+        5000,
+        '文件存在性检查超时'
+      );
       if (!fileExists) {
         throw new Error(`文件不存在: ${filePath}`);
       }
 
-      // 获取文件信息
-      fileStats = await RNFS.stat(filePath);
+      // 获取文件信息 - 添加超时
+      fileStats = await this.withTimeout(
+        RNFS.stat(filePath),
+        5000,
+        '文件信息获取超时'
+      );
       fileName = filePath.split('/').pop();
 
       // 尝试读取PPT文件的基本信息
       try {
-        // 读取文件内容进行简单分析
-        const fileContent = await RNFS.readFile(filePath, 'base64');
+        // 读取文件内容进行简单分析 - 添加超时
+        const fileContent = await this.withTimeout(
+          RNFS.readFile(filePath, 'base64'),
+          8000, // 8秒超时
+          'PPT文件读取超时'
+        );
+        
         const buffer = Buffer.from(fileContent, 'base64');
         
-        // 简单分析PPT文件结构
-        const presentationInfo = await this.analyzePPTFile(buffer, fileName);
+        // 简单分析PPT文件结构 - 添加超时
+        const presentationInfo = await this.withTimeout(
+          this.analyzePPTFile(buffer, fileName),
+          5000, // 5秒超时
+          'PPT文件分析超时'
+        );
         
         const documentData = {
           type: 'powerpoint',
@@ -297,6 +314,16 @@ class NativeDocumentViewer {
       console.error('NativeDocumentViewer: PPT文档读取失败:', error);
       return await this.createNativeViewDocument(filePath, fileName, 'powerpoint', fileStats);
     }
+  }
+
+  /**
+   * 通用超时包装器
+   */
+  async withTimeout(promise, timeoutMs, errorMessage) {
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    });
+    return Promise.race([promise, timeoutPromise]);
   }
 
   /**
