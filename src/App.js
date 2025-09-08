@@ -30,6 +30,7 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 import { RealmProvider } from './context/RealmContext';
 import { FontSizeProvider } from './context/FontSizeContext';
 
+
 // 导入服务
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
@@ -42,10 +43,12 @@ import { patchDateTimePicker } from './utils/patchDateTimePicker';
 import './utils/cryptoPolyfill'; // 导入加密模块 polyfill
 import { fixServiceInitialization } from './services/initFix'; // 导入服务初始化修复
 import { ensureAllServicesInitialized, checkAllServices } from './services/serviceChecker'; // 导入服务检查器
+import memoryStartupGuard from './services/startup/memoryStartupGuard'; // 导入启动内存守护
 
 // 导入屏幕组件
 import { SplashScreen } from './screens/common';
 import { ServiceStatusChecker } from './components/common';
+import GlobalNetworkErrorHandler from './components/common/GlobalNetworkErrorHandler';
 
 // 调试信息
 console.log('App.js: store导入状态:', store ? '成功' : '失败');
@@ -86,15 +89,6 @@ const AuthStateManager = () => {
       try {
         console.log('正在检查认证状态...');
 
-        // 检查开发模式
-        const { DEV_CONFIG } = require('./config');
-        if (DEV_CONFIG.SKIP_LOGIN) {
-          console.log('开发模式：跳过令牌检查，直接进行认证状态检查');
-          // 在开发模式下，直接检查Redux认证状态，不进行令牌验证
-          await dispatch(checkAuthState()).unwrap();
-          return;
-        }
-
         // 首先检查令牌是否过期
         const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
 
@@ -117,12 +111,8 @@ const AuthStateManager = () => {
         await dispatch(checkAuthState()).unwrap();
       } catch (error) {
         console.error('检查认证状态失败:', error);
-
-        // 在开发模式下，即使出错也不阻止应用启动
-        const { DEV_CONFIG } = require('./config');
-        if (DEV_CONFIG.SKIP_LOGIN) {
-          console.log('开发模式：认证检查失败，但继续启动应用');
-        }
+        // 认证检查失败，导航到登录页面
+        await handleUnauthorizedError();
       } finally {
         setIsCheckingAuth(false);
       }
@@ -131,9 +121,13 @@ const AuthStateManager = () => {
     checkAuth();
   }, [dispatch]);
 
-  // 如果正在检查认证状态，显示加载指示器
   if (isCheckingAuth) {
-    return <SplashScreen message="正在加载..." />;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{ marginTop: 16, fontSize: 16 }}>正在检查认证状态...</Text>
+      </View>
+    );
   }
 
   return null;
@@ -165,43 +159,25 @@ const AppContainer = () => {
   console.log('认证状态:', isAuthenticated ? '已登录' : '未登录');
   console.log('认证详情 - token:', !!token, 'user:', !!user, 'authState:', authState);
 
-  // 使用try-catch包装useTheme调用
+  // 尝试使用主题上下文，如果失败则使用默认主题
   let theme, isDarkMode;
   try {
-    console.log('尝试加载主题...');
     const themeContext = useTheme();
-
-    // 检查主题上下文是否存在
-    if (!themeContext) {
-      console.warn('主题上下文不存在，使用默认主题');
+    if (themeContext && themeContext.theme && themeContext.theme.colors) {
+      theme = themeContext.theme;
+      isDarkMode = themeContext.isDarkMode;
+      console.log('AppContainer: 成功使用主题上下文');
+    } else {
+      console.warn('AppContainer: 主题上下文无效，使用默认主题');
       theme = defaultTheme;
       isDarkMode = false;
-    } else {
-      // 检查主题对象是否存在
-      if (!themeContext.theme || !themeContext.theme.colors) {
-        console.warn('主题对象不完整，使用默认主题');
-        theme = defaultTheme;
-      } else {
-        theme = themeContext.theme;
-      }
-
-      // 检查isDarkMode是否存在
-      if (typeof themeContext.isDarkMode !== 'boolean') {
-        console.warn('isDarkMode不存在，默认使用浅色模式');
-        isDarkMode = false;
-      } else {
-        isDarkMode = themeContext.isDarkMode;
-      }
-
-      console.log('主题加载成功:', theme.dark ? '深色' : '浅色');
     }
   } catch (error) {
-    console.error('主题加载失败:', error.message);
-    // 使用默认主题
+    console.warn('AppContainer: 获取主题上下文失败，使用默认主题:', error.message);
     theme = defaultTheme;
     isDarkMode = false;
-    console.log('使用默认主题');
   }
+  console.log('AppContainer: 最终使用的主题:', theme ? '有效' : '无效');
 
   // 初始化服务 - 只在组件挂载时执行一次
   useEffect(() => {
@@ -241,6 +217,28 @@ const AppContainer = () => {
 
       try {
         console.log('正在初始化服务...');
+
+        // 首先初始化内存守护
+        try {
+          console.log('初始化启动内存守护...');
+          const memoryGuardResult = await memoryStartupGuard.initialize();
+
+          if (memoryGuardResult.success) {
+            console.log('启动内存守护初始化成功');
+
+            // 检查是否需要内存警告
+            const warning = memoryStartupGuard.checkMemoryWarning();
+            if (warning.needsWarning && warning.level === 'warning') {
+              Alert.alert('内存提醒', warning.message, [{ text: '知道了' }]);
+            }
+          } else {
+            console.warn('启动内存守护初始化失败:', memoryGuardResult.error);
+          }
+        } catch (memoryGuardError) {
+          console.error('启动内存守护初始化异常:', memoryGuardError);
+          // 不阻塞应用启动
+        }
+
         servicesInitialized = true;
 
         // 应用 DateTimePicker 补丁
@@ -970,6 +968,7 @@ const AppContainer = () => {
       >
         <AuthStateManager />
         <AppNavigator />
+        <GlobalNetworkErrorHandler />
       </NavigationContainer>
     </PaperProvider>
   );

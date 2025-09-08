@@ -23,6 +23,7 @@ import { DEFAULT_SETTINGS } from '../../utils/constants/config';
 import { offlineStorageService } from '../../services/offline';
 import DeviceInfo from 'react-native-device-info';
 import { cacheService } from '../../services/cache/cacheService';
+import networkErrorService from '../../services/networkErrorService';
 
 const SettingsScreen = ({ navigation }) => {
   const { theme, setThemeType } = useTheme();
@@ -175,7 +176,16 @@ const SettingsScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('检查更新出错:', error);
-      Alert.alert('错误', '检查更新时发生错误，请稍后重试');
+      
+      // 使用网络错误服务处理错误
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '检查更新',
+          customMessage: '网络连接失败，无法检查更新'
+        });
+      } else {
+        Alert.alert('错误', '检查更新时发生错误，请稍后重试');
+      }
     } finally {
       setIsCheckingUpdate(false);
     }

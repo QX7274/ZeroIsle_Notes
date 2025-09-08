@@ -6,6 +6,7 @@ import { API_ENDPOINTS } from '../../constants/api';
 import { offlineStorageService } from '../offline/offlineStorageService';
 import NetInfo from '@react-native-community/netinfo';
 import { getNotesFromOfflineStorage } from '../offline/getNotes';
+import networkErrorService from '../networkErrorService';
 
 // 使用导入的离线存储服务
 
@@ -345,6 +346,12 @@ const importNote = async (formData) => {
     };
   } catch (error) {
     console.error('导入PDF过程中出错:', error);
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '导入PDF笔记',
+        customMessage: '网络连接失败，无法导入PDF笔记'
+      });
+    }
     return {
       success: false,
       message: error.message || '导入失败',
@@ -423,6 +430,12 @@ const getById = async (id) => {
     };
   } catch (error) {
     console.error(`获取笔记详情失败 (ID: ${id}):`, error);
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '获取笔记详情',
+        customMessage: '网络连接失败，无法获取笔记详情'
+      });
+    }
     return {
       success: false,
       message: error.message || '获取笔记详情失败',

@@ -16,8 +16,11 @@ import {
   ScrollView,
   Switch,
   Modal,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+
 import { useDispatch, useSelector } from 'react-redux';
 import { loadReminders, updateReminder, deleteReminder, syncReminders } from '../../redux/slices/reminderSlice';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
@@ -27,11 +30,27 @@ import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import NetInfo from '@react-native-community/netinfo';
+import networkErrorService from '../../services/networkErrorService';
 
-const ReminderListView = ({ navigation }) => {
+const ReminderListView = ({ navigation, route }) => {
   const { theme } = useTheme();
   const dispatch = useDispatch();
   const reminders = useSelector(state => state.reminders.reminders);
+
+  // 安全检查navigation对象
+  if (!navigation) {
+    console.error('ReminderListView: navigation对象未定义');
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>导航错误，请重新进入页面</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // 安全获取主题颜色的辅助函数
+  const getThemeColor = (colorKey, defaultValue) => {
+    return theme?.[colorKey] || defaultValue;
+  };
   const syncStatus = useSelector(state => state.reminders.syncStatus);
   const offlineReminders = useSelector(state => state.reminders.offlineReminders || []);
 
@@ -130,6 +149,14 @@ const ReminderListView = ({ navigation }) => {
           }
         } catch (error) {
           console.error('从服务器加载提醒数据失败:', error);
+
+          // 使用网络错误服务处理错误
+          if (error.isNetworkError || error.message?.includes('Network Error') || error.message?.includes('服务器请求失败')) {
+            networkErrorService.handleApiError(error, {
+              context: '加载日程数据',
+              customMessage: '无法连接到服务器，使用本地数据'
+            });
+          }
 
           // 服务器请求失败，使用本地数据
           dispatch(loadReminders(localReminders));
@@ -641,12 +668,19 @@ const ReminderListView = ({ navigation }) => {
   const renderReminderItem = ({ item }) => {
     const dueDate = new Date(item.dueDate || item.due_date);
     const isPastDue = isPast(dueDate) && !isToday(dueDate);
+    
+    // 确保主题颜色存在，提供默认值
+    const defaultColor = '#2196F3'; // 默认蓝色
+    const errorColor = theme?.error || '#F44336'; // 错误颜色
+    const warningColor = theme?.warning || '#FFEB3B'; // 警告颜色
+    const primaryColor = theme?.primary || defaultColor; // 主色调
+    
     const color = item.color || (
       isPastDue
-        ? theme.error
+        ? errorColor
         : isToday(dueDate)
-          ? theme.warning
-          : theme.primary
+          ? warningColor
+          : primaryColor
     );
 
     // 检查是否为离线创建的提醒
@@ -660,13 +694,13 @@ const ReminderListView = ({ navigation }) => {
         style={[
           styles.reminderItem,
           {
-            backgroundColor: isSelected ? theme.primary + '15' : theme.cardBackground,
+            backgroundColor: isSelected ? (theme?.primary || '#2196F3') + '15' : (theme?.cardBackground || '#FFFFFF'),
             borderLeftWidth: 4,
             borderLeftColor: color,
             opacity: !item.is_enabled ? 0.7 : 1,
           }
         ]}
-        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation.navigate('ReminderDetail', { id: item.id })}
+                 onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id })}
         onLongPress={() => {
           if (!showBatchActions) {
             setShowBatchActions(true);
@@ -679,11 +713,11 @@ const ReminderListView = ({ navigation }) => {
             style={styles.completeButton}
             onPress={() => handleToggleSelect(item)}
           >
-            <View style={[
+            <View             style={[
               styles.checkbox,
               {
-                borderColor: theme.primary,
-                backgroundColor: isSelected ? theme.primary : 'transparent',
+                borderColor: theme?.primary || '#2196F3',
+                backgroundColor: isSelected ? (theme?.primary || '#2196F3') : 'transparent',
               }
             ]}>
               {isSelected && (
@@ -715,7 +749,7 @@ const ReminderListView = ({ navigation }) => {
             <Text style={[
               styles.reminderTitle,
               {
-                color: theme.text,
+                color: theme?.text || '#000000',
                 textDecorationLine: item.is_completed ? 'line-through' : 'none',
                 fontWeight: item.is_completed ? 'normal' : 'bold',
               }
@@ -724,15 +758,15 @@ const ReminderListView = ({ navigation }) => {
             </Text>
 
             {isOffline && (
-              <View style={[styles.offlineBadge, { backgroundColor: theme.warning + '30', borderColor: theme.warning }]}>
-                <Text style={[styles.offlineText, { color: theme.warning }]}>
+              <View style={[styles.offlineBadge, { backgroundColor: (theme?.warning || '#FFEB3B') + '30', borderColor: theme?.warning || '#FFEB3B' }]}>
+                <Text style={[styles.offlineText, { color: theme?.warning || '#FFEB3B' }]}>
                   离线
                 </Text>
               </View>
             )}
           </View>
 
-          <Text style={[styles.reminderDate, { color: theme.textSecondary }]}>
+          <Text style={[styles.reminderDate, { color: theme?.textSecondary || '#666666' }]}>
             {format(dueDate, 'yyyy-MM-dd HH:mm', { locale: zhCN })}
           </Text>
 
@@ -745,84 +779,84 @@ const ReminderListView = ({ navigation }) => {
               </View>
             )}
 
-            {item.frequency && item.frequency !== 'once' && (
-              <View style={[styles.frequencyBadge, { backgroundColor: theme.background }]}>
-                <Text style={[styles.frequencyText, { color: theme.textSecondary }]}>
-                  {getFrequencyName(item.frequency)}
-                </Text>
-              </View>
-            )}
+                         {item.frequency && item.frequency !== 'once' && (
+               <View style={[styles.frequencyBadge, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
+                 <Text style={[styles.frequencyText, { color: getThemeColor('textSecondary', '#666666') }]}>
+                   {getFrequencyName(item.frequency)}
+                 </Text>
+               </View>
+             )}
 
             {item.priority && item.priority !== 'medium' && (
-              <View style={[
-                styles.priorityBadge,
-                {
-                  backgroundColor:
-                    item.priority === 'high'
-                      ? theme.error + '20'
-                      : item.priority === 'low'
-                        ? theme.success + '20'
-                        : theme.background,
-                  borderColor:
-                    item.priority === 'high'
-                      ? theme.error
-                      : item.priority === 'low'
-                        ? theme.success
-                        : theme.border,
-                }
-              ]}>
-                <Text style={[
-                  styles.priorityText,
-                  {
-                    color:
-                      item.priority === 'high'
-                        ? theme.error
-                        : item.priority === 'low'
-                          ? theme.success
-                          : theme.textSecondary
-                  }
-                ]}>
+                             <View style={[
+                 styles.priorityBadge,
+                 {
+                   backgroundColor:
+                     item.priority === 'high'
+                       ? getThemeColor('error', '#F44336') + '20'
+                       : item.priority === 'low'
+                         ? getThemeColor('success', '#4CAF50') + '20'
+                         : getThemeColor('background', '#FFFFFF'),
+                   borderColor:
+                     item.priority === 'high'
+                       ? getThemeColor('error', '#F44336')
+                       : item.priority === 'low'
+                         ? getThemeColor('success', '#4CAF50')
+                         : getThemeColor('border', '#E0E0E0'),
+                 }
+               ]}>
+                 <Text style={[
+                   styles.priorityText,
+                   {
+                     color:
+                       item.priority === 'high'
+                         ? getThemeColor('error', '#F44336')
+                         : item.priority === 'low'
+                           ? getThemeColor('success', '#4CAF50')
+                           : getThemeColor('textSecondary', '#666666')
+                   }
+                 ]}>
                   {item.priority === 'high' ? '高优先级' : item.priority === 'low' ? '低优先级' : '中优先级'}
                 </Text>
               </View>
             )}
           </View>
 
-          {item.tags && (
-            <View style={styles.tagsContainer}>
-              {item.tags.split(',').map((tag, index) => (
-                <View
-                  key={index}
-                  style={[styles.tagBadge, { backgroundColor: theme.background, borderColor: theme.border }]}
-                >
-                  <Text style={[styles.tagText, { color: theme.textSecondary }]}>
-                    #{tag.trim()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+                     {item.tags && (
+             <View style={styles.tagsContainer}>
+               {item.tags.split(',').map((tag, index) => (
+                 <View
+                   key={index}
+                   style={[styles.tagBadge, { backgroundColor: getThemeColor('background', '#FFFFFF'), borderColor: getThemeColor('border', '#E0E0E0') }]}
+                 >
+                   <Text style={[styles.tagText, { color: getThemeColor('textSecondary', '#666666') }]}>
+                     #{tag.trim()}
+                   </Text>
+                 </View>
+               ))}
+             </View>
+           )}
         </View>
 
         {!showBatchActions && (
           <View style={styles.reminderActions}>
-            <TouchableOpacity
-              onPress={() => handleToggleEnabled(item)}
-              style={styles.iconButton}
-            >
-              <Icon
-                name={item.is_enabled ? "notifications-active" : "notifications-off"}
-                size={20}
-                color={item.is_enabled ? color : theme.textSecondary}
-              />
-            </TouchableOpacity>
+                         <TouchableOpacity
+               onPress={() => handleToggleEnabled(item)}
+               style={styles.iconButton}
+             >
+               <Icon
+                 name={item.is_enabled ? "notifications-active" : "notifications-off"}
+                 size={20}
+                 color={item.is_enabled ? color : getThemeColor('textSecondary', '#666666')}
+               />
+             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleDeleteReminder(item)}
-              style={styles.iconButton}
-            >
-              <Icon name="delete-outline" size={20} color={theme.error} />
-            </TouchableOpacity>
+             <TouchableOpacity
+               onPress={() => handleDeleteReminder(item)}
+               style={styles.iconButton}
+             >
+               <Icon name="delete-outline" size={20} color={getThemeColor('error', '#F44336')} />
+             </TouchableOpacity>
           </View>
         )}
       </TouchableOpacity>
@@ -857,11 +891,11 @@ const ReminderListView = ({ navigation }) => {
 
   // 渲染分组标题
   const renderSectionHeader = ({ section }) => (
-    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>
+    <View style={[styles.sectionHeader, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
+      <Text style={[styles.sectionTitle, { color: getThemeColor('text', '#000000') }]}>
         {section.title}
       </Text>
-      <Text style={[styles.sectionCount, { color: theme.textSecondary }]}>
+      <Text style={[styles.sectionCount, { color: getThemeColor('textSecondary', '#666666') }]}>
         {section.data.length}项
       </Text>
     </View>
@@ -869,18 +903,18 @@ const ReminderListView = ({ navigation }) => {
 
   // 渲染过滤器
   const renderFilterBar = () => (
-    <View style={[styles.filterBar, { backgroundColor: theme.cardBackground }]}>
+    <View style={[styles.filterBar, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'all' && { backgroundColor: theme.primary + '20' }
+            filter === 'all' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
           ]}
           onPress={() => setFilter('all')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'all' ? theme.primary : theme.textSecondary }
+            { color: filter === 'all' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
           ]}>
             全部
           </Text>
@@ -889,13 +923,13 @@ const ReminderListView = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'today' && { backgroundColor: theme.primary + '20' }
+            filter === 'today' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
           ]}
           onPress={() => setFilter('today')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'today' ? theme.primary : theme.textSecondary }
+            { color: filter === 'today' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
           ]}>
             今日
           </Text>
@@ -904,13 +938,13 @@ const ReminderListView = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'upcoming' && { backgroundColor: theme.primary + '20' }
+            filter === 'upcoming' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
           ]}
           onPress={() => setFilter('upcoming')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'upcoming' ? theme.primary : theme.textSecondary }
+            { color: filter === 'upcoming' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
           ]}>
             即将到期
           </Text>
@@ -919,66 +953,80 @@ const ReminderListView = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'completed' && { backgroundColor: theme.primary + '20' }
+            filter === 'completed' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
           ]}
           onPress={() => setFilter('completed')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'completed' ? theme.primary : theme.textSecondary }
+            { color: filter === 'completed' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
           ]}>
             已完成
           </Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <TouchableOpacity
-        style={[
-          styles.advancedFilterButton,
-          (advancedFilters.priority !== 'all' ||
-           advancedFilters.category !== 'all' ||
-           advancedFilters.startDate ||
-           advancedFilters.endDate ||
-           advancedFilters.tags.length > 0) &&
-          { backgroundColor: theme.primary + '20' }
-        ]}
-        onPress={() => setShowFilterModal(true)}
-      >
-        <Icon
-          name="filter-list"
-          size={20}
-          color={
-            (advancedFilters.priority !== 'all' ||
-             advancedFilters.category !== 'all' ||
-             advancedFilters.startDate ||
-             advancedFilters.endDate ||
-             advancedFilters.tags.length > 0)
-              ? theme.primary
-              : theme.textSecondary
-          }
-        />
-      </TouchableOpacity>
+             <TouchableOpacity
+         style={[
+           styles.advancedFilterButton,
+           (advancedFilters.priority !== 'all' ||
+            advancedFilters.category !== 'all' ||
+            advancedFilters.startDate ||
+            advancedFilters.endDate ||
+            advancedFilters.tags.length > 0) &&
+           { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+         ]}
+         onPress={() => setShowFilterModal(true)}
+       >
+         <Icon
+           name="filter-list"
+           size={16}
+           color={
+             (advancedFilters.priority !== 'all' ||
+              advancedFilters.category !== 'all' ||
+              advancedFilters.startDate ||
+              advancedFilters.endDate ||
+              advancedFilters.tags.length > 0)
+               ? getThemeColor('primary', '#2196F3')
+               : getThemeColor('textSecondary', '#666666')
+           }
+         />
+         <Text style={[
+           styles.advancedFilterText,
+           {
+             color: (advancedFilters.priority !== 'all' ||
+               advancedFilters.category !== 'all' ||
+               advancedFilters.startDate ||
+               advancedFilters.endDate ||
+               advancedFilters.tags.length > 0)
+                 ? getThemeColor('primary', '#2196F3')
+                 : getThemeColor('textSecondary', '#666666')
+           }
+         ]}>
+           筛选
+         </Text>
+       </TouchableOpacity>
     </View>
   );
 
-  // 渲染加载中状态
+    // 渲染加载中状态
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
+        <ActivityIndicator size="large" color={getThemeColor('primary', '#2196F3')} />
+      </SafeAreaView>
     );
   }
 
   // 渲染空状态
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Icon name="event-note" size={64} color={theme.textSecondary} />
-      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+      <Icon name="event-note" size={64} color={getThemeColor('primary', '#2196F3')} />
+      <Text style={[styles.emptyText, { color: getThemeColor('textSecondary', '#666666') }]}>
         暂无提醒
       </Text>
-      <Text style={[styles.emptySubText, { color: theme.textSecondary }]}>
-        点击右上角的加号按钮添加新提醒
+      <Text style={[styles.emptySubText, { color: getThemeColor('textSecondary', '#666666') }]}>
+        点击右下角的加号按钮添加新提醒
       </Text>
     </View>
   );
@@ -992,18 +1040,18 @@ const ReminderListView = ({ navigation }) => {
       onRequestClose={() => setShowFilterModal(false)}
     >
       <View style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+        <View style={[styles.modalContent, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>高级筛选</Text>
+            <Text style={[styles.modalTitle, { color: getThemeColor('text', '#000000') }]}>高级筛选</Text>
             <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <Icon name="close" size={24} color={theme.text} />
+              <Icon name="close" size={24} color={getThemeColor('text', '#000000')} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalBody}>
             {/* 优先级筛选 */}
             <View style={styles.filterSection}>
-              <Text style={[styles.filterSectionTitle, { color: theme.text }]}>优先级</Text>
+              <Text style={[styles.filterSectionTitle, { color: getThemeColor('text', '#000000') }]}>优先级</Text>
               <View style={styles.filterOptions}>
                 {['all', 'high', 'medium', 'low'].map(priority => (
                   <TouchableOpacity
@@ -1011,15 +1059,15 @@ const ReminderListView = ({ navigation }) => {
                     style={[
                       styles.filterOption,
                       advancedFilters.priority === priority && {
-                        backgroundColor: theme.primary + '20',
-                        borderColor: theme.primary,
+                        backgroundColor: getThemeColor('primary', '#2196F3') + '20',
+                        borderColor: getThemeColor('primary', '#2196F3'),
                       }
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, priority})}
                   >
                     <Text style={[
                       styles.filterOptionText,
-                      { color: advancedFilters.priority === priority ? theme.primary : theme.text }
+                      { color: advancedFilters.priority === priority ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') }
                     ]}>
                       {priority === 'all' ? '全部' :
                        priority === 'high' ? '高' :
@@ -1032,7 +1080,7 @@ const ReminderListView = ({ navigation }) => {
 
             {/* 分类筛选 */}
             <View style={styles.filterSection}>
-              <Text style={[styles.filterSectionTitle, { color: theme.text }]}>分类</Text>
+              <Text style={[styles.filterSectionTitle, { color: getThemeColor('text', '#000000') }]}>分类</Text>
               <View style={styles.filterOptions}>
                 {['all', 'work', 'study', 'personal', 'health', 'finance', 'social', 'other'].map(category => (
                   <TouchableOpacity
@@ -1040,15 +1088,15 @@ const ReminderListView = ({ navigation }) => {
                     style={[
                       styles.filterOption,
                       advancedFilters.category === category && {
-                        backgroundColor: theme.primary + '20',
-                        borderColor: theme.primary,
+                        backgroundColor: getThemeColor('primary', '#2196F3') + '20',
+                        borderColor: getThemeColor('primary', '#2196F3'),
                       }
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, category})}
                   >
                     <Text style={[
                       styles.filterOptionText,
-                      { color: advancedFilters.category === category ? theme.primary : theme.text }
+                      { color: advancedFilters.category === category ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') }
                     ]}>
                       {category === 'all' ? '全部' : getCategoryName(category)}
                     </Text>
@@ -1057,54 +1105,54 @@ const ReminderListView = ({ navigation }) => {
               </View>
             </View>
 
-            {/* 日期范围筛选 */}
-            <View style={styles.filterSection}>
-              <Text style={[styles.filterSectionTitle, { color: theme.text }]}>日期范围</Text>
-              <View style={styles.dateRangeContainer}>
-                <TouchableOpacity
-                  style={[styles.dateInput, { borderColor: theme.border }]}
-                  onPress={() => {
-                    // 显示日期选择器
-                    // 这里需要实现日期选择逻辑
-                  }}
-                >
-                  <Text style={[styles.dateText, { color: advancedFilters.startDate ? theme.text : theme.textSecondary }]}>
-                    {advancedFilters.startDate ? format(new Date(advancedFilters.startDate), 'yyyy-MM-dd') : '开始日期'}
-                  </Text>
-                </TouchableOpacity>
+                         {/* 日期范围筛选 */}
+             <View style={styles.filterSection}>
+               <Text style={[styles.filterSectionTitle, { color: getThemeColor('text', '#000000') }]}>日期范围</Text>
+               <View style={styles.dateRangeContainer}>
+                 <TouchableOpacity
+                   style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }]}
+                   onPress={() => {
+                     // 显示日期选择器
+                     // 这里需要实现日期选择逻辑
+                   }}
+                 >
+                   <Text style={[styles.dateText, { color: advancedFilters.startDate ? getThemeColor('text', '#000000') : getThemeColor('textSecondary', '#666666') }]}>
+                     {advancedFilters.startDate ? format(new Date(advancedFilters.startDate), 'yyyy-MM-dd') : '开始日期'}
+                   </Text>
+                 </TouchableOpacity>
 
-                <Text style={[styles.dateRangeSeparator, { color: theme.textSecondary }]}>至</Text>
+                 <Text style={[styles.dateRangeSeparator, { color: getThemeColor('textSecondary', '#666666') }]}>至</Text>
 
-                <TouchableOpacity
-                  style={[styles.dateInput, { borderColor: theme.border }]}
-                  onPress={() => {
-                    // 显示日期选择器
-                    // 这里需要实现日期选择逻辑
-                  }}
-                >
-                  <Text style={[styles.dateText, { color: advancedFilters.endDate ? theme.text : theme.textSecondary }]}>
-                    {advancedFilters.endDate ? format(new Date(advancedFilters.endDate), 'yyyy-MM-dd') : '结束日期'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
+                 <TouchableOpacity
+                   style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }]}
+                   onPress={() => {
+                     // 显示日期选择器
+                     // 这里需要实现日期选择逻辑
+                   }}
+                 >
+                   <Text style={[styles.dateText, { color: advancedFilters.endDate ? getThemeColor('text', '#000000') : getThemeColor('textSecondary', '#666666') }]}>
+                     {advancedFilters.endDate ? format(new Date(advancedFilters.endDate), 'yyyy-MM-dd') : '结束日期'}
+                   </Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+           </ScrollView>
 
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={[styles.modalButton, { borderColor: theme.border }]}
-              onPress={resetAdvancedFilters}
-            >
-              <Text style={[styles.modalButtonText, { color: theme.text }]}>重置</Text>
-            </TouchableOpacity>
+           <View style={styles.modalFooter}>
+             <TouchableOpacity
+               style={[styles.modalButton, { borderColor: getThemeColor('border', '#E0E0E0') }]}
+               onPress={resetAdvancedFilters}
+             >
+               <Text style={[styles.modalButtonText, { color: getThemeColor('text', '#000000') }]}>重置</Text>
+             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.primary }]}
-              onPress={applyAdvancedFilters}
-            >
-              <Text style={[styles.modalButtonText, { color: '#fff' }]}>应用</Text>
-            </TouchableOpacity>
-          </View>
+             <TouchableOpacity
+               style={[styles.modalButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
+               onPress={applyAdvancedFilters}
+             >
+               <Text style={[styles.modalButtonText, { color: '#fff' }]}>应用</Text>
+             </TouchableOpacity>
+           </View>
         </View>
       </View>
     </Modal>
@@ -1112,9 +1160,9 @@ const ReminderListView = ({ navigation }) => {
 
   // 渲染批量操作工具栏
   const renderBatchToolbar = () => (
-    <View style={[styles.batchToolbar, { backgroundColor: theme.cardBackground }]}>
+    <View style={[styles.batchToolbar, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
       <View style={styles.batchInfo}>
-        <Text style={[styles.batchCount, { color: theme.text }]}>
+        <Text style={[styles.batchCount, { color: getThemeColor('text', '#000000') }]}>
           已选择 {selectedReminders.length} 项
         </Text>
       </View>
@@ -1124,16 +1172,16 @@ const ReminderListView = ({ navigation }) => {
           style={styles.batchAction}
           onPress={handleBatchComplete}
         >
-          <Icon name="done-all" size={20} color={theme.primary} />
-          <Text style={[styles.batchActionText, { color: theme.primary }]}>完成</Text>
+          <Icon name="done-all" size={20} color={getThemeColor('primary', '#2196F3')} />
+          <Text style={[styles.batchActionText, { color: getThemeColor('primary', '#2196F3') }]}>完成</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.batchAction}
           onPress={handleBatchDelete}
         >
-          <Icon name="delete-sweep" size={20} color={theme.error} />
-          <Text style={[styles.batchActionText, { color: theme.error }]}>删除</Text>
+          <Icon name="delete-sweep" size={20} color={getThemeColor('error', '#F44336')} />
+          <Text style={[styles.batchActionText, { color: getThemeColor('error', '#F44336') }]}>删除</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1143,8 +1191,8 @@ const ReminderListView = ({ navigation }) => {
             setShowBatchActions(false);
           }}
         >
-          <Icon name="close" size={20} color={theme.textSecondary} />
-          <Text style={[styles.batchActionText, { color: theme.textSecondary }]}>取消</Text>
+          <Icon name="close" size={20} color={getThemeColor('textSecondary', '#666666')} />
+          <Text style={[styles.batchActionText, { color: getThemeColor('textSecondary', '#666666') }]}>取消</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -1160,11 +1208,11 @@ const ReminderListView = ({ navigation }) => {
     });
 
     return (
-      <View style={[styles.syncIndicator, { backgroundColor: theme.cardBackground }]}>
+      <View style={[styles.syncIndicator, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
-          <Icon name="sync" size={20} color={theme.primary} />
+          <Icon name="sync" size={20} color={getThemeColor('primary', '#2196F3')} />
         </Animated.View>
-        <Text style={[styles.syncText, { color: theme.textSecondary }]}>
+        <Text style={[styles.syncText, { color: getThemeColor('textSecondary', '#666666') }]}>
           {syncing ? '同步中...' : '同步完成'}
         </Text>
       </View>
@@ -1173,7 +1221,7 @@ const ReminderListView = ({ navigation }) => {
 
   // 主渲染
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
       {renderFilterBar()}
 
       <SectionList
@@ -1187,8 +1235,8 @@ const ReminderListView = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={[theme.primary]}
-            tintColor={theme.primary}
+            colors={[getThemeColor('primary', '#2196F3')]}
+            tintColor={getThemeColor('primary', '#2196F3')}
           />
         }
       />
@@ -1200,19 +1248,22 @@ const ReminderListView = ({ navigation }) => {
       {/* 添加提醒按钮 */}
       {!showBatchActions && (
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: theme.primary }]}
-          onPress={() => navigation.navigate('AddReminder')}
+          style={[styles.addButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
+                     onPress={() => navigation?.navigate('AddReminder')}
         >
           <Icon name="add" size={24} color="#ffffff" />
         </TouchableOpacity>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // 移除调试边框，确保内容在状态栏下方正确显示
+    // borderWidth: 1,
+    // borderColor: 'red',
   },
   filterBar: {
     paddingVertical: 8,
@@ -1222,6 +1273,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 0, // 确保没有顶部边距
+    // 为Android添加状态栏高度补偿，确保过滤器栏在状态栏下方
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
   },
   filterScroll: {
     flex: 1,
@@ -1236,14 +1290,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  advancedFilterButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
+     advancedFilterButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingHorizontal: 12,
+     paddingVertical: 8,
+     borderRadius: 20,
+     marginLeft: 8,
+     minWidth: 60,
+   },
+   advancedFilterText: {
+     fontSize: 14,
+     fontWeight: '500',
+     marginLeft: 4,
+   },
   listContainer: {
     paddingBottom: 16,
     flexGrow: 1,
@@ -1363,7 +1423,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 0, // 减少顶部边距，避免超出屏幕
   },
   sectionTitle: {
     fontSize: 16,
@@ -1377,7 +1437,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    marginTop: 40,
+    marginTop: 0, // 移除顶部边距，避免超出屏幕
   },
   emptyText: {
     fontSize: 18,
@@ -1435,13 +1495,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     position: 'absolute',
-    top: 60,
+    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 50 : 70, // 根据平台和状态栏高度动态调整，确保在过滤器栏下方
     right: 16,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    zIndex: 1000, // 确保在其他元素之上
   },
   syncText: {
     marginLeft: 6,

@@ -45,6 +45,7 @@ import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
 import ApiTest from '../screens/community/ApiTest';
+import NetworkErrorTestScreen from '../screens/test/NetworkErrorTestScreen';
 import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 // 导入知识图谱相关组件
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
@@ -862,6 +863,14 @@ const CommunityStack = () => {
         component={ApiTest}
         options={{
           title: 'API测试',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="NetworkErrorTest"
+        component={NetworkErrorTestScreen}
+        options={{
+          title: '网络错误测试',
           headerBackTitleVisible: false,
         }}
       />

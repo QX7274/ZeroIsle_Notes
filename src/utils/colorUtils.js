@@ -33,20 +33,37 @@ export const DEFAULT_COLORS = [
  * @returns {boolean} 颜色是否有效
  */
 export const isValidColor = (color) => {
-  if (!color) return false;
-  
+  // 明确检查undefined和null
+  if (color === undefined || color === null || color === '') return false;
+
   // 检查是否为有效的十六进制颜色
   if (typeof color === 'string') {
-    return /^#([0-9A-F]{3}){1,2}$/i.test(color) || 
-           /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i.test(color) ||
-           /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/i.test(color);
+    const trimmed = color.trim();
+    if (trimmed === '') return false;
+
+    return /^#([0-9A-F]{3}){1,2}$/i.test(trimmed) ||
+           /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i.test(trimmed) ||
+           /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/i.test(trimmed) ||
+           isNamedColor(trimmed);
   }
-  
+
   return false;
 };
 
 /**
- * 过滤颜色数组，移除无效的颜色
+ * 检查是否是命名颜色
+ */
+const isNamedColor = (color) => {
+  const namedColors = [
+    'black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'purple',
+    'pink', 'brown', 'gray', 'grey', 'transparent'
+  ];
+
+  return namedColors.includes(color.toLowerCase());
+};
+
+/**
+ * 过滤颜色数组，移除无效的颜色（包括undefined）
  * @param {Array} colors - 要过滤的颜色数组
  * @returns {Array} 过滤后的颜色数组
  */
@@ -55,15 +72,22 @@ export const filterValidColors = (colors) => {
     console.warn('颜色数组无效:', colors);
     return [...DEFAULT_COLORS];
   }
-  
-  const validColors = colors.filter(color => isValidColor(color));
-  
+
+  // 过滤掉undefined、null和无效颜色
+  const validColors = colors.filter(color => {
+    if (color === undefined || color === null) {
+      console.warn('发现undefined或null颜色值，已过滤');
+      return false;
+    }
+    return isValidColor(color);
+  });
+
   // 如果没有有效颜色，返回默认颜色
   if (validColors.length === 0) {
     console.warn('颜色数组中没有有效颜色，使用默认颜色');
     return [...DEFAULT_COLORS];
   }
-  
+
   return validColors;
 };
 

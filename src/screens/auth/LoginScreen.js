@@ -9,7 +9,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { login, clearError } from '../../redux/slices/authSlice';
 import { Button, Input, Loading } from '../../components/common';
 import { useTheme } from '../../context/ThemeContext';
+
 import authApi from '../../services/api/authApi';
+import networkErrorService from '../../services/networkErrorService';
 
 // 导入LinearGradient组件
 let LinearGradient;
@@ -22,6 +24,7 @@ try {
 const LoginScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
+
 
   const dispatch = useDispatch();
 
@@ -224,11 +227,15 @@ const LoginScreen = ({ navigation }) => {
               // 继续处理，不阻止注册流程
             }
 
-            Alert.alert('注册成功', '欢迎加入零屿笔记！');
+            showSuccessMessage('欢迎加入零屿笔记！', '注册成功');
           } else {
             setError(result.message || '注册失败，请稍后重试');
           }
         } catch (error) {
+          handleError(error, {
+            context: '用户注册',
+            customMessage: '注册失败，请检查网络连接后重试'
+          });
           setError('注册失败，请稍后重试');
         }
       }
@@ -265,16 +272,20 @@ const LoginScreen = ({ navigation }) => {
                 // 继续处理，不阻止注册流程
               }
 
-              Alert.alert('注册成功', '欢迎加入零屿笔记！');
+              showSuccessMessage('欢迎加入零屿笔记！', '注册成功');
             } else {
               // 如果登录失败，仍然显示注册成功，但提示用户手动登录
-              Alert.alert('注册成功', '请使用您的用户名和密码登录');
+              showSuccessMessage('请使用您的用户名和密码登录', '注册成功');
               setIsRegister(false); // 切换到登录界面
             }
           } else {
             setError(result.message || '注册失败，请稍后重试');
           }
         } catch (error) {
+          handleError(error, {
+            context: '密码注册',
+            customMessage: '注册失败，请检查网络连接后重试'
+          });
           setError('注册失败，请稍后重试');
         }
       }
@@ -328,6 +339,10 @@ const LoginScreen = ({ navigation }) => {
           }
         } catch (error) {
           console.error('验证码登录错误:', error);
+          handleError(error, {
+            context: '验证码登录',
+            customMessage: '登录失败，请检查验证码是否正确'
+          });
           setError(error?.message || '登录失败，请稍后重试');
         }
       }
@@ -377,7 +392,7 @@ const LoginScreen = ({ navigation }) => {
               }
 
               // 显示成功消息
-              Alert.alert('登录成功', '欢迎回到零屿笔记！');
+              showSuccessMessage('欢迎回到零屿笔记！', '登录成功');
 
               // 登录成功后更新Redux状态，让AppNavigator自动切换到主页
               // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
@@ -404,6 +419,10 @@ const LoginScreen = ({ navigation }) => {
         } catch (error) {
           console.error('登录错误:', error);
           console.error('错误详情:', error.response?.data || error.message);
+          handleError(error, {
+            context: '密码登录',
+            customMessage: '登录失败，请检查用户名和密码是否正确'
+          });
           setError(error?.message || '登录失败，请稍后重试');
         }
       }

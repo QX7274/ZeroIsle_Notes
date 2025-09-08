@@ -8,6 +8,7 @@ import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import GroupList from '../../components/groups/GroupList';
 import { useTheme } from '../../context/ThemeContext';
+
 import { COLORS } from '../../utils/constants/colors';
 
 const GroupsScreen = () => {

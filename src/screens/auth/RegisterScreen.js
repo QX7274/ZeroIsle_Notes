@@ -26,6 +26,7 @@ import { Button, Input, Loading } from '../../components/common';
 import { Text } from 'react-native';
 import { authApi } from '../../services/api';
 import NetInfo from '@react-native-community/netinfo';
+import networkErrorService from '../../services/networkErrorService';
 
 const RegisterScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -121,6 +122,13 @@ const RegisterScreen = ({ navigation }) => {
         setError(result.message || '发送验证码失败，请稍后重试');
       }
     } catch (error) {
+      console.error('发送验证码失败:', error);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '发送验证码',
+          customMessage: '网络连接失败，无法发送验证码'
+        });
+      }
       setError('发送验证码失败，请稍后重试');
     }
   };
@@ -245,6 +253,12 @@ const RegisterScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('注册过程中发生错误:', error);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '用户注册',
+          customMessage: '网络连接失败，无法完成注册'
+        });
+      }
       setError(error?.message || '注册失败，请稍后重试');
     }
   };

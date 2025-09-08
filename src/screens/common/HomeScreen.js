@@ -28,6 +28,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
 import SortControl from '../../components/home/SortControl';
+import ProcessingProgressModal from '../../components/common/ProcessingProgressModal';
+import nonBlockingPPTProcessor from '../../services/document/nonBlockingPPTProcessor';
 // OfflineIndicator 已移除
 import { offlineStorageService } from '../../services/offline';
 import NetInfo from '@react-native-community/netinfo';
@@ -38,6 +40,7 @@ import NoteStyleModal from '../../components/note/NoteStyleModal';
 import preloadService from '../../services/document/preloadService';
 import RNFS from 'react-native-fs';
 import fileHistoryService from '../../services/fileHistoryService';
+import networkErrorService from '../../services/networkErrorService';
 
 const HomeScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -61,6 +64,12 @@ const HomeScreen = ({ navigation }) => {
   const [noteToRename, setNoteToRename] = useState(null);
   const [fileHistoryCache, setFileHistoryCache] = useState([]);
   const [forceUpdate, setForceUpdate] = useState(0);
+
+  // PPT处理进度状态
+  const [showProcessingProgress, setShowProcessingProgress] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [processingStage, setProcessingStage] = useState('preparing');
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
@@ -1007,8 +1016,10 @@ Week 4: □□□□□□□
           });
         });
 
-        // 启动智能预加载
-        startIntelligentPreload(offlineResponse.data);
+        // 启动智能预加载（只预加载小文件，跳过延迟加载的大文件）
+        const safeNotesForPreload = offlineResponse.data.filter(note => !note._isDeferred);
+        console.log(`HomeScreen: 预加载 ${safeNotesForPreload.length} 个小文件，跳过 ${offlineResponse.data.length - safeNotesForPreload.length} 个大文件`);
+        startIntelligentPreload(safeNotesForPreload);
       } else {
         // 如果没有笔记，返回空数组
         console.log('没有笔记，返回空数组');
@@ -1030,6 +1041,89 @@ Week 4: □□□□□□□
       setIsLoading(false);
     }
     // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
+  };
+
+  // 非阻塞方式加载笔记
+  const loadNotesNonBlocking = async () => {
+    try {
+      console.log('开始非阻塞加载笔记...');
+
+      // 分步骤加载，避免阻塞UI
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          console.log('加载笔记超时，使用缓存数据');
+          resolve({ success: false, timeout: true });
+        }, 8000); // 8秒超时
+      });
+
+      // 异步获取笔记数据
+      const fetchPromise = new Promise(async (resolve) => {
+        try {
+          // 让出控制权
+          await new Promise(r => setTimeout(r, 50));
+
+          console.log('尝试从Redux状态获取笔记数据');
+          if (allNotes && allNotes.length > 0) {
+            console.log('使用Redux状态中的笔记数据:', allNotes.length);
+            resolve({ success: true, data: allNotes, source: 'redux' });
+            return;
+          }
+
+          // 让出控制权
+          await new Promise(r => setTimeout(r, 50));
+
+          console.log('从离线存储获取笔记...');
+          const offlineResponse = await apiWrapper.getAllNotes();
+
+          if (offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
+            resolve({ success: true, data: offlineResponse.data, source: 'offline' });
+          } else {
+            resolve({ success: true, data: [], source: 'empty' });
+          }
+        } catch (error) {
+          console.error('获取笔记数据失败:', error);
+          resolve({ success: false, error });
+        }
+      });
+
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (result.success && result.data) {
+        console.log(`使用${result.source}数据，笔记数量:`, result.data.length);
+
+        // 分批更新Redux状态，避免阻塞UI
+        const batchSize = 10;
+        const batches = [];
+        for (let i = 0; i < result.data.length; i += batchSize) {
+          batches.push(result.data.slice(i, i + batchSize));
+        }
+
+        // 逐批更新
+        for (let i = 0; i < batches.length; i++) {
+          if (i === 0) {
+            // 第一批直接设置
+            dispatch(setNotesAction(batches[i]));
+          } else {
+            // 后续批次追加
+            batches[i].forEach(note => dispatch(addNote(note)));
+          }
+
+          // 每批之间让出控制权
+          if (i < batches.length - 1) {
+            await new Promise(r => setTimeout(r, 10));
+          }
+        }
+
+        console.log('非阻塞笔记加载完成');
+      } else {
+        console.log('没有笔记数据，设置空数组');
+        dispatch(setNotesAction([]));
+      }
+
+    } catch (error) {
+      console.error('非阻塞加载笔记失败:', error);
+      dispatch(setNotesAction([]));
+    }
   };
 
   // 智能预加载 - 完全异步，不阻塞UI
@@ -1277,38 +1371,61 @@ Week 4: □□□□□□□
 
       if (documentInfo) {
         console.log('选择的PPT文件:', documentInfo);
-        setIsLoading(true);
 
-        // 生成唯一的笔记ID
-        const noteId = `ppt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // 显示进度模态框
+        setShowProcessingProgress(true);
+        setProcessingProgress(0);
+        setProcessingMessage('准备处理PPT文件...');
+        setProcessingStage('preparing');
 
-        try {
-          // 创建FormData来导入PPT文档
-          const formData = new FormData();
-          formData.append('type', 'ppt');
-          formData.append('file', {
-            uri: documentInfo.localPath || documentInfo.uri,
-            name: documentInfo.name,
-            type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-          });
+        // 使用静态导入的非阻塞PPT处理器
 
-          // 使用importNote API保存文档
-          const savedNote = await notesApi.importNote(formData);
+        // 创建进度更新函数
+        const updateProgress = (progressInfo) => {
+          setProcessingProgress(progressInfo.progress);
+          setProcessingMessage(progressInfo.message);
+          setProcessingStage(progressInfo.stage);
+          console.log(`PPT处理进度: ${progressInfo.progress}% - ${progressInfo.message}`);
+        };
 
-          console.log('PPT文件已保存到本地:', savedNote);
+        // 完成回调
+        const onComplete = (result) => {
+          console.log('PPT文件已保存到本地:', result);
+
+          // 隐藏进度模态框
+          setShowProcessingProgress(false);
 
           // 显示成功提示
           Alert.alert('导入成功', 'PPT演示文稿已成功导入，您可以在主页中查看');
 
-          // 刷新笔记列表
-          await loadNotes();
+          // 异步刷新笔记列表，不阻塞UI
+          setTimeout(async () => {
+            try {
+              await loadNotesNonBlocking();
+            } catch (error) {
+              console.error('异步加载笔记失败:', error);
+            }
+          }, 100);
+        };
 
-        } catch (saveError) {
-          console.error('保存PPT文件失败:', saveError);
-          Alert.alert('保存失败', saveError.message || '保存PPT文件失败，请重试');
-        } finally {
-          setIsLoading(false);
-        }
+        // 错误回调
+        const onError = (error) => {
+          console.error('PPT导入失败:', error);
+
+          // 隐藏进度模态框
+          setShowProcessingProgress(false);
+
+          Alert.alert('导入失败', error.message || 'PPT文件导入失败，请重试');
+        };
+
+        // 使用非阻塞处理器处理PPT导入
+        nonBlockingPPTProcessor.processPPTImport(
+          documentInfo,
+          updateProgress,
+          onComplete,
+          onError
+        );
+
       }
     } catch (error) {
       console.error('选择PPT文件失败:', error);
@@ -2449,29 +2566,36 @@ Week 4: □□□□□□□
         )}
       </ScrollView>
 
-{/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
-<View style={[
-  styles.buttonContainer,
-  isLandscape && { right: 32, bottom: 32 }
-]}>
-  <TouchableOpacity
-    style={[
-      styles.addButton,
-      { backgroundColor: colors.primary },
-      isLandscape && { width: 60, height: 60, borderRadius: 30 }
-    ]}
-    onPress={() => setShowCreateOptions(true)}
-  >
-    {/* 确保"+"图标居中 */}
-    <Icon 
-      name="add" 
-      size={isLandscape ? 36 : 30}  // 横屏时稍大
-      color={colors.onPrimary} 
-      style={{ textAlign: 'center' }}  // 强制居中
-    />
-    <View style={styles.addButtonPulse} />
-  </TouchableOpacity>
-
+      {/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
+      <View style={[
+        styles.buttonContainer,
+        // 横屏模式下的样式调整
+        isLandscape && {
+          right: 32,
+          bottom: 32,
+        }
+      ]}>
+        <TouchableOpacity
+          style={[
+            styles.addButton,
+            { backgroundColor: colors.primary },
+            // 横屏模式下的样式调整
+            isLandscape && {
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+            }
+          ]}
+          onPress={() => {
+            // 显示创建选项
+            setShowCreateOptions(true);
+          }}
+        >
+          <View style={styles.addButtonInner}>
+            <Icon name="add" size={30} color={colors.onPrimary} />
+          </View>
+          <View style={styles.addButtonPulse} />
+        </TouchableOpacity>
 
         {/* 创建内容弹窗 */}
         <CreateContentModal
@@ -2500,6 +2624,15 @@ Week 4: □□□□□□□
           visible={showCanvasStyleModal}
           onClose={() => setShowCanvasStyleModal(false)}
           onSelect={handleCanvasStyleSelect}
+        />
+
+        {/* PPT处理进度模态框 */}
+        <ProcessingProgressModal
+          visible={showProcessingProgress}
+          progress={processingProgress}
+          message={processingMessage}
+          stage={processingStage}
+          cancelable={false}
         />
 
         {/* 笔记样式选择弹窗 */}

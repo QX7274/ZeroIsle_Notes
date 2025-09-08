@@ -19,18 +19,21 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
+
 import { Button, EmptyState } from '../../components/common';
 import { UnifiedSearchBar } from '../../components/search';
 import analyticsService from '../../services/analytics/analyticsService';
 import NetInfo from '@react-native-community/netinfo';
 import mindMapApi from '../../services/api/mindMapApi';
 import { EXAMPLE_MIND_MAPS } from '../../constants/examples/mindMapExamples';
+import networkErrorService from '../../services/networkErrorService';
 
 const { width } = Dimensions.get('window');
 
 const MindMapScreen = () => {
   const navigation = useNavigation();
   const { colors } = useTheme();
+
   const styles = getStyles(colors);
 
   // 状态
@@ -86,7 +89,18 @@ const MindMapScreen = () => {
       }
     } catch (err) {
       console.error('加载思维导图失败:', err);
-      setError('加载思维导图失败，请稍后重试');
+      
+      // 使用网络错误服务处理错误
+      if (networkErrorService.isNetworkError(err)) {
+        networkErrorService.handleApiError(err, {
+          context: '加载思维导图',
+          customMessage: '网络连接失败，无法加载思维导图'
+        });
+        setError('网络连接失败，请检查网络设置');
+      } else {
+        setError('加载思维导图失败，请稍后重试');
+      }
+      
       analyticsService.trackError(err, { action: 'load_mind_maps' });
       setMindMaps(EXAMPLE_MIND_MAPS);
     } finally {
@@ -118,7 +132,7 @@ const MindMapScreen = () => {
   // 创建新思维导图
   const handleCreateMindMap = async () => {
     if (!newMindMapTitle.trim()) {
-      Alert.alert('提示', '请输入思维导图标题');
+      showWarningMessage('请输入思维导图标题', '提示');
       return;
     }
 
@@ -139,12 +153,18 @@ const MindMapScreen = () => {
         navigation.navigate('MindMapEdit', { mindMapId: response.data.id });
       } else {
         // 创建失败
-        Alert.alert('错误', response.message || '创建思维导图失败，请稍后重试');
+        handleError(new Error(response.message), {
+          context: '创建思维导图',
+          customMessage: '创建思维导图失败，请稍后重试'
+        });
         analyticsService.trackError(new Error(response.message), { action: 'create_mind_map' });
       }
     } catch (err) {
       console.error('创建思维导图失败:', err);
-      Alert.alert('错误', '创建思维导图失败，请稍后重试');
+      handleError(err, {
+        context: '创建思维导图',
+        customMessage: '创建思维导图失败，请检查网络连接后重试'
+      });
       analyticsService.trackError(err, { action: 'create_mind_map' });
     }
   };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -79,6 +79,7 @@ const SHAPES = Object.freeze({
 
 // AI工具类型
 const AI_TOOLS = [
+  { id: 'handwriting_ocr', label: '手写转换', icon: 'gesture-tap', description: '将手写内容转换为文字' },
   { id: 'translate', label: '翻译', icon: 'translate', description: '翻译选中的文本' },
   { id: 'code_recognition', label: '代码识别', icon: 'code-braces', description: '识别并格式化代码' },
   { id: 'math_formula', label: '数学公式', icon: 'function-variant', description: '识别数学公式并转换为LaTeX' },
@@ -121,6 +122,14 @@ const AllInOneToolbar = ({
   // 书签相关
   onBookmarkAdd,
   onBookmarkList,
+
+  // 手写转换功能
+  onHandwritingOCR,
+
+  // 手动模式切换相关
+  onModeToggle,
+  isFingerMode = false,
+  showModeToggle = false, // 是否显示模式切换按钮
 }) => {
   const { colors } = useTheme();
   const [activeTool, setActiveTool] = useState(initialTool);
@@ -128,6 +137,11 @@ const AllInOneToolbar = ({
   const [activeStrokeWidth, setActiveStrokeWidth] = useState(initialStrokeWidth);
   const [activeShape, setActiveShape] = useState(SHAPES.LINE);
   const [activeEraserSize, setActiveEraserSize] = useState(16); // 默认中等擦除区域大小
+
+  // 保持工具状态的引用，避免意外重置
+  const lastSelectedToolRef = useRef(initialTool);
+  const lastSelectedColorRef = useRef(initialColor);
+  const lastSelectedStrokeWidthRef = useRef(initialStrokeWidth);
 
   // AI工具相关状态
   const [showAIToolModal, setShowAIToolModal] = useState(false);
@@ -231,9 +245,11 @@ const AllInOneToolbar = ({
     }
   };
 
-  // 处理绘图工具选择
+  // 处理绘图工具选择 - 保持状态持久化
   const handleToolSelect = (tool) => {
     setActiveTool(tool);
+    lastSelectedToolRef.current = tool;
+    onToolChange?.(tool);
     if (tool !== DRAWING_TOOLS.SHAPE) {
       setShowShapePicker(false);
     }
@@ -250,7 +266,8 @@ const AllInOneToolbar = ({
     setSelectedAITool(tool);
     setShowAIToolModal(false);
 
-    if (!selectedText) {
+    // 手写转换不需要选中文本
+    if (tool.id !== 'handwriting_ocr' && !selectedText) {
       Alert.alert('提示', '请先选择文本');
       return;
     }
@@ -298,6 +315,14 @@ const AllInOneToolbar = ({
 
       // 根据工具类型调用不同的API
       switch (toolId) {
+        case 'handwriting_ocr':
+          // 调用手写转换功能
+          if (onHandwritingOCR) {
+            result = await onHandwritingOCR();
+          } else {
+            result = { success: false, error: '手写转换功能不可用' };
+          }
+          break;
         case 'translate':
           result = await noteAIService.translateText(text);
           break;
@@ -807,7 +832,10 @@ const AllInOneToolbar = ({
 
   // 主工具栏渲染
   return (
-    <View style={[styles.container, { backgroundColor: colors.card }]}>
+    <View>
+      {/* 主工具栏 */}
+      <View style={[styles.container, { backgroundColor: colors.card }]}>
+
       {/* 绘图工具 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarSection} contentContainerStyle={styles.toolbarContentContainer}>
         {/* 绘图工具组 */}
@@ -988,6 +1016,17 @@ const AllInOneToolbar = ({
         <View style={styles.toolGroup}>
           <TouchableOpacity
             style={styles.toolButton}
+            onPress={() => {
+              if (onHandwritingOCR) {
+                onHandwritingOCR();
+              }
+            }}
+          >
+            <Text style={styles.toolLabel}>手写转换</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolButton}
             onPress={() => setShowAIToolModal(true)}
           >
             <Text style={styles.toolLabel}>AI工具</Text>
@@ -1070,6 +1109,39 @@ const AllInOneToolbar = ({
 
       {/* AI处理加载指示器 */}
       {renderAIProcessingIndicator()}
+      </View>
+
+      {/* 模式切换按钮 - 右侧位置 */}
+      {showModeToggle && (
+        <View style={[styles.modeToggleContainerRight, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[
+              styles.modeToggleButtonRight,
+              {
+                backgroundColor: isFingerMode ? colors.primary : colors.background,
+                borderColor: colors.border
+              }
+            ]}
+            onPress={() => {
+              if (onModeToggle) {
+                onModeToggle(!isFingerMode);
+              }
+            }}
+          >
+            <Icon
+              name={isFingerMode ? "finger-print" : "create"}
+              size={16}
+              color={isFingerMode ? colors.background : colors.primary}
+            />
+            <Text style={[
+              styles.modeToggleTextRight,
+              { color: isFingerMode ? colors.background : colors.primary }
+            ]}>
+              {isFingerMode ? '手指' : '笔'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -1087,6 +1159,12 @@ const styles = StyleSheet.create({
     borderRadius: 0,       // 移除圆角，无缝连接屏幕顶部
     marginHorizontal: 0,   // 移除边距，无缝连接
     minHeight: 20,         // 设置最小高度，确保紧凑布局
+    position: 'relative',  // 为绝对定位的按钮提供参考
+  },
+  modeToggleText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '600',
   },
   toolbarSection: {
     flexDirection: 'row',
@@ -1310,6 +1388,27 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modeToggleContainerRight: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 1001,
+  },
+  modeToggleButtonRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    minWidth: 60,
+    justifyContent: 'center',
+  },
+  modeToggleTextRight: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

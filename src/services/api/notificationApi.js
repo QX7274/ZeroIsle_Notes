@@ -3,6 +3,7 @@
  */
 import instance from './interceptor';
 import { API_ENDPOINTS } from '../../config/api';
+import networkErrorService from '../networkErrorService';
 
 /**
  * 获取通知列表
@@ -17,6 +18,12 @@ export const getNotifications = async (params = {}) => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '获取通知列表',
+        customMessage: '网络连接失败，无法获取通知列表'
+      });
+    }
     return {
       success: false,
       message: error.message || '获取通知列表失败',
@@ -38,6 +45,12 @@ export const getNotificationDetail = async (id) => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '获取通知详情',
+        customMessage: '网络连接失败，无法获取通知详情'
+      });
+    }
     return {
       success: false,
       message: error.message || '获取通知详情失败',
@@ -59,6 +72,12 @@ export const markAsRead = async (id) => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '标记通知为已读',
+        customMessage: '网络连接失败，无法标记通知为已读'
+      });
+    }
     return {
       success: false,
       message: error.message || '标记通知为已读失败',
@@ -79,6 +98,12 @@ export const markAllAsRead = async () => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '标记所有通知为已读',
+        customMessage: '网络连接失败，无法标记所有通知为已读'
+      });
+    }
     return {
       success: false,
       message: error.message || '标记所有通知为已读失败',
@@ -99,6 +124,12 @@ export const getUnreadCount = async () => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '获取未读通知数量',
+        customMessage: '网络连接失败，无法获取未读通知数量'
+      });
+    }
     return {
       success: false,
       message: error.message || '获取未读通知数量失败',
@@ -119,6 +150,12 @@ export const deleteAllNotifications = async () => {
       data: response.data
     };
   } catch (error) {
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '删除所有通知',
+        customMessage: '网络连接失败，无法删除所有通知'
+      });
+    }
     return {
       success: false,
       message: error.message || '删除所有通知失败',

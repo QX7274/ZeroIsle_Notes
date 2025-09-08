@@ -36,7 +36,13 @@ python-pptx==0.6.23  # PowerPoint处理
 pytesseract==0.3.10  # OCR文字识别
 python-magic==0.4.27  # 文件类型检测
 openpyxl==3.1.2  # Excel处理
-reportlab-4.4.3  # PDF生成
+reportlab==4.0.4  # PDF生成
+
+# 文档转换服务新增依赖
+Flask==2.3.3  # Flask Web框架
+docx2pdf==0.1.8  # Word转PDF (Windows)
+mammoth==1.6.0  # Word转HTML
+weasyprint==60.2  # HTML转PDF
 
 
 # Windows文档转换 (仅Windows系统需要)

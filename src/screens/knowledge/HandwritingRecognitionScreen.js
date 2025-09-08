@@ -28,6 +28,7 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { dimensions } from '../../utils/constants/dimensions';
 import { NOTES_ENDPOINTS } from '../../utils/constants/apiEndpoints';
+import networkErrorService from '../../services/networkErrorService';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
@@ -191,6 +192,12 @@ const HandwritingRecognitionScreen = ({ navigation, route, styles, colors }) => 
       }
     } catch (error) {
       console.error('手写识别错误:', error);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '手写识别',
+          customMessage: '网络连接失败，无法进行手写识别'
+        });
+      }
       setToastMessage(`识别失败: ${error.message || '请稍后重试'}`);
     } finally {
       setIsRecognizing(false);

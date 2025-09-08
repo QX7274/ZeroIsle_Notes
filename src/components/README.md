@@ -35,11 +35,10 @@
 - **AIModelSelector.js**: AI模型选择器组件，用于选择AI模型
 - **AIPromptTemplates.js**: AI提示模板组件，提供常用提示模板
 
-### 手写识别相关组件 (`handwriting/`)
+### 手写相关组件 (`handwriting/`)
 
-- **HandwritingRecognizer.js**: 手写识别组件，提供手写识别功能
-- **HandwritingCanvas.js**: 手写画布组件，用于手写输入
-- **HandwritingToolbar.js**: 手写工具栏组件，提供手写相关工具
+- **HandwritingAdapter.js**: 手写适配器组件，将AllInOneToolbar工具映射到手写引擎
+- **UniversalHandwritingEngine.js**: 通用手写引擎，提供高性能手写功能
 
 ### 知识图谱相关组件 (`knowledge/`)
 
@@ -143,7 +142,7 @@ import { Button, Input, Card, Loading } from '../components/common';
 ```javascript
 // 导入特定组件
 import { NoteList, NoteEditor } from '../components/notes';
-import { HandwritingRecognizer } from '../components/handwriting';
+import { HandwritingAdapter } from '../components/handwriting';
 import { KnowledgeGraph } from '../components/knowledge';
 import { MindMap } from '../components/mind_map';
 import { SearchBar, SearchResults } from '../components/search';

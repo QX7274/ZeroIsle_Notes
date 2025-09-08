@@ -151,10 +151,14 @@ class DocumentPickerService {
         console.log('DocumentPickerService: 检测到content://协议，使用持久化服务');
 
         try {
+          // 使用带进度回调的持久化方法
           const persistedFile = await filePersistenceService.persistFile(
             document.uri,
             document.name || `document_${Date.now()}`,
-            type
+            type,
+            (progress) => {
+              console.log('DocumentPickerService: 文件处理进度:', progress);
+            }
           );
 
           console.log('DocumentPickerService: 文档持久化完成:', persistedFile);

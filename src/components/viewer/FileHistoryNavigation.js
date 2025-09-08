@@ -17,6 +17,7 @@ import fileHistoryService from '../../services/fileHistoryService';
  */
 const FileHistoryNavigation = ({
   currentFileId,
+  noteId,
   onFileSelect,
   navigation,
   visible = true
@@ -60,7 +61,8 @@ const FileHistoryNavigation = ({
   }, []);
 
   const handleFileSelect = (file) => {
-    if (file.id === currentFileId) {
+    const effectiveCurrentFileId = currentFileId || noteId;
+    if (file.id === effectiveCurrentFileId || file.noteId === effectiveCurrentFileId) {
       return; // 当前文件，不需要切换
     }
 
@@ -200,7 +202,8 @@ const FileHistoryNavigation = ({
         contentContainerStyle={styles.scrollContent}
       >
         {history.slice(0, 8).map((file) => {
-          const isCurrentFile = file.id === currentFileId;
+          const effectiveCurrentFileId = currentFileId || noteId;
+          const isCurrentFile = file.id === effectiveCurrentFileId || file.noteId === effectiveCurrentFileId;
 
           return (
             <TouchableOpacity

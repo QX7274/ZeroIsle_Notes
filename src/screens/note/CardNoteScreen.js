@@ -23,6 +23,7 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import BackButton from '../../components/viewer/BackButton';
 import SaveButton from '../../components/common/SaveButton';
+import networkErrorService from '../../services/networkErrorService';
 
 /**
  * 卡片笔记屏幕
@@ -197,7 +198,14 @@ const CardNoteScreen = ({ route, navigation }) => {
         console.error('CardNoteScreen: 加载笔记失败:', error);
         // 即使加载失败，也不自动创建新笔记
         if (isMounted) {
-          Alert.alert('错误', '加载笔记失败，请重试');
+          if (networkErrorService.isNetworkError(error)) {
+            networkErrorService.handleApiError(error, {
+              context: '加载笔记',
+              customMessage: '网络连接失败，无法加载笔记'
+            });
+          } else {
+            Alert.alert('错误', '加载笔记失败，请重试');
+          }
         }
       }
     };
@@ -294,8 +302,8 @@ const CardNoteScreen = ({ route, navigation }) => {
     const count = content.replace(/\s/g, '').length;
     setWordCount(count);
 
-    // 自动保存（仅在有实际内容且不是初始状态时）
-    const hasRealContent = content.trim().length > 10 && title.trim().length > 0;
+    // 自动保存（降低保存条件，确保内容能够保存）
+    const hasRealContent = content.trim().length > 0 || title.trim().length > 0;
     const isNotInitialState = content.trim() !== '' || title.trim() !== (initialTitle || '');
 
     if (hasRealContent && isNotInitialState && noteId) {
@@ -431,8 +439,8 @@ const CardNoteScreen = ({ route, navigation }) => {
 
   const saveNote = async () => {
     try {
-      // 如果没有实际内容，不保存
-      if (content.trim().length < 5 && title.trim().length < 2) {
+      // 如果没有实际内容，不保存（降低条件）
+      if (content.trim().length === 0 && title.trim().length === 0) {
         return { success: true };
       }
 
@@ -536,6 +544,12 @@ const CardNoteScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error('保存失败:', error.message);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '保存笔记',
+          customMessage: '网络连接失败，无法保存笔记'
+        });
+      }
       throw error;
     }
   };

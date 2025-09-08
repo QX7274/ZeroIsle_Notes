@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { eventEmitter } from './utils/eventEmitter';
 import { STORAGE_EVENTS } from './offline/offlineStorageService';
+import networkErrorService from './networkErrorService';
 
 /**
  * 文件历史服务

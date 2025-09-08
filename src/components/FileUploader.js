@@ -10,6 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { fileService } from '../../services/file';
 import { loadingService } from '../../services/loading';
 import { Toast } from '../common';
+import networkErrorService from '../../services/networkErrorService';
 
 const FileUploader = ({ onUploadComplete, allowedTypes = ['pdf', 'doc', 'docx'] }) => {
   const { colors } = useTheme();
@@ -68,7 +69,14 @@ const FileUploader = ({ onUploadComplete, allowedTypes = ['pdf', 'doc', 'docx'] 
       return uploadResult;
     } catch (error) {
       console.error('文件上传失败:', error);
-      Alert.alert('上传失败', error.message || '文件上传过程中出现错误');
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleFileUploadError(error, {
+          context: '文件上传',
+          customMessage: '网络连接失败，无法上传文件'
+        });
+      } else {
+        Alert.alert('上传失败', error.message || '文件上传过程中出现错误');
+      }
       throw error;
     } finally {
       setIsUploading(false);

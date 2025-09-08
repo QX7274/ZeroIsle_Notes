@@ -27,6 +27,7 @@ import {
 } from '../../components/search';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import networkErrorService from '../../services/networkErrorService';
 
 /**
  * 社区搜索屏幕

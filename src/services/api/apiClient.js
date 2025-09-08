@@ -12,6 +12,8 @@ import NetInfo from '@react-native-community/netinfo';
 import apiCache from './apiCache';
 import authStorage from '../auth/authStorage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
+import networkErrorService from '../networkErrorService';
+import tokenService from '../auth/tokenService';
 
 // API配置
 import { API_URL as CONFIG_API_URL, API_VERSION as CONFIG_API_VERSION, API_TIMEOUT as CONFIG_API_TIMEOUT } from '../../config';
@@ -87,8 +89,7 @@ const saveOfflineRequest = async (config) => {
   }
 };
 
-// 导入令牌服务
-import tokenService from '../auth/tokenService';
+
 
 // 请求拦截器
 apiClient.interceptors.request.use(
@@ -130,7 +131,7 @@ apiClient.interceptors.request.use(
         }
       } else if (tokenData && tokenData.token) {
         // 令牌有效，直接使用
-        console.log('使用有效的访问令牌:', tokenData.token.substring(0, 10) + '...');
+        console.log('使用有效令牌:', tokenData.token.substring(0, 10) + '...');
         config.headers.Authorization = `Bearer ${tokenData.token}`;
       } else {
         console.warn('未找到认证令牌，请求将以未认证状态发送');
@@ -163,35 +164,27 @@ apiClient.interceptors.request.use(
         }
 
         // 对于GET请求，尝试从缓存获取数据
-        if (config.method === 'get') {
-          try {
-            const cachedData = await apiCache.getCachedApiResponse(config.url);
-            if (cachedData) {
-              console.log('使用缓存数据:', config.url);
-              // 添加标记，表示这是缓存数据
-              config.headers['X-From-Cache'] = 'true';
-            } else {
-              console.log('无缓存数据，继续请求:', config.url);
-              // 添加标记，表示这是离线请求
-              config.headers['X-Offline-Request'] = 'true';
-            }
-          } catch (cacheError) {
-            console.error('读取缓存数据失败:', cacheError);
-          }
+        const cachedData = await getCachedData(config.url);
+        if (cachedData) {
+          console.log('使用缓存数据:', config.url);
+          return {
+            data: cachedData,
+            status: 200,
+            statusText: 'OK (Cached)',
+            headers: {},
+            config
+          };
         }
       }
+
+      return config;
     } catch (error) {
-      // 如果是离线错误，直接抛出
-      if (error.isOfflineError) {
-        return Promise.reject(error);
-      }
-
       console.error('请求拦截器错误:', error);
+      return config;
     }
-
-    return config;
   },
   error => {
+    console.error('请求拦截器错误:', error);
     return Promise.reject(error);
   }
 );
@@ -298,9 +291,14 @@ apiClient.interceptors.response.use(
       // 修改错误消息为中文
       error.message = '网络连接失败，请检查网络设置';
 
-      // 不显示弹窗，避免频繁弹窗打扰用户
-      // 而是在返回的错误对象中添加标记，让调用方决定如何处理
+      // 标记为网络错误
       error.isNetworkError = true;
+
+      // 调用networkErrorService显示网络错误弹窗
+      networkErrorService.handleApiError(error, {
+        context: 'API请求',
+        customMessage: '网络连接失败，请检查网络设置后重试'
+      });
 
       // 直接使用与离线错误相同的处理逻辑
       console.log('网络错误，使用离线模式处理');
@@ -415,6 +413,12 @@ apiClient.interceptors.response.use(
 
       // 添加超时标记
       error.isTimeoutError = true;
+
+      // 调用networkErrorService显示超时错误弹窗
+      networkErrorService.handleApiError(error, {
+        context: 'API请求',
+        customMessage: '请求超时，请稍后重试'
+      });
     } else if (error.response) {
       const { status, data } = error.response;
 
@@ -479,7 +483,10 @@ apiClient.interceptors.response.use(
         case 403:
           // 禁止访问
           console.log('收到403禁止访问响应，URL:', error.config.url);
-          Alert.alert('访问被拒绝', ERROR_MESSAGES.FORBIDDEN);
+          networkErrorService.handleApiError(error, {
+            context: '访问被拒绝',
+            customMessage: ERROR_MESSAGES.FORBIDDEN
+          });
           break;
         case 404:
           // 资源未找到，静默处理，不显示弹窗
@@ -511,9 +518,15 @@ apiClient.interceptors.response.use(
           // 检查是否是网络问题
           NetInfo.fetch().then(state => {
             if (!state.isConnected) {
-              Alert.alert('网络连接失败', '请检查您的网络连接后重试');
+              networkErrorService.handleApiError(error, {
+                context: '服务器错误',
+                customMessage: '请检查您的网络连接后重试'
+              });
             } else {
-              Alert.alert('服务器错误', ERROR_MESSAGES.SERVER_ERROR);
+              networkErrorService.handleApiError(error, {
+                context: '服务器错误',
+                customMessage: ERROR_MESSAGES.SERVER_ERROR
+              });
             }
           });
           break;
@@ -531,16 +544,25 @@ apiClient.interceptors.response.use(
               errorMsg = data.error;
             }
           }
-          Alert.alert('请求失败', errorMsg);
+          networkErrorService.handleApiError(error, {
+            context: '请求失败',
+            customMessage: errorMsg
+          });
           break;
       }
     } else if (error.request) {
       // 请求已发送但没有收到响应
-      Alert.alert('网络错误', ERROR_MESSAGES.NETWORK_ERROR);
+      networkErrorService.handleApiError(error, {
+        context: '网络错误',
+        customMessage: ERROR_MESSAGES.NETWORK_ERROR
+      });
     } else {
       // 请求配置出错
       console.error('请求错误:', error.message);
-      Alert.alert('请求错误', error.message || '发送请求时出现错误');
+      networkErrorService.handleApiError(error, {
+        context: '请求配置错误',
+        customMessage: error.message || '发送请求时出现错误'
+      });
     }
 
     return Promise.reject(error);
@@ -595,8 +617,11 @@ const handleUnauthorized = async () => {
       await authStorage.removeItem(STORAGE_KEYS.USER_INFO);
       await authStorage.removeItem(STORAGE_KEYS.USER);
 
-      // 显示提示
-      Alert.alert('登录已过期', '请重新登录');
+             // 显示提示
+       networkErrorService.handleApiError(error, {
+         context: '登录过期',
+         customMessage: '请重新登录'
+       });
 
       // 使用setTimeout确保Alert显示后再执行导航
       setTimeout(() => {

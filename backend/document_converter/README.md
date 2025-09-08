@@ -1,30 +1,81 @@
 # 文档转换服务
 
-这个模块提供了Word和PPT文档转换为PDF的功能，使用Windows COM接口进行真实的文档转换。
+这是一个基于Django的跨平台文档转换服务，支持将Word和PowerPoint文档转换为PDF格式，不依赖Microsoft Office。
 
 ## 功能特性
 
-- **Word转PDF**: 支持.doc和.docx格式
-- **PPT转PDF**: 支持.ppt和.pptx格式
-- **真实转换**: 使用Microsoft Office COM接口，保证转换质量
-- **进度跟踪**: 提供转换进度回调
-- **错误处理**: 完善的错误处理和日志记录
-- **临时文件管理**: 自动清理临时文件
+- ✅ **PPT/PPTX转PDF**: 提取文本内容并生成结构化PDF
+- ✅ **Word/DOCX转PDF**: 保持格式的高质量转换
+- ✅ **跨平台支持**: Windows、Linux、macOS
+- ✅ **不依赖Microsoft Office**: 使用纯Python库实现
+- ✅ **Django REST API**: 标准的RESTful接口
+- ✅ **多种转换方式**: 文件上传和Base64编码
+- ✅ **完善的错误处理**: 详细的错误信息和状态码
+- ✅ **COM接口备用**: Windows系统可选使用COM接口
+
+## 技术栈
+
+- **Django 4.2+**: Web框架
+- **Django REST Framework**: API框架
+- **python-pptx**: PPT文档解析
+- **python-docx**: Word文档解析
+- **ReportLab**: PDF生成
+- **mammoth**: Word转HTML
+- **weasyprint**: HTML转PDF
+- **Pillow**: 图像处理
 
 ## 系统要求
 
+- Python 3.7+
+- 足够的磁盘空间用于临时文件
+
 ### Windows系统
-- Windows 10/11
-- Microsoft Office (Word和PowerPoint)
-- Python 3.8+
-- comtypes库
-- pywin32库
+- 可选：Microsoft Office（用于COM接口备用方案）
+- docx2pdf库（自动安装）
 
-### 依赖安装
-
+### Linux系统
 ```bash
-pip install comtypes==1.2.0
-pip install pywin32==306
+# Ubuntu/Debian
+sudo apt-get install python3-cffi python3-brotli libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0
+
+# CentOS/RHEL
+sudo yum install python3-cffi python3-brotli pango harfbuzz
+```
+
+### macOS系统
+```bash
+# 使用Homebrew安装依赖
+brew install pango harfbuzz
+```
+
+## 安装和启动
+
+### 方法1: 使用启动脚本（推荐）
+
+**Windows:**
+```cmd
+cd backend
+start_document_converter.bat
+```
+
+**Linux/macOS:**
+```bash
+cd backend
+chmod +x start_document_converter.sh
+./start_document_converter.sh
+```
+
+### 方法2: 手动启动
+
+1. **安装依赖**
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+2. **启动Django服务器**
+```bash
+python manage.py runserver 0.0.0.0:8000
 ```
 
 ## API端点

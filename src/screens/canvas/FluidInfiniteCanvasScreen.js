@@ -18,10 +18,13 @@ import {
   PanResponder,
   Animated
 } from 'react-native';
+import { Canvas, Rect, Line, Circle, Skia } from '@shopify/react-native-skia';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
+import HandwritingAdapter from '../../components/handwriting/HandwritingAdapter';
 import { offlineStorageService } from '../../services/offline';
 import { addNote, updateNote } from '../../redux/slices/notesSlice';
+// import * as uuid from 'react-native-uuid'; // 暂时注释，使用备用方案
 
 // 导入PDF界面的成熟组件
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
@@ -49,17 +52,18 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
   const [noteTitle, setNoteTitle] = useState(title);
   const [currentCanvasStyleName, setCurrentCanvasStyleName] = useState(canvasStyle);
   
-  // 缩放状态 - 只对内容部分生效
+  // 缩放状态 - 参考PDF界面实现
   const [scale, setScale] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const lastScale = useRef(1);
   
-  // 画布位置状态 - 以界面中心为起点
-  const [offsetX, setOffsetX] = useState((screenWidth * 5 - screenWidth) / 2);
-  const [offsetY, setOffsetY] = useState((screenHeight * 5 - screenHeight) / 2);
+  // 画布位置状态 - 确保画布中心处于界面屏幕中心
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
   
-  // 画布尺寸状态 - 支持无限扩展
-  const [canvasWidth, setCanvasWidth] = useState(screenWidth * 5);
-  const [canvasHeight, setCanvasHeight] = useState(screenHeight * 5);
+  // 画布尺寸状态 - 简化为两倍大小
+  const [canvasWidth, setCanvasWidth] = useState(screenWidth * 2);
+  const [canvasHeight, setCanvasHeight] = useState(screenHeight * 2);
   
   // 可见区域状态 - 优化渲染性能
   const [visibleRect, setVisibleRect] = useState({
@@ -69,29 +73,198 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     height: screenHeight
   });
   
-  // 渲染优化状态
+  // 渲染优化状态 - 简化版本
   const [isRendering, setIsRendering] = useState(false);
-  const [renderQueue, setRenderQueue] = useState([]);
-  const [renderedAreas, setRenderedAreas] = useState(new Set()); // 记录已渲染区域
   
-  // 滑动指示器状态
-  const [showScrollIndicators, setShowScrollIndicators] = useState(true); // 初始显示
+  // 移动状态
   const [isMoving, setIsMoving] = useState(false);
-  const [scrollOffsetY, setScrollOffsetY] = useState(0);
-  const [scrollOffsetX, setScrollOffsetX] = useState(0);
   
+  // 手写模式状态
+  const [isHandwritingMode, setIsHandwritingMode] = useState(false);
+  const [currentDrawingTool, setCurrentDrawingTool] = useState({ type: 'pen' });
+  const [currentDrawingColor, setCurrentDrawingColor] = useState('#000000');
+  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
   // 引用
   const scrollViewRef = useRef(null);
   const contentRef = useRef(null);
-  const initialDistance = useRef(0);
-  const initialScale = useRef(1);
-  const initialOffset = useRef({ x: 0, y: 0 });
-  const isTransforming = useRef(false);
-  const lastPanTime = useRef(0);
-  const panStartTime = useRef(0);
+  const handwritingAdapterRef = useRef(null);
   const renderTimeout = useRef(null);
+  const isCreatingRef = useRef(false); // 防止重复创建标志
+  const abortControllerRef = useRef(null); // 用于取消异步操作
+
+  // 手写模式切换处理函数 - 修复按钮显示与操作一致
+  const handleModeToggle = useCallback((newMode) => {
+    // AllInOneToolbar传递的是!isFingerMode，所以需要取反
+    const newHandwritingMode = !newMode;
+    setIsHandwritingMode(newHandwritingMode);
+    
+    // 不在这里清空笔迹，保持笔迹数据
+    console.log('FluidInfiniteCanvasScreen: 模式切换到:', newHandwritingMode ? '手写模式' : '手指模式');
+  }, []);
+
+  // 手写转换按钮处理函数
+  const handleHandwritingOCR = useCallback(() => {
+    setIsHandwritingMode(!isHandwritingMode);
+    console.log('FluidInfiniteCanvasScreen: 手写转换按钮点击，当前模式:', isHandwritingMode ? '手指模式' : '手写模式');
+  }, [isHandwritingMode]);
+
+  // 使用ScrollView原生缩放功能，不再需要PanResponder
+
+  const handleToolChange = useCallback((tool) => {
+    setCurrentDrawingTool(tool);
+    console.log('FluidInfiniteCanvasScreen: 工具切换到:', tool);
+  }, []);
+
+  const handleColorChange = useCallback((color) => {
+    setCurrentDrawingColor(color);
+    console.log('FluidInfiniteCanvasScreen: 颜色切换到:', color);
+  }, []);
+
+  const handleStrokeWidthChange = useCallback((width) => {
+    setCurrentStrokeWidth(width);
+    console.log('FluidInfiniteCanvasScreen: 笔迹粗细切换到:', width);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.undoLastStroke();
+      }
+    } catch (error) {
+      console.error('FluidInfiniteCanvasScreen: 撤销操作失败:', error);
+    }
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    try {
+      // TODO: 实现重做功能
+      console.log('FluidInfiniteCanvasScreen: 重做功能待实现');
+    } catch (error) {
+      console.error('FluidInfiniteCanvasScreen: 重做操作失败:', error);
+    }
+  }, []);
+
+  const handleClear = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.clearStrokes();
+      }
+    } catch (error) {
+      console.error('FluidInfiniteCanvasScreen: 清空操作失败:', error);
+    }
+  }, []);
+
+  // 存储待保存的笔迹数据
+  const pendingStrokes = useRef([]);
+  const saveTimeoutRef = useRef(null);
+  const noteDataRef = useRef(null);
+
+  const handleStrokesChange = useCallback(async (strokes) => {
+    try {
+      if (!Array.isArray(strokes)) {
+        console.warn('FluidInfiniteCanvasScreen: 无效的笔迹数据');
+        return;
+      }
+
+      setCanUndo(strokes.length > 0);
+      setCanRedo(false); // TODO: 实现重做逻辑
+      console.log(`FluidInfiniteCanvasScreen: 笔迹更新，当前数量: ${strokes.length}`);
+
+      // 性能优化：只存储笔迹数据，不立即保存
+      pendingStrokes.current = strokes;
+
+      // 防抖保存：清除之前的保存定时器，设置新的定时器
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      // 如果有画布数据，延迟保存笔迹到文件（防抖机制）
+      // 使用ref获取最新的noteData，避免依赖项循环
+      const currentNoteData = noteDataRef.current;
+      if (currentNoteData && currentNoteData.id) {
+        saveTimeoutRef.current = setTimeout(async () => {
+          await saveStrokesToCanvas(strokes);
+        }, 2000); // 2秒后保存，避免频繁保存
+      }
+    } catch (error) {
+      console.error('FluidInfiniteCanvasScreen: 处理笔迹变化失败:', error);
+    }
+  }, []); // 移除noteData依赖项，避免循环
+
+  // 自动保存笔迹到画布文件（防抖保存）
+  const saveStrokesToCanvas = useCallback(async (strokes) => {
+    try {
+      // 检查是否已取消
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作已取消');
+        return;
+      }
+
+      // 使用ref获取最新的noteData，避免依赖项循环
+      const currentNoteData = noteDataRef.current;
+      if (!currentNoteData || !currentNoteData.id) {
+        console.warn('FluidInfiniteCanvasScreen: 没有画布数据，无法保存笔迹');
+        return;
+      }
+
+      // 统一ID字段处理 - 确保id和_id字段一致
+      const unifiedId = currentNoteData.id || currentNoteData._id;
+      if (!unifiedId) {
+        console.error('FluidInfiniteCanvasScreen: 画布数据缺少ID字段');
+        return;
+      }
+
+      // 更新画布数据，包含笔迹信息
+      const updatedCanvas = {
+        ...currentNoteData,
+        id: unifiedId,
+        _id: unifiedId, // 确保两个字段一致
+        title: noteTitle,
+        content: content,
+        canvasStyle: currentCanvasStyleName,
+        scale: scale,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        canvasWidth: canvasWidth,
+        canvasHeight: canvasHeight,
+        // 保存笔迹数据
+        strokes: strokes,
+        strokesData: JSON.stringify(strokes), // 同时保存JSON格式
+        updated_at: new Date().toISOString(),
+        file_uri: currentNoteData.file_uri || `canvas://${unifiedId}`,
+        uri: currentNoteData.uri || `canvas://${unifiedId}`
+      };
+
+      console.log('FluidInfiniteCanvasScreen: 自动保存笔迹到画布:', updatedCanvas.id, '笔迹数量:', strokes.length);
+      
+      const result = await offlineStorageService.saveNote(updatedCanvas);
+
+      // 再次检查是否已取消
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作在完成后被取消');
+        return;
+      }
+
+      if (result.success) {
+        // 只更新Redux状态，不更新本地noteData状态，避免循环
+        dispatch(updateNote(updatedCanvas));
+        console.log('FluidInfiniteCanvasScreen: 笔迹自动保存成功');
+      } else {
+        throw new Error('自动保存笔迹失败');
+      }
+    } catch (error) {
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作被取消');
+        return;
+      }
+      console.error('FluidInfiniteCanvasScreen: 自动保存笔迹到画布失败:', error);
+    }
+  }, [noteTitle, content, currentCanvasStyleName, scale, offsetX, offsetY, canvasWidth, canvasHeight, dispatch]);
+
   const indicatorTimeout = useRef(null);
-  const lastRenderTime = useRef(0);
 
   // 画布样式配置 - 与CanvasStyleModal.js保持一致
   const canvasStyles = {
@@ -141,10 +314,45 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     }
   };
 
+  // 生成唯一ID并检查是否已存在
+  const generateUniqueCanvasId = async () => {
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      // 使用增强的时间戳+随机数方案，增加更多随机性
+      const timestamp = Date.now();
+      const random1 = Math.random().toString(36).substr(2, 9);
+      const random2 = Math.random().toString(36).substr(2, 9);
+      const random3 = Math.floor(Math.random() * 10000);
+      const newNoteId = `canvas_${timestamp}_${random1}_${random2}_${random3}`;
+      
+      // 检查ID是否已存在
+      try {
+        const existing = await offlineStorageService.getNote(newNoteId);
+        if (!existing) {
+          console.log('生成唯一画布ID:', newNoteId);
+          return newNoteId;
+        }
+        console.warn('画布ID已存在，重新生成:', newNoteId);
+      } catch (error) {
+        console.warn('检查画布ID存在性失败，使用当前ID:', newNoteId, error);
+        return newNoteId; // 如果检查失败，使用当前ID
+      }
+      
+      attempts++;
+    }
+    
+    // 如果多次尝试都失败，使用最终后备方案
+    const finalFallbackId = `canvas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.floor(Math.random() * 1000000)}`;
+    console.warn('多次尝试生成唯一ID失败，使用最终后备方案:', finalFallbackId);
+    return finalFallbackId;
+  };
+
   // 创建新画布
   const createNewCanvas = async () => {
     try {
-      const newNoteId = `canvas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newNoteId = await generateUniqueCanvasId();
       
       const newCanvas = {
         _id: newNoteId,
@@ -156,8 +364,8 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         content_type: 'canvas',
         canvasStyle: canvasStyle,
         scale: 1,
-        offsetX: (screenWidth * 5 - screenWidth) / 2, // 初始位置在中央
-        offsetY: (screenHeight * 5 - screenHeight) / 2, // 初始位置在中央
+        offsetX: 0, // 初始位置在中央
+        offsetY: 0, // 初始位置在中央
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
         created_at: new Date().toISOString(),
@@ -178,8 +386,8 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         setNoteData(newCanvas);
         setCurrentCanvasStyleName(newCanvas.canvasStyle || canvasStyle);
         setScale(newCanvas.scale || 1);
-        setOffsetX(newCanvas.offsetX || (screenWidth * 5 - screenWidth) / 2);
-        setOffsetY(newCanvas.offsetY || (screenHeight * 5 - screenHeight) / 2);
+        setOffsetX(newCanvas.offsetX || 0);
+        setOffsetY(newCanvas.offsetY || 0);
         setCanvasWidth(newCanvas.canvasWidth || canvasWidth);
         setCanvasHeight(newCanvas.canvasHeight || canvasHeight);
         dispatch(addNote(newCanvas));
@@ -206,36 +414,72 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         const existingCanvas = await offlineStorageService.getNote(finalNoteId);
         if (existingCanvas) {
           console.log('找到现有画布:', existingCanvas.id);
-          setNoteData(existingCanvas);
-          setContent(existingCanvas.content || '');
-          setNoteTitle(existingCanvas.title || '无限画布');
+          
+          // 确保ID字段一致 - 参考分页笔记的实现
+          const unifiedCanvas = {
+            ...existingCanvas,
+            id: existingCanvas.id || existingCanvas._id,
+            _id: existingCanvas._id || existingCanvas.id,
+            file_uri: existingCanvas.file_uri || `canvas://${existingCanvas.id || existingCanvas._id}`,
+            uri: existingCanvas.uri || `canvas://${existingCanvas.id || existingCanvas._id}`
+          };
+          
+          setNoteData(unifiedCanvas);
+          setContent(unifiedCanvas.content || '');
+          setNoteTitle(unifiedCanvas.title || '无限画布');
           
           // 恢复画布样式
-          const savedCanvasStyle = existingCanvas.canvasStyle || canvasStyle;
+          const savedCanvasStyle = unifiedCanvas.canvasStyle || canvasStyle;
           console.log('恢复画布样式:', savedCanvasStyle);
           setCurrentCanvasStyleName(savedCanvasStyle);
           
           // 恢复缩放和移动状态
-          setScale(existingCanvas.scale || 1);
+          setScale(unifiedCanvas.scale || 1);
           // 如果有保存的位置，使用保存的位置；否则使用中央位置
-          const savedOffsetX = existingCanvas.offsetX !== undefined ? existingCanvas.offsetX : (screenWidth * 5 - screenWidth) / 2;
-          const savedOffsetY = existingCanvas.offsetY !== undefined ? existingCanvas.offsetY : (screenHeight * 5 - screenHeight) / 2;
+          const savedOffsetX = unifiedCanvas.offsetX !== undefined ? unifiedCanvas.offsetX : 0;
+          const savedOffsetY = unifiedCanvas.offsetY !== undefined ? unifiedCanvas.offsetY : 0;
           setOffsetX(savedOffsetX);
           setOffsetY(savedOffsetY);
-          setCanvasWidth(existingCanvas.canvasWidth || canvasWidth);
-          setCanvasHeight(existingCanvas.canvasHeight || canvasHeight);
+          setCanvasWidth(unifiedCanvas.canvasWidth || canvasWidth);
+          setCanvasHeight(unifiedCanvas.canvasHeight || canvasHeight);
+          
+          // 恢复笔迹数据
+          if (unifiedCanvas.strokes && Array.isArray(unifiedCanvas.strokes)) {
+            pendingStrokes.current = unifiedCanvas.strokes;
+            console.log('FluidInfiniteCanvasScreen: 恢复笔迹数据，数量:', unifiedCanvas.strokes.length);
+          } else if (unifiedCanvas.strokesData) {
+            try {
+              const strokes = JSON.parse(unifiedCanvas.strokesData);
+              if (Array.isArray(strokes)) {
+                pendingStrokes.current = strokes;
+                console.log('FluidInfiniteCanvasScreen: 从JSON恢复笔迹数据，数量:', strokes.length);
+              }
+            } catch (error) {
+              console.warn('FluidInfiniteCanvasScreen: 解析笔迹数据失败:', error);
+            }
+          }
+          
+          // 确保笔迹数据同步到noteData，供HandwritingAdapter使用
+          if (pendingStrokes.current.length > 0) {
+            unifiedCanvas.strokes = pendingStrokes.current;
+          }
           
           setIsLoading(false);
           return;
         } else {
           console.log('未找到画布:', finalNoteId);
-          // 如果明确要求创建新画布
-          if (createNew) {
+          // 如果明确要求创建新画布且当前没有正在创建
+          if (createNew && !isCreatingRef.current) {
             console.log('明确要求创建新画布');
-            const newCanvas = await createNewCanvas();
-            if (newCanvas) {
-              setIsLoading(false);
-              return;
+            isCreatingRef.current = true;
+            try {
+              const newCanvas = await createNewCanvas();
+              if (newCanvas) {
+                setIsLoading(false);
+                return;
+              }
+            } finally {
+              isCreatingRef.current = false;
             }
           } else {
             // 保持空白状态，不创建新画布
@@ -249,12 +493,17 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         }
       } else {
         // 没有 finalNoteId
-        if (createNew) {
+        if (createNew && !isCreatingRef.current) {
           console.log('没有 finalNoteId，但要求创建新画布');
-          const newCanvas = await createNewCanvas();
-          if (newCanvas) {
-            setIsLoading(false);
-            return;
+          isCreatingRef.current = true;
+          try {
+            const newCanvas = await createNewCanvas();
+            if (newCanvas) {
+              setIsLoading(false);
+              return;
+            }
+          } finally {
+            isCreatingRef.current = false;
           }
         } else {
           // 保持空白状态
@@ -275,175 +524,61 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     }
   };
 
-  // 手势处理 - 优化版本，防止误触发退出
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: (evt) => {
-      return evt.nativeEvent.touches.length === 1 || evt.nativeEvent.touches.length === 2;
-    },
+  // 使用ScrollView原生缩放功能，不再需要PanResponder
+
+  // 检查并扩展画布 - 简化为两倍大小，不需要动态扩展
+  const checkAndExpandCanvas = useCallback((newOffsetX, newOffsetY) => {
+    // 简化为两倍大小，不需要动态扩展
+    // 保持画布为固定的两倍大小
+  }, []);
+
+  // 处理ScrollView滚动和缩放事件
+  const handleScroll = useCallback((event) => {
+    const { contentOffset, zoomScale } = event.nativeEvent;
+    const { x, y } = contentOffset;
     
-    onMoveShouldSetPanResponder: (evt, gestureState) => {
-      const { touches } = evt.nativeEvent;
+    // 更新缩放状态 - 修复缩放检测逻辑
+    const newScale = zoomScale || scale;
+    if (newScale !== scale) {
+      setScale(newScale);
+      setShowZoomIndicator(true);
       
-      // 双指触摸直接响应
-      if (touches.length === 2) return true;
-      
-      // 单指触摸需要判断移动距离
-      if (touches.length === 1) {
-        const { dx, dy } = gestureState;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        return distance > 10; // 移动超过10px才响应
-      }
-      
-      return false;
-    },
-
-    onPanResponderGrant: (evt) => {
-      const { touches } = evt.nativeEvent;
-      panStartTime.current = Date.now();
-      
-      if (touches.length === 2) {
-        // 双指缩放
-        const touch1 = touches[0];
-        const touch2 = touches[1];
-        const distance = Math.sqrt(
-          Math.pow(touch2.pageX - touch1.pageX, 2) +
-          Math.pow(touch2.pageY - touch1.pageY, 2)
-        );
-        initialDistance.current = distance;
-        initialScale.current = scale;
-        isTransforming.current = true;
-      } else if (touches.length === 1) {
-        // 单指移动
-        initialOffset.current = { x: offsetX, y: offsetY };
-        isTransforming.current = true;
-        lastPanTime.current = Date.now();
-        
-        // 显示滑动指示器
-        setShowScrollIndicators(true);
-        setIsMoving(true);
-      }
-    },
-    
-    onPanResponderMove: (evt, gestureState) => {
-      const { touches } = evt.nativeEvent;
-
-      if (touches.length === 2 && isTransforming.current) {
-        // 双指缩放 - 只对内容部分生效
-        const touch1 = touches[0];
-        const touch2 = touches[1];
-        const distance = Math.sqrt(
-          Math.pow(touch2.pageX - touch1.pageX, 2) +
-          Math.pow(touch2.pageY - touch1.pageY, 2)
-        );
-
-        const scaleRatio = distance / initialDistance.current;
-        let newScale = initialScale.current * scaleRatio;
-
-        // 最小缩放限制为50%
-        newScale = Math.max(0.5, Math.min(3, newScale));
-
-        // 添加缩放步进，使缩放更平滑
-        const scaleStep = 0.02;
-        newScale = Math.round(newScale / scaleStep) * scaleStep;
-
-        setScale(newScale);
-        
-        // 只在缩放变化时显示指示器
-        if (Math.abs(newScale - scale) > 0.01) {
-          setShowZoomIndicator(true);
-        }
-      } else if (touches.length === 1 && isTransforming.current) {
-        // 单指移动 - 支持各个方向，速度更快
-        const newOffsetX = initialOffset.current.x - gestureState.dx * 1.5; // 增加移动速度
-        const newOffsetY = initialOffset.current.y - gestureState.dy * 1.5;
-        
-        // 检查是否需要扩展画布 - 优化性能
-        const currentTime = Date.now();
-        if (currentTime - lastPanTime.current > 30) { // 进一步减少节流时间，提升响应速度
-          checkAndExpandCanvas(newOffsetX, newOffsetY);
-          lastPanTime.current = currentTime;
-        }
-        
-        setOffsetX(newOffsetX);
-        setOffsetY(newOffsetY);
-        
-        // 更新滑动偏移量
-        setScrollOffsetX(Math.abs(newOffsetX));
-        setScrollOffsetY(Math.abs(newOffsetY));
-        
-        // 更新可见区域并触发渲染优化
-        updateVisibleRect(newOffsetX, newOffsetY);
-        scheduleRenderUpdate();
-      }
-    },
-    
-    onPanResponderRelease: (evt, gestureState) => {
-      const panDuration = Date.now() - panStartTime.current;
-      const { dx, dy } = gestureState;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      
-      // 如果移动距离很小且时间很短，可能是误触
-      if (distance < 20 && panDuration < 200) {
-        // 重置状态，不执行任何操作
-        isTransforming.current = false;
-        setShowScrollIndicators(false);
-        setIsMoving(false);
-        return;
-      }
-      
-      isTransforming.current = false;
-      setIsMoving(false);
-      
-      // 延迟隐藏指示器
+      // 延迟隐藏缩放指示器
       if (indicatorTimeout.current) {
         clearTimeout(indicatorTimeout.current);
       }
       indicatorTimeout.current = setTimeout(() => {
-        setShowScrollIndicators(false);
         setShowZoomIndicator(false);
-      }, 1500);
-    }
-  });
-
-  // 检查并扩展画布
-  const checkAndExpandCanvas = useCallback((newOffsetX, newOffsetY) => {
-    const expandThreshold = 300; // 增加扩展阈值
-    let needExpand = false;
-    let newWidth = canvasWidth;
-    let newHeight = canvasHeight;
-
-    // 检查左边界
-    if (newOffsetX > -expandThreshold) {
-      newWidth += screenWidth;
-      needExpand = true;
+      }, 2000);
     }
     
-    // 检查右边界
-    if (newOffsetX < -(canvasWidth - screenWidth) + expandThreshold) {
-      newWidth += screenWidth;
-      needExpand = true;
-    }
+    // 更新位置状态
+    setOffsetX(x);
+    setOffsetY(y);
     
-    // 检查上边界
-    if (newOffsetY > -expandThreshold) {
-      newHeight += screenHeight;
-      needExpand = true;
+    // 保存当前位置和缩放到画布数据
+    if (noteData && noteData.id) {
+      const updatedCanvas = {
+        ...noteData,
+        offsetX: x,
+        offsetY: y,
+        scale: newScale,
+        updated_at: new Date().toISOString()
+      };
+      
+      // 异步保存位置，不阻塞界面
+      offlineStorageService.saveNote(updatedCanvas).then(result => {
+        if (result.success) {
+          setNoteData(updatedCanvas);
+          dispatch(updateNote(updatedCanvas));
+        }
+      }).catch(error => {
+        console.warn('保存画布位置失败:', error);
+      });
     }
-    
-    // 检查下边界
-    if (newOffsetY < -(canvasHeight - screenHeight) + expandThreshold) {
-      newHeight += screenHeight;
-      needExpand = true;
-    }
+  }, [noteData, dispatch, scale]);
 
-    if (needExpand) {
-      setCanvasWidth(newWidth);
-      setCanvasHeight(newHeight);
-      console.log('画布已扩展:', newWidth, 'x', newHeight);
-    }
-  }, [canvasWidth, canvasHeight]);
-
-  // 更新可见区域 - 优化版本，支持增量渲染
+  // 更新可见区域 - 简化版本，减少状态更新
   const updateVisibleRect = useCallback((x, y) => {
     const newVisibleRect = {
       x: -x,
@@ -453,38 +588,46 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     };
     
     setVisibleRect(newVisibleRect);
-    
-    // 记录已渲染区域，避免重复渲染
-    const areaKey = `${Math.floor(x / 100)}_${Math.floor(y / 100)}`;
-    setRenderedAreas(prev => new Set([...prev, areaKey]));
   }, []);
 
-  // 调度渲染更新 - 优化性能
+  // 调度渲染更新 - 简化版本，减少不必要的状态更新
   const scheduleRenderUpdate = useCallback(() => {
     if (renderTimeout.current) {
       clearTimeout(renderTimeout.current);
     }
     
-    // 在移动时设置渲染状态
-    setIsRendering(true);
-    
+    // 简化渲染逻辑，减少状态更新
     renderTimeout.current = setTimeout(() => {
-      setIsRendering(false);
-      setRenderQueue([]);
-    }, 50); // 减少到50ms，提升响应速度
+      // 移动完成后可以做一些清理工作
+    }, 100);
   }, []);
 
-  // 保存画布数据
+  // 保存画布数据 - 参考分页笔记的流畅保存机制
   const saveCanvasData = async () => {
     try {
+      // 检查是否已取消
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作已取消');
+        return false;
+      }
+
       if (!noteData) {
         const newCanvas = await createNewCanvas();
         return newCanvas !== null;
       }
 
-      // 更新现有画布
+      // 统一ID字段处理 - 确保id和_id字段一致
+      const unifiedId = noteData.id || noteData._id;
+      if (!unifiedId) {
+        console.error('FluidInfiniteCanvasScreen: 画布数据缺少ID字段');
+        throw new Error('画布数据缺少ID字段');
+      }
+
+      // 更新现有画布 - 确保ID字段一致
       const updatedCanvas = {
         ...noteData,
+        id: unifiedId,
+        _id: unifiedId, // 确保两个字段一致
         title: noteTitle,
         content: content,
         canvasStyle: currentCanvasStyleName,
@@ -493,15 +636,24 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         offsetY: offsetY,
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
+        // 保存笔迹数据
+        strokes: pendingStrokes.current,
+        strokesData: JSON.stringify(pendingStrokes.current),
         updated_at: new Date().toISOString(),
-        // 确保有文件URI
-        file_uri: noteData.file_uri || `canvas://${noteData.id}`,
-        uri: noteData.uri || `canvas://${noteData.id}`
+        // 确保有文件URI - 参考分页笔记的实现
+        file_uri: noteData.file_uri || `canvas://${unifiedId}`,
+        uri: noteData.uri || `canvas://${unifiedId}`
       };
 
       console.log('准备保存画布:', updatedCanvas.id);
       
       const result = await offlineStorageService.saveNote(updatedCanvas);
+
+      // 再次检查是否已取消
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作在完成后被取消');
+        return false;
+      }
 
       if (result.success) {
         setNoteData(updatedCanvas);
@@ -512,6 +664,10 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         throw new Error('保存失败');
       }
     } catch (error) {
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('FluidInfiniteCanvasScreen: 保存操作被取消');
+        return false;
+      }
       console.error('保存画布失败:', error);
       Alert.alert('保存失败', '画布保存失败，请稍后重试');
       return false;
@@ -523,11 +679,41 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     loadCanvasData();
   }, [finalNoteId, createNew, canvasStyle]);
 
-  // 初始化滑动指示器位置 - 显示在中央
+  // 同步noteData到ref，避免依赖项循环
+  useEffect(() => {
+    noteDataRef.current = noteData;
+  }, [noteData]);
+
+  // 组件卸载时清理定时器和取消异步操作
+  useEffect(() => {
+    // 创建AbortController
+    abortControllerRef.current = new AbortController();
+    
+    return () => {
+      // 取消所有关联的异步操作
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // 清理定时器
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      if (renderTimeout.current) {
+        clearTimeout(renderTimeout.current);
+      }
+      
+      if (indicatorTimeout.current) {
+        clearTimeout(indicatorTimeout.current);
+      }
+    };
+  }, []);
+
+  // 初始化完成
   useEffect(() => {
     if (!isLoading) {
-      // 画布加载完成后立即显示指示器
-      setShowScrollIndicators(true);
+      console.log('画布加载完成');
     }
   }, [isLoading]);
 
@@ -551,207 +737,112 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     }
   }, [noteData]);
 
-  // 渲染画布背景 - 优化版本，支持增量渲染
-  const renderCanvasBackground = () => {
+  // 渲染Skia画布背景
+  const renderSkiaCanvasBackground = () => {
     const style = currentCanvasStyle;
-    const { x, y, width, height } = visibleRect;
-    
-    // 检查当前区域是否已渲染
-    const areaKey = `${Math.floor(-x / 100)}_${Math.floor(-y / 100)}`;
-    const isAlreadyRendered = renderedAreas.has(areaKey);
-    
-    // 如果已渲染且不在移动状态，直接返回背景色
-    if (isAlreadyRendered && !isMoving) {
-      return (
-        <View style={[
-          styles.canvasBackground, 
-          { 
-            backgroundColor: style.backgroundColor,
-            width: width,
-            height: height,
-            left: x,
-            top: y
-          }
-        ]} />
-      );
-    }
     
     return (
-      <View style={[
-        styles.canvasBackground, 
-        { 
-          backgroundColor: style.backgroundColor,
-          width: width,
-          height: height,
-          left: x,
-          top: y
-        }
-      ]}>
-        {style.pattern === 'lines' && renderLinesPattern(x, y, width, height)}
-        {style.pattern === 'grid' && renderGridPattern(x, y, width, height)}
-        {style.pattern === 'dots' && renderDotsPattern(x, y, width, height)}
-      </View>
+      <Canvas style={{ width: canvasWidth, height: canvasHeight }}>
+        {/* 背景色 */}
+        <Rect
+          x={0}
+          y={0}
+          width={canvasWidth}
+          height={canvasHeight}
+          color={style.backgroundColor}
+        />
+        
+        {/* 横线图案 */}
+        {style.pattern === 'lines' && renderSkiaLinesPattern()}
+        
+        {/* 网格图案 */}
+        {style.pattern === 'grid' && renderSkiaGridPattern()}
+        
+        {/* 点状图案 */}
+        {style.pattern === 'dots' && renderSkiaDotsPattern()}
+      </Canvas>
     );
   };
 
-  // 渲染横线背景 - 只渲染可见区域
-  const renderLinesPattern = (x, y, width, height) => {
+  // 渲染Skia横线图案
+  const renderSkiaLinesPattern = () => {
     const lineSpacing = 30;
     const lines = [];
     
-    const startY = Math.floor(y / lineSpacing) * lineSpacing;
-    const endY = Math.ceil((y + height) / lineSpacing) * lineSpacing;
-    
-    for (let lineY = startY; lineY <= endY; lineY += lineSpacing) {
-      if (lineY >= y && lineY <= y + height) {
-        lines.push(
-          <View
-            key={`line-${lineY}`}
-            style={[
-              styles.line,
-              { 
-                top: lineY - y,
-                width: width,
-                left: 0
-              }
-            ]}
-          />
-        );
-      }
+    for (let lineY = 0; lineY <= canvasHeight; lineY += lineSpacing) {
+      lines.push(
+        <Line
+          key={`line-${lineY}`}
+          p1={{ x: 0, y: lineY }}
+          p2={{ x: canvasWidth, y: lineY }}
+          color="#E0E0E0"
+          style="stroke"
+          strokeWidth={1}
+        />
+      );
     }
     
     return lines;
   };
 
-  // 渲染网格背景 - 只渲染可见区域
-  const renderGridPattern = (x, y, width, height) => {
+  // 渲染Skia网格图案
+  const renderSkiaGridPattern = () => {
     const gridSize = 20;
     const lines = [];
     
-    const startX = Math.floor(x / gridSize) * gridSize;
-    const endX = Math.ceil((x + width) / gridSize) * gridSize;
-    const startY = Math.floor(y / gridSize) * gridSize;
-    const endY = Math.ceil((y + height) / gridSize) * gridSize;
-    
     // 垂直线
-    for (let gridX = startX; gridX <= endX; gridX += gridSize) {
-      if (gridX >= x && gridX <= x + width) {
-        lines.push(
-          <View
-            key={`v-${gridX}`}
-            style={[
-              styles.gridLine,
-              { left: gridX - x, width: 1, height: height }
-            ]}
-          />
-        );
-      }
+    for (let gridX = 0; gridX <= canvasWidth; gridX += gridSize) {
+      lines.push(
+        <Line
+          key={`vline-${gridX}`}
+          p1={{ x: gridX, y: 0 }}
+          p2={{ x: gridX, y: canvasHeight }}
+          color="#E0E0E0"
+          style="stroke"
+          strokeWidth={1}
+        />
+      );
     }
     
     // 水平线
-    for (let gridY = startY; gridY <= endY; gridY += gridSize) {
-      if (gridY >= y && gridY <= y + height) {
-        lines.push(
-          <View
-            key={`h-${gridY}`}
-            style={[
-              styles.gridLine,
-              { top: gridY - y, height: 1, width: width }
-            ]}
-          />
-        );
-      }
+    for (let gridY = 0; gridY <= canvasHeight; gridY += gridSize) {
+      lines.push(
+        <Line
+          key={`hline-${gridY}`}
+          p1={{ x: 0, y: gridY }}
+          p2={{ x: canvasWidth, y: gridY }}
+          color="#E0E0E0"
+          style="stroke"
+          strokeWidth={1}
+        />
+      );
     }
     
     return lines;
   };
 
-  // 渲染点阵背景 - 只渲染可见区域
-  const renderDotsPattern = (x, y, width, height) => {
+  // 渲染Skia点阵图案
+  const renderSkiaDotsPattern = () => {
     const dotSpacing = 20;
     const dots = [];
     
-    const startX = Math.floor(x / dotSpacing) * dotSpacing;
-    const endX = Math.ceil((x + width) / dotSpacing) * dotSpacing;
-    const startY = Math.floor(y / dotSpacing) * dotSpacing;
-    const endY = Math.ceil((y + height) / dotSpacing) * dotSpacing;
-    
-    for (let dotX = startX; dotX <= endX; dotX += dotSpacing) {
-      for (let dotY = startY; dotY <= endY; dotY += dotSpacing) {
-        if (dotX >= x && dotX <= x + width && dotY >= y && dotY <= y + height) {
-          dots.push(
-            <View
-              key={`dot-${dotX}-${dotY}`}
-              style={[
-                styles.dot,
-                { left: dotX - x, top: dotY - y }
-              ]}
-            />
-          );
-        }
+    for (let dotX = 0; dotX <= canvasWidth; dotX += dotSpacing) {
+      for (let dotY = 0; dotY <= canvasHeight; dotY += dotSpacing) {
+        dots.push(
+          <Circle
+            key={`dot-${dotX}-${dotY}`}
+            cx={dotX}
+            cy={dotY}
+            r={1}
+            color="#E0E0E0"
+          />
+        );
       }
     }
     
     return dots;
   };
 
-  // 计算右侧滑动指示器参数
-  const getRightScrollIndicatorProps = () => {
-    const toolbarHeight = Platform.OS === 'ios' ? 50 : 28;
-    
-    // 计算滑动偏移量 - 从中央位置开始计算
-    const maxScrollY = Math.max(0, canvasHeight - screenHeight);
-    const centerOffsetY = (screenHeight * 5 - screenHeight) / 2;
-    const currentScrollY = Math.abs(offsetY - centerOffsetY);
-    const scrollOffset = Math.min(currentScrollY, maxScrollY);
-    
-    return {
-      scrollOffset: scrollOffset,
-      contentHeight: canvasHeight,
-      visibleHeight: screenHeight,
-      visible: showScrollIndicators && canvasHeight > screenHeight, // 只在有内容时显示
-      autoHideDelay: 2000,
-      position: 'right',
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      activeColor: 'rgba(0, 0, 0, 0.6)',
-      borderRadius: 3,
-      minSize: 30,
-      maxSize: 100,
-      toolbarHeight: toolbarHeight,
-      toolbarOffset: 20,
-      showPageDividers: false,
-      fadeInDuration: 200,
-      fadeOutDuration: 300
-    };
-  };
-
-  // 计算底部滑动指示器参数
-  const getBottomScrollIndicatorProps = () => {
-    // 计算滑动偏移量 - 从中央位置开始计算
-    const maxScrollX = Math.max(0, canvasWidth - screenWidth);
-    const centerOffsetX = (screenWidth * 5 - screenWidth) / 2;
-    const currentScrollX = Math.abs(offsetX - centerOffsetX);
-    const scrollOffset = Math.min(currentScrollX, maxScrollX);
-    
-    return {
-      scrollOffset: scrollOffset,
-      contentWidth: canvasWidth,
-      visibleWidth: screenWidth,
-      visible: showScrollIndicators && canvasWidth > screenWidth, // 只在有内容时显示
-      autoHideDelay: 2000,
-      position: 'bottom',
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      activeColor: 'rgba(0, 0, 0, 0.6)',
-      borderRadius: 3,
-      minSize: 30,
-      maxSize: 100,
-      toolbarHeight: 0,
-      toolbarOffset: 0,
-      showPageDividers: false,
-      fadeInDuration: 200,
-      fadeOutDuration: 300
-    };
-  };
 
   if (isLoading) {
     return (
@@ -761,40 +852,27 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     );
   }
 
-  // 渲染画布内容 - 优化版本，只渲染可见区域
-  const renderCanvasContent = () => {
-    // 如果正在渲染，显示背景色占位符
-    if (isRendering) {
-      return (
-        <View style={[styles.canvasContainer, { backgroundColor: currentCanvasStyle.backgroundColor }]}>
-          <View style={styles.renderingPlaceholder}>
-            <Text style={styles.renderingText}>正在渲染...</Text>
-          </View>
-        </View>
-      );
-    }
-
+  // 渲染Skia画布内容
+  const renderSkiaCanvasContent = () => {
     return (
-      <View style={styles.canvasContainer}>
-        {/* 画布背景 - 只渲染可见区域 */}
-        {renderCanvasBackground()}
+      <>
+        {/* Skia画布背景 */}
+        {renderSkiaCanvasBackground()}
         
-        {/* 画布内容 - 只对内容部分应用缩放 */}
+        {/* 文本内容层 - 使用View承载文本 */}
         <View style={[
           styles.canvasContent,
           {
             transform: [
-              { translateX: -screenWidth / 2 }, 
-              { translateY: -screenHeight / 2 },
               { scale: scale }
             ]
           }
         ]}>
           <Text style={[styles.canvasText, { color: colors.text }]}>
-            {content || '点击开始绘制...'}
+            {content || ''}
           </Text>
         </View>
-      </View>
+      </>
     );
   };
 
@@ -802,12 +880,24 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ToolbarContainer>
         <AllInOneToolbar
-          onToolChange={() => {}}
-          onColorChange={() => {}}
-          onStrokeWidthChange={() => {}}
+          onToolChange={handleToolChange}
+          onColorChange={handleColorChange}
+          onStrokeWidthChange={handleStrokeWidthChange}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onClear={handleClear}
+          initialTool={currentDrawingTool?.type || 'pen'}
+          initialColor={currentDrawingColor}
+          initialStrokeWidth={currentStrokeWidth}
           onImageUpload={() => {}}
           onBookmarkAdd={() => {}}
           onBookmarkList={() => {}}
+          onHandwritingOCR={handleHandwritingOCR}
+          showModeToggle={true}
+          onModeToggle={handleModeToggle}
+          isFingerMode={!isHandwritingMode}
         />
       </ToolbarContainer>
 
@@ -836,31 +926,62 @@ const FluidInfiniteCanvasScreen = ({ route, navigation }) => {
         noteId={noteData?.id}
         navigation={navigation}
       >
-        <View
+        <ScrollView
           ref={contentRef}
-          style={styles.canvasWrapper}
-          {...panResponder.panHandlers}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={!isHandwritingMode} // 在手写模式下禁用滚动
+          bounces={true}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          maximumZoomScale={3.0}
+          minimumZoomScale={0.5}
+          zoomEnabled={true}
+          onScrollEndDrag={handleScroll}
+          onMomentumScrollEnd={handleScroll}
         >
+          {/* 画布内容区域 - 支持上下左右扩展 */}
           <View style={[
             styles.canvasInner,
             {
+              width: canvasWidth,
+              height: canvasHeight,
               transform: [
-                { translateX: offsetX },
-                { translateY: offsetY }
+                { scale: scale }
               ]
             }
           ]}>
-            {/* 渲染画布内容 */}
-            {renderCanvasContent()}
+            {/* 渲染Skia画布内容 */}
+            {renderSkiaCanvasContent()}
           </View>
-        </View>
+
+          {/* 手写适配器层 - 覆盖整个画布区域，参考分页笔记实现 */}
+          <HandwritingAdapter
+            ref={handwritingAdapterRef}
+            currentTool={currentDrawingTool}
+            currentColor={currentDrawingColor}
+            currentStrokeWidth={currentStrokeWidth}
+            documentId={noteData?.id}
+            documentType="canvas"
+            enablePressure={true}
+            enableTilt={true}
+            fingerRejection={!isHandwritingMode} // 根据模式决定是否拒绝手指
+            isFingerMode={!isHandwritingMode} // 传递手指模式状态
+            onStrokesChange={handleStrokesChange}
+            initialStrokes={noteData?.strokes || []} // 加载已保存的笔迹数据
+            style={[
+              styles.handwritingLayer,
+              { pointerEvents: isHandwritingMode ? 'auto' : 'none' }
+            ]}
+            width={canvasWidth}
+            height={canvasHeight}
+            visible={true}
+          />
+        </ScrollView>
       </ViewerLayout>
 
-      {/* 右侧滑动指示器 - 初始位置在中央 */}
-      <CustomScrollIndicator {...getRightScrollIndicatorProps()} />
-
-      {/* 底部滑动指示器 - 初始位置在中央 */}
-      <CustomScrollIndicator {...getBottomScrollIndicatorProps()} />
 
       {/* 缩放指示器 */}
       <ZoomIndicator
@@ -878,23 +999,28 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  canvasWrapper: {
+  scrollView: {
     flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    minHeight: screenHeight * 2,
+    minWidth: screenWidth * 2,
   },
   canvasInner: {
-    position: 'absolute',
-    width: screenWidth * 5,
-    height: screenHeight * 5,
+    position: 'relative',
+    width: screenWidth * 2,
+    height: screenHeight * 2,
   },
   canvasContainer: {
     position: 'relative',
-    width: screenWidth * 5,
-    height: screenHeight * 5,
+    width: screenWidth * 2,
+    height: screenHeight * 2,
   },
   canvasBackground: {
     position: 'absolute',
+    top: 0,
+    left: 0,
   },
   line: {
     position: 'absolute',
@@ -921,47 +1047,24 @@ const styles = StyleSheet.create({
     minHeight: screenHeight - 80,
     minWidth: screenWidth - 80,
     // 确保内容显示在画布中央
-    left: '50%',
-    top: '50%',
+    left: screenWidth / 2 - (screenWidth - 80) / 2,
+    top: screenHeight / 2 - (screenHeight - 80) / 2,
   },
   canvasText: {
     fontSize: 16,
     lineHeight: 24,
     textAlignVertical: 'top',
   },
-  // 渲染占位符样式
-  renderingPlaceholder: {
+  // 手写相关样式
+  handwritingLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 10,
+    pointerEvents: 'auto',
+  },
+  handwritingEngine: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  renderingText: {
-    fontSize: 14,
-    color: '#999',
-  },
-  // 滑动指示器样式 - 优化版本，只保留滑动指示
-  rightScrollIndicator: {
-    position: 'absolute',
-    right: 8,
-    width: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 3,
-    zIndex: 1000,
-  },
-  bottomScrollIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    height: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 3,
-    zIndex: 1000,
-  },
-  scrollIndicatorThumb: {
-    position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 3,
-    minWidth: 6,
-    minHeight: 6,
   },
 });
 

@@ -1,6 +1,8 @@
 import os
 import tempfile
 import logging
+import base64
+import json
 from django.http import JsonResponse, FileResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -8,10 +10,12 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.utils.decorators import method_decorator
 from django.views import View
-from .services import document_converter
-import json
+from .services import DocumentConverterService
 
 logger = logging.getLogger(__name__)
+
+# 创建转换器实例
+document_converter = DocumentConverterService()
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -54,8 +58,11 @@ class DocumentConverterView(View):
             
             logger.info(f"文件上传成功: {temp_file_path}")
             
-            # 执行转换
-            success, pdf_path, error_msg = document_converter.convert_document(temp_file_path)
+            # 执行转换（使用新的跨平台方法）
+            result = document_converter.convert_file(temp_file_path)
+            success = result['success']
+            pdf_path = result.get('output_file', '')
+            error_msg = result.get('error', '转换失败')
             
             # 清理上传的临时文件
             try:
@@ -73,23 +80,35 @@ class DocumentConverterView(View):
                     os.remove(pdf_path)
                 except:
                     pass
-                
-                # 生成唯一的文件名
+
+                # 转换PDF为base64
+                pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+
+                # 生成唯一的文件名（用于下载链接）
                 import uuid
                 pdf_filename = f"converted_{uuid.uuid4().hex[:8]}.pdf"
-                
-                # 保存到Django的媒体存储
+
+                # 保存到Django的媒体存储（可选，用于下载）
                 pdf_file_path = default_storage.save(
                     f'converted_docs/{pdf_filename}',
                     ContentFile(pdf_content)
                 )
-                
-                # 返回成功响应
+
+                # 返回成功响应（包含base64数据）
                 return JsonResponse({
                     'success': True,
-                    'pdf_url': f'/api/document-converter/download/{pdf_filename}',
+                    'pdf_base64': pdf_base64,
+                    'pdf_url': f'/api/v1/document-converter/download/{pdf_filename}',
                     'pdf_path': pdf_file_path,
-                    'original_filename': uploaded_file.name
+                    'file_info': {
+                        'original_name': uploaded_file.name,
+                        'file_type': result.get('file_type', 'unknown'),
+                        'pages': result.get('pages', 1),
+                        'conversion_method': result.get('conversion_method', 'unknown'),
+                        'output_size': len(pdf_content)
+                    },
+                    'timestamp': result.get('timestamp', ''),
+                    'message': '转换成功'
                 })
             else:
                 return JsonResponse({
@@ -189,3 +208,98 @@ def cleanup_temp_files(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class Base64ConvertView(View):
+    """Base64文件转换视图"""
+
+    def post(self, request):
+        """处理Base64文件转换请求"""
+        try:
+            # 解析JSON数据
+            data = json.loads(request.body)
+
+            # 检查必需字段
+            if 'file_data' not in data or 'file_extension' not in data:
+                return JsonResponse({
+                    'success': False,
+                    'error': '缺少必需字段: file_data, file_extension',
+                    'code': 'MISSING_FIELDS'
+                }, status=400)
+
+            file_data = data['file_data']
+            file_extension = data['file_extension'].lower()
+            filename = data.get('filename', f'document.{file_extension}')
+
+            # 检查文件类型
+            supported_formats = ['ppt', 'pptx', 'doc', 'docx']
+            if file_extension not in supported_formats:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'不支持的文件类型: {file_extension}。支持的格式: {", ".join(supported_formats)}',
+                    'code': 'UNSUPPORTED_FORMAT'
+                }, status=400)
+
+            logger.info(f"开始Base64转换: {filename} ({file_extension})")
+
+            # 转换文件
+            result = document_converter.convert_base64_file(file_data, file_extension)
+
+            if result['success']:
+                return JsonResponse({
+                    'success': True,
+                    'pdf_base64': result['pdf_base64'],
+                    'file_info': {
+                        'original_name': filename,
+                        'file_type': file_extension,
+                        'pages': result.get('pages', 1),
+                        'conversion_method': result.get('conversion_method', 'unknown'),
+                        'output_size': len(base64.b64decode(result['pdf_base64']))
+                    },
+                    'timestamp': result['timestamp'],
+                    'message': '转换成功'
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': result.get('error', '转换失败'),
+                    'code': 'CONVERSION_FAILED'
+                }, status=500)
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': '无效的JSON数据',
+                'code': 'INVALID_JSON'
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Base64转换API异常: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e),
+                'code': 'INTERNAL_ERROR'
+            }, status=500)
+
+
+@require_http_methods(["GET"])
+def health_check(request):
+    """健康检查接口"""
+    return JsonResponse({
+        'status': 'healthy',
+        'service': 'document-converter',
+        'timestamp': '2023-12-01T12:00:00',
+        'supported_formats': ['ppt', 'pptx', 'doc', 'docx']
+    })
+
+
+@require_http_methods(["GET"])
+def conversion_status(request):
+    """获取转换服务状态"""
+    return JsonResponse({
+        'service': 'document-converter',
+        'status': 'running',
+        'supported_formats': ['ppt', 'pptx', 'doc', 'docx'],
+        'timestamp': '2023-12-01T12:00:00',
+        'version': '1.0.0'
+    })

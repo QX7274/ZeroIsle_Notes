@@ -417,6 +417,60 @@ export const checkAuthState = createAsyncThunk(
   }
 );
 
+// 开发者模式相关action
+export const enableDevMode = createAsyncThunk(
+  'auth/enableDevMode',
+  async (_, { dispatch }) => {
+    try {
+      const devModeService = require('../../services/auth/devModeService').default;
+      const success = await devModeService.enableDevMode();
+      
+      if (success) {
+        const devAccount = devModeService.getDevAccount();
+        if (devAccount) {
+          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+          dispatch({ type: 'auth/setUserInfo', payload: devAccount });
+          dispatch({ type: 'auth/setIsDevMode', payload: true });
+          dispatch({ type: 'auth/setAuthMethod', payload: 'dev_mode' });
+          
+          console.log('Redux: 开发者模式已启用');
+          return { success: true, user: devAccount };
+        }
+      }
+      
+      throw new Error('启用开发者模式失败');
+    } catch (error) {
+      console.error('启用开发者模式失败:', error);
+      throw error;
+    }
+  }
+);
+
+export const disableDevMode = createAsyncThunk(
+  'auth/disableDevMode',
+  async (_, { dispatch }) => {
+    try {
+      const devModeService = require('../../services/auth/devModeService').default;
+      const success = await devModeService.disableDevMode();
+      
+      if (success) {
+        dispatch({ type: 'auth/setIsAuthenticated', payload: false });
+        dispatch({ type: 'auth/setUserInfo', payload: null });
+        dispatch({ type: 'auth/setIsDevMode', payload: false });
+        dispatch({ type: 'auth/setAuthMethod', payload: null });
+        
+        console.log('Redux: 开发者模式已禁用');
+        return { success: true };
+      }
+      
+      throw new Error('禁用开发者模式失败');
+    } catch (error) {
+      console.error('禁用开发者模式失败:', error);
+      throw error;
+    }
+  }
+);
+
 const initialState = {
   user: null,
   token: null,

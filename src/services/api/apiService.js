@@ -6,6 +6,7 @@ import axios from 'axios';
 import { realmStorageService } from '../storage/realmStorageService';
 import { API_URL, API_VERSION, API_TIMEOUT, STORAGE_KEYS } from '../../config';
 import { handleUnauthorizedError } from '../auth/authUtils';
+import { handleNetworkError } from '../../utils/networkErrorHandler';
 
 // 创建axios实例
 const api = axios.create({
@@ -46,34 +47,31 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    // 处理错误
-    if (error.response) {
-      const { status, data } = error.response;
+    // 记录详细的开发者日志
+    const context = `API请求: ${error.config?.method?.toUpperCase()} ${error.config?.url}`;
 
-      // 处理401未授权错误
-      if (status === 401) {
-        console.log('API响应401未授权错误');
-        await handleUnauthorizedError();
-      }
-
-      // 处理404资源未找到错误
-      if (status === 404) {
-        console.error('资源未找到:', error.config.url);
-      }
-
-      // 处理500服务器错误
-      if (status >= 500) {
-        console.error('服务器错误:', data);
-      }
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
-      console.error('未收到API响应:', error.request);
-    } else {
-      // 请求配置错误
-      console.error('API请求配置错误:', error.message);
+    // 处理特殊的401错误
+    if (error.response?.status === 401) {
+      console.log('🔐 API响应401未授权错误');
+      await handleUnauthorizedError();
     }
 
-    return Promise.reject(error);
+    // 使用统一的网络错误处理器
+    const errorResult = handleNetworkError(error, {
+      context,
+      showAlert: false, // 不在这里显示弹窗，由调用方决定
+      logError: true
+    });
+
+    // 返回包含用户友好信息的错误
+    const enhancedError = {
+      ...error,
+      userMessage: errorResult.userMessage,
+      errorType: errorResult.type,
+      isNetworkError: true
+    };
+
+    return Promise.reject(enhancedError);
   }
 );
 

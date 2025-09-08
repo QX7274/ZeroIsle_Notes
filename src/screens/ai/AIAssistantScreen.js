@@ -41,6 +41,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import AIAssistantModule from '../../native/AIAssistantModule';
 import nativeAudioService from '../../services/audio/nativeAudioService';
 import RNFS from 'react-native-fs';
+import networkErrorService from '../../services/networkErrorService';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -351,6 +352,14 @@ const AIAssistantScreen = ({ navigation }) => {
         }
       } catch (apiError) {
         console.error('调用转写API失败:', apiError);
+
+        // 使用网络错误服务处理错误
+        if (networkErrorService.isNetworkError(apiError)) {
+          networkErrorService.handleApiError(apiError, {
+            context: '语音转文字',
+            customMessage: '网络连接失败，无法进行语音转文字'
+          });
+        }
 
         // 如果后端API调用失败，尝试使用本地模块
         if (AIAssistantModule.transcribeAudio) {

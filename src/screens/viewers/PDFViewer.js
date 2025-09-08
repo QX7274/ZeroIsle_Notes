@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -20,12 +20,14 @@ import { useDispatch } from 'react-redux';
 import { offlineStorageService } from '../../services/offline';
 import RNFS from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
-import { launchImageLibrary } from 'react-native-image-picker';
 
-import HandwritingCanvas from '../../components/handwriting/HandwritingCanvas';
+import documentConversionService from '../../services/document/documentConversionService';
+
+import HandwritingAdapter from '../../components/handwriting/HandwritingAdapter';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import PageControl from '../../components/viewer/PageControl';
-import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
+import pdfDirectWriteService from '../../services/pdf/PDFDirectWriteService';
+
 import DraggableImage from '../../components/viewer/DraggableImage';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
@@ -39,7 +41,7 @@ import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation
 import fileHistoryService from '../../services/fileHistoryService';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const PDFViewer = ({ route, navigation }) => {
-  const { uri, title, noteId, fromFileHistory } = route.params || {};
+  const { uri, title, noteId, fromFileHistory, fileType } = route.params || {};
   const { colors } = useTheme();
   const dispatch = useDispatch();
 
@@ -61,29 +63,495 @@ const PDFViewer = ({ route, navigation }) => {
   const [localFilePath, setLocalFilePath] = useState(null);
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-  // 企业级手写相关状态
-  const [isHandwritingMode, setIsHandwritingMode] = useState(false);
-  const [strokeColor, setStrokeColor] = useState('#000000');
-  const [strokeWidth, setStrokeWidth] = useState(3);
-  const [annotations, setAnnotations] = useState({});
+
+
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [pageInputValue, setPageInputValue] = useState('1');
   const [bookmarkVisible, setBookmarkVisible] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [scale, setScale] = useState(1);
+  const [pdfLayout, setPdfLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-  // 企业级手写笔检测状态
-  const [inputType, setInputType] = useState('finger'); // 'finger' | 'pen'
-  const [isPenActive, setIsPenActive] = useState(false);
-  const [currentPressure, setCurrentPressure] = useState(0.5);
-  const [handwritingPaths, setHandwritingPaths] = useState({});
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [isStylusActive, setIsStylusActive] = useState(false);
 
+
+  // 文档转换状态
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState(0);
+  const [conversionMessage, setConversionMessage] = useState('');
+  const [originalFileInfo, setOriginalFileInfo] = useState(null);
+
+  // AllInOneToolbar状态
+  const [currentDrawingTool, setCurrentDrawingTool] = useState({ type: 'pen' });
+  const [currentDrawingColor, setCurrentDrawingColor] = useState('#000000');
+  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isFingerMode, setIsFingerMode] = useState(true); // 默认为手指模式
 
   // 引用
   const pdfRef = useRef(null);
-  const handwritingRef = useRef(null);
+  const handwritingAdapterRef = useRef(null);
+  const conversionAbortController = useRef(null);
+
+  // AllInOneToolbar处理函数
+  const handleToolChange = useCallback((tool) => {
+    console.log('PDFViewer: 接收到工具变化:', tool, typeof tool);
+    console.log('PDFViewer: 工具详细信息:', JSON.stringify(tool));
+
+    // 确保工具格式正确
+    let normalizedTool;
+    if (typeof tool === 'string') {
+      normalizedTool = { type: tool };
+    } else if (tool && typeof tool === 'object' && tool.type) {
+      normalizedTool = tool;
+    } else {
+      console.warn('PDFViewer: 无效的工具格式，使用默认工具');
+      normalizedTool = { type: 'pen' };
+    }
+
+    setCurrentDrawingTool(normalizedTool);
+    console.log('PDFViewer: 工具切换到:', normalizedTool);
+  }, []);
+
+  const handleColorChange = useCallback((color) => {
+    console.log('PDFViewer: 接收到颜色变化:', color);
+    setCurrentDrawingColor(color);
+    console.log('PDFViewer: 颜色切换到:', color);
+  }, []);
+
+  const handleStrokeWidthChange = useCallback((width) => {
+    console.log('PDFViewer: 接收到粗细变化:', width);
+    setCurrentStrokeWidth(width);
+    console.log('PDFViewer: 笔迹粗细切换到:', width);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.undoLastStroke();
+      }
+    } catch (error) {
+      console.error('PDFViewer: 撤销操作失败:', error);
+    }
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    try {
+      // TODO: 实现重做功能
+      console.log('PDFViewer: 重做功能待实现');
+    } catch (error) {
+      console.error('PDFViewer: 重做操作失败:', error);
+    }
+  }, []);
+
+  const handleClear = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.clearStrokes();
+      }
+    } catch (error) {
+      console.error('PDFViewer: 清空操作失败:', error);
+    }
+  }, []);
+
+  const handleModeToggle = useCallback((newMode) => {
+    setIsFingerMode(newMode);
+    console.log('PDFViewer: 模式切换到:', newMode ? '手指模式' : '手写笔模式');
+  }, []);
+
+  // 存储待保存的笔迹数据
+  const pendingStrokes = useRef([]);
+
+  const handleStrokesChange = useCallback(async (strokes) => {
+    try {
+      if (!Array.isArray(strokes)) {
+        console.warn('PDFViewer: 无效的笔迹数据');
+        return;
+      }
+
+      setCanUndo(strokes.length > 0);
+      setCanRedo(false);
+      console.log(`PDFViewer: 笔迹更新，当前数量: ${strokes.length}`);
+
+      // 性能优化：只存储笔迹数据，不立即写入PDF
+      pendingStrokes.current = strokes;
+
+      // 确保PDF路径已设置（为后续保存做准备）
+      if (!pdfDirectWriteService.currentPDFPath) {
+        const pdfPath = localFilePath || (pdfSource && pdfSource.uri);
+        if (pdfPath) {
+          pdfDirectWriteService.setCurrentPDF(pdfPath);
+          console.log('PDFViewer: 设置PDF路径:', pdfPath);
+        }
+      }
+    } catch (error) {
+      console.error('PDFViewer: 处理笔迹变化失败:', error);
+    }
+  }, [localFilePath, pdfSource]);
+
+  // 批量保存所有笔迹到PDF
+  const savePendingStrokes = useCallback(async () => {
+    try {
+      if (pendingStrokes.current.length === 0) {
+        console.log('PDFViewer: 没有待保存的笔迹');
+        return;
+      }
+
+      console.log(`PDFViewer: 开始批量保存 ${pendingStrokes.current.length} 个笔迹`);
+
+      // 确保PDF路径已设置
+      if (!pdfDirectWriteService.currentPDFPath) {
+        const pdfPath = localFilePath || (pdfSource && pdfSource.uri);
+        if (pdfPath) {
+          pdfDirectWriteService.setCurrentPDF(pdfPath);
+        } else {
+          console.warn('PDFViewer: 无法获取PDF路径，跳过保存');
+          return;
+        }
+      }
+
+      // 清空之前的注释，重新添加所有笔迹
+      pdfDirectWriteService.clearAnnotations();
+
+      // 批量添加所有笔迹
+      for (const stroke of pendingStrokes.current) {
+        if (stroke && stroke.points && stroke.points.length > 0) {
+          // 确保笔迹有正确的格式
+          const formattedStroke = {
+            points: stroke.points,
+            color: stroke.color || stroke.style?.color || '#000000',
+            width: stroke.width || stroke.style?.width || 2,
+            opacity: stroke.opacity || stroke.style?.opacity || 1,
+            id: stroke.id || `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          };
+
+          await pdfDirectWriteService.addStrokeToPage(currentPage, formattedStroke);
+        }
+      }
+
+      // 一次性保存到PDF
+      const success = await pdfDirectWriteService.saveToPDF();
+      if (success) {
+        console.log('PDFViewer: 批量保存完成，笔迹已写入PDF文件');
+        // 清空待保存队列
+        pendingStrokes.current = [];
+      } else {
+        console.error('PDFViewer: 批量保存失败');
+      }
+    } catch (error) {
+      console.error('PDFViewer: 批量保存失败:', error);
+    }
+  }, [currentPage, localFilePath, pdfSource]);
+
+  // 组件卸载时保存待保存的笔迹
+  useEffect(() => {
+    return () => {
+      if (pendingStrokes.current.length > 0) {
+        console.log('PDFViewer: 组件卸载，保存待保存的笔迹');
+        savePendingStrokes();
+      }
+    };
+  }, [savePendingStrokes]);
+
+  /**
+   * 内存清理函数
+   */
+  const cleanupMemory = () => {
+    try {
+      // 取消正在进行的转换
+      if (conversionAbortController.current) {
+        conversionAbortController.current.abort();
+        conversionAbortController.current = null;
+      }
+
+      // 清理状态
+      setIsConverting(false);
+      setConversionProgress(0);
+      setConversionMessage('');
+
+      // 强制垃圾回收（如果可用）
+      if (global.gc) {
+        global.gc();
+      }
+
+      console.log('PDFViewer: 内存清理完成');
+    } catch (error) {
+      console.warn('PDFViewer: 内存清理时出错:', error);
+    }
+  };
+
+  /**
+   * 获取文件扩展名
+   */
+  const getFileExtension = (filename) => {
+    if (!filename) return '';
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+  };
+
+  /**
+   * 生成缓存文件路径
+   */
+  const getCacheFilePath = (originalUri) => {
+    const hash = originalUri.replace(/[^a-zA-Z0-9]/g, '_');
+    return `${RNFS.DocumentDirectoryPath}/converted_cache/${hash}.pdf`;
+  };
+
+  /**
+   * 检查缓存文件是否存在
+   */
+  const checkCacheExists = async (originalUri) => {
+    try {
+      const cachePath = getCacheFilePath(originalUri);
+      const exists = await RNFS.exists(cachePath);
+
+      if (exists) {
+        const stats = await RNFS.stat(cachePath);
+        console.log('PDFViewer: 找到缓存文件:', cachePath, '大小:', stats.size);
+        return cachePath;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('PDFViewer: 检查缓存失败:', error);
+      return null;
+    }
+  };
+
+  /**
+   * 保存转换后的PDF到缓存（优化内存管理）
+   */
+  const saveToCacheAndLocal = async (pdfBase64, originalUri, fileName) => {
+    try {
+      // 检查base64数据大小，防止内存溢出
+      const estimatedSize = (pdfBase64.length * 3) / 4; // base64解码后的大小估算
+      console.log('PDFViewer: PDF数据大小估算:', Math.round(estimatedSize / 1024 / 1024), 'MB');
+
+      if (estimatedSize > 100 * 1024 * 1024) { // 100MB限制
+        throw new Error('文件太大，无法处理');
+      }
+
+      // 确保缓存目录存在
+      const cacheDir = `${RNFS.DocumentDirectoryPath}/converted_cache`;
+
+      // 检查目录是否存在，不存在则创建
+      const dirExists = await RNFS.exists(cacheDir);
+      if (!dirExists) {
+        await RNFS.mkdir(cacheDir);
+      }
+
+      // 分块保存到缓存，避免内存峰值
+      const cachePath = getCacheFilePath(originalUri);
+
+      // 使用流式写入，减少内存占用
+      await RNFS.writeFile(cachePath, pdfBase64, 'base64');
+
+      // 验证文件是否正确保存
+      const fileExists = await RNFS.exists(cachePath);
+      if (!fileExists) {
+        throw new Error('缓存文件保存失败');
+      }
+
+      // 也保存到本地文档目录（用于用户访问）
+      const localPath = await documentConversionService.savePDFToLocal(pdfBase64, fileName);
+
+      console.log('PDFViewer: PDF已保存到缓存和本地');
+      console.log('PDFViewer: 缓存路径:', cachePath);
+      console.log('PDFViewer: 本地路径:', localPath);
+
+      // 清理base64数据引用，帮助垃圾回收
+      pdfBase64 = null;
+
+      return { cachePath, localPath };
+    } catch (error) {
+      console.error('PDFViewer: 保存PDF失败:', error);
+
+      // 清理可能的部分文件
+      try {
+        const cachePath = getCacheFilePath(originalUri);
+        const exists = await RNFS.exists(cachePath);
+        if (exists) {
+          await RNFS.unlink(cachePath);
+        }
+      } catch (cleanupError) {
+        console.warn('PDFViewer: 清理失败的缓存文件时出错:', cleanupError);
+      }
+
+      throw error;
+    }
+  };
+
+  /**
+   * 转换文档为PDF（优化内存管理，防止UI阻塞）
+   */
+  const convertDocumentToPDF = async () => {
+    let timeoutId = null;
+    let isComponentMounted = true;
+
+    try {
+      if (!isComponentMounted) return;
+
+      setIsConverting(true);
+      setConversionProgress(0);
+      setConversionMessage('正在检查缓存...');
+
+      console.log('PDFViewer: 开始处理文档:', uri);
+
+      // 设置超时保护，防止无限等待
+      timeoutId = setTimeout(() => {
+        if (isComponentMounted) {
+          setError('文档加载超时，请重试');
+          setIsConverting(false);
+          setIsLoading(false);
+        }
+      }, 120000); // 2分钟超时
+
+      // 首先检查缓存
+      const cachedPath = await checkCacheExists(uri);
+      if (cachedPath && isComponentMounted) {
+        console.log('PDFViewer: 使用缓存文件:', cachedPath);
+        setConversionMessage('正在加载缓存文件...');
+        setConversionProgress(100);
+
+        // 清除超时
+        if (timeoutId) clearTimeout(timeoutId);
+
+        // 使用requestAnimationFrame确保UI更新不阻塞
+        requestAnimationFrame(() => {
+          if (isComponentMounted) {
+            setPdfSource({ uri: `file://${cachedPath}`, cache: true });
+            setLocalFilePath(cachedPath);
+            setIsConverting(false);
+            setIsLoading(false);
+          }
+        });
+        return;
+      }
+
+      if (!isComponentMounted) return;
+
+      // 缓存不存在，需要转换
+      setConversionMessage('正在检查服务状态...');
+      const healthCheck = await documentConversionService.checkServiceHealth();
+      if (!healthCheck.success) {
+        throw new Error('文档转换服务不可用，请检查后端服务是否启动');
+      }
+
+      if (!isComponentMounted) return;
+
+      setConversionMessage('正在加载文档...');
+
+      // 创建AbortController用于取消转换
+      conversionAbortController.current = new AbortController();
+
+      // 使用Promise.race确保超时控制
+      const conversionPromise = documentConversionService.convertToPDF(uri, {
+        method: 'upload',
+        signal: conversionAbortController.current.signal,
+        onProgress: (progressInfo) => {
+          if (isComponentMounted) {
+            console.log('PDFViewer: 转换进度:', progressInfo);
+            // 使用requestAnimationFrame确保UI更新流畅
+            requestAnimationFrame(() => {
+              if (isComponentMounted) {
+                setConversionProgress(progressInfo.progress || 0);
+                // 显示加载进度而不是转换进度
+                const loadingMessages = [
+                  '正在加载文档...',
+                  '正在处理内容...',
+                  '正在生成预览...',
+                  '即将完成...'
+                ];
+                const messageIndex = Math.floor((progressInfo.progress || 0) / 25);
+                setConversionMessage(loadingMessages[messageIndex] || '正在加载...');
+              }
+            });
+          }
+        }
+      });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('转换超时')), 120000);
+      });
+
+      const conversionResult = await Promise.race([conversionPromise, timeoutPromise]);
+
+      // 清除超时
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (!isComponentMounted) return;
+
+      if (!conversionResult.success) {
+        throw new Error(conversionResult.error || '文档转换失败');
+      }
+
+      console.log('PDFViewer: 转换成功，保存到缓存和本地');
+      setConversionMessage('正在保存文件...');
+
+      // 保存到缓存和本地
+      const { cachePath, localPath } = await saveToCacheAndLocal(
+        conversionResult.pdfBase64,
+        uri,
+        title || 'document'
+      );
+
+      if (!isComponentMounted) return;
+
+      // 使用requestAnimationFrame确保UI更新不阻塞
+      requestAnimationFrame(() => {
+        if (isComponentMounted) {
+          setPdfSource({ uri: `file://${cachePath}`, cache: true });
+          setLocalFilePath(localPath);
+          setOriginalFileInfo(conversionResult.fileInfo);
+          setIsConverting(false);
+          setIsLoading(false);
+        }
+      });
+
+      console.log('PDFViewer: 文档处理完成，使用缓存文件:', cachePath);
+
+    } catch (error) {
+      console.error('PDFViewer: 文档处理失败:', error);
+
+      // 清除超时
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (!isComponentMounted) return;
+
+      // 使用requestAnimationFrame确保UI更新不阻塞
+      requestAnimationFrame(() => {
+        if (isComponentMounted) {
+          setError(error.message);
+          setIsConverting(false);
+          setIsLoading(false);
+
+          // 延迟显示错误对话框，避免阻塞UI
+          setTimeout(() => {
+            if (isComponentMounted) {
+              Alert.alert(
+                '加载失败',
+                error.message,
+                [
+                  { text: '重试', onPress: () => {
+                    if (isComponentMounted) convertDocumentToPDF();
+                  }},
+                  { text: '取消', onPress: () => navigation.goBack() }
+                ]
+              );
+            }
+          }, 100);
+        }
+      });
+    }
+
+    // 清理函数
+    return () => {
+      isComponentMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  };
 
   // 添加书签
   const handleAddBookmark = () => {
@@ -111,11 +579,11 @@ const PDFViewer = ({ route, navigation }) => {
     console.log('=== PDF状态更新 ===');
     console.log(`当前页: ${currentPage}`);
     console.log(`总页数: ${totalPages}`);
-    console.log(`手写模式: ${isHandwritingMode}`);
+    console.log('手写模式: 通过AllInOneToolbar管理');
     console.log(`加载中: ${isLoading}`);
     console.log(`错误: ${error}`);
     console.log('=== PDF状态更新结束 ===');
-  }, [currentPage, totalPages, isHandwritingMode, isLoading, error]);
+  }, [currentPage, totalPages, isLoading, error]);
 
   useEffect(() => {
     // 移除重复的头部按钮设置，现在使用ViewerLayout统一管理
@@ -135,10 +603,8 @@ const PDFViewer = ({ route, navigation }) => {
     }
 
     return () => {
-      // 保存当前页面的注释
-      if (handwritingRef.current) {
-        saveAnnotations();
-      }
+      // 清理内存和取消转换
+      cleanupMemory();
 
       // 清理临时文件
       if (localFilePath && localFilePath.startsWith(RNFS.CachesDirectoryPath)) {
@@ -152,13 +618,7 @@ const PDFViewer = ({ route, navigation }) => {
     };
   }, []);
 
-  // 监听手写模式状态变化和页面变化
-  useEffect(() => {
-    if (isHandwritingMode && currentPage > 0) {
-      // 加载当前页面的注释
-      loadAnnotations(currentPage);
-    }
-  }, [isHandwritingMode, currentPage]);
+
 
   const loadPDF = async () => {
     try {
@@ -169,6 +629,17 @@ const PDFViewer = ({ route, navigation }) => {
       // 检查URI格式
       if (!uri) {
         throw new Error('无效的PDF文件URI');
+      }
+
+      // 检查是否需要转换文档
+      const fileExtension = getFileExtension(title || uri);
+      const needsConversion = fileType === 'ppt' || fileType === 'word' ||
+                             ['ppt', 'pptx', 'doc', 'docx'].includes(fileExtension);
+
+      if (needsConversion) {
+        console.log('PDFViewer: 检测到需要转换的文档:', { fileType, fileExtension });
+        await convertDocumentToPDF();
+        return;
       }
 
       console.log('=== 开始加载PDF文件 ===');
@@ -447,83 +918,25 @@ const PDFViewer = ({ route, navigation }) => {
     }
   };
 
-  // 切换手写模式
-  const toggleHandwritingMode = () => {
-    setIsHandwritingMode(prev => {
-      const newMode = !prev;
-      console.log(`切换手写模式: ${newMode ? '开启' : '关闭'}`);
 
-      // 如果开启手写模式，加载当前页面的注释
-      if (newMode) {
-        loadAnnotations(currentPage);
-      } else {
-        // 如果关闭手写模式，保存当前注释
-        saveAnnotations();
-      }
 
-      return newMode;
-    });
-  };
 
-  // 保存注释按钮处理函数
-  const handleSaveAnnotations = () => {
-    saveAnnotations();
-  };
 
   // 统一保存功能
   const saveToLocal = async () => {
     const pdfData = {
-      annotations: annotations || [],
       images: images || [],
       currentPage: currentPage || 1,
       totalPages: totalPages || 1,
       updatedAt: new Date().toISOString()
     };
-    await SaveUtils.savePDFAnnotations(noteId || uri || title, pdfData, offlineStorageService);
+    // 手写数据现在通过HandwritingAdapter自动保存
+    console.log('PDF数据保存:', pdfData);
   };
 
-  // 关闭手写模式按钮处理函数
-  const handleCloseHandwritingMode = () => {
-    toggleHandwritingMode();
-  };
 
-  // 图片上传处理函数
-  const handleImageUpload = () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: false,
-      maxHeight: 2000,
-      maxWidth: 2000,
-      quality: 0.8,
-    };
 
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('用户取消了图片选择');
-        return;
-      }
 
-      if (response.errorMessage) {
-        console.error('图片选择错误:', response.errorMessage);
-        Alert.alert('错误', '图片选择失败: ' + response.errorMessage);
-        return;
-      }
-
-      if (response.assets && response.assets.length > 0) {
-        const asset = response.assets[0];
-        console.log('选择的图片:', asset);
-
-        // 这里可以实现将图片添加到PDF注释中的逻辑
-        Alert.alert(
-          '图片选择成功',
-          `已选择图片: ${asset.fileName}\n大小: ${(asset.fileSize / 1024 / 1024).toFixed(2)}MB\n\n图片插入功能正在开发中`,
-          [
-            { text: '确定', onPress: () => console.log('图片处理完成') }
-          ]
-        );
-      }
-    });
-  };
 
   // 浮动图片状态与持久化
   const [images, setImages] = useState([]); // {id, uri, x, y, z, scale}
@@ -619,227 +1032,33 @@ const PDFViewer = ({ route, navigation }) => {
     setImages(next); await persistImages(next);
   };
 
-  // 图片插入处理函数
-  const handleImageInsert = async (imageData) => {
-    console.log('=== 开始处理图片插入 ===');
-    console.log('图片数据:', imageData);
 
-    if (!imageData || !imageData.uri) {
-      console.error('无效的图片数据');
-      Alert.alert('错误', '无效的图片数据');
-      return;
-    }
 
-    // 作为漂浮图片加入层（不直接嵌入PDF内容）
-    try {
-      await addFloatingImage({ uri: imageData.uri });
-      Alert.alert('已添加', '图片已作为浮层加入，可拖拽移动');
-    } catch (e) {
-      console.warn('添加图片浮层失败', e);
-    }
-    
-    try {
-      // 计算图片在PDF页面中的合适尺寸
-      const screenWidth = Dimensions.get('window').width;
-      const maxImageWidth = screenWidth * 0.3; // 图片最大宽度为屏幕宽度的30%
-      const maxImageHeight = 200; // 最大高度200px
 
-      let imageWidth = imageData.width;
-      let imageHeight = imageData.height;
 
-      // 按比例缩放图片
-      if (imageWidth > maxImageWidth) {
-        const ratio = maxImageWidth / imageWidth;
-        imageWidth = maxImageWidth;
-        imageHeight = imageHeight * ratio;
-      }
 
-      if (imageHeight > maxImageHeight) {
-        const ratio = maxImageHeight / imageHeight;
-        imageHeight = maxImageHeight;
-        imageWidth = imageWidth * ratio;
-      }
-
-      // 默认插入位置（屏幕中央）
-      const defaultX = (screenWidth - imageWidth) / 2;
-      const defaultY = 200; // 距离顶部200px
-
-      const imageInsertData = {
-        uri: imageData.uri,
-        width: imageWidth,
-        height: imageHeight,
-        x: defaultX,
-        y: defaultY,
-        fileName: imageData.fileName || 'image.jpg',
-        type: imageData.type || 'image/jpeg'
-      };
-
-      console.log('处理后的图片插入数据:', imageInsertData);
-
-      // 将图片添加到手写画布中
-      if (handwritingRef.current) {
-        if (typeof handwritingRef.current.addImage === 'function') {
-          handwritingRef.current.addImage(imageInsertData);
-          console.log('✅ 图片已添加到手写画布');
-        } else {
-          console.warn('❌ HandwritingCanvas没有addImage方法，需要实现');
-          Alert.alert('提示', '图片插入功能正在开发中');
-        }
-      } else {
-        // 手写画布未启用时，忽略该步骤；图片已作为浮层加入
-        console.log('手写画布未初始化：已改为添加漂浮图片层，不再报错');
-      }
-    } catch (error) {
-      console.error('图片插入处理失败:', error);
-      Alert.alert('错误', '图片插入失败: ' + error.message);
-    }
-
-    console.log('=== 图片插入处理结束 ===');
-
-    try {
-      // 计算图片在PDF页面中的合适尺寸
-      const screenWidth = Dimensions.get('window').width;
-      const maxImageWidth = screenWidth * 0.3; // 图片最大宽度为屏幕宽度的30%
-      const maxImageHeight = 200; // 最大高度200px
-
-      let imageWidth = imageData.width;
-      let imageHeight = imageData.height;
-
-      // 按比例缩放图片
-      if (imageWidth > maxImageWidth) {
-        const ratio = maxImageWidth / imageWidth;
-        imageWidth = maxImageWidth;
-        imageHeight = imageHeight * ratio;
-      }
-
-      if (imageHeight > maxImageHeight) {
-        const ratio = maxImageHeight / imageHeight;
-        imageHeight = maxImageHeight;
-        imageWidth = imageWidth * ratio;
-      }
-
-      // 默认插入位置（屏幕中央）
-      const defaultX = (screenWidth - imageWidth) / 2;
-      const defaultY = 200; // 距离顶部200px
-
-      const imageInsertData = {
-        uri: imageData.uri,
-        width: imageWidth,
-        height: imageHeight,
-        x: defaultX,
-        y: defaultY,
-        fileName: imageData.fileName || 'image.jpg',
-        type: imageData.type || 'image/jpeg'
-      };
-
-      console.log('处理后的图片插入数据:', imageInsertData);
-
-      // 将图片添加到手写画布中
-      if (handwritingRef.current) {
-        if (typeof handwritingRef.current.addImage === 'function') {
-          handwritingRef.current.addImage(imageInsertData);
-          console.log('✅ 图片已添加到手写画布');
-        } else {
-          console.warn('❌ HandwritingCanvas没有addImage方法，需要实现');
-          Alert.alert('提示', '图片插入功能正在开发中');
-        }
-      } else {
-        console.log('手写画布未初始化：已改为添加漂浮图片层，不再报错');
-      }
-    } catch (error) {
-      console.error('图片插入处理失败:', error);
-      Alert.alert('错误', '图片插入失败: ' + error.message);
-    }
-
-    console.log('=== 图片插入处理结束 ===');
-  };
-
-  // 保存手写注释
-  const saveAnnotations = async () => {
-    if (handwritingRef.current) {
-      try {
-        // 触发HandwritingCanvas的captureCanvas方法
-        handwritingRef.current.captureCanvas();
-
-        // 注意：实际的保存操作会在HandwritingCanvas的onCapture回调中处理
-        // 如果有noteId，将注释保存到存储中
-        if (noteId && annotations[currentPage]) {
-          const annotationKey = `annotation_${noteId}_${currentPage}`;
-          await offlineStorageService.setItem(annotationKey, annotations[currentPage]);
-          console.log('保存注释到存储:', annotationKey);
-
-          Alert.alert('成功', '注释已保存');
-        }
-      } catch (error) {
-        console.error('保存注释失败:', error);
-        Alert.alert('错误', '保存注释失败');
-      }
-    }
-  };
-
-  // 加载手写注释
-  const loadAnnotations = async (page) => {
-    try {
-      let annotationData = annotations[page];
-
-      // 如果内存中没有注释数据且有noteId，尝试从存储中加载
-      if (!annotationData && noteId) {
-        const annotationKey = `annotation_${noteId}_${page}`;
-        annotationData = await offlineStorageService.getItem(annotationKey);
-
-        // 如果找到了存储的注释，更新内存中的状态
-        if (annotationData) {
-          console.log(`从存储中加载页面${page}的注释数据`);
-          setAnnotations(prev => ({
-            ...prev,
-            [page]: annotationData
-          }));
-        }
-      }
-
-      // 如果有注释数据，加载到画布
-      if (annotationData && handwritingRef.current) {
-        console.log('加载页面注释到画布:', page);
-
-        // 检查HandwritingCanvas是否有loadImageData方法
-        if (typeof handwritingRef.current.loadImageData === 'function') {
-          handwritingRef.current.loadImageData(annotationData);
-        }
-        // 检查是否有setImageData方法
-        else if (typeof handwritingRef.current.setImageData === 'function') {
-          handwritingRef.current.setImageData(annotationData);
-        }
-        // 检查是否有fromDataURL方法
-        else if (typeof handwritingRef.current.fromDataURL === 'function') {
-          handwritingRef.current.fromDataURL(annotationData);
-        }
-        // 如果没有上述方法，尝试使用其他可能的方法
-        else {
-          console.warn('HandwritingCanvas没有提供加载图像数据的方法');
-          // 可能需要实现一个自定义方法来处理这种情况
-        }
-      } else if (handwritingRef.current) {
-        // 如果没有注释数据，清空画布
-        console.log('清空画布，无注释数据');
-        if (typeof handwritingRef.current.clearCanvas === 'function') {
-          handwritingRef.current.clearCanvas();
-        }
-      }
-    } catch (error) {
-      console.error('加载注释失败:', error);
-    }
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
     <ToolbarContainer>
       <AllInOneToolbar
-        onToolChange={() => {}}
-        onColorChange={setStrokeColor}
-        onStrokeWidthChange={setStrokeWidth}
+        onToolChange={handleToolChange}
+        onColorChange={handleColorChange}
+        onStrokeWidthChange={handleStrokeWidthChange}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onClear={handleClear}
+        initialTool={currentDrawingTool?.type || 'pen'}
+        initialColor={currentDrawingColor}
+        initialStrokeWidth={currentStrokeWidth}
         onImageUpload={(image) => addFloatingImage(image)}
         onBookmarkAdd={handleAddBookmark}
         onBookmarkList={() => setBookmarkVisible(true)}
+        showModeToggle={true}
+        onModeToggle={handleModeToggle}
+        isFingerMode={isFingerMode}
       />
     </ToolbarContainer>
     <ViewerLayout
@@ -872,7 +1091,39 @@ const PDFViewer = ({ route, navigation }) => {
       navigation={navigation}
     >
       
-      {isLoading && (
+      {/* 文档转换进度界面 */}
+      {isConverting && (
+        <View style={styles.conversionContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.conversionTitle, { color: colors.text }]}>
+            正在加载文档
+          </Text>
+          <Text style={[styles.conversionMessage, { color: colors.textSecondary }]}>
+            {conversionMessage}
+          </Text>
+          <View style={[styles.progressContainer, { backgroundColor: colors.surface }]}>
+            <View
+              style={[
+                styles.progressBar,
+                {
+                  backgroundColor: colors.primary,
+                  width: `${conversionProgress}%`
+                }
+              ]}
+            />
+          </View>
+          <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+            {Math.round(conversionProgress)}%
+          </Text>
+          {originalFileInfo && (
+            <Text style={[styles.fileInfo, { color: colors.textSecondary }]}>
+              原始格式: {originalFileInfo.file_type?.toUpperCase()}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {isLoading && !isConverting && (
         <LoadingIndicator
           message="正在加载PDF文档..."
           subMessage="大文件首次加载可能较慢"
@@ -888,7 +1139,15 @@ const PDFViewer = ({ route, navigation }) => {
       )}
 
       {pdfSource && !error && (
-        <View style={styles.pdfContainer}>
+        <View
+          style={styles.pdfContainer}
+          onLayout={(event) => {
+            const { x, y, width, height } = event.nativeEvent.layout;
+            setPdfLayout({ x, y, width, height });
+          }}
+        >
+          {/* 移除PDF边框，提供更清洁的视觉体验 */}
+
           {/* 主PDF显示组件 */}
           <Pdf
             key={(pdfSource && pdfSource.uri) || 'pdf'}
@@ -971,6 +1230,13 @@ const PDFViewer = ({ route, navigation }) => {
                 }, 2000);
               }
 
+              // 设置PDF直接写入服务
+              if (filePath || (pdfSource && pdfSource.uri)) {
+                const pdfPath = filePath || pdfSource.uri;
+                pdfDirectWriteService.setCurrentPDF(pdfPath);
+                console.log('PDFViewer: 已设置PDF直接写入服务');
+              }
+
               setIsLoading(false);
               console.log('=== PDF加载完成处理结束 ===');
             }}
@@ -987,10 +1253,8 @@ const PDFViewer = ({ route, navigation }) => {
                 if (pageChangeTimeout.current) clearTimeout(pageChangeTimeout.current);
                 pageChangeTimeout.current = setTimeout(() => {
                   setCurrentPage(page);
-                  console.log(`加载第${page}页的注释`);
-                  loadAnnotations(page);
                   console.log('=== PDF页面变化处理结束 ===');
-                }, 200);
+                }, 50);
               }
             }}
             onError={(error) => {
@@ -1016,8 +1280,8 @@ const PDFViewer = ({ route, navigation }) => {
             fitPolicy={0} // 0=Fit width
             spacing={0} // 去除页间距，避免边框感
             singlePage={false}
-            enableSwipe={!isStylusActive}
-            scrollEnabled={!isStylusActive}
+            enableSwipe={true}
+            scrollEnabled={true}
             minScale={0.5}            // 允许缩小
             maxScale={4.0}            // 放大更多
             showsHorizontalScrollIndicator={false}
@@ -1053,8 +1317,10 @@ const PDFViewer = ({ route, navigation }) => {
               // 延迟隐藏指示器
               setTimeout(() => {
                 setShowZoomIndicator(false);
-              }, 100);
+              }, 2000);
             }}
+
+
           />
           {/* 漂浮图片层（在 Pdf 组件之后渲染）*/}
           <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t+1); return false; }}>
@@ -1075,13 +1341,42 @@ const PDFViewer = ({ route, navigation }) => {
               />
             ))}
           </View>
-          {/* 暂时禁用手写覆盖层 */}
-          {/* <GlobalStylusOverlay
-            color={strokeColor}
-            width={strokeWidth}
-            onStrokeStart={() => setIsStylusActive(true)}
-            onStrokeEnd={() => setTimeout(() => setIsStylusActive(false), 120)}
-          /> */}
+          {/* 手写适配器层 */}
+          {(() => {
+            try {
+              return (
+                <HandwritingAdapter
+                  ref={handwritingAdapterRef}
+                  currentTool={currentDrawingTool}
+                  currentColor={currentDrawingColor}
+                  currentStrokeWidth={currentStrokeWidth}
+                  documentId={noteId}
+                  documentType="pdf"
+                  pageNumber={currentPage}
+                  filePath={localFilePath || (pdfSource && pdfSource.uri)}
+                  fileName={localFilePath ? localFilePath.split('/').pop() : (pdfSource && pdfSource.uri ? pdfSource.uri.split('/').pop() : 'unknown.pdf')}
+                  enablePressure={true}
+                  enableTilt={true}
+                  fingerRejection={false}
+                  isFingerMode={isFingerMode}
+                  onStrokesChange={handleStrokesChange}
+                  style={styles.handwritingLayer}
+                  zIndex={1000}
+                  visible={true}
+                  // 传递PDF边界信息用于边界检测
+                  pdfBounds={{
+                    width: screenWidth,
+                    height: screenHeight
+                  }}
+                  // 启用直接写入模式以提高性能
+                  directWriteMode={true}
+                />
+              );
+            } catch (error) {
+              console.error('PDFViewer: HandwritingAdapter渲染失败:', error);
+              return null;
+            }
+          })()}
         </View>
       )}
 
@@ -1183,6 +1478,20 @@ const styles = StyleSheet.create({
     position: 'relative',
     paddingTop: 0,
     backgroundColor: 'transparent',
+  },
+  pdfBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
+    bottom: 0,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
+    borderStyle: 'solid',
+    zIndex: 999,
+    pointerEvents: 'none',
   },
   pdf: {
     flex: 1,
@@ -1364,6 +1673,52 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginRight: 4,
     minHeight: 24,
+  },
+  // 文档转换样式
+  conversionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  conversionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  conversionMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  progressContainer: {
+    width: 200,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  fileInfo: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  // 手写层样式
+  handwritingLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'auto',
   },
 
 });

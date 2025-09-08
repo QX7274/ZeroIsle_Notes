@@ -5,6 +5,8 @@
 import { realmService } from '../database/realmService';
 import { realmStorageService } from '../storage/realmStorageService';
 import { eventEmitter } from '../utils/eventEmitter';
+import networkErrorService from '../networkErrorService';
+import memoryGuard from '../memory/memoryGuard';
 
 // 存储事件
 export const STORAGE_EVENTS = {
@@ -304,16 +306,20 @@ class OfflineStorageService {
         const notes = await realmService.find('Note', query, options);
         console.log(`成功获取到${notes.length}条笔记`);
 
-        // 如果成功获取到笔记，保存为最近的笔记
-        if (notes && notes.length > 0) {
+        // 使用内存守护创建安全的笔记列表
+        const safeNotes = memoryGuard.createSafeNotesList(notes);
+        console.log(`MemoryGuard: 创建了${safeNotes.length}条安全笔记`);
+
+        // 如果成功获取到笔记，保存为最近的笔记（使用安全版本）
+        if (safeNotes && safeNotes.length > 0) {
           try {
-            // 异步保存，不等待结果
-            this.saveRecentNotes(notes).catch(saveError => {
+            // 异步保存，不等待结果（保存安全版本）
+            this.saveRecentNotes(safeNotes).catch(saveError => {
               console.warn('保存最近笔记失败:', saveError);
             });
 
-            // 同时保存到last_successful_notes键
-            this.setItem('last_successful_notes', JSON.stringify(notes)).catch(saveError => {
+            // 同时保存到last_successful_notes键（保存安全版本）
+            this.setItem('last_successful_notes', JSON.stringify(safeNotes)).catch(saveError => {
               console.warn('保存上次成功的笔记列表失败:', saveError);
             });
           } catch (saveError) {
@@ -321,7 +327,7 @@ class OfflineStorageService {
           }
         }
 
-        return notes;
+        return safeNotes;
       } catch (findError) {
         console.error('使用realmService.find获取笔记失败:', findError);
 

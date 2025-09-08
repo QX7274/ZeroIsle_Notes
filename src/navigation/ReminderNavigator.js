@@ -11,10 +11,10 @@ import ReminderExportScreen from '../screens/reminder/ReminderExportScreen';
 import { ReminderListView } from '../components/reminder';
 import { View } from 'react-native';
 
-const ReminderScreen = () => {
+const ReminderScreen = ({ navigation, route }) => {
   return (
     <View style={{ flex: 1 }}>
-      <ReminderListView />
+      <ReminderListView navigation={navigation} route={route} />
     </View>
   );
 };

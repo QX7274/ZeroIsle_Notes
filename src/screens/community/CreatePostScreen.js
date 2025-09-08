@@ -24,6 +24,7 @@ import DocumentPicker from 'react-native-document-picker';
 import { createPost } from '../../redux/slices/communitySlice';
 import { fetchCategories } from '../../redux/slices/notesSlice';
 import { fetchTags } from '../../redux/slices/tagsSlice';
+import networkErrorService from '../../services/networkErrorService';
 
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -62,6 +63,13 @@ const CreatePostScreen = ({ navigation }) => {
       setAvailableTags(tagsResult || []);
     } catch (error) {
       console.error('加载分类和标签失败:', error);
+      
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '加载分类和标签',
+          customMessage: '网络连接失败，无法加载分类和标签'
+        });
+      }
 
       // 设置默认分类和标签
       const defaultCategories = [

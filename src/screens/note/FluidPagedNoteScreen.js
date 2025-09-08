@@ -3,7 +3,7 @@
  * 支持流畅缩放（最小50%）、四种样式选择、页码器在底部
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -31,7 +31,8 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import ZoomIndicator from '../../components/common/ZoomIndicator';
 import PageControl from '../../components/viewer/PageControl';
-// 移除自定义滑动指示器导入
+import HandwritingAdapter from '../../components/handwriting/HandwritingAdapter';
+import handwritingOCRService from '../../services/ocr/HandwritingOCRService';
 import Svg, { Rect, Line, Circle } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -60,6 +61,14 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
   
   // 笔记样式状态
   const [currentNoteStyleKey, setCurrentNoteStyleKey] = useState(noteStyle);
+
+  // 手写相关状态
+  const [currentDrawingTool, setCurrentDrawingTool] = useState({ type: 'pen', size: 2 });
+  const [currentDrawingColor, setCurrentDrawingColor] = useState('#000000');
+  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isFingerMode, setIsFingerMode] = useState(true); // 默认为手指模式
   
   // 引用
   const scrollViewRef = useRef(null);
@@ -68,6 +77,8 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
   const initialDistance = useRef(0);
   const initialScale = useRef(1);
   const isTransforming = useRef(false);
+  const handwritingAdapterRef = useRef(null);
+  const pendingStrokes = useRef([]);
 
   // 笔记样式配置 - 支持四种样式
   const noteStyles = {
@@ -486,19 +497,26 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
     }
   };
 
-  // 组件挂载时加载数据
+  // 组件挂载时加载数据 - 添加防重复加载机制
+  const hasLoadedData = useRef(false);
   useEffect(() => {
-    loadNoteData();
+    if (!hasLoadedData.current) {
+      loadNoteData();
+      hasLoadedData.current = true;
+    }
   }, [noteId, createNew, isNew]);
 
-  // 监控pages状态变化
+  // 监控pages状态变化 - 减少日志输出以提升性能
   useEffect(() => {
-    console.log('pages状态变化:', pages);
-  }, [pages]);
+    if (pages && pages.length > 0) {
+      console.log('pages状态变化: 页数', pages.length);
+    }
+  }, [pages?.length]); // 只在页数变化时记录日志
 
-  // 添加到文件历史记录
+  // 添加到文件历史记录 - 修复重复添加问题
+  const hasAddedToHistory = useRef(false);
   useEffect(() => {
-    if (noteData && noteData.id) {
+    if (noteData && noteData.id && !hasAddedToHistory.current) {
       try {
         const fileHistoryService = require('../../services/fileHistoryService').default;
         fileHistoryService.addFile({
@@ -510,11 +528,118 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
           noteId: noteData.id,
           file_uri: noteData.file_uri || `paged_note://${noteData.id}`
         });
+        hasAddedToHistory.current = true;
+        console.log('FluidPagedNoteScreen: 已添加到文件历史记录');
       } catch (error) {
         console.warn('添加到文件历史失败:', error);
       }
     }
-  }, [noteData]);
+  }, [noteData?.id]); // 只依赖noteData.id，避免其他属性变化导致重复添加
+
+  // 手写处理函数
+  const handleToolChange = useCallback((tool) => {
+    setCurrentDrawingTool(tool);
+    console.log('FluidPagedNoteScreen: 工具切换到:', tool);
+  }, []);
+
+  const handleColorChange = useCallback((color) => {
+    setCurrentDrawingColor(color);
+    console.log('FluidPagedNoteScreen: 颜色切换到:', color);
+  }, []);
+
+  const handleStrokeWidthChange = useCallback((width) => {
+    setCurrentStrokeWidth(width);
+    console.log('FluidPagedNoteScreen: 笔迹粗细切换到:', width);
+  }, []);
+
+  const handleStrokesChange = useCallback(async (strokes) => {
+    try {
+      if (!Array.isArray(strokes)) {
+        console.warn('FluidPagedNoteScreen: 无效的笔迹数据');
+        return;
+      }
+
+      setCanUndo(strokes.length > 0);
+      setCanRedo(false);
+      console.log(`FluidPagedNoteScreen: 笔迹更新，当前数量: ${strokes.length}`);
+
+      // 性能优化：只存储笔迹数据，不立即保存
+      pendingStrokes.current = strokes;
+    } catch (error) {
+      console.error('FluidPagedNoteScreen: 处理笔迹变化失败:', error);
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.undo();
+      }
+    } catch (error) {
+      console.error('FluidPagedNoteScreen: 撤销操作失败:', error);
+    }
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.redo();
+      }
+    } catch (error) {
+      console.error('FluidPagedNoteScreen: 重做操作失败:', error);
+    }
+  }, []);
+
+  const handleClear = useCallback(() => {
+    try {
+      if (handwritingAdapterRef.current) {
+        handwritingAdapterRef.current.clearStrokes();
+      }
+    } catch (error) {
+      console.error('FluidPagedNoteScreen: 清空操作失败:', error);
+    }
+  }, []);
+
+  const handleModeToggle = useCallback((newMode) => {
+    setIsFingerMode(newMode);
+    console.log('FluidPagedNoteScreen: 模式切换到:', newMode ? '手指模式' : '手写笔模式');
+  }, []);
+
+  const handleHandwritingOCR = useCallback(async () => {
+    try {
+      if (!handwritingAdapterRef.current) {
+        console.warn('FluidPagedNoteScreen: 手写适配器未初始化');
+        return { success: false, error: '手写适配器未初始化' };
+      }
+
+      const strokes = handwritingAdapterRef.current.getStrokes();
+      if (!strokes || strokes.length === 0) {
+        console.warn('FluidPagedNoteScreen: 没有可转换的笔迹');
+        return { success: false, error: '没有可转换的笔迹' };
+      }
+
+      console.log('FluidPagedNoteScreen: 开始手写转换，笔迹数量:', strokes.length);
+      const result = await handwritingOCRService.convertStrokesToText(strokes);
+
+      if (result.success && result.text) {
+        // 将转换的文本添加到当前页面内容
+        const newContent = content + (content ? '\n' : '') + result.text;
+        setContent(newContent);
+
+        // 清空笔迹
+        handwritingAdapterRef.current.clearStrokes();
+
+        console.log('FluidPagedNoteScreen: 手写转换成功:', result.text);
+        return { success: true, text: result.text };
+      } else {
+        console.error('FluidPagedNoteScreen: 手写转换失败:', result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      console.error('FluidPagedNoteScreen: 手写转换失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [content]);
 
   // 渲染纸张背景
   const renderPaperBackground = () => {
@@ -646,12 +771,24 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ToolbarContainer>
         <AllInOneToolbar
-          onToolChange={() => {}}
-          onColorChange={() => {}}
-          onStrokeWidthChange={() => {}}
+          onToolChange={handleToolChange}
+          onColorChange={handleColorChange}
+          onStrokeWidthChange={handleStrokeWidthChange}
           onImageUpload={() => {}}
           onBookmarkAdd={() => {}}
           onBookmarkList={() => {}}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onClear={handleClear}
+          onHandwritingOCR={handleHandwritingOCR}
+          initialTool={currentDrawingTool?.type || 'pen'}
+          initialColor={currentDrawingColor}
+          initialStrokeWidth={currentStrokeWidth}
+          showModeToggle={true}
+          onModeToggle={handleModeToggle}
+          isFingerMode={isFingerMode}
         />
       </ToolbarContainer>
 
@@ -741,6 +878,25 @@ const FluidPagedNoteScreen = ({ route, navigation }) => {
               );
             });
           })()}
+
+          {/* 手写适配器层 */}
+          <HandwritingAdapter
+            ref={handwritingAdapterRef}
+            currentTool={currentDrawingTool}
+            currentColor={currentDrawingColor}
+            currentStrokeWidth={currentStrokeWidth}
+            documentId={noteData?.id}
+            documentType="paged_note"
+            enablePressure={true}
+            enableTilt={true}
+            fingerRejection={!isFingerMode} // 根据模式决定是否拒绝手指
+            isFingerMode={isFingerMode} // 传递手指模式状态
+            onStrokesChange={handleStrokesChange}
+            style={styles.handwritingLayer}
+            width={screenWidth}
+            height={screenHeight * Math.max(1, totalPages || 1)}
+            visible={true}
+          />
         </ScrollView>
       </ViewerLayout>
 
@@ -849,6 +1005,15 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     zIndex: 1000,
+  },
+  handwritingLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    pointerEvents: 'auto',
   },
 });
 

@@ -10,6 +10,7 @@ import { configService } from '../../services/app/configService';
 import { networkService } from '../../services/network/networkService';
 import { logService } from '../../services/utils/logService';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import networkErrorService from '../../services/networkErrorService';
 import SyncButton from '../../components/common/SyncButton';
 import { formatDistanceToNow, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -62,7 +63,17 @@ const SyncSettingsScreen = ({ navigation }) => {
         setLoading(false);
       } catch (error) {
         logService.error('加载同步设置失败', error);
-        Alert.alert('错误', '加载同步设置失败');
+        
+        // 使用网络错误服务处理错误
+        if (networkErrorService.isNetworkError(error)) {
+          networkErrorService.handleApiError(error, {
+            context: '加载同步设置',
+            customMessage: '网络连接失败，无法加载同步设置'
+          });
+        } else {
+          Alert.alert('错误', '加载同步设置失败');
+        }
+        
         setLoading(false);
       }
     };

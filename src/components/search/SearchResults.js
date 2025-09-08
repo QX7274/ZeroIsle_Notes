@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Card } from '../common';
+import networkErrorService from '../../services/networkErrorService';
 
 /**
  * 搜索结果组件
@@ -291,6 +292,15 @@ const SearchResults = ({
 
   // 渲染错误状态
   if (error) {
+    // 检查是否是网络错误
+    if (typeof error === 'string' && error.includes('网络')) {
+      // 使用网络错误服务处理网络错误
+      networkErrorService.showNetworkError(new Error(error), {
+        context: '搜索功能',
+        customMessage: '网络连接失败，无法完成搜索'
+      });
+    }
+    
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <Icon name="error" size={48} color={theme.error} />

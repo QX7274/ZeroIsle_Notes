@@ -149,7 +149,6 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const loadThemeSettings = async () => {
       try {
-        console.log('ThemeContext: 开始加载主题设置...');
 
         // 添加超时机制，避免无限等待
         const timeoutPromise = new Promise((_, reject) => {
@@ -162,27 +161,23 @@ export const ThemeProvider = ({ children }) => {
           const savedTheme = await getTheme();
           if (savedTheme) {
             setThemeType(savedTheme);
-            console.log('ThemeContext: 已加载主题类型:', savedTheme);
           }
 
           // 加载主题风格（classic/modern）
           const savedStyle = await getThemeStyle();
           if (savedStyle) {
             setThemeStyle(savedStyle);
-            console.log('ThemeContext: 已加载主题风格:', savedStyle);
           }
 
           // 加载自定义主题
           const savedCustomTheme = await getCustomTheme();
           if (savedCustomTheme) {
             setCustomTheme(savedCustomTheme);
-            console.log('ThemeContext: 已加载自定义主题');
           }
 
           // 立即更新全局颜色常量，确保在应用启动时就设置正确的颜色
           const isDark = savedTheme === 'dark' || (savedTheme === 'system' && systemTheme === 'dark');
           updateThemeColors(isDark);
-          console.log('ThemeContext: 主题颜色初始化完成，当前模式:', isDark ? '深色' : '浅色');
 
           return true;
         })();
@@ -409,23 +404,25 @@ export const ThemeProvider = ({ children }) => {
   }, [theme]);
 
   // 上下文值
-  const contextValue = useMemo(() => ({
-    theme,
-    colors: theme.colors,
-    dimensions: theme.dimensions,
-    typography: theme.typography,
-    isDarkMode,
-    themeType,
-    themeStyle,
-    customTheme,
-    toggleTheme,
-    setThemeType: handleSetThemeType,
-    setThemeStyle: handleSetThemeStyle,
-    getColor,
-    updateThemeColor,
-    resetThemeColors,
-    getThemeValue,
-  }), [
+  const contextValue = useMemo(() => {
+    return {
+      theme,
+      colors: theme.colors,
+      dimensions: theme.dimensions,
+      typography: theme.typography,
+      isDarkMode,
+      themeType,
+      themeStyle,
+      customTheme,
+      toggleTheme,
+      setThemeType: handleSetThemeType,
+      setThemeStyle: handleSetThemeStyle,
+      getColor,
+      updateThemeColor,
+      resetThemeColors,
+      getThemeValue,
+    };
+  }, [
     theme,
     isDarkMode,
     themeType,
@@ -454,6 +451,7 @@ export const ThemeProvider = ({ children }) => {
 export const useTheme = () => {
   try {
     const context = useContext(ThemeContext);
+    
     if (!context) {
       console.warn('useTheme: 主题上下文不存在，使用默认主题');
       // 返回默认主题，而不是抛出错误
@@ -462,9 +460,6 @@ export const useTheme = () => {
         isDarkMode: false,
         themeType: 'light',
         themeStyle: 'classic',
-        colors: lightTheme.colors,
-        dimensions: lightTheme.dimensions,
-        typography: lightTheme.typography,
         toggleTheme: () => {},
         setThemeType: () => {},
         setThemeStyle: () => {},
@@ -474,6 +469,24 @@ export const useTheme = () => {
         getThemeValue: () => {},
       };
     }
+    
+    if (!context.theme || !context.theme.colors) {
+      console.warn('useTheme: 主题对象无效，使用默认主题');
+      return {
+        theme: lightTheme,
+        isDarkMode: false,
+        themeType: 'light',
+        themeStyle: 'classic',
+        toggleTheme: () => {},
+        setThemeType: () => {},
+        setThemeStyle: () => {},
+        getColor: () => {},
+        updateThemeColor: () => {},
+        resetThemeColors: () => {},
+        getThemeValue: () => {},
+      };
+    }
+    
     return context;
   } catch (error) {
     console.error('useTheme: 获取主题上下文失败:', error.message);
@@ -483,13 +496,8 @@ export const useTheme = () => {
       isDarkMode: false,
       themeType: 'light',
       themeStyle: 'classic',
-      colors: lightTheme.colors,
-      dimensions: lightTheme.dimensions,
-      typography: lightTheme.typography,
       toggleTheme: () => {},
       setThemeType: () => {},
-      setThemeStyle: () => {},
-      getColor: () => {},
       updateThemeColor: () => {},
       resetThemeColors: () => {},
       getThemeValue: () => {},

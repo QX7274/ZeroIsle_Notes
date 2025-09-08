@@ -7,6 +7,7 @@ import { API_URL } from '../../config';
 import storageService, { setToken, setRefreshToken, setUser, clearAuth } from '../storage/storageService';
 import tokenService from '../auth/tokenService';
 import { saveAuthInfo } from '../auth/authUtils';
+import networkErrorService from '../networkErrorService';
 
 /**
  * 用户登录
@@ -228,6 +229,13 @@ export const login = async (loginData) => {
     } else if (error.request) {
       // 请求已发送但没有收到响应
       console.error('未收到服务器响应:', error.request);
+      
+      // 使用网络错误服务处理
+      networkErrorService.handleApiError(error, {
+        context: '用户登录',
+        customMessage: '服务器无响应，请检查网络连接或服务器状态'
+      });
+      
       return {
         success: false,
         message: '服务器无响应，请检查网络连接或服务器状态',
@@ -236,6 +244,15 @@ export const login = async (loginData) => {
     } else {
       // 请求设置时出错
       console.error('请求设置错误:', error.message);
+      
+      // 检查是否是网络错误
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '用户登录',
+          customMessage: '网络连接失败，请检查网络设置'
+        });
+      }
+      
       return {
         success: false,
         message: `请求错误: ${error.message}`,
@@ -618,23 +635,16 @@ export const refreshToken = async (refreshToken) => {
 
     // 保存新的访问令牌
     try {
-      // 尝试使用导入的函数
-      if (typeof setToken === 'function') {
-        await setToken(response.data.access);
-      } else if (storageService && typeof storageService.setToken === 'function') {
-        await storageService.setToken(response.data.access);
-      } else {
-        console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
-        const { realmStorageService } = require('../storage/realmStorageService');
-        // 创建完整的存储对象
-        const now = new Date();
-        await realmStorageService.setItem('zeroisle_auth_token', {
-          token: response.data.access,
-          expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
-        });
+      await tokenService.saveAccessToken(response.data.access);
+      
+      // 如果响应中包含新的刷新令牌，也保存它
+      if (response.data.refresh) {
+        await tokenService.saveRefreshToken(response.data.refresh);
       }
+      
+      console.log('访问令牌刷新成功');
     } catch (storageError) {
-      console.error('保存访问令牌时出错:', storageError);
+      console.error('保存刷新后的令牌失败:', storageError);
       // 继续执行，不要因为存储错误而中断刷新流程
     }
 

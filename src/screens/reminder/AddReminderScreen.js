@@ -23,8 +23,18 @@ import reminderNotificationService from '../../services/reminder/reminderNotific
 
 const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
-  const { theme } = useTheme();
+  const themeContext = useTheme();
+  const theme = themeContext.theme;
   const dispatch = useDispatch();
+  
+     // 检查主题对象
+   if (!theme || !theme.colors) {
+     return (
+       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+         <Text>主题加载失败，请重启应用</Text>
+       </View>
+     );
+   }
   const [saving, setSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
@@ -140,13 +150,13 @@ const AddReminderScreen = ({ route, navigation }) => {
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high':
-        return theme.error;
+        return theme.colors.error;
       case 'medium':
-        return theme.warning;
+        return theme.colors.primary; // 中优先级改为蓝色
       case 'low':
-        return theme.success;
+        return theme.colors.success;
       default:
-        return theme.primary;
+        return theme.colors.primary;
     }
   };
 
@@ -203,28 +213,28 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
 
   // 渲染主界面
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 标题和描述 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>标题</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标题</Text>
           <TextInput
-            style={[styles.titleInput, { color: theme.text, borderBottomColor: theme.border }]}
+            style={[styles.titleInput, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
             value={reminder.title}
             onChangeText={(text) => setReminder({ ...reminder, title: text })}
             placeholder="提醒标题"
-            placeholderTextColor={theme.textDisabled}
+            placeholderTextColor={theme.colors.textDisabled}
             autoFocus
           />
 
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>描述</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>描述</Text>
           <TextInput
-            style={[styles.descriptionInput, { color: theme.text, borderColor: theme.border }]}
+            style={[styles.descriptionInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
             value={reminder.description}
             onChangeText={(text) => setReminder({ ...reminder, description: text })}
             placeholder="添加描述（可选）"
-            placeholderTextColor={theme.textDisabled}
+            placeholderTextColor={theme.colors.textDisabled}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -232,22 +242,22 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 日期和时间 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>日期和时间</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>日期和时间</Text>
           <TouchableOpacity
             style={styles.dateTimeButton}
             onPress={showDateTimePicker}
           >
-            <Icon name="event" size={24} color={theme.primary} style={styles.dateTimeIcon} />
-            <Text style={[styles.dateTimeText, { color: theme.text }]}>
+            <Icon name="event" size={24} color={theme.colors.primary} style={styles.dateTimeIcon} />
+            <Text style={[styles.dateTimeText, { color: theme.colors.text }]}>
               {format(reminder.due_date, 'yyyy年MM月dd日 EEEE HH:mm', { locale: zhCN })}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* 优先级 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>优先级</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>优先级</Text>
           <View style={styles.priorityContainer}>
             {['low', 'medium', 'high'].map((priority) => (
               <TouchableOpacity
@@ -255,34 +265,34 @@ const AddReminderScreen = ({ route, navigation }) => {
                 style={[
                   styles.priorityButton,
                   {
-                    backgroundColor: reminder.priority === priority
+                    backgroundColor: reminder.priority === priority && priority !== 'medium'
                       ? getPriorityColor(priority)
-                      : theme.background,
+                      : theme.colors.background,
                     borderColor: getPriorityColor(priority),
                   }
                 ]}
                 onPress={() => setReminder({ ...reminder, priority })}
               >
-                <Text
-                  style={[
-                    styles.priorityText,
-                    {
-                      color: reminder.priority === priority
-                        ? '#fff'
-                        : getPriorityColor(priority),
-                    }
-                  ]}
-                >
-                  {getPriorityLabel(priority)}
-                </Text>
+                                  <Text
+                    style={[
+                      styles.priorityText,
+                      {
+                        color: reminder.priority === priority && priority !== 'medium'
+                          ? '#fff'
+                          : getPriorityColor(priority),
+                      }
+                    ]}
+                  >
+                    {getPriorityLabel(priority)}
+                  </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* 分类 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>分类</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>分类</Text>
           <View style={styles.categoryContainer}>
             {['work', 'study', 'personal', 'health', 'finance', 'social', 'other'].map((category) => (
               <TouchableOpacity
@@ -291,9 +301,9 @@ const AddReminderScreen = ({ route, navigation }) => {
                   styles.categoryButton,
                   {
                     backgroundColor: reminder.category === category
-                      ? theme.primary
-                      : theme.background,
-                    borderColor: theme.primary,
+                      ? theme.colors.primary
+                      : theme.colors.background,
+                    borderColor: theme.colors.primary,
                   }
                 ]}
                 onPress={() => setReminder({ ...reminder, category })}
@@ -304,10 +314,10 @@ const AddReminderScreen = ({ route, navigation }) => {
                     {
                       color: reminder.category === category
                         ? '#fff'
-                        : theme.primary,
-                    }
-                  ]}
-                >
+                        : theme.colors.primary,
+                      }
+                    ]
+                  }>
                   {getCategoryLabel(category)}
                 </Text>
               </TouchableOpacity>
@@ -316,8 +326,8 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 重复 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>重复</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>重复</Text>
           <View style={styles.frequencyContainer}>
             {['once', 'daily', 'weekly', 'monthly', 'yearly'].map((frequency) => (
               <TouchableOpacity
@@ -326,9 +336,9 @@ const AddReminderScreen = ({ route, navigation }) => {
                   styles.frequencyButton,
                   {
                     backgroundColor: reminder.frequency === frequency
-                      ? theme.primary
-                      : theme.background,
-                    borderColor: theme.primary,
+                      ? theme.colors.primary
+                      : theme.colors.background,
+                    borderColor: theme.colors.primary,
                   }
                 ]}
                 onPress={() => setReminder({ ...reminder, frequency })}
@@ -339,8 +349,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                     {
                       color: reminder.frequency === frequency
                         ? '#fff'
-                        : theme.primary,
-                    }
+                        : theme.colors.primary,
+                      }
                   ]}
                 >
                   {getFrequencyLabel(frequency)}
@@ -351,7 +361,7 @@ const AddReminderScreen = ({ route, navigation }) => {
 
           {reminder.frequency !== 'once' && (
             <View style={styles.repeatEndContainer}>
-              <Text style={[styles.repeatEndLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.repeatEndLabel, { color: theme.colors.textSecondary }]}>
                 重复结束日期
               </Text>
               <TouchableOpacity
@@ -360,41 +370,41 @@ const AddReminderScreen = ({ route, navigation }) => {
                   // TODO: 添加重复结束日期选择器
                 }}
               >
-                <Text style={[styles.repeatEndText, { color: theme.text }]}>
+                <Text style={[styles.repeatEndText, { color: theme.colors.text }]}>
                   {reminder.repeat_end_date
                     ? format(new Date(reminder.repeat_end_date), 'yyyy年MM月dd日', { locale: zhCN })
                     : '无结束日期'}
                 </Text>
-                <Icon name="event" size={20} color={theme.primary} />
+                <Icon name="event" size={20} color={theme.colors.primary} />
               </TouchableOpacity>
             </View>
           )}
         </View>
 
         {/* 标签 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>标签</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标签</Text>
           <TextInput
-            style={[styles.tagsInput, { color: theme.text, borderBottomColor: theme.border }]}
+            style={[styles.tagsInput, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
             value={reminder.tags}
             onChangeText={(text) => setReminder({ ...reminder, tags: text })}
             placeholder="添加标签，用逗号分隔"
-            placeholderTextColor={theme.textDisabled}
+            placeholderTextColor={theme.colors.textDisabled}
           />
         </View>
 
         {/* 操作按钮 */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: theme.background, borderColor: theme.border }]}
+            style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
             onPress={() => navigation.goBack()}
             disabled={saving}
           >
-            <Text style={[styles.cancelButtonText, { color: theme.text }]}>取消</Text>
+            <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>取消</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.createButton, { backgroundColor: theme.primary }]}
+            style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleCreate}
             disabled={saving}
           >
@@ -428,6 +438,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+
   scrollContent: {
     padding: 16,
     paddingBottom: 32,

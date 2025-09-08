@@ -5,6 +5,7 @@
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
 import tagApi from '../../services/api/tagApi';
 import { logService } from '../../services/utils/logService';
+import networkErrorService from '../../services/networkErrorService';
 
 // 创建实体适配器，用于规范化状态
 const tagsAdapter = createEntityAdapter({
@@ -27,6 +28,12 @@ export const fetchTags = createAsyncThunk(
       return response;
     } catch (error) {
       logService.error('获取标签列表失败', error);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '获取标签列表',
+          customMessage: '网络连接失败，无法获取标签列表'
+        });
+      }
       return rejectWithValue(error.message || '获取标签列表失败');
     }
   }
@@ -47,6 +54,12 @@ export const createTag = createAsyncThunk(
       return response;
     } catch (error) {
       logService.error('创建标签失败', error);
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '创建标签',
+          customMessage: '网络连接失败，无法创建标签'
+        });
+      }
       return rejectWithValue(error.message || '创建标签失败');
     }
   }

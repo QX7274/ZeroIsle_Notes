@@ -8,7 +8,7 @@
 // 如果需要使用手机热点，请确保平板连接到手机热点，然后使用热点地址
 export const API_URL = __DEV__
   //? 'http://192.168.1.100:8000'  // WiFi网络地址 - 请根据实际网络情况修改
-  ? 'http://192.168.175.232:8000'  // 手机热点地址 - 如果使用热点请取消注释此行并注释上一行
+  ? 'http://192.168.234.232:8000'  // 手机热点地址 - 如果使用热点请取消注释此行并注释上一行
   : 'https://api.zeroislenotes.com'; // 生产环境地址
 
 // 调试信息
@@ -46,13 +46,23 @@ export const AUTH_TOKEN_KEY = 'auth_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
 export const TOKEN_EXPIRY_KEY = 'token_expiry';
 
-// 开发模式配置
-export const DEV_CONFIG = {
-  // 开发模式下跳过登录
-  SKIP_LOGIN: __DEV__ && true, // 设置为 true 时在开发模式下跳过登录
-  // 开发模式下使用的默认用户信息
-  DEFAULT_USER: {
-    id: 'dev-user-001',
+// 令牌配置 - 统一管理令牌有效期
+export const TOKEN_CONFIG = {
+  // 访问令牌有效期（分钟）
+  ACCESS_TOKEN_LIFETIME: 60,
+  // 刷新令牌有效期（天）
+  REFRESH_TOKEN_LIFETIME: 7,
+  // 提前刷新时间（分钟）- 令牌过期前多少分钟开始刷新
+  REFRESH_THRESHOLD_MINUTES: 5,
+};
+
+// 开发者模式配置 - 仅用于开发调试，不影响生产环境
+export const DEV_MODE_CONFIG = {
+  // 是否启用开发者模式
+  ENABLED: __DEV__ && true,
+  // 开发者账户信息
+  DEV_ACCOUNT: {
+    id: 'dev-account-001',
     username: 'developer',
     email: 'dev@zeroislenotes.com',
     nickname: '开发者',
@@ -60,30 +70,49 @@ export const DEV_CONFIG = {
     isAnonymous: false,
     isDeveloper: true,
     createdAt: new Date().toISOString(),
+    permissions: ['read', 'write', 'admin'], // 开发者权限
   },
-  // 开发模式下使用的默认令牌
-  DEFAULT_TOKEN: 'dev-token-' + Date.now(),
+  // 开发者模式特性
+  FEATURES: {
+    // 是否跳过登录界面
+    SKIP_LOGIN_SCREEN: true,
+    // 是否自动填充测试数据
+    AUTO_FILL_TEST_DATA: true,
+    // 是否显示调试信息
+    SHOW_DEBUG_INFO: true,
+    // 是否启用性能监控
+    ENAABLE_PERFORMANCE_MONITOR: true,
+  },
+  // 开发者模式安全设置
+  SECURITY: {
+    // 是否允许在生产环境启用
+    ALLOW_IN_PRODUCTION: false,
+    // 是否记录开发者操作日志
+    LOG_DEV_ACTIONS: true,
+    // 开发者模式过期时间（小时）
+    EXPIRE_AFTER_HOURS: 24,
+  }
 };
 
 // 存储键
 export const STORAGE_KEYS = {
+  // 认证相关
   AUTH_TOKEN: 'auth_token',
+  REFRESH_TOKEN: 'refresh_token',
+  TOKEN_EXPIRY: 'token_expiry',
   USER_INFO: 'user_info',
-  SETTINGS: 'app_settings',
-  NOTES_CACHE: 'notes_cache',
-  OFFLINE_NOTES: 'offline_notes',
-  OFFLINE_OPERATIONS: 'offline_operations',
-  LAST_SYNC_TIME: 'last_sync_time',
-  CANVAS_CACHE: 'canvas_cache',
-  KNOWLEDGE_GRAPH_CACHE: 'knowledge_graph_cache',
-  COMMUNITY_CACHE: 'community_cache',
-  BACKUP_INFO: 'backup_info',
-  HANDWRITING_HISTORY: 'handwriting_history',
-  TOKEN: 'token',
   USER: 'user',
-  RECENT_NOTES: 'recent_notes',
-  REMINDERS: 'reminders',
-  CHAT_HISTORY: 'chat_history'
+  
+  // 开发者模式相关
+  DEV_MODE_STATE: 'dev_mode_state',
+  DEV_ACTION_LOGS: 'dev_action_logs',
+  
+  // 其他存储键...
+  THEME: 'theme',
+  LANGUAGE: 'language',
+  SETTINGS: 'settings',
+  CACHE: 'cache',
+  LOGS: 'logs'
 };
 
 // 通知渠道
@@ -224,6 +253,8 @@ export default {
   AUTH_TOKEN_KEY,
   REFRESH_TOKEN_KEY,
   TOKEN_EXPIRY_KEY,
+  TOKEN_CONFIG,
+  DEV_MODE_CONFIG,
   STORAGE_KEYS,
   NOTIFICATION_CHANNELS,
   ERROR_MESSAGES,

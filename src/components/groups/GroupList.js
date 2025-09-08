@@ -18,6 +18,7 @@ import { fetchGroups, selectGroups, selectGroupsLoading, selectGroupsError } fro
 import { SPACING } from '../../utils/constants/dimensions';
 import { COLORS } from '../../utils/constants/colors';
 import { EmptyState, ErrorState } from '../../components/common';
+import networkErrorService from '../../services/networkErrorService';
 
 const GroupList = () => {
   const dispatch = useDispatch();
@@ -30,8 +31,20 @@ const GroupList = () => {
     loadGroups();
   }, []);
 
-  const loadGroups = () => {
-    dispatch(fetchGroups());
+  const loadGroups = async () => {
+    try {
+      await dispatch(fetchGroups()).unwrap();
+    } catch (error) {
+      console.error('加载群组列表失败:', error);
+      
+      // 使用网络错误服务处理错误
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '群组列表加载',
+          customMessage: '网络连接失败，无法加载群组列表'
+        });
+      }
+    }
   };
 
   const handleGroupPress = (group) => {

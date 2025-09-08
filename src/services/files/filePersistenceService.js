@@ -49,9 +49,10 @@ class FilePersistenceService {
    * @param {string} sourceUri - 源文件URI (可能是content://协议)
    * @param {string} fileName - 文件名
    * @param {string} fileType - 文件类型 (pdf, docx, pptx等)
+   * @param {Function} onProgress - 进度回调函数
    * @returns {Promise<Object>} 包含本地文件路径和相关信息的对象
    */
-  async persistFile(sourceUri, fileName, fileType) {
+  async persistFile(sourceUri, fileName, fileType, onProgress = null) {
     await this.initialize();
 
     try {
@@ -62,32 +63,21 @@ class FilePersistenceService {
       const randomSuffix = Math.random().toString(36).substring(2, 8);
       const fileExtension = this.getFileExtension(fileName, fileType);
       const uniqueFileName = `${timestamp}_${randomSuffix}.${fileExtension}`;
-      
+
       // 目标路径
       const destinationPath = `${this.persistentDocsDir}/${uniqueFileName}`;
 
-      // 检查源文件是否存在
-      if (sourceUri.startsWith('content://')) {
-        // 对于content URI，直接复制
-        console.log('FilePersistenceService: 复制content URI文件到:', destinationPath);
-        await RNFS.copyFile(sourceUri, destinationPath);
-      } else if (sourceUri.startsWith('file://')) {
-        // 对于file URI，去掉file://前缀后复制
-        const sourcePath = sourceUri.replace('file://', '');
-        const sourceExists = await RNFS.exists(sourcePath);
-        if (!sourceExists) {
-          throw new Error(`源文件不存在: ${sourcePath}`);
-        }
-        console.log('FilePersistenceService: 复制file URI文件到:', destinationPath);
-        await RNFS.copyFile(sourcePath, destinationPath);
-      } else {
-        // 对于普通路径，直接复制
-        const sourceExists = await RNFS.exists(sourceUri);
-        if (!sourceExists) {
-          throw new Error(`源文件不存在: ${sourceUri}`);
-        }
-        console.log('FilePersistenceService: 复制本地文件到:', destinationPath);
-        await RNFS.copyFile(sourceUri, destinationPath);
+      // 报告开始复制
+      if (onProgress) {
+        onProgress({ stage: 'copying', progress: 0 });
+      }
+
+      // 使用非阻塞方式复制文件
+      await this.copyFileNonBlocking(sourceUri, destinationPath, onProgress);
+
+      // 报告验证阶段
+      if (onProgress) {
+        onProgress({ stage: 'verifying', progress: 90 });
       }
 
       // 验证文件是否复制成功
@@ -98,6 +88,11 @@ class FilePersistenceService {
 
       // 获取文件信息
       const fileStats = await RNFS.stat(destinationPath);
+
+      // 报告完成
+      if (onProgress) {
+        onProgress({ stage: 'completed', progress: 100 });
+      }
 
       const result = {
         originalUri: sourceUri,
@@ -117,6 +112,113 @@ class FilePersistenceService {
     } catch (error) {
       console.error('FilePersistenceService: 文件持久化失败:', error);
       throw new Error(`文件持久化失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 非阻塞方式复制文件
+   * @param {string} sourceUri - 源文件URI
+   * @param {string} destinationPath - 目标路径
+   * @param {Function} onProgress - 进度回调
+   */
+  async copyFileNonBlocking(sourceUri, destinationPath, onProgress = null) {
+    try {
+      // 检查源文件是否存在
+      if (sourceUri.startsWith('content://')) {
+        // 对于content URI，直接复制
+        console.log('FilePersistenceService: 复制content URI文件到:', destinationPath);
+
+        // 分块复制大文件，避免阻塞UI
+        await this.copyFileWithProgress(sourceUri, destinationPath, onProgress);
+
+      } else if (sourceUri.startsWith('file://')) {
+        // 对于file URI，去掉file://前缀后复制
+        const sourcePath = sourceUri.replace('file://', '');
+        const sourceExists = await RNFS.exists(sourcePath);
+        if (!sourceExists) {
+          throw new Error(`源文件不存在: ${sourcePath}`);
+        }
+        console.log('FilePersistenceService: 复制file URI文件到:', destinationPath);
+        await this.copyFileWithProgress(sourcePath, destinationPath, onProgress);
+
+      } else {
+        // 对于普通路径，直接复制
+        const sourceExists = await RNFS.exists(sourceUri);
+        if (!sourceExists) {
+          throw new Error(`源文件不存在: ${sourceUri}`);
+        }
+        console.log('FilePersistenceService: 复制本地文件到:', destinationPath);
+        await this.copyFileWithProgress(sourceUri, destinationPath, onProgress);
+      }
+    } catch (error) {
+      console.error('FilePersistenceService: 非阻塞文件复制失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 带进度的文件复制
+   * @param {string} sourcePath - 源路径
+   * @param {string} destinationPath - 目标路径
+   * @param {Function} onProgress - 进度回调
+   */
+  async copyFileWithProgress(sourcePath, destinationPath, onProgress = null) {
+    try {
+      // 获取文件大小
+      let fileSize = 0;
+      try {
+        const stats = await RNFS.stat(sourcePath);
+        fileSize = stats.size;
+      } catch (statError) {
+        console.warn('FilePersistenceService: 无法获取文件大小，使用默认复制方式');
+        await RNFS.copyFile(sourcePath, destinationPath);
+        return;
+      }
+
+      // 如果文件较小（小于100MB），直接复制
+      if (fileSize < 100 * 1024 * 1024) {
+        if (onProgress) {
+          onProgress({ stage: 'copying', progress: 50 });
+        }
+        await RNFS.copyFile(sourcePath, destinationPath);
+        return;
+      }
+
+      // 对于大文件，使用分块复制
+      console.log('FilePersistenceService: 大文件分块复制，文件大小:', fileSize);
+
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+
+      // 创建目标文件
+      await RNFS.writeFile(destinationPath, '', 'base64');
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const length = Math.min(chunkSize, fileSize - start);
+
+        // 读取块
+        const chunk = await RNFS.read(sourcePath, length, start, 'base64');
+
+        // 追加到目标文件
+        await RNFS.appendFile(destinationPath, chunk, 'base64');
+
+        // 报告进度
+        if (onProgress) {
+          const progress = Math.round(((i + 1) / totalChunks) * 80) + 10; // 10-90%
+          onProgress({ stage: 'copying', progress });
+        }
+
+        // 每处理几个块后让出控制权
+        if (i % 5 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+    } catch (error) {
+      console.error('FilePersistenceService: 带进度文件复制失败:', error);
+      // 回退到标准复制方式
+      await RNFS.copyFile(sourcePath, destinationPath);
     }
   }
 

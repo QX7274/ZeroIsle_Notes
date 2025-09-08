@@ -9,6 +9,7 @@ import { offlineStorageService } from './offline';
 import { authService } from './auth';
 import { storageService } from './storage';
 import * as apiService from './api/apiService';
+import networkErrorService from './networkErrorService';
 
 // 创建axios实例
 const apiInstance = axios.create({
@@ -48,7 +49,10 @@ apiInstance.interceptors.response.use(
       } else {
         // 令牌刷新失败，需要重新登录
         authService.logout();
-        Alert.alert('认证失败', '您的登录已过期，请重新登录');
+        networkErrorService.handleApiError(new Error('认证失败'), {
+          context: '认证失败',
+          customMessage: '您的登录已过期，请重新登录'
+        });
       }
     }
 

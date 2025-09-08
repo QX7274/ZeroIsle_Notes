@@ -8,6 +8,7 @@ import { navigationRef } from '../../navigation/navigationRef';
 import { CommonActions } from '@react-navigation/native';
 import authStorage from './authStorage';
 import tokenService from './tokenService';
+import networkErrorService from '../networkErrorService';
 
 // 防止多次处理未授权错误
 let isHandlingUnauthorizedError = false;
@@ -53,7 +54,10 @@ export const handleUnauthorizedError = async () => {
     }
 
     // 显示提示
-    Alert.alert('登录已过期', '请重新登录');
+    networkErrorService.handleApiError(new Error('登录已过期'), {
+      context: '登录过期',
+      customMessage: '请重新登录'
+    });
 
     // 使用setTimeout确保Alert显示后再执行导航
     setTimeout(() => {

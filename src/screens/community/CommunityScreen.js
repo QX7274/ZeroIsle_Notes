@@ -17,6 +17,7 @@ import { Button, Card } from '../../components/common';
 import { SPACING } from '../../utils/constants/dimensions';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import { UnifiedSearchBar } from '../../components/search';
+import networkErrorService from '../../services/networkErrorService';
 
 /**
  * 社区屏幕组件
@@ -153,6 +154,14 @@ const CommunityScreen = ({ navigation }) => {
     } catch (error) {
       console.error('加载帖子失败:', error);
 
+      // 使用网络错误服务处理错误
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '加载社区帖子',
+          customMessage: '网络连接失败，无法加载社区内容'
+        });
+      }
+
       // 如果API加载失败，使用模拟数据
       dispatch({
         type: 'community/fetchPostsSuccess',
@@ -174,6 +183,15 @@ const CommunityScreen = ({ navigation }) => {
     setPage(1);
 
     dispatch(fetchPosts({ page: 1, pageSize: 10 }))
+      .catch(error => {
+        console.error('刷新帖子失败:', error);
+        if (networkErrorService.isNetworkError(error)) {
+          networkErrorService.handleApiError(error, {
+            context: '刷新社区帖子',
+            customMessage: '网络连接失败，无法刷新社区内容'
+          });
+        }
+      })
       .finally(() => setRefreshing(false));
   };
 
@@ -183,7 +201,16 @@ const CommunityScreen = ({ navigation }) => {
 
     const nextPage = page + 1;
     setPage(nextPage);
-    dispatch(fetchPosts({ page: nextPage, pageSize: 10 }));
+    dispatch(fetchPosts({ page: nextPage, pageSize: 10 }))
+      .catch(error => {
+        console.error('加载更多帖子失败:', error);
+        if (networkErrorService.isNetworkError(error)) {
+          networkErrorService.handleApiError(error, {
+            context: '加载更多社区帖子',
+            customMessage: '网络连接失败，无法加载更多内容'
+          });
+        }
+      });
   };
 
   // 处理点赞

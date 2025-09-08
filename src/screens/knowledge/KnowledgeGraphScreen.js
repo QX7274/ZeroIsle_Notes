@@ -43,6 +43,8 @@ import {
 import { dimensions } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
 
+import networkErrorService from '../../services/networkErrorService';
+
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
 
@@ -104,6 +106,12 @@ const KnowledgeGraphScreen = ({ navigation }) => {
       } else if (err.isNetworkError) {
         console.log('网络错误，可能是连接问题');
         errorMessage = '网络连接失败，请检查网络设置';
+        
+        // 使用网络错误服务处理错误
+        networkErrorService.handleApiError(err, {
+          context: '加载知识图谱',
+          customMessage: '网络连接失败，无法加载知识图谱'
+        });
       } else if (err.message) {
         errorMessage = err.message;
       }

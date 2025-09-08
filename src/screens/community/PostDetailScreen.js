@@ -24,6 +24,7 @@ import {
   toggleBookmark,
   postComment
 } from '../../redux/slices/communitySlice';
+import networkErrorService from '../../services/networkErrorService';
 
 /**
  * 社区帖子详情屏幕
@@ -132,6 +133,13 @@ const PostDetailScreen = ({ route, navigation }) => {
       await dispatch(fetchComments({ postId, page: 1 })).unwrap();
     } catch (error) {
       console.error('加载帖子详情失败:', error);
+      
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '加载帖子详情',
+          customMessage: '网络连接失败，无法加载帖子详情'
+        });
+      }
 
       // 如果API加载失败，使用模拟数据
       dispatch({
