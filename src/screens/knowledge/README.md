@@ -7,7 +7,7 @@
 - **index.js**: 知识图谱模块导出文件，集中导出所有知识图谱相关屏幕
 - **KnowledgeGraphScreen.js**: 知识图谱主屏幕，显示用户的知识图谱
 - **NodeDetailScreen.js**: 节点详情屏幕，显示知识节点的详细信息
-- **HandwritingRecognitionScreen.js**: 手写识别屏幕，用于识别手写内容并添加到知识图谱
+
 - **KnowledgeAnalysisScreen.js**: 知识分析屏幕，用于分析知识结构和关系
 - **EdgeEditScreen.js**: 边编辑屏幕，用于编辑知识节点之间的关系
 
@@ -32,15 +32,6 @@
 - 显示节点的入边和出边（关系）
 - 支持编辑节点信息
 - 支持添加和删除关系
-
-### 手写识别屏幕 (HandwritingRecognitionScreen)
-
-手写识别屏幕用于识别手写内容并添加到知识图谱，主要功能包括：
-
-- 手写输入区域
-- 实时手写识别
-- 识别结果编辑
-- 将识别结果添加为知识节点或关系
 
 ### 知识分析屏幕 (KnowledgeAnalysisScreen)
 

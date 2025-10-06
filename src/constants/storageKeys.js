@@ -83,9 +83,6 @@ export const STORAGE_KEYS = {
   // 加密相关
   ENCRYPTION_KEY: `${STORAGE_PREFIX}encryption_key`,
 
-  // 手写识别相关
-  HANDWRITING_HISTORY: `${STORAGE_PREFIX}handwriting_history`,
-
   // 上传相关
   UPLOAD_QUEUE: `${STORAGE_PREFIX}upload_queue`,
   UPLOAD_HISTORY: `${STORAGE_PREFIX}upload_history`,

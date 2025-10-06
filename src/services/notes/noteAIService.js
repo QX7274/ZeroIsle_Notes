@@ -5,7 +5,6 @@
 
 import { aiService } from '../ai/aiService';
 import { networkService } from '../network/networkService';
-import { offlineAIService } from '../offline/offlineAIService';
 
 /**
  * 笔记AI服务
@@ -47,8 +46,8 @@ class NoteAIService {
         const translatedText = await aiService.translateText(text, targetLang);
         return { translated_text: translatedText, source_text: text };
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.translateText(text, targetLang);
+        // 离线模式：返回原文本
+        return { translated_text: text, source_text: text };
       }
     } catch (error) {
       console.error('文本翻译失败', error);
@@ -81,8 +80,11 @@ class NoteAIService {
           };
         }
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.recognizeCode(text);
+        // 离线模式：返回简单的代码识别结果
+        return {
+          language: 'unknown',
+          formatted_code: text
+        };
       }
     } catch (error) {
       console.error('代码识别失败', error);
@@ -115,8 +117,11 @@ class NoteAIService {
           };
         }
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.recognizeMathFormula(text);
+        // 离线模式：返回简单的数学公式识别结果
+        return {
+          latex: text,
+          rendered: null
+        };
       }
     } catch (error) {
       console.error('数学公式识别失败', error);
@@ -138,8 +143,8 @@ class NoteAIService {
         const summary = await aiService.summarizeText(text);
         return { result: summary, source_text: text };
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.summarizeText(text);
+        // 离线模式：返回简单摘要
+        return { result: text.substring(0, 100) + '...', source_text: text };
       }
     } catch (error) {
       console.error('文本摘要失败', error);
@@ -170,8 +175,9 @@ class NoteAIService {
           return { keywords, source_text: text };
         }
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.extractKeywords(text);
+        // 离线模式：返回简单关键词
+        const words = text.split(/\s+/).slice(0, 5);
+        return { keywords: words, source_text: text };
       }
     } catch (error) {
       console.error('关键词提取失败', error);
@@ -193,8 +199,8 @@ class NoteAIService {
         const explanation = await aiService.chat(`请解释以下内容：\n\n${text}`);
         return { result: explanation, source_text: text };
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.explainText(text);
+        // 离线模式：返回简单解释
+        return { result: '离线模式下无法提供详细解释', source_text: text };
       }
     } catch (error) {
       console.error('文本解释失败', error);
@@ -216,8 +222,8 @@ class NoteAIService {
         const rewritten = await aiService.chat(`请改写以下文本，保持原意但使用不同的表达方式：\n\n${text}`);
         return { result: rewritten, source_text: text };
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.rewriteText(text);
+        // 离线模式：返回原文本
+        return { result: text, source_text: text };
       }
     } catch (error) {
       console.error('文本改写失败', error);
@@ -255,8 +261,8 @@ class NoteAIService {
         const result = await aiService.chat(prompt);
         return { result, source_text: text };
       } else {
-        // 离线模式：使用离线AI服务
-        return await offlineAIService.processText(text, toolId);
+        // 离线模式：返回简单处理结果
+        return { result: text, source_text: text };
       }
     } catch (error) {
       console.error(`文本处理失败(${toolId})`, error);

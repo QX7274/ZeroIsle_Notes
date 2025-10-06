@@ -7,6 +7,7 @@ import { realmStorageService } from '../storage/realmStorageService';
 import { eventEmitter } from '../utils/eventEmitter';
 import networkErrorService from '../networkErrorService';
 import memoryGuard from '../memory/memoryGuard';
+import noteTypeDetectionService from '../notes/noteTypeDetectionService';
 
 // 存储事件
 export const STORAGE_EVENTS = {
@@ -739,20 +740,21 @@ class OfflineStorageService {
           unifiedNote.title = '无标题笔记';
         }
 
-        // 确保noteType字段存在
-        if (!unifiedNote.noteType) {
-          // 根据type和file_type推断noteType
-          if (unifiedNote.type === 'canvas' || unifiedNote.file_type === 'canvas') {
-            unifiedNote.noteType = 'canvas';
-          } else if (unifiedNote.type === 'paged_note' || unifiedNote.file_type === 'paged_note') {
-            unifiedNote.noteType = 'paged_note';
-          } else if (unifiedNote.type === 'card' || unifiedNote.file_type === 'card') {
-            unifiedNote.noteType = 'card';
-          } else {
-            // 默认为卡片笔记
-            unifiedNote.noteType = 'card';
-          }
-        }
+        // 使用新的类型识别服务
+        const detectedType = noteTypeDetectionService.detectNoteType(unifiedNote);
+        
+        // 统一设置类型字段
+        unifiedNote.noteType = detectedType;
+        unifiedNote.type = detectedType;
+        unifiedNote.file_type = detectedType;
+        
+        console.log(`🔍 类型识别完成: ${detectedType}`, {
+          id: unifiedNote.id,
+          _id: unifiedNote._id,
+          originalType: note.type,
+          originalFileType: note.file_type,
+          detectedType: detectedType
+        });
 
         console.log(`统一后的笔记数据:`, {
           id: unifiedNote.id,

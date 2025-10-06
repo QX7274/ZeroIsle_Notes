@@ -340,53 +340,7 @@ class NoteBackup(Document):
         """硬删除"""
         super().delete()
 
-class Handwriting(Document):
-    """
-    手写笔记文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='手写笔记ID')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    title = StringField(max_length=255, required=True, verbose_name='标题')
-    image = FileField(verbose_name='手写图片')
-    thumbnail = FileField(verbose_name='缩略图')
-    text_content = StringField(verbose_name='识别文本')
-    category = ReferenceField(Category, verbose_name='分类')
-    tags = ListField(ReferenceField(Tag), verbose_name='标签')
-    is_favorite = BooleanField(default=False, verbose_name='是否收藏')
-    is_public = BooleanField(default=False, verbose_name='是否公开')
-    is_deleted = BooleanField(default=False, verbose_name='是否删除')
-    deleted_at = DateTimeField(verbose_name='删除时间')
-    view_count = IntField(default=0, verbose_name='查看次数')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
-    meta = {
-        'collection': 'handwritings',
-        'indexes': [
-            {'fields': ['user']},
-            {'fields': ['category']},
-            {'fields': ['is_deleted']},
-            {'fields': ['is_favorite']},
-            {'fields': ['is_public']},
-            {'fields': ['created_at']},
-            {'fields': ['updated_at']}
-        ],
-        'ordering': ['-updated_at']
-    }
-
-    def __str__(self):
-        return self.title
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def delete(self):
-        """软删除"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save()
 
     def hard_delete(self):
         """硬删除"""
@@ -397,50 +351,7 @@ class Handwriting(Document):
         self.view_count += 1
         self.save()
 
-class HandwritingShare(Document):
-    """
-    手写笔记分享文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='分享ID')
-    handwriting = ReferenceField(Handwriting, required=True, verbose_name='手写笔记')
-    user = ReferenceField(User, required=True, verbose_name='分享用户')
-    share_type = StringField(max_length=20, choices=('link', 'email', 'user'), required=True, verbose_name='分享类型')
-    share_to = StringField(max_length=255, verbose_name='分享对象')
-    share_code = StringField(max_length=20, verbose_name='分享码')
-    expires_at = DateTimeField(verbose_name='过期时间')
-    is_password_protected = BooleanField(default=False, verbose_name='是否密码保护')
-    password = StringField(max_length=100, verbose_name='密码')
-    is_active = BooleanField(default=True, verbose_name='是否激活')
-    view_count = IntField(default=0, verbose_name='查看次数')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
-    meta = {
-        'collection': 'handwriting_shares',
-        'indexes': [
-            {'fields': ['handwriting']},
-            {'fields': ['user']},
-            {'fields': ['share_code']},
-            {'fields': ['is_active']},
-            {'fields': ['expires_at']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return f"{self.handwriting.title} - {self.share_type}"
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def is_expired(self):
-        """检查是否过期"""
-        if not self.expires_at:
-            return False
-        return timezone.now() > self.expires_at
 
     def is_valid(self):
         """检查是否有效"""
@@ -509,14 +420,13 @@ class DrawingPath(Document):
     note = ReferenceField(Note, required=False, verbose_name='笔记')
     canvas_id = StringField(max_length=100, verbose_name='画布ID')
     tool_type = StringField(max_length=20, choices=(
-        'pen', 'pencil', 'brush', 'marker', 'highlighter', 'calligraphy', 'eraser', 'shape', 'text', 'image'
+        'shape', 'text', 'image'
     ), required=True, verbose_name='工具类型')
     shape_type = StringField(max_length=20, choices=(
         'line', 'rectangle', 'circle', 'triangle', 'arrow', 'diamond', 'pentagon', 'hexagon', 'star', 'cloud'
     ), verbose_name='形状类型')
     path_data = DictField(required=True, verbose_name='路径数据')
     color = StringField(max_length=20, verbose_name='颜色')
-    stroke_width = IntField(verbose_name='线条宽度')
     is_deleted = BooleanField(default=False, verbose_name='是否删除')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
@@ -549,82 +459,6 @@ class DrawingPath(Document):
         """硬删除"""
         super().delete()
 
-class OCRModel(Document):
-    """
-    OCR模型文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='模型ID')
-    name = StringField(max_length=100, required=True, verbose_name='模型名称')
-    description = StringField(max_length=500, verbose_name='模型描述')
-    model_file = FileField(verbose_name='模型文件')
-    model_type = StringField(max_length=50, choices=('tesseract', 'custom'), default='tesseract', verbose_name='模型类型')
-    language = StringField(max_length=50, verbose_name='语言')
-    version = StringField(max_length=20, verbose_name='版本')
-    accuracy = StringField(max_length=20, verbose_name='准确率')
-    is_active = BooleanField(default=True, verbose_name='是否激活')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'ocr_models',
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['model_type']},
-            {'fields': ['language']},
-            {'fields': ['is_active']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-class OCRTrainingData(Document):
-    """
-    OCR训练数据文档模型
-    """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='训练数据ID')
-    user = ReferenceField(User, required=True, verbose_name='用户')
-    image = FileField(verbose_name='图片')
-    text = StringField(required=True, verbose_name='文本')
-    language = StringField(max_length=50, verbose_name='语言')
-    is_verified = BooleanField(default=False, verbose_name='是否验证')
-    verified_by = ReferenceField(User, verbose_name='验证者')
-    verified_at = DateTimeField(verbose_name='验证时间')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'ocr_training_data',
-        'indexes': [
-            {'fields': ['user']},
-            {'fields': ['language']},
-            {'fields': ['is_verified']},
-            {'fields': ['created_at']}
-        ],
-        'ordering': ['-created_at']
-    }
-
-    def __str__(self):
-        return f"训练数据 {self.id}"
-
-    def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
-        self.updated_at = timezone.now()
-        return super().save(*args, **kwargs)
-
-    def verify(self, user):
-        """验证训练数据"""
-        self.is_verified = True
-        self.verified_by = user
-        self.verified_at = timezone.now()
-        self.save()
 
 class WhisperModel(Document):
     """

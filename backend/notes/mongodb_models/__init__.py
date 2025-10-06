@@ -15,13 +15,10 @@ from .note_reminder import NoteReminder
 from .note_comment import NoteComment
 from .note_collaboration import NoteCollaboration
 from .note_template import NoteTemplate
-from .handwriting import Handwriting
-from .handwriting_share import HandwritingShare
-from .ocr_model import OCRModel
-from .ocr_training_data import OCRTrainingData
+
 from .whisper_model import WhisperModel
 from .whisper_training_data import WhisperTrainingData
-from .drawing_path import DrawingPath
+
 from .annotation import Annotation
 
 # 创建别名
@@ -41,12 +38,8 @@ __all__ = [
     'NoteComment',
     'NoteCollaboration',
     'NoteTemplate',
-    'Handwriting',
-    'HandwritingShare',
-    'OCRModel',
-    'OCRTrainingData',
     'WhisperModel',
     'WhisperTrainingData',
-    'DrawingPath',
+
     'Annotation'
 ]

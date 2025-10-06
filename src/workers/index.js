@@ -1,8 +1,6 @@
 /**
  * Web Workers索引
  */
-// 导出Worker路径
-export const IMAGE_PROCESSOR_WORKER = './imageProcessor.js';
 
 // 创建Worker的辅助函数
 export function createWorker(workerPath) {
@@ -15,6 +13,5 @@ export function createWorker(workerPath) {
 }
 
 export default {
-  IMAGE_PROCESSOR_WORKER,
   createWorker,
 };

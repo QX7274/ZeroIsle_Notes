@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Pressable
+  Pressable,
+  Platform,
+  Vibration
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -79,7 +81,6 @@ const SHAPES = Object.freeze({
 
 // AI工具类型
 const AI_TOOLS = [
-  { id: 'handwriting_ocr', label: '手写转换', icon: 'gesture-tap', description: '将手写内容转换为文字' },
   { id: 'translate', label: '翻译', icon: 'translate', description: '翻译选中的文本' },
   { id: 'code_recognition', label: '代码识别', icon: 'code-braces', description: '识别并格式化代码' },
   { id: 'math_formula', label: '数学公式', icon: 'function-variant', description: '识别数学公式并转换为LaTeX' },
@@ -123,10 +124,7 @@ const AllInOneToolbar = ({
   onBookmarkAdd,
   onBookmarkList,
 
-  // 手写转换功能
-  onHandwritingOCR,
-
-  // 手动模式切换相关
+  // 模式切换相关
   onModeToggle,
   isFingerMode = false,
   showModeToggle = false, // 是否显示模式切换按钮
@@ -142,6 +140,56 @@ const AllInOneToolbar = ({
   const lastSelectedToolRef = useRef(initialTool);
   const lastSelectedColorRef = useRef(initialColor);
   const lastSelectedStrokeWidthRef = useRef(initialStrokeWidth);
+
+  // 触觉反馈支持
+  const [hapticFeedbackEnabled, setHapticFeedbackEnabled] = useState(true);
+
+  // 触觉反馈函数
+  const triggerHapticFeedback = useCallback((type = 'light') => {
+    if (!hapticFeedbackEnabled) return;
+
+    if (Platform.OS === 'ios') {
+      switch (type) {
+        case 'light':
+          Vibration.vibrate(10);
+          break;
+        case 'medium':
+          Vibration.vibrate(20);
+          break;
+        case 'heavy':
+          Vibration.vibrate(50);
+          break;
+        case 'success':
+          Vibration.vibrate([0, 10, 50, 10]);
+          break;
+        case 'error':
+          Vibration.vibrate([0, 50, 100, 50]);
+          break;
+        default:
+          Vibration.vibrate(10);
+      }
+    } else if (Platform.OS === 'android') {
+      switch (type) {
+        case 'light':
+          Vibration.vibrate(25);
+          break;
+        case 'medium':
+          Vibration.vibrate(50);
+          break;
+        case 'heavy':
+          Vibration.vibrate(100);
+          break;
+        case 'success':
+          Vibration.vibrate([0, 25, 50, 25]);
+          break;
+        case 'error':
+          Vibration.vibrate([0, 100, 200, 100]);
+          break;
+        default:
+          Vibration.vibrate(25);
+      }
+    }
+  }, [hapticFeedbackEnabled]);
 
   // AI工具相关状态
   const [showAIToolModal, setShowAIToolModal] = useState(false);
@@ -250,6 +298,7 @@ const AllInOneToolbar = ({
     setActiveTool(tool);
     lastSelectedToolRef.current = tool;
     onToolChange?.(tool);
+    triggerHapticFeedback('light'); // 添加触觉反馈
     if (tool !== DRAWING_TOOLS.SHAPE) {
       setShowShapePicker(false);
     }
@@ -266,8 +315,7 @@ const AllInOneToolbar = ({
     setSelectedAITool(tool);
     setShowAIToolModal(false);
 
-    // 手写转换不需要选中文本
-    if (tool.id !== 'handwriting_ocr' && !selectedText) {
+    if (!selectedText) {
       Alert.alert('提示', '请先选择文本');
       return;
     }
@@ -315,14 +363,6 @@ const AllInOneToolbar = ({
 
       // 根据工具类型调用不同的API
       switch (toolId) {
-        case 'handwriting_ocr':
-          // 调用手写转换功能
-          if (onHandwritingOCR) {
-            result = await onHandwritingOCR();
-          } else {
-            result = { success: false, error: '手写转换功能不可用' };
-          }
-          break;
         case 'translate':
           result = await noteAIService.translateText(text);
           break;
@@ -388,6 +428,8 @@ const AllInOneToolbar = ({
                 ]}
                 onPress={() => {
                   setActiveColor(color);
+                  onColorChange?.(color);
+                  triggerHapticFeedback('light');
                   setShowColorPicker(false);
                 }}
               />
@@ -960,7 +1002,10 @@ const AllInOneToolbar = ({
               styles.toolButton,
               !canUndo && styles.disabledToolButton
             ]}
-            onPress={onUndo}
+            onPress={() => {
+              onUndo?.();
+              triggerHapticFeedback('light');
+            }}
             disabled={!canUndo}
           >
             <Text style={[styles.toolLabel, !canUndo && { color: colors.textDisabled }]}>撤销</Text>
@@ -971,7 +1016,10 @@ const AllInOneToolbar = ({
               styles.toolButton,
               !canRedo && styles.disabledToolButton
             ]}
-            onPress={onRedo}
+            onPress={() => {
+              onRedo?.();
+              triggerHapticFeedback('light');
+            }}
             disabled={!canRedo}
           >
             <Text style={[styles.toolLabel, !canRedo && { color: colors.textDisabled }]}>重做</Text>
@@ -1014,17 +1062,6 @@ const AllInOneToolbar = ({
 
         {/* AI工具组 */}
         <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => {
-              if (onHandwritingOCR) {
-                onHandwritingOCR();
-              }
-            }}
-          >
-            <Text style={styles.toolLabel}>手写转换</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={styles.toolButton}
             onPress={() => setShowAIToolModal(true)}

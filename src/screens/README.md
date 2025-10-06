@@ -61,7 +61,7 @@
 - **KnowledgeGraphScreen.js**: 知识图谱屏幕，用于显示知识图谱
 - **NodeDetailScreen.js**: 节点详情屏幕，用于显示知识节点详情
 - **EdgeEditScreen.js**: 边编辑屏幕，用于编辑知识边
-- **HandwritingRecognitionScreen.js**: 手写识别屏幕，用于识别手写内容
+
 - **KnowledgeAnalysisScreen.js**: 知识分析屏幕，用于分析知识图谱
 
 ### 思维导图相关屏幕 (`mind_map/`)

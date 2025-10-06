@@ -5,7 +5,6 @@ import { useTheme } from '../../context/ThemeContext';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
-import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import PageControl from '../../components/viewer/PageControl';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import DraggableImage from '../../components/viewer/DraggableImage';
@@ -473,8 +472,7 @@ function MarkdownViewer({ route, navigation }) {
               ))}
             </View>
 
-            {/* Stylus 书写覆盖层 */}
-            <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+
           </View>
         )}
 

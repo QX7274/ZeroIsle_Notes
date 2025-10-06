@@ -37,7 +37,7 @@ class UserSettings(Document):
     auto_save = BooleanField(default=True, verbose_name='自动保存')
     auto_save_interval = IntField(default=60, verbose_name='自动保存间隔(秒)')
     offline_mode = BooleanField(default=False, verbose_name='离线模式')
-    handwriting_recognition_mode = StringField(max_length=20, default='realtime', verbose_name='手写识别模式')
+
     ai_assistant_enabled = BooleanField(default=True, verbose_name='启用AI助手')
     ai_assistant_model = StringField(max_length=50, default='gpt-3.5-turbo', verbose_name='AI助手模型')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')

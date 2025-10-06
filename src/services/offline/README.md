@@ -6,7 +6,6 @@
 
 - **infiniteCanvasStorage.js**: 无限画布存储服务，提供基于 MongoDB 的无限画布数据存储和同步功能
 - **offlineStorage.js**: 离线存储服务，提供基于 MongoDB 的通用离线数据存储和同步功能
-- **offlineAIService.js**: 离线AI服务，提供离线模式下的AI功能
 
 ## MongoDB 配置
 
@@ -24,17 +23,6 @@
   - `files`: 存储文件数据
 
 ## 主要功能
-
-### 离线AI服务 (offlineAIService.js)
-
-离线AI服务提供以下主要功能：
-
-- **离线文本分析**: 在离线状态下分析文本内容
-- **离线标签生成**: 在离线状态下生成标签建议
-- **离线内容摘要**: 在离线状态下生成内容摘要
-- **离线语言检测**: 在离线状态下检测文本语言
-- **离线模型管理**: 管理离线AI模型的下载和更新
-- **模型优化**: 优化模型大小和性能，适应移动设备
 
 ### 离线存储服务 (offlineStorage.js)
 
@@ -209,52 +197,7 @@ async function getAllCanvases() {
 }
 ```
 
-### 离线AI服务
 
-```javascript
-import { offlineAIService } from '../../services/offline';
-
-// 初始化离线AI服务
-async function initializeOfflineAI() {
-  try {
-    await offlineAIService.initialize();
-    console.log('离线AI服务初始化成功');
-    return true;
-  } catch (error) {
-    console.error('离线AI服务初始化失败:', error);
-    return false;
-  }
-}
-
-// 下载离线AI模型
-async function downloadOfflineModels() {
-  try {
-    const progress = await offlineAIService.downloadModels({
-      onProgress: (progress) => {
-        console.log('模型下载进度:', progress);
-      }
-    });
-
-    console.log('离线AI模型下载成功');
-    return true;
-  } catch (error) {
-    console.error('离线AI模型下载失败:', error);
-    return false;
-  }
-}
-
-// 离线分析文本
-async function analyzeTextOffline(text) {
-  try {
-    const analysis = await offlineAIService.analyzeText(text);
-    console.log('离线文本分析结果:', analysis);
-    return analysis;
-  } catch (error) {
-    console.error('离线文本分析失败:', error);
-    return null;
-  }
-}
-```
 
 ## 注意事项
 
@@ -268,10 +211,7 @@ async function analyzeTextOffline(text) {
 
 ### 离线功能相关
 
-- 离线AI模型可能较大，应在WiFi环境下下载，并提供下载进度反馈
-- 离线AI功能可能不如在线AI功能强大，应设置适当的用户期望
 - 处理离线编辑与服务器数据的冲突，提供冲突解决机制
-- 考虑电池消耗，离线AI功能应优化性能和能耗
 - 提供离线模式的视觉指示，让用户了解当前状态
 - 添加适当的错误处理，确保应用在数据库操作失败时能够正常运行
 - 使用事件机制通知其他组件状态变化

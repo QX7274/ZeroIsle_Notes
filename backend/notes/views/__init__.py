@@ -19,7 +19,7 @@ try:
     from .backup import NoteBackupViewSet
     from .reminder import NoteReminderViewSet
     from .notification import NotificationViewSet
-    from .handwriting import HandwritingViewSet
+
     from .ocr import OCRModelViewSet, OCRTrainingDataViewSet
     from .whisper import WhisperModelViewSet, WhisperTrainingDataViewSet
 except ImportError:

@@ -9,27 +9,23 @@ Web Workers 是一种在后台线程中运行脚本的技术，可以执行耗�
 1. 文本分析和处理
 2. 搜索索引构建和查询
 3. 数据同步和处理
-4. 图像处理
-5. 离线 AI 模型推理
 
 ## 文件结构
 
 - **index.js**: Web Workers 模块导出文件
-- **imageProcessor.js**: 图像处理 Worker，用于处理图像压缩、裁剪等任务
 - **textAnalysisWorker.js**: 文本分析 Worker，用于分析文本内容、提取关键词等
 - **searchIndexWorker.js**: 搜索索引 Worker，用于构建和查询全文搜索索引
 - **syncWorker.js**: 数据同步 Worker，用于处理数据同步任务
-- **aiInferenceWorker.js**: AI 推理 Worker，用于执行离线 AI 模型推理
 
 ## 使用方法
 
 ### 创建 Worker
 
 ```javascript
-import { createWorker, IMAGE_PROCESSOR_WORKER } from '../workers';
+import { createWorker } from '../workers';
 
-// 创建图像处理 Worker
-const imageWorker = createWorker(IMAGE_PROCESSOR_WORKER);
+// 创建文本分析 Worker
+const textWorker = createWorker('./textAnalysisWorker.js');
 
 // 创建文本分析 Worker
 const textAnalysisWorker = createWorker('textAnalysis');

@@ -22,7 +22,6 @@ import { networkService, apiService } from './network';
 
 // 导入离线服务
 import {
-  offlineAIService,
   offlineStorage,
   offlineStorageService,
   offlineSyncService
@@ -76,7 +75,6 @@ export {
   networkService,
 
   // 离线服务
-  offlineAIService,
   offlineStorage,
   offlineStorageService,
   offlineSyncService,

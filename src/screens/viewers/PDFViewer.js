@@ -23,10 +23,9 @@ import DocumentPicker from 'react-native-document-picker';
 
 import documentConversionService from '../../services/document/documentConversionService';
 
-import HandwritingAdapter from '../../components/handwriting/HandwritingAdapter';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import PageControl from '../../components/viewer/PageControl';
-import pdfDirectWriteService from '../../services/pdf/PDFDirectWriteService';
+
 
 import DraggableImage from '../../components/viewer/DraggableImage';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
@@ -83,14 +82,13 @@ const PDFViewer = ({ route, navigation }) => {
   // AllInOneToolbar状态
   const [currentDrawingTool, setCurrentDrawingTool] = useState({ type: 'pen' });
   const [currentDrawingColor, setCurrentDrawingColor] = useState('#000000');
-  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isFingerMode, setIsFingerMode] = useState(true); // 默认为手指模式
 
   // 引用
   const pdfRef = useRef(null);
-  const handwritingAdapterRef = useRef(null);
   const conversionAbortController = useRef(null);
 
   // AllInOneToolbar处理函数
@@ -120,16 +118,12 @@ const PDFViewer = ({ route, navigation }) => {
   }, []);
 
   const handleStrokeWidthChange = useCallback((width) => {
-    console.log('PDFViewer: 接收到粗细变化:', width);
-    setCurrentStrokeWidth(width);
-    console.log('PDFViewer: 笔迹粗细切换到:', width);
+    console.log('PDFViewer: 笔迹功能已移除');
   }, []);
 
   const handleUndo = useCallback(() => {
     try {
-      if (handwritingAdapterRef.current) {
-        handwritingAdapterRef.current.undoLastStroke();
-      }
+      console.log('PDFViewer: 撤销功能已移除');
     } catch (error) {
       console.error('PDFViewer: 撤销操作失败:', error);
     }
@@ -146,9 +140,7 @@ const PDFViewer = ({ route, navigation }) => {
 
   const handleClear = useCallback(() => {
     try {
-      if (handwritingAdapterRef.current) {
-        handwritingAdapterRef.current.clearStrokes();
-      }
+      console.log('PDFViewer: 清空功能已移除');
     } catch (error) {
       console.error('PDFViewer: 清空操作失败:', error);
     }
@@ -159,99 +151,15 @@ const PDFViewer = ({ route, navigation }) => {
     console.log('PDFViewer: 模式切换到:', newMode ? '手指模式' : '手写笔模式');
   }, []);
 
-  // 存储待保存的笔迹数据
-  const pendingStrokes = useRef([]);
-
+  // 手写功能已移除
   const handleStrokesChange = useCallback(async (strokes) => {
-    try {
-      if (!Array.isArray(strokes)) {
-        console.warn('PDFViewer: 无效的笔迹数据');
-        return;
-      }
+    console.log('PDFViewer: 手写功能已移除');
+  }, []);
 
-      setCanUndo(strokes.length > 0);
-      setCanRedo(false);
-      console.log(`PDFViewer: 笔迹更新，当前数量: ${strokes.length}`);
-
-      // 性能优化：只存储笔迹数据，不立即写入PDF
-      pendingStrokes.current = strokes;
-
-      // 确保PDF路径已设置（为后续保存做准备）
-      if (!pdfDirectWriteService.currentPDFPath) {
-        const pdfPath = localFilePath || (pdfSource && pdfSource.uri);
-        if (pdfPath) {
-          pdfDirectWriteService.setCurrentPDF(pdfPath);
-          console.log('PDFViewer: 设置PDF路径:', pdfPath);
-        }
-      }
-    } catch (error) {
-      console.error('PDFViewer: 处理笔迹变化失败:', error);
-    }
-  }, [localFilePath, pdfSource]);
-
-  // 批量保存所有笔迹到PDF
+  // 手写功能已移除
   const savePendingStrokes = useCallback(async () => {
-    try {
-      if (pendingStrokes.current.length === 0) {
-        console.log('PDFViewer: 没有待保存的笔迹');
-        return;
-      }
-
-      console.log(`PDFViewer: 开始批量保存 ${pendingStrokes.current.length} 个笔迹`);
-
-      // 确保PDF路径已设置
-      if (!pdfDirectWriteService.currentPDFPath) {
-        const pdfPath = localFilePath || (pdfSource && pdfSource.uri);
-        if (pdfPath) {
-          pdfDirectWriteService.setCurrentPDF(pdfPath);
-        } else {
-          console.warn('PDFViewer: 无法获取PDF路径，跳过保存');
-          return;
-        }
-      }
-
-      // 清空之前的注释，重新添加所有笔迹
-      pdfDirectWriteService.clearAnnotations();
-
-      // 批量添加所有笔迹
-      for (const stroke of pendingStrokes.current) {
-        if (stroke && stroke.points && stroke.points.length > 0) {
-          // 确保笔迹有正确的格式
-          const formattedStroke = {
-            points: stroke.points,
-            color: stroke.color || stroke.style?.color || '#000000',
-            width: stroke.width || stroke.style?.width || 2,
-            opacity: stroke.opacity || stroke.style?.opacity || 1,
-            id: stroke.id || `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-          };
-
-          await pdfDirectWriteService.addStrokeToPage(currentPage, formattedStroke);
-        }
-      }
-
-      // 一次性保存到PDF
-      const success = await pdfDirectWriteService.saveToPDF();
-      if (success) {
-        console.log('PDFViewer: 批量保存完成，笔迹已写入PDF文件');
-        // 清空待保存队列
-        pendingStrokes.current = [];
-      } else {
-        console.error('PDFViewer: 批量保存失败');
-      }
-    } catch (error) {
-      console.error('PDFViewer: 批量保存失败:', error);
-    }
-  }, [currentPage, localFilePath, pdfSource]);
-
-  // 组件卸载时保存待保存的笔迹
-  useEffect(() => {
-    return () => {
-      if (pendingStrokes.current.length > 0) {
-        console.log('PDFViewer: 组件卸载，保存待保存的笔迹');
-        savePendingStrokes();
-      }
-    };
-  }, [savePendingStrokes]);
+    console.log('PDFViewer: 手写功能已移除');
+  }, []);
 
   /**
    * 内存清理函数
@@ -930,7 +838,7 @@ const PDFViewer = ({ route, navigation }) => {
       totalPages: totalPages || 1,
       updatedAt: new Date().toISOString()
     };
-    // 手写数据现在通过HandwritingAdapter自动保存
+    // 基本PDF数据保存
     console.log('PDF数据保存:', pdfData);
   };
 
@@ -1052,7 +960,7 @@ const PDFViewer = ({ route, navigation }) => {
         onClear={handleClear}
         initialTool={currentDrawingTool?.type || 'pen'}
         initialColor={currentDrawingColor}
-        initialStrokeWidth={currentStrokeWidth}
+        initialStrokeWidth={2}
         onImageUpload={(image) => addFloatingImage(image)}
         onBookmarkAdd={handleAddBookmark}
         onBookmarkList={() => setBookmarkVisible(true)}
@@ -1230,12 +1138,8 @@ const PDFViewer = ({ route, navigation }) => {
                 }, 2000);
               }
 
-              // 设置PDF直接写入服务
-              if (filePath || (pdfSource && pdfSource.uri)) {
-                const pdfPath = filePath || pdfSource.uri;
-                pdfDirectWriteService.setCurrentPDF(pdfPath);
-                console.log('PDFViewer: 已设置PDF直接写入服务');
-              }
+              // PDF直接写入功能已移除
+              console.log('PDFViewer: PDF直接写入功能已移除');
 
               setIsLoading(false);
               console.log('=== PDF加载完成处理结束 ===');
@@ -1341,42 +1245,7 @@ const PDFViewer = ({ route, navigation }) => {
               />
             ))}
           </View>
-          {/* 手写适配器层 */}
-          {(() => {
-            try {
-              return (
-                <HandwritingAdapter
-                  ref={handwritingAdapterRef}
-                  currentTool={currentDrawingTool}
-                  currentColor={currentDrawingColor}
-                  currentStrokeWidth={currentStrokeWidth}
-                  documentId={noteId}
-                  documentType="pdf"
-                  pageNumber={currentPage}
-                  filePath={localFilePath || (pdfSource && pdfSource.uri)}
-                  fileName={localFilePath ? localFilePath.split('/').pop() : (pdfSource && pdfSource.uri ? pdfSource.uri.split('/').pop() : 'unknown.pdf')}
-                  enablePressure={true}
-                  enableTilt={true}
-                  fingerRejection={false}
-                  isFingerMode={isFingerMode}
-                  onStrokesChange={handleStrokesChange}
-                  style={styles.handwritingLayer}
-                  zIndex={1000}
-                  visible={true}
-                  // 传递PDF边界信息用于边界检测
-                  pdfBounds={{
-                    width: screenWidth,
-                    height: screenHeight
-                  }}
-                  // 启用直接写入模式以提高性能
-                  directWriteMode={true}
-                />
-              );
-            } catch (error) {
-              console.error('PDFViewer: HandwritingAdapter渲染失败:', error);
-              return null;
-            }
-          })()}
+
         </View>
       )}
 
@@ -1711,15 +1580,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
   },
-  // 手写层样式
-  handwritingLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    pointerEvents: 'auto',
-  },
+
 
 });
 

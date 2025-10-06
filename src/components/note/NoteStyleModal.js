@@ -11,6 +11,52 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import Svg, { Rect, Line, Circle } from 'react-native-svg';
 
+// 导出笔记样式配置供其他组件使用
+export const noteStyles = [
+  {
+    id: 'blank',
+    name: '空白笔记',
+    description: '纯白色背景，适合自由书写和绘画',
+    backgroundColor: '#FFFFFF',
+    pattern: null
+  },
+  {
+    id: 'lined',
+    name: '横线笔记',
+    description: '横线背景，适合文字书写和笔记',
+    backgroundColor: '#FFFFFF',
+    pattern: 'lines'
+  },
+  {
+    id: 'grid',
+    name: '方格笔记',
+    description: '网格背景，适合绘制图表和几何图形',
+    backgroundColor: '#FFFFFF',
+    pattern: 'grid'
+  },
+  {
+    id: 'dotted',
+    name: '点阵笔记',
+    description: '点阵背景，适合手写和创意绘画',
+    backgroundColor: '#FFFFFF',
+    pattern: 'dots'
+  },
+  {
+    id: 'yellow_lined',
+    name: '淡黄横线',
+    description: '温暖的淡黄色横线背景，护眼舒适',
+    backgroundColor: '#FFF8DC',
+    pattern: 'lines'
+  },
+  {
+    id: 'cornell',
+    name: '康奈尔笔记',
+    description: '康奈尔笔记格式，适合学习和整理',
+    backgroundColor: '#FFFFFF',
+    pattern: 'cornell'
+  }
+];
+
 /**
  * 笔记样式选择模态框
  * 类似CanvasStyleModal的样式，用于选择笔记纸张样式
@@ -19,52 +65,7 @@ const NoteStyleModal = ({ visible, onClose, onSelect }) => {
   const { colors } = useTheme();
   const [selectedStyle, setSelectedStyle] = useState('blank');
   const [noteName, setNoteName] = useState('');
-  
-  const noteStyles = [
-    {
-      id: 'blank',
-      name: '空白笔记',
-      description: '纯白色背景，适合自由书写和绘画',
-      backgroundColor: '#FFFFFF',
-      pattern: null
-    },
-    {
-      id: 'lined',
-      name: '横线笔记',
-      description: '横线背景，适合文字书写和笔记',
-      backgroundColor: '#FFFFFF',
-      pattern: 'lines'
-    },
-    {
-      id: 'grid',
-      name: '方格笔记',
-      description: '网格背景，适合绘制图表和几何图形',
-      backgroundColor: '#FFFFFF',
-      pattern: 'grid'
-    },
-    {
-      id: 'dotted',
-      name: '点阵笔记',
-      description: '点阵背景，适合手写和创意绘画',
-      backgroundColor: '#FFFFFF',
-      pattern: 'dots'
-    },
-    {
-      id: 'yellow_lined',
-      name: '淡黄横线',
-      description: '温暖的淡黄色横线背景，护眼舒适',
-      backgroundColor: '#FFF8DC',
-      pattern: 'lines'
-    },
-    {
-      id: 'cornell',
-      name: '康奈尔笔记',
-      description: '康奈尔笔记格式，适合学习和整理',
-      backgroundColor: '#FFFFFF',
-      pattern: 'cornell'
-    }
-  ];
-  
+
   // 渲染样式预览
   const renderStylePreview = (style) => {
     const previewSize = 60;

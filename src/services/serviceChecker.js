@@ -11,6 +11,7 @@ import apiCache from './api/apiCache';
 import authStorage from './auth/authStorage';
 import reminderMongoDBService from './reminder/reminderMongoDBService';
 import logService from './utils/logService';
+import { advancedGestureService } from './gesture/AdvancedGestureService';
 
 // 服务映射表
 const SERVICE_MAP = {
@@ -18,7 +19,8 @@ const SERVICE_MAP = {
   apiCache,
   authStorage,
   reminderMongoDBService,
-  logService
+  logService,
+  advancedGestureService
 };
 
 // 需要检查的服务列表
@@ -42,6 +44,10 @@ const REQUIRED_SERVICES = [
   {
     name: 'logService',
     required: true // 必须成功初始化
+  },
+  {
+    name: 'advancedGestureService',
+    required: false // 手势服务为可选，失败时使用基础手势
   }
 ];
 
@@ -95,17 +101,40 @@ export const checkAllServices = async () => {
       const initialized = isServiceInitialized(service);
 
       // 如果服务未初始化，尝试初始化
-      if (!initialized && typeof service.initialize === 'function') {
+      if (!initialized) {
         try {
           console.log(`尝试初始化服务: ${serviceInfo.name}`);
-          await service.initialize();
-          console.log(`服务初始化成功: ${serviceInfo.name}`);
+          
+          // 特殊处理手势服务
+          if (serviceInfo.name === 'advancedGestureService') {
+            if (typeof service.reinitialize === 'function') {
+              await service.reinitialize();
+            }
+            // 检查初始化状态
+            const isNowInitialized = service.isInitialized && service.isInitialized();
+            if (isNowInitialized) {
+              console.log(`手势服务初始化成功: ${serviceInfo.name}`);
+              results.push({
+                name: serviceInfo.name,
+                initialized: true,
+                required: serviceInfo.required
+              });
+            } else {
+              throw new Error('手势服务初始化失败');
+            }
+          } else if (typeof service.initialize === 'function') {
+            await service.initialize();
+            console.log(`服务初始化成功: ${serviceInfo.name}`);
 
-          results.push({
-            name: serviceInfo.name,
-            initialized: true,
-            required: serviceInfo.required
-          });
+            results.push({
+              name: serviceInfo.name,
+              initialized: true,
+              required: serviceInfo.required
+            });
+          } else {
+            // 服务没有初始化方法，标记为未初始化
+            throw new Error('服务没有初始化方法');
+          }
         } catch (initError) {
           console.error(`服务初始化失败: ${serviceInfo.name}`, initError);
 

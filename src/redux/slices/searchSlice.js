@@ -186,7 +186,7 @@ const detectItemType = (item) => {
     return 'note';
   }
 
-  if (item.paths || item.strokes) {
+  if (item.paths) {
     return 'canvas';
   }
 

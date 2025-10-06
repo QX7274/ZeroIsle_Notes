@@ -10,7 +10,6 @@
   - **ai/**: AI相关组件
   - **community/**: 社区相关组件
   - **groups/**: 群组相关组件
-  - **handwriting/**: 手写识别相关组件
   - **knowledge/**: 知识图谱相关组件
   - **Layout/**: 布局组件
   - **mind_map/**: 思维导图相关组件

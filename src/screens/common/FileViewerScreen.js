@@ -16,7 +16,6 @@ import ViewerLayout from '../../components/viewer/ViewerLayout';
 import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import BackButton from '../../components/viewer/BackButton';
 import PageControl from '../../components/viewer/PageControl';
-import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';

@@ -28,7 +28,6 @@ import enhancedDocumentViewer from '../../services/document/enhancedDocumentView
 // 导入与PDF查看器相同的组件
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import PageControl from '../../components/viewer/PageControl';
-import GlobalStylusOverlay from '../../components/viewer/GlobalStylusOverlay';
 import DraggableImage from '../../components/viewer/DraggableImage';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
@@ -551,8 +550,7 @@ const DocViewer = ({ route, navigation }) => {
           ))}
         </View>
 
-        {/* 全局轻量手写覆盖层 */}
-        <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+
       </View>
     );
   };
@@ -616,8 +614,7 @@ const DocViewer = ({ route, navigation }) => {
           ))}
         </View>
 
-        {/* 全局轻量手写覆盖层 */}
-        <GlobalStylusOverlay color={strokeColor} width={strokeWidth} />
+
       </View>
     );
   };

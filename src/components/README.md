@@ -35,11 +35,6 @@
 - **AIModelSelector.js**: AI模型选择器组件，用于选择AI模型
 - **AIPromptTemplates.js**: AI提示模板组件，提供常用提示模板
 
-### 手写相关组件 (`handwriting/`)
-
-- **HandwritingAdapter.js**: 手写适配器组件，将AllInOneToolbar工具映射到手写引擎
-- **UniversalHandwritingEngine.js**: 通用手写引擎，提供高性能手写功能
-
 ### 知识图谱相关组件 (`knowledge/`)
 
 - **KnowledgeGraph.js**: 知识图谱组件，用于显示知识图谱
@@ -142,7 +137,6 @@ import { Button, Input, Card, Loading } from '../components/common';
 ```javascript
 // 导入特定组件
 import { NoteList, NoteEditor } from '../components/notes';
-import { HandwritingAdapter } from '../components/handwriting';
 import { KnowledgeGraph } from '../components/knowledge';
 import { MindMap } from '../components/mind_map';
 import { SearchBar, SearchResults } from '../components/search';
@@ -154,7 +148,7 @@ import { ReminderListView, ReminderCalendarView } from '../components/reminder';
 // 使用组件
 <NoteList notes={notes} onNotePress={handleNotePress} />
 <NoteEditor note={note} onSave={handleSave} />
-<HandwritingRecognizer onRecognize={handleRecognize} />
+
 <KnowledgeGraph data={graphData} />
 <MindMap nodes={nodes} edges={edges} />
 <SearchBar value={query} onChangeText={setQuery} />
@@ -180,7 +174,7 @@ import { ReminderListView, ReminderCalendarView } from '../components/reminder';
 
 - [通用组件 (common)](./common/README.md)
 - [AI组件 (ai)](./ai/README.md)
-- [手写识别组件 (handwriting)](./handwriting/README.md)
+
 - [知识图谱组件 (knowledge)](./knowledge/README.md)
 - [笔记组件 (notes)](./notes/README.md)
 - [思维导图组件 (mind_map)](./mind_map/README.md)

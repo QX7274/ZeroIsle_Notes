@@ -20,6 +20,6 @@ from .template import NoteTemplateSerializer
 from .backup import NoteBackupSerializer
 from .reminder import NoteReminderSerializer
 from .notification import NotificationSerializer
-from .handwriting import HandwritingSerializer, HandwritingShareSerializer
+
 from .ocr import OCRModelSerializer, OCRTrainingDataSerializer
 from .whisper import WhisperModelSerializer, WhisperTrainingDataSerializer

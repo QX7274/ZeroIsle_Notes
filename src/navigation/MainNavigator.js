@@ -9,8 +9,8 @@ import { useSelector } from 'react-redux';
 import { selectTheme } from '../redux/slices/uiSlice';
 import { colors } from '../utils/constants/colors';
 
-// 导入知识图谱和手写识别组件
-import { KnowledgeGraphScreen, NodeDetailScreen, HandwritingRecognitionScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+// 导入知识图谱组件
+import { KnowledgeGraphScreen, NodeDetailScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
 import { InfiniteCanvasListScreen } from '../screens/canvas';
 import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
@@ -42,7 +42,6 @@ const NotesNavigator = () => (
       headerBackTitleVisible: false,
     })} />
     <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
-    <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="InfiniteCanvasList" component={InfiniteCanvasListScreen} options={{ title: '我的草稿' }} />
@@ -67,7 +66,6 @@ const KnowledgeGraphNavigator = () => (
     <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
     <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
     <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
-    <Stack.Screen name="HandwritingRecognition" component={HandwritingRecognitionScreen} options={{ title: '手写识别', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />

@@ -51,15 +51,6 @@ AI 助手原生模块，用于与设备上的 AI 功能交互。
 - **getChannels**: 获取所有通知渠道
 - **checkChannelExists**: 检查通知渠道是否存在
 
-### OCRModule
-
-OCR 原生模块，用于进行光学字符识别。
-
-- **recognizeText**: 识别图像中的文本
-- **recognizeTextFromCamera**: 从相机实时识别文本
-- **recognizeTextFromDocument**: 从文档识别文本
-- **recognizeHandwriting**: 识别手写文本
-
 ### ReminderModule
 
 提醒原生模块，用于管理设备提醒功能。
@@ -110,54 +101,16 @@ OCR 原生模块，用于进行光学字符识别。
 - **isBiometricAvailable**: 检查生物识别是否可用
 - **getBiometricTypes**: 获取可用的生物识别类型
 
-### HandwritingRecognitionModule
-
-手写识别原生模块，用于识别手写内容。
-
-- **recognizeHandwriting**: 识别手写内容
-- **getStrokeData**: 获取笔画数据
-- **clearStrokes**: 清除笔画
-
 ## 使用方法
 
 ### 导入原生模块
 
 ```javascript
 import {
-  OCRModule,
   VoiceRecognitionModule,
   AIAssistantModule
 } from '../native';
 ```
-
-### 使用 OCR 模块
-
-```javascript
-// 使用 OCR 模块识别图像中的文本
-async function recognizeText(imageUri) {
-  try {
-    // 显示加载指示器
-    setIsLoading(true);
-
-    // 调用原生模块方法
-    const result = await OCRModule.recognizeText(imageUri, {
-      language: 'zh-CN',
-      detectOrientation: true,
-      returnCoordinates: true
-    });
-
-    console.log('识别结果:', result);
-    return result;
-  } catch (error) {
-    console.error('OCR 错误:', error);
-    // 显示错误提示
-    showErrorToast('文本识别失败');
-    return null;
-  } finally {
-    // 隐藏加载指示器
-    setIsLoading(false);
-  }
-}
 ```
 
 ### 使用语音识别模块

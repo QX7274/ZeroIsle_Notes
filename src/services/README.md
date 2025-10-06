@@ -23,7 +23,6 @@
 - **index.js**: API服务索引
 
 ### AI服务 (`ai/`)
-- **handwritingRecognition.js**: 手写识别服务
 - **voiceRecognition.js**: 语音识别服务
 - **textAnalysis.js**: 文本分析服务
 - **aiModels.js**: AI模型服务

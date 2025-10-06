@@ -390,7 +390,7 @@ ZeroIsle_Notes/
 │   │   ├── common/         # 通用UI组件
 │   │   ├── community/      # 社区相关组件
 │   │   ├── groups/         # 群组相关组件
-│   │   ├── handwriting/    # 手写识别组件
+
 │   │   ├── home/           # 首页相关组件
 │   │   ├── knowledge/      # 知识图谱组件
 │   │   ├── Layout/         # 布局组件

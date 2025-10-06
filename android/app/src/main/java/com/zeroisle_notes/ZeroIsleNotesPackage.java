@@ -18,6 +18,7 @@ public class ZeroIsleNotesPackage implements ReactPackage {
         List<ViewManager> viewManagers = new ArrayList<>();
         // 添加自定义视图管理器
         // 注意：不要在这里添加已经通过 PackageList 自动添加的视图管理器
+        viewManagers.add(new TouchDetectorViewManager());
         return viewManagers;
     }
 
@@ -27,13 +28,13 @@ public class ZeroIsleNotesPackage implements ReactPackage {
         // 添加原生模块
         modules.add(new ZeroIsleUtilsModule(reactContext));
         modules.add(new FileSystemModule(reactContext));
-        modules.add(new HandwritingRecognitionModule(reactContext));
         modules.add(new NotificationModule(reactContext));
         modules.add(new NotificationChannelModule(reactContext)); // 添加通知渠道模块
         modules.add(new AIAssistantModule(reactContext));
         modules.add(new BaiduAIAssistantModule(reactContext));
         modules.add(new XunfeiAIAssistantModule(reactContext));
         modules.add(new ZhipuAIAssistantModule(reactContext));
+        modules.add(new TouchTypeDetectionModule(reactContext));
         return modules;
     }
 }

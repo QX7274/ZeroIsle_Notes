@@ -15,9 +15,10 @@ const styles = StyleSheet.create({
     top: 84,
     left: 0,
     right: 0,
-    zIndex: 20,
+    zIndex: 1000, // 提高层级，确保在顶层
     backgroundColor: 'transparent',
     paddingHorizontal: 0,
+    elevation: 10, // Android 层级
   },
 });
 

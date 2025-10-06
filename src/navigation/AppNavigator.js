@@ -38,7 +38,7 @@ import DocViewer from '../screens/viewers/DocViewer';
 import MarkdownViewer from '../screens/viewers/MarkdownViewer';
 import PPTViewer from '../screens/viewers/PPTViewer';
 import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
-import FluidPagedNoteScreen from '../screens/note/FluidPagedNoteScreen';
+import SkiaPagedCanvasScreen from '../screens/note/SkiaPagedCanvasScreen';
 import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
@@ -525,23 +525,15 @@ const HomeStack = () => {
         })}
       />
       <Stack.Screen
-        name="PagedNote"
-        component={FluidPagedNoteScreen}
-        options={({ route }) => ({
-          title: route.params?.title || '新建笔记',
-          headerShown: false,
-          gestureEnabled: true,
-        })}
-      />
-      <Stack.Screen
         name="FluidPagedNote"
-        component={FluidPagedNoteScreen}
+        component={SkiaPagedCanvasScreen}
         options={({ route }) => ({
-          title: route.params?.title || '流畅笔记',
+          title: route.params?.title || '分页笔记',
           headerShown: false,
           gestureEnabled: true,
         })}
       />
+  
       {/* ReminderScreen已移除，使用AddReminderScreen */}
       <Stack.Screen
         name="AddReminder"
