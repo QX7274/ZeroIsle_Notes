@@ -13,6 +13,7 @@ import TagGenerator from './TagGenerator';
 import AutoClassification from './AutoClassification';
 import KnowledgeGraphBuilder from './KnowledgeGraphBuilder';
 import KnowledgeGraph from './KnowledgeGraph';
+import GraphToolbar from './GraphToolbar';
 
 export {
   GraphVisualization,
@@ -25,6 +26,7 @@ export {
   AutoClassification,
   KnowledgeGraphBuilder,
   KnowledgeGraph,
+  GraphToolbar,
 };
 
 export default {
@@ -38,4 +40,5 @@ export default {
   AutoClassification,
   KnowledgeGraphBuilder,
   KnowledgeGraph,
+  GraphToolbar,
 };

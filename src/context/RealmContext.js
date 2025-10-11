@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import Realm from 'realm';
-import { realmService } from '../services/database/realmService';
+import realmService from '../services/database/realmService';
 // 使用控制台日志代替 logService
 import { appStateService } from '../services/app/appStateService';
 

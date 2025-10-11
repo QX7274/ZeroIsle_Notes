@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { ReminderModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { Reminder } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -120,7 +121,11 @@ export const createReminder = async (reminderData, userId) => {
     };
     
     // 创建提醒模型
-    const reminder = await ReminderModel.create(backendReminder);
+    const realm = await realmService.getRealm();
+    let reminder;
+    realm.write(() => {
+      reminder = realm.create('Reminder', backendReminder);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -148,7 +153,8 @@ export const createReminder = async (reminderData, userId) => {
 export const updateReminder = async (reminderId, reminderData) => {
   try {
     // 查找提醒
-    const reminder = await ReminderModel.findById(reminderId);
+    const realm = await realmService.getRealm();
+    const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
     
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
@@ -205,7 +211,8 @@ export const updateReminder = async (reminderId, reminderData) => {
 export const deleteReminder = async (reminderId, permanent = false) => {
   try {
     // 查找提醒
-    const reminder = await ReminderModel.findById(reminderId);
+    const realm = await realmService.getRealm();
+    const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
     
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
@@ -247,7 +254,18 @@ export const deleteReminder = async (reminderId, permanent = false) => {
 export const getReminders = async (userId, options = {}) => {
   try {
     // 查找提醒
-    const reminders = await ReminderModel.findByUser(userId, options);
+    const realm = await realmService.getRealm();
+    let reminders = realm.objects('Reminder').filtered(`user_id = "${userId}"`);
+    
+    // 应用排序
+    if (options.sortBy) {
+      reminders = reminders.sorted(options.sortBy, options.sortOrder === 'desc');
+    }
+    
+    // 应用分页
+    if (options.limit) {
+      reminders = reminders.slice(0, options.limit);
+    }
     
     // 转换为前端提醒对象
     return reminders.map(toFrontendReminder);
@@ -265,7 +283,8 @@ export const getReminders = async (userId, options = {}) => {
 export const getReminderById = async (reminderId) => {
   try {
     // 查找提醒
-    const reminder = await ReminderModel.findById(reminderId);
+    const realm = await realmService.getRealm();
+    const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
     
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
@@ -287,7 +306,8 @@ export const getReminderById = async (reminderId) => {
 export const getNoteReminders = async (noteId) => {
   try {
     // 查找提醒
-    const reminders = await ReminderModel.findByNote(noteId);
+    const realm = await realmService.getRealm();
+    const reminders = realm.objects('Reminder').filtered(`note_id = "${noteId}"`);
     
     // 转换为前端提醒对象
     return reminders.map(toFrontendReminder);

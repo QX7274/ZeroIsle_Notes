@@ -3,7 +3,8 @@
  */
 
 import { mongoDBService } from '../database/mongoDBAdapter';
-import { offlineStorageService } from '../offline/offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
 
 class CategoryService {
@@ -67,13 +68,22 @@ class CategoryService {
         category.is_synced = true;
 
         // 同时保存到本地存储以便离线访问
-        await offlineStorageService.saveCategory(category);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Category', category);
+        });
 
         return category;
       }
 
       // 离线模式：保存到本地存储
-      category._id = await offlineStorageService.saveCategory(category);
+      const realm = await realmService.getRealm();
+      let categoryId;
+      realm.write(() => {
+        const savedCategory = realm.create('Category', category);
+        categoryId = savedCategory._id;
+      });
+      category._id = categoryId;
 
       return category;
     } catch (error) {
@@ -105,13 +115,31 @@ class CategoryService {
         );
 
         // 更新本地缓存
-        await offlineStorageService.saveCategories(categories);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          for (const category of categories) {
+            realm.create('Category', category);
+          }
+        });
 
         return categories;
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getCategories(defaultFilter, sort, limit, skip);
+      const realm = await realmService.getRealm();
+      let categories = realm.objects('Category');
+      
+      if (defaultFilter) {
+        categories = categories.filtered(defaultFilter);
+      }
+      if (sort) {
+        categories = categories.sorted(sort);
+      }
+      if (limit) {
+        categories = categories.slice(skip || 0, (skip || 0) + limit);
+      }
+      
+      return categories;
     } catch (error) {
       console.error('获取分类列表失败:', error);
       throw error;
@@ -133,14 +161,18 @@ class CategoryService {
 
         // 更新本地缓存
         if (category) {
-          await offlineStorageService.saveCategory(category);
+          const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Category', category);
+        });
         }
 
         return category;
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getCategoryById(categoryId);
+      const realm = await realmService.getRealm();
+      return realm.objectForPrimaryKey('Category', categoryId);
     } catch (error) {
       console.error(`获取分类(ID: ${categoryId})失败:`, error);
       throw error;
@@ -176,7 +208,16 @@ class CategoryService {
       }
 
       // 更新本地存储
-      const updatedCategory = await offlineStorageService.updateCategory(categoryId, update);
+      const realm = await realmService.getRealm();
+      let updatedCategory;
+      realm.write(() => {
+        const category = realm.objectForPrimaryKey('Category', categoryId);
+        if (category) {
+          Object.assign(category, update);
+          updatedCategory = category;
+        }
+      });
+      return updatedCategory;
 
       return updatedCategory;
     } catch (error) {
@@ -212,7 +253,13 @@ class CategoryService {
       }
 
       // 更新本地存储
-      await offlineStorageService.updateCategory(categoryId, update);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const category = realm.objectForPrimaryKey('Category', categoryId);
+        if (category) {
+          Object.assign(category, update);
+        }
+      });
 
       return true;
     } catch (error) {
@@ -236,7 +283,14 @@ class CategoryService {
       }
 
       // 从本地存储删除
-      await offlineStorageService.deleteCategory(categoryId);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const category = realm.objectForPrimaryKey('Category', categoryId);
+        if (category) {
+          category.is_deleted = true;
+          category.deleted_at = new Date();
+        }
+      });
 
       return true;
     } catch (error) {
@@ -265,7 +319,9 @@ class CategoryService {
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getNoteCountByCategory(categoryId);
+      const realm = await realmService.getRealm();
+      const notes = realm.objects('Note').filtered(`category_id = "${categoryId}" AND is_deleted = false`);
+      return notes.length;
     } catch (error) {
       console.error(`获取分类(ID: ${categoryId})下的笔记数量失败:`, error);
       throw error;
@@ -318,14 +374,19 @@ class CategoryService {
 
         // 更新本地缓存
         if (category) {
-          await offlineStorageService.saveCategory(category);
+          const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Category', category);
+        });
         }
 
         return category;
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getCategoryByName(name);
+      const realm = await realmService.getRealm();
+      const categories = realm.objects('Category').filtered(`name = "${name}" AND is_deleted = false`);
+      return categories.length > 0 ? categories[0] : null;
     } catch (error) {
       console.error(`获取分类(名称: ${name})失败:`, error);
       throw error;

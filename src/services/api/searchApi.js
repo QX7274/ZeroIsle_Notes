@@ -132,8 +132,9 @@ export const getSearchSuggestions = async (query, limit = 5) => {
       console.log('在线获取搜索建议失败，尝试离线生成建议:', onlineError.message);
 
       // 在线获取失败，尝试离线生成建议
-      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
-      const notes = await offlineStorageService.getNotes();
+      // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      const realm = await realmService.getRealm();
+      const notes = realm.objects('Note').filtered('is_deleted = false');
 
       // 从笔记中提取关键词
       const keywords = new Set();
@@ -193,8 +194,9 @@ export const textSearch = async (query, params = {}) => {
       console.log('在线搜索失败，尝试离线搜索:', onlineError.message);
 
       // 在线搜索失败，尝试离线搜索
-      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
-      const notes = await offlineStorageService.getNotes();
+      // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      const realm = await realmService.getRealm();
+      const notes = realm.objects('Note').filtered('is_deleted = false');
 
       // 执行本地搜索
       const results = notes.filter(note => {
@@ -321,8 +323,10 @@ export const getSearchHistory = async (limit = 10, scope = 'home') => {
       console.log('在线获取搜索历史失败，尝试从本地获取:', onlineError.message);
 
       // 从本地存储获取搜索历史
-      const { offlineStorageService } = require('../../services/offline/offlineStorageService');
-      const history = await offlineStorageService.getSearchHistory(scope);
+      // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "search_history_${scope}"`);
+      const history = item.length > 0 ? JSON.parse(item[0].value) : [];
 
       return {
         success: true,

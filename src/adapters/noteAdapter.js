@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { NoteModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { Note } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -117,15 +118,19 @@ export const createNote = async (noteData, userId) => {
       metadata: { ...(noteData.metadata || {}) },
     };
     
-    // 创建笔记模型
-    const note = await NoteModel.create(backendNote);
+    // 使用 Realm 创建笔记
+    const realm = await realmService.getRealm();
+    let note;
+    realm.write(() => {
+      note = realm.create('Note', backendNote);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: note._id,
       entity_type: 'note',
       operation: 'create',
-      data: note.toJSON(),
+      data: note.toJSON ? note.toJSON() : { ...backendNote },
       user_id: userId,
     });
     
@@ -145,42 +150,42 @@ export const createNote = async (noteData, userId) => {
  */
 export const updateNote = async (noteId, noteData) => {
   try {
-    // 查找笔记
-    const note = await NoteModel.findById(noteId);
+    // 使用 Realm 查找笔记
+    const realm = await realmService.getRealm();
+    const note = realm.objectForPrimaryKey('Note', noteId);
     
     if (!note) {
       throw new Error(`笔记不存在: ${noteId}`);
     }
     
     // 更新笔记属性
-    if (noteData.title !== undefined) note.title = noteData.title;
-    if (noteData.content !== undefined) note.content = noteData.content;
-    if (noteData.type !== undefined) note.type = noteData.type;
-    if (noteData.tags !== undefined) note.tags = [...noteData.tags];
-    if (noteData.categoryId !== undefined) note.category_id = noteData.categoryId;
-    if (noteData.color !== undefined) note.color = noteData.color;
-    if (noteData.isFavorite !== undefined) note.is_favorite = noteData.isFavorite;
-    if (noteData.isArchived !== undefined) note.is_archived = noteData.isArchived;
-    if (noteData.filePath !== undefined) note.file_path = noteData.filePath;
-    if (noteData.fileSize !== undefined) note.file_size = noteData.fileSize;
-    if (noteData.fileType !== undefined) note.file_type = noteData.fileType;
-    if (noteData.thumbnailPath !== undefined) note.thumbnail_path = noteData.thumbnailPath;
-    if (noteData.parentId !== undefined) note.parent_id = noteData.parentId;
-    if (noteData.metadata !== undefined) note.metadata = { ...noteData.metadata };
-    
-    // 更新时间
-    note.updated_at = new Date();
-    note.is_synced = false;
-    
-    // 保存笔记
-    await note.save();
+    realm.write(() => {
+      if (noteData.title !== undefined) note.title = noteData.title;
+      if (noteData.content !== undefined) note.content = noteData.content;
+      if (noteData.type !== undefined) note.type = noteData.type;
+      if (noteData.tags !== undefined) note.tags = [...noteData.tags];
+      if (noteData.categoryId !== undefined) note.category_id = noteData.categoryId;
+      if (noteData.color !== undefined) note.color = noteData.color;
+      if (noteData.isFavorite !== undefined) note.is_favorite = noteData.isFavorite;
+      if (noteData.isArchived !== undefined) note.is_archived = noteData.isArchived;
+      if (noteData.filePath !== undefined) note.file_path = noteData.filePath;
+      if (noteData.fileSize !== undefined) note.file_size = noteData.fileSize;
+      if (noteData.fileType !== undefined) note.file_type = noteData.fileType;
+      if (noteData.thumbnailPath !== undefined) note.thumbnail_path = noteData.thumbnailPath;
+      if (noteData.parentId !== undefined) note.parent_id = noteData.parentId;
+      if (noteData.metadata !== undefined) note.metadata = JSON.stringify(noteData.metadata);
+      
+      // 更新时间
+      note.updated_at = new Date();
+      note.is_synced = false;
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: note._id,
       entity_type: 'note',
       operation: 'update',
-      data: note.toJSON(),
+      data: note.toJSON ? note.toJSON() : { ...note },
       user_id: note.user_id,
     });
     
@@ -200,8 +205,9 @@ export const updateNote = async (noteId, noteData) => {
  */
 export const deleteNote = async (noteId, permanent = false) => {
   try {
-    // 查找笔记
-    const note = await NoteModel.findById(noteId);
+    // 使用 Realm 查找笔记
+    const realm = await realmService.getRealm();
+    const note = realm.objectForPrimaryKey('Note', noteId);
     
     if (!note) {
       throw new Error(`笔记不存在: ${noteId}`);
@@ -209,20 +215,24 @@ export const deleteNote = async (noteId, permanent = false) => {
     
     if (permanent) {
       // 永久删除
-      await note.remove({ soft: false });
+      realm.write(() => {
+        realm.delete(note);
+      });
     } else {
       // 软删除
-      note.is_deleted = true;
-      note.deleted_at = new Date();
-      note.is_synced = false;
-      await note.save();
+      realm.write(() => {
+        note.is_deleted = true;
+        note.deleted_at = new Date();
+        note.updated_at = new Date();
+        note.is_synced = false;
+      });
       
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: note._id,
         entity_type: 'note',
         operation: 'update',
-        data: note.toJSON(),
+        data: note.toJSON ? note.toJSON() : { ...note },
         user_id: note.user_id,
       });
     }
@@ -241,28 +251,28 @@ export const deleteNote = async (noteId, permanent = false) => {
  */
 export const restoreNote = async (noteId) => {
   try {
-    // 查找笔记
-    const note = await NoteModel.findById(noteId);
+    // 使用 Realm 查找笔记
+    const realm = await realmService.getRealm();
+    const note = realm.objectForPrimaryKey('Note', noteId);
     
     if (!note) {
       throw new Error(`笔记不存在: ${noteId}`);
     }
     
     // 恢复笔记
-    note.is_deleted = false;
-    note.deleted_at = null;
-    note.updated_at = new Date();
-    note.is_synced = false;
-    
-    // 保存笔记
-    await note.save();
+    realm.write(() => {
+      note.is_deleted = false;
+      note.deleted_at = null;
+      note.updated_at = new Date();
+      note.is_synced = false;
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: note._id,
       entity_type: 'note',
       operation: 'update',
-      data: note.toJSON(),
+      data: note.toJSON ? note.toJSON() : { ...note },
       user_id: note.user_id,
     });
     
@@ -282,11 +292,41 @@ export const restoreNote = async (noteId) => {
  */
 export const getNotes = async (userId, options = {}) => {
   try {
-    // 查找笔记
-    const notes = await NoteModel.findByUser(userId, options);
+    // 使用 Realm 查找笔记
+    const realm = await realmService.getRealm();
+    let query = `user_id = "${userId}"`;
+    
+    if (options.is_deleted !== undefined) {
+      query += ` AND is_deleted = ${options.is_deleted}`;
+    } else {
+      query += ` AND is_deleted = false`;
+    }
+    
+    if (options.is_favorite !== undefined) {
+      query += ` AND is_favorite = ${options.is_favorite}`;
+    }
+    
+    if (options.is_archived !== undefined) {
+      query += ` AND is_archived = ${options.is_archived}`;
+    }
+    
+    if (options.category_id) {
+      query += ` AND category_id = "${options.category_id}"`;
+    }
+    
+    let notes = realm.objects('Note').filtered(query);
+    
+    // 排序
+    if (options.sort) {
+      const sortField = Object.keys(options.sort)[0];
+      const sortOrder = options.sort[sortField] === -1 ? true : false;
+      notes = notes.sorted(sortField, sortOrder);
+    } else {
+      notes = notes.sorted('updated_at', true); // 默认按更新时间降序
+    }
     
     // 转换为前端笔记对象
-    return notes.map(toFrontendNote);
+    return Array.from(notes).map(toFrontendNote);
   } catch (error) {
     logService.error('获取笔记列表失败', error);
     throw error;
@@ -300,8 +340,9 @@ export const getNotes = async (userId, options = {}) => {
  */
 export const getNoteById = async (noteId) => {
   try {
-    // 查找笔记
-    const note = await NoteModel.findById(noteId);
+    // 使用 Realm 查找笔记
+    const realm = await realmService.getRealm();
+    const note = realm.objectForPrimaryKey('Note', noteId);
     
     if (!note) {
       throw new Error(`笔记不存在: ${noteId}`);
@@ -324,14 +365,13 @@ export const getNoteById = async (noteId) => {
  */
 export const searchNotes = async (query, userId, options = {}) => {
   try {
-    // 搜索笔记
-    const notes = await NoteModel.search(query, {
-      user_id: userId,
-      ...options,
-    });
+    // 使用 Realm 搜索笔记
+    const realm = await realmService.getRealm();
+    const searchQuery = `(title CONTAINS[c] "${query}" OR content CONTAINS[c] "${query}") AND user_id = "${userId}" AND is_deleted = false`;
+    const notes = realm.objects('Note').filtered(searchQuery).sorted('updated_at', true);
     
     // 转换为前端笔记对象
-    return notes.map(toFrontendNote);
+    return Array.from(notes).map(toFrontendNote);
   } catch (error) {
     logService.error(`搜索笔记失败: ${query}`, error);
     throw error;

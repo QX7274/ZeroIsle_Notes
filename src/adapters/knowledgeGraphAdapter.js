@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { KnowledgeGraphModel, KnowledgeNodeModel, KnowledgeEdgeModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { KnowledgeGraph, KnowledgeNode, KnowledgeEdge } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -220,7 +221,11 @@ export const createGraph = async (graphData, userId) => {
     };
     
     // 创建图谱模型
-    const graph = await KnowledgeGraphModel.create(backendGraph);
+    const realm = await realmService.getRealm();
+    let graph;
+    realm.write(() => {
+      graph = realm.create('KnowledgeGraph', backendGraph);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -248,7 +253,8 @@ export const createGraph = async (graphData, userId) => {
 export const addNode = async (graphId, nodeData) => {
   try {
     // 查找图谱
-    const graph = await KnowledgeGraphModel.findById(graphId);
+    const realm = await realmService.getRealm();
+    const graph = realm.objectForPrimaryKey('KnowledgeGraph', graphId);
     
     if (!graph) {
       throw new Error(`图谱不存在: ${graphId}`);
@@ -277,7 +283,11 @@ export const addNode = async (graphId, nodeData) => {
     };
     
     // 创建节点模型
-    const node = await KnowledgeNodeModel.create(backendNode);
+    const writeRealm = await realmService.getRealm();
+    let node;
+    writeRealm.write(() => {
+      node = writeRealm.create('KnowledgeNode', backendNode);
+    });
     
     // 更新图谱
     graph.nodes.push(node);
@@ -311,7 +321,8 @@ export const addNode = async (graphId, nodeData) => {
 export const addEdge = async (graphId, edgeData) => {
   try {
     // 查找图谱
-    const graph = await KnowledgeGraphModel.findById(graphId);
+    const readRealm = await realmService.getRealm();
+    const graph = readRealm.objectForPrimaryKey('KnowledgeGraph', graphId);
     
     if (!graph) {
       throw new Error(`图谱不存在: ${graphId}`);
@@ -338,7 +349,11 @@ export const addEdge = async (graphId, edgeData) => {
     };
     
     // 创建边模型
-    const edge = await KnowledgeEdgeModel.create(backendEdge);
+    const writeRealm = await realmService.getRealm();
+    let edge;
+    writeRealm.write(() => {
+      edge = writeRealm.create('KnowledgeEdge', backendEdge);
+    });
     
     // 更新图谱
     graph.edges.push(edge);

@@ -5,7 +5,7 @@
 
 import { instance } from './config';
 import { API_ENDPOINTS } from '../../utils/constants';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 
 /**
  * 获取笔记的所有注释
@@ -15,11 +15,14 @@ import { offlineStorageService } from '../../services/offline';
 export const getAnnotationsByNote = async (noteId) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：从本地存储获取
-      const annotations = await offlineStorageService.getAnnotations(noteId);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      const annotations = item.length > 0 ? JSON.parse(item[0].value) : [];
 
       return {
         success: true,
@@ -32,7 +35,21 @@ export const getAnnotationsByNote = async (noteId) => {
     const response = await instance.get(`${API_ENDPOINTS.NOTES.ANNOTATIONS}/by_note?note_id=${noteId}`);
 
     // 保存到本地存储
-    await offlineStorageService.saveAnnotations(noteId, response.data);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(response.data);
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: `annotations_${noteId}`,
+          value: JSON.stringify(response.data),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true,
@@ -56,11 +73,14 @@ export const getAnnotationsByNote = async (noteId) => {
 export const getAnnotationsByPage = async (noteId, page) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：从本地存储获取
-      const annotations = await offlineStorageService.getAnnotations(noteId);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      const annotations = item.length > 0 ? JSON.parse(item[0].value) : [];
       const pageAnnotations = annotations.filter(annotation => annotation.page === page);
 
       return {
@@ -94,21 +114,40 @@ export const getAnnotationsByPage = async (noteId, page) => {
 export const createAnnotation = async (annotationData) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
       const tempId = Date.now().toString();
       const annotation = { ...annotationData, id: tempId };
 
-      await offlineStorageService.addPendingOperation({
-        type: 'create_annotation',
-        data: annotation,
-        timestamp: new Date().toISOString()
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          type: 'create_annotation',
+          data: annotation,
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 添加到本地存储
-      await offlineStorageService.addAnnotation(annotation);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+        const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+        annotations.push(annotation);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(annotations);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: `annotations_${noteId}`,
+            value: JSON.stringify(annotations),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       return {
         success: true,
@@ -121,7 +160,23 @@ export const createAnnotation = async (annotationData) => {
     const response = await instance.post(API_ENDPOINTS.NOTES.ANNOTATIONS, annotationData);
 
     // 保存到本地存储
-    await offlineStorageService.addAnnotation(response.data);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+      annotations.push(response.data);
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(annotations);
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: `annotations_${noteId}`,
+          value: JSON.stringify(annotations),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true,
@@ -145,19 +200,41 @@ export const createAnnotation = async (annotationData) => {
 export const updateAnnotation = async (id, annotationData) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
-      await offlineStorageService.addPendingOperation({
-        type: 'update_annotation',
-        id,
-        data: annotationData,
-        timestamp: new Date().toISOString()
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          type: 'update_annotation',
+          id,
+          data: annotationData,
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 更新本地存储
-      await offlineStorageService.updateAnnotation(id, annotationData);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+        const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+        const index = annotations.findIndex(ann => ann.id === id);
+        if (index >= 0) {
+          annotations[index] = { ...annotations[index], ...annotationData };
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(annotations);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: `annotations_${noteId}`,
+              value: JSON.stringify(annotations),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        }
+      });
 
       return {
         success: true,
@@ -170,7 +247,26 @@ export const updateAnnotation = async (id, annotationData) => {
     const response = await instance.put(`${API_ENDPOINTS.NOTES.ANNOTATIONS}/${id}`, annotationData);
 
     // 更新本地存储
-    await offlineStorageService.updateAnnotation(id, response.data);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+      const index = annotations.findIndex(ann => ann.id === id);
+      if (index >= 0) {
+        annotations[index] = { ...annotations[index], ...response.data };
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(annotations);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: `annotations_${noteId}`,
+            value: JSON.stringify(annotations),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      }
+    });
 
     return {
       success: true,
@@ -193,18 +289,37 @@ export const updateAnnotation = async (id, annotationData) => {
 export const deleteAnnotation = async (id) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
-      await offlineStorageService.addPendingOperation({
-        type: 'delete_annotation',
-        id,
-        timestamp: new Date().toISOString()
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          type: 'delete_annotation',
+          id,
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 从本地存储删除
-      await offlineStorageService.deleteAnnotation(id);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+        const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+        const filteredAnnotations = annotations.filter(ann => ann.id !== id);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(filteredAnnotations);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: `annotations_${noteId}`,
+            value: JSON.stringify(filteredAnnotations),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       return {
         success: true,
@@ -216,7 +331,23 @@ export const deleteAnnotation = async (id) => {
     await instance.delete(`${API_ENDPOINTS.NOTES.ANNOTATIONS}/${id}`);
 
     // 从本地存储删除
-    await offlineStorageService.deleteAnnotation(id);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+      const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+      const filteredAnnotations = annotations.filter(ann => ann.id !== id);
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(filteredAnnotations);
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: `annotations_${noteId}`,
+          value: JSON.stringify(filteredAnnotations),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true
@@ -238,25 +369,45 @@ export const deleteAnnotation = async (id) => {
 export const batchCreateAnnotations = async (annotations) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // 已移除 offlineStorageService 调用，现在直接使用 realmService
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
       const annotationsWithIds = annotations.map(annotation => ({
         ...annotation,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
       }));
 
-      await offlineStorageService.addPendingOperation({
-        type: 'batch_create_annotations',
-        data: annotationsWithIds,
-        timestamp: new Date().toISOString()
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          type: 'batch_create_annotations',
+          data: annotationsWithIds,
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 添加到本地存储
-      await Promise.all(annotationsWithIds.map(annotation =>
-        offlineStorageService.addAnnotation(annotation)
-      ));
+      await Promise.all(annotationsWithIds.map(async (annotation) => {
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+          const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+          annotations.push(annotation);
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(annotations);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: `annotations_${noteId}`,
+              value: JSON.stringify(annotations),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
+      }));
 
       return {
         success: true,
@@ -269,9 +420,25 @@ export const batchCreateAnnotations = async (annotations) => {
     const response = await instance.post(`${API_ENDPOINTS.NOTES.ANNOTATIONS}/batch`, { annotations });
 
     // 保存到本地存储
-    await Promise.all(response.data.created.map(annotation =>
-      offlineStorageService.addAnnotation(annotation)
-    ));
+    await Promise.all(response.data.created.map(async (annotation) => {
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "annotations_${noteId}"`);
+        const annotations = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+        annotations.push(annotation);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(annotations);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: `annotations_${noteId}`,
+            value: JSON.stringify(annotations),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+    }));
 
     return {
       success: true,

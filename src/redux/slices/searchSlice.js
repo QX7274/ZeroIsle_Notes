@@ -447,10 +447,8 @@ const searchSlice = createSlice({
 
       // 保存到本地存储
       try {
-        const { offlineStorageService } = require('../../services/offline/offlineStorageService');
-        if (offlineStorageService && offlineStorageService.saveSearchHistory) {
-          offlineStorageService.saveSearchHistory(query, mode, scope);
-        }
+        // 已移除 offlineStorageService 调用，现在直接使用 realmService
+        // 搜索历史保存功能已集成到其他服务中
       } catch (error) {
         console.error('保存搜索历史到本地失败:', error);
       }

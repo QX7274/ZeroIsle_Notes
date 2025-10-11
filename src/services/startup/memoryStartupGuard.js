@@ -4,7 +4,7 @@
  */
 
 import memoryGuard from '../memory/memoryGuard';
-import { offlineStorageService } from '../offline/offlineStorageService';
+import { realmService } from '../database/realmService';
 import RNFS from 'react-native-fs';
 
 class MemoryStartupGuard {

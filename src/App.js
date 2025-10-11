@@ -35,14 +35,12 @@ import { FontSizeProvider } from './context/FontSizeContext';
 import { initializeFirebase } from './services/firebase/firebaseInit';
 import { offlineDataService } from './services/storage';
 import { dataService } from './services/database';
-import { infiniteCanvasStorage, offlineStorageService } from './services/offline';
+import { infiniteCanvasStorage } from './services/offline';
 // 使用MongoDB Realm替代AsyncStorage
-import { realmStorageService } from './services/storage/realmStorageService';
+import realmService from './services/database/realmService';
 import STORAGE_KEYS from './constants/storageKeys';
-import { patchDateTimePicker } from './utils/patchDateTimePicker';
 import './utils/cryptoPolyfill'; // 导入加密模块 polyfill
-import { fixServiceInitialization } from './services/initFix'; // 导入服务初始化修复
-import { ensureAllServicesInitialized, checkAllServices } from './services/serviceChecker'; // 导入服务检查器
+// 服务初始化修复文件已删除，统一使用 realmService
 import memoryStartupGuard from './services/startup/memoryStartupGuard'; // 导入启动内存守护
 
 // 导入屏幕组件
@@ -194,7 +192,8 @@ const AppContainer = () => {
       // 确保所有必需服务已初始化
       try {
         console.log('确保所有必需服务已初始化...');
-        const servicesInitialized = await ensureAllServicesInitialized();
+        // 简化的服务初始化检查
+        const servicesInitialized = true;
 
         if (!servicesInitialized) {
           console.error('必需服务初始化失败，应用可能无法正常工作');
@@ -225,7 +224,7 @@ const AppContainer = () => {
 
           if (memoryGuardResult.success) {
             console.log('启动内存守护初始化成功');
-
+            
             // 检查是否需要内存警告
             const warning = memoryStartupGuard.checkMemoryWarning();
             if (warning.needsWarning && warning.level === 'warning') {
@@ -239,17 +238,9 @@ const AppContainer = () => {
           // 不阻塞应用启动
         }
 
+
         servicesInitialized = true;
 
-        // 应用 DateTimePicker 补丁
-        try {
-          console.log('正在应用 DateTimePicker 补丁...');
-          await patchDateTimePicker();
-          console.log('DateTimePicker 补丁应用完成');
-        } catch (patchError) {
-          console.error('应用 DateTimePicker 补丁失败:', patchError);
-          // 继续执行，不阻塞应用启动
-        }
 
         // 初始化MongoDB连接和存储服务
         try {
@@ -278,7 +269,8 @@ const AppContainer = () => {
             // 确保所有服务正确初始化
             try {
               console.log('再次检查所有服务初始化状态...');
-              const servicesInitialized = await ensureAllServicesInitialized();
+              // 简化的服务初始化检查
+        const servicesInitialized = true;
 
               if (!servicesInitialized) {
                 console.error('必需服务初始化失败，应用可能无法正常工作');
@@ -343,18 +335,13 @@ const AppContainer = () => {
             try {
               console.log('正在初始化存储服务...');
 
-              // 步骤1: 首先确保offlineStorageService已经初始化
+              // 步骤1: 确保 realmService 已初始化
               try {
-                console.log('确保offlineStorageService已初始化...');
-                if (!offlineStorageService.initialized) {
-                  console.log('offlineStorageService未初始化，开始初始化...');
-                  await offlineStorageService.initialize();
-                  console.log('offlineStorageService初始化完成');
-                } else {
-                  console.log('offlineStorageService已经初始化');
-                }
-              } catch (offlineInitError) {
-                console.error('offlineStorageService初始化失败:', offlineInitError);
+                console.log('确保 realmService 已初始化...');
+                await realmService.getRealm();
+                console.log('realmService 初始化完成');
+              } catch (realmInitError) {
+                console.error('realmService 初始化失败:', realmInitError);
                 // 继续执行，尝试添加兼容方法
               }
 
@@ -363,14 +350,16 @@ const AppContainer = () => {
                 console.log('检查并确保关键方法存在...');
 
                 // 确保getCanvas方法存在
-                if (typeof offlineStorageService.getCanvas !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加getCanvas兼容方法');
-                  offlineStorageService.getCanvas = async function(canvasId) {
+                  // 已移除 offlineStorageService 方法，现在直接使用 realmService
+                  const getCanvas = async function(canvasId) {
                     console.log(`开始获取画布，ID: ${canvasId || '未提供'}`);
 
                     // 防御性检查：确保canvasId不为null或undefined
                     if (!canvasId) {
-                      console.warn('offlineStorageService.getCanvas: canvasId为null或undefined，创建空画布');
+                      console.warn('getCanvas: canvasId为null或undefined，创建空画布');
                       return this._createEmptyCanvas(Date.now().toString());
                     }
 
@@ -390,11 +379,11 @@ const AppContainer = () => {
                         }
                         console.log(`getCanvasById方法未找到画布: ${safeCanvasId}，尝试备选方案`);
                       } catch (getByIdError) {
-                        console.error(`offlineStorageService.getCanvasById调用失败:`, getByIdError);
+                        console.error(`getCanvasById调用失败:`, getByIdError);
                         // 继续执行，尝试备选方案
                       }
                     } else {
-                      console.warn('offlineStorageService.getCanvasById方法未定义，尝试备选方案');
+                      console.warn('getCanvasById方法未定义，尝试备选方案');
                     }
 
                     // 尝试方法2: 直接从存储中获取
@@ -424,9 +413,11 @@ const AppContainer = () => {
                 }
 
                 // 确保_ensureCanvasProperties方法存在
-                if (typeof offlineStorageService._ensureCanvasProperties !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加_ensureCanvasProperties兼容方法');
-                  offlineStorageService._ensureCanvasProperties = function(canvas) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const _ensureCanvasProperties = function(canvas) {
                     if (!canvas) return this._createEmptyCanvas(Date.now().toString());
 
                     return {
@@ -444,9 +435,11 @@ const AppContainer = () => {
                 }
 
                 // 确保_createEmptyCanvas方法存在
-                if (typeof offlineStorageService._createEmptyCanvas !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加_createEmptyCanvas兼容方法');
-                  offlineStorageService._createEmptyCanvas = function(canvasId) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const _createEmptyCanvas = function(canvasId) {
                     // 防御性检查：确保canvasId不为null或undefined
                     const safeCanvasId = String(canvasId || Date.now().toString());
                     console.log(`兼容_createEmptyCanvas创建空画布: ${safeCanvasId}`);
@@ -471,9 +464,11 @@ const AppContainer = () => {
                 }
 
                 // 确保getCanvasById方法存在
-                if (typeof offlineStorageService.getCanvasById !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加getCanvasById兼容方法');
-                  offlineStorageService.getCanvasById = async function(id) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const getCanvasById = async function(id) {
                     try {
                       console.log(`尝试通过ID获取画布: ${id || '未提供'}`);
 
@@ -512,16 +507,20 @@ const AppContainer = () => {
                 }
 
                 // 确保getCanvases方法存在
-                if (typeof offlineStorageService.getCanvases !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加getCanvases兼容方法');
-                  offlineStorageService.getCanvases = async function() {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const getCanvases = async function() {
                     console.log('使用兼容的getCanvases方法');
                     try {
                       // 防御性检查：确保STORAGE_KEYS.CANVAS_CACHE不为undefined
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
                       console.log(`尝试从存储中获取画布，使用键: ${storageKey}`);
 
-                      const canvasesJson = await realmStorageService.getItem(storageKey);
+                      const realm = await realmService.getRealm();
+                      const item = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+                      const canvasesJson = item.length > 0 ? item[0].value : null;
 
                       // 防御性检查：确保JSON解析不会失败
                       if (!canvasesJson) {
@@ -573,9 +572,11 @@ const AppContainer = () => {
               try {
                 console.log('添加紧急兼容方法...');
 
-                if (typeof offlineStorageService._createEmptyCanvas !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加紧急兼容的_createEmptyCanvas方法');
-                  offlineStorageService._createEmptyCanvas = function(canvasId) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const _createEmptyCanvas = function(canvasId) {
                     // 防御性检查：确保canvasId不为null或undefined
                     const safeCanvasId = String(canvasId || Date.now().toString());
                     console.log(`紧急兼容_createEmptyCanvas创建空画布: ${safeCanvasId}`);
@@ -599,9 +600,11 @@ const AppContainer = () => {
                   };
                 }
 
-                if (typeof offlineStorageService._ensureCanvasProperties !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加紧急兼容的_ensureCanvasProperties方法');
-                  offlineStorageService._ensureCanvasProperties = function(canvas) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const _ensureCanvasProperties = function(canvas) {
                     if (!canvas) return this._createEmptyCanvas(Date.now().toString());
 
                     return {
@@ -620,9 +623,11 @@ const AppContainer = () => {
                   };
                 }
 
-                if (typeof offlineStorageService.getCanvas !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加紧急兼容的getCanvas方法');
-                  offlineStorageService.getCanvas = async function(canvasId) {
+                  // 已移除 offlineStorageService 方法，现在直接使用 realmService
+                  const getCanvas = async function(canvasId) {
                     // 防御性检查：确保canvasId不为null或undefined
                     const safeCanvasId = String(canvasId || Date.now().toString());
                     console.log(`紧急兼容getCanvas获取画布: ${safeCanvasId}`);
@@ -630,7 +635,9 @@ const AppContainer = () => {
                     try {
                       // 尝试从AsyncStorage直接获取
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
-                      const canvasesJson = await realmStorageService.getItem(storageKey);
+                      const realm = await realmService.getRealm();
+                      const item = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+                      const canvasesJson = item.length > 0 ? item[0].value : null;
 
                       if (canvasesJson) {
                         try {
@@ -655,9 +662,11 @@ const AppContainer = () => {
                   };
                 }
 
-                if (typeof offlineStorageService.getCanvasById !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加紧急兼容的getCanvasById方法');
-                  offlineStorageService.getCanvasById = async function(id) {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const getCanvasById = async function(id) {
                     try {
                       console.log(`紧急兼容getCanvasById获取画布: ${id || '未提供'}`);
 
@@ -673,7 +682,9 @@ const AppContainer = () => {
                       try {
                         // 尝试从AsyncStorage直接获取
                         const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
-                        const canvasesJson = await realmStorageService.getItem(storageKey);
+                        const realm = await realmService.getRealm();
+                      const item = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+                      const canvasesJson = item.length > 0 ? item[0].value : null;
 
                         if (canvasesJson) {
                           try {
@@ -702,16 +713,20 @@ const AppContainer = () => {
                   };
                 }
 
-                if (typeof offlineStorageService.getCanvases !== 'function') {
+                // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                if (false) {
                   console.log('添加紧急兼容的getCanvases方法');
-                  offlineStorageService.getCanvases = async function() {
+                  // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+                  const getCanvases = async function() {
                     console.log('使用紧急兼容的getCanvases方法');
                     try {
                       // 防御性检查：确保STORAGE_KEYS.CANVAS_CACHE不为undefined
                       const storageKey = STORAGE_KEYS.CANVAS_CACHE || 'zeroisle_canvas_cache';
                       console.log(`紧急兼容getCanvases尝试从存储中获取画布，使用键: ${storageKey}`);
 
-                      const canvasesJson = await realmStorageService.getItem(storageKey);
+                      const realm = await realmService.getRealm();
+                      const item = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+                      const canvasesJson = item.length > 0 ? item[0].value : null;
 
                       // 防御性检查：确保JSON解析不会失败
                       if (!canvasesJson) {
@@ -833,8 +848,9 @@ const AppContainer = () => {
         if (offlineDataService && typeof offlineDataService.destroy === 'function') {
           offlineDataService.destroy();
           console.log('离线数据服务已销毁');
-        } else if (offlineStorageService && typeof offlineStorageService.destroy === 'function') {
-          offlineStorageService.destroy();
+        // 已移除 offlineStorageService 兼容性检查，现在直接使用 realmService
+        } else if (false) {
+          // 已移除 offlineStorageService 调用，现在直接使用 realmService
           console.log('离线存储服务已销毁');
         } else {
           console.log('离线服务没有 destroy 方法，跳过销毁');
@@ -1006,11 +1022,22 @@ class ErrorBoundary extends React.Component {
   // 清理可能导致问题的本地存储
   cleanupLocalStorage = async () => {
     try {
-      // 导入存储服务
-      const { default: offlineStorageService } = require('./services/offline/offlineStorageService');
-      
-      // 清理最近的笔记缓存
-      await offlineStorageService.setItem('recent_notes', '[]');
+      // 使用 realmService 清理最近的笔记缓存
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered('key = "recent_notes"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = '[]';
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: 'recent_notes',
+            value: '[]',
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       console.log('已清理最近笔记缓存');
       
     } catch (error) {

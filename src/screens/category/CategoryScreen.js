@@ -1,32 +1,60 @@
-import React, { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDispatch, useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/Ionicons';
+import { Text } from '../../components/common/Typography';
 import { UnifiedSearchBar } from '../../components/search';
-import { IconButton } from '../../components/common';
-import { Text } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { CategoryManager, CategoryEditor } from '../../components/category';
+
+// Redux
+import {
+  fetchCategories,
+  selectCategories,
+  setCurrentCategory,
+} from '../../redux/slices/categorySlice';
 
 const CategoryScreen = ({ navigation }) => {
+  const dispatch = useDispatch();
   const { colors } = useTheme();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredCategories, setFilteredCategories] = useState([]);
-  const [allCategories, setAllCategories] = useState([]);
+  const categories = useSelector(selectCategories);
 
-  const handleSelectCategory = (category) => {
-    navigation.navigate('NoteList', { categoryId: category.id });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  // 处理创建新分类
+  const handleCreateCategory = () => {
+    setShowCreateDialog(true);
   };
 
-  // 处理搜索输入
-  const handleSearchInput = (text) => {
-    setSearchQuery(text);
-    if (text.trim() === '') {
-      setFilteredCategories(allCategories);
-    } else {
-      const filtered = allCategories.filter(category =>
-        category.name.toLowerCase().includes(text.toLowerCase())
-      );
-      setFilteredCategories(filtered);
-    }
+  // 配置导航栏右侧按钮
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity 
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          onPress={handleCreateCategory}
+        >
+          <Icon name="add" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, colors.primary]);
+
+  // 加载分类数据
+  useEffect(() => {
+    dispatch(fetchCategories());
+  }, [dispatch]);
+
+  // 处理分类选择
+  const handleSelectCategory = (category) => {
+    dispatch(setCurrentCategory(category));
+    // 导航到该分类的笔记列表
+    navigation.navigate('HomeStack', {
+      screen: 'Home',
+      params: { categoryId: category.id, categoryName: category.name },
+    });
   };
 
   // 处理搜索结果
@@ -37,30 +65,9 @@ const CategoryScreen = ({ navigation }) => {
     }
   };
 
-  // 处理创建新分类
-  const handleCreateCategory = () => {
-    // TODO: 实现创建分类功能
-    console.log('创建新分类');
-  };
-
-  // 接收分类数据
-  const handleCategoriesLoaded = (categories) => {
-    setAllCategories(categories);
-    setFilteredCategories(categories);
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerActions}>
-          <IconButton
-            icon="add"
-            text="新建"
-            size="medium"
-            onPress={handleCreateCategory}
-          />
-        </View>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 搜索栏 */}
       <View style={styles.searchContainer}>
         <UnifiedSearchBar
           searchScope="category"
@@ -69,15 +76,23 @@ const CategoryScreen = ({ navigation }) => {
           initialQuery={searchQuery}
           onCancel={() => setSearchQuery('')}
           onFocus={() => {}}
-          placeholder="搜索分类、标签、内容..."
+          placeholder="搜索分类..."
         />
       </View>
-      {/* TODO: 实现CategoryManager组件 */}
-      <View style={styles.placeholder}>
-        <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
-          分类管理功能正在开发中
-        </Text>
-      </View>
+
+      {/* 分类管理组件 */}
+      <CategoryManager
+        onCategorySelect={handleSelectCategory}
+      />
+
+      {/* 创建分类对话框 */}
+      <CategoryEditor
+        visible={showCreateDialog}
+        category={null}
+        allCategories={categories}
+        onSave={() => setShowCreateDialog(false)}
+        onCancel={() => setShowCreateDialog(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -85,45 +100,23 @@ const CategoryScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
+    marginRight: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-  },
-  placeholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  placeholderText: {
-    fontSize: 16,
-    textAlign: 'center',
   },
 });
 

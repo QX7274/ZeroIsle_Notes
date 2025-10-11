@@ -4,6 +4,11 @@
 #import <UserNotifications/UserNotifications.h>
 #import <RNCPushNotificationIOS.h>
 
+// 导入原生模块
+#import "NativePDFViewManager.h"
+#import "NativePagedNoteViewManager.h"
+#import "NativeInfiniteCanvasViewManager.h"
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
@@ -18,6 +23,22 @@
   center.delegate = self;
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
+}
+
+// 注册原生模块 - 使用正确的注册方式
+- (NSArray<id<RCTBridgeModule>> *)extraModulesForBridge:(RCTBridge *)bridge
+{
+  return @[];
+}
+
+// 注册原生视图管理器
+- (NSArray<id<RCTViewManager>> *)extraViewManagersForBridge:(RCTBridge *)bridge
+{
+  return @[
+    [[NativePDFViewManager alloc] init],
+    [[NativePagedNoteViewManager alloc] init],
+    [[NativeInfiniteCanvasViewManager alloc] init],
+  ];
 }
 
 // 需要实现的方法

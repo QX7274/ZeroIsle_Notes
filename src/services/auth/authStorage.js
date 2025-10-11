@@ -3,8 +3,8 @@
  * 提供认证相关的存储功能
  */
 
-import { realmStorageService } from '../storage';
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 
 /**
  * 认证存储服务
@@ -28,7 +28,7 @@ class AuthStorage {
     this.initializationPromise = new Promise(async (resolve, reject) => {
       try {
         // 初始化Realm存储服务
-        await realmStorageService.initialize();
+        // realmService 不需要手动初始化
 
         this.initialized = true;
         logService.info('认证存储服务初始化成功');
@@ -50,7 +50,9 @@ class AuthStorage {
   async getItem(key) {
     try {
       await this.initialize();
-      return await realmStorageService.getItem(key);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+      return item.length > 0 ? item[0].value : null;
     } catch (error) {
       logService.error(`获取认证存储项目失败: ${key}`, error);
       return null;
@@ -66,7 +68,22 @@ class AuthStorage {
   async setItem(key, value) {
     try {
       await this.initialize();
-      return await realmStorageService.setItem(key, value);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = value;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: key,
+            value: value,
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      return true;
     } catch (error) {
       logService.error(`设置认证存储项目失败: ${key}`, error);
       return false;
@@ -81,7 +98,12 @@ class AuthStorage {
   async removeItem(key) {
     try {
       await this.initialize();
-      return await realmStorageService.removeItem(key);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (item.length > 0) realm.delete(item[0]);
+      });
+      return true;
     } catch (error) {
       logService.error(`删除认证存储项目失败: ${key}`, error);
       return false;
@@ -96,7 +118,7 @@ class AuthStorage {
   async saveUser(user) {
     try {
       await this.initialize();
-      return await realmStorageService.setItem('user', user);
+      return await this.setItem('user', JSON.stringify(user));
     } catch (error) {
       logService.error('保存用户信息失败', error);
       return false;
@@ -110,7 +132,8 @@ class AuthStorage {
   async getUser() {
     try {
       await this.initialize();
-      return await realmStorageService.getItem('user');
+      const userStr = await this.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
       logService.error('获取用户信息失败', error);
       return null;
@@ -126,8 +149,8 @@ class AuthStorage {
     try {
       await this.initialize();
       // 保存到多个位置，确保兼容性
-      await realmStorageService.setItem('token', token);
-      await realmStorageService.setItem('auth_token', token);
+      await this.setItem('token', token);
+      await this.setItem('auth_token', token);
       return true;
     } catch (error) {
       logService.error('保存认证令牌失败', error);
@@ -143,9 +166,9 @@ class AuthStorage {
     try {
       await this.initialize();
       // 尝试从多个位置获取
-      let token = await realmStorageService.getItem('auth_token');
+      let token = await this.getItem('auth_token');
       if (!token) {
-        token = await realmStorageService.getItem('token');
+        token = await this.getItem('token');
       }
       return token;
     } catch (error) {
@@ -161,11 +184,11 @@ class AuthStorage {
   async clearAuth() {
     try {
       await this.initialize();
-      await realmStorageService.removeItem('token');
-      await realmStorageService.removeItem('auth_token');
-      await realmStorageService.removeItem('user');
-      await realmStorageService.removeItem('user_info');
-      await realmStorageService.removeItem('refresh_token');
+      await this.removeItem('token');
+      await this.removeItem('auth_token');
+      await this.removeItem('user');
+      await this.removeItem('user_info');
+      await this.removeItem('refresh_token');
       return true;
     } catch (error) {
       logService.error('清除认证信息失败', error);
@@ -182,7 +205,7 @@ class AuthStorage {
     try {
       await this.initialize();
       for (const key of keys) {
-        await realmStorageService.removeItem(key);
+        await this.removeItem(key);
       }
       return true;
     } catch (error) {

@@ -9,7 +9,7 @@ class LargeMemoryAllocator {
     this.allocatedMemory = new Map();
     this.memoryPools = new Map();
     this.totalAllocated = 0;
-    this.maxMemoryGB = 4; // 最大4GB内存
+    this.maxMemoryGB = 8; // 最大8GB内存
     this.memoryChunks = [];
   }
 
@@ -215,8 +215,8 @@ class LargeMemoryAllocator {
     try {
       console.log(`LargeMemoryAllocator: 为PPT文件分配内存，文件大小: ${fileSizeMB}MB`);
       
-      // 计算需要的内存：文件大小的3倍用于处理
-      const requiredMemoryMB = Math.min(fileSizeMB * 3, 2048); // 最大2GB
+      // 计算需要的内存：文件大小的4倍用于处理
+      const requiredMemoryMB = Math.min(fileSizeMB * 4, 4096); // 最大4GB
       
       console.log(`LargeMemoryAllocator: 计算所需内存: ${requiredMemoryMB}MB`);
       

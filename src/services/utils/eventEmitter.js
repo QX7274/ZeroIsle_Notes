@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { logService } from './logService';
+import { logService } from '../../utils/logService';
 
 /**
  * 事件发射器

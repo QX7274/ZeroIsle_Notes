@@ -3,10 +3,10 @@
  */
 
 import { mongoDBService } from '../database/mongoDBAdapter';
-import { realmService } from '../database/realmService';
+import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
 import { configService } from '../app/configService';
-import { offlineStorageService } from '.';
+// offlineStorageService 已删除，使用 realmService
 import { SyncInfo } from '../../models';
 
 class OfflineSyncService {
@@ -191,7 +191,9 @@ class OfflineSyncService {
 
         // 尝试从离线存储加载
         try {
-          const queueData = await offlineStorageService.getItem('sync_queue');
+          const realm = await realmService.getRealm();
+          const item = realm.objects('StorageItem').filtered('key = "sync_queue"');
+          const queueData = item.length > 0 ? item[0].value : null;
           if (queueData) {
             this.syncQueue = JSON.parse(queueData);
           }

@@ -1,7 +1,7 @@
 /**
  * Realm数据库初始化�? * 用于在应用启动时初始化Realm数据�? */
 
-import { realmService } from './realmService';
+import realmService from './realmService';
 
 import { realmModels } from '../../models';
 import { networkService } from '../network/networkService';

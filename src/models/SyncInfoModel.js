@@ -3,21 +3,20 @@
  * 提供同步信息相关的操作方法
  */
 
-import BaseModel from './BaseModel';
 import { SyncInfo } from './index';
-import { logService } from '../services/utils/logService';
+import { logService } from '../utils/logService';
 
 /**
  * 同步信息模型类
- * @extends BaseModel
+ * 注意：BaseModel 已被删除，现在直接使用 Realm 模型
  */
-class SyncInfoModel extends BaseModel {
+class SyncInfoModel {
   /**
    * 构造函数
    * @param {Object} data 同步信息数据
    */
   constructor(data) {
-    super(data);
+    this.data = data;
     this.model = SyncInfo;
   }
 

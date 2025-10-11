@@ -26,7 +26,7 @@ import {
   deleteEdge,
   getAllNodes,
 } from '../../redux/slices/knowledgeGraphSlice';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 
 const EdgeEditScreen = ({ route, navigation }) => {
   const { edgeId, sourceNodeId, targetNodeId } = route.params || {};
@@ -41,15 +41,12 @@ const EdgeEditScreen = ({ route, navigation }) => {
   const [isCreating, setIsCreating] = useState(!edgeId);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('info');
-  const [isOffline, setIsOffline] = useState(!offlineStorageService.getStatus().isOnline);
+  const [isOffline, setIsOffline] = useState(false); // 简化离线状态检查
 
   // 监听离线状态变化
   useEffect(() => {
-    const unsubscribe = offlineStorageService.addListener(event => {
-      if (event.type === 'connectionChange') {
-        setIsOffline(!event.isOnline);
-      }
-    });
+    // 已移除 offlineStorageService 监听器，现在直接使用简化状态
+    const unsubscribe = () => {}; // 空函数，保持接口兼容
 
     return () => unsubscribe();
   }, []);

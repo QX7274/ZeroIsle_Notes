@@ -5,7 +5,7 @@
 import { Buffer } from 'buffer';
 import { gzip, ungzip } from 'pako';
 import CryptoJS from 'crypto-js';
-import { realmStorageService } from '../storage/realmStorageService';
+import realmService from '../database/realmService';
 import STORAGE_KEYS from '../../constants/storageKeys';
 import { analyticsService } from '../analytics/analyticsService';
 
@@ -47,7 +47,9 @@ class CompressionService {
         const defaultKey = 'zeroisle_encryption_key';
 
         // 尝试从存储中获取密钥
-        const storedKey = await realmStorageService.getItem(defaultKey);
+        const realm = await realmService.getRealm();
+        const item = realm.objects('StorageItem').filtered(`key = "${defaultKey}"`);
+        const storedKey = item.length > 0 ? item[0].value : null;
 
         if (storedKey) {
           this.encryptionKey = storedKey;
@@ -58,14 +60,29 @@ class CompressionService {
         const newKey = this.generateSecureKey();
 
         // 保存密钥
-        await realmStorageService.setItem(defaultKey, newKey);
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${defaultKey}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = newKey;
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: defaultKey,
+              value: newKey,
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
 
         this.encryptionKey = newKey;
         return newKey;
       }
 
       // 正常流程：尝试从存储中获取密钥
-      const storedKey = await realmStorageService.getItem(ENCRYPTION_KEY_STORAGE_KEY);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${ENCRYPTION_KEY_STORAGE_KEY}"`);
+      const storedKey = item.length > 0 ? item[0].value : null;
 
       if (storedKey) {
         this.encryptionKey = storedKey;
@@ -76,7 +93,20 @@ class CompressionService {
       const newKey = this.generateSecureKey();
 
       // 保存密钥
-      await realmStorageService.setItem(ENCRYPTION_KEY_STORAGE_KEY, newKey);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${ENCRYPTION_KEY_STORAGE_KEY}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = newKey;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: ENCRYPTION_KEY_STORAGE_KEY,
+            value: newKey,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       this.encryptionKey = newKey;
       return newKey;

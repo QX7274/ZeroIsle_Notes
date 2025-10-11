@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 import { networkService } from '../services/network/networkService';
-import { logService } from '../services/utils/logService';
+import { logService } from '../utils/logService';
 
 /**
  * 使用同步状态的钩子

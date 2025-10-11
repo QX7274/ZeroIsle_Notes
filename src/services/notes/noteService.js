@@ -5,9 +5,10 @@
 
 import { Alert } from 'react-native';
 import { mongoDBService } from '../database/mongoDBAdapter';
-import { offlineStorageService } from '../offline/offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 import { fileService } from '../files/fileService';
 import {
   findDocuments,
@@ -147,7 +148,13 @@ class NoteService {
           is_synced: false,
         };
 
-        note._id = await offlineStorageService.saveNote(note);
+        const realm = await realmService.getRealm();
+        let noteId;
+        realm.write(() => {
+          const savedNote = realm.create('Note', note);
+          noteId = savedNote._id;
+        });
+        note._id = noteId;
         return note;
       } catch (fallbackError) {
         logService.error('使用离线存储创建笔记失败', fallbackError);
@@ -196,7 +203,20 @@ class NoteService {
       try {
         const { filter = {}, sort = { updated_at: -1 }, limit = 0, skip = 0 } = options;
         const defaultFilter = { is_deleted: false, ...filter };
-        return await offlineStorageService.getNotes(defaultFilter, sort, limit, skip);
+        const realm = await realmService.getRealm();
+        let notes = realm.objects('Note').filtered('is_deleted = false');
+        
+        if (defaultFilter) {
+          notes = notes.filtered(defaultFilter);
+        }
+        if (sort) {
+          notes = notes.sorted(sort);
+        }
+        if (limit) {
+          notes = notes.slice(skip || 0, (skip || 0) + limit);
+        }
+        
+        return notes;
       } catch (fallbackError) {
         logService.error('从离线存储获取笔记失败', fallbackError);
         throw error; // 抛出原始错误
@@ -233,7 +253,8 @@ class NoteService {
 
       // 如果Realm查询失败，尝试从离线存储获取
       try {
-        return await offlineStorageService.getNoteById(noteId);
+        const realm = await realmService.getRealm();
+        return realm.objectForPrimaryKey('Note', noteId);
       } catch (fallbackError) {
         logService.error(`从离线存储获取笔记(ID: ${noteId})失败`, fallbackError);
         throw error; // 抛出原始错误
@@ -286,7 +307,16 @@ class NoteService {
           is_synced: false,
         };
 
-        const updatedNote = await offlineStorageService.updateNote(noteId, update);
+        const realm = await realmService.getRealm();
+        let updatedNote;
+        realm.write(() => {
+          const note = realm.objectForPrimaryKey('Note', noteId);
+          if (note) {
+            Object.assign(note, update);
+            updatedNote = note;
+          }
+        });
+        return updatedNote;
         return updatedNote;
       } catch (fallbackError) {
         logService.error(`使用离线存储更新笔记(ID: ${noteId})失败`, fallbackError);
@@ -338,7 +368,13 @@ class NoteService {
           is_synced: false,
         };
 
-        await offlineStorageService.updateNote(noteId, update);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const note = realm.objectForPrimaryKey('Note', noteId);
+          if (note) {
+            Object.assign(note, update);
+          }
+        });
         return true;
       } catch (fallbackError) {
         logService.error(`使用离线存储删除笔记(ID: ${noteId})失败`, fallbackError);
@@ -378,7 +414,14 @@ class NoteService {
 
       // 如果Realm删除失败，尝试使用离线存储
       try {
-        await offlineStorageService.deleteNote(noteId);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const note = realm.objectForPrimaryKey('Note', noteId);
+          if (note) {
+            note.is_deleted = true;
+            note.deleted_at = new Date();
+          }
+        });
         return true;
       } catch (fallbackError) {
         logService.error(`使用离线存储永久删除笔记(ID: ${noteId})失败`, fallbackError);

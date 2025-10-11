@@ -208,7 +208,7 @@ AI助手模块，提供智能对话和内容生成功能。
   - `NoteComment`: 笔记评论模型
   - `NoteCollaboration`: 笔记协作模型
   - `NoteTemplate`: 笔记模板模型
-  - `Handwriting`: 手写笔记模型
+
   - `Annotation`: PDF注释模型
   - `DrawingPath`: 绘图路径模型
   - `OCRModel`: OCR模型

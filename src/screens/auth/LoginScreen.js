@@ -11,6 +11,7 @@ import { Button, Input, Loading } from '../../components/common';
 import { useTheme } from '../../context/ThemeContext';
 
 import authApi from '../../services/api/authApi';
+import realmService from '../../services/database/realmService';
 import networkErrorService from '../../services/networkErrorService';
 
 // 导入LinearGradient组件
@@ -219,8 +220,21 @@ const LoginScreen = ({ navigation }) => {
             // 同步用户信息到Realm数据库
             try {
               // 使用Realm存储服务保存用户信息
-              const { realmStorageService } = require('../../services/storage/realmStorageService');
-              await realmStorageService.setItem('user_info', result.data.user);
+              const realm = await realmService.getRealm();
+              realm.write(() => {
+                const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
+                if (existingItem.length > 0) {
+                  existingItem[0].value = JSON.stringify(result.data.user);
+                  existingItem[0].updated_at = new Date();
+                } else {
+                  realm.create('StorageItem', {
+                    key: 'user_info',
+                    value: JSON.stringify(result.data.user),
+                    createdAt: new Date(),
+                    updated_at: new Date(),
+                  });
+                }
+              });
               console.log('手机验证码注册用户信息已保存到Realm数据库');
             } catch (syncError) {
               console.error('保存手机验证码注册用户信息失败:', syncError);
@@ -264,8 +278,21 @@ const LoginScreen = ({ navigation }) => {
               // 同步用户信息到Realm数据库
               try {
                 // 使用Realm存储服务保存用户信息
-                const { realmStorageService } = require('../../services/storage/realmStorageService');
-                await realmStorageService.setItem('user_info', loginResult.data.user);
+                const realm = await realmService.getRealm();
+                realm.write(() => {
+                  const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
+                  if (existingItem.length > 0) {
+                    existingItem[0].value = JSON.stringify(loginResult.data.user);
+                    existingItem[0].updated_at = new Date();
+                  } else {
+                    realm.create('StorageItem', {
+                      key: 'user_info',
+                      value: JSON.stringify(loginResult.data.user),
+                      createdAt: new Date(),
+                      updated_at: new Date(),
+                    });
+                  }
+                });
                 console.log('注册用户信息已保存到Realm数据库');
               } catch (syncError) {
                 console.error('保存注册用户信息失败:', syncError);
@@ -327,8 +354,21 @@ const LoginScreen = ({ navigation }) => {
             // 同步用户信息到Realm数据库
             try {
               // 使用Realm存储服务保存用户信息
-              const { realmStorageService } = require('../../services/storage/realmStorageService');
-              await realmStorageService.setItem('user_info', result.data.user);
+              const realm = await realmService.getRealm();
+              realm.write(() => {
+                const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
+                if (existingItem.length > 0) {
+                  existingItem[0].value = JSON.stringify(result.data.user);
+                  existingItem[0].updated_at = new Date();
+                } else {
+                  realm.create('StorageItem', {
+                    key: 'user_info',
+                    value: JSON.stringify(result.data.user),
+                    createdAt: new Date(),
+                    updated_at: new Date(),
+                  });
+                }
+              });
               console.log('验证码登录用户信息已保存到Realm数据库');
             } catch (syncError) {
               console.error('保存验证码登录用户信息失败:', syncError);
@@ -383,8 +423,21 @@ const LoginScreen = ({ navigation }) => {
               // 同步用户信息到Realm数据库
               try {
                 // 使用Realm存储服务保存用户信息
-                const { realmStorageService } = require('../../services/storage/realmStorageService');
-                await realmStorageService.setItem('user_info', result.data.user);
+                const realm = await realmService.getRealm();
+                realm.write(() => {
+                  const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
+                  if (existingItem.length > 0) {
+                    existingItem[0].value = JSON.stringify(result.data.user);
+                    existingItem[0].updated_at = new Date();
+                  } else {
+                    realm.create('StorageItem', {
+                      key: 'user_info',
+                      value: JSON.stringify(result.data.user),
+                      createdAt: new Date(),
+                      updated_at: new Date(),
+                    });
+                  }
+                });
                 console.log('用户信息已保存到Realm数据库');
               } catch (syncError) {
                 console.error('保存用户信息失败:', syncError);
@@ -471,8 +524,21 @@ const LoginScreen = ({ navigation }) => {
         // 同步用户信息到Realm数据库
         try {
           // 使用Realm存储服务保存用户信息
-          const { realmStorageService } = require('../../services/storage/realmStorageService');
-          await realmStorageService.setItem('user_info', result.data.user);
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
+            if (existingItem.length > 0) {
+              existingItem[0].value = JSON.stringify(result.data.user);
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'user_info',
+                value: JSON.stringify(result.data.user),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          });
           console.log(`${serviceName}登录用户信息已保存到Realm数据库`);
         } catch (storageError) {
           console.error(`保存${serviceName}登录用户信息失败:`, storageError);

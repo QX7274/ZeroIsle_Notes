@@ -1,5 +1,7 @@
 import { analyticsService } from '../analytics/analyticsService';
-import { infiniteCanvasStorage, offlineStorageService } from '../offline';
+import { infiniteCanvasStorage } from '../offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../database/realmService';
 
 class CanvasService {
   constructor() {
@@ -55,8 +57,11 @@ class CanvasService {
       this.canvasData.updatedAt = new Date().toISOString();
       await infiniteCanvasStorage.saveCanvas(this.canvasData);
 
-      // 同时保存到offlineStorageService以保持兼容性
-      await offlineStorageService.saveCanvas(this.canvasData);
+      // 同时保存到realmService以保持兼容性
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('InfiniteCanvas', this.canvasData);
+      });
 
       analyticsService.trackCanvasAction('save', { canvasId: this.canvasData.id });
     } catch (error) {

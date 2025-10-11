@@ -629,21 +629,44 @@ class DocumentConversionService {
         availableMemory: Math.round(processCheck.availableMemory / 1024 / 1024) + 'MB'
       });
 
-      // 对于大文件（超过20MB），使用大文件处理器
-      if (fileStats.size > 20 * 1024 * 1024) {
-        console.log('DocumentConversionService: 检测到大文件，使用大文件处理器');
-        const largeFileProcessor = require('../../utils/largeFileProcessor').default;
+      // 对于大文件（超过10MB），使用内存优化器
+      if (fileStats.size > 10 * 1024 * 1024) {
+        console.log('DocumentConversionService: 检测到大文件，使用内存优化器');
+        const memoryOptimizer = require('../../utils/memoryOptimizer').default;
         
-        // 使用大文件处理器进行预处理
-        await largeFileProcessor.processLargeFile(filePath, {
+        // 使用内存优化器进行安全处理
+        await memoryOptimizer.processLargeFileSafely(filePath, {
+          onChunk: async (chunk, index, total) => {
+            if (onProgress) {
+              const progress = Math.round(((index + 1) / total) * 40); // 前40%进度
+              onProgress({
+                progress,
+                message: `处理文件块 ${index + 1}/${total}`,
+                stage: 'chunk_processing'
+              });
+            }
+          },
+          finalize: async (data) => {
+            // 文件处理完成
+            if (onProgress) {
+              onProgress({
+                progress: 40,
+                message: '大文件预处理完成',
+                stage: 'preprocessing_complete'
+              });
+            }
+            return data;
+          }
+        }, {
+          chunkSize: 1024 * 1024, // 1MB块大小
           onProgress: (progressInfo) => {
             if (onProgress) {
               // 调整进度范围：大文件处理占前40%
-              const adjustedProgress = Math.round(progressInfo.progress * 0.4);
+              const adjustedProgress = Math.round(progressInfo.percentage * 0.4);
               onProgress({
-                ...progressInfo,
                 progress: adjustedProgress,
-                message: `大文件预处理: ${progressInfo.message}`
+                message: `大文件预处理: ${progressInfo.percentage}%`,
+                stage: 'large_file_processing'
               });
             }
           },

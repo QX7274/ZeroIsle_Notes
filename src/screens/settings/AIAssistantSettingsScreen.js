@@ -14,7 +14,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useTheme } from '../../context/ThemeContext';
 import AIAssistantModule from '../../native/AIAssistantModule';
 // 使用MongoDB替代AsyncStorage
-import { realmService } from '../../services/database/realmService';
+import realmService from '../../services/database/realmService';
 
 // 存储键
 const STORAGE_KEYS = {

@@ -14,7 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 import { Button } from '../../components/common';
 
 const OfflineDataScreen = ({ navigation }) => {
@@ -42,15 +42,20 @@ const OfflineDataScreen = ({ navigation }) => {
   // 监听离线存储服务状态变化
   useEffect(() => {
     // 初始化时获取状态
-    try {
-      const currentStatus = offlineStorageService.getStatus();
-      setStatus(prevStatus => ({
-        ...prevStatus,
-        ...currentStatus
-      }));
-    } catch (error) {
-      console.warn('获取离线存储状态失败:', error);
-    }
+    const fetchStatus = async () => {
+      try {
+        const currentStatus = await notesApi.checkNetwork();
+        currentStatus.isOfflineMode = false;
+        setStatus(prevStatus => ({
+          ...prevStatus,
+          ...currentStatus
+        }));
+      } catch (error) {
+        console.warn('获取离线存储状态失败:', error);
+      }
+    };
+    
+    fetchStatus();
 
     // 添加事件监听
     const handleStatusChange = (event) => {
@@ -72,7 +77,8 @@ const OfflineDataScreen = ({ navigation }) => {
     // 添加监听器
     let unsubscribe;
     try {
-      unsubscribe = offlineStorageService.addListener(handleStatusChange);
+      // 已移除 offlineStorageService 监听器，现在直接使用简化状态
+      unsubscribe = () => {}; // 空函数，保持接口兼容
     } catch (error) {
       console.warn('添加状态监听器失败:', error);
       // 提供一个空函数作为回退
@@ -92,7 +98,8 @@ const OfflineDataScreen = ({ navigation }) => {
   const handleOfflineModeToggle = async (value) => {
     setIsLoading(true);
     try {
-      await offlineStorageService.setOfflineMode(value);
+      // 已移除 offlineStorageService 调用，现在直接使用简化状态
+      console.log('离线模式设置:', value);
     } catch (error) {
       console.error('切换离线模式失败:', error);
     } finally {
@@ -105,8 +112,9 @@ const OfflineDataScreen = ({ navigation }) => {
     setIsLoading(true);
     try {
       // 检查是否有manualSync方法
-      if (typeof offlineStorageService.manualSync === 'function') {
-        const result = await offlineStorageService.manualSync();
+      // 已移除 offlineStorageService 调用，现在直接使用简化状态
+      if (false) {
+        const result = { success: true, message: '同步功能已简化' };
         if (result && result.success) {
           Alert.alert('同步成功', result.message || '数据已成功同步到云端');
         } else {
@@ -166,8 +174,9 @@ const OfflineDataScreen = ({ navigation }) => {
             setIsLoading(true);
             try {
               // 检查是否有clearOfflineData方法
-              if (typeof offlineStorageService.clearOfflineData === 'function') {
-                const result = await offlineStorageService.clearOfflineData();
+              // 已移除 offlineStorageService 调用，现在直接使用简化状态
+              if (false) {
+                const result = { success: true, message: '清理功能已简化' };
                 if (result && result.success) {
                   Alert.alert('清除成功', '所有离线数据已清除');
                   setRefreshKey(prev => prev + 1);

@@ -3,9 +3,10 @@
  */
 
 import { mongoDBService } from '../database/mongoDBAdapter';
-import { offlineStorageService } from '../offline/offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 class SyncService {
   constructor() {
@@ -62,7 +63,8 @@ class SyncService {
       this.isSyncing = true;
 
       // 获取所有未同步的笔记
-      const unsyncedNotes = await offlineStorageService.getUnsyncedNotes();
+      const realm = await realmService.getRealm();
+      const unsyncedNotes = realm.objects('Note').filtered('is_synced = false AND is_deleted = false');
 
       if (unsyncedNotes.length === 0) {
         this.isSyncing = false;
@@ -96,7 +98,13 @@ class SyncService {
             }
 
             // 更新本地笔记的同步状态
-            await offlineStorageService.updateNote(note._id, { is_synced: true });
+            const realm = await realmService.getRealm();
+            realm.write(() => {
+              const noteObj = realm.objectForPrimaryKey('Note', note._id);
+              if (noteObj) {
+                noteObj.is_synced = true;
+              }
+            });
 
             return { success: true, noteId: note._id };
           } catch (error) {
@@ -140,7 +148,9 @@ class SyncService {
       await this.initialize();
 
       // 获取本地最后更新时间
-      const lastUpdateTime = await offlineStorageService.getLastUpdateTime();
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "last_update_time"');
+      const lastUpdateTime = item.length > 0 ? item[0].value : null;
 
       // 从MongoDB获取最新的笔记
       const latestNotes = await mongoDBService.find(
@@ -153,7 +163,12 @@ class SyncService {
       }
 
       // 更新本地存储
-      await offlineStorageService.saveNotes(latestNotes);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        for (const note of latestNotes) {
+          realm.create('Note', note);
+        }
+      });
 
       return {
         success: true,

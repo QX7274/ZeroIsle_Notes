@@ -3,9 +3,10 @@
  */
 
 import { mongoDBService } from '../database/mongoDBAdapter';
-import { offlineStorageService } from '../offline/offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 class ChatHistoryService {
   constructor() {
@@ -69,13 +70,22 @@ class ChatHistoryService {
         conversation.is_synced = true;
 
         // 同时保存到本地存储
-        await offlineStorageService.saveConversation(conversation);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('AIChat', conversation);
+        });
 
         return conversation;
       }
 
       // 离线模式：保存到本地存储
-      conversation._id = await offlineStorageService.saveConversation(conversation);
+      const realm = await realmService.getRealm();
+      let conversationId;
+      realm.write(() => {
+        const savedConversation = realm.create('AIChat', conversation);
+        conversationId = savedConversation._id;
+      });
+      conversation._id = conversationId;
 
       return conversation;
     } catch (error) {
@@ -107,13 +117,32 @@ class ChatHistoryService {
         );
 
         // 更新本地缓存
-        await offlineStorageService.saveConversations(conversations);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          for (const conversation of conversations) {
+            realm.create('AIChat', conversation);
+          }
+        });
 
         return conversations;
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getConversations(defaultFilter, sort, limit, skip);
+      const realm = await realmService.getRealm();
+      let conversations = realm.objects('AIChat');
+      
+      // 应用过滤和排序
+      if (defaultFilter) {
+        conversations = conversations.filtered(defaultFilter);
+      }
+      if (sort) {
+        conversations = conversations.sorted(sort);
+      }
+      if (limit) {
+        conversations = conversations.slice(skip || 0, (skip || 0) + limit);
+      }
+      
+      return conversations;
     } catch (error) {
       logService.error('获取对话列表失败', error);
       throw error;
@@ -138,14 +167,18 @@ class ChatHistoryService {
 
         // 更新本地缓存
         if (conversation) {
-          await offlineStorageService.saveConversation(conversation);
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            realm.create('AIChat', conversation);
+          });
         }
 
         return conversation;
       }
 
       // 离线模式：从本地存储获取
-      return offlineStorageService.getConversationById(conversationId);
+      const realm = await realmService.getRealm();
+      return realm.objectForPrimaryKey('AIChat', conversationId);
     } catch (error) {
       logService.error(`获取对话(ID: ${conversationId})失败`, error);
       throw error;
@@ -180,11 +213,15 @@ class ChatHistoryService {
       }
 
       // 更新本地存储
-      const updatedConversation = await offlineStorageService.updateConversation(
-        conversationId,
-        update
-      );
-
+      const realm = await realmService.getRealm();
+      let updatedConversation;
+      realm.write(() => {
+        const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
+        if (conversation) {
+          Object.assign(conversation, updateData);
+          updatedConversation = conversation;
+        }
+      });
       return updatedConversation;
     } catch (error) {
       logService.error(`更新对话标题(ID: ${conversationId})失败`, error);
@@ -239,11 +276,15 @@ class ChatHistoryService {
       }
 
       // 更新本地存储
-      const updatedConversation = await offlineStorageService.updateConversation(
-        conversationId,
-        update
-      );
-
+      const realm = await realmService.getRealm();
+      let updatedConversation;
+      realm.write(() => {
+        const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
+        if (conversation) {
+          Object.assign(conversation, updateData);
+          updatedConversation = conversation;
+        }
+      });
       return updatedConversation;
     } catch (error) {
       logService.error(`添加消息到对话(ID: ${conversationId})失败`, error);
@@ -278,7 +319,13 @@ class ChatHistoryService {
       }
 
       // 更新本地存储
-      await offlineStorageService.updateConversation(conversationId, update);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
+        if (conversation) {
+          Object.assign(conversation, update);
+        }
+      });
 
       return true;
     } catch (error) {
@@ -302,7 +349,13 @@ class ChatHistoryService {
       }
 
       // 从本地存储删除
-      await offlineStorageService.deleteConversation(conversationId);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
+        if (conversation) {
+          realm.delete(conversation);
+        }
+      });
 
       return true;
     } catch (error) {
@@ -325,7 +378,11 @@ class ChatHistoryService {
       }
 
       // 从本地存储删除所有对话
-      await offlineStorageService.clearConversations();
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const conversations = realm.objects('AIChat');
+        realm.delete(conversations);
+      });
 
       return true;
     } catch (error) {

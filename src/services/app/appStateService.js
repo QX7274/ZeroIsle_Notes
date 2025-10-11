@@ -3,7 +3,7 @@
  */
 
 import { AppState } from 'react-native';
-import { realmStorageService } from '../storage/realmStorageService';
+import realmService from '../database/realmService';
 import NetInfo from '@react-native-community/netinfo';
 
 class AppStateService {
@@ -54,7 +54,9 @@ class AppStateService {
    */
   async loadLastSession() {
     try {
-      const lastSessionData = await realmStorageService.getItem('app_last_session');
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "app_last_session"');
+      const lastSessionData = item.length > 0 ? item[0].value : null;
 
       if (lastSessionData) {
         const lastSession = JSON.parse(lastSessionData);
@@ -78,7 +80,21 @@ class AppStateService {
         lastSyncTime: this.appState.lastSyncTime,
       };
 
-      await realmStorageService.setItem('app_last_session', JSON.stringify(sessionData));
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered('key = "app_last_session"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(sessionData);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: 'app_last_session',
+            value: JSON.stringify(sessionData),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (error) {
       console.error('保存当前会话信息失败:', error);
     }

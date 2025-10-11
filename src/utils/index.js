@@ -5,7 +5,7 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 import dateUtilsModule from './dateUtils';
 import { validationUtils as validationUtilsModule } from './validationUtils';
-import { storageService } from '../services/storage';
+import realmService from '../services/database/realmService';
 import EventEmitter from './eventEmitter';
 
 // 存储工具 - 使用MongoDB存储服务
@@ -21,14 +21,23 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 使用storageService
-      if (storageService && typeof storageService.setItem === 'function') {
-        await storageService.setItem(safeKey, JSON.stringify(value));
-        return true;
-      } else {
-        console.error(`存储错误 [${safeKey}]: storageService不可用`);
-        return false;
-      }
+      // 使用realmService
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${safeKey}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(value);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: safeKey,
+            value: JSON.stringify(value),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      return true;
     } catch (e) {
       console.error(`存储错误 [${safeKey}]:`, e);
       return false;
@@ -45,14 +54,11 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 使用storageService
-      if (storageService && typeof storageService.getItem === 'function') {
-        const value = await storageService.getItem(safeKey);
-        return value ? JSON.parse(value) : null;
-      } else {
-        console.error(`读取错误 [${safeKey}]: storageService不可用`);
-        return null;
-      }
+      // 使用realmService
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${safeKey}"`);
+      const value = item.length > 0 ? item[0].value : null;
+      return value ? JSON.parse(value) : null;
     } catch (e) {
       console.error(`读取错误 [${safeKey}]:`, e);
       return null;
@@ -69,14 +75,13 @@ export const storage = {
     const safeKey = String(key);
 
     try {
-      // 使用storageService
-      if (storageService && typeof storageService.removeItem === 'function') {
-        await storageService.removeItem(safeKey);
-        return true;
-      } else {
-        console.error(`删除错误 [${safeKey}]: storageService不可用`);
-        return false;
-      }
+      // 使用realmService
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const itemsToDelete = realm.objects('StorageItem').filtered(`key = "${safeKey}"`);
+        realm.delete(itemsToDelete);
+      });
+      return true;
     } catch (e) {
       console.error(`删除错误 [${safeKey}]:`, e);
       return false;

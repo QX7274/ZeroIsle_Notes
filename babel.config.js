@@ -3,7 +3,6 @@ module.exports = function(api) {
   return {
     presets: ['module:@react-native/babel-preset'],
     plugins: [
-      'react-native-reanimated/plugin',
       [
         'module-resolver',
         {
@@ -29,6 +28,8 @@ module.exports = function(api) {
           },
         },
       ],
+      // react-native-reanimated/plugin 必须是最后一个插件！
+      'react-native-reanimated/plugin',
     ],
     env: {
       production: {

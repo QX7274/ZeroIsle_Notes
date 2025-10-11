@@ -3,7 +3,7 @@
  * 提供axios实例和API配置
  */
 import axios from 'axios';
-import { realmStorageService } from './storage/realmStorageService';
+import realmService from './database/realmService';
 import { API_BASE_URL, REQUEST_TIMEOUT } from '../config/api';
 
 // 创建axios实例
@@ -20,7 +20,9 @@ export const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   async config => {
     try {
-      const token = await realmStorageService.getItem('token');
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "token"');
+      const token = item.length > 0 ? item[0].value : null;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }

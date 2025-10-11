@@ -4,8 +4,8 @@
  * 这个适配器实现了redux-persist所需的存储接口，并使用realmStorageService作为底层存储
  */
 
-import { realmStorageService } from '../services/storage/realmStorageService';
-import { logService } from '../services/utils/logService';
+import realmService from '../services/database/realmService';
+import { logService } from './logService';
 
 // 为redux-persist创建存储适配器
 const realmStorage = {
@@ -16,7 +16,9 @@ const realmStorage = {
    */
   async getItem(key) {
     try {
-      const value = await realmStorageService.getItem(key);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+      const value = item.length > 0 ? item[0].value : null;
       return value;
     } catch (error) {
       logService.error(`[realmStorage] 获取项目失败: ${key}`, error);
@@ -32,7 +34,21 @@ const realmStorage = {
    */
   async setItem(key, value) {
     try {
-      await realmStorageService.setItem(key, value);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = value;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: key,
+            value: value,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (error) {
       logService.error(`[realmStorage] 设置项目失败: ${key}`, error);
       throw error;
@@ -46,7 +62,13 @@ const realmStorage = {
    */
   async removeItem(key) {
     try {
-      await realmStorageService.removeItem(key);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (item.length > 0) {
+          realm.delete(item[0]);
+        }
+      });
     } catch (error) {
       logService.error(`[realmStorage] 删除项目失败: ${key}`, error);
       throw error;
@@ -59,7 +81,9 @@ const realmStorage = {
    */
   async getAllKeys() {
     try {
-      return await realmStorageService.getAllKeys();
+      const realm = await realmService.getRealm();
+      const items = realm.objects('StorageItem');
+      return items.map(item => item.key);
     } catch (error) {
       logService.error('[realmStorage] 获取所有键失败', error);
       return [];
@@ -73,7 +97,13 @@ const realmStorage = {
    */
   async multiGet(keys) {
     try {
-      return await realmStorageService.multiGet(keys);
+      const realm = await realmService.getRealm();
+      const results = [];
+      for (const key of keys) {
+        const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        results.push([key, item.length > 0 ? item[0].value : null]);
+      }
+      return results;
     } catch (error) {
       logService.error('[realmStorage] 批量获取项目失败', error);
       return keys.map(key => [key, null]);
@@ -87,7 +117,23 @@ const realmStorage = {
    */
   async multiSet(keyValuePairs) {
     try {
-      await realmStorageService.multiSet(keyValuePairs);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        for (const [key, value] of keyValuePairs) {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = value;
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: key,
+              value: value,
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        }
+      });
     } catch (error) {
       logService.error('[realmStorage] 批量设置项目失败', error);
       throw error;
@@ -101,7 +147,15 @@ const realmStorage = {
    */
   async multiRemove(keys) {
     try {
-      await realmStorageService.multiRemove(keys);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        for (const key of keys) {
+          const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+          if (item.length > 0) {
+            realm.delete(item[0]);
+          }
+        }
+      });
     } catch (error) {
       logService.error('[realmStorage] 批量删除项目失败', error);
       throw error;

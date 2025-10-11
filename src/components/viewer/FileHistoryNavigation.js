@@ -137,14 +137,8 @@ const FileHistoryNavigation = ({
       }
     }
 
-    // 导航时重置到主页，然后导航到目标页面
-    navigation.reset({
-      index: 1,
-      routes: [
-        { name: 'Home' },
-        { name: screenName, params }
-      ],
-    });
+    // 直接导航到目标页面，避免显示两个页面的问题
+    navigation.navigate(screenName, params);
   };
 
   const handleRemoveFile = (fileId, fileName) => {

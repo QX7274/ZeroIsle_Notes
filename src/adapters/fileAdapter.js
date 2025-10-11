@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { FileModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { File } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -134,8 +135,12 @@ export const createFile = async (fileData, userId) => {
       tags: [...(fileData.tags || [])],
     };
     
-    // 创建文件模型
-    const file = await FileModel.create(backendFile);
+    // 使用 Realm 创建文件
+    const realm = await realmService.getRealm();
+    let file;
+    realm.write(() => {
+      file = realm.create('File', backendFile);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -162,46 +167,47 @@ export const createFile = async (fileData, userId) => {
  */
 export const updateFile = async (fileId, fileData) => {
   try {
-    // 查找文件
-    const file = await FileModel.findById(fileId);
+    // 使用 Realm 查找文件
+    const realm = await realmService.getRealm();
+    const file = realm.objectForPrimaryKey('File', fileId);
     
     if (!file) {
       throw new Error(`文件不存在: ${fileId}`);
     }
     
     // 更新文件属性
-    if (fileData.name !== undefined) file.name = fileData.name;
-    if (fileData.originalName !== undefined) file.original_name = fileData.originalName;
-    if (fileData.path !== undefined) file.path = fileData.path;
-    if (fileData.size !== undefined) file.size = fileData.size;
-    if (fileData.mimeType !== undefined) file.mime_type = fileData.mimeType;
-    if (fileData.extension !== undefined) file.extension = fileData.extension;
-    if (fileData.type !== undefined) file.type = fileData.type;
-    if (fileData.hash !== undefined) file.hash = fileData.hash;
-    if (fileData.thumbnailPath !== undefined) file.thumbnail_path = fileData.thumbnailPath;
-    if (fileData.metadata !== undefined) file.metadata = { ...fileData.metadata };
-    if (fileData.storageLocation !== undefined) file.storage_location = fileData.storageLocation;
-    if (fileData.cloudPath !== undefined) file.cloud_path = fileData.cloudPath;
-    if (fileData.cloudProvider !== undefined) file.cloud_provider = fileData.cloudProvider;
-    if (fileData.noteId !== undefined) file.note_id = fileData.noteId;
-    if (fileData.isPublic !== undefined) file.is_public = fileData.isPublic;
-    if (fileData.publicUrl !== undefined) file.public_url = fileData.publicUrl;
-    if (fileData.expiryDate !== undefined) file.expiry_date = fileData.expiryDate;
-    if (fileData.tags !== undefined) file.tags = [...fileData.tags];
+    realm.write(() => {
+      if (fileData.name !== undefined) file.name = fileData.name;
+      if (fileData.originalName !== undefined) file.original_name = fileData.originalName;
+      if (fileData.path !== undefined) file.path = fileData.path;
+      if (fileData.size !== undefined) file.size = fileData.size;
+      if (fileData.mimeType !== undefined) file.mime_type = fileData.mimeType;
+      if (fileData.extension !== undefined) file.extension = fileData.extension;
+      if (fileData.type !== undefined) file.type = fileData.type;
+      if (fileData.hash !== undefined) file.hash = fileData.hash;
+      if (fileData.thumbnailPath !== undefined) file.thumbnail_path = fileData.thumbnailPath;
+      if (fileData.metadata !== undefined) file.metadata = JSON.stringify(fileData.metadata);
+      if (fileData.storageLocation !== undefined) file.storage_location = fileData.storageLocation;
+      if (fileData.cloudPath !== undefined) file.cloud_path = fileData.cloudPath;
+      if (fileData.cloudProvider !== undefined) file.cloud_provider = fileData.cloudProvider;
+      if (fileData.noteId !== undefined) file.note_id = fileData.noteId;
+      if (fileData.isPublic !== undefined) file.is_public = fileData.isPublic;
+      if (fileData.publicUrl !== undefined) file.public_url = fileData.publicUrl;
+      if (fileData.expiryDate !== undefined) file.expiry_date = fileData.expiryDate;
+      if (fileData.tags !== undefined) file.tags = [...fileData.tags];
     
-    // 更新时间
-    file.updated_at = new Date();
-    file.is_synced = false;
-    
-    // 保存文件
-    await file.save();
+      
+      // 更新时间
+      file.updated_at = new Date();
+      file.is_synced = false;
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: file._id,
       entity_type: 'file',
       operation: 'update',
-      data: file.toJSON(),
+      data: file.toJSON ? file.toJSON() : { ...file },
       user_id: file.user_id,
     });
     
@@ -221,8 +227,9 @@ export const updateFile = async (fileId, fileData) => {
  */
 export const deleteFile = async (fileId, permanent = false) => {
   try {
-    // 查找文件
-    const file = await FileModel.findById(fileId);
+    // 使用 Realm 查找文件
+    const realm = await realmService.getRealm();
+    const file = realm.objectForPrimaryKey('File', fileId);
     
     if (!file) {
       throw new Error(`文件不存在: ${fileId}`);
@@ -230,20 +237,24 @@ export const deleteFile = async (fileId, permanent = false) => {
     
     if (permanent) {
       // 永久删除
-      await file.remove({ soft: false });
+      realm.write(() => {
+        realm.delete(file);
+      });
     } else {
       // 软删除
-      file.is_deleted = true;
-      file.deleted_at = new Date();
-      file.is_synced = false;
-      await file.save();
+      realm.write(() => {
+        file.is_deleted = true;
+        file.deleted_at = new Date();
+        file.updated_at = new Date();
+        file.is_synced = false;
+      });
       
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: file._id,
         entity_type: 'file',
         operation: 'update',
-        data: file.toJSON(),
+        data: file.toJSON ? file.toJSON() : { ...file },
         user_id: file.user_id,
       });
     }
@@ -263,11 +274,16 @@ export const deleteFile = async (fileId, permanent = false) => {
  */
 export const getFiles = async (userId, options = {}) => {
   try {
-    // 查找文件
-    const files = await FileModel.findByUser(userId, options);
+    // 使用 Realm 查找文件
+    const realm = await realmService.getRealm();
+    let query = `user_id = "${userId}" AND is_deleted = false`;
+    if (options.note_id) {
+      query += ` AND note_id = "${options.note_id}"`;
+    }
+    const files = realm.objects('File').filtered(query).sorted('updated_at', true);
     
     // 转换为前端文件对象
-    return files.map(toFrontendFile);
+    return Array.from(files).map(toFrontendFile);
   } catch (error) {
     logService.error('获取文件列表失败', error);
     throw error;
@@ -281,8 +297,9 @@ export const getFiles = async (userId, options = {}) => {
  */
 export const getFileById = async (fileId) => {
   try {
-    // 查找文件
-    const file = await FileModel.findById(fileId);
+    // 使用 Realm 查找文件
+    const realm = await realmService.getRealm();
+    const file = realm.objectForPrimaryKey('File', fileId);
     
     if (!file) {
       throw new Error(`文件不存在: ${fileId}`);
@@ -307,11 +324,12 @@ export const getFileById = async (fileId) => {
  */
 export const findByNote = async (noteId) => {
   try {
-    // 查找文件
-    const files = await FileModel.findByNote(noteId);
+    // 使用 Realm 查找文件
+    const realm = await realmService.getRealm();
+    const files = realm.objects('File').filtered(`note_id = "${noteId}" AND is_deleted = false`);
     
     // 转换为前端文件对象
-    return files.map(toFrontendFile);
+    return Array.from(files).map(toFrontendFile);
   } catch (error) {
     logService.error(`查找笔记的文件失败: ${noteId}`, error);
     throw error;
@@ -327,14 +345,13 @@ export const findByNote = async (noteId) => {
  */
 export const searchFiles = async (query, userId, options = {}) => {
   try {
-    // 搜索文件
-    const files = await FileModel.search(query, {
-      user_id: userId,
-      ...options,
-    });
+    // 使用 Realm 搜索文件
+    const realm = await realmService.getRealm();
+    const searchQuery = `(name CONTAINS[c] "${query}" OR original_name CONTAINS[c] "${query}") AND user_id = "${userId}" AND is_deleted = false`;
+    const files = realm.objects('File').filtered(searchQuery).sorted('updated_at', true);
     
     // 转换为前端文件对象
-    return files.map(toFrontendFile);
+    return Array.from(files).map(toFrontendFile);
   } catch (error) {
     logService.error(`搜索文件失败: ${query}`, error);
     throw error;

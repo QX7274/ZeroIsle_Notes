@@ -2,7 +2,7 @@
  * 自动分类API服务
  * 提供自动分类、标签推荐、知识图谱构建等功能
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 
 /**

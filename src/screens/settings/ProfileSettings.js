@@ -15,11 +15,12 @@ import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
-import { Input, GradientButton } from '../../components/common';
+import { Input } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import userApi from '../../services/api/userApi';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { setUserInfo } from '../../redux/slices/authSlice';
 
 const ProfileSettings = ({ navigation }) => {
   const { colors } = useTheme();
@@ -74,21 +75,35 @@ const ProfileSettings = ({ navigation }) => {
           name: selectedImage.fileName || 'avatar.jpg',
         });
 
-        // 调用上传API
-        const response = await userApi.uploadAvatar(formData);
+        // 先保存本地URI到Redux（优先本地）
+        const localAvatarUri = selectedImage.uri;
+        setAvatar(localAvatarUri);
+        dispatch(setUserInfo({
+          ...user,
+          avatar: localAvatarUri,
+          avatarLocal: localAvatarUri, // 标记为本地URI
+        }));
 
-        if (response.success) {
-          // 更新头像
-          setAvatar(response.data.avatar_url);
+        // 后台上传到服务器（不阻塞用户）
+        userApi.uploadAvatar(formData).then(response => {
+          if (response.success) {
+            const avatarUrl = response.data.avatar_url || response.data.avatar;
+            // 上传成功后更新为服务器URL
+            setAvatar(avatarUrl);
+            dispatch(setUserInfo({
+              ...user,
+              avatar: avatarUrl,
+              avatarLocal: null, // 清除本地标记
+            }));
+            console.log('头像已上传到服务器');
+          } else {
+            console.warn('头像上传到服务器失败，但本地已保存:', response.message);
+          }
+        }).catch(err => {
+          console.warn('头像上传到服务器失败，但本地已保存:', err);
+        });
 
-          // 更新Redux中的用户信息
-          dispatch({
-            type: 'UPDATE_USER',
-            payload: { avatar: response.data.avatar_url }
-          });
-        } else {
-          throw new Error(response.message || '上传头像失败');
-        }
+        Alert.alert('成功', '头像已更新');
 
         setIsUploading(false);
       }
@@ -107,28 +122,38 @@ const ProfileSettings = ({ navigation }) => {
 
     try {
       setIsLoading(true);
+      setError('');
       Haptics.mediumFeedback();
 
-      // 调用更新个人资料API
-      const response = await userApi.updateProfile({
-        username,
-        bio,
+      const updatedUserInfo = {
+        ...user,
+        username: username.trim(),
+        bio: bio.trim(),
+      };
+
+      // 1. 优先保存到本地Redux状态
+      dispatch(setUserInfo(updatedUserInfo));
+
+      // 2. 尝试同步到后端API（不阻塞用户操作）
+      userApi.updateProfile({
+        username: username.trim(),
+        bio: bio.trim(),
+      }).then(response => {
+        if (response.success) {
+          console.log('个人资料已同步到服务器');
+        } else {
+          console.warn('同步到服务器失败，但本地已保存:', response.message);
+        }
+      }).catch(err => {
+        console.warn('同步到服务器失败，但本地已保存:', err);
       });
 
-      if (response.success) {
-        // 更新用户信息
-        dispatch({ type: 'UPDATE_USER', payload: { username, bio } });
-      } else {
-        throw new Error(response.message || '更新个人资料失败');
-      }
-
       // 显示成功提示
-      Alert.alert('成功', '个人资料已更新');
-
-      // 返回上一页
-      navigation.goBack();
+      Alert.alert('成功', '个人资料已保存');
     } catch (err) {
-      setError(err.message || '更新个人资料失败，请稍后重试');
+      console.error('保存个人资料失败:', err);
+      setError(err.message || '保存个人资料失败，请稍后重试');
+      Alert.alert('失败', err.message || '保存个人资料失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }
@@ -225,20 +250,128 @@ const ProfileSettings = ({ navigation }) => {
               </Text>
             ) : null}
 
-            <GradientButton
-              title="保存资料"
-              onPress={handleSaveProfile}
-              loading={isLoading}
-              style={styles.submitButton}
-            />
+            {/* 功能中心区域 */}
+            <View style={styles.functionsCenter}>
+              <Text
+                variant="h3"
+                style={[styles.sectionTitle, { color: colors.text }]}
+              >
+                功能中心
+              </Text>
+              <View style={styles.functionsGrid}>
+                {/* 日程 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, { 
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary + '30',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('Reminder');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#FFF3E0' }]}>
+                    <Icon name="schedule" size={18} color="#FF9800" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#FF9800', fontWeight: 'normal' }]}>日程</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.settingsButton, { backgroundColor: colors.primary, marginTop: 16 }]}
-              onPress={() => navigation.navigate('Settings')}
-            >
-              <Icon name="settings" size={20} color="#fff" style={styles.settingsIcon} />
-              <Text style={styles.settingsButtonText}>应用设置</Text>
-            </TouchableOpacity>
+                {/* 群组 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, { 
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary + '30',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('Groups');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#FFEBEE' }]}>
+                    <Icon name="group" size={18} color="#F44336" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#F44336', fontWeight: 'normal' }]}>群组</Text>
+                </TouchableOpacity>
+
+                {/* 思维导图 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, { 
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary + '30',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('MindMap');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#F3E5F5' }]}>
+                    <Icon name="account-tree" size={18} color="#9C27B0" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#9C27B0', fontWeight: 'normal' }]}>思维导图</Text>
+                </TouchableOpacity>
+
+                {/* 知识图谱 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, { 
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary + '30',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('KnowledgeGraph');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#E8F5E9' }]}>
+                    <Icon name="hub" size={18} color="#4CAF50" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#4CAF50', fontWeight: 'normal' }]}>知识图谱</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.buttonsRow}>
+              <TouchableOpacity
+                style={[styles.actionButton, { 
+                  backgroundColor: colors.card,
+                  borderColor: colors.primary + '30',
+                }]}
+                onPress={handleSaveProfile}
+                activeOpacity={0.7}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <View style={[styles.actionIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                      <Icon name="save" size={18} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.actionButtonText, { color: colors.primary }]}>保存资料</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, { 
+                  backgroundColor: colors.card,
+                  borderColor: colors.primary + '30',
+                }]}
+                onPress={() => {
+                  Haptics.lightFeedback();
+                  navigation.navigate('Settings');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                  <Icon name="settings" size={18} color={colors.primary} />
+                </View>
+                <Text style={[styles.actionButtonText, { color: colors.primary }]}>应用设置</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -314,23 +447,86 @@ const styles = StyleSheet.create({
   errorText: {
     marginBottom: 16,
   },
-  submitButton: {
+  functionsCenter: {
+    marginBottom: 24,
     marginTop: 8,
   },
-  settingsButton: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  functionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 20, // 减少间距，使行间距和列间距一致
+  },
+  functionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    minHeight: 40,
+    minWidth: '48%',
+    maxWidth: '48%',
+  },
+  functionIconContainer: {
+    width: 28,
+    height: 28,
     borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
   },
-  settingsIcon: {
-    marginRight: 8,
+  functionButtonText: {
+    fontSize: 13,
+    fontWeight: '400', // 与个人简介字体一致，不加粗
+    letterSpacing: 0.2,
   },
-  settingsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  buttonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    minHeight: 40,
+  },
+  actionIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 

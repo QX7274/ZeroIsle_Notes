@@ -4,7 +4,7 @@
 
 import { Platform } from 'react-native';
 import { fileService } from '../files/fileService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 /**
  * 笔记类型枚举

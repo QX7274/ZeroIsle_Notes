@@ -46,7 +46,6 @@ const setupErrorHandling = () => {
 setupErrorHandling();
 
 // 添加必要的模块导入
-import 'events';
 import { AppRegistry, LogBox } from 'react-native';
 // 首先导入Reanimated配置，确保在其他组件之前加载
 import './src/config/reanimatedConfig';

@@ -9,7 +9,7 @@ class EnhancedMemoryManager {
   constructor() {
     this.memoryWarnings = [];
     this.lastCleanupTime = 0;
-    this.maxFileSize = 500 * 1024 * 1024; // 500MB限制
+    this.maxFileSize = 2 * 1024 * 1024 * 1024; // 2GB限制，实际无限制
     this.memoryChunks = new Map();
     this.processingFiles = new Set();
   }
@@ -137,12 +137,15 @@ class EnhancedMemoryManager {
    */
   async canProcessFile(filePath, fileSize) {
     try {
-      // 检查文件大小限制
-      if (fileSize > this.maxFileSize) {
+      // 移除文件大小限制，改为基于可用内存的动态检查
+      const memoryStatus = await this.checkMemoryStatus();
+      const estimatedMemoryNeeded = fileSize * 2; // 估算需要的内存（文件大小的2倍）
+      
+      if (estimatedMemoryNeeded > memoryStatus.available * 0.8) {
         return {
           canProcess: false,
-          reason: `文件过大 (${(fileSize / 1024 / 1024).toFixed(1)}MB)，超过100MB限制`,
-          suggestion: '请选择较小的文件或压缩文件后重试'
+          reason: `文件大小 ${(fileSize / 1024 / 1024).toFixed(2)}MB 需要约 ${(estimatedMemoryNeeded / 1024 / 1024).toFixed(2)}MB 内存，但只有 ${(memoryStatus.available / 1024 / 1024).toFixed(2)}MB 可用`,
+          suggestion: '将使用分块处理来减少内存占用'
         };
       }
 

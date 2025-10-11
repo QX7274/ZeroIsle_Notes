@@ -4,7 +4,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { aiAssistantApi } from '../../services/api';
 // 使用MongoDB Realm替代AsyncStorage
-import { realmStorageService } from '../../services/storage/realmStorageService';
+import realmService from '../../services/database/realmService';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -181,31 +181,37 @@ export const loadSettings = createAsyncThunk(
       const settings = {};
 
       // 加载AI引擎
-      const savedEngine = await realmStorageService.getItem(STORAGE_KEYS.AI_ENGINE);
+      const realm = await realmService.getRealm();
+      const engineItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AI_ENGINE}"`);
+      const savedEngine = engineItem.length > 0 ? engineItem[0].value : null;
       if (savedEngine) {
         settings.aiEngine = savedEngine;
       }
 
       // 加载AI模型
-      const savedModel = await realmStorageService.getItem(STORAGE_KEYS.AI_MODEL);
+      const modelItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AI_MODEL}"`);
+      const savedModel = modelItem.length > 0 ? modelItem[0].value : null;
       if (savedModel) {
         settings.aiModel = savedModel;
       }
 
       // 加载流式响应设置
-      const savedStreamEnabled = await realmStorageService.getItem(STORAGE_KEYS.STREAM_RESPONSE);
+      const streamItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.STREAM_RESPONSE}"`);
+      const savedStreamEnabled = streamItem.length > 0 ? streamItem[0].value : null;
       if (savedStreamEnabled !== null) {
         settings.streamEnabled = savedStreamEnabled === 'true';
       }
 
       // 加载语音设置
-      const savedVoiceEnabled = await realmStorageService.getItem(STORAGE_KEYS.VOICE_ENABLED);
+      const voiceItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.VOICE_ENABLED}"`);
+      const savedVoiceEnabled = voiceItem.length > 0 ? voiceItem[0].value : null;
       if (savedVoiceEnabled !== null) {
         settings.voiceEnabled = savedVoiceEnabled === 'true';
       }
 
       // 加载Markdown设置
-      const savedMarkdownEnabled = await realmStorageService.getItem(STORAGE_KEYS.MARKDOWN_ENABLED);
+      const markdownItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.MARKDOWN_ENABLED}"`);
+      const savedMarkdownEnabled = markdownItem.length > 0 ? markdownItem[0].value : null;
       if (savedMarkdownEnabled !== null) {
         settings.markdownEnabled = savedMarkdownEnabled === 'true';
       }
@@ -228,27 +234,93 @@ export const saveSettings = createAsyncThunk(
 
       // 保存AI引擎
       if (settings.aiEngine !== undefined) {
-        await realmStorageService.setItem(STORAGE_KEYS.AI_ENGINE, newSettings.aiEngine);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AI_ENGINE}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = newSettings.aiEngine;
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.AI_ENGINE,
+              value: newSettings.aiEngine,
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       // 保存AI模型
       if (settings.aiModel !== undefined) {
-        await realmStorageService.setItem(STORAGE_KEYS.AI_MODEL, newSettings.aiModel);
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AI_MODEL}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = newSettings.aiModel;
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.AI_MODEL,
+              value: newSettings.aiModel,
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       // 保存流式响应设置
       if (settings.streamEnabled !== undefined) {
-        await realmStorageService.setItem(STORAGE_KEYS.STREAM_RESPONSE, String(newSettings.streamEnabled));
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.STREAM_RESPONSE}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = String(newSettings.streamEnabled);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.STREAM_RESPONSE,
+              value: String(newSettings.streamEnabled),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       // 保存语音设置
       if (settings.voiceEnabled !== undefined) {
-        await realmStorageService.setItem(STORAGE_KEYS.VOICE_ENABLED, String(newSettings.voiceEnabled));
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.VOICE_ENABLED}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = String(newSettings.voiceEnabled);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.VOICE_ENABLED,
+              value: String(newSettings.voiceEnabled),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       // 保存Markdown设置
       if (settings.markdownEnabled !== undefined) {
-        await realmStorageService.setItem(STORAGE_KEYS.MARKDOWN_ENABLED, String(newSettings.markdownEnabled));
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.MARKDOWN_ENABLED}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = String(newSettings.markdownEnabled);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.MARKDOWN_ENABLED,
+              value: String(newSettings.markdownEnabled),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       return settings;
@@ -264,7 +336,9 @@ export const loadChatHistory = createAsyncThunk(
   'aiAssistant/loadChatHistory',
   async (sessionId, { rejectWithValue }) => {
     try {
-      const savedHistory = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const realm = await realmService.getRealm();
+      const historyItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+      const savedHistory = historyItem.length > 0 ? historyItem[0].value : null;
 
       if (savedHistory) {
         // 导入安全JSON解析工具
@@ -292,14 +366,40 @@ export const loadChatHistory = createAsyncThunk(
             const newHistory = {};
             const newSessionId = sessionId || Date.now().toString();
             newHistory[newSessionId] = [welcomeMessage];
-            await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
+            realm.write(() => {
+              const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+              if (existingItem.length > 0) {
+                existingItem[0].value = JSON.stringify(newHistory);
+                existingItem[0].updated_at = new Date();
+              } else {
+                realm.create('StorageItem', {
+                  key: STORAGE_KEYS.CHAT_HISTORY,
+                  value: JSON.stringify(newHistory),
+                  createdAt: new Date(),
+                  updated_at: new Date(),
+                });
+              }
+            });
             return [welcomeMessage];
           }
 
           // 创建新会话
           const newSessionId = sessionId || Date.now().toString();
           historyObj[newSessionId] = [welcomeMessage];
-          await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+            if (existingItem.length > 0) {
+              existingItem[0].value = JSON.stringify(historyObj);
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: STORAGE_KEYS.CHAT_HISTORY,
+                value: JSON.stringify(historyObj),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          });
           return [welcomeMessage];
         }
       } else {
@@ -316,7 +416,20 @@ export const loadChatHistory = createAsyncThunk(
         const newSessionId = sessionId || Date.now().toString();
         newHistory[newSessionId] = [welcomeMessage];
 
-        await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(newHistory));
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(newHistory);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.CHAT_HISTORY,
+              value: JSON.stringify(newHistory),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
         return [welcomeMessage];
       }
     } catch (error) {
@@ -334,7 +447,9 @@ export const saveChatHistory = createAsyncThunk(
       const currentSessionId = sessionId || Date.now().toString();
 
       // 获取现有历史记录
-      const savedHistory = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const realm = await realmService.getRealm();
+      const historyItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+      const savedHistory = historyItem.length > 0 ? historyItem[0].value : null;
       let historyObj = {};
 
       if (savedHistory) {
@@ -359,7 +474,20 @@ export const saveChatHistory = createAsyncThunk(
       historyObj[currentSessionId] = messages;
 
       // 保存更新后的历史记录
-      await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(historyObj));
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(historyObj);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.CHAT_HISTORY,
+            value: JSON.stringify(historyObj),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       return { sessionId: currentSessionId, messages };
     } catch (error) {
       return rejectWithValue(error.message || '保存聊天历史失败');

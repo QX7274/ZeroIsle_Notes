@@ -158,12 +158,12 @@ async function deleteCanvas(canvasId) {
 ### 离线存储服务
 
 ```javascript
-import { offlineStorageService } from '../../services/offline/offlineStorage';
+import { realmService } from '../../services/database/realmService';
 
 // 初始化离线存储服务
 async function initializeOfflineStorage() {
   try {
-    await offlineStorageService.init();
+    await realmService.initialize();
     console.log('离线存储服务初始化成功');
     return true;
   } catch (error) {
@@ -175,7 +175,7 @@ async function initializeOfflineStorage() {
 // 获取画布（兼容无限画布存储）
 async function getCanvas(canvasId) {
   try {
-    const canvas = await offlineStorageService.getCanvas(canvasId);
+    const canvas = await realmService.getCanvas(canvasId);
     console.log('获取画布成功:', canvas.title);
     return canvas;
   } catch (error) {
@@ -187,7 +187,7 @@ async function getCanvas(canvasId) {
 // 获取所有画布
 async function getAllCanvases() {
   try {
-    const canvases = await offlineStorageService.getCanvases();
+    const canvases = await realmService.getCanvases();
     console.log(`获取到 ${canvases.length} 个画布`);
     return canvases;
   } catch (error) {

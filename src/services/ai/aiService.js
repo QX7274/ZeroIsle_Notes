@@ -4,7 +4,7 @@
  */
 import { Platform } from 'react-native';
 import analyticsService from '../analytics/analyticsService';
-import { offlineStorageService } from '../offline/offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 
 /**
  * AI服务

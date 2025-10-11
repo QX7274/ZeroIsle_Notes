@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { UserModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { User } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -107,7 +108,11 @@ export const createUser = async (userData) => {
     };
     
     // 创建用户模型
-    const user = await UserModel.create(backendUser);
+    const realm = await realmService.getRealm();
+    let user;
+    realm.write(() => {
+      user = realm.create('User', backendUser);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -135,7 +140,8 @@ export const createUser = async (userData) => {
 export const updateUser = async (userId, userData) => {
   try {
     // 查找用户
-    const user = await UserModel.findById(userId);
+    const realm = await realmService.getRealm();
+    const user = realm.objectForPrimaryKey('User', userId);
     
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
@@ -186,7 +192,8 @@ export const updateUser = async (userId, userData) => {
 export const deleteUser = async (userId, permanent = false) => {
   try {
     // 查找用户
-    const user = await UserModel.findById(userId);
+    const realm = await realmService.getRealm();
+    const user = realm.objectForPrimaryKey('User', userId);
     
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
@@ -227,7 +234,8 @@ export const deleteUser = async (userId, permanent = false) => {
 export const getUser = async (userId) => {
   try {
     // 查找用户
-    const user = await UserModel.findById(userId);
+    const realm = await realmService.getRealm();
+    const user = realm.objectForPrimaryKey('User', userId);
     
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
@@ -248,7 +256,8 @@ export const getUser = async (userId) => {
 export const getCurrentUser = async () => {
   try {
     // 查找当前用户
-    const user = await UserModel.findCurrent();
+    const realm = await realmService.getRealm();
+    const user = realm.objects('User').filtered('is_current = true')[0];
     
     if (!user) {
       throw new Error('当前用户不存在');
@@ -271,7 +280,8 @@ export const getCurrentUser = async () => {
 export const updateUserPreferences = async (userId, preferences) => {
   try {
     // 查找用户
-    const user = await UserModel.findById(userId);
+    const realm = await realmService.getRealm();
+    const user = realm.objectForPrimaryKey('User', userId);
     
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);

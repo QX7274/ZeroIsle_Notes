@@ -822,4 +822,5 @@ class RealmService {
 }
 
 export const realmService = new RealmService();
+export default realmService;
 

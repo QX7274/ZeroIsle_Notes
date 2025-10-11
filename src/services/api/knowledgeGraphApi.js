@@ -1,7 +1,7 @@
 /**
  * 知识图谱API服务
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 import NetInfo from '@react-native-community/netinfo';
 import authService from '../auth/authService';

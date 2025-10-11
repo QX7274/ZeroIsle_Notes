@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import PDFViewer from './PDFViewer';
+import PDFViewerNative from './PDFViewerNative';
 
 /**
  * PPT文档查看器组件
@@ -23,7 +23,7 @@ const PPTViewer = (props) => {
     }
   };
 
-  return <PDFViewer {...enhancedProps} />;
+  return <PDFViewerNative {...enhancedProps} />;
 };
 
 export default PPTViewer;

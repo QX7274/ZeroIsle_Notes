@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import realmService from '../../services/database/realmService';
 
 const SaveButton = ({ 
   onSave, 
@@ -120,10 +121,11 @@ export const SaveUtils = {
   /**
    * Word文档保存
    */
-  async saveWordDocument(documentId, content, offlineStorageService) {
+  async saveWordDocument(documentId, content, realmService) {
     try {
       // 获取现有文档数据
-      const existingNote = await offlineStorageService.getNote(documentId);
+      const realm = await realmService.getRealm();
+      const existingNote = realm.objectForPrimaryKey('Note', documentId);
       
       // 创建完整的文档对象进行整体存储
       const documentData = {
@@ -146,7 +148,10 @@ export const SaveUtils = {
       };
       
       // 使用整体存储
-      await offlineStorageService.saveNote(documentData);
+      const writeRealm = await realmService.getRealm();
+      writeRealm.write(() => {
+        writeRealm.create('Note', documentData);
+      });
       console.log('SaveUtils: Word文档整体保存成功');
       return true;
     } catch (error) {
@@ -158,10 +163,11 @@ export const SaveUtils = {
   /**
    * PDF注释保存
    */
-  async savePDFAnnotations(documentId, annotations, offlineStorageService) {
+  async savePDFAnnotations(documentId, annotations, realmService) {
     try {
       // 获取现有PDF数据
-      const existingNote = await offlineStorageService.getNote(documentId);
+      const realm = await realmService.getRealm();
+      const existingNote = realm.objectForPrimaryKey('Note', documentId);
       
       // 创建完整的PDF对象进行整体存储
       const pdfData = {
@@ -185,7 +191,10 @@ export const SaveUtils = {
       };
       
       // 使用整体存储
-      await offlineStorageService.saveNote(pdfData);
+      const writeRealm = await realmService.getRealm();
+      writeRealm.write(() => {
+        writeRealm.create('Note', pdfData);
+      });
       console.log('SaveUtils: PDF注释整体保存成功');
       return true;
     } catch (error) {
@@ -197,10 +206,11 @@ export const SaveUtils = {
   /**
    * Markdown内容保存
    */
-  async saveMarkdownContent(documentId, content, offlineStorageService) {
+  async saveMarkdownContent(documentId, content, realmService) {
     try {
       // 获取现有Markdown数据
-      const existingNote = await offlineStorageService.getNote(documentId);
+      const realm = await realmService.getRealm();
+      const existingNote = realm.objectForPrimaryKey('Note', documentId);
       
       // 创建完整的Markdown对象进行整体存储
       const markdownData = {
@@ -223,7 +233,10 @@ export const SaveUtils = {
       };
       
       // 使用整体存储
-      await offlineStorageService.saveNote(markdownData);
+      const writeRealm = await realmService.getRealm();
+      writeRealm.write(() => {
+        writeRealm.create('Note', markdownData);
+      });
       console.log('SaveUtils: Markdown内容整体保存成功');
       return true;
     } catch (error) {
@@ -235,10 +248,11 @@ export const SaveUtils = {
   /**
    * PPT注释保存
    */
-  async savePPTAnnotations(documentId, annotations, offlineStorageService) {
+  async savePPTAnnotations(documentId, annotations, realmService) {
     try {
       // 获取现有PPT数据
-      const existingNote = await offlineStorageService.getNote(documentId);
+      const realm = await realmService.getRealm();
+      const existingNote = realm.objectForPrimaryKey('Note', documentId);
       
       // 创建完整的PPT对象进行整体存储
       const pptData = {
@@ -262,7 +276,10 @@ export const SaveUtils = {
       };
       
       // 使用整体存储
-      await offlineStorageService.saveNote(pptData);
+      const writeRealm = await realmService.getRealm();
+      writeRealm.write(() => {
+        writeRealm.create('Note', pptData);
+      });
       console.log('SaveUtils: PPT注释整体保存成功');
       return true;
     } catch (error) {
@@ -274,7 +291,7 @@ export const SaveUtils = {
   /**
    * 无限画布保存
    */
-  async saveCanvasData(canvasId, canvasData, infiniteCanvasStorage, offlineStorageService) {
+  async saveCanvasData(canvasId, canvasData, infiniteCanvasStorage, realmService) {
     try {
       let saveSuccess = false;
 
@@ -289,11 +306,14 @@ export const SaveUtils = {
 
       // 备用保存到通用存储
       try {
-        await offlineStorageService.saveCanvas(canvasData);
-        console.log('SaveUtils: 画布数据保存到offlineStorageService成功');
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('InfiniteCanvas', canvasData);
+        });
+        console.log('SaveUtils: 画布数据保存到realmService成功');
         saveSuccess = true;
       } catch (realmError) {
-        console.warn('SaveUtils: offlineStorageService保存失败:', realmError);
+        console.warn('SaveUtils: realmService保存失败:', realmError);
       }
 
       if (!saveSuccess) {
@@ -310,7 +330,7 @@ export const SaveUtils = {
   /**
    * 通用笔记保存
    */
-  async saveNoteContent(noteId, content, type, offlineStorageService) {
+  async saveNoteContent(noteId, content, type, realmService) {
     try {
       const noteData = {
         _id: noteId,
@@ -322,7 +342,13 @@ export const SaveUtils = {
         is_offline: true
       };
 
-      await offlineStorageService.updateNote(noteId, noteData);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const note = realm.objectForPrimaryKey('Note', noteId);
+        if (note) {
+          Object.assign(note, noteData);
+        }
+      });
       console.log('SaveUtils: 笔记内容保存成功');
       return true;
     } catch (error) {

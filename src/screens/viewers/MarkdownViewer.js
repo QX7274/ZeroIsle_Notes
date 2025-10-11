@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal, Dimensions } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal, Dimensions, AppState } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import AllInOneToolbar from '../../components/common/AllInOneToolbar';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
-import ToolbarContainer from '../../components/viewer/ToolbarContainer';
 import PageControl from '../../components/viewer/PageControl';
 import BookmarkPanel from '../../components/viewer/BookmarkPanel';
 import DraggableImage from '../../components/viewer/DraggableImage';
 import BackButton from '../../components/viewer/BackButton';
 import { addBookmark } from '../../services/bookmarkService';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../../services/database/realmService';
 import MarkdownPreview from '../../components/common/MarkdownPreview';
 import LoadingIndicator, { LoadingMessages, ErrorIndicator } from '../../components/common/LoadingIndicator';
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
@@ -48,6 +48,59 @@ function MarkdownViewer({ route, navigation }) {
   const scrollYRef = useRef(0);
 
   const docId = noteId || uri || title;
+  const autoSaveTimerRef = useRef(null);
+
+  // ✅ 监听屏幕焦点变化，失焦时保存数据
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      console.log('[MarkdownViewer] 屏幕失去焦点，保存数据...');
+      // 失焦时保存数据
+      if (content !== lastSavedContent) {
+        saveToLocal().catch(err => console.error('[MarkdownViewer] 失焦保存失败:', err));
+      }
+    });
+    
+    return () => {
+      unsubscribeBlur();
+    };
+  }, [navigation, content, lastSavedContent]);
+  
+  // ✅ 组件卸载时保存数据
+  useEffect(() => {
+    return () => {
+      console.log('[MarkdownViewer] 组件卸载，保存数据...');
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      // 如果内容有变化，保存
+      if (content !== lastSavedContent) {
+        saveToLocal().catch(err => console.warn('[MarkdownViewer] 组件卸载时保存失败:', err));
+      }
+    };
+  }, [content, lastSavedContent]);
+
+  // ✅ 监听应用状态变化，应用进入后台时保存数据
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'background' && content && content !== lastSavedContent) {
+        console.log('[MarkdownViewer] 应用进入后台，立即保存数据...');
+        try {
+          // 自动保存内容
+          autoSave(content).catch(err => {
+            console.error('[MarkdownViewer] 后台自动保存失败:', err);
+          });
+        } catch (err) {
+          console.error('[MarkdownViewer] 后台保存失败:', err);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, [content, lastSavedContent]);
 
   useEffect(() => {
     console.log('MarkdownViewer: 组件挂载，开始加载内容');
@@ -75,11 +128,14 @@ function MarkdownViewer({ route, navigation }) {
           const backupKey = `markdown_${docId}`;
 
           // 尝试主要保存位置
-          loadedContent = await offlineStorageService.getItem(savedKey);
+          const realm = await realmService.getRealm();
+          const item = realm.objects('StorageItem').filtered(`key = "${savedKey}"`);
+          loadedContent = item.length > 0 ? item[0].value : null;
 
           // 如果主要位置没有，尝试备份位置
           if (!loadedContent) {
-            loadedContent = await offlineStorageService.getItem(backupKey);
+            const backupItem = realm.objects('StorageItem').filtered(`key = "${backupKey}"`);
+            loadedContent = backupItem.length > 0 ? backupItem[0].value : null;
           }
 
           if (loadedContent) {
@@ -101,7 +157,8 @@ function MarkdownViewer({ route, navigation }) {
           // 检查是否有noteId，尝试从笔记元数据中获取本地缓存路径
           if (noteId) {
             try {
-              const note = await offlineStorageService.getNote(noteId);
+              const realm = await realmService.getRealm();
+              const note = realm.objectForPrimaryKey('Note', noteId);
               if (note && note.metadata) {
                 const metadata = typeof note.metadata === 'string'
                   ? JSON.parse(note.metadata)
@@ -160,7 +217,8 @@ function MarkdownViewer({ route, navigation }) {
               // 保存文件路径到笔记元数据中，以便下次打开
               if (noteId) {
                 try {
-                  const note = await offlineStorageService.getNote(noteId);
+                  const realm = await realmService.getRealm();
+                  const note = realm.objectForPrimaryKey('Note', noteId);
                   if (note) {
                     let metadata = note.metadata
                       ? (typeof note.metadata === 'string'
@@ -170,10 +228,15 @@ function MarkdownViewer({ route, navigation }) {
                     metadata.localCachedPath = path;
 
                     // 更新笔记元数据
-                    await offlineStorageService.updateNote(noteId, {
-                      metadata: JSON.stringify(metadata)
+                    realm.write(() => {
+                      const note = realm.objectForPrimaryKey('Note', noteId);
+                      if (note) {
+                        Object.assign(note, {
+                          metadata: JSON.stringify(metadata)
+                        });
+                        console.log('已更新笔记元数据，保存本地缓存路径');
+                      }
                     });
-                    console.log('已更新笔记元数据，保存本地缓存路径');
                   }
                 } catch (metadataError) {
                   console.error('更新笔记元数据失败:', metadataError);
@@ -183,7 +246,21 @@ function MarkdownViewer({ route, navigation }) {
               // 立即保存到本地存储
               try {
                 const savedKey = `markdown_content_${docId}`;
-                await offlineStorageService.setItem(savedKey, txt);
+                const realm = await realmService.getRealm();
+                realm.write(() => {
+                  const existingItem = realm.objects('StorageItem').filtered(`key = "${savedKey}"`);
+                  if (existingItem.length > 0) {
+                    existingItem[0].value = txt;
+                    existingItem[0].updated_at = new Date();
+                  } else {
+                    realm.create('StorageItem', {
+                      key: savedKey,
+                      value: txt,
+                      createdAt: new Date(),
+                      updated_at: new Date(),
+                    });
+                  }
+                });
                 console.log('MarkdownViewer: 内容已保存到本地存储');
               } catch (saveError) {
                 console.warn('MarkdownViewer: 保存到本地存储失败:', saveError);
@@ -223,15 +300,12 @@ function MarkdownViewer({ route, navigation }) {
     })();
 
     return () => {
-      console.log('MarkdownViewer: 组件卸载');
+      console.log('MarkdownViewer: 组件卸载（内部清理）');
       // 清理定时器
       if (debouncedAutoSave.current) {
         clearTimeout(debouncedAutoSave.current);
       }
-      // 确保最后的内容被保存
-      if (content !== lastSavedContent) {
-        autoSave(content);
-      }
+      // 内容保存已由外部useEffect处理
     };
   }, [uri, docId]);
 
@@ -248,9 +322,31 @@ function MarkdownViewer({ route, navigation }) {
   // 保存到本地
   const saveToLocal = async () => {
     try {
-      await SaveUtils.saveMarkdownContent(docId, content, offlineStorageService);
+      if (!content || !docId) {
+        throw new Error('内容或文档ID无效');
+      }
+
+      // 先保存到本地存储
+      await SaveUtils.saveMarkdownContent(docId, content, realmService);
+      
+      // 如果有noteId，也更新笔记元数据
+      if (noteId) {
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const note = realm.objectForPrimaryKey('Note', noteId);
+          if (note) {
+            Object.assign(note, {
+              content: content,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        });
+      }
+      
       setLastSavedContent(content); // 更新上次保存的内容
       console.log('MarkdownViewer: 内容已手动保存');
+      
+      return { success: true };
     } catch (error) {
       console.error('MarkdownViewer: 手动保存失败:', error);
       throw error;
@@ -266,7 +362,21 @@ function MarkdownViewer({ route, navigation }) {
       }
       
       const savedKey = `markdown_content_${docId}`;
-      await offlineStorageService.setItem(savedKey, newContent);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${savedKey}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = newContent;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: savedKey,
+            value: newContent,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       setLastSavedContent(newContent);
       console.log('MarkdownViewer: 内容已自动保存');
     } catch (error) {
@@ -297,18 +407,35 @@ function MarkdownViewer({ route, navigation }) {
   const handleMoveImage = async (id, pos) => {
     try {
       const key = `md_images_${docId}`;
-      const raw = (await offlineStorageService.getItem(key)) || '[]';
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+      const raw = item.length > 0 ? item[0].value : '[]';
       const list = JSON.parse(raw);
       const idx = list.findIndex(x => x.id === id);
       if (idx >= 0) list[idx] = { ...list[idx], ...pos }; else list.push({ id, uri: images.find(x=>x.id===id)?.uri, ...pos });
-      await offlineStorageService.setItem(key, JSON.stringify(list));
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(list);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: key,
+            value: JSON.stringify(list),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (e) { console.warn('保存图片位置失败', e); }
   };
 
   useEffect(() => { (async () => {
     try {
       const key = `md_images_${docId}`;
-      const raw = (await offlineStorageService.getItem(key)) || '[]';
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+      const raw = item.length > 0 ? item[0].value : '[]';
       const list = JSON.parse(raw);
       if (Array.isArray(list)) setImages(list);
     } catch {}
@@ -357,20 +484,6 @@ function MarkdownViewer({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header 与工具栏 */}
-      <ToolbarContainer>
-        <AllInOneToolbar
-          onToolChange={() => {}}
-          onColorChange={setStrokeColor}
-          onStrokeWidthChange={setStrokeWidth}
-          onImageUpload={addImage}
-          onAIToolSelect={() => {}}
-          // 书签入口：可在工具栏中添加按钮并通过回调控制面板
-          onBookmarkAdd={handleAddBookmark}
-          onBookmarkList={() => setBookmarkVisible(true)}
-        />
-      </ToolbarContainer>
-
       <ViewerLayout
         colors={colors}
         headerLeft={<BackButton onPress={handleGoBack} color={colors.primary} background={colors.primary + '20'} style={{ marginLeft: 12 }} />}
@@ -386,8 +499,16 @@ function MarkdownViewer({ route, navigation }) {
           </View>
         }
         title={title}
-        hasExternalToolbar={true}
-        externalToolbarHeight={Platform.OS === 'ios' ? 50 : 28}
+        showExternalToolbar={true}
+        toolbarProps={{
+          onToolChange: () => {},
+          onColorChange: setStrokeColor,
+          onStrokeWidthChange: setStrokeWidth,
+          onImageUpload: addImage,
+          onAIToolSelect: () => {},
+          onBookmarkAdd: handleAddBookmark,
+          onBookmarkList: () => setBookmarkVisible(true),
+        }}
         showHistoryNavigation={true}
         historyNavigationHeight={25}
         noteId={noteId}
@@ -458,15 +579,43 @@ function MarkdownViewer({ route, navigation }) {
                   zIndex={img.z ?? 10}
                   deselectSignal={deselectTick}
                   onMove={handleMoveImage}
-                  onResize={(id, data)=>{
+                  onResize={async (id, data)=>{
                     const next = images.map(it=>it.id===id?{...it, scale:data.scale}:it);
                     setImages(next);
-                    offlineStorageService.setItem(`md_images_${docId}`, JSON.stringify(next));
+                    const realm = await realmService.getRealm();
+                    realm.write(() => {
+                      const existingItem = realm.objects('StorageItem').filtered(`key = "md_images_${docId}"`);
+                      if (existingItem.length > 0) {
+                        existingItem[0].value = JSON.stringify(next);
+                        existingItem[0].updated_at = new Date();
+                      } else {
+                        realm.create('StorageItem', {
+                          key: `md_images_${docId}`,
+                          value: JSON.stringify(next),
+                          createdAt: new Date(),
+                          updated_at: new Date(),
+                        });
+                      }
+                    });
                   }}
                   onRemove={async (id)=>{
                     const next = images.filter(it=>it.id!==id);
                     setImages(next);
-                    await offlineStorageService.setItem(`md_images_${docId}`, JSON.stringify(next));
+                    const realm = await realmService.getRealm();
+                    realm.write(() => {
+                      const existingItem = realm.objects('StorageItem').filtered(`key = "md_images_${docId}"`);
+                      if (existingItem.length > 0) {
+                        existingItem[0].value = JSON.stringify(next);
+                        existingItem[0].updated_at = new Date();
+                      } else {
+                        realm.create('StorageItem', {
+                          key: `md_images_${docId}`,
+                          value: JSON.stringify(next),
+                          createdAt: new Date(),
+                          updated_at: new Date(),
+                        });
+                      }
+                    });
                   }}
                 />
               ))}

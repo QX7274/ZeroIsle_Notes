@@ -1,4 +1,4 @@
-import { getToken } from '../storage/storageService';
+import { getToken } from '../auth/tokenService';
 
 class WebSocketService {
   constructor() {

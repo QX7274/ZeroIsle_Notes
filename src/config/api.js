@@ -101,6 +101,7 @@ export const API_ENDPOINTS = {
     ANALYZE_SENTIMENT: '/ai-assistant/analyze-sentiment/',
     TRANSCRIBE: '/ai-assistant/transcribe/',
     ANALYZE_IMAGE: '/ai-assistant/analyze-image/',
+    PROCESS: '/ai-assistant/process/', // AI通用处理端点
     MODELS: '/ai-assistant/models/',
     RESET_SESSION: '/ai-assistant/reset-session/',
     CONVERSATIONS: '/ai-assistant/conversations/',

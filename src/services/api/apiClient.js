@@ -11,6 +11,7 @@ import { navigationRef } from '../../navigation/navigationRef';
 import NetInfo from '@react-native-community/netinfo';
 import apiCache from './apiCache';
 import authStorage from '../auth/authStorage';
+import realmService from '../database/realmService';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import networkErrorService from '../networkErrorService';
 import tokenService from '../auth/tokenService';
@@ -63,7 +64,9 @@ const checkNetworkConnection = async () => {
 const saveOfflineRequest = async (config) => {
   try {
     // 获取当前离线请求队列
-    const offlineQueue = await apiCache.getItem('offline_queue') || [];
+    const realm = await realmService.getRealm();
+    const item = realm.objects('StorageItem').filtered(`key = "offline_queue"`);
+    const offlineQueue = item.length > 0 ? JSON.parse(item[0].value) : [];
 
     // 添加新的请求到队列
     offlineQueue.push({
@@ -75,7 +78,20 @@ const saveOfflineRequest = async (config) => {
     });
 
     // 保存更新后的队列
-    await apiCache.setItem('offline_queue', offlineQueue);
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "offline_queue"`);
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(offlineQueue);
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: 'offline_queue',
+          value: JSON.stringify(offlineQueue),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     // 显示提示
     if (Platform.OS === 'android') {
@@ -703,7 +719,9 @@ apiClient.clearCache = async (url) => {
 // 获取离线队列
 apiClient.getOfflineQueue = async () => {
   try {
-    return await apiCache.getItem('offline_queue') || [];
+    const realm = await realmService.getRealm();
+    const item = realm.objects('StorageItem').filtered(`key = "offline_queue"`);
+    return item.length > 0 ? JSON.parse(item[0].value) : [];
   } catch (error) {
     console.error('获取离线队列失败:', error);
     return [];
@@ -713,7 +731,11 @@ apiClient.getOfflineQueue = async () => {
 // 清空离线队列
 apiClient.clearOfflineQueue = async () => {
   try {
-    await apiCache.removeItem('offline_queue');
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const itemsToDelete = realm.objects('StorageItem').filtered(`key = "offline_queue"`);
+      realm.delete(itemsToDelete);
+    });
     return true;
   } catch (error) {
     console.error('清空离线队列失败:', error);
@@ -778,7 +800,21 @@ apiClient.processOfflineQueue = async () => {
     const failedRequests = results.filter(result => !result.success).map(result => result.request);
 
     // 更新离线队列，只保留失败的请求
-    await apiCache.setItem('offline_queue', failedRequests);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "offline_queue"`);
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(failedRequests);
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: 'offline_queue',
+          value: JSON.stringify(failedRequests),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     // 显示处理结果提示
     const successCount = results.length - failedRequests.length;

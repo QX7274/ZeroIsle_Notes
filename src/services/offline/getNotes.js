@@ -1,8 +1,9 @@
 /**
  * 从离线存储获取笔记的辅助函数
  */
-import { offlineStorageService } from './offlineStorageService';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 import NetInfo from '@react-native-community/netinfo';
+import realmService from '../database/realmService';
 
 /**
  * 从离线存储获取所有笔记
@@ -40,9 +41,9 @@ export const getNotesFromOfflineStorage = async () => {
 
     console.log('当前用户:', user.username || user.id);
 
-    // 使用offlineStorageService获取笔记
+    // 使用realmService获取笔记
     try {
-      await offlineStorageService.initialize();
+      // realmService 不需要手动初始化
 
       // 设置较长的超时，确保有足够时间加载数据
       const timeoutPromise = new Promise(resolve => {
@@ -53,7 +54,8 @@ export const getNotesFromOfflineStorage = async () => {
       });
 
       // 使用Promise.race确保不会一直等待
-      const notesPromise = offlineStorageService.getNotes();
+      const realm = await realmService.getRealm();
+      const notesPromise = Promise.resolve(realm.objects('Note').filtered('is_deleted = false'));
       const notes = await Promise.race([notesPromise, timeoutPromise]);
 
       console.log('从离线存储获取到笔记数量:', notes ? notes.length : 0);
@@ -67,7 +69,8 @@ export const getNotesFromOfflineStorage = async () => {
         // 尝试获取最近导入的笔记
         try {
           console.log('尝试获取最近导入的笔记');
-          const recentNotes = await offlineStorageService.getRecentNotes(20);
+          const realm = await realmService.getRealm();
+          const recentNotes = realm.objects('Note').filtered('is_deleted = false').sorted('updated_at', true).slice(0, 20);
 
           if (recentNotes && recentNotes.length > 0) {
             console.log(`找到${recentNotes.length}条最近导入的笔记`);
@@ -102,7 +105,9 @@ export const getNotesFromOfflineStorage = async () => {
       try {
         console.log('尝试从本地存储中恢复最后一次成功的笔记列表');
         const lastNotesKey = 'last_successful_notes';
-        const lastNotesJson = await offlineStorageService.getItem(lastNotesKey);
+        const realm = await realmService.getRealm();
+        const item = realm.objects('StorageItem').filtered(`key = "${lastNotesKey}"`);
+        const lastNotesJson = item.length > 0 ? item[0].value : null;
 
         if (lastNotesJson) {
           // 导入JSON工具函数

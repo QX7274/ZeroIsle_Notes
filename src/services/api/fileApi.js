@@ -6,7 +6,7 @@
 import apiClient from './apiClient';
 import { fileAdapter } from '../../adapters';
 import { networkService } from '../network/networkService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 /**
  * 文件API服务

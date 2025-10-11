@@ -18,10 +18,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import documentPickerService from '../../services/document/documentPickerService';
-import filePersistenceService from '../../services/files/filePersistenceService';
+import { fileService } from '../../services/files/fileService';
+import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
+import realmService from '../../services/database/realmService';
 import { useDispatch, useSelector } from 'react-redux';
-import { apiWrapper } from '../../services/api/apiWrapper';
+import { apiWrapper } from '../../services/api';
 import { setNotes as setNotesAction, addNote, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
 import notesApi from '../../services/api/notesApi';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -31,14 +33,13 @@ import SortControl from '../../components/home/SortControl';
 import ProcessingProgressModal from '../../components/common/ProcessingProgressModal';
 import nonBlockingPPTProcessor from '../../services/document/nonBlockingPPTProcessor';
 // OfflineIndicator 已移除
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 import NetInfo from '@react-native-community/netinfo';
 import CreateContentModal from '../../components/common/CreateContentModal';
 import CardTypeModal from '../../components/common/CardTypeModal';
 import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
 import preloadService from '../../services/document/preloadService';
-import RNFS from 'react-native-fs';
 import fileHistoryService from '../../services/fileHistoryService';
 import networkErrorService from '../../services/networkErrorService';
 
@@ -106,11 +107,15 @@ const HomeScreen = ({ navigation }) => {
           await loadNotes();
 
           // 在后台初始化离线存储服务，不阻塞UI
-          if (!offlineStorageService.initialized) {
+          // realmService 不需要手动初始化
+          if (false) {
             console.log('在后台初始化离线存储服务...');
-            offlineStorageService.initialize().catch(err => {
+            // realmService 不需要手动初始化
+            try {
+              // 这里可以添加初始化代码
+            } catch (err) {
               console.warn('后台初始化离线存储服务失败:', err);
-            });
+            }
           } else {
             console.log('离线存储服务已初始化');
           }
@@ -205,7 +210,7 @@ const HomeScreen = ({ navigation }) => {
         item.created_at ||
         item.createdAt ||
         item.updated_at ||
-        item.updatedAt ||
+        item.updated_at ||
         0
       );
     };
@@ -330,8 +335,8 @@ const HomeScreen = ({ navigation }) => {
       case 'updated_desc':
         return sorted.sort((a, b) => {
           // 获取更新时间
-          const updateTimeA = getDate(a, 'updatedAt');
-          const updateTimeB = getDate(b, 'updatedAt');
+          const updateTimeA = getDate(a, 'updated_at');
+          const updateTimeB = getDate(b, 'updated_at');
           
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
@@ -347,8 +352,8 @@ const HomeScreen = ({ navigation }) => {
       case 'updated_asc':
         return sorted.sort((a, b) => {
           // 获取更新时间
-          const updateTimeA = getDate(a, 'updatedAt');
-          const updateTimeB = getDate(b, 'updatedAt');
+          const updateTimeA = getDate(a, 'updated_at');
+          const updateTimeB = getDate(b, 'updated_at');
           
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
@@ -407,8 +412,8 @@ const HomeScreen = ({ navigation }) => {
           }
 
           // 同类型按最近更新和访问时间排序
-          const updateTimeA = getDate(a, 'updatedAt');
-          const updateTimeB = getDate(b, 'updatedAt');
+          const updateTimeA = getDate(a, 'updated_at');
+          const updateTimeB = getDate(b, 'updated_at');
           
           const accessTimeA = getLastAccessTime(a);
           const accessTimeB = getLastAccessTime(b);
@@ -437,8 +442,8 @@ const HomeScreen = ({ navigation }) => {
         // 默认按最近更新和访问时间排序
         return sorted.sort((a, b) => {
           // 获取更新时间
-          const updateTimeA = getDate(a, 'updatedAt');
-          const updateTimeB = getDate(b, 'updatedAt');
+          const updateTimeA = getDate(a, 'updated_at');
+          const updateTimeB = getDate(b, 'updated_at');
           
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
@@ -957,7 +962,7 @@ Week 4: □□□□□□□
       });
 
       // 首先尝试从本地存储获取笔记，带超时
-      const offlineResponsePromise = apiWrapper.getAllNotes();
+      const offlineResponsePromise = notesApi.getAllNotes();
       const offlineResponse = await Promise.race([offlineResponsePromise, timeoutPromise]);
 
       // 如果超时，尝试从AsyncStorage备份恢复
@@ -1073,7 +1078,7 @@ Week 4: □□□□□□□
           await new Promise(r => setTimeout(r, 50));
 
           console.log('从离线存储获取笔记...');
-          const offlineResponse = await apiWrapper.getAllNotes();
+          const offlineResponse = await notesApi.getAllNotes();
 
           if (offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
             resolve({ success: true, data: offlineResponse.data, source: 'offline' });
@@ -1183,11 +1188,15 @@ Week 4: □□□□□□□
         try {
           // 使用文件持久化服务将文件复制到应用私有目录
           console.log('HomeScreen: 开始持久化PDF文件');
-          const persistedFile = await filePersistenceService.persistFile(
-            file.uri || file.fileCopyUri,
-            file.name || `document_${Date.now()}.pdf`,
-            'pdf'
-          );
+          // 使用 fileService 复制文件到应用私有目录
+          const destinationPath = `${RNFS.DocumentDirectoryPath}/${file.name || `document_${Date.now()}.pdf`}`;
+          await fileService.copyFile(file.uri || file.fileCopyUri, destinationPath);
+          const persistedFile = {
+            localPath: destinationPath,
+            localUri: destinationPath,
+            fileName: file.name || `document_${Date.now()}.pdf`,
+            type: 'pdf'
+          };
 
           console.log('HomeScreen: PDF文件持久化完成:', persistedFile);
 
@@ -1205,7 +1214,7 @@ Week 4: □□□□□□□
 
           try {
             // 调用实际的导入API
-            const response = await apiWrapper.importNote(formData);
+            const response = await notesApi.importNote(formData);
             console.log('PDF导入结果:', response);
 
             // 即使API返回失败，只要有数据就继续处理
@@ -1282,7 +1291,10 @@ Week 4: □□□□□□□
 
           // 保存到离线存储
           try {
-            await offlineStorageService.saveNote(localNote);
+            const realm = await realmService.getRealm();
+            realm.write(() => {
+              realm.create('Note', localNote);
+            });
             console.log('HomeScreen: PDF文件保存成功:', {
               action: 'saveNote',
               id: localNote._id || localNote.id,
@@ -1415,7 +1427,28 @@ Week 4: □□□□□□□
           // 隐藏进度模态框
           setShowProcessingProgress(false);
 
-          Alert.alert('导入失败', error.message || 'PPT文件导入失败，请重试');
+          // 根据错误类型提供不同的用户反馈
+          if (error.message && error.message.includes('服务暂时不可用')) {
+            Alert.alert(
+              '离线模式',
+              'PPT文档已保存，但需要网络连接才能转换为PDF格式。\n\n您可以在有网络时重新打开此文档进行转换。',
+              [
+                { text: '确定', style: 'default' },
+                { text: '重新导入', onPress: () => importPPT() }
+              ]
+            );
+          } else if (error.message && error.message.includes('文件格式错误')) {
+            Alert.alert(
+              '文件格式错误',
+              '选择的文件不是有效的PPT格式，请检查文件是否损坏或重新选择文件。',
+              [
+                { text: '确定', style: 'default' },
+                { text: '重新选择', onPress: () => importPPT() }
+              ]
+            );
+          } else {
+            Alert.alert('导入失败', error.message || 'PPT文件导入失败，请重试');
+          }
         };
 
         // 使用非阻塞处理器处理PPT导入
@@ -1473,7 +1506,10 @@ Week 4: □□□□□□□
           tags: []
         };
         try {
-          await offlineStorageService.saveNote(localNote);
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            realm.create('Note', localNote);
+          });
           console.log('HomeScreen: Markdown文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
         } catch (e) {
           console.warn('HomeScreen: Markdown文件保存失败:', e);
@@ -1584,13 +1620,13 @@ Week 4: □□□□□□□
       // 保存到本地存储 - 使用多种方式确保持久化
       try {
         // 1. 使用notesApi保存到离线存储
-        const saveResult = await apiWrapper.saveOfflineNote(localNote);
+        const saveResult = await notesApi.saveOfflineNote(localNote);
         console.log('笔记已保存到离线存储:', saveResult);
 
         // 2. 使用数据服务直接保存到MongoDB数据库
         try {
           // 使用MongoDB数据服务保存笔记
-          const savedNote = await apiWrapper.saveOfflineNote(localNote);
+          const savedNote = await notesApi.saveOfflineNote(localNote);
           console.log('笔记已直接保存到MongoDB数据库:', savedNote.id);
         } catch (dbError) {
           console.error('直接保存到MongoDB数据库失败:', dbError);
@@ -1598,9 +1634,23 @@ Week 4: □□□□□□□
 
         // 3. 使用MongoDB作为额外备份
         try {
-          const existingNotes = await offlineStorageService.getItem('BACKUP_NOTES') || [];
+          const realm = await realmService.getRealm();
+          const item = realm.objects('StorageItem').filtered('key = "BACKUP_NOTES"');
+          const existingNotes = item.length > 0 ? JSON.parse(item[0].value) : [];
           existingNotes.push(localNote);
-          await offlineStorageService.setItem('BACKUP_NOTES', existingNotes);
+          realm.write(() => {
+            if (item.length > 0) {
+              item[0].value = JSON.stringify(existingNotes);
+              item[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'BACKUP_NOTES',
+                value: JSON.stringify(existingNotes),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          });
           console.log('笔记已备份到MongoDB');
         } catch (storageError) {
           console.error('备份到MongoDB失败:', storageError);
@@ -1892,8 +1942,8 @@ Week 4: □□□□□□□
       }
 
       if (item.type === 'canvas') {
-        const canvasId = item._id || item.id || `temp_${Date.now()}`;
-        navigation.navigate('InfiniteCanvas', { canvasId, title: item.title || '无限草稿' });
+        const noteId = item._id || item.id || `temp_${Date.now()}`;
+        navigation.navigate('InfiniteCanvas', { noteId, title: item.title || '无限草稿' });
         return;
       }
 
@@ -1968,7 +2018,7 @@ Week 4: □□□□□□□
           {/* 底部区域 - 日期和操作按钮 */}
           <View style={styles.noteFooter}>
             <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
-              {formatDate(item.updatedAt || item.updated_at || item.created_at || new Date().toISOString())}
+              {formatDate(item.updated_at || item.updated_at || item.created_at || new Date().toISOString())}
             </Text>
 
             <View style={styles.actionButtons}>
@@ -2222,7 +2272,7 @@ Week 4: □□□□□□□
 
         // 在后台尝试更新数据库
         setTimeout(() => {
-          apiWrapper.updateNote(noteId, updatedNote)
+          notesApi.updateNote(noteId, updatedNote)
             .then((result) => {
               console.log('笔记已在后台通过API更新:', result);
               // 静默处理，不打扰用户
@@ -2348,7 +2398,7 @@ Week 4: □□□□□□□
                 // 2. 在后台执行API删除
                 setTimeout(async () => {
                   try {
-                    await apiWrapper.deleteNote(id);
+                    await notesApi.deleteNote(id);
                     console.log('笔记已从后台删除:', id);
                   } catch (deleteError) {
                     console.warn('后台删除失败，但UI已更新:', deleteError);
@@ -2464,7 +2514,7 @@ Week 4: □□□□□□□
         </View>
       </View>
 
-      {/* 搜索栏和排序控件放在同一行 */}
+      {/* 搜索栏、分类按钮和排序控件放在同一行 */}
       <View style={[
         styles.searchSortContainer,
         // 横屏时调整样式
@@ -2473,13 +2523,13 @@ Week 4: □□□□□□□
           paddingVertical: 10,
         }
       ]}>
-        {/* 搜索栏 - 占据大部分空间 */}
+        {/* 搜索栏 - 占据剩余空间 */}
         <View style={[
           styles.searchBarContainer,
           // 横屏时调整搜索栏宽度
           isLandscape && {
-            flex: 0.9,
-            marginRight: 16,
+            flex: 1,
+            marginRight: 4,
           }
         ]}>
           <UnifiedSearchBar
@@ -2489,7 +2539,29 @@ Week 4: □□□□□□□
           />
         </View>
 
-        {/* 排序控件 - 占据较小空间 */}
+        {/* 分类按钮 - 与排序按钮大小一致 */}
+        <TouchableOpacity 
+          style={[
+            styles.categoryButton,
+            { backgroundColor: colors.card, borderColor: `${colors.border}80` }
+          ]}
+          onPress={() => navigation.navigate('Category')}
+        >
+          <View style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: `${colors.primary}15`,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 4,
+          }}>
+            <Icon name="folder-outline" size={18} color={colors.primary} />
+          </View>
+          <Text style={[styles.categoryButtonText, { color: colors.primary }]}>分类</Text>
+        </TouchableOpacity>
+
+        {/* 排序控件 - 占据15%空间 */}
         <View style={[
           styles.sortControlContainer,
           // 横屏时调整排序控件宽度
@@ -2698,12 +2770,33 @@ const styles = StyleSheet.create({
   },
   // 搜索栏容器
   searchBarContainer: {
-    flex: 0.85, // 占85%的空间
-    marginRight: 10, // 右侧添加间距
+    flex: 1, // 占据剩余空间
+    marginRight: 2, // 进一步减少右侧间距
+  },
+  // 分类按钮 - 与排序按钮保持一致的样式
+  categoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 17, // 与排序按钮的紧凑模式保持一致
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 2, // 进一步减少右侧间距
+    minWidth: 40,
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  categoryButtonText: {
+    marginHorizontal: 0,
+    fontSize: 12,
+    fontWeight: '500', // 与排序按钮字体一致，不加粗
   },
   // 排序控件容器
   sortControlContainer: {
-    flex: 0.15, // 占据15%的空间
     alignItems: 'flex-end', // 右对齐
   },
   header: {

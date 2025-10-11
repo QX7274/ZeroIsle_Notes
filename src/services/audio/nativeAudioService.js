@@ -16,26 +16,10 @@ class NativeAudioService {
     this.recordingDuration = 0;
     this.recordingTimer = null;
     this.listeners = new Map();
-    // 在部分环境（Hermes/某些平台构建）下，AudioRecorderPlayer 可能不是构造函数
-    try {
-      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
-        this.audioRecorderPlayer = new AudioRecorderPlayer();
-      } else if (
-        AudioRecorderPlayer &&
-        typeof AudioRecorderPlayer.default === 'function'
-      ) {
-        // 兼容某些打包形态 default 导出
-        this.audioRecorderPlayer = new AudioRecorderPlayer.default();
-      } else {
-        console.warn(
-          'NativeAudioService: AudioRecorderPlayer 不可用或不是构造函数，将使用延迟初始化与回退播放器'
-        );
-        this.audioRecorderPlayer = null;
-      }
-    } catch (err) {
-      console.warn('NativeAudioService: 初始化 AudioRecorderPlayer 失败:', err);
-      this.audioRecorderPlayer = null;
-    }
+    
+    // 直接使用原生AudioRecorderPlayer
+    this.audioRecorderPlayer = new AudioRecorderPlayer();
+    console.log('NativeAudioService: AudioRecorderPlayer 初始化成功');
     
     // 初始化语音识别
     this.initializeVoice();
@@ -339,6 +323,7 @@ class NativeAudioService {
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
+
 
   /**
    * 添加事件监听器

@@ -2,9 +2,9 @@
  * 社区API服务
  * 提供社区相关的API调用，包括帖子、评论、点赞、关注等功能
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
-import { offlineStorageService } from '../offline/offlineStorageService';
+import realmService from '../database/realmService';
 
 /**
  * 获取社区帖子列表
@@ -347,11 +347,15 @@ export const getRecommendedUsers = async (params = {}) => {
 export const getPostDetail = async (id) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // offlineStorageService 已删除，暂时使用简化的在线检查
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：从缓存获取
-      const cachedPosts = await offlineStorageService.getCachedData('community_posts');
+      // 使用 realmService 替代 offlineStorageService
+      const realm = await realmService.getRealm();
+      const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : null;
       const post = cachedPosts?.find(p => p.id === id);
 
       if (post) {
@@ -373,7 +377,10 @@ export const getPostDetail = async (id) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id));
 
     // 缓存数据
-    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    // 使用 realmService 替代 offlineStorageService
+    const realm = await realmService.getRealm();
+    const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+    const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
     const postIndex = cachedPosts.findIndex(p => p.id === id);
 
     if (postIndex >= 0) {
@@ -382,7 +389,22 @@ export const getPostDetail = async (id) => {
       cachedPosts.push(response.data);
     }
 
-    await offlineStorageService.cacheData('community_posts', cachedPosts);
+    // 使用 realmService 缓存数据
+    const cacheRealm = await realmService.getRealm();
+    cacheRealm.write(() => {
+      const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(cachedPosts);
+        existingItem[0].updated_at = new Date();
+      } else {
+        cacheRealm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify(cachedPosts),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true,
@@ -405,9 +427,10 @@ export const getPostDetail = async (id) => {
 export const createPost = async (postData) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // offlineStorageService 已删除，暂时使用简化的在线检查
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
       const tempId = `temp_${Date.now()}`;
 
@@ -429,16 +452,53 @@ export const createPost = async (postData) => {
       };
 
       // 添加到离线存储
-      await offlineStorageService.addPendingOperation({
-        type: 'create_post',
-        data: dataToCache,
-        timestamp: new Date().toISOString()
+      // 使用 realmService 添加待处理操作
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          entity_id: `post_${Date.now()}`,
+          entity_type: 'community_post',
+          operation: 'create',
+          data: JSON.stringify(postData),
+          user_id: postData.user_id || 'anonymous',
+          created_at: new Date(),
+          is_synced: false,
+        });
+      });
+      
+      // 记录操作到缓存
+      await realm.write(() => {
+        realm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify([tempPost]),
+          type: 'create_post',
+          data: dataToCache,
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 更新缓存
-      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      // 使用 realmService 替代 offlineStorageService
+      const cachedRealm = await realmService.getRealm();
+      const cachedData = cachedRealm.objects('StorageItem').filtered('key = "community_posts"');
+      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
       cachedPosts.unshift(tempPost);
-      await offlineStorageService.cacheData('community_posts', cachedPosts);
+      // 使用 realmService 缓存数据
+      const updateRealm = await realmService.getRealm();
+      updateRealm.write(() => {
+        const existingItem = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(cachedPosts);
+          existingItem[0].updated_at = new Date();
+        } else {
+          updateRealm.create('StorageItem', {
+            key: 'community_posts',
+            value: JSON.stringify(cachedPosts),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       return {
         success: true,
@@ -462,9 +522,27 @@ export const createPost = async (postData) => {
     }
 
     // 更新缓存
-    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    // 使用 realmService 替代 offlineStorageService
+    const realm = await realmService.getRealm();
+    const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+    const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
     cachedPosts.unshift(response.data);
-    await offlineStorageService.cacheData('community_posts', cachedPosts);
+    // 使用 realmService 缓存数据
+    const cacheRealm = await realmService.getRealm();
+    cacheRealm.write(() => {
+      const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(cachedPosts);
+        existingItem[0].updated_at = new Date();
+      } else {
+        cacheRealm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify(cachedPosts),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true,
@@ -489,18 +567,41 @@ export const createPost = async (postData) => {
 export const updatePost = async (id, postData) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // offlineStorageService 已删除，暂时使用简化的在线检查
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
-      await offlineStorageService.addPendingOperation({
-        type: 'update_post',
-        data: { id, ...postData },
-        timestamp: new Date().toISOString()
+      // 使用 realmService 添加待处理操作
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          entity_id: `post_${Date.now()}`,
+          entity_type: 'community_post',
+          operation: 'create',
+          data: JSON.stringify(postData),
+          user_id: postData.user_id || 'anonymous',
+          created_at: new Date(),
+          is_synced: false,
+        });
+      });
+      
+      // 记录操作到缓存
+      await realm.write(() => {
+        realm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify([{ id, ...postData }]),
+          type: 'update_post',
+          data: { id, ...postData },
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 更新缓存
-      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      // 使用 realmService 替代 offlineStorageService
+      const updateRealm = await realmService.getRealm();
+      const cachedData = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
+      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
       const postIndex = cachedPosts.findIndex(p => p.id === id);
 
       if (postIndex >= 0) {
@@ -510,7 +611,22 @@ export const updatePost = async (id, postData) => {
           updated_at: new Date().toISOString(),
           is_synced: false
         };
-        await offlineStorageService.cacheData('community_posts', cachedPosts);
+        // 使用 realmService 缓存数据
+        const cacheRealm = await realmService.getRealm();
+        cacheRealm.write(() => {
+          const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(cachedPosts);
+            existingItem[0].updated_at = new Date();
+          } else {
+            cacheRealm.create('StorageItem', {
+              key: 'community_posts',
+              value: JSON.stringify(cachedPosts),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
       }
 
       return {
@@ -524,12 +640,30 @@ export const updatePost = async (id, postData) => {
     const response = await instance.put(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id), postData);
 
     // 更新缓存
-    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    // 使用 realmService 替代 offlineStorageService
+    const realm = await realmService.getRealm();
+    const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+    const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
     const postIndex = cachedPosts.findIndex(p => p.id === id);
 
     if (postIndex >= 0) {
       cachedPosts[postIndex] = response.data;
-      await offlineStorageService.cacheData('community_posts', cachedPosts);
+      // 使用 realmService 缓存数据
+      const cacheRealm = await realmService.getRealm();
+      cacheRealm.write(() => {
+        const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(cachedPosts);
+          existingItem[0].updated_at = new Date();
+        } else {
+          cacheRealm.create('StorageItem', {
+            key: 'community_posts',
+            value: JSON.stringify(cachedPosts),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     }
 
     return {
@@ -553,20 +687,57 @@ export const updatePost = async (id, postData) => {
 export const deletePost = async (id) => {
   try {
     // 检查网络状态
-    const status = offlineStorageService.getStatus();
+    // offlineStorageService 已删除，暂时使用简化的在线检查
+    const status = await notesApi.checkNetwork();
 
-    if (!status.isOnline) {
+    if (!status.isConnected) {
       // 离线模式：添加到待处理操作
-      await offlineStorageService.addPendingOperation({
-        type: 'delete_post',
-        data: { id },
-        timestamp: new Date().toISOString()
+      // 使用 realmService 添加待处理操作
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        realm.create('OfflineQueue', {
+          entity_id: `post_${Date.now()}`,
+          entity_type: 'community_post',
+          operation: 'create',
+          data: JSON.stringify(postData),
+          user_id: postData.user_id || 'anonymous',
+          created_at: new Date(),
+          is_synced: false,
+        });
+      });
+      
+      // 记录操作到缓存
+      await realm.write(() => {
+        realm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify([{ id }]),
+          type: 'delete_post',
+          data: { id },
+          timestamp: new Date().toISOString()
+        });
       });
 
       // 更新缓存
-      const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+      // 使用 realmService 替代 offlineStorageService
+      const updateRealm = await realmService.getRealm();
+      const cachedData = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
+      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
       const updatedPosts = cachedPosts.filter(p => p.id !== id);
-      await offlineStorageService.cacheData('community_posts', updatedPosts);
+      const cacheRealm = await realmService.getRealm();
+      cacheRealm.write(() => {
+        const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(updatedPosts);
+          existingItem[0].updated_at = new Date();
+        } else {
+          cacheRealm.create('StorageItem', {
+            key: 'community_posts',
+            value: JSON.stringify(updatedPosts),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       return {
         success: true,
@@ -578,9 +749,26 @@ export const deletePost = async (id) => {
     await instance.delete(API_ENDPOINTS.COMMUNITY.POST_DETAIL(id));
 
     // 更新缓存
-    const cachedPosts = await offlineStorageService.getCachedData('community_posts') || [];
+    // 使用 realmService 替代 offlineStorageService
+    const realm = await realmService.getRealm();
+    const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+    const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
     const updatedPosts = cachedPosts.filter(p => p.id !== id);
-    await offlineStorageService.cacheData('community_posts', updatedPosts);
+    const cacheRealm = await realmService.getRealm();
+    cacheRealm.write(() => {
+      const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
+      if (existingItem.length > 0) {
+        existingItem[0].value = JSON.stringify(updatedPosts);
+        existingItem[0].updated_at = new Date();
+      } else {
+        cacheRealm.create('StorageItem', {
+          key: 'community_posts',
+          value: JSON.stringify(updatedPosts),
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
 
     return {
       success: true

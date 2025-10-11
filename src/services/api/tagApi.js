@@ -6,7 +6,7 @@
 import api from './apiClient';
 import { tagAdapter } from '../../adapters';
 import { networkService } from '../network/networkService';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 /**
  * 标签API服务

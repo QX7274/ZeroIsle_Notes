@@ -4,7 +4,7 @@
  * 用于平滑过渡到新的存储架构
  */
 
-import { realmService } from './realmService';
+import realmService from './realmService';
 
 
 /**

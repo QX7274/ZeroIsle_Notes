@@ -3,7 +3,7 @@
  */
 
 import { eventEmitter } from './eventEmitter';
-import logService from './logService';
+import { logService } from '../../utils/logService';
 
 export {
   eventEmitter,

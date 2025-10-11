@@ -1,7 +1,7 @@
 /**
  * 画布API服务
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 
 /**

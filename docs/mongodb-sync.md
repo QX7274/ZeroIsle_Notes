@@ -10,7 +10,7 @@
 
 同步架构包括以下组件：
 
-1. **离线队列**：使用 `OfflineQueueModel` 存储离线操作，包括实体ID、操作类型、数据等信息。
+1. **离线队列**：使用 `OfflineQueue` 存储离线操作，包括实体ID、操作类型、数据等信息。
 2. **网络监听**：使用 `networkService` 监听网络状态变化，当网络恢复时触发同步。
 3. **同步服务**：使用 `offlineSyncService` 处理同步逻辑，包括添加到队列、同步队列、处理冲突等。
 4. **数据服务**：使用 `dataService` 提供统一的数据访问接口，封装 MongoDB 和 Realm 操作。
@@ -75,7 +75,7 @@ networkService.addListener(NETWORK_EVENTS.ONLINE, () => {
 // 同步队列
 async function syncQueue() {
   // 获取待同步的操作
-  const pendingItems = await OfflineQueueModel.findPending();
+  const pendingItems = await OfflineQueue.findPending();
   
   // 依次处理每个操作
   for (const item of pendingItems) {

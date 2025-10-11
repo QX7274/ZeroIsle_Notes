@@ -37,7 +37,7 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { TagModel } from '../models';
+import { Tag } from '../models';
 import { logService } from '../services/utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
@@ -119,7 +119,7 @@ export const createTag = async (tagData, userId) => {
     };
     
     // 创建标签模型
-    const tag = await TagModel.create(backendTag);
+    const tag = await Tag.create(backendTag);
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({

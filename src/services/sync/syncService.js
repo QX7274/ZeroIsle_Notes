@@ -10,10 +10,10 @@
  * 6. 错误处理：处理同步过程中的错误
  */
 
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 import { networkService } from '../network/networkService';
-import { realmService } from '../database/realmService';
-import { apiService } from '../api/apiService';
+import { apiService } from '../api/apiClient';
 import { SYNC_EVENTS } from './syncEvents';
 import * as syncUtils from './syncUtils';
 import { eventEmitter } from '../utils/eventEmitter';

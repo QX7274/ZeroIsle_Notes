@@ -1,5 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
-import { realmService } from '../database/realmService';
+import realmService from '../database/realmService';
 import { analyticsService } from '../analytics/analyticsService';
 import { apiService } from './api';
 

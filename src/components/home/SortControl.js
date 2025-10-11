@@ -12,9 +12,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import realmService from '../../services/database/realmService';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { realmStorageService } from '../../services/storage/realmStorageService';
 import useOrientation from '../../utils/hooks/useOrientation';
 
 // 排序选项
@@ -53,7 +53,21 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
   // 保存排序偏好
   const saveSortPreference = async (sortId) => {
     try {
-      await realmStorageService.setItem(SORT_PREFERENCE_KEY, sortId);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${SORT_PREFERENCE_KEY}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = sortId;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: SORT_PREFERENCE_KEY,
+            value: sortId,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (error) {
       console.error('保存排序偏好失败:', error);
     }

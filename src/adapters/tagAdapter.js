@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { TagModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { Tag } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -81,15 +82,19 @@ export const createTag = async (tagData, userId) => {
       user_id: userId,
     };
 
-    // 创建标签模型
-    const tag = await TagModel.create(backendTag);
+    // 使用 Realm 创建标签
+    const realm = await realmService.getRealm();
+    let tag;
+    realm.write(() => {
+      tag = realm.create('Tag', backendTag);
+    });
 
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
       entity_type: 'tag',
       operation: 'create',
-      data: tag.toJSON(),
+      data: tag.toJSON ? tag.toJSON() : backendTag,
       user_id: userId,
     });
 
@@ -109,31 +114,31 @@ export const createTag = async (tagData, userId) => {
  */
 export const updateTag = async (tagId, tagData) => {
   try {
-    // 查找标签
-    const tag = await TagModel.findById(tagId);
+    // 使用 Realm 查找和更新标签
+    const realm = await realmService.getRealm();
+    const tag = realm.objectForPrimaryKey('Tag', tagId);
 
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
     }
 
     // 更新标签属性
-    if (tagData.name !== undefined) tag.name = tagData.name;
-    if (tagData.color !== undefined) tag.color = tagData.color;
-    if (tagData.count !== undefined) tag.count = tagData.count;
-
-    // 更新时间
-    tag.updated_at = new Date();
-    tag.is_synced = false;
-
-    // 保存标签
-    await tag.save();
+    realm.write(() => {
+      if (tagData.name !== undefined) tag.name = tagData.name;
+      if (tagData.color !== undefined) tag.color = tagData.color;
+      if (tagData.count !== undefined) tag.count = tagData.count;
+      
+      // 更新时间
+      tag.updated_at = new Date();
+      tag.is_synced = false;
+    });
 
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
       entity_type: 'tag',
       operation: 'update',
-      data: tag.toJSON(),
+      data: tag.toJSON ? tag.toJSON() : { ...tag },
       user_id: tag.user_id,
     });
 
@@ -153,8 +158,9 @@ export const updateTag = async (tagId, tagData) => {
  */
 export const deleteTag = async (tagId, permanent = false) => {
   try {
-    // 查找标签
-    const tag = await TagModel.findById(tagId);
+    // 使用 Realm 查找标签
+    const realm = await realmService.getRealm();
+    const tag = realm.objectForPrimaryKey('Tag', tagId);
 
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
@@ -162,19 +168,23 @@ export const deleteTag = async (tagId, permanent = false) => {
 
     if (permanent) {
       // 永久删除
-      await tag.remove({ soft: false });
+      realm.write(() => {
+        realm.delete(tag);
+      });
     } else {
       // 软删除
-      tag.is_deleted = true;
-      tag.is_synced = false;
-      await tag.save();
+      realm.write(() => {
+        tag.is_deleted = true;
+        tag.is_synced = false;
+        tag.updated_at = new Date();
+      });
 
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: tag._id,
         entity_type: 'tag',
         operation: 'update',
-        data: tag.toJSON(),
+        data: tag.toJSON ? tag.toJSON() : { ...tag },
         user_id: tag.user_id,
       });
     }
@@ -194,18 +204,23 @@ export const deleteTag = async (tagId, permanent = false) => {
  */
 export const getTags = async (userId, options = {}) => {
   try {
-    // 修改默认排序选项，避免使用count属性（可能不存在）
-    const safeOptions = { ...options };
-    if (safeOptions.sort && safeOptions.sort.count !== undefined) {
-      // 如果排序选项包含count，添加备用排序选项
-      safeOptions.fallbackSort = { name: 1 };
+    // 使用 Realm 查找标签
+    const realm = await realmService.getRealm();
+    let query = `user_id = "${userId}" AND is_deleted = false`;
+    
+    let tags = realm.objects('Tag').filtered(query);
+    
+    // 排序
+    if (options.sort) {
+      const sortField = Object.keys(options.sort)[0];
+      const sortOrder = options.sort[sortField] === -1 ? true : false;
+      tags = tags.sorted(sortField, sortOrder);
+    } else {
+      tags = tags.sorted('name', false); // 默认按名称升序
     }
 
-    // 查找标签
-    const tags = await TagModel.findByUser(userId, safeOptions);
-
     // 转换为前端标签对象
-    const validTags = tags.filter(tag => tag); // 过滤掉null或undefined
+    const validTags = Array.from(tags).filter(tag => tag);
     return validTags.map(tag => {
       const frontendTag = toFrontendTag(tag);
       return frontendTag || {
@@ -229,8 +244,9 @@ export const getTags = async (userId, options = {}) => {
  */
 export const getTagById = async (tagId) => {
   try {
-    // 查找标签
-    const tag = await TagModel.findById(tagId);
+    // 使用 Realm 查找标签
+    const realm = await realmService.getRealm();
+    const tag = realm.objectForPrimaryKey('Tag', tagId);
 
     if (!tag) {
       throw new Error(`标签不存在: ${tagId}`);
@@ -252,8 +268,10 @@ export const getTagById = async (tagId) => {
  */
 export const getTagByName = async (name, userId) => {
   try {
-    // 查找标签
-    const tag = await TagModel.findByName(name, userId);
+    // 使用 Realm 查找标签
+    const realm = await realmService.getRealm();
+    const tags = realm.objects('Tag').filtered(`name = "${name}" AND user_id = "${userId}" AND is_deleted = false`);
+    const tag = tags.length > 0 ? tags[0] : null;
 
     // 转换为前端标签对象
     return tag ? toFrontendTag(tag) : null;
@@ -272,15 +290,39 @@ export const getTagByName = async (name, userId) => {
  */
 export const findOrCreateTag = async (name, userId, options = {}) => {
   try {
-    // 查找或创建标签
-    const tag = await TagModel.findOrCreate(name, userId, options);
+    // 使用 Realm 查找标签
+    const realm = await realmService.getRealm();
+    const tags = realm.objects('Tag').filtered(`name = "${name}" AND user_id = "${userId}" AND is_deleted = false`);
+    let tag = tags.length > 0 ? tags[0] : null;
+    let isNew = false;
+
+    if (!tag) {
+      // 创建新标签
+      const now = new Date();
+      const tagId = `tag_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      
+      realm.write(() => {
+        tag = realm.create('Tag', {
+          _id: tagId,
+          name: name,
+          color: options.color || '#2196F3',
+          count: 0,
+          is_deleted: false,
+          is_synced: false,
+          created_at: now,
+          updated_at: now,
+          user_id: userId,
+        });
+      });
+      isNew = true;
+    }
 
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: tag._id,
       entity_type: 'tag',
-      operation: tag.isNew ? 'create' : 'update',
-      data: tag.toJSON(),
+      operation: isNew ? 'create' : 'update',
+      data: tag.toJSON ? tag.toJSON() : { ...tag },
       user_id: userId,
     });
 
@@ -300,16 +342,36 @@ export const findOrCreateTag = async (name, userId, options = {}) => {
  */
 export const createBatchTags = async (names, userId) => {
   try {
+    const realm = await realmService.getRealm();
+    const now = new Date();
+    const tags = [];
+
     // 批量创建标签
-    const tags = await TagModel.createBatch(names, userId);
+    realm.write(() => {
+      for (const name of names) {
+        const tagId = `tag_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        const tag = realm.create('Tag', {
+          _id: tagId,
+          name: name,
+          color: '#2196F3',
+          count: 0,
+          is_deleted: false,
+          is_synced: false,
+          created_at: now,
+          updated_at: now,
+          user_id: userId,
+        });
+        tags.push(tag);
+      }
+    });
 
     // 添加到同步队列
     for (const tag of tags) {
       await offlineSyncService.addToSyncQueue({
         entity_id: tag._id,
         entity_type: 'tag',
-        operation: tag.isNew ? 'create' : 'update',
-        data: tag.toJSON(),
+        operation: 'create',
+        data: tag.toJSON ? tag.toJSON() : { ...tag },
         user_id: userId,
       });
     }
@@ -330,11 +392,15 @@ export const createBatchTags = async (names, userId) => {
  */
 export const getPopularTags = async (userId, limit = 10) => {
   try {
-    // 获取热门标签
-    const tags = await TagModel.getPopularTags(userId, limit);
+    // 使用 Realm 获取热门标签（按count排序）
+    const realm = await realmService.getRealm();
+    const tags = realm.objects('Tag')
+      .filtered(`user_id = "${userId}" AND is_deleted = false`)
+      .sorted('count', true)
+      .slice(0, limit);
 
     // 转换为前端标签对象
-    return tags.map(toFrontendTag);
+    return Array.from(tags).map(toFrontendTag);
   } catch (error) {
     logService.error('获取热门标签失败', error);
     throw error;
@@ -348,8 +414,24 @@ export const getPopularTags = async (userId, limit = 10) => {
  */
 export const updateTagCounts = async (userId) => {
   try {
-    // 更新标签计数
-    await TagModel.updateTagCounts(userId);
+    // 使用 Realm 更新标签计数
+    const realm = await realmService.getRealm();
+    const tags = realm.objects('Tag').filtered(`user_id = "${userId}" AND is_deleted = false`);
+    
+    realm.write(() => {
+      for (const tag of tags) {
+        // 统计使用该标签的笔记数量
+        const notes = realm.objects('Note').filtered(`user_id = "${userId}" AND is_deleted = false`);
+        let count = 0;
+        for (const note of notes) {
+          if (note.tags && note.tags.includes(tag.name)) {
+            count++;
+          }
+        }
+        tag.count = count;
+        tag.updated_at = new Date();
+      }
+    });
 
     return true;
   } catch (error) {

@@ -1,10 +1,10 @@
 /**
  * 认证API服务
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 import { API_URL } from '../../config';
-import storageService, { setToken, setRefreshToken, setUser, clearAuth } from '../storage/storageService';
+import realmService from '../database/realmService';
 import tokenService from '../auth/tokenService';
 import { saveAuthInfo } from '../auth/authUtils';
 import networkErrorService from '../networkErrorService';
@@ -50,8 +50,9 @@ export const login = async (loginData) => {
       console.log('网络未连接，尝试离线登录');
 
       // 检查是否有离线用户
-      const { realmStorageService } = require('../storage/realmStorageService');
-      const offlineUserJson = await realmStorageService.getItem('offline_user');
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "offline_user"');
+      const offlineUserJson = item.length > 0 ? item[0].value : null;
 
       if (offlineUserJson) {
         const offlineUser = JSON.parse(offlineUserJson);
@@ -71,7 +72,21 @@ export const login = async (loginData) => {
           };
 
           // 设置离线模式
-          await realmStorageService.setItem('is_offline_mode', 'true');
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered('key = "is_offline_mode"');
+            if (existingItem.length > 0) {
+              existingItem[0].value = 'true';
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'is_offline_mode',
+                value: 'true',
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          });
 
           // 保存令牌和用户信息
           await setToken(mockResponse.access);
@@ -503,13 +518,28 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setToken === 'function') {
           await storageService.setToken(responseData.access);
         } else {
-          console.warn('setToken 函数不可用，使用 realmStorageService 作为备选');
-          const { realmStorageService } = require('../storage/realmStorageService');
-          // 创建完整的存储对象
+          console.warn('setToken 函数不可用，使用 realmService 作为备选');
+          const realm = await realmService.getRealm();
           const now = new Date();
-          await realmStorageService.setItem('zeroisle_auth_token', {
-            token: responseData.access,
-            expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_auth_token"');
+            if (existingItem.length > 0) {
+              existingItem[0].value = JSON.stringify({
+                token: responseData.access,
+                expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
+              });
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'zeroisle_auth_token',
+                value: JSON.stringify({
+                  token: responseData.access,
+                  expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
+                }),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
           });
         }
 
@@ -518,13 +548,28 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setRefreshToken === 'function') {
           await storageService.setRefreshToken(responseData.refresh);
         } else {
-          console.warn('setRefreshToken 函数不可用，使用 realmStorageService 作为备选');
-          const { realmStorageService } = require('../storage/realmStorageService');
-          // 创建完整的存储对象
+          console.warn('setRefreshToken 函数不可用，使用 realmService 作为备选');
+          const realm = await realmService.getRealm();
           const now = new Date();
-          await realmStorageService.setItem('zeroisle_refresh_token', {
-            token: responseData.refresh,
-            expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_refresh_token"');
+            if (existingItem.length > 0) {
+              existingItem[0].value = JSON.stringify({
+                token: responseData.refresh,
+                expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
+              });
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'zeroisle_refresh_token',
+                value: JSON.stringify({
+                  token: responseData.refresh,
+                  expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
+                }),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
           });
         }
 
@@ -533,12 +578,26 @@ export const registerWithUsername = async (userData) => {
         } else if (storageService && typeof storageService.setUser === 'function') {
           await storageService.setUser(responseData.user);
         } else {
-          console.warn('setUser 函数不可用，使用 realmStorageService 作为备选');
-          const { realmStorageService } = require('../storage/realmStorageService');
-          // 创建完整的存储对象
+          console.warn('setUser 函数不可用，使用 realmService 作为备选');
+          const realm = await realmService.getRealm();
           const now = new Date();
-          await realmStorageService.setItem('zeroisle_user_info', {
-            user: responseData.user
+          realm.write(() => {
+            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_user_info"');
+            if (existingItem.length > 0) {
+              existingItem[0].value = JSON.stringify({
+                user: responseData.user
+              });
+              existingItem[0].updated_at = new Date();
+            } else {
+              realm.create('StorageItem', {
+                key: 'zeroisle_user_info',
+                value: JSON.stringify({
+                  user: responseData.user
+                }),
+                createdAt: new Date(),
+                updated_at: new Date(),
+              });
+            }
           });
         }
       } catch (storageError) {

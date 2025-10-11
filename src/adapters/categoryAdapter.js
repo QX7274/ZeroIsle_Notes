@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { CategoryModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { Category } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -93,15 +94,19 @@ export const createCategory = async (categoryData, userId) => {
       order: categoryData.order || 0,
     };
     
-    // 创建分类模型
-    const category = await CategoryModel.create(backendCategory);
+    // 使用 Realm 创建分类
+    const realm = await realmService.getRealm();
+    let category;
+    realm.write(() => {
+      category = realm.create('Category', backendCategory);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: category._id,
       entity_type: 'category',
       operation: 'create',
-      data: category.toJSON(),
+      data: category.toJSON ? category.toJSON() : { ...backendCategory },
       user_id: userId,
     });
     
@@ -121,35 +126,36 @@ export const createCategory = async (categoryData, userId) => {
  */
 export const updateCategory = async (categoryId, categoryData) => {
   try {
-    // 查找分类
-    const category = await CategoryModel.findById(categoryId);
+    // 使用 Realm 查找分类
+    const realm = await realmService.getRealm();
+    const category = realm.objectForPrimaryKey('Category', categoryId);
     
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
     }
     
     // 更新分类属性
-    if (categoryData.name !== undefined) category.name = categoryData.name;
-    if (categoryData.description !== undefined) category.description = categoryData.description;
-    if (categoryData.color !== undefined) category.color = categoryData.color;
-    if (categoryData.icon !== undefined) category.icon = categoryData.icon;
-    if (categoryData.parentId !== undefined) category.parent_id = categoryData.parentId;
-    if (categoryData.isDefault !== undefined) category.is_default = categoryData.isDefault;
-    if (categoryData.order !== undefined) category.order = categoryData.order;
+    realm.write(() => {
+      if (categoryData.name !== undefined) category.name = categoryData.name;
+      if (categoryData.description !== undefined) category.description = categoryData.description;
+      if (categoryData.color !== undefined) category.color = categoryData.color;
+      if (categoryData.icon !== undefined) category.icon = categoryData.icon;
+      if (categoryData.parentId !== undefined) category.parent_id = categoryData.parentId;
+      if (categoryData.isDefault !== undefined) category.is_default = categoryData.isDefault;
+      if (categoryData.order !== undefined) category.order = categoryData.order;
     
-    // 更新时间
-    category.updated_at = new Date();
-    category.is_synced = false;
-    
-    // 保存分类
-    await category.save();
+      
+      // 更新时间
+      category.updated_at = new Date();
+      category.is_synced = false;
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: category._id,
       entity_type: 'category',
       operation: 'update',
-      data: category.toJSON(),
+      data: category.toJSON ? category.toJSON() : { ...category },
       user_id: category.user_id,
     });
     
@@ -169,8 +175,9 @@ export const updateCategory = async (categoryId, categoryData) => {
  */
 export const deleteCategory = async (categoryId, permanent = false) => {
   try {
-    // 查找分类
-    const category = await CategoryModel.findById(categoryId);
+    // 使用 Realm 查找分类
+    const realm = await realmService.getRealm();
+    const category = realm.objectForPrimaryKey('Category', categoryId);
     
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
@@ -183,19 +190,23 @@ export const deleteCategory = async (categoryId, permanent = false) => {
     
     if (permanent) {
       // 永久删除
-      await category.remove({ soft: false });
+      realm.write(() => {
+        realm.delete(category);
+      });
     } else {
       // 软删除
-      category.is_deleted = true;
-      category.is_synced = false;
-      await category.save();
+      realm.write(() => {
+        category.is_deleted = true;
+        category.updated_at = new Date();
+        category.is_synced = false;
+      });
       
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: category._id,
         entity_type: 'category',
         operation: 'update',
-        data: category.toJSON(),
+        data: category.toJSON ? category.toJSON() : { ...category },
         user_id: category.user_id,
       });
     }
@@ -215,11 +226,21 @@ export const deleteCategory = async (categoryId, permanent = false) => {
  */
 export const getCategories = async (userId, options = {}) => {
   try {
-    // 查找分类
-    const categories = await CategoryModel.findByUser(userId, options);
+    // 使用 Realm 查找分类
+    const realm = await realmService.getRealm();
+    let query = `user_id = "${userId}" AND is_deleted = false`;
+    
+    if (options.parent_id !== undefined) {
+      query += options.parent_id ? ` AND parent_id = "${options.parent_id}"` : ` AND parent_id = nil`;
+    }
+    
+    let categories = realm.objects('Category').filtered(query);
+    
+    // 排序
+    categories = categories.sorted('order', false); // 按order升序
     
     // 转换为前端分类对象
-    return categories.map(toFrontendCategory);
+    return Array.from(categories).map(toFrontendCategory);
   } catch (error) {
     logService.error('获取分类列表失败', error);
     throw error;
@@ -233,8 +254,9 @@ export const getCategories = async (userId, options = {}) => {
  */
 export const getCategoryById = async (categoryId) => {
   try {
-    // 查找分类
-    const category = await CategoryModel.findById(categoryId);
+    // 使用 Realm 查找分类
+    const realm = await realmService.getRealm();
+    const category = realm.objectForPrimaryKey('Category', categoryId);
     
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
@@ -255,12 +277,33 @@ export const getCategoryById = async (categoryId) => {
  */
 export const getDefaultCategory = async (userId) => {
   try {
-    // 查找默认分类
-    const category = await CategoryModel.findDefault(userId);
+    // 使用 Realm 查找默认分类
+    const realm = await realmService.getRealm();
+    const categories = realm.objects('Category').filtered(`user_id = "${userId}" AND is_default = true AND is_deleted = false`);
+    let category = categories.length > 0 ? categories[0] : null;
     
     // 如果没有默认分类，创建一个
     if (!category) {
-      return toFrontendCategory(await CategoryModel.createDefault(userId));
+      const now = new Date();
+      const categoryId = `category_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      
+      realm.write(() => {
+        category = realm.create('Category', {
+          _id: categoryId,
+          name: '默认分类',
+          description: '默认分类',
+          color: '#2196F3',
+          icon: 'folder',
+          parent_id: null,
+          is_default: true,
+          is_deleted: false,
+          is_synced: false,
+          created_at: now,
+          updated_at: now,
+          user_id: userId,
+          order: 0,
+        });
+      });
     }
     
     // 转换为前端分类对象
@@ -278,8 +321,38 @@ export const getDefaultCategory = async (userId) => {
  */
 export const createInitialCategories = async (userId) => {
   try {
-    // 创建初始分类
-    const categories = await CategoryModel.createInitialCategories(userId);
+    // 使用 Realm 创建初始分类
+    const realm = await realmService.getRealm();
+    const now = new Date();
+    const initialCategories = [
+      { name: '工作', description: '工作相关笔记', color: '#2196F3', icon: 'briefcase', order: 1 },
+      { name: '学习', description: '学习相关笔记', color: '#4CAF50', icon: 'book', order: 2 },
+      { name: '生活', description: '生活相关笔记', color: '#FF9800', icon: 'home', order: 3 },
+      { name: '其他', description: '其他笔记', color: '#9E9E9E', icon: 'folder', order: 4 },
+    ];
+    
+    const categories = [];
+    realm.write(() => {
+      for (const categoryData of initialCategories) {
+        const categoryId = `category_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        const category = realm.create('Category', {
+          _id: categoryId,
+          name: categoryData.name,
+          description: categoryData.description,
+          color: categoryData.color,
+          icon: categoryData.icon,
+          parent_id: null,
+          is_default: false,
+          is_deleted: false,
+          is_synced: false,
+          created_at: now,
+          updated_at: now,
+          user_id: userId,
+          order: categoryData.order,
+        });
+        categories.push(category);
+      }
+    });
     
     // 转换为前端分类对象
     return categories.map(toFrontendCategory);
@@ -296,8 +369,18 @@ export const createInitialCategories = async (userId) => {
  */
 export const reorderCategories = async (categories) => {
   try {
-    // 重新排序分类
-    await CategoryModel.reorder(categories);
+    // 使用 Realm 重新排序分类
+    const realm = await realmService.getRealm();
+    
+    realm.write(() => {
+      for (const categoryData of categories) {
+        const category = realm.objectForPrimaryKey('Category', categoryData.id);
+        if (category) {
+          category.order = categoryData.order;
+          category.updated_at = new Date();
+        }
+      }
+    });
     
     return true;
   } catch (error) {

@@ -36,8 +36,10 @@ const PageControl = ({
     let cancelled = false;
     (async () => {
       try {
-        const { offlineStorageService } = require('../../services/offline');
-        const saved = await offlineStorageService.getItem(storageKey);
+        const realmService = require('../../services/database/realmService').default;
+        const realm = await realmService.getRealm();
+        const item = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+        const saved = item.length > 0 ? item[0].value : null;
         if (!cancelled && saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed.x === 'number' && typeof parsed.y === 'number') {
@@ -142,8 +144,22 @@ const PageControl = ({
   // 保存位置到缓存
   const persistPos = async (p) => {
     try {
-      const { offlineStorageService } = require('../../services/offline');
-      await offlineStorageService.setItem(storageKey, JSON.stringify(p));
+      const realmService = require('../../services/database/realmService').default;
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(p);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: storageKey,
+            value: JSON.stringify(p),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch {}
   };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Platform, Text } from 'react-native';
 import FileHistoryNavigation from './FileHistoryNavigation';
+import AllInOneToolbar from '../common/AllInOneToolbar';
 
 /**
  * 文档查看器通用布局组件
@@ -16,12 +17,13 @@ const ViewerLayout = ({
   title,
   showToolbar = true,
   toolbarHeight = 56, // 标准工具栏高度
-  hasExternalToolbar = false, // 是否有外部的ToolbarContainer
-  externalToolbarHeight = 40, // 外部工具栏的高度（ToolbarContainer + AllInOneToolbar）
   showHistoryNavigation = true, // 是否显示历史导航
   historyNavigationHeight = 28, // 历史导航组件高度（缩小）
   noteId, // 笔记ID，用于历史导航
-  navigation // 导航对象
+  navigation, // 导航对象
+  // 工具栏相关props
+  toolbarProps = {},
+  showExternalToolbar = true, // 是否显示工具栏
 }) => (
   <View style={[styles.container, { backgroundColor: colors?.background }, style]}>
     {/* 工具栏区域 */}
@@ -53,7 +55,7 @@ const ViewerLayout = ({
       </View>
     )}
 
-    {/* 历史导航组件 - 位于标题栏和内容之间，高度受控 */}
+    {/* 历史导航组件 - 位于标题栏和工具栏之间，高度受控 */}
     {showHistoryNavigation && noteId && navigation && (
       <View style={[styles.historyNavigationContainer, { height: historyNavigationHeight }]}>
         <FileHistoryNavigation
@@ -65,16 +67,18 @@ const ViewerLayout = ({
       </View>
     )}
 
-    {/* 内容区域 - 考虑所有上方组件的高度 */}
+    {/* 工具栏 */}
+    {showExternalToolbar && (
+      <View style={styles.toolbarContainer}>
+        <AllInOneToolbar
+          {...toolbarProps}
+        />
+      </View>
+    )}
+
+    {/* 内容区域 - 使用flex布局自动填充剩余空间 */}
     <View style={[
       styles.contentContainer,
-      {
-        // 计算上方所有组件的总高度，确保紧密贴合
-        marginTop: hasExternalToolbar
-          ? externalToolbarHeight + (showHistoryNavigation ? 40 : 0) // 外部工具栏 + 历史导航固定高度
-          : (showToolbar ? toolbarHeight : 0) + (showHistoryNavigation ? 40 : 0), // 内部工具栏 + 历史导航固定高度
-        paddingTop: 0
-      },
       contentStyle
     ]}>
       {children}
@@ -101,6 +105,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    zIndex: 10, // 确保工具栏在最上层
   },
   headerLeftWrap: {
     flexDirection: 'row',
@@ -132,10 +137,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     overflow: 'hidden', // 确保内容不超出高度限制
+    zIndex: 9, // 确保历史导航在内容之上，但在工具栏之下
+  },
+  toolbarContainer: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    zIndex: 8,
   },
   contentContainer: {
     flex: 1,
-    position: 'relative',
+    zIndex: 1, // 确保内容可见，但低于工具栏和历史导航
     // 动态样式会覆盖这些默认值
   },
 });

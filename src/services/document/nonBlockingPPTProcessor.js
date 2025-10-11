@@ -285,6 +285,12 @@ class NonBlockingPPTProcessor {
       fileInfo.fileName.replace(/\.(ppt|pptx)$/i, '') :
       'PPT演示文稿';
 
+    // 检查是否需要在线转换
+    const requiresOnlineConversion = this.checkIfRequiresOnlineConversion(fileInfo);
+
+    // 验证文件
+    const validationResult = await this.validateFileBeforeSave(fileInfo);
+
     const noteData = {
       _id: noteId,
       id: noteId,
@@ -293,7 +299,7 @@ class NonBlockingPPTProcessor {
       created_at: now,
       updated_at: now,
       is_synced: false,
-      type: fileInfo.fileType,
+      type: fileInfo.fileType, // 保持原始类型，不强制转换为PDF
       file_type: fileInfo.fileType,
       file_name: fileInfo.fileName,
       file_uri: fileInfo.fileUri,
@@ -303,17 +309,73 @@ class NonBlockingPPTProcessor {
       url: fileInfo.fileUri,
       imported: true,
       is_offline: true,
+      // 添加转换状态标记
+      requires_online_conversion: requiresOnlineConversion,
+      conversion_status: requiresOnlineConversion ? 'pending' : 'not_needed',
+      // 添加验证结果
+      validation_result: validationResult,
       metadata: JSON.stringify({
         pdfPath: null,
         imagePath: null,
-        fileSize: null,
+        fileSize: validationResult.fileSize || null,
         pageCount: null,
         lastOpenedPage: 1,
-        lastOpenedTime: now
+        lastOpenedTime: now,
+        originalType: fileInfo.fileType,
+        requiresConversion: requiresOnlineConversion,
+        validationPassed: validationResult.valid
       })
     };
 
     return noteData;
+  }
+
+  /**
+   * 检查是否需要在线转换
+   * @param {Object} fileInfo - 文件信息
+   * @returns {boolean} 是否需要在线转换
+   */
+  checkIfRequiresOnlineConversion(fileInfo) {
+    // 在离线状态下，PPT/Word文档需要在线转换才能生成PDF
+    // 这里可以根据网络状态或其他条件来判断
+    return true; // 暂时总是返回true，表示需要在线转换
+  }
+
+  /**
+   * 保存前验证文件
+   * @param {Object} fileInfo - 文件信息
+   * @returns {Promise<Object>} 验证结果
+   */
+  async validateFileBeforeSave(fileInfo) {
+    try {
+      // 动态导入文件验证服务
+      const fileValidationService = require('../files/fileValidationService').default;
+      
+      // 获取实际的文件路径
+      const filePath = fileInfo.fileUri?.replace('file://', '') || fileInfo.fileUri;
+      
+      if (!filePath) {
+        return {
+          valid: false,
+          error: 'NO_FILE_PATH',
+          message: '文件路径不存在'
+        };
+      }
+
+      // 验证文件
+      const validationResult = await fileValidationService.validateFile(filePath, fileInfo.fileType);
+      
+      console.log('NonBlockingPPTProcessor: 文件验证结果:', validationResult);
+      return validationResult;
+      
+    } catch (error) {
+      console.error('NonBlockingPPTProcessor: 文件验证失败:', error);
+      return {
+        valid: false,
+        error: 'VALIDATION_ERROR',
+        message: `验证失败: ${error.message}`
+      };
+    }
   }
 
   /**
@@ -327,19 +389,23 @@ class NonBlockingPPTProcessor {
       // 使用UI安全处理器执行保存操作
       const savedNote = await uiSafeProcessor.safeFileOperation(async () => {
         // 动态导入离线存储服务，避免循环依赖
-        const { offlineStorageService } = await import('../offline/offlineStorageService');
+        // 已移除 offlineStorageService 导入，现在直接使用 realmService
 
         if (onProgress) {
           onProgress({ stage: 'processing', progress: 87, message: '初始化存储服务...' });
         }
 
-        await offlineStorageService.initialize();
+        // realmService 不需要手动初始化
 
         if (onProgress) {
           onProgress({ stage: 'processing', progress: 90, message: '写入数据库...' });
         }
 
-        const result = await offlineStorageService.saveNote(noteData);
+        const realm = await realmService.getRealm();
+        let result;
+        realm.write(() => {
+          result = realm.create('Note', noteData);
+        });
         return result.note || noteData;
 
       }, {

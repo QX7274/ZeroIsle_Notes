@@ -3,8 +3,8 @@
  * 提供提醒相关的MongoDB存储功能
  */
 
-import { realmStorageService } from '../storage';
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 
 /**
  * 提醒MongoDB服务类
@@ -29,7 +29,7 @@ class ReminderMongoDBService {
     this.initializationPromise = new Promise(async (resolve, reject) => {
       try {
         // 初始化Realm存储服务
-        await realmStorageService.initialize();
+        // realmService 不需要手动初始化
 
         this.initialized = true;
         logService.info('提醒MongoDB服务初始化成功');
@@ -51,7 +51,9 @@ class ReminderMongoDBService {
   async getItem(key) {
     try {
       await this.initialize();
-      return await realmStorageService.getItem(key);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+      return item.length > 0 ? item[0].value : null;
     } catch (error) {
       logService.error(`获取提醒存储项目失败: ${key}`, error);
       return null;
@@ -67,7 +69,22 @@ class ReminderMongoDBService {
   async setItem(key, value) {
     try {
       await this.initialize();
-      return await realmStorageService.setItem(key, value);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = value;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: key,
+            value: value,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      return true;
     } catch (error) {
       logService.error(`设置提醒存储项目失败: ${key}`, error);
       return false;
@@ -82,7 +99,12 @@ class ReminderMongoDBService {
   async removeItem(key) {
     try {
       await this.initialize();
-      return await realmStorageService.removeItem(key);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (item.length > 0) realm.delete(item[0]);
+      });
+      return true;
     } catch (error) {
       logService.error(`删除提醒存储项目失败: ${key}`, error);
       return false;
@@ -96,7 +118,9 @@ class ReminderMongoDBService {
   async getAllReminders() {
     try {
       await this.initialize();
-      const reminders = await realmStorageService.getItem('all_reminders');
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "all_reminders"');
+      const reminders = item.length > 0 ? item[0].value : null;
       return Array.isArray(reminders) ? reminders : [];
     } catch (error) {
       logService.error('获取所有提醒失败', error);
@@ -112,7 +136,22 @@ class ReminderMongoDBService {
   async saveAllReminders(reminders) {
     try {
       await this.initialize();
-      return await realmStorageService.setItem('all_reminders', reminders);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered('key = "all_reminders"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(reminders);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: 'all_reminders',
+            value: JSON.stringify(reminders),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      return true;
     } catch (error) {
       logService.error('保存所有提醒失败', error);
       return false;
@@ -191,7 +230,9 @@ class ReminderMongoDBService {
   async getOfflineOperations() {
     try {
       await this.initialize();
-      const operations = await realmStorageService.getItem('offline_operations');
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered('key = "offline_operations"');
+      const operations = item.length > 0 ? item[0].value : null;
       return Array.isArray(operations) ? operations : [];
     } catch (error) {
       logService.error('获取离线操作失败', error);
@@ -216,7 +257,21 @@ class ReminderMongoDBService {
         timestamp: new Date().toISOString()
       });
 
-      return await realmStorageService.setItem('offline_operations', operations);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered('key = "offline_operations"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(operations);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: 'offline_operations',
+            value: JSON.stringify(operations),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      return true;
     } catch (error) {
       logService.error(`添加离线操作失败: ${operation}`, error);
       return false;

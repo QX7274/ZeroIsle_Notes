@@ -3,7 +3,7 @@
  * 用于在React组件中使用本地存储
  */
 import { useState, useEffect } from 'react';
-import { storageService } from '../services/storage';
+import realmService from '../services/database/realmService';
 
 /**
  * 本地存储钩子
@@ -20,7 +20,9 @@ function useLocalStorage(key, initialValue) {
   useEffect(() => {
     async function fetchStoredValue() {
       try {
-        const value = await storageService.getItem(key);
+        const realm = await realmService.getRealm();
+        const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        const value = item.length > 0 ? item[0].value : null;
         if (value !== null) {
           setStoredValue(JSON.parse(value));
         }
@@ -44,7 +46,21 @@ function useLocalStorage(key, initialValue) {
       setStoredValue(valueToStore);
 
       // 保存到存储
-      await storageService.setItem(key, JSON.stringify(valueToStore));
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(valueToStore);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: key,
+            value: JSON.stringify(valueToStore),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (error) {
       console.error(`Error saving to storage for key ${key}:`, error);
     }

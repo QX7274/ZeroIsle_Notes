@@ -8,7 +8,7 @@ import notesApi from '../../services/api/notesApi';
 if (!notesApi) {
   console.error('notesApi导入失败，请检查文件路径和导出');
 }
-import { offlineStorageService } from '../../services/offline/offlineStorageService';
+import realmService from '../../services/database/realmService';
 
 // 创建实体适配器，用于规范化状态
 const notesAdapter = createEntityAdapter({
@@ -45,7 +45,10 @@ const notesAdapter = createEntityAdapter({
 
     // 安全地比较日期字符串
     try {
-      return bDate.localeCompare(aDate); // 按更新时间降序排序
+      // 确保日期是字符串格式
+      const aDateStr = typeof aDate === 'string' ? aDate : new Date(aDate).toISOString();
+      const bDateStr = typeof bDate === 'string' ? bDate : new Date(bDate).toISOString();
+      return bDateStr.localeCompare(aDateStr); // 按更新时间降序排序
     } catch (error) {
       console.warn('日期比较失败:', error, { a, b });
       return 0; // 保持原有顺序
@@ -102,7 +105,10 @@ export const createNote = createAsyncThunk(
 
       // 1. 优先尝试保存到本地离线存储
       try {
-        await offlineStorageService.saveOfflineNote(offlineNote);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Note', offlineNote);
+        });
         console.log('离线笔记保存成功:', noteId);
       } catch (offlineError) {
         console.error('保存到离线存储失败，但继续尝试API保存:', offlineError);
@@ -118,9 +124,15 @@ export const createNote = createAsyncThunk(
         // 如果API保存成功，更新离线存储中的状态
         try {
           if (response && response.data) {
-            await offlineStorageService.updateOfflineNote(noteId, {
-              ...response.data,
-              isOffline: false
+            const realm = await realmService.getRealm();
+            realm.write(() => {
+              const note = realm.objectForPrimaryKey('Note', noteId);
+              if (note) {
+                Object.assign(note, {
+                  ...response.data,
+                  isOffline: false
+                });
+              }
             });
             console.log('更新离线存储中的笔记状态成功');
           }
@@ -286,7 +298,8 @@ export const syncOfflineNotes = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       // 获取所有离线笔记
-      const offlineNotes = await offlineStorageService.getAllOfflineNotes();
+      const realm = await realmService.getRealm();
+      const offlineNotes = realm.objects('Note').filtered('isOffline = true');
       let syncedCount = 0;
 
       // 批量同步离线笔记
@@ -298,9 +311,15 @@ export const syncOfflineNotes = createAsyncThunk(
             : await notesApi.createNote(note);
 
           // 同步成功后更新本地状态
-          await offlineStorageService.updateOfflineNote(note.id, {
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const note = realm.objectForPrimaryKey('Note', note.id);
+            if (note) {
+              Object.assign(note, {
             ...response,
-            isOffline: false
+                isOffline: false
+              });
+            }
           });
           syncedCount++;
         } catch (error) {

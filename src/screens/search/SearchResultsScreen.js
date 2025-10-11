@@ -221,7 +221,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
 
         case 'canvas':
           navigation.navigate('InfiniteCanvas', {
-            canvasId: result.id,
+            noteId: result.id,
             title: result.title || '无限草稿'
           });
           break;

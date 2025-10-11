@@ -9,42 +9,42 @@ class UniversalMemoryAllocator {
     this.allocatedMemory = new Map();
     this.memoryPools = new Map();
     this.totalAllocated = 0;
-    this.maxMemoryGB = 4; // 最大4GB内存
+    this.maxMemoryGB = 8; // 最大8GB内存
     this.memoryChunks = [];
     this.fileTypeMemoryRequirements = {
-      // 文档类型
-      'pdf': { multiplier: 2, maxMB: 1024 }, // PDF文件：2倍文件大小，最大1GB
-      'doc': { multiplier: 3, maxMB: 2048 }, // Word文档：3倍文件大小，最大2GB
-      'docx': { multiplier: 3, maxMB: 2048 },
-      'ppt': { multiplier: 3, maxMB: 2048 }, // PPT文件：3倍文件大小，最大2GB
-      'pptx': { multiplier: 3, maxMB: 2048 },
-      'xls': { multiplier: 2, maxMB: 1024 }, // Excel文件：2倍文件大小，最大1GB
-      'xlsx': { multiplier: 2, maxMB: 1024 },
+      // 文档类型 - 大幅提高内存限制
+      'pdf': { multiplier: 3, maxMB: 4096 }, // PDF文件：3倍文件大小，最大4GB
+      'doc': { multiplier: 4, maxMB: 8192 }, // Word文档：4倍文件大小，最大8GB
+      'docx': { multiplier: 4, maxMB: 8192 },
+      'ppt': { multiplier: 4, maxMB: 8192 }, // PPT文件：4倍文件大小，最大8GB
+      'pptx': { multiplier: 4, maxMB: 8192 },
+      'xls': { multiplier: 3, maxMB: 4096 }, // Excel文件：3倍文件大小，最大4GB
+      'xlsx': { multiplier: 3, maxMB: 4096 },
       
-      // 图片类型
-      'jpg': { multiplier: 1.5, maxMB: 512 }, // 图片文件：1.5倍文件大小，最大512MB
-      'jpeg': { multiplier: 1.5, maxMB: 512 },
-      'png': { multiplier: 1.5, maxMB: 512 },
-      'gif': { multiplier: 1.5, maxMB: 512 },
-      'bmp': { multiplier: 1.5, maxMB: 512 },
-      'webp': { multiplier: 1.5, maxMB: 512 },
+      // 图片类型 - 提高内存限制
+      'jpg': { multiplier: 2, maxMB: 2048 }, // 图片文件：2倍文件大小，最大2GB
+      'jpeg': { multiplier: 2, maxMB: 2048 },
+      'png': { multiplier: 2, maxMB: 2048 },
+      'gif': { multiplier: 2, maxMB: 2048 },
+      'bmp': { multiplier: 2, maxMB: 2048 },
+      'webp': { multiplier: 2, maxMB: 2048 },
       
-      // 视频类型
-      'mp4': { multiplier: 1.2, maxMB: 2048 }, // 视频文件：1.2倍文件大小，最大2GB
-      'avi': { multiplier: 1.2, maxMB: 2048 },
-      'mov': { multiplier: 1.2, maxMB: 2048 },
-      'mkv': { multiplier: 1.2, maxMB: 2048 },
+      // 视频类型 - 提高内存限制
+      'mp4': { multiplier: 1.5, maxMB: 4096 }, // 视频文件：1.5倍文件大小，最大4GB
+      'avi': { multiplier: 1.5, maxMB: 4096 },
+      'mov': { multiplier: 1.5, maxMB: 4096 },
+      'mkv': { multiplier: 1.5, maxMB: 4096 },
       
-      // 音频类型
-      'mp3': { multiplier: 1.1, maxMB: 256 }, // 音频文件：1.1倍文件大小，最大256MB
-      'wav': { multiplier: 1.1, maxMB: 256 },
-      'm4a': { multiplier: 1.1, maxMB: 256 },
-      'ogg': { multiplier: 1.1, maxMB: 256 },
+      // 音频类型 - 提高内存限制
+      'mp3': { multiplier: 1.5, maxMB: 1024 }, // 音频文件：1.5倍文件大小，最大1GB
+      'wav': { multiplier: 1.5, maxMB: 1024 },
+      'm4a': { multiplier: 1.5, maxMB: 1024 },
+      'ogg': { multiplier: 1.5, maxMB: 1024 },
       
-      // 文本类型
-      'txt': { multiplier: 1.5, maxMB: 128 }, // 文本文件：1.5倍文件大小，最大128MB
-      'md': { multiplier: 1.5, maxMB: 128 },
-      'json': { multiplier: 1.5, maxMB: 128 },
+      // 文本类型 - 提高内存限制
+      'txt': { multiplier: 2, maxMB: 512 }, // 文本文件：2倍文件大小，最大512MB
+      'md': { multiplier: 2, maxMB: 512 },
+      'json': { multiplier: 2, maxMB: 512 },
       'xml': { multiplier: 1.5, maxMB: 128 },
       
       // 代码类型

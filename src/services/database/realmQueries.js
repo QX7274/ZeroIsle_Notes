@@ -3,7 +3,7 @@
  * 提供优化的Realm 查询方法
  */
 
-import { realmService } from './realmService';
+import realmService from './realmService';
 
 
 /**

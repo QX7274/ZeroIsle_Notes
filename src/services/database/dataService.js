@@ -4,7 +4,7 @@
  */
 
 import { mongoDBService } from './mongoDBAdapter';
-import { realmService } from './realmService';
+import realmService from './realmService';
 import { networkService } from '../network/networkService';
 import { offlineSyncService } from '../offline/offlineSyncService';
 

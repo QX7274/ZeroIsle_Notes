@@ -20,7 +20,14 @@ import NotificationSettingsScreen from '../screens/settings/NotificationSettings
 import AboutScreen from '../screens/settings/AboutScreen';
 import HelpScreen from '../screens/settings/HelpScreen';
 import AIAssistantSettingsScreen from '../screens/settings/AIAssistantSettingsScreen';
+import SyncSettingsScreen from '../screens/settings/SyncSettingsScreen';
 import { ThemeCustomizationScreen } from '../screens/theme';
+
+// 导入功能中心相关导航器和屏幕
+import ReminderNavigator from './ReminderNavigator';
+import GroupsNavigator from './GroupsNavigator';
+import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
+import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 
 const Stack = createStackNavigator();
 
@@ -101,6 +108,11 @@ const ProfileNavigator = () => {
         component={OfflineDataScreen}
         options={{ title: '离线数据', headerShown: false }}
       />
+      <Stack.Screen
+        name="SyncSettings"
+        component={SyncSettingsScreen}
+        options={{ title: '数据同步', headerShown: false }}
+      />
       {/* 备份与恢复功能已移除 */}
       <Stack.Screen
         name="NotificationSettings"
@@ -116,6 +128,56 @@ const ProfileNavigator = () => {
         name="Help"
         component={HelpScreen}
         options={{ title: '帮助与反馈', headerShown: false }}
+      />
+      {/* 功能中心相关屏幕 */}
+      <Stack.Screen
+        name="Reminder"
+        component={ReminderNavigator}
+        options={{ title: '日程', headerShown: false }}
+      />
+      <Stack.Screen
+        name="Groups"
+        component={GroupsNavigator}
+        options={{ title: '群组', headerShown: false }}
+      />
+      <Stack.Screen
+        name="MindMap"
+        component={MindMapScreen}
+        options={{ title: '思维导图' }}
+      />
+      <Stack.Screen
+        name="MindMapEdit"
+        component={MindMapEditScreen}
+        options={{ title: '编辑思维导图', headerShown: false }}
+      />
+      <Stack.Screen
+        name="MindMapTemplate"
+        component={MindMapTemplateScreen}
+        options={{ title: '思维导图模板' }}
+      />
+      <Stack.Screen
+        name="KnowledgeGraph"
+        component={KnowledgeGraphScreen}
+        options={{ title: '知识图谱' }}
+      />
+      <Stack.Screen
+        name="NodeDetail"
+        component={NodeDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.title || '节点详情',
+        })}
+      />
+      <Stack.Screen
+        name="EdgeEdit"
+        component={EdgeEditScreen}
+        options={({ route }) => ({
+          title: route.params?.edgeId ? '编辑关系' : '创建关系',
+        })}
+      />
+      <Stack.Screen
+        name="KnowledgeAnalysis"
+        component={KnowledgeAnalysisScreen}
+        options={{ title: '知识分析' }}
       />
     </Stack.Navigator>
   );

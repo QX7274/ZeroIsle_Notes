@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { OfflineQueueModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { OfflineQueue } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 
 /**
  * 将后端离线队列模型转换为前端离线队列对象
@@ -91,7 +92,11 @@ export const createQueueItem = async (queueData) => {
     };
     
     // 创建队列模型
-    const queue = await OfflineQueueModel.create(backendQueue);
+    const realm = await realmService.getRealm();
+    let queue;
+    realm.write(() => {
+      queue = realm.create('OfflineQueue', backendQueue);
+    });
     
     // 返回前端队列对象
     return toFrontendQueue(queue);
@@ -110,7 +115,8 @@ export const createQueueItem = async (queueData) => {
 export const updateQueueItem = async (queueId, queueData) => {
   try {
     // 查找队列项
-    const queue = await OfflineQueueModel.findById(queueId);
+    const realm = await realmService.getRealm();
+    const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
     
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
@@ -148,7 +154,8 @@ export const updateQueueItem = async (queueId, queueData) => {
 export const deleteQueueItem = async (queueId) => {
   try {
     // 查找队列项
-    const queue = await OfflineQueueModel.findById(queueId);
+    const realm = await realmService.getRealm();
+    const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
     
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
@@ -172,7 +179,8 @@ export const deleteQueueItem = async (queueId) => {
 export const getQueueItem = async (queueId) => {
   try {
     // 查找队列项
-    const queue = await OfflineQueueModel.findById(queueId);
+    const realm = await realmService.getRealm();
+    const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
     
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
@@ -195,11 +203,18 @@ export const getQueueItem = async (queueId) => {
 export const getPendingQueueItems = async (userId, options = {}) => {
   try {
     // 查找待同步的队列项
-    const queueItems = await OfflineQueueModel.find({
-      user_id: userId,
-      status: 'pending',
-      ...options,
-    });
+    const realm = await realmService.getRealm();
+    let queueItems = realm.objects('OfflineQueue').filtered(`user_id = "${userId}" AND status = "pending"`);
+    
+    // 应用排序
+    if (options.sortBy) {
+      queueItems = queueItems.sorted(options.sortBy, options.sortOrder === 'desc');
+    }
+    
+    // 应用分页
+    if (options.limit) {
+      queueItems = queueItems.slice(0, options.limit);
+    }
     
     // 返回前端队列对象列表
     return queueItems.map(toFrontendQueue);
@@ -235,7 +250,8 @@ export const markAsSynced = async (queueId) => {
 export const markAsFailed = async (queueId, error) => {
   try {
     // 查找队列项
-    const queue = await OfflineQueueModel.findById(queueId);
+    const realm = await realmService.getRealm();
+    const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
     
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
@@ -271,10 +287,12 @@ export const cleanupSyncedItems = async (userId, days = 7) => {
     cutoffDate.setDate(cutoffDate.getDate() - days);
     
     // 删除已同步的队列项
-    const result = await OfflineQueueModel.deleteMany({
-      user_id: userId,
-      status: 'synced',
-      synced_at: { $lt: cutoffDate },
+    const realm = await realmService.getRealm();
+    let result = 0;
+    realm.write(() => {
+      const itemsToDelete = realm.objects('OfflineQueue').filtered(`user_id = "${userId}" AND status = "synced" AND synced_at < $0`, cutoffDate);
+      result = itemsToDelete.length;
+      realm.delete(itemsToDelete);
     });
     
     return result.deletedCount;

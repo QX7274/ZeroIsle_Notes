@@ -4,6 +4,7 @@
  */
 
 // 导入API服务
+import { apiWrapper } from '../api';
 import authApi from './authApi';
 import notesApi from './notesApi';
 import knowledgeGraphApi from './knowledgeGraphApi';
@@ -61,5 +62,6 @@ export default {
   drawingPath: drawingPathApi,
   tag: tagApi,
   file: fileApi,
-  category: categoryApi
+  category: categoryApi,
+  apiWrapper
 };

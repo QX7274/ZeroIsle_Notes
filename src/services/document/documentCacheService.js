@@ -4,7 +4,7 @@
  */
 
 import RNFS from 'react-native-fs';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 class DocumentCacheService {
   constructor() {

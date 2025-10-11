@@ -5,10 +5,10 @@
 import axios from 'axios';
 import NetInfo from '@react-native-community/netinfo';
 import { Alert } from 'react-native';
-import { offlineStorageService } from './offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 import { authService } from './auth';
-import { storageService } from './storage';
-import * as apiService from './api/apiService';
+import realmService from './database/realmService';
+import * as apiService from './api/apiClient';
 import networkErrorService from './networkErrorService';
 
 // 创建axios实例
@@ -106,7 +106,9 @@ const notesApi = {
       const networkState = await notesApi.checkNetwork();
       if (!networkState.isConnected) {
         // 尝试从本地获取缓存数据
-        const cachedData = await offlineStorageService.getApiCache(url);
+        const realm = await realmService.getRealm();
+        const item = realm.objects('StorageItem').filtered(`key = "api_cache_${url}"`);
+        const cachedData = item.length > 0 ? item[0].value : null;
         if (cachedData) {
           return cachedData;
         }
@@ -117,7 +119,21 @@ const notesApi = {
       const response = await apiInstance.get(url, { params });
 
       // 缓存GET请求结果
-      await offlineStorageService.cacheApiResponse(url, response);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "api_cache_${url}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(response);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: `api_cache_${url}`,
+            value: JSON.stringify(response),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       return response;
     } catch (error) {
@@ -138,11 +154,14 @@ const notesApi = {
       const networkState = await notesApi.checkNetwork();
       if (!networkState.isConnected) {
         // 离线状态下，将请求加入待同步队列
-        await offlineStorageService.addPendingRequest({
-          method: 'post',
-          url,
-          data,
-          config
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('OfflineQueue', {
+            method: 'post',
+            url,
+            data,
+            config
+          });
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
       }
@@ -165,10 +184,13 @@ const notesApi = {
       const networkState = await notesApi.checkNetwork();
       if (!networkState.isConnected) {
         // 离线状态下，将请求加入待同步队列
-        await offlineStorageService.addPendingRequest({
-          method: 'put',
-          url,
-          data
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('OfflineQueue', {
+            method: 'put',
+            url,
+            data
+          });
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
       }
@@ -190,9 +212,12 @@ const notesApi = {
       const networkState = await notesApi.checkNetwork();
       if (!networkState.isConnected) {
         // 离线状态下，将请求加入待同步队列
-        await offlineStorageService.addPendingRequest({
-          method: 'delete',
-          url
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('OfflineQueue', {
+            method: 'delete',
+            url
+          });
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
       }
@@ -215,7 +240,8 @@ const notesApi = {
         throw new Error('无网络连接，无法同步数据');
       }
 
-      const pendingRequests = await storageService.getPendingRequests();
+      const realm = await realmService.getRealm();
+      const pendingRequests = realm.objects('OfflineQueue').filtered('status = "pending"');
       const syncResults = [];
 
       for (const request of pendingRequests) {
@@ -236,7 +262,11 @@ const notesApi = {
           }
 
           // 同步成功，从队列中移除
-          await offlineStorageService.removePendingRequest(request.id);
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const item = realm.objects('OfflineQueue').filtered(`entity_id = "${request.id}"`);
+            if (item.length > 0) realm.delete(item[0]);
+          });
           syncResults.push({
             id: request.id,
             url: request.url,
@@ -342,4 +372,5 @@ NetInfo.addEventListener(state => {
   }
 });
 
+export { apiWrapper };
 export default notesApi;

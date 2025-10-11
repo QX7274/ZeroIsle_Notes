@@ -3,8 +3,12 @@
  * 提供笔记相关的AI功能，如文本翻译、代码识别、公式识别等
  */
 
-import { aiService } from '../ai/aiService';
+import axios from 'axios';
+import { API_ENDPOINTS } from '../../config/api';
+import { API_BASE_URL } from '../../config/api';
 import { networkService } from '../network/networkService';
+import { logService } from '../../utils/logService';
+import authStorage from '../auth/authStorage';
 
 /**
  * 笔记AI服务
@@ -12,6 +16,7 @@ import { networkService } from '../network/networkService';
 class NoteAIService {
   constructor() {
     this.initialized = false;
+    this.apiClient = null;
   }
 
   /**
@@ -21,12 +26,34 @@ class NoteAIService {
     if (this.initialized) return;
 
     try {
+      // 创建API客户端
+      this.apiClient = axios.create({
+        baseURL: API_BASE_URL,
+        timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+
+      // 添加请求拦截器，自动添加认证令牌
+      this.apiClient.interceptors.request.use(
+        async (config) => {
+          const token = await authStorage.getAccessToken();
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+          return config;
+        },
+        (error) => Promise.reject(error)
+      );
+
       // 检查网络状态
       this.isOnline = networkService.isOnline();
       this.initialized = true;
-      console.info('笔记AI服务初始化成功');
+      logService.info('笔记AI服务初始化成功');
     } catch (error) {
-      console.error('笔记AI服务初始化失败', error);
+      logService.error('笔记AI服务初始化失败', error);
       throw error;
     }
   }
@@ -42,16 +69,25 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const translatedText = await aiService.translateText(text, targetLang);
-        return { translated_text: translatedText, source_text: text };
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.TRANSLATE, {
+          text,
+          target_language: targetLang
+        });
+
+        return { 
+          translated_text: response.data.translated_text || response.data.result,
+          source_text: text 
+        };
       } else {
         // 离线模式：返回原文本
+        logService.warn('离线模式：无法翻译文本');
         return { translated_text: text, source_text: text };
       }
     } catch (error) {
-      console.error('文本翻译失败', error);
-      throw error;
+      logService.error('文本翻译失败', error);
+      // 降级处理：返回原文本
+      return { translated_text: text, source_text: text, error: error.message };
     }
   }
 
@@ -65,30 +101,52 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const prompt = `识别并格式化以下代码，返回JSON格式，包含language（编程语言）和formatted_code（格式化后的代码）字段：\n\n${text}`;
-        const response = await aiService.chat(prompt);
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: 'code_recognition'
+        });
 
+        const result = response.data.result;
+        
+        // 尝试解析JSON响应
         try {
-          // 尝试解析JSON响应
-          return JSON.parse(response);
+          if (typeof result === 'string') {
+            const parsed = JSON.parse(result);
+            return {
+              language: parsed.language || 'unknown',
+              formatted_code: parsed.formatted_code || result,
+              raw_result: result
+            };
+          }
+          return {
+            language: result.language || 'unknown',
+            formatted_code: result.formatted_code || text,
+            raw_result: result
+          };
         } catch (parseError) {
           // 如果解析失败，返回原始响应
           return {
             language: 'unknown',
-            formatted_code: response
+            formatted_code: result || text,
+            raw_result: result
           };
         }
       } else {
         // 离线模式：返回简单的代码识别结果
+        logService.warn('离线模式：无法识别代码');
         return {
           language: 'unknown',
           formatted_code: text
         };
       }
     } catch (error) {
-      console.error('代码识别失败', error);
-      throw error;
+      logService.error('代码识别失败', error);
+      return {
+        language: 'unknown',
+        formatted_code: text,
+        error: error.message
+      };
     }
   }
 
@@ -102,30 +160,52 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const prompt = `识别以下数学公式，并转换为LaTeX格式，返回JSON格式，包含latex（LaTeX代码）和rendered（渲染后的公式，如果可能）字段：\n\n${text}`;
-        const response = await aiService.chat(prompt);
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: 'math_formula'
+        });
 
+        const result = response.data.result;
+
+        // 尝试解析JSON响应
         try {
-          // 尝试解析JSON响应
-          return JSON.parse(response);
+          if (typeof result === 'string') {
+            const parsed = JSON.parse(result);
+            return {
+              latex: parsed.latex || result,
+              rendered: parsed.rendered || null,
+              raw_result: result
+            };
+          }
+          return {
+            latex: result.latex || result,
+            rendered: result.rendered || null,
+            raw_result: result
+          };
         } catch (parseError) {
           // 如果解析失败，返回原始响应
           return {
-            latex: response,
-            rendered: null
+            latex: result || text,
+            rendered: null,
+            raw_result: result
           };
         }
       } else {
         // 离线模式：返回简单的数学公式识别结果
+        logService.warn('离线模式：无法识别数学公式');
         return {
           latex: text,
           rendered: null
         };
       }
     } catch (error) {
-      console.error('数学公式识别失败', error);
-      throw error;
+      logService.error('数学公式识别失败', error);
+      return {
+        latex: text,
+        rendered: null,
+        error: error.message
+      };
     }
   }
 
@@ -139,16 +219,25 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const summary = await aiService.summarizeText(text);
-        return { result: summary, source_text: text };
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.SUMMARIZE, {
+          text
+        });
+
+        return { 
+          result: response.data.summary || response.data.result,
+          source_text: text 
+        };
       } else {
         // 离线模式：返回简单摘要
-        return { result: text.substring(0, 100) + '...', source_text: text };
+        logService.warn('离线模式：无法生成摘要');
+        const summary = text.length > 100 ? text.substring(0, 100) + '...' : text;
+        return { result: summary, source_text: text };
       }
     } catch (error) {
-      console.error('文本摘要失败', error);
-      throw error;
+      logService.error('文本摘要失败', error);
+      const summary = text.length > 100 ? text.substring(0, 100) + '...' : text;
+      return { result: summary, source_text: text, error: error.message };
     }
   }
 
@@ -162,26 +251,49 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const prompt = `从以下文本中提取关键词，返回JSON格式，包含keywords（关键词数组）字段：\n\n${text}`;
-        const response = await aiService.chat(prompt);
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: 'extract_keywords'
+        });
 
+        const result = response.data.result;
+
+        // 尝试解析JSON响应
         try {
-          // 尝试解析JSON响应
-          return JSON.parse(response);
+          if (typeof result === 'string') {
+            // 尝试解析为JSON
+            const parsed = JSON.parse(result);
+            if (parsed.keywords && Array.isArray(parsed.keywords)) {
+              return { keywords: parsed.keywords, source_text: text };
+            }
+            // 如果不是预期格式，尝试分割字符串
+            const keywords = result.split(/[,，、\n]/).map(k => k.trim()).filter(k => k);
+            return { keywords, source_text: text };
+          }
+          
+          if (result.keywords && Array.isArray(result.keywords)) {
+            return { keywords: result.keywords, source_text: text };
+          }
+
+          // 尝试从字符串中提取关键词
+          const keywords = String(result).split(/[,，、\n]/).map(k => k.trim()).filter(k => k);
+          return { keywords, source_text: text };
         } catch (parseError) {
           // 如果解析失败，尝试从文本中提取关键词
-          const keywords = response.split(/[,，、\n]/).map(k => k.trim()).filter(k => k);
+          const keywords = result.split(/[,，、\n]/).map(k => k.trim()).filter(k => k);
           return { keywords, source_text: text };
         }
       } else {
         // 离线模式：返回简单关键词
+        logService.warn('离线模式：无法提取关键词');
         const words = text.split(/\s+/).slice(0, 5);
         return { keywords: words, source_text: text };
       }
     } catch (error) {
-      console.error('关键词提取失败', error);
-      throw error;
+      logService.error('关键词提取失败', error);
+      const words = text.split(/\s+/).slice(0, 5);
+      return { keywords: words, source_text: text, error: error.message };
     }
   }
 
@@ -195,16 +307,28 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const explanation = await aiService.chat(`请解释以下内容：\n\n${text}`);
-        return { result: explanation, source_text: text };
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: 'explain'
+        });
+
+        return { 
+          result: response.data.result,
+          source_text: text 
+        };
       } else {
         // 离线模式：返回简单解释
+        logService.warn('离线模式：无法提供解释');
         return { result: '离线模式下无法提供详细解释', source_text: text };
       }
     } catch (error) {
-      console.error('文本解释失败', error);
-      throw error;
+      logService.error('文本解释失败', error);
+      return { 
+        result: '解释失败，请稍后重试', 
+        source_text: text, 
+        error: error.message 
+      };
     }
   }
 
@@ -218,16 +342,24 @@ class NoteAIService {
       await this.initialize();
 
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const rewritten = await aiService.chat(`请改写以下文本，保持原意但使用不同的表达方式：\n\n${text}`);
-        return { result: rewritten, source_text: text };
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: 'rewrite'
+        });
+
+        return { 
+          result: response.data.result,
+          source_text: text 
+        };
       } else {
         // 离线模式：返回原文本
+        logService.warn('离线模式：无法改写文本');
         return { result: text, source_text: text };
       }
     } catch (error) {
-      console.error('文本改写失败', error);
-      throw error;
+      logService.error('文本改写失败', error);
+      return { result: text, source_text: text, error: error.message };
     }
   }
 
@@ -241,32 +373,26 @@ class NoteAIService {
     try {
       await this.initialize();
 
-      let prompt = '';
-
-      // 根据工具ID生成不同的提示
-      switch (toolId) {
-        case 'grammar':
-          prompt = `请检查以下文本的语法和拼写错误，并提供修正后的版本：\n\n${text}`;
-          break;
-        case 'simplify':
-          prompt = `请简化以下文本，使其更容易理解，但保持原意：\n\n${text}`;
-          break;
-        default:
-          prompt = `请处理以下文本（${toolId}）：\n\n${text}`;
-          break;
-      }
-
       if (this.isOnline) {
-        // 在线模式：使用AI服务
-        const result = await aiService.chat(prompt);
-        return { result, source_text: text };
+        // 在线模式：调用后端API
+        const response = await this.apiClient.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, {
+          text,
+          tool: toolId
+        });
+
+        return { 
+          result: response.data.result,
+          source_text: text,
+          tool: toolId
+        };
       } else {
         // 离线模式：返回简单处理结果
-        return { result: text, source_text: text };
+        logService.warn(`离线模式：无法处理文本(${toolId})`);
+        return { result: text, source_text: text, tool: toolId };
       }
     } catch (error) {
-      console.error(`文本处理失败(${toolId})`, error);
-      throw error;
+      logService.error(`文本处理失败(${toolId})`, error);
+      return { result: text, source_text: text, tool: toolId, error: error.message };
     }
   }
 }

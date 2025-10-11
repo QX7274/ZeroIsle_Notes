@@ -6,7 +6,7 @@
 import { STORAGE_KEYS } from '../../config';
 import { TOKEN_CONFIG } from '../../config';
 import { AUTH_CONFIG } from './authConfig';
-import realmStorageService from '../storage/realmStorageService';
+import realmService from '../database/realmService';
 import axios from 'axios';
 
 // 创建用于刷新令牌的axios实例
@@ -34,7 +34,7 @@ class TokenService {
     if (this.initialized) return;
 
     try {
-      await realmStorageService.initialize();
+      // realmService 不需要手动初始化
       this.initialized = true;
       console.log('TokenService初始化成功');
     } catch (error) {
@@ -62,7 +62,21 @@ class TokenService {
         created_at: now.toISOString()
       };
 
-      await realmStorageService.setItem(STORAGE_KEYS.AUTH_TOKEN, tokenData);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(tokenData);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.AUTH_TOKEN,
+            value: JSON.stringify(tokenData),
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       console.log('访问令牌保存成功');
       return true;
     } catch (error) {
@@ -90,7 +104,21 @@ class TokenService {
         created_at: now.toISOString()
       };
 
-      await realmStorageService.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshTokenData);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(refreshTokenData);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.REFRESH_TOKEN,
+            value: JSON.stringify(refreshTokenData),
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       console.log('刷新令牌保存成功');
       return true;
     } catch (error) {
@@ -108,7 +136,9 @@ class TokenService {
       await this.initialize();
 
       // 获取令牌对象
-      const tokenData = await realmStorageService.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
+      const tokenData = item.length > 0 ? JSON.parse(item[0].value) : null;
 
       if (tokenData && tokenData.token) {
         console.log('获取到访问令牌:', tokenData.token.substring(0, 10) + '...');
@@ -145,7 +175,9 @@ class TokenService {
   async getRefreshToken() {
     try {
       await this.initialize();
-      return await realmStorageService.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
+      return item.length > 0 ? JSON.parse(item[0].value) : null;
     } catch (error) {
       console.error('获取刷新令牌失败:', error);
       return null;
@@ -260,9 +292,20 @@ class TokenService {
       await this.initialize();
 
       // 清除所有令牌相关的存储
-      await realmStorageService.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      await realmStorageService.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-      await realmStorageService.removeItem(STORAGE_KEYS.AUTH_EXPIRED);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        // 删除访问令牌
+        const authTokenItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
+        if (authTokenItem.length > 0) realm.delete(authTokenItem[0]);
+        
+        // 删除刷新令牌
+        const refreshTokenItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
+        if (refreshTokenItem.length > 0) realm.delete(refreshTokenItem[0]);
+        
+        // 删除过期标记
+        const expiredItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_EXPIRED}"`);
+        if (expiredItem.length > 0) realm.delete(expiredItem[0]);
+      });
 
       console.log('所有令牌已清除');
       return true;

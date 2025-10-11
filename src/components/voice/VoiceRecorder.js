@@ -58,12 +58,8 @@ const VoiceRecorder = ({
   // 初始化AudioRecorderPlayer
   useEffect(() => {
     try {
-      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
-        audioRecorderPlayer.current = new AudioRecorderPlayer();
-        console.log('VoiceRecorder: AudioRecorderPlayer初始化成功');
-      } else {
-        console.warn('VoiceRecorder: AudioRecorderPlayer模块不可用或不是构造函数');
-      }
+      audioRecorderPlayer.current = new AudioRecorderPlayer();
+      console.log('VoiceRecorder: AudioRecorderPlayer初始化成功');
     } catch (error) {
       console.warn('VoiceRecorder: AudioRecorderPlayer初始化失败:', error);
     }

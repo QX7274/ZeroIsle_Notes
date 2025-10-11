@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from './Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
 
 /**
  * 离线状态指示器组件
@@ -24,7 +24,7 @@ const OfflineIndicator = ({ onPress, style }) => {
   const { colors, dimensions } = theme;
 
   // 状态
-  const [status, setStatus] = useState(offlineStorageService.getStatus());
+  const [status, setStatus] = useState({ isOnline: true });
   const [expanded, setExpanded] = useState(false);
 
   // 动画值
@@ -32,25 +32,25 @@ const OfflineIndicator = ({ onPress, style }) => {
   const animatedOpacity = new Animated.Value(0);
   const syncIconRotation = new Animated.Value(0);
 
-  // 监听离线存储服务状态变化
+  // 监听网络状态变化
   useEffect(() => {
-    const unsubscribe = offlineStorageService.addListener(event => {
-      if (['connectionChange', 'offlineModeChange', 'syncStarted', 'syncCompleted', 'syncError', 'pendingOperationAdded'].includes(event.type)) {
-        setStatus(offlineStorageService.getStatus());
+    const checkNetworkStatus = async () => {
+      try {
+        const networkStatus = await notesApi.checkNetwork();
+        setStatus(networkStatus);
+      } catch (error) {
+        console.error('检查网络状态失败:', error);
+        setStatus({ isOnline: false });
       }
+    };
 
-      // 如果同步开始，启动旋转动画
-      if (event.type === 'syncStarted') {
-        startRotationAnimation();
-      }
+    // 初始检查
+    checkNetworkStatus();
 
-      // 如果同步完成或出错，停止旋转动画
-      if (event.type === 'syncCompleted' || event.type === 'syncError') {
-        stopRotationAnimation();
-      }
-    });
+    // 定期检查网络状态
+    const interval = setInterval(checkNetworkStatus, 30000); // 每30秒检查一次
 
-    return () => unsubscribe();
+    return () => clearInterval(interval);
   }, []);
 
   // 展开/收起动画
@@ -123,7 +123,8 @@ const OfflineIndicator = ({ onPress, style }) => {
     if (status.syncStatus === 'syncing') return;
 
     try {
-      await offlineStorageService.manualSync();
+      // 手动同步功能已移除，现在使用 realmService
+      console.log('手动同步功能已移除');
     } catch (error) {
       console.error('手动同步失败:', error);
     }

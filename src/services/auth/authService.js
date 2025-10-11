@@ -3,10 +3,10 @@
  * 使用MongoDB Realm进行用户认证
  */
 
-import { realmService } from '../database/realmService';
+import realmService from '../database/realmService';
 import authStorage from './authStorage';
 import { STORAGE_KEYS } from '../../utils/constants/config';
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 class AuthService {
   constructor() {

@@ -251,7 +251,7 @@ export const createNote = async (noteData, userId) => {
     };
     
     // 创建笔记模型
-    const note = await NoteModel.create(backendNote);
+    const note = await Note.create(backendNote);
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({

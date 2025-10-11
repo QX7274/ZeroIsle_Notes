@@ -17,7 +17,8 @@ import nativeAudioService from '../../services/audio/nativeAudioService';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { addNote, updateOneNote } from '../../redux/slices/notesSlice';
-import { offlineStorageService } from '../../services/offline';
+// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import realmService from '../../services/database/realmService';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 // 删除复杂的组件，使用简单的TextInput
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -157,7 +158,8 @@ const CardNoteScreen = ({ route, navigation }) => {
           console.log('CardNoteScreen: 尝试加载现有笔记:', noteId);
           
           // 尝试从离线存储加载笔记
-          const existingNote = await offlineStorageService.getNote(noteId);
+          const realm = await realmService.getRealm();
+          const existingNote = realm.objectForPrimaryKey('Note', noteId);
           
           if (isMounted && existingNote) {
             console.log('CardNoteScreen: 找到现有笔记:', existingNote.title);
@@ -266,7 +268,11 @@ const CardNoteScreen = ({ route, navigation }) => {
       };
 
       // 保存到离线存储
-      const saveResult = await offlineStorageService.saveNote(newNote);
+      const realm = await realmService.getRealm();
+      let saveResult;
+      realm.write(() => {
+        saveResult = realm.create('Note', newNote);
+      });
       
       if (saveResult.success) {
         // 更新Redux store
@@ -358,6 +364,26 @@ const CardNoteScreen = ({ route, navigation }) => {
     };
   }, [noteId, title]);
 
+  // ✅ 监听屏幕焦点变化，失焦时保存数据
+  useEffect(() => {
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      console.log('[CardNoteScreen] 屏幕获得焦点');
+    });
+    
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      console.log('[CardNoteScreen] 屏幕失去焦点，保存数据...');
+      // 失焦时保存数据
+      if (noteId && (title.trim() || content.trim())) {
+        saveNote().catch(err => console.error('[CardNoteScreen] 失焦保存失败:', err));
+      }
+    });
+    
+    return () => {
+      unsubscribeFocus();
+      unsubscribeBlur();
+    };
+  }, [navigation, noteId, title, content]);
+  
   // 组件卸载时的清理函数
   useEffect(() => {
     return () => {
@@ -377,13 +403,13 @@ const CardNoteScreen = ({ route, navigation }) => {
         stopSpeechRecognition();
       }
       
-      // 保存当前笔记 - 只有在有noteId且有内容时才保存，避免创建重复笔记
+      // ✅ 组件卸载时保存 - 只有在有noteId且有内容时才保存
+      console.log('[CardNoteScreen] 组件卸载，保存数据...');
       if (noteId && (title.trim() || content.trim())) {
-        saveNote().catch(err => console.warn('组件卸载时保存笔记失败:', err));
+        saveNote().catch(err => console.warn('[CardNoteScreen] 组件卸载时保存笔记失败:', err));
       }
-      // 移除没有noteId时的保存逻辑，避免创建重复笔记
     };
-  }, []);
+  }, [noteId, title, content, isRecording, isListening]);
 
   // 初始化语音识别
   useEffect(() => {
@@ -474,7 +500,11 @@ const CardNoteScreen = ({ route, navigation }) => {
         uri: `card://${currentNoteId}`
       };
 
-      const result = await offlineStorageService.saveNote(noteData);
+      const realm = await realmService.getRealm();
+      let result;
+      realm.write(() => {
+        result = realm.create('Note', noteData);
+      });
       
       if (result.success) {
         // 使用保存后返回的笔记数据，确保ID字段一致

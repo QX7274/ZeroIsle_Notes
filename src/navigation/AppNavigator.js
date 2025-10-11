@@ -32,20 +32,19 @@ import { ThemeCustomizationScreen } from '../screens/theme';
 import { AnalyticsScreen } from '../screens/analytics';
 import { GroupScreen } from '../screens/groups';
 import { CodeEditorScreen } from '../screens/code';
-// 导入文件查看器组件
-import PDFViewer from '../screens/viewers/PDFViewer';
+// 导入文件查看器组件（直接使用原生实现）
+import PDFViewerNative from '../screens/viewers/PDFViewerNative';
 import DocViewer from '../screens/viewers/DocViewer';
 import MarkdownViewer from '../screens/viewers/MarkdownViewer';
 import PPTViewer from '../screens/viewers/PPTViewer';
-import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
-import SkiaPagedCanvasScreen from '../screens/note/SkiaPagedCanvasScreen';
+import FluidInfiniteCanvasScreenNative from '../screens/canvas/FluidInfiniteCanvasScreenNative';
+import SkiaPagedCanvasScreenNative from '../screens/note/SkiaPagedCanvasScreenNative';
 import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
 import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
 import ApiTest from '../screens/community/ApiTest';
-import NetworkErrorTestScreen from '../screens/test/NetworkErrorTestScreen';
 import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 // 导入知识图谱相关组件
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
@@ -63,7 +62,7 @@ const getTabBarStyle = (route, colors) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
 
   // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'FluidPagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote'];
+  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'FluidPagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote', 'Settings'];
 
   // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
   if (hideTabBarScreens.includes(routeName)) {
@@ -317,30 +316,12 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="CategoryStack"
-        component={CategoryStack}
-        options={{
-          headerShown: false,
-          title: '分类',
-          tabBarLabel: '分类',
-        }}
-      />
-      <Tab.Screen
-        name="ReminderStack"
-        component={ReminderNavigator}
-        options={{
-          headerShown: false,
-          title: '日程',
-          tabBarLabel: '日程',
-        }}
-      />
-      <Tab.Screen
         name="AIAssistant"
         component={AIAssistantNavigator}
         options={{
           headerShown: false,
-          title: 'AI助手',
-          tabBarLabel: 'AI助手',
+          title: 'AI',
+          tabBarLabel: 'AI',
         }}
       />
       <Tab.Screen
@@ -350,33 +331,6 @@ const MainTabs = () => {
           headerShown: false,
           title: '社区',
           tabBarLabel: '社区',
-        }}
-      />
-      <Tab.Screen
-        name="GroupsStack"
-        component={GroupsNavigator}
-        options={{
-          headerShown: false,
-          title: '群组',
-          tabBarLabel: '群组',
-        }}
-      />
-      <Tab.Screen
-        name="MindMapStack"
-        component={MindMapStack}
-        options={{
-          headerShown: false,
-          title: '思维导图',
-          tabBarLabel: '思维导图',
-        }}
-      />
-      <Tab.Screen
-        name="KnowledgeGraph"
-        component={KnowledgeGraphStack}
-        options={{
-          headerShown: false,
-          title: '知识图谱',
-          tabBarLabel: '知识图谱',
         }}
       />
       <Tab.Screen
@@ -452,6 +406,14 @@ const HomeStack = () => {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="Category"
+        component={CategoryScreen}
+        options={{
+          title: '分类',
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
         name="SearchResults"
         component={SearchResultsScreen}
         options={{
@@ -517,7 +479,7 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="InfiniteCanvas"
-        component={FluidInfiniteCanvasScreen}
+        component={FluidInfiniteCanvasScreenNative}
         options={({ route }) => ({
           title: route.params?.title || '无限画布',
           headerShown: false,
@@ -526,7 +488,7 @@ const HomeStack = () => {
       />
       <Stack.Screen
         name="FluidPagedNote"
-        component={SkiaPagedCanvasScreen}
+        component={SkiaPagedCanvasScreenNative}
         options={({ route }) => ({
           title: route.params?.title || '分页笔记',
           headerShown: false,
@@ -557,25 +519,13 @@ const HomeStack = () => {
       {/* 增强型文件查看器组件 */}
       <Stack.Screen
         name="PDFViewer"
-        component={PDFViewer}
+        component={PDFViewerNative}
         options={({ navigation, route }) => ({
           title: route.params?.title || 'PDF查看器',
           headerShown: false, // 隐藏头部导航栏，实现全屏显示
           gestureEnabled: true, // 启用手势返回
-          cardStyleInterpolator: ({ current, layouts }) => {
-            return {
-              cardStyle: {
-                transform: [
-                  {
-                    translateX: current.progress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [layouts.screen.width, 0],
-                    }),
-                  },
-                ],
-              },
-            };
-          },
+          // 使用默认的卡片动画，避免过渡期间显示主页内容
+          presentation: 'card',
         })}
       />
       <Stack.Screen
@@ -855,14 +805,6 @@ const CommunityStack = () => {
         component={ApiTest}
         options={{
           title: 'API测试',
-          headerBackTitleVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="NetworkErrorTest"
-        component={NetworkErrorTestScreen}
-        options={{
-          title: '网络错误测试',
           headerBackTitleVisible: false,
         }}
       />

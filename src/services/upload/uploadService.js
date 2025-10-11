@@ -3,10 +3,9 @@
  * 提供数据上传功能
  */
 
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 import { networkService } from '../network/networkService';
-import { realmService } from '../database/realmService';
-import storageService from '../storage/storageService';
 import STORAGE_KEYS from '../../constants/storageKeys';
 import { API_ENDPOINTS } from '../../config/api';
 import axios from 'axios';
@@ -62,7 +61,9 @@ class UploadService {
   async loadUploadQueue() {
     try {
       // 从存储中获取上传队列
-      const queue = await storageService.getItem(STORAGE_KEYS.UPLOAD_QUEUE);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.UPLOAD_QUEUE}"`);
+      const queue = item.length > 0 ? JSON.parse(item[0].value) : [];
       this.uploadQueue = queue || [];
     } catch (error) {
       logService.error('加载上传队列失败', error);
@@ -76,7 +77,21 @@ class UploadService {
    */
   async saveUploadQueue() {
     try {
-      await storageService.setItem(STORAGE_KEYS.UPLOAD_QUEUE, this.uploadQueue);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.UPLOAD_QUEUE}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(this.uploadQueue);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.UPLOAD_QUEUE,
+            value: JSON.stringify(this.uploadQueue),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
     } catch (error) {
       logService.error('保存上传队列失败', error);
     }
@@ -158,7 +173,9 @@ class UploadService {
 
     try {
       // 获取认证令牌
-      const token = await storageService.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
+      const token = item.length > 0 ? item[0].value : null;
       
       if (!token) {
         return { success: false, message: '未登录，无法上传文件' };
@@ -261,7 +278,9 @@ class UploadService {
       };
 
       // 获取认证令牌
-      const token = await storageService.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
+      const token = item.length > 0 ? item[0].value : null;
       
       if (!token) {
         this.isUploading = false;

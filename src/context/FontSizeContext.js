@@ -3,7 +3,7 @@
  * 提供全局字体大小管理功能
  */
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { realmStorageService } from '../services/storage/realmStorageService';
+import realmService from '../services/database/realmService';
 
 // 定义字体大小存储键
 const FONT_SIZE_KEY = 'zeroislenotes_font_size';
@@ -54,7 +54,9 @@ export const FONT_SIZES = {
 // 获取字体大小
 const getFontSize = async () => {
   try {
-    const fontSize = await realmStorageService.getItem(FONT_SIZE_KEY);
+    const realm = await realmService.getRealm();
+    const item = realm.objects('StorageItem').filtered(`key = "${FONT_SIZE_KEY}"`);
+    const fontSize = item.length > 0 ? item[0].value : null;
     return fontSize || 'medium';
   } catch (error) {
     console.error('获取字体大小失败:', error);
@@ -65,7 +67,21 @@ const getFontSize = async () => {
 // 保存字体大小
 const saveFontSize = async (fontSize) => {
   try {
-    await realmStorageService.setItem(FONT_SIZE_KEY, fontSize);
+    const realm = await realmService.getRealm();
+    realm.write(() => {
+      const existingItem = realm.objects('StorageItem').filtered(`key = "${FONT_SIZE_KEY}"`);
+      if (existingItem.length > 0) {
+        existingItem[0].value = fontSize;
+        existingItem[0].updated_at = new Date();
+      } else {
+        realm.create('StorageItem', {
+          key: FONT_SIZE_KEY,
+          value: fontSize,
+          createdAt: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    });
     return true;
   } catch (error) {
     console.error('保存字体大小失败:', error);

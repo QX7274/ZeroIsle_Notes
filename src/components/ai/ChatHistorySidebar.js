@@ -9,7 +9,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import { realmStorageService } from '../../services/storage/realmStorageService';
+import realmService from '../../services/database/realmService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 
@@ -53,7 +53,9 @@ const ChatHistorySidebar = ({
   const loadChatHistory = async () => {
     try {
       setIsLoading(true);
-      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+      const historyJson = item.length > 0 ? item[0].value : null;
       if (historyJson) {
         const history = JSON.parse(historyJson);
         // 将历史记录转换为会话列表
@@ -122,13 +124,29 @@ const ChatHistorySidebar = ({
   // 删除会话
   const handleDeleteSession = async (sessionId) => {
     try {
-      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+      const historyJson = item.length > 0 ? item[0].value : null;
       if (historyJson) {
         const history = JSON.parse(historyJson);
         // 删除指定会话
         delete history[sessionId];
         // 保存更新后的历史记录
-        await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(history);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.CHAT_HISTORY,
+              value: JSON.stringify(history),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
         // 更新状态
         setChatSessions(chatSessions.filter(session => session.id !== sessionId));
 
@@ -173,14 +191,30 @@ const ChatHistorySidebar = ({
     if (!editingSessionId) return;
 
     try {
-      const historyJson = await realmStorageService.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+      const historyJson = item.length > 0 ? item[0].value : null;
       if (historyJson) {
         const history = JSON.parse(historyJson);
         if (history[editingSessionId]) {
           // 添加自定义标题
           history[editingSessionId].customTitle = editingTitle;
           // 保存更新后的历史记录
-          await realmStorageService.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+          const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(history);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.CHAT_HISTORY,
+              value: JSON.stringify(history),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
 
           // 更新状态
           setChatSessions(chatSessions.map(session =>

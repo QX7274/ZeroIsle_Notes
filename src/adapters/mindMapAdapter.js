@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { MindMapModel, MindMapNodeModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { MindMap, MindMapNode } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -196,7 +197,11 @@ export const createMindMap = async (mindMapData, userId) => {
     };
     
     // 创建思维导图模型
-    const mindMap = await MindMapModel.create(backendMindMap);
+    const realm = await realmService.getRealm();
+    let mindMap;
+    realm.write(() => {
+      mindMap = realm.create('MindMap', backendMindMap);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -225,7 +230,8 @@ export const createMindMap = async (mindMapData, userId) => {
 export const addNode = async (mindMapId, parentId, nodeData) => {
   try {
     // 查找思维导图
-    const mindMap = await MindMapModel.findById(mindMapId);
+    const realm = await realmService.getRealm();
+    const mindMap = realm.objectForPrimaryKey('MindMap', mindMapId);
     
     if (!mindMap) {
       throw new Error(`思维导图不存在: ${mindMapId}`);
@@ -265,7 +271,11 @@ export const addNode = async (mindMapId, parentId, nodeData) => {
     };
     
     // 创建节点模型
-    const node = await MindMapNodeModel.create(backendNode);
+    const writeRealm = await realmService.getRealm();
+    let node;
+    writeRealm.write(() => {
+      node = writeRealm.create('MindMapNode', backendNode);
+    });
     
     // 更新父节点
     parentNode.children.push(nodeId);
@@ -303,7 +313,8 @@ export const addNode = async (mindMapId, parentId, nodeData) => {
 export const updateNode = async (mindMapId, nodeId, nodeData) => {
   try {
     // 查找思维导图
-    const mindMap = await MindMapModel.findById(mindMapId);
+    const readRealm = await realmService.getRealm();
+    const mindMap = readRealm.objectForPrimaryKey('MindMap', mindMapId);
     
     if (!mindMap) {
       throw new Error(`思维导图不存在: ${mindMapId}`);

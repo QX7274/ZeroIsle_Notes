@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { AIChatModel, AIChatMessageModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { AIChat } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -166,7 +167,11 @@ export const createChat = async (chatData, userId) => {
     };
     
     // 创建聊天模型
-    const chat = await AIChatModel.create(backendChat);
+    const realm = await realmService.getRealm();
+    let chat;
+    realm.write(() => {
+      chat = realm.create('AIChat', backendChat);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -194,7 +199,8 @@ export const createChat = async (chatData, userId) => {
 export const addMessage = async (chatId, messageData) => {
   try {
     // 查找聊天
-    const chat = await AIChatModel.findById(chatId);
+    const realm = await realmService.getRealm();
+    const chat = realm.objectForPrimaryKey('AIChat', chatId);
     
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
@@ -220,7 +226,10 @@ export const addMessage = async (chatId, messageData) => {
     };
     
     // 创建消息模型
-    const message = await AIChatMessageModel.create(backendMessage);
+    let message;
+    realm.write(() => {
+      message = realm.create('AIChat', backendMessage);
+    });
     
     // 更新聊天
     chat.messages.push(message);
@@ -254,7 +263,8 @@ export const addMessage = async (chatId, messageData) => {
 export const updateChat = async (chatId, chatData) => {
   try {
     // 查找聊天
-    const chat = await AIChatModel.findById(chatId);
+    const realm = await realmService.getRealm();
+    const chat = realm.objectForPrimaryKey('AIChat', chatId);
     
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
@@ -304,7 +314,8 @@ export const updateChat = async (chatId, chatData) => {
 export const deleteChat = async (chatId, permanent = false) => {
   try {
     // 查找聊天
-    const chat = await AIChatModel.findById(chatId);
+    const realm = await realmService.getRealm();
+    const chat = realm.objectForPrimaryKey('AIChat', chatId);
     
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
@@ -346,7 +357,18 @@ export const deleteChat = async (chatId, permanent = false) => {
 export const getChats = async (userId, options = {}) => {
   try {
     // 查找聊天
-    const chats = await AIChatModel.findByUser(userId, options);
+    const realm = await realmService.getRealm();
+    let chats = realm.objects('AIChat').filtered(`user_id = "${userId}"`);
+    
+    // 应用排序
+    if (options.sortBy) {
+      chats = chats.sorted(options.sortBy, options.sortOrder === 'desc');
+    }
+    
+    // 应用分页
+    if (options.limit) {
+      chats = chats.slice(0, options.limit);
+    }
     
     // 转换为前端聊天对象
     return chats.map(toFrontendChat);
@@ -364,7 +386,8 @@ export const getChats = async (userId, options = {}) => {
 export const getChatById = async (chatId) => {
   try {
     // 查找聊天
-    const chat = await AIChatModel.findById(chatId);
+    const realm = await realmService.getRealm();
+    const chat = realm.objectForPrimaryKey('AIChat', chatId);
     
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);

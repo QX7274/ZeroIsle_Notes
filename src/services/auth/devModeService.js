@@ -5,7 +5,7 @@
 
 import { DEV_MODE_CONFIG } from '../../config';
 import { STORAGE_KEYS } from '../../config';
-import realmStorageService from '../storage/realmStorageService';
+import realmService from '../database/realmService';
 
 class DevModeService {
   constructor() {
@@ -182,7 +182,21 @@ class DevModeService {
         timestamp: Date.now()
       };
 
-      await realmStorageService.setItem(STORAGE_KEYS.DEV_MODE_STATE, state);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_MODE_STATE}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(state);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.DEV_MODE_STATE,
+            value: JSON.stringify(state),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       console.log('开发者模式状态已保存');
 
     } catch (error) {
@@ -199,7 +213,9 @@ class DevModeService {
         return false;
       }
 
-      const state = await realmStorageService.getItem(STORAGE_KEYS.DEV_MODE_STATE);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_MODE_STATE}"`);
+      const state = item.length > 0 ? JSON.parse(item[0].value) : null;
       
       if (state && state.isActive) {
         this.isActive = state.isActive;
@@ -229,7 +245,11 @@ class DevModeService {
    */
   async clearDevModeState() {
     try {
-      await realmStorageService.removeItem(STORAGE_KEYS.DEV_MODE_STATE);
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_MODE_STATE}"`);
+        if (item.length > 0) realm.delete(item[0]);
+      });
       console.log('开发者模式状态已清除');
 
     } catch (error) {
@@ -265,15 +285,29 @@ class DevModeService {
    */
   async saveDevActionLog(logEntry) {
     try {
-      const logs = await realmStorageService.getItem(STORAGE_KEYS.DEV_ACTION_LOGS) || [];
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_ACTION_LOGS}"`);
+      const logs = item.length > 0 ? JSON.parse(item[0].value) : [];
       logs.push(logEntry);
 
       // 只保留最近100条日志
       if (logs.length > 100) {
         logs.splice(0, logs.length - 100);
       }
-
-      await realmStorageService.setItem(STORAGE_KEYS.DEV_ACTION_LOGS, logs);
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_ACTION_LOGS}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(logs);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.DEV_ACTION_LOGS,
+            value: JSON.stringify(logs),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
     } catch (error) {
       console.error('保存开发者操作日志失败:', error);
@@ -285,7 +319,9 @@ class DevModeService {
    */
   async getDevActionLogs() {
     try {
-      return await realmStorageService.getItem(STORAGE_KEYS.DEV_ACTION_LOGS) || [];
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_ACTION_LOGS}"`);
+      return item.length > 0 ? JSON.parse(item[0].value) : [];
     } catch (error) {
       console.error('获取开发者操作日志失败:', error);
       return [];
@@ -306,7 +342,21 @@ class DevModeService {
       });
 
       if (filteredLogs.length !== logs.length) {
-        await realmStorageService.setItem(STORAGE_KEYS.DEV_ACTION_LOGS, filteredLogs);
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_ACTION_LOGS}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = JSON.stringify(filteredLogs);
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.DEV_ACTION_LOGS,
+              value: JSON.stringify(filteredLogs),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
         console.log(`清理了 ${logs.length - filteredLogs.length} 条过期日志`);
       }
 

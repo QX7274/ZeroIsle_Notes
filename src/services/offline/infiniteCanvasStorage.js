@@ -2,8 +2,8 @@
  * 无限画布存储服务 - 提供基于MongoDB的无限画布数据存储功能
  */
 
-import { realmService } from '../database/realmService';
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 
 class InfiniteCanvasStorage {
   constructor() {

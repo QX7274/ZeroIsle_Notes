@@ -23,21 +23,7 @@ import SearchIndex from './SearchIndex';
 import Settings from './Settings';
 import OfflineQueue from './OfflineQueue';
 
-// 导入模型类 - 这些将在后续迁移中更新
-import BaseModel from './BaseModel';
-import NoteModel from './NoteModel';
-import CategoryModel from './CategoryModel';
-import TagModel from './TagModel';
-import ReminderModel from './ReminderModel';
-import AIChatModel from './AIChatModel';
-import FileModel from './FileModel';
-import KnowledgeGraphModel from './KnowledgeGraphModel';
-import KnowledgeNodeModel from './KnowledgeNodeModel';
-import KnowledgeEdgeModel from './KnowledgeEdgeModel';
-import MindMapModel from './MindMapModel';
-import MindMapNodeModel from './MindMapNodeModel';
-import SettingsModel from './SettingsModel';
-import OfflineQueueModel from './OfflineQueueModel';
+// 模型类已删除，统一使用Realm模型
 
 // 导出所有Realm模型
 export {
@@ -62,21 +48,7 @@ export {
   Settings,
   OfflineQueue,
 
-  // 模型类 - 这些将在后续迁移中更新
-  BaseModel,
-  NoteModel,
-  CategoryModel,
-  TagModel,
-  ReminderModel,
-  AIChatModel,
-  FileModel,
-  KnowledgeGraphModel,
-  KnowledgeNodeModel,
-  KnowledgeEdgeModel,
-  MindMapModel,
-  MindMapNodeModel,
-  SettingsModel,
-  OfflineQueueModel
+  // 注意：旧的模型类已被删除，统一使用Realm模型
 };
 
 // 存储项目的模式定义
@@ -86,8 +58,8 @@ const StorageItem = {
   properties: {
     key: 'string',
     value: 'string',
-    createdAt: 'date',
-    updatedAt: 'date',
+    created_at: 'date',
+    updated_at: 'date',
   },
 };
 

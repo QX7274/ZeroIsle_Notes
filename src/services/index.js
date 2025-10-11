@@ -23,7 +23,7 @@ import { networkService, apiService } from './network';
 // 导入离线服务
 import {
   offlineStorage,
-  offlineStorageService,
+  // 已移除 offlineStorageService 导出，现在直接使用 realmService
   offlineSyncService
 } from './offline';
 
@@ -43,7 +43,6 @@ import { calendarIntegrationService } from './calendar';
 import { canvasService } from './canvas';
 import { codeService } from './code';
 import { compressionService } from './compression';
-import { exportService } from './export';
 import { groupService } from './group';
 import { noteAIService } from './notes/noteAIService';
 import { noteToolbarService } from './notes/noteToolbarService';
@@ -76,7 +75,7 @@ export {
 
   // 离线服务
   offlineStorage,
-  offlineStorageService,
+  // 已移除 offlineStorageService 导出，现在直接使用 realmService
   offlineSyncService,
 
   // AI服务
@@ -106,9 +105,6 @@ export {
 
   // 压缩服务
   compressionService,
-
-  // 导出服务
-  exportService,
 
   // 群组服务
   groupService,

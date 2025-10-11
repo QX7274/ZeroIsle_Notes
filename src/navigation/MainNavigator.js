@@ -13,11 +13,14 @@ import { colors } from '../utils/constants/colors';
 import { KnowledgeGraphScreen, NodeDetailScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
 import { NoteListScreen, NoteEditScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
 import { InfiniteCanvasListScreen } from '../screens/canvas';
-import FluidInfiniteCanvasScreen from '../screens/canvas/FluidInfiniteCanvasScreen';
+import FluidInfiniteCanvasScreenNative from '../screens/canvas/FluidInfiniteCanvasScreenNative';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 import { SearchScreen } from '../screens/search';
 import { ProfileSettings, SettingsScreen, BindPhone, BindEmail, ThemeSettingsScreen, SyncSettingsScreen } from '../screens/settings';
 import { FileViewerScreen } from '../screens/common';
+import AIAssistantScreen from '../screens/ai/AIAssistantScreen';
+import CommunityScreen from '../screens/community/CommunityScreen';
+import CategoryScreen from '../screens/category/CategoryScreen';
 
 // 临时占位组件
 import { View, Text } from 'react-native';
@@ -36,6 +39,7 @@ const PlaceholderScreen = ({ route }) => (
 const NotesNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
     <Stack.Screen name="NotesList" component={NoteListScreen} options={{ title: '我的笔记' }} />
+    <Stack.Screen name="Category" component={CategoryScreen} options={{ title: '分类' }} />
     <Stack.Screen name="NoteEdit" component={NoteEditScreen} options={{ title: '编辑笔记' }} />
     <Stack.Screen name="NoteDetail" component={NoteDetailScreen} options={({ route }) => ({
       title: route.params?.title || '笔记详情',
@@ -45,7 +49,7 @@ const NotesNavigator = () => (
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="InfiniteCanvasList" component={InfiniteCanvasListScreen} options={{ title: '我的草稿' }} />
-    <Stack.Screen name="InfiniteCanvas" component={FluidInfiniteCanvasScreen} options={{ title: '无限草稿' }} />
+    <Stack.Screen name="InfiniteCanvas" component={FluidInfiniteCanvasScreenNative} options={{ title: '无限草稿' }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
@@ -75,6 +79,20 @@ const KnowledgeGraphNavigator = () => (
   </Stack.Navigator>
 );
 
+// AI助手导航堆栈
+const AINavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="AIAssistantMain" component={AIAssistantScreen} options={{ title: 'AI助手' }} />
+  </Stack.Navigator>
+);
+
+// 社区导航堆栈
+const CommunityNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen name="CommunityMain" component={CommunityScreen} options={{ title: '社区' }} />
+  </Stack.Navigator>
+);
+
 // 个人中心导航堆栈
 const ProfileNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -84,6 +102,12 @@ const ProfileNavigator = () => (
     <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{ title: '主题设置' }} />
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
     <Stack.Screen name="SyncSettings" component={SyncSettingsScreen} options={{ title: '同步设置' }} />
+    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
+    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
+    <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
+    <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -111,29 +135,29 @@ const MainNavigator = () => {
         name="Notes"
         component={NotesNavigator}
         options={{
-          title: '笔记',
+          title: '首页',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>📝</Text>
+            <Text style={{ color, fontSize: size }}>🏠</Text>
           ),
         }}
       />
       <Tab.Screen
-        name="MindMap"
-        component={MindMapNavigator}
+        name="AI"
+        component={AINavigator}
         options={{
-          title: '思维导图',
+          title: 'AI',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>🧠</Text>
+            <Text style={{ color, fontSize: size }}>🤖</Text>
           ),
         }}
       />
       <Tab.Screen
-        name="KnowledgeGraph"
-        component={KnowledgeGraphNavigator}
+        name="Community"
+        component={CommunityNavigator}
         options={{
-          title: '知识图谱',
+          title: '社区',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>🔍</Text>
+            <Text style={{ color, fontSize: size }}>👥</Text>
           ),
         }}
       />
@@ -141,7 +165,7 @@ const MainNavigator = () => {
         name="Profile"
         component={ProfileNavigator}
         options={{
-          title: '个人中心',
+          title: '我的',
           tabBarIcon: ({ color, size }) => (
             <Text style={{ color, fontSize: size }}>👤</Text>
           ),

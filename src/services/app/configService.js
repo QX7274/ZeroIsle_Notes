@@ -2,7 +2,7 @@
  * 配置服务 - 提供应用配置管理
  */
 
-import { realmStorageService } from '../storage/realmStorageService';
+import realmService from '../database/realmService';
 import { Platform } from 'react-native';
 
 // 默认配置
@@ -140,14 +140,10 @@ class ConfigService {
 
         // 尝试从存储服务加载配置
         try {
-          if (realmStorageService && typeof realmStorageService.getItem === 'function') {
-            // 检查realmStorageService是否已初始化
-            if (!realmStorageService.initialized && typeof realmStorageService.initialize === 'function') {
-              await realmStorageService.initialize();
-            }
-
-            storedConfig = await realmStorageService.getItem('app_config');
-          }
+          // 使用 realmService 获取配置
+          const realm = await realmService.getRealm();
+          const item = realm.objects('StorageItem').filtered('key = "app_config"');
+          storedConfig = item.length > 0 ? item[0].value : null;
         } catch (storageError) {
           console.warn('从存储服务加载配置失败，使用默认配置:', storageError);
         }
@@ -266,18 +262,23 @@ class ConfigService {
    */
   async save() {
     try {
-      // 检查realmStorageService是否可用
-      if (realmStorageService && typeof realmStorageService.setItem === 'function') {
-        // 检查realmStorageService是否已初始化
-        if (!realmStorageService.initialized && typeof realmStorageService.initialize === 'function') {
-          await realmStorageService.initialize();
+      // 使用 realmService 保存配置
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered('key = "app_config"');
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(this.config);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: 'app_config',
+            value: JSON.stringify(this.config),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
         }
-
-        await realmStorageService.setItem('app_config', JSON.stringify(this.config));
-        console.log('配置保存成功');
-      } else {
-        console.warn('存储服务不可用，配置仅保存在内存中');
-      }
+      });
+      console.log('配置保存成功');
     } catch (error) {
       console.error('保存配置失败:', error);
       // 不抛出错误，允许应用继续运行

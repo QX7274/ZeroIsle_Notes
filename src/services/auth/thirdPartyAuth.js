@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import userApi from '../api/userApi';
-import { setToken as storeToken, setUser as storeUserInfo } from '../storage/storageService';
+import { setToken as storeToken, setUser as storeUserInfo } from './tokenService';
 
 class ThirdPartyAuthService {
   constructor() {

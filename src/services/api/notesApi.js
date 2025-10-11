@@ -1,9 +1,9 @@
 /**
  * 笔记API服务
  */
-import instance from './interceptor';
+import instance from './apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
-import { offlineStorageService } from '../offline/offlineStorageService';
+import realmService from '../database/realmService';
 import NetInfo from '@react-native-community/netinfo';
 import { getNotesFromOfflineStorage } from '../offline/getNotes';
 import networkErrorService from '../networkErrorService';
@@ -264,7 +264,11 @@ const importNote = async (formData) => {
 
     // 保存到离线存储
     console.log('尝试保存笔记到离线存储');
-    const saveResult = await offlineStorageService.saveNote(note);
+    const realm = await realmService.getRealm();
+    let saveResult;
+    realm.write(() => {
+      saveResult = realm.create('Note', note);
+    });
     console.log('保存笔记结果:', saveResult);
 
     if (!saveResult || !saveResult.success) {
@@ -379,7 +383,8 @@ const getById = async (id) => {
     }
 
     // 从离线存储获取笔记
-    const note = await offlineStorageService.getNote(id);
+    const realm = await realmService.getRealm();
+    const note = realm.objectForPrimaryKey('Note', id);
 
     if (!note) {
       console.warn(`未找到ID为${id}的笔记`);
@@ -503,8 +508,8 @@ const notesApi = {
       // 2. 如果Redux状态中没有该笔记，尝试从离线存储获取
       console.log(`尝试从离线存储获取笔记 (ID: ${id})`);
       try {
-        await offlineStorageService.initialize();
-        const note = await offlineStorageService.getNote(id);
+        const realm = await realmService.getRealm();
+        const note = realm.objectForPrimaryKey('Note', id);
 
         if (note) {
           console.log(`从离线存储获取到笔记 (ID: ${id})`);
@@ -528,7 +533,11 @@ const notesApi = {
       // 3. 尝试获取最近的笔记，看是否有匹配的
       try {
         console.log('尝试从最近笔记中查找');
-        const recentNotes = await offlineStorageService.getRecentNotes(20);
+        const realm = await realmService.getRealm();
+        const recentNotes = realm.objects('Note')
+          .filtered('is_deleted = false')
+          .sorted('updated_at', true)
+          .slice(0, 20);
 
         if (recentNotes && recentNotes.length > 0) {
           // 查找匹配的笔记
@@ -574,7 +583,11 @@ const notesApi = {
   createNote: async (noteData) => {
     try {
       // 保存到离线存储
-      const result = await offlineStorageService.saveNote(noteData);
+      const realm = await realmService.getRealm();
+      let result;
+      realm.write(() => {
+        result = realm.create('Note', noteData);
+      });
       return { success: true, data: { ...noteData, id: noteData.id || `note_${Date.now()}` } };
     } catch (error) {
       return { success: false, message: error.message };
@@ -593,7 +606,11 @@ const notesApi = {
       }
       
       // 更新到离线存储
-      const result = await offlineStorageService.saveNote({ ...safeNoteData, id });
+      const realm = await realmService.getRealm();
+      let result;
+      realm.write(() => {
+        result = realm.create('Note', { ...safeNoteData, _id: id });
+      });
       return { success: true, data: { ...safeNoteData, id } };
     } catch (error) {
       return { success: false, message: error.message };
@@ -602,7 +619,18 @@ const notesApi = {
   deleteNote: async (id) => {
     try {
       // 从离线存储删除
-      const result = await offlineStorageService.deleteNote(id, true);
+      const realm = await realmService.getRealm();
+      let result;
+      realm.write(() => {
+        const note = realm.objectForPrimaryKey('Note', id);
+        if (note) {
+          note.is_deleted = true;
+          note.deleted_at = new Date();
+          result = { success: true };
+        } else {
+          result = { success: false, message: 'Note not found' };
+        }
+      });
       return { success: true };
     } catch (error) {
       return { success: false, message: error.message };

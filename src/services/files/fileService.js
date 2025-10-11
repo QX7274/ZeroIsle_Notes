@@ -2,10 +2,9 @@
  * 文件服务 - 提供文件操作功能
  */
 
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 import RNFS from 'react-native-fs';
 import PDFLib from 'react-native-pdf';
-import DocViewer from 'react-native-doc-viewer';
 import XLSX from 'xlsx';
 import { firebaseStorage } from '../firebase/firebaseStorage';
 import Share from 'react-native-share';
@@ -408,82 +407,6 @@ class FileService {
   }
 
   /**
-   * 从Word文件中提取文本
-   * @param {string} path Word文件路径
-   * @returns {Promise<string>} 提取的文本内容
-   */
-  async extractTextFromWord(path) {
-    try {
-      await this.initialize();
-      const absPath = this._getAbsPath(path);
-      logService.info(`从Word提取文本: ${absPath}`);
-      
-      // 处理Windows路径格式
-      const winPath = absPath.replace(/\//g, '\\');
-      
-      // 使用react-native-doc-viewer提取Word内容
-      const result = await DocViewer.getFileInfo({
-        fileType: 'doc',
-        url: `file://${winPath}`,
-        fileNameOptional: this.getFileName(path)
-      });
-      
-      return result.text;
-    } catch (error) {
-      logService.error(`从Word提取文本失败: ${path}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * 转换文档为PDF格式
-   * @param {string} sourcePath 源文件路径
-   * @param {string} destinationPath 目标PDF路径
-   * @returns {Promise<boolean>} 是否成功
-   */
-  async convertToPDF(sourcePath, destinationPath) {
-    try {
-      await this.initialize();
-      const absSource = this._getAbsPath(sourcePath);
-      const absDest = this._getAbsPath(destinationPath);
-      logService.info(`转换为PDF: ${absSource} -> ${absDest}`);
-      
-      // 处理Windows路径格式
-      const winSourcePath = absSource.replace(/\//g, '\\');
-      const winDestPath = absDest.replace(/\//g, '\\');
-      
-      // 根据文件类型使用不同的转换方法
-      const extension = this.getFileExtension(sourcePath).toLowerCase();
-      
-      if (['doc', 'docx'].includes(extension)) {
-        // Word转PDF实现
-        await DocViewer.convertDocToPDF({
-          sourcePath: `file://${winSourcePath}`,
-          destinationPath: `file://${winDestPath}`
-        });
-      } else if (['xls', 'xlsx'].includes(extension)) {
-        // Excel转PDF实现
-        const workbook = XLSX.readFile(winSourcePath);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        
-        // 简单HTML转换示例，实际项目可能需要更完善的库
-        const html = XLSX.utils.sheet_to_html(worksheet);
-        await this.writeFile(winDestPath.replace('.pdf', '.html'), html);
-        
-        // 这里需要实际PDF转换库
-        logService.warn('Excel转PDF功能需要额外的PDF转换库支持');
-      } else {
-        throw new Error(`不支持的文件格式: ${extension}`);
-      }
-      
-      return await this.exists(absDest);
-    } catch (error) {
-      logService.error(`转换为PDF失败: ${sourcePath} -> ${destinationPath}`, error);
-      throw error;
-    }
-  }
-
-  /**
    * 获取文件MIME类型
    * @param {string} path 文件路径
    * @returns {string} MIME类型
@@ -545,8 +468,6 @@ class FileService {
       // 根据文件类型获取内容
       if (['pdf'].includes(extension)) {
         content = await this.extractTextFromPDF(absPath);
-      } else if (['doc', 'docx'].includes(extension)) {
-        content = await this.extractTextFromWord(absPath);
       } else if (['txt', 'html', 'css', 'js', 'json', 'md'].includes(extension)) {
         content = await this.readFile(absPath);
       } else {

@@ -3,8 +3,7 @@
  * 提供基于MongoDB Realm的离线数据存储和同步功能
  */
 
-import { realmStorageService } from './realmStorageService';
-import { realmService } from '../database/realmService';
+import realmService from '../database/realmService';
 import STORAGE_KEYS from '../../constants/storageKeys';
 import NetInfo from '@react-native-community/netinfo';
 import axios from 'axios';
@@ -75,7 +74,9 @@ class OfflineDataService {
    */
   async loadSyncQueue() {
     try {
-      const queueJson = await realmStorageService.getItem(STORAGE_KEYS.SYNC_QUEUE);
+      const realm = await realmService.getRealm();
+      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.SYNC_QUEUE}"`);
+      const queueJson = item.length > 0 ? item[0].value : null;
       if (queueJson) {
         this.syncQueue = JSON.parse(queueJson);
         console.log(`OfflineDataService: 从本地存储加载了 ${this.syncQueue.length} 个同步队列项`);
@@ -84,7 +85,8 @@ class OfflineDataService {
       }
 
       // 加载上次同步时间
-      const lastSyncTimeStr = await realmStorageService.getItem(STORAGE_KEYS.LAST_SYNC_TIME);
+      const timeItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.LAST_SYNC_TIME}"`);
+      const lastSyncTimeStr = timeItem.length > 0 ? timeItem[0].value : null;
       if (lastSyncTimeStr) {
         this.lastSyncTime = new Date(lastSyncTimeStr);
         console.log(`OfflineDataService: 上次同步时间: ${this.lastSyncTime}`);
@@ -100,7 +102,20 @@ class OfflineDataService {
    */
   async saveSyncQueue() {
     try {
-      await realmStorageService.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(this.syncQueue));
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.SYNC_QUEUE}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(this.syncQueue);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.SYNC_QUEUE,
+            value: JSON.stringify(this.syncQueue),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
       console.log(`OfflineDataService: 已保存 ${this.syncQueue.length} 个同步队列项`);
     } catch (error) {
       console.error('OfflineDataService: 保存同步队列失败', error);
@@ -236,7 +251,20 @@ class OfflineDataService {
 
       // 更新最后同步时间
       this.lastSyncTime = new Date();
-      await realmStorageService.setItem(STORAGE_KEYS.LAST_SYNC_TIME, this.lastSyncTime.toISOString());
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.LAST_SYNC_TIME}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = this.lastSyncTime.toISOString();
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: STORAGE_KEYS.LAST_SYNC_TIME,
+            value: this.lastSyncTime.toISOString(),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
 
       console.log(`OfflineDataService: 同步完成，剩余 ${newQueue.length} 个队列项`);
     } catch (error) {

@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { eventEmitter } from './utils/eventEmitter';
-import { STORAGE_EVENTS } from './offline/offlineStorageService';
+// STORAGE_EVENTS 常量定义
+const STORAGE_EVENTS = {
+  STORAGE_INITIALIZED: 'storage:initialized',
+  STORAGE_ERROR: 'storage:error',
+  ITEM_CREATED: 'storage:item_created',
+  ITEM_UPDATED: 'storage:item_updated',
+  ITEM_DELETED: 'storage:item_deleted',
+  STORAGE_CLEARED: 'storage:cleared',
+};
 import networkErrorService from './networkErrorService';
 
 /**
@@ -74,6 +82,7 @@ class FileHistoryService {
       // 创建历史记录项
       const historyItem = {
         id: noteId || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        noteId: noteId, // 添加noteId字段，确保与主页匹配逻辑兼容
         uri: effectiveUri,
         title,
         type: type || 'unknown',

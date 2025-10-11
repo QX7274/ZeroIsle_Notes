@@ -3,8 +3,8 @@
  * 管理本地数据与云端数据的同步
  */
 
-import { realmService } from '../database/realmService';
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 import NetInfo from '@react-native-community/netinfo';
 
 /**

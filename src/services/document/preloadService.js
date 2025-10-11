@@ -4,7 +4,8 @@
  */
 
 import documentCacheService from './documentCacheService';
-import { logService } from '../utils/logService';
+import realmService from '../database/realmService';
+import { logService } from '../../utils/logService';
 
 class PreloadService {
   constructor() {
@@ -103,7 +104,7 @@ class PreloadService {
    */
   async preloadDocument(uri, type) {
     const RNFS = require('react-native-fs');
-    const { offlineStorageService } = require('../offline');
+    // 已移除 offlineStorageService 导入，现在直接使用 realmService
 
     try {
       let data;
@@ -112,7 +113,8 @@ class PreloadService {
       // 首先尝试从笔记元数据中获取本地路径
       try {
         // 查找使用此URI的笔记
-        const notes = await offlineStorageService.getNotes();
+        const realm = await realmService.getRealm();
+        const notes = realm.objects('Note').filtered('is_deleted = false');
         const relatedNote = notes.find(note => {
           if (!note.metadata) return false;
 

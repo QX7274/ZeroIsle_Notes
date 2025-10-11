@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 // 使用MongoDB替代AsyncStorage
-import { realmService } from '../../services/database/realmService';
+import realmService from '../../services/database/realmService';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';

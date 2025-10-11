@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRealm as useRealmContext } from '../context/RealmContext';
-import { logService } from '../services/utils/logService';
+import { logService } from '../utils/logService';
 
 /**
  * 使用 Realm 数据库操作的钩子

@@ -3,7 +3,7 @@
  * 提供同步相关的工具函数
  */
 
-import { logService } from '../utils/logService';
+import { logService } from '../../utils/logService';
 
 /**
  * 计算两个对象之间的差异

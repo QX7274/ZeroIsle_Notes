@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } f
 import { syncService } from '../../services/sync/syncService';
 import { configService } from '../../services/app/configService';
 import { networkService } from '../../services/network/networkService';
-import { logService } from '../../services/utils/logService';
+import { logService } from '../../utils/logService';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import networkErrorService from '../../services/networkErrorService';
 import SyncButton from '../../components/common/SyncButton';

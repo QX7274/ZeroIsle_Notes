@@ -4,7 +4,7 @@
 
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
 import tagApi from '../../services/api/tagApi';
-import { logService } from '../../services/utils/logService';
+import { logService } from '../../utils/logService';
 import networkErrorService from '../../services/networkErrorService';
 
 // 创建实体适配器，用于规范化状态

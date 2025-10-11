@@ -9,19 +9,19 @@ import { Platform } from 'react-native';
  * 内存管理配置
  */
 const MEMORY_CONFIG = {
-  // 内存阈值配置
-  WARNING_THRESHOLD: 30 * 1024 * 1024, // 30MB
-  CRITICAL_THRESHOLD: 50 * 1024 * 1024, // 50MB
-  MAX_MEMORY: 80 * 1024 * 1024, // 80MB
+  // 内存阈值配置 - 大幅提高内存限制
+  WARNING_THRESHOLD: 200 * 1024 * 1024, // 200MB
+  CRITICAL_THRESHOLD: 400 * 1024 * 1024, // 400MB
+  MAX_MEMORY: 1024 * 1024 * 1024, // 1GB
   
   // 压缩配置
-  COMPRESSION_LEVEL: 0.8, // 压缩级别
-  MIN_COMPRESSION_SIZE: 1024, // 最小压缩大小 1KB
+  COMPRESSION_LEVEL: 0.6, // 降低压缩级别，提高性能
+  MIN_COMPRESSION_SIZE: 512, // 降低最小压缩大小 512B
   
   // 清理配置
-  CLEANUP_INTERVAL: 30000, // 30秒清理间隔
-  MAX_CACHE_AGE: 300000, // 5分钟缓存最大年龄
-  MAX_CACHE_SIZE: 100, // 最大缓存项目数
+  CLEANUP_INTERVAL: 60000, // 60秒清理间隔
+  MAX_CACHE_AGE: 600000, // 10分钟缓存最大年龄
+  MAX_CACHE_SIZE: 500, // 增加最大缓存项目数
 };
 
 /**

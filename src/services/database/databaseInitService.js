@@ -3,7 +3,7 @@
  */
 
 import { mongoDBService } from './mongoDBAdapter';
-import { realmService } from './realmService';
+import realmService from './realmService';
 import { networkService } from '../network/networkService';
 
 import { configService } from '../app/configService';

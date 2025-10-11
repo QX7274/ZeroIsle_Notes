@@ -3,8 +3,9 @@
  * 用于在前端和后端模型之间进行转换
  */
 
-import { SettingsModel } from '../models';
-import { logService } from '../services/utils/logService';
+import { Settings } from '../models';
+import realmService from '../services/database/realmService';
+import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
 
 /**
@@ -91,7 +92,8 @@ export const toBackendSettings = (settings) => {
 export const getUserSettings = async (userId) => {
   try {
     // 查找用户设置
-    let settings = await SettingsModel.findOne({ user_id: userId });
+    const realm = await realmService.getRealm();
+    let settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
     
     // 如果不存在，创建默认设置
     if (!settings) {
@@ -143,7 +145,11 @@ export const createUserSettings = async (userId, settingsData = {}) => {
     };
     
     // 创建设置模型
-    const settings = await SettingsModel.create(backendSettings);
+    const realm = await realmService.getRealm();
+    let settings;
+    realm.write(() => {
+      settings = realm.create('Settings', backendSettings);
+    });
     
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
@@ -171,7 +177,8 @@ export const createUserSettings = async (userId, settingsData = {}) => {
 export const updateUserSettings = async (userId, settingsData) => {
   try {
     // 查找用户设置
-    let settings = await SettingsModel.findOne({ user_id: userId });
+    const realm = await realmService.getRealm();
+    let settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
     
     // 如果不存在，创建默认设置
     if (!settings) {
@@ -266,7 +273,8 @@ export const updateUserSettings = async (userId, settingsData) => {
 export const resetUserSettings = async (userId) => {
   try {
     // 查找用户设置
-    const settings = await SettingsModel.findOne({ user_id: userId });
+    const realm = await realmService.getRealm();
+    const settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
     
     // 如果不存在，创建默认设置
     if (!settings) {

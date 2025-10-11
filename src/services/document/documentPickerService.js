@@ -1,7 +1,7 @@
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import { Platform } from 'react-native';
-import filePersistenceService from '../files/filePersistenceService';
+import { fileService } from '../files/fileService';
 
 /**
  * 文档选择器服务
@@ -152,14 +152,15 @@ class DocumentPickerService {
 
         try {
           // 使用带进度回调的持久化方法
-          const persistedFile = await filePersistenceService.persistFile(
-            document.uri,
-            document.name || `document_${Date.now()}`,
-            type,
-            (progress) => {
-              console.log('DocumentPickerService: 文件处理进度:', progress);
-            }
-          );
+          // 使用 fileService 复制文件到应用私有目录
+          const destinationPath = `${RNFS.DocumentDirectoryPath}/${document.name || `document_${Date.now()}`}`;
+          await fileService.copyFile(document.uri, destinationPath);
+          const persistedFile = {
+            localPath: destinationPath,
+            localUri: destinationPath,
+            fileName: document.name || `document_${Date.now()}`,
+            type: type
+          };
 
           console.log('DocumentPickerService: 文档持久化完成:', persistedFile);
 

@@ -3,20 +3,20 @@
  * 导出所有存储相关服务
  * 使用MongoDB Realm作为本地存储
  */
-import realmStorageService, { STORAGE_KEYS } from './realmStorageService';
 import offlineDataService from './offlineDataService';
-import { default as storageService } from './storageService';
+import { realmService } from '../database/realmService';
+import STORAGE_KEYS from '../../constants/storageKeys';
 
 export {
-  realmStorageService,
+  realmService as realmStorageService,
   offlineDataService,
-  storageService,
+  realmService as storageService,
   STORAGE_KEYS
 };
 
 export default {
-  realmStorageService,
+  realmStorageService: realmService,
   offlineDataService,
-  storageService,
+  storageService: realmService,
   STORAGE_KEYS
 };

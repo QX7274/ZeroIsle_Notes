@@ -196,6 +196,41 @@ const FileViewerScreen = ({ route }) => {
           );
         }
 
+        // 检查是否需要在线转换
+        if (fileInfo.requires_online_conversion && fileInfo.conversion_status === 'pending') {
+          return (
+            <View style={styles.errorContainer}>
+              <Icon name="cloud-off" size={48} color={colors.warning} />
+              <Text
+                variant="body"
+                size="medium"
+                style={{ marginTop: 16, color: colors.warning, textAlign: 'center' }}
+              >
+                此文档需要网络连接才能转换为PDF格式
+              </Text>
+              <Text
+                variant="body"
+                size="small"
+                style={{ marginTop: 8, color: colors.textSecondary, textAlign: 'center' }}
+              >
+                请连接网络后重新打开此文档
+              </Text>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+                onPress={() => navigation.goBack()}
+              >
+                <Text
+                  variant="body"
+                  size="medium"
+                  style={{ color: colors.onPrimary }}
+                >
+                  返回
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
         return (
           <View style={styles.pdfContainer}>
             <EnhancedPDFViewer

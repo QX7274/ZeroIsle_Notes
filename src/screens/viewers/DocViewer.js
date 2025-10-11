@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import PDFViewer from './PDFViewer';
+import PDFViewerNative from './PDFViewerNative';
 
 /**
  * Word文档查看器组件
@@ -24,7 +24,7 @@ const DocViewer = (props) => {
     }
   };
 
-  return <PDFViewer {...enhancedProps} />;
+  return <PDFViewerNative {...enhancedProps} />;
 };
 
 export default DocViewer;

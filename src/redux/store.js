@@ -23,6 +23,7 @@ import groupsReducer from './slices/groupsSlice';
 import aiAssistantReducer from './slices/aiAssistantSlice';
 import reminderReducer from './slices/reminderSlice';
 import settingsReducer from './slices/settingsSlice';
+import categoryReducer from './slices/categorySlice';
 
 // 导入传统reducers
 import userReducer from './reducers/userReducer';
@@ -61,6 +62,7 @@ const configureAppStore = () => {
       aiAssistant: aiAssistantReducer,
       reminders: reminderReducer,
       settings: settingsReducer,
+      category: categoryReducer,
       user: userReducer,
     });
 

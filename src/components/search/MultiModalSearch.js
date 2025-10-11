@@ -16,6 +16,7 @@ import {
   PermissionsAndroid,
   Animated,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -831,30 +832,14 @@ const MultiModalSearch = ({
               onPress={() => switchSearchMode(mode)}
               disabled={isLoading}
             >
-              <View style={{ marginBottom: 2 }}>
-                <Icon
-                  name={
-                    mode === 'text' ? 'search' :
-                    mode === 'voice' ? 'mic' : 'image-search'
-                  }
-                  size={22}
-                  color={reduxSearchMode === mode ? colors.primary : colors.text}
-                />
-              </View>
-              <Text
-                variant="body"
-                size="medium" // 改为中等大小
-                color={reduxSearchMode === mode ? "primary" : "text"}
-                style={{
-                  textAlign: 'center',
-                  marginTop: -20, // 确保文字在正中
-                  width: '100%', // 确保文字占满整个宽度
-                  paddingBottom: 0, // 移除底部边距
-                  fontWeight: '500' // 增加字体粗细
-                }}
-              >
-                {mode === 'text' ? '文本' : mode === 'voice' ? '语音' : '图像'}
-              </Text>
+              <Icon
+                name={
+                  mode === 'text' ? 'search' :
+                  mode === 'voice' ? 'mic' : 'image-search'
+                }
+                size={24}
+                color={reduxSearchMode === mode ? colors.primary : colors.text}
+              />
             </TouchableOpacity>
           ))}
         </View>

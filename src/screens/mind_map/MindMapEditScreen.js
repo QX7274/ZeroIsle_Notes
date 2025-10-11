@@ -202,9 +202,49 @@ const MindMapEditScreen = () => {
       }
 
       analyticsService.trackEvent('save_mind_map', { id: response.data.id });
+      
+      // 同时保存到本地存储作为备份
+      try {
+        // 使用 realmService 保存笔记
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Note', {
+            _id: `mindmap_${response.data.id}`,
+            title: title.trim(),
+            content: JSON.stringify(mindMapData),
+            type: 'mind_map',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        });
+        console.log('思维导图已保存到本地存储');
+      } catch (localError) {
+        console.warn('保存到本地存储失败:', localError);
+      }
+      
     } catch (err) {
       console.error('保存思维导图失败:', err);
-      Alert.alert('错误', '保存思维导图失败，请稍后重试');
+      
+      // 如果服务器保存失败，尝试保存到本地
+      try {
+        // 使用 realmService 保存笔记
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          realm.create('Note', {
+            _id: `mindmap_local_${Date.now()}`,
+            title: title.trim(),
+            content: JSON.stringify(mindMapData),
+            type: 'mind_map',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        });
+        Alert.alert('提示', '思维导图已保存到本地，网络恢复后将自动同步');
+      } catch (localError) {
+        console.error('本地保存也失败:', localError);
+        Alert.alert('错误', '保存思维导图失败，请稍后重试');
+      }
+      
       analyticsService.trackError(err, { action: 'save_mind_map' });
     } finally {
       setSaving(false);
