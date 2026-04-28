@@ -28,6 +28,7 @@ Write-Host "== Cleanup obsolete / local artifacts =="
 
 Remove-IfExists -Path (Join-Path $PSScriptRoot "..\\..\\tmp")
 Remove-IfExists -Path (Join-Path $PSScriptRoot "..\\..\\output")
+Remove-IfExists -Path (Join-Path $PSScriptRoot "..\\..\\data\\mongo")
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\\..") | Select-Object -ExpandProperty Path
 Push-Location $repoRoot

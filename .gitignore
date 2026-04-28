@@ -89,6 +89,7 @@ __pycache__/
 # ---- ZeroIsle_Notes local artifacts (do not commit) ----
 /tmp/
 /output/
+data/mongo/
 *.realm
 *.realm.lock
 studio_java_status.txt
