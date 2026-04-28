@@ -32,20 +32,16 @@ export const transcribeAudio = async (audio, noteId = null, params = {}) => {
 
     const response = await instance.post(API_ENDPOINTS.VOICE.TRANSCRIBE, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '语音转文字失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -66,20 +62,16 @@ export const processVoiceCommand = async (audio) => {
 
     const response = await instance.post(API_ENDPOINTS.VOICE.COMMAND, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '处理语音命令失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -106,20 +98,16 @@ export const processMeetingAudio = async (audio, params = {}) => {
 
     const response = await instance.post(API_ENDPOINTS.VOICE.MEETING, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '处理会议记录失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -133,14 +121,10 @@ export const generateMeetingSummary = async (text) => {
     const response = await instance.post('/voice-recognition/meeting-summary/', { text });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '生成会议纪要失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -153,14 +137,10 @@ export const getSupportedLanguages = async () => {
     const response = await instance.get('/voice-recognition/languages/');
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取支持的语言失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -174,14 +154,10 @@ export const getTranscriptionHistory = async (params = {}) => {
     const response = await instance.get('/voice-recognition/history/', { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取转录历史失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -195,14 +171,10 @@ export const getTranscriptionById = async (id) => {
     const response = await instance.get(`/voice-recognition/transcriptions/${id}/`);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取转录详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -215,14 +187,10 @@ export const deleteTranscription = async (id) => {
   try {
     await instance.delete(`/voice-recognition/transcriptions/${id}/`);
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除转录失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -237,14 +205,10 @@ export const createNoteFromTranscription = async (id, noteData) => {
     const response = await instance.post(`/voice-recognition/transcriptions/${id}/create-note/`, noteData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '从转录创建笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -257,7 +221,7 @@ export const createNoteFromTranscription = async (id, noteData) => {
 export const transcribeFromRecording = async (audioBase64, noteId = null) => {
   try {
     const data = {
-      audio_base64: audioBase64
+      audio_base64: audioBase64,
     };
 
     if (noteId) {
@@ -269,14 +233,10 @@ export const transcribeFromRecording = async (audioBase64, noteId = null) => {
       success: true,
       text: response.data.text,
       language: response.data.language,
-      id: response.data.id
+      id: response.data.id,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '语音转文字失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -289,18 +249,14 @@ export const transcribeFromRecording = async (audioBase64, noteId = null) => {
 export const saveTranscribedTextToNote = async (text, noteId) => {
   try {
     const response = await instance.post(`/notes/${noteId}/append/`, {
-      content: text
+      content: text,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '保存转写文本失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -313,14 +269,10 @@ export const getServiceStatus = async () => {
     const response = await instance.get(API_ENDPOINTS.VOICE.SERVICE_STATUS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取语音服务状态失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -333,14 +285,10 @@ export const getOfflineModels = async () => {
     const response = await instance.get(API_ENDPOINTS.VOICE.OFFLINE_MODELS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取离线模型列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -354,14 +302,10 @@ export const downloadOfflineModel = async (modelName) => {
     const response = await instance.post(API_ENDPOINTS.VOICE.DOWNLOAD_MODEL, { model_name: modelName });
     return {
       success: true,
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '下载离线模型失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -375,14 +319,10 @@ export const deleteOfflineModel = async (modelName) => {
     const response = await instance.post(API_ENDPOINTS.VOICE.DELETE_MODEL, { model_name: modelName });
     return {
       success: true,
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除离线模型失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -396,14 +336,10 @@ export const changeOfflineModel = async (modelName) => {
     const response = await instance.post(API_ENDPOINTS.VOICE.CHANGE_MODEL, { model_name: modelName });
     return {
       success: true,
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更改离线模型失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -418,14 +354,10 @@ export const toggleServiceMode = async (mode) => {
     return {
       success: true,
       message: response.data.message,
-      currentMode: response.data.current_mode
+      currentMode: response.data.current_mode,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '切换服务模式失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -438,7 +370,7 @@ export const toggleServiceMode = async (mode) => {
 export const processDiarization = async (transcriptionId, mode = null) => {
   try {
     const data = {
-      transcription_id: transcriptionId
+      transcription_id: transcriptionId,
     };
 
     if (mode) {
@@ -451,14 +383,10 @@ export const processDiarization = async (transcriptionId, mode = null) => {
       message: response.data.message,
       transcriptionId: response.data.transcription_id,
       isSpeakerDiarization: response.data.is_speaker_diarization,
-      segmentsCount: response.data.segments_count
+      segmentsCount: response.data.segments_count,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '处理说话人分离失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -471,14 +399,10 @@ export const getDiarizationStatus = async () => {
     const response = await instance.get('/voice-recognition/diarization-status/');
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取说话人分离服务状态失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -491,14 +415,10 @@ export const getSpeakers = async () => {
     const response = await instance.get('/voice-recognition/speakers/');
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取说话人列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -513,7 +433,7 @@ export const renameSpeaker = async (speakerId, newName, transcriptionId = null) 
   try {
     const data = {
       speaker_id: speakerId,
-      new_name: newName
+      new_name: newName,
     };
 
     if (transcriptionId) {
@@ -524,14 +444,10 @@ export const renameSpeaker = async (speakerId, newName, transcriptionId = null) 
     return {
       success: true,
       message: response.data.message,
-      speaker: response.data.speaker
+      speaker: response.data.speaker,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '重命名说话人失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -545,7 +461,7 @@ export const renameSpeaker = async (speakerId, newName, transcriptionId = null) 
 export const mergeSpeakers = async (speakerIds, newName = null, transcriptionId = null) => {
   try {
     const data = {
-      speaker_ids: speakerIds
+      speaker_ids: speakerIds,
     };
 
     if (newName) {
@@ -560,14 +476,10 @@ export const mergeSpeakers = async (speakerIds, newName = null, transcriptionId 
     return {
       success: true,
       message: response.data.message,
-      speaker: response.data.speaker
+      speaker: response.data.speaker,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '合并说话人失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -582,14 +494,10 @@ export const createRealtimeSession = async (language = 'zh') => {
     return {
       success: true,
       sessionId: response.data.session_id,
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建实时转写会话失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -603,18 +511,14 @@ export const addRealtimeAudioChunk = async (sessionId, audioChunk) => {
   try {
     const response = await instance.post('/voice-recognition/realtime/add-audio/', {
       session_id: sessionId,
-      audio_chunk: audioChunk
+      audio_chunk: audioChunk,
     });
     return {
       success: true,
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '添加音频块失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -629,14 +533,10 @@ export const getRealtimeResults = async (sessionId) => {
     return {
       success: true,
       results: response.data.results,
-      count: response.data.count
+      count: response.data.count,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取转写结果失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -648,19 +548,15 @@ export const getRealtimeResults = async (sessionId) => {
 export const finishRealtimeSession = async (sessionId) => {
   try {
     const response = await instance.post('/voice-recognition/realtime/finish-session/', {
-      session_id: sessionId
+      session_id: sessionId,
     });
     return {
       success: true,
       message: response.data.message,
-      finalResult: response.data.final_result
+      finalResult: response.data.final_result,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '结束会话失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -674,14 +570,10 @@ export const getRealtimeSessionStatus = async (sessionId) => {
     const response = await instance.get(`/voice-recognition/realtime/session-status/?session_id=${sessionId}`);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取会话状态失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -712,7 +604,7 @@ const voiceApi = {
   addRealtimeAudioChunk,
   getRealtimeResults,
   finishRealtimeSession,
-  getRealtimeSessionStatus
+  getRealtimeSessionStatus,
 };
 
 export default voiceApi;

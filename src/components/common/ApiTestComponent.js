@@ -94,7 +94,7 @@ const ApiTestComponent = () => {
                   {
                     backgroundColor: method === m ? colors.primary : colors.surface,
                     borderColor: colors.border,
-                  }
+                  },
                 ]}
                 onPress={() => setMethod(m)}
               >

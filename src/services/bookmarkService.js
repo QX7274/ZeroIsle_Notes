@@ -14,7 +14,7 @@ export async function getBookmarks(docId) {
     const realm = await realmService.getRealm();
     const item = realm.objects('StorageItem').filtered(`key = "${buildKey(docId)}"`);
     const stored = item.length > 0 ? item[0].value : null;
-    if (!stored) return [];
+    if (!stored) {return [];}
     // 兼容已解析对象与字符串两种形态
     if (typeof stored === 'string') {
       try {
@@ -29,7 +29,7 @@ export async function getBookmarks(docId) {
     return Array.isArray(stored) ? stored : [];
   } catch (e) {
     console.warn('读取书签失败', e);
-    return [];
+    throw e;
   }
 }
 
@@ -53,14 +53,14 @@ export async function saveBookmarks(docId, list) {
     return true;
   } catch (e) {
     console.warn('保存书签失败', e);
-    return false;
+    throw e;
   }
 }
 
 export async function addBookmark(docId, data) {
   const list = await getBookmarks(docId);
   const now = Date.now();
-  const item = { id: `bm_${now}_${Math.random().toString(36).slice(2,8)}`, createdAt: now, updated_at: now, ...data };
+  const item = { id: realmService.createObjectId(), createdAt: now, updated_at: now, ...data };
   list.push(item);
   await saveBookmarks(docId, list);
   return item;

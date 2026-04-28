@@ -14,24 +14,10 @@ export const getAllReminders = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.BASE, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    // 网络请求失败时，尝试从本地存储获取
-    try {
-      await reminderMongoDBService.initialize();
-      const localReminders = await reminderMongoDBService.getAllReminders();
-      return {
-        success: true,
-        data: localReminders
-      };
-    } catch (localError) {
-      return {
-        success: false,
-        message: error.message || '获取提醒列表失败',
-        error
-      };
-    }
+    throw error;
   }
 };
 
@@ -45,14 +31,10 @@ export const getReminderById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取提醒详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -66,24 +48,10 @@ export const createReminder = async (reminderData) => {
     const response = await instance.post(API_ENDPOINTS.REMINDER.BASE, reminderData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    // 网络请求失败时，尝试保存到本地存储
-    try {
-      await reminderMongoDBService.initialize();
-      await reminderMongoDBService.saveReminder(reminderData);
-      return {
-        success: true,
-        data: reminderData
-      };
-    } catch (localError) {
-      return {
-        success: false,
-        message: error.message || '创建提醒失败',
-        error
-      };
-    }
+    throw error;
   }
 };
 
@@ -98,14 +66,10 @@ export const updateReminder = async (id, reminderData) => {
     const response = await instance.put(API_ENDPOINTS.REMINDER.DETAIL(id), reminderData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -118,14 +82,10 @@ export const deleteReminder = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -139,14 +99,10 @@ export const completeReminder = async (id) => {
     const response = await instance.post(API_ENDPOINTS.REMINDER.COMPLETE(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '完成提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -160,14 +116,10 @@ export const reopenReminder = async (id) => {
     const response = await instance.post(API_ENDPOINTS.REMINDER.REOPEN(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '重新打开提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -181,14 +133,10 @@ export const getUpcomingReminders = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.UPCOMING, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取即将到期的提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -202,14 +150,10 @@ export const getOverdueReminders = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.OVERDUE, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取已过期的提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -223,14 +167,10 @@ export const getTodayReminders = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.TODAY, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取今日提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -244,15 +184,11 @@ export const createReminderFromNote = async (data) => {
     const response = await instance.post(API_ENDPOINTS.REMINDER.BASE + 'from-note/', data);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('从笔记创建提醒失败:', error);
-    return {
-      success: false,
-      message: error.message || '从笔记创建提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -266,15 +202,11 @@ export const toggleEnableReminder = async (id) => {
     const response = await instance.post(`${API_ENDPOINTS.REMINDER.DETAIL(id)}toggle_enable/`);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('启用/禁用提醒失败:', error);
-    return {
-      success: false,
-      message: error.message || '启用/禁用提醒失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -287,15 +219,11 @@ export const getReminderNotifications = async () => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.BASE + 'notifications/');
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取提醒通知失败:', error);
-    return {
-      success: false,
-      message: error.message || '获取提醒通知失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -308,15 +236,11 @@ export const getReminderStatistics = async () => {
     const response = await instance.get(API_ENDPOINTS.REMINDER.STATISTICS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取提醒统计信息失败:', error);
-    return {
-      success: false,
-      message: error.message || '获取提醒统计信息失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -329,19 +253,15 @@ export const getReminderStatistics = async () => {
 export const getCalendarData = async (year, month) => {
   try {
     const response = await instance.get(API_ENDPOINTS.REMINDER.CALENDAR, {
-      params: { year, month }
+      params: { year, month },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取日历数据失败:', error);
-    return {
-      success: false,
-      message: error.message || '获取日历数据失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -356,45 +276,35 @@ export const exportReminders = async (options = {}) => {
   try {
     const response = await instance.get(API_ENDPOINTS.REMINDER.EXPORT, {
       params: options,
-      responseType: 'blob'
+      responseType: 'text',
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
+      headers: response.headers,
     };
   } catch (error) {
     console.error('导出提醒数据失败:', error);
-    return {
-      success: false,
-      message: error.message || '导出提醒数据失败',
-      error
-    };
+    throw error;
   }
 };
 
 /**
  * 导入提醒数据
- * @param {FormData} formData - 包含导入文件的表单数据
+ * @param {Array|Object} data - 导入提醒数组或包含 data 的对象
  * @returns {Promise} - 导入结果
  */
-export const importReminders = async (formData) => {
+export const importReminders = async (data) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.REMINDER.IMPORT, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    const payload = Array.isArray(data) ? { data } : data;
+    const response = await instance.post(API_ENDPOINTS.REMINDER.IMPORT, payload);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('导入提醒数据失败:', error);
-    return {
-      success: false,
-      message: error.message || '导入提醒数据失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -414,15 +324,11 @@ export const updateReminderCalendarInfo = async (id, calendarData) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('更新提醒日历集成信息失败:', error);
-    return {
-      success: false,
-      message: error.message || '更新提醒日历集成信息失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -444,7 +350,7 @@ const reminderApi = {
   getCalendarData,
   exportReminders,
   importReminders,
-  updateReminderCalendarInfo
+  updateReminderCalendarInfo,
 };
 
 export default reminderApi;

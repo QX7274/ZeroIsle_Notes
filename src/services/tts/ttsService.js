@@ -14,22 +14,22 @@ class TtsService {
       if (Platform.OS === 'android') {
         await Tts.getInitStatus();
       }
-      
+
       // 设置默认语言
       await Tts.setDefaultLanguage('zh-CN');
-      
+
       // 设置语�?
       await Tts.setDefaultRate(0.5);
-      
+
       // 设置音量
       await Tts.setDefaultVoice('com.apple.ttsbundle.Ting-Ting-compact');
-      
+
       // 添加事件监听
       Tts.addEventListener('tts-start', this.onStart);
       Tts.addEventListener('tts-finish', this.onFinish);
       Tts.addEventListener('tts-cancel', this.onCancel);
       Tts.addEventListener('tts-error', this.onError);
-      
+
       this.initialized = true;
       analyticsService.trackEvent('tts_initialized');
     } catch (error) {
@@ -60,28 +60,28 @@ class TtsService {
       if (!this.initialized) {
         await this.init();
       }
-      
+
       // 停止当前正在播放的语�?
       await this.stop();
-      
+
       // 设置语言
       if (options.language) {
         await Tts.setDefaultLanguage(options.language);
       }
-      
+
       // 设置语�?
       if (options.rate) {
         await Tts.setDefaultRate(options.rate);
       }
-      
+
       // 设置音量
       if (options.volume) {
         await Tts.setDefaultVoice(options.volume);
       }
-      
+
       // 开始播�?
       await Tts.speak(text);
-      
+
       analyticsService.trackEvent('tts_speak', { textLength: text.length });
     } catch (error) {
       console.error('TTS播放错误:', error);
@@ -112,5 +112,10 @@ class TtsService {
   }
 }
 
-export const ttsService = new TtsService();
+const ttsService = new TtsService();
+
+module.exports = ttsService;
+module.exports.default = ttsService;
+module.exports.ttsService = ttsService;
+module.exports.TtsService = TtsService;
 

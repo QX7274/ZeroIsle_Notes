@@ -2,31 +2,35 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import Sound from 'react-native-sound';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { analyticsService } from '../analytics/analyticsService';
-import aiService from '../ai/aiService';
+import aiService from '../ai/EnhancedAIService';
 
 // 启用Sound模块的错误日?
 Sound.setCategory('Playback');
 
 class AudioService {
   constructor() {
-    try {
-      if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
-        this.audioRecorderPlayer = new AudioRecorderPlayer();
-      } else if (
-        AudioRecorderPlayer &&
-        typeof AudioRecorderPlayer.default === 'function'
-      ) {
-        this.audioRecorderPlayer = new AudioRecorderPlayer.default();
-      } else {
-        console.warn('AudioService: AudioRecorderPlayer 不可用或不是构造函数');
-        this.audioRecorderPlayer = null;
-      }
-    } catch (e) {
-      console.warn('AudioService: 初始化 AudioRecorderPlayer 失败:', e);
-      this.audioRecorderPlayer = null;
-    }
+    // 延迟初始化 AudioRecorderPlayer，避免构造函数调用错误
+    this.audioRecorderPlayer = null;
     this.isRecording = false;
     this.currentSound = null;
+  }
+
+  /**
+   * 初始化 AudioRecorderPlayer（延迟初始化）
+   */
+  _initAudioRecorderPlayer() {
+    if (this.audioRecorderPlayer) {
+      return; // 已初始化
+    }
+
+    try {
+      // 尝试直接实例化
+      this.audioRecorderPlayer = new AudioRecorderPlayer();
+      console.log('AudioService: AudioRecorderPlayer 初始化成功');
+    } catch (e) {
+      console.warn('AudioService: 初始化 AudioRecorderPlayer 失败，音频功能将不可用:', e.message);
+      this.audioRecorderPlayer = null;
+    }
   }
 
   async requestPermissions() {
@@ -45,7 +49,7 @@ class AudioService {
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
         console.error('请求录音权限错误:', err);
-        return false;
+        throw err;
       }
     }
     return true;
@@ -70,7 +74,7 @@ class AudioService {
     } catch (error) {
       console.warn('AudioService: 获取音频常量失败，使用默认值:', error);
     }
-    
+
     // 降级到默认值
     return {
       AudioEncoderAndroid: 3, // AAC
@@ -88,6 +92,9 @@ class AudioService {
       if (!hasPermission) {
         throw new Error('没有录音权限');
       }
+
+      // 初始化 AudioRecorderPlayer
+      this._initAudioRecorderPlayer();
 
       // 检查AudioRecorderPlayer是否可用
       if (!this.audioRecorderPlayer) {
@@ -127,6 +134,7 @@ class AudioService {
   async stopRecording() {
     try {
       if (!this.isRecording) {
+        // 业务语义：当前未在录音时无结果可停止，返回 null（非错误）
         return null;
       }
 
@@ -212,4 +220,9 @@ class AudioService {
   }
 }
 
-export const audioService = new AudioService();
+const audioService = new AudioService();
+
+module.exports = audioService;
+module.exports.default = audioService;
+module.exports.audioService = audioService;
+module.exports.AudioService = AudioService;

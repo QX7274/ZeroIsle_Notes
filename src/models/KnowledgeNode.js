@@ -24,7 +24,7 @@ class KnowledgeNode extends Realm.Object {
       note_id: { type: 'string', optional: true },
       user_id: 'string',
       graph_id: 'string',
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
       metadata: { type: 'string', default: '{}' }, // 存储为JSON字符串
       is_deleted: { type: 'bool', default: false },
       is_synced: { type: 'bool', default: false },
@@ -132,9 +132,9 @@ class KnowledgeNode extends Realm.Object {
    */
   updateStyle(realm, style) {
     realm.write(() => {
-      if (style.color) this.color = style.color;
-      if (style.icon) this.icon = style.icon;
-      if (style.image) this.image = style.image;
+      if (style.color) {this.color = style.color;}
+      if (style.icon) {this.icon = style.icon;}
+      if (style.image) {this.image = style.image;}
       this.updated_at = new Date();
     });
 
@@ -246,11 +246,11 @@ class KnowledgeNode extends Realm.Object {
       results = results.sorted('updated_at', true);
     }
 
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
+    // 分页 (性能优化：先 slice 再 materialize)
+    if (options.skip !== undefined || options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = results.slice(skip, skip + limit);
     }
 
     return results;

@@ -32,6 +32,11 @@ from .services import (
     QianfanService,
     MoonshotService
 )
+from common.api_response import APIResponse
+from common.error_codes import (
+    UNAUTHORIZED, FORBIDDEN, NOT_FOUND, INVALID_INPUT,
+    OPERATION_FAILED, INTERNAL_ERROR, AI_SERVICE_ERROR
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +60,10 @@ def chat_completion(request):
 
     # 验证消息格式
     if not messages or not isinstance(messages, list):
-        return Response(
-            {'error': '消息格式不正确'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='消息格式不正确',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 获取或创建对话
@@ -66,10 +72,7 @@ def chat_completion(request):
         try:
             conversation = Conversation.objects.get(id=conversation_id, user=user)
         except Conversation.DoesNotExist:
-            return Response(
-                {'error': '对话不存在'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return APIResponse.not_found('对话不存在')
     else:
         # 创建新对话
         title = messages[0]['content'][:50] if messages and len(messages) > 0 else '新对话'
@@ -79,10 +82,9 @@ def chat_completion(request):
             model=model_name
         )
 
-    # 初始化OpenAI服务
-    openai_service = OpenAIService()
-
     try:
+        # 初始化OpenAI服务（可能因环境依赖/密钥问题失败）
+        openai_service = OpenAIService()
         # 调用OpenAI API
         response = openai_service.chat_completion(
             messages=messages,
@@ -122,18 +124,30 @@ def chat_completion(request):
         )
 
         # 返回结果
-        return Response({
-            'conversation_id': str(conversation.id),
-            'message': response['content'],
-            'message_id': str(assistant_message.id),
-            'usage': response['usage']
-        })
+        return APIResponse.success(
+            data={
+                'conversation_id': str(conversation.id),
+                'message': response['content'],
+                'message_id': str(assistant_message.id),
+                'usage': response['usage']
+            },
+            message='聊天成功'
+        )
 
     except Exception as e:
         logger.error(f"Chat completion error: {str(e)}")
-        return Response(
-            {'error': f'处理请求时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        # 主链路最小可用兜底：当AI提供方不可用时，返回可展示响应而非500
+        fallback_reply = 'AI服务暂时不可用，请稍后重试。'
+        return APIResponse.success(
+            data={
+                'conversation_id': str(conversation.id) if conversation else None,
+                'message': fallback_reply,
+                'message_id': None,
+                'usage': {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0},
+                'fallback': True,
+                'error_detail': str(e),
+            },
+            message='聊天成功（降级模式）'
         )
 
 
@@ -148,13 +162,23 @@ def transcribe_audio(request):
     user = request.user
 
     # 检查是否上传了音频文件
-    if 'file' not in request.FILES:
-        return Response(
-            {'error': '未上传音频文件'},
-            status=status.HTTP_400_BAD_REQUEST
+    # 支持'file'和'audio'两个字段名，以保持向后兼容性
+    audio_file = request.FILES.get('file') or request.FILES.get('audio')
+    if not audio_file:
+        return APIResponse.error(
+            message='未上传音频文件',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
-    audio_file = request.FILES['file']
+    from common.utils import validate_uploaded_file
+    ok, err = validate_uploaded_file(audio_file, ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'], max_size_mb=25)
+    if not ok:
+        return APIResponse.error(
+            message=err,
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
     language = request.data.get('language', 'zh')
 
     # 初始化Whisper服务
@@ -186,10 +210,13 @@ def transcribe_audio(request):
         )
 
         # 返回结果
-        return Response({
-            'text': result['text'],
-            'language': result.get('language', language)
-        })
+        return APIResponse.success(
+            data={
+                'text': result['text'],
+                'language': result.get('language', language)
+            },
+            message='转写成功'
+        )
 
     except Exception as e:
         logger.error(f"Transcription error: {str(e)}")
@@ -200,9 +227,10 @@ def transcribe_audio(request):
             except:
                 pass
 
-        return Response(
-            {'error': f'处理音频时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'处理音频时出错: {str(e)}',
+            code=AI_SERVICE_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -221,9 +249,10 @@ def process_text(request):
     task = data.get('task', 'summarize')
 
     if not text:
-        return Response(
-            {'error': '文本不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='文本不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 初始化文本处理服务
@@ -246,13 +275,14 @@ def process_text(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Text processing error: {str(e)}")
-        return Response(
-            {'error': f'处理文本时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'处理文本时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -268,12 +298,17 @@ def analyze_image(request):
 
     # 检查是否上传了图像文件
     if 'file' not in request.FILES:
-        return Response(
-            {'error': '未上传图像文件'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='未上传图像文件',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
+    from common.utils import validate_uploaded_file
     image_file = request.FILES['file']
+    ok, err = validate_uploaded_file(image_file, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'], max_size_mb=20)
+    if not ok:
+        return APIResponse.error(message=err, code=INVALID_INPUT, status_code=status.HTTP_400_BAD_REQUEST)
     task = request.data.get('task', 'describe')
     prompt = request.data.get('prompt', '')
 
@@ -307,7 +342,7 @@ def analyze_image(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Image analysis error: {str(e)}")
@@ -318,9 +353,10 @@ def analyze_image(request):
             except:
                 pass
 
-        return Response(
-            {'error': f'处理图像时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'处理图像时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -341,9 +377,10 @@ def chat_stream(request):
     model = data.get('model', 'gpt-3.5-turbo')
 
     if not message:
-        return Response(
-            {'error': '消息不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='消息不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 根据引擎选择服务
@@ -396,9 +433,10 @@ def summarize_text(request):
     text = data.get('text', '')
 
     if not text:
-        return Response(
-            {'error': '文本不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='文本不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 初始化文本处理服务
@@ -421,13 +459,14 @@ def summarize_text(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Summarize error: {str(e)}")
-        return Response(
-            {'error': f'生成摘要时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'生成摘要时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -447,9 +486,10 @@ def translate_text(request):
     target_lang = data.get('target_lang', 'zh')
 
     if not text:
-        return Response(
-            {'error': '文本不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='文本不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 初始化文本处理服务
@@ -473,13 +513,14 @@ def translate_text(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Translation error: {str(e)}")
-        return Response(
-            {'error': f'翻译文本时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'翻译文本时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -497,9 +538,10 @@ def analyze_sentiment(request):
     text = data.get('text', '')
 
     if not text:
-        return Response(
-            {'error': '文本不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='文本不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 初始化文本处理服务
@@ -522,13 +564,14 @@ def analyze_sentiment(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Sentiment analysis error: {str(e)}")
-        return Response(
-            {'error': f'分析情感时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'分析情感时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -548,9 +591,10 @@ def generate_content(request):
     length = data.get('length', 'medium')
 
     if not prompt:
-        return Response(
-            {'error': '提示不能为空'},
-            status=status.HTTP_400_BAD_REQUEST
+        return APIResponse.error(
+            message='提示不能为空',
+            code=INVALID_INPUT,
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # 初始化OpenAI服务
@@ -574,13 +618,14 @@ def generate_content(request):
         )
 
         # 返回结果
-        return Response(result)
+        return APIResponse.success(data=result)
 
     except Exception as e:
         logger.error(f"Content generation error: {str(e)}")
-        return Response(
-            {'error': f'生成内容时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'生成内容时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -597,14 +642,12 @@ def reset_session(request):
         # 标记所有对话为已删除
         Conversation.objects.filter(user=user).update(is_deleted=True)
 
-        return Response({
-            'success': True,
-            'message': '会话已重置'
-        })
+        return APIResponse.success(data={'success': True}, message='会话已重置')
 
     except Exception as e:
         logger.error(f"Reset session error: {str(e)}")
-        return Response(
-            {'error': f'重置会话时出错: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return APIResponse.error(
+            message=f'重置会话时出错: {str(e)}',
+            code=INTERNAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

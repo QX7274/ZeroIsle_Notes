@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from './Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import networkService from '../../services/network/networkService';
 
 /**
  * 离线状态指示器组件
@@ -36,7 +36,7 @@ const OfflineIndicator = ({ onPress, style }) => {
   useEffect(() => {
     const checkNetworkStatus = async () => {
       try {
-        const networkStatus = await notesApi.checkNetwork();
+        const networkStatus = await networkService.checkConnection();
         setStatus(networkStatus);
       } catch (error) {
         console.error('检查网络状态失败:', error);
@@ -120,7 +120,7 @@ const OfflineIndicator = ({ onPress, style }) => {
 
   // 处理同步按钮点击
   const handleSyncPress = async () => {
-    if (status.syncStatus === 'syncing') return;
+    if (status.syncStatus === 'syncing') {return;}
 
     try {
       // 手动同步功能已移除，现在使用 realmService
@@ -171,7 +171,7 @@ const OfflineIndicator = ({ onPress, style }) => {
 
   // 格式化最后同步时间
   const formatLastSyncTime = () => {
-    if (!status.lastSyncTime) return '从未同步';
+    if (!status.lastSyncTime) {return '从未同步';}
 
     const lastSync = new Date(status.lastSyncTime);
     const now = new Date();
@@ -201,7 +201,7 @@ const OfflineIndicator = ({ onPress, style }) => {
       <TouchableOpacity
         style={[
           styles.indicator,
-          { backgroundColor: color + '20' }
+          { backgroundColor: color + '20' },
         ]}
         onPress={handlePress}
       >
@@ -233,7 +233,7 @@ const OfflineIndicator = ({ onPress, style }) => {
             height,
             opacity: animatedOpacity,
             backgroundColor: colors.card,
-          }
+          },
         ]}
       >
         <View style={styles.detailRow}>
@@ -300,7 +300,7 @@ const OfflineIndicator = ({ onPress, style }) => {
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { backgroundColor: colors.primary }
+              { backgroundColor: colors.primary },
             ]}
             onPress={handleSyncPress}
             disabled={!status.isOnline || status.pendingOperationsCount === 0 || status.syncStatus === 'syncing'}

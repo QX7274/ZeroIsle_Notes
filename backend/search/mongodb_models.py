@@ -58,6 +58,10 @@ class SearchIndex(Document):
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
 
+    def get_index_type_display(self):
+        """获取索引类型显示名称"""
+        return dict(self.INDEX_TYPE_CHOICES).get(self.index_type, '')
+
 class SearchQuery(Document):
     """
     搜索查询文档模型
@@ -84,6 +88,42 @@ class SearchQuery(Document):
 
     def __str__(self):
         return f"{self.user.username}: {self.query}"
+
+class SearchConfiguration(Document):
+    """
+    搜索配置模型（单例）
+    用于存储可动态调整的搜索参数，如融合排序的权重和阈值。
+    """
+    # 使用一个固定的、已知的ID来确保单例
+    singleton_id = StringField(primary_key=True, default='global_search_config')
+
+    # 融合排序权重 (a + b = 1)
+    keyword_weight = FloatField(default=0.6, min_value=0.0, max_value=1.0, verbose_name='关键词(BM25)权重')
+    vector_weight = FloatField(default=0.4, min_value=0.0, max_value=1.0, verbose_name='向量(语义)权重')
+
+    # 语义相似度阈值
+    relevance_threshold = FloatField(default=0.7, min_value=0.0, max_value=1.0, verbose_name='相关度阈值')
+
+    # 向量搜索候选集大小
+    vector_candidate_limit = IntField(default=1000, min_value=10, max_value=5000, verbose_name='向量搜索候选集上限')
+
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+
+    meta = {
+        'collection': 'search_configuration',
+    }
+
+    def save(self, *args, **kwargs):
+        """保存前更新更新时间"""
+        self.updated_at = timezone.now()
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls):
+        """获取全局唯一的配置对象，如果不存在则创建。"""
+        config, created = cls.objects.get_or_create(singleton_id='global_search_config')
+        return config
+
 
 class SearchResult(Document):
     """

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
   FlatList,
@@ -11,7 +11,7 @@ import {
   Image,
   Dimensions,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
 } from 'react-native';
 import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -39,12 +39,25 @@ import CreateContentModal from '../../components/common/CreateContentModal';
 import CardTypeModal from '../../components/common/CardTypeModal';
 import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
+import TemplatePickerModal from '../../components/common/TemplatePickerModal';
 import preloadService from '../../services/document/preloadService';
 import fileHistoryService from '../../services/fileHistoryService';
 import networkErrorService from '../../services/networkErrorService';
 
 const HomeScreen = ({ navigation }) => {
-  const { colors } = useTheme();
+  const themeContext = useTheme();
+  const colors = (themeContext && themeContext.colors) ? themeContext.colors : {
+    primary: '#007AFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    card: '#FFFFFF',
+    background: '#F2F2F2',
+    border: '#E5E5EA',
+    shadow: 'rgba(0,0,0,0.1)',
+  };
+  // Create styles after we have a safe colors object
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   const dispatch = useDispatch();
   // 使用selectAllNotes选择器获取所有笔记
   const allNotes = useSelector(selectAllNotes);
@@ -56,10 +69,36 @@ const HomeScreen = ({ navigation }) => {
 
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
+  const columnCount = isLandscape ? 4 : 3;
+  const gridGap = 10;
+  const gridItemWidth = useMemo(() => {
+    const totalPadding = 32; // 左右两侧各16
+    const totalGap = (columnCount - 1) * gridGap;
+    return (screenWidth - totalPadding - totalGap) / columnCount;
+  }, [screenWidth, columnCount]);
+
+  const validNotes = useMemo(
+    () => (notes || []).filter(note => note && (note._id || note.id)),
+    [notes]
+  );
+
+  // 横屏固定4列、竖屏固定3列：不足用占位项补齐，保持一行列数视觉稳定
+  const gridNotes = useMemo(() => {
+    const remainder = validNotes.length % columnCount;
+    if (remainder === 0) {
+      return validNotes;
+    }
+    const placeholders = Array.from({ length: columnCount - remainder }, (_, index) => ({
+      __placeholder: true,
+      id: `placeholder_${columnCount}_${validNotes.length}_${index}`,
+    }));
+    return [...validNotes, ...placeholders];
+  }, [validNotes, columnCount]);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [showCardTypeModal, setShowCardTypeModal] = useState(false);
   const [showCanvasStyleModal, setShowCanvasStyleModal] = useState(false);
   const [showNoteStyleModal, setShowNoteStyleModal] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
   const [renameDialogVisible, setRenameDialogVisible] = useState(false);
   const [noteToRename, setNoteToRename] = useState(null);
@@ -159,15 +198,15 @@ const HomeScreen = ({ navigation }) => {
       // 强制触发重新排序
       setForceUpdate(prev => prev + 1);
     };
-    
+
     fileHistoryService.addListener(historyListener);
     console.log('HomeScreen: 文件历史记录监听器已添加');
-    
+
     // 测试：立即获取一次历史记录
     const initialHistory = fileHistoryService.getHistory();
     console.log('HomeScreen: 初始历史记录:', initialHistory.length, '条');
     setFileHistoryCache(initialHistory);
-    
+
     return () => {
       fileHistoryService.removeListener(historyListener);
       console.log('HomeScreen: 文件历史记录监听器已移除');
@@ -181,7 +220,7 @@ const HomeScreen = ({ navigation }) => {
       sortOption,
       isLoading,
       notesStateLoading: notesState.isLoading,
-      fileHistoryCacheLength: fileHistoryCache.length
+      fileHistoryCacheLength: fileHistoryCache.length,
     });
 
     if (allNotes && allNotes.length > 0) {
@@ -197,7 +236,7 @@ const HomeScreen = ({ navigation }) => {
 
   // 排序笔记
   const sortNotes = useCallback((notesToSort, option) => {
-    if (!notesToSort || notesToSort.length === 0) return [];
+    if (!notesToSort || notesToSort.length === 0) {return [];}
 
     const sorted = [...notesToSort];
 
@@ -229,7 +268,7 @@ const HomeScreen = ({ navigation }) => {
     const getLastAccessTime = (item) => {
       // 直接从fileHistoryService获取最新历史记录，避免缓存延迟问题
       const history = fileHistoryService.getHistory();
-      
+
       console.log('HomeScreen: 查找访问记录，项目:', {
         _id: item._id,
         id: item.id,
@@ -237,16 +276,16 @@ const HomeScreen = ({ navigation }) => {
         name: item.name,
         file_uri: item.file_uri,
         uri: item.uri,
-        fileName: item.fileName
+        fileName: item.fileName,
       });
-      
-      console.log('HomeScreen: 当前历史记录前3条:', history.slice(0, 3).map(h => ({ 
-        id: h.id, 
-        noteId: h.noteId, 
-        title: h.title, 
-        lastOpened: h.lastOpened 
+
+      console.log('HomeScreen: 当前历史记录前3条:', history.slice(0, 3).map(h => ({
+        id: h.id,
+        noteId: h.noteId,
+        title: h.title,
+        lastOpened: h.lastOpened,
       })));
-      
+
       // 查找匹配的历史记录
       const historyItem = history.find(hist => {
         // 优先匹配noteId（对于笔记类型）
@@ -266,7 +305,7 @@ const HomeScreen = ({ navigation }) => {
           console.log('HomeScreen: 通过hist.noteId匹配:', item.id);
           return true;
         }
-        
+
         // 匹配URI（对于文件类型）
         if (item.file_uri && hist.uri === item.file_uri) {
           console.log('HomeScreen: 通过file_uri匹配:', item.file_uri);
@@ -284,7 +323,7 @@ const HomeScreen = ({ navigation }) => {
           console.log('HomeScreen: 通过hist.file_uri匹配:', item.uri);
           return true;
         }
-        
+
         // 匹配标题（作为备用）
         if (item.title && hist.title === item.title) {
           console.log('HomeScreen: 通过标题匹配:', item.title);
@@ -294,7 +333,7 @@ const HomeScreen = ({ navigation }) => {
           console.log('HomeScreen: 通过name匹配:', item.name);
           return true;
         }
-        
+
         // 匹配文件名（作为备用）
         if (item.fileName && hist.fileName === item.fileName) {
           console.log('HomeScreen: 通过文件名匹配:', item.fileName);
@@ -304,10 +343,10 @@ const HomeScreen = ({ navigation }) => {
           console.log('HomeScreen: 通过标题匹配文件名:', item.title);
           return true;
         }
-        
+
         return false;
       });
-      
+
       if (historyItem) {
         console.log('HomeScreen: 找到访问记录:', item.title || item.name, '访问时间:', historyItem.lastOpened);
         return new Date(historyItem.lastOpened);
@@ -337,15 +376,15 @@ const HomeScreen = ({ navigation }) => {
           // 获取更新时间
           const updateTimeA = getDate(a, 'updated_at');
           const updateTimeB = getDate(b, 'updated_at');
-          
+
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
           const accessTimeB = getLastAccessTime(b);
-          
+
           // 取两个时间中的较新者进行比较
           const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
           const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
-          
+
           return latestTimeB - latestTimeA; // 降序排列，最新的在前面
         });
 
@@ -354,15 +393,15 @@ const HomeScreen = ({ navigation }) => {
           // 获取更新时间
           const updateTimeA = getDate(a, 'updated_at');
           const updateTimeB = getDate(b, 'updated_at');
-          
+
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
           const accessTimeB = getLastAccessTime(b);
-          
+
           // 取两个时间中的较新者进行比较
           const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
           const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
-          
+
           return latestTimeA - latestTimeB; // 升序排列，最早的在前面
         });
 
@@ -398,7 +437,7 @@ const HomeScreen = ({ navigation }) => {
               'image': 7,
               'audio': 8,
               'video': 9,
-              'unknown': 10
+              'unknown': 10,
             };
 
             const priorityA = typePriority[typeA] || 10;
@@ -414,13 +453,13 @@ const HomeScreen = ({ navigation }) => {
           // 同类型按最近更新和访问时间排序
           const updateTimeA = getDate(a, 'updated_at');
           const updateTimeB = getDate(b, 'updated_at');
-          
+
           const accessTimeA = getLastAccessTime(a);
           const accessTimeB = getLastAccessTime(b);
-          
+
           const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
           const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
-          
+
           return latestTimeB - latestTimeA;
         });
 
@@ -444,15 +483,15 @@ const HomeScreen = ({ navigation }) => {
           // 获取更新时间
           const updateTimeA = getDate(a, 'updated_at');
           const updateTimeB = getDate(b, 'updated_at');
-          
+
           // 获取最近访问时间
           const accessTimeA = getLastAccessTime(a);
           const accessTimeB = getLastAccessTime(b);
-          
+
           // 取两个时间中的较新者进行比较
           const latestTimeA = Math.max(updateTimeA.getTime(), accessTimeA.getTime());
           const latestTimeB = Math.max(updateTimeB.getTime(), accessTimeB.getTime());
-          
+
           return latestTimeB - latestTimeA; // 降序排列，最新的在前面
         });
     }
@@ -480,13 +519,16 @@ const HomeScreen = ({ navigation }) => {
   // 处理画布样式选择
   const handleCanvasStyleSelect = (style, name) => {
     const canvasTitle = name || `无限画布 ${new Date().toLocaleString()}`;
-    const canvasId = `canvas_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    // 使用字符串生成有效的画布ID
+    const canvasId = realmService.createObjectId();
+
+    console.log('HomeScreen: 创建无限画布，ID:', canvasId, '样式:', style, '标题:', canvasTitle);
 
     navigation.navigate('InfiniteCanvas', {
       title: canvasTitle,
-      noteId: canvasId,
+      noteId: canvasId, // 直接传递字符串ID
       canvasStyle: style,
-      createNew: true // 明确标记为新建
+      createNew: true, // 明确标记为新建
     });
   };
 
@@ -505,25 +547,51 @@ const HomeScreen = ({ navigation }) => {
     console.log('HomeScreen: 设置showCardTypeModal为true');
   };
 
+  // 处理模板选择
+  const handleSelectTemplate = async (template) => {
+    setShowTemplatePicker(false);
+    if (!template) {return;}
+
+    // 处理模板内容中的占位符
+    let content = template.content.replace(/\{\{date\}\}/g, new Date().toLocaleDateString());
+
+    const realm = await realmService.getRealm();
+    let newNote;
+    realm.write(() => {
+      newNote = realm.create('Note', {
+        _id: new Realm.BSON.UUID().toHexString(),
+        title: template.title,
+        content: content,
+        created_at: new Date(),
+        updated_at: new Date(),
+        type: 'markdown', // 确保新笔记是Markdown类型
+      });
+    });
+
+    if (newNote) {
+      navigation.navigate('NoteEditor', { noteId: newNote._id });
+    }
+  };
+
   // 处理卡片类型选择
   const handleCardTypeSelect = async (cardType, cardName) => {
     try {
       console.log('HomeScreen: 处理卡片类型选择:', cardType, '卡片名称:', cardName);
-      
+
       // 使用用户输入的卡片名称，如果没有则使用默认名称
       const cardTitle = cardName && cardName.trim() ? cardName.trim() : `卡片笔记 ${new Date().toLocaleString()}`;
-      const cardId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      const cardId = realmService.createObjectId();
 
       console.log('HomeScreen: 准备导航到CardNote，参数:', {
         noteId: cardId,
         title: cardTitle,
-        createNew: true
+        createNew: true,
       });
 
       navigation.navigate('CardNote', {
         noteId: cardId,
         title: cardTitle,
-        createNew: true // 明确标记为新建
+        createNew: true, // 明确标记为新建
       });
 
       setShowCardTypeModal(false);
@@ -536,13 +604,13 @@ const HomeScreen = ({ navigation }) => {
 
   // 处理笔记样式选择
   const handleNoteStyleSelect = (style, name) => {
-    const noteId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const noteId = realmService.createObjectId();
 
     navigation.navigate('FluidPagedNote', {
       title: name,
       noteId: noteId,
       noteStyle: style,
-      createNew: true // 明确标记为新建
+      createNew: true, // 明确标记为新建
     });
   };
 
@@ -932,7 +1000,7 @@ Week 4: □□□□□□□
 🎉 奖励机制：
 7天奖励：
 21天奖励：
-30天奖励：`
+30天奖励：`,
     };
 
     return templates[cardType.id] || '';
@@ -1017,7 +1085,7 @@ Week 4: □□□□□□□
             id: note._id || note.id,
             title: note.title,
             type: note.type,
-            canvasStyle: note.canvasStyle
+            canvasStyle: note.canvasStyle,
           });
         });
 
@@ -1149,7 +1217,7 @@ Week 4: □□□□□□□
           .map(note => ({
             uri: note.uri || note.file_uri || note.file_path,
             type: note.file_type?.toLowerCase(),
-            title: note.title
+            title: note.title,
           }))
           .filter(doc => doc.uri && doc.type);
 
@@ -1195,7 +1263,7 @@ Week 4: □□□□□□□
             localPath: destinationPath,
             localUri: destinationPath,
             fileName: file.name || `document_${Date.now()}.pdf`,
-            type: 'pdf'
+            type: 'pdf',
           };
 
           console.log('HomeScreen: PDF文件持久化完成:', persistedFile);
@@ -1219,9 +1287,17 @@ Week 4: □□□□□□□
 
             // 即使API返回失败，只要有数据就继续处理
             if (response.success || (response.data && response.data.id)) {
+              // 立即将新笔记添加到Redux状态
+              if (response.data) {
+                console.log('立即添加PDF笔记到Redux状态:', response.data);
+                dispatch(addNote(response.data));
+
+                // 强制刷新UI显示新笔记
+                setForceUpdate(prev => prev + 1);
+              }
+
               setIsLoading(false);
               Alert.alert('成功', '导入PDF成功');
-              loadNotes(); // 重新加载笔记列表
               return;
             }
 
@@ -1235,7 +1311,7 @@ Week 4: □□□□□□□
           console.log('HomeScreen: 使用本地导入方式');
 
           // 创建本地笔记对象
-          const noteId = Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+          const noteId = realmService.createObjectId();
 
           // 创建metadata对象，使用持久化后的文件信息
           const metadataObj = {
@@ -1249,7 +1325,7 @@ Week 4: □□□□□□□
             pageCount: null, // PDF页数，后续可以添加
             lastOpenedPage: 1, // 上次打开的页码
             lastOpenedTime: new Date().toISOString(), // 上次打开时间
-            createdAt: persistedFile.createdAt
+            createdAt: persistedFile.createdAt,
           };
 
           // 将metadata转换为字符串
@@ -1272,10 +1348,12 @@ Week 4: □□□□□□□
             path: persistedFile.localPath,
             file_path: persistedFile.localPath,
             url: persistedFile.localUri,
+            pdfPath: persistedFile.localUri, // 添加pdfPath字段，用于查找PDF笔记
 
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             is_synced: false,
+            is_deleted: false, // 确保笔记未被删除
             is_offline: true,
             imported: true,
 
@@ -1286,20 +1364,21 @@ Week 4: □□□□□□□
             metadata: metadataString,
 
             // 确保tags是字符串数组
-            tags: []
+            tags: [],
           };
 
           // 保存到离线存储
           try {
             const realm = await realmService.getRealm();
             realm.write(() => {
-              realm.create('Note', localNote);
+              // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+              realm.create('Note', localNote, 'modified');
             });
             console.log('HomeScreen: PDF文件保存成功:', {
               action: 'saveNote',
               id: localNote._id || localNote.id,
               type: localNote.file_type || localNote.type,
-              localPath: persistedFile.localPath
+              localPath: persistedFile.localPath,
             });
           } catch (e) {
             console.warn('HomeScreen: PDF文件保存失败:', e);
@@ -1336,10 +1415,15 @@ Week 4: □□□□□□□
 
       if (documentInfo) {
         console.log('选择的Word文件:', documentInfo);
-        setIsLoading(true);
+
+        // 显示进度模态框
+        setShowProcessingProgress(true);
+        setProcessingProgress(0);
+        setProcessingMessage('正在准备Word文档...');
+        setProcessingStage('preparing');
 
         // 生成唯一的笔记ID
-        const noteId = `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const noteId = realmService.createObjectId();
 
         try {
           // 创建FormData来导入Word文档
@@ -1348,32 +1432,64 @@ Week 4: □□□□□□□
           formData.append('file', {
             uri: documentInfo.localPath || documentInfo.uri,
             name: documentInfo.name,
-            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           });
 
-          // 使用importNote API保存文档
+          const updateProgress = (progress, message, stage = 'converting') => {
+            setProcessingProgress(progress);
+            setProcessingMessage(message);
+            setProcessingStage(stage);
+          };
+
+          updateProgress(10, '正在上传Word文档到后端...', 'uploading');
+
+          // 使用importNote API保存文档（内部会自动上传到后端转换为PDF）
           const savedNote = await notesApi.importNote(formData);
 
-          console.log('Word文件已保存到本地:', savedNote);
+          console.log('Word文件已转换并保存到本地:', savedNote);
 
-          // 显示成功提示
-          Alert.alert('导入成功', 'Word文档已成功导入，您可以在主页中查看');
+          // 更新进度到100%
+          updateProgress(100, 'Word文档转换完成！', 'completed');
 
-          // 刷新笔记列表
-          await loadNotes();
+          // 立即将新笔记添加到Redux状态，不等待加载完成
+          if (savedNote && savedNote.data) {
+            console.log('立即添加Word笔记到Redux状态:', savedNote.data);
+            dispatch(addNote(savedNote.data));
+          }
+
+          // 后台刷新笔记列表（不等待完成）
+          loadNotes().catch(err => {
+            console.warn('后台刷新笔记列表失败:', err);
+          });
+
+          Alert.alert('导入成功', 'Word文档已成功转换为PDF并导入，您可以在主页中查看');
+          setShowProcessingProgress(false);
 
         } catch (saveError) {
           console.error('保存Word文件失败:', saveError);
-          Alert.alert('保存失败', saveError.message || '保存Word文件失败，请重试');
-        } finally {
-          setIsLoading(false);
+
+          setProcessingProgress(0);
+          setProcessingMessage('转换失败');
+          setProcessingStage('error');
+
+          setShowProcessingProgress(false);
+
+          // 显示更友好的错误消息
+          if (saveError.message && saveError.message.includes('后端服务')) {
+            Alert.alert(
+              '转换失败',
+              saveError.message
+            );
+          } else {
+            Alert.alert('保存失败', saveError.message || '保存Word文件失败，请重试');
+          }
         }
       }
 
     } catch (error) {
       console.error('选择Word文件失败:', error);
+      setShowProcessingProgress(false);
       Alert.alert('错误', error.message || '选择Word文件失败，请重试');
-      setIsLoading(false);
     }
   };
   // 导入PPT文件
@@ -1404,20 +1520,20 @@ Week 4: □□□□□□□
         const onComplete = (result) => {
           console.log('PPT文件已保存到本地:', result);
 
+          // 立即将新笔记添加到Redux状态
+          if (result && result.data) {
+            console.log('立即添加PPT笔记到Redux状态:', result.data);
+            dispatch(addNote(result.data));
+
+            // 强制刷新UI显示新笔记
+            setForceUpdate(prev => prev + 1);
+          }
+
           // 隐藏进度模态框
           setShowProcessingProgress(false);
 
           // 显示成功提示
           Alert.alert('导入成功', 'PPT演示文稿已成功导入，您可以在主页中查看');
-
-          // 异步刷新笔记列表，不阻塞UI
-          setTimeout(async () => {
-            try {
-              await loadNotesNonBlocking();
-            } catch (error) {
-              console.error('异步加载笔记失败:', error);
-            }
-          }, 100);
         };
 
         // 错误回调
@@ -1434,7 +1550,7 @@ Week 4: □□□□□□□
               'PPT文档已保存，但需要网络连接才能转换为PDF格式。\n\n您可以在有网络时重新打开此文档进行转换。',
               [
                 { text: '确定', style: 'default' },
-                { text: '重新导入', onPress: () => importPPT() }
+                { text: '重新导入', onPress: () => importPPT() },
               ]
             );
           } else if (error.message && error.message.includes('文件格式错误')) {
@@ -1443,7 +1559,7 @@ Week 4: □□□□□□□
               '选择的文件不是有效的PPT格式，请检查文件是否损坏或重新选择文件。',
               [
                 { text: '确定', style: 'default' },
-                { text: '重新选择', onPress: () => importPPT() }
+                { text: '重新选择', onPress: () => importPPT() },
               ]
             );
           } else {
@@ -1472,7 +1588,7 @@ Week 4: □□□□□□□
     try {
       const mdTypes = Platform.select({ ios: ['net.daringfireball.markdown', types.plainText], android: ['text/markdown', 'text/plain'] });
       let results = await DocumentPicker.pick({ type: mdTypes, allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' });
-      const okExt = (name='') => /\.(md|markdown|txt)$/i.test(name);
+      const okExt = (name = '') => /\.(md|markdown|txt)$/i.test(name);
       if (!results || results.length === 0 || !okExt(results[0]?.name || results[0]?.fileCopyUri || '')) {
         try { results = await DocumentPicker.pick({ type: [types.allFiles], allowMultiSelection: false, mode: 'import', copyTo: 'documentDirectory' }); } catch (err) {
           console.error('导入Markdown文件失败:', err);
@@ -1482,7 +1598,7 @@ Week 4: □□□□□□□
       }
       if (results && results.length > 0) {
         const file = results[0];
-        const noteId = `${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+        const noteId = realmService.createObjectId();
         const localNote = {
           id: noteId,
           _id: noteId,
@@ -1499,16 +1615,18 @@ Week 4: □□□□□□□
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           is_synced: false,
+          is_deleted: false, // 确保笔记未被删除
           is_offline: true,
           imported: true,
           preview_image: null,
           metadata: JSON.stringify({ filePath: file.uri || file.fileCopyUri, fileSize: file.size || null, lastOpenedTime: new Date().toISOString() }),
-          tags: []
+          tags: [],
         };
         try {
           const realm = await realmService.getRealm();
           realm.write(() => {
-            realm.create('Note', localNote);
+            // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+            realm.create('Note', localNote, 'modified');
           });
           console.log('HomeScreen: Markdown文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
         } catch (e) {
@@ -1568,13 +1686,13 @@ Week 4: □□□□□□□
       }
 
       // 创建本地笔记对象
-      const noteId = Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+      const noteId = realmService.createObjectId();
 
       // 创建metadata对象
       const metadataObj = {
         filePath: fileUri,
         fileSize: file.size || null,
-        lastOpenedTime: new Date().toISOString()
+        lastOpenedTime: new Date().toISOString(),
       };
 
       // 将metadata转换为字符串
@@ -1611,7 +1729,7 @@ Week 4: □□□□□□□
         metadata: metadataString,
 
         // 确保tags是字符串数组
-        tags: []
+        tags: [],
       };
 
       // 添加到Redux状态
@@ -1670,6 +1788,17 @@ Week 4: □□□□□□□
 
   // 优化的笔记项组件，使用memo避免不必要的重新渲染
   const NoteItem = memo(({ item, index, onPress, onLongPress }) => {
+    const renderContentPreview = () => {
+      if (!item.content || typeof item.content !== 'string') {return null;}
+      // Remove markdown for a cleaner preview
+      const plainText = item.content.replace(/[#*`>~=\[\]_]/g, '').replace(/\s+/g, ' ').trim();
+      if (!plainText) {return null;}
+      return (
+        <Text style={styles.noteSnippet} numberOfLines={3}>
+          {plainText}
+        </Text>
+      );
+    };
     // 防止item为null或undefined
     if (!item) {
       return null;
@@ -1677,7 +1806,16 @@ Week 4: □□□□□□□
 
     // 根据笔记类型渲染不同的封面
     const renderCover = () => {
-      console.log('渲染封面，笔记数据:', item);
+      // 只打印关键信息，避免日志过长
+      console.log('渲染封面，笔记信息:', {
+        id: item._id || item.id,
+        type: item.type,
+        noteType: item.noteType,
+        title: item.title,
+        hasContent: !!item.content,
+        hasStrokeData: !!item.strokeData,
+        hasPages: !!item.pages,
+      });
 
       // 安全地获取内容，处理可能的循环引用
       let content = '';
@@ -1698,45 +1836,73 @@ Week 4: □□□□□□□
         content = '';
       }
 
-      // 检查是否是PDF文件
+      // 检查文件类型 - 优先使用 type 和 file_type 字段，而不是文件扩展名
       const type = (item.type || '').toString().toLowerCase().trim();
       const fileType = (item.file_type || '').toString().toLowerCase().trim();
+      const originalType = (item.original_type || '').toString().toLowerCase().trim();
       const fileName = (item.file_name || '').toString().toLowerCase().trim();
+      const originalFileName = (item.original_file_name || '').toString().toLowerCase().trim();
       const fileUri = (item.file_uri || '').toString().toLowerCase().trim();
+      const noteType = (item.noteType || '').toString().toLowerCase().trim();
 
-      const isPdf =
-        fileType === 'pdf' ||
-        type === 'pdf' ||
-        fileName.endsWith('.pdf') ||
-        fileUri.endsWith('.pdf');
+      console.log('封面类型检测:', {
+        type,
+        fileType,
+        originalType,
+        noteType,
+        fileName,
+        originalFileName,
+        isConverted: item.is_converted,
+      });
 
-      console.log('isPdf:', isPdf, { type, fileType, fileName, fileUri });
-
-      if (isPdf) {
-        // PDF封面 - 使用纯色背景
-        return (
-          <View style={[styles.coverContainer, styles.pdfBackground]}>
-            <Icon name="document-text" size={30} color="#E53935" />
-            <Text style={{ color: '#E53935', fontSize: 12, marginTop: 4 }}>PDF</Text>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#E53935' }]} />
-          </View>
-        );
-      }
-      // 检查是否是Word文件
-      else if (
-        item.file_type === 'word' ||
-        item.type === 'word' ||
-        (item.file_name && (item.file_name.toLowerCase().endsWith('.docx') || item.file_name.toLowerCase().endsWith('.doc'))) ||
-        content.includes('word') ||
-        content.includes('docx') ||
-        content.includes('doc')
+      // 优先检查原始类型（针对转换后的文档）
+      // 检查是否是Word文件（包括转换后的）
+      if (
+        type === 'word' ||
+        fileType === 'word' ||
+        originalType === 'word' ||
+        (originalFileName && (originalFileName.endsWith('.docx') || originalFileName.endsWith('.doc'))) ||
+        (!item.is_converted && fileName && (fileName.endsWith('.docx') || fileName.endsWith('.doc'))) ||
+        content.includes('导入的word文件')
       ) {
-        // Word封面 - 使用纯色背景
+        // Word封面 - 使用蓝色背景
         return (
           <View style={[styles.coverContainer, styles.wordBackground]}>
             <Icon name="document" size={30} color="#1976D2" />
             <Text style={{ color: '#1976D2', fontSize: 12, marginTop: 4 }}>Word</Text>
             <View style={[styles.fileTypeIndicator, { backgroundColor: '#1976D2' }]} />
+          </View>
+        );
+      }
+      // 检查是否是PPT/PPTX（包括转换后的）
+      else if (
+        type === 'ppt' || type === 'pptx' ||
+        fileType === 'ppt' || fileType === 'pptx' ||
+        originalType === 'ppt' || originalType === 'pptx' ||
+        (originalFileName && (originalFileName.endsWith('.ppt') || originalFileName.endsWith('.pptx'))) ||
+        (!item.is_converted && fileName && (fileName.endsWith('.ppt') || fileName.endsWith('.pptx'))) ||
+        content.includes('导入的ppt文件') || content.includes('导入的pptx文件')
+      ) {
+        return (
+          <View style={[styles.coverContainer, styles.pptBackground]}>
+            <Icon name="easel" size={30} color="#FF7043" />
+            <Text style={{ color: '#FF7043', fontSize: 12, marginTop: 4 }}>PPT</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF7043' }]} />
+          </View>
+        );
+      }
+      // 检查是否是原生PDF文件（非转换的）
+      else if (
+        (type === 'pdf' || fileType === 'pdf' || noteType === 'pdf') &&
+        !item.is_converted && // 不是转换后的文档
+        (fileName.endsWith('.pdf') || fileUri.endsWith('.pdf'))
+      ) {
+        // PDF封面 - 使用红色背景
+        return (
+          <View style={[styles.coverContainer, styles.pdfBackground]}>
+            <Icon name="document-text" size={30} color="#E53935" />
+            <Text style={{ color: '#E53935', fontSize: 12, marginTop: 4 }}>PDF</Text>
+            <View style={[styles.fileTypeIndicator, { backgroundColor: '#E53935' }]} />
           </View>
         );
       }
@@ -1772,26 +1938,13 @@ Week 4: □□□□□□□
           </View>
         );
       }
-      // 检查是否是PPT/PPTX
-      else if (
-        fileType === 'ppt' || fileType === 'pptx' || type === 'ppt' || type === 'pptx' ||
-        (item.file_name && (item.file_name.toLowerCase().endsWith('.ppt') || item.file_name.toLowerCase().endsWith('.pptx')))
-      ) {
-        return (
-          <View style={[styles.coverContainer, styles.pptBackground]}>
-            <Icon name="easel" size={30} color="#FF7043" />
-            <Text style={{ color: '#FF7043', fontSize: 12, marginTop: 4 }}>PPT</Text>
-            <View style={[styles.fileTypeIndicator, { backgroundColor: '#FF7043' }]} />
-          </View>
-        );
-      }
       // 检查是否是卡片笔记
       else if (item.type === 'card' || item.noteType === 'card') {
         console.log('HomeScreen: 渲染卡片笔记封面，数据:', {
           type: item.type,
           noteType: item.noteType,
           title: item.title,
-          id: item._id || item.id
+          id: item._id || item.id,
         });
         // 卡片笔记封面 - 使用纯色背景
         return (
@@ -1808,7 +1961,7 @@ Week 4: □□□□□□□
           type: item.type,
           title: item.title,
           canvasStyle: item.canvasStyle,
-          id: item._id || item.id
+          id: item._id || item.id,
         });
         // 画布封面 - 使用纯色背景
         return (
@@ -1819,7 +1972,7 @@ Week 4: □□□□□□□
           </View>
         );
       }
-      
+
       // 默认文本笔记封面
       else {
         console.log('handleFilePress - 进入默认文本笔记分支:', item); // 添加默认分支日志
@@ -1835,7 +1988,7 @@ Week 4: □□□□□□□
 
     // 格式化日期显示
     const formatDate = (dateString) => {
-      if (!dateString) return '未知日期';
+      if (!dateString) {return '未知日期';}
 
       try {
         const date = new Date(dateString);
@@ -1888,7 +2041,7 @@ Week 4: □□□□□□□
         fileName: item.file_name || item.title || '',
         fileType: item.file_type || item.type || '',
         fileUri: possibleUris[0] || null,
-        detectedType: { isPdf, isDoc, isPpt, isMd }
+        detectedType: { isPdf, isDoc, isPpt, isMd },
       };
       console.log('File type detection:', detection);
 
@@ -1913,7 +2066,7 @@ Week 4: □□□□□□□
           uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
           noteId: item._id || item.id || `temp_${Date.now()}`,
-          type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc'
+          type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc',
         };
         console.log('Navigation params:', { screen: 'DocViewer', params });
         navigation.navigate('DocViewer', params);
@@ -1924,7 +2077,7 @@ Week 4: □□□□□□□
           uri: possibleUris[0],
           title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
           noteId: item._id || item.id || `temp_${Date.now()}`,
-          type: 'pptx'
+          type: 'pptx',
         };
         console.log('Navigation params:', { screen: 'PPTViewer', params });
         navigation.navigate('PPTViewer', params);
@@ -1952,7 +2105,7 @@ Week 4: □□□□□□□
         navigation.navigate('FluidPagedNote', {
           noteId,
           title: item.title || '新建笔记',
-          noteStyle: item.noteStyle || 'blank'
+          noteStyle: item.noteStyle || 'blank',
         });
         return;
       }
@@ -1962,7 +2115,7 @@ Week 4: □□□□□□□
         navigation.navigate('CardNote', {
           noteId,
           title: item.title || '新建卡片笔记',
-          content: item.content || ''
+          content: item.content || '',
         });
         return;
       }
@@ -1971,7 +2124,7 @@ Week 4: □□□□□□□
       console.warn('未识别的笔记类型，使用默认处理:', {
         type: item.type,
         noteType: item.noteType,
-        file_type: item.file_type
+        file_type: item.file_type,
       });
 
       // 如果有内容但没有明确类型，当作卡片笔记处理
@@ -1979,53 +2132,57 @@ Week 4: □□□□□□□
       navigation.navigate('CardNote', {
         noteId,
         title: item.title || '笔记',
-        content: item.content || ''
+        content: item.content || '',
       });
     };
 
 
-    // 根据屏幕方向计算笔记项的宽度
-    const columnCount = isLandscape ? 4 : 3; // 横屏4列，竖屏3列
-    // 统一计算方式，确保横竖屏边距一致
-    const totalPadding = 32; // 左右两侧各16的内边距
-    const totalGap = (columnCount - 1) * 10; // 项目之间的间距总和
-    const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
+    // 统一使用外层计算宽度，确保横4竖3的列宽稳定
+    if (item?.__placeholder) {
+      return (
+        <View
+          style={[
+            styles.noteItemPlaceholder,
+            {
+              width: gridItemWidth,
+            },
+          ]}
+          pointerEvents="none"
+        />
+      );
+    }
 
     return (
-      <View style={[
-        styles.noteItem,
-        {
-          backgroundColor: colors.card,
-          width: itemWidth // 动态设置宽度
-        }
-      ]}>
-        {/* 只有点击背景区域才执行打开操作 */}
+      <View
+        style={[
+          styles.noteItem,
+          {
+            width: gridItemWidth,
+            backgroundColor: colors.card,
+          },
+        ]}
+      >
         <TouchableOpacity
-          onPress={(e) => { e.persist(); handleFilePress(item); }}
           style={styles.coverTouchable}
+          onPress={() => handleFilePress(item)}
+          onLongPress={() => handleLongPress(item)}
           activeOpacity={0.7}
-          delayPressIn={100} // 增加延迟，减少误触
-          pressRetentionOffset={{ top: 20, left: 20, bottom: 20, right: 20 }} // 增加触摸区域
         >
-          {/* 封面 */}
           {renderCover()}
 
-          {/* 标题 */}
           <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1}>
-            {item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名笔记')}
+            {item.title || item.name || (item.file_name ? item.file_name.split('.')[0] : '未命名笔记')}
           </Text>
 
-          {/* 底部区域 - 日期和操作按钮 */}
           <View style={styles.noteFooter}>
             <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
-              {formatDate(item.updated_at || item.updated_at || item.created_at || new Date().toISOString())}
+              {formatDate(item.updatedAt || item.updated_at)}
             </Text>
 
             <View style={styles.actionButtons}>
-              {/* 编辑名称按钮 */}
               <TouchableOpacity
                 onPress={(e) => {
-                  e.stopPropagation(); // 阻止事件冒泡
+                  e.stopPropagation();
                   handleRenameNote(item);
                 }}
                 style={[styles.actionButton, { backgroundColor: 'rgba(33, 150, 243, 0.1)' }]}
@@ -2034,10 +2191,9 @@ Week 4: □□□□□□□
                 <Icon name="create-outline" size={16} color={colors.primary} />
               </TouchableOpacity>
 
-              {/* 导出/分享按钮 */}
               <TouchableOpacity
                 onPress={(e) => {
-                  e.stopPropagation(); // 阻止事件冒泡
+                  e.stopPropagation();
                   handleExportNote(item);
                 }}
                 style={[styles.actionButton, { backgroundColor: 'rgba(76, 175, 80, 0.1)' }]}
@@ -2046,13 +2202,10 @@ Week 4: □□□□□□□
                 <Icon name="share-outline" size={16} color="#4CAF50" />
               </TouchableOpacity>
 
-              {/* 删除按钮 */}
               <TouchableOpacity
                 onPress={(e) => {
-                  e.stopPropagation(); // 阻止事件冒泡
-                  // 安全地获取ID，优先使用_id，其次使用id
-                  const noteId = item._id || item.id;
-                  handleDeleteNote(noteId);
+                  e.stopPropagation();
+                  handleDeleteNote(item._id || item.id);
                 }}
                 style={[styles.actionButton, { backgroundColor: 'rgba(229, 57, 53, 0.1)' }]}
                 hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
@@ -2076,11 +2229,6 @@ Week 4: □□□□□□□
 
   // 渲染笔记项的包装函数
   const renderNoteItem = useCallback(({ item, index }) => {
-    const columnCount = isLandscape ? 4 : 3;
-    const screenWidth = Dimensions.get('window').width;
-    const totalPadding = 32;
-    const totalGap = (columnCount - 1) * 16;
-    const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
 
     return (
       <NoteItem
@@ -2109,14 +2257,14 @@ Week 4: □□□□□□□
                 uri: possibleUris[0],
                 title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
                 noteId: item._id || item.id || `temp_${Date.now()}`,
-                type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc'
+                type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc',
               });
             } else if (isPpt && possibleUris.length > 0) {
               navigation.navigate('PPTViewer', {
                 uri: possibleUris[0],
                 title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
                 noteId: item._id || item.id || `temp_${Date.now()}`,
-                type: 'pptx'
+                type: 'pptx',
               });
             } else if (isMd && possibleUris.length > 0) {
               navigation.navigate('MarkdownViewer', {
@@ -2133,19 +2281,19 @@ Week 4: □□□□□□□
                 navigation.navigate('FluidPagedNote', {
                   noteId,
                   title: item.title || '分页笔记',
-                  content: item.content || ''
+                  content: item.content || '',
                 });
               } else if (noteType === 'canvas') {
                 navigation.navigate('InfiniteCanvas', {
                   noteId,
                   title: item.title || '无限画布',
-                  content: item.content || ''
+                  content: item.content || '',
                 });
               } else {
                 navigation.navigate('CardNote', {
                   noteId,
                   title: item.title || '笔记',
-                  content: item.content || ''
+                  content: item.content || '',
                 });
               }
             }
@@ -2160,7 +2308,7 @@ Week 4: □□□□□□□
               { text: '重命名', onPress: () => handleRenameNote(item) },
               { text: '导出/分享', onPress: () => handleExportNote(item) },
               { text: '删除', onPress: () => handleDeleteNote(item._id || item.id), style: 'destructive' },
-              { text: '取消', style: 'cancel' }
+              { text: '取消', style: 'cancel' },
             ]
           );
         }}
@@ -2194,7 +2342,7 @@ Week 4: □□□□□□□
         [
           {
             text: '取消',
-            style: 'cancel'
+            style: 'cancel',
           },
           {
             text: '确定',
@@ -2204,8 +2352,8 @@ Week 4: □□□□□□□
                 // 所以我们可以直接调用updateNoteTitle
                 updateNoteTitle(note, newTitle.trim());
               }
-            }
-          }
+            },
+          },
         ],
         'plain-text',
         note.title || ''
@@ -2236,7 +2384,7 @@ Week 4: □□□□□□□
       const updatedNote = {
         ...note,
         title: newTitle,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       // 确保笔记同时有id和_id字段
@@ -2250,7 +2398,7 @@ Week 4: □□□□□□□
       // 1. 立即更新Redux状态，确保UI立即响应
       dispatch(updateNote({
         id: noteId,
-        noteData: updatedNote
+        noteData: updatedNote,
       }));
 
       // 2. 立即关闭对话框
@@ -2325,26 +2473,26 @@ Week 4: □□□□□□□
               console.error('导出笔记失败:', error);
               Alert.alert('错误', '导出失败，请稍后重试');
             }
-          }
+          },
         },
         {
           text: '分享',
           onPress: () => {
             // 分享功能可以在这里实现
             Alert.alert('提示', '分享功能即将推出');
-          }
+          },
         },
         {
           text: '取消',
-          style: 'cancel'
-        }
+          style: 'cancel',
+        },
       ]
     );
   };
 
   // 获取文件扩展名
   const getFileExtension = (uri) => {
-    if (!uri) return '';
+    if (!uri) {return '';}
     const parts = uri.split('.');
     return parts.length > 1 ? `.${parts[parts.length - 1]}` : '';
   };
@@ -2380,7 +2528,7 @@ Week 4: □□□□□□□
         [
           {
             text: '取消',
-            style: 'cancel'
+            style: 'cancel',
           },
           {
             text: '删除',
@@ -2411,8 +2559,8 @@ Week 4: □□□□□□□
                 console.error('删除笔记失败:', error);
                 Alert.alert('错误', '删除失败: ' + (error.message || '未知错误'));
               }
-            }
-          }
+            },
+          },
         ]
       );
     } catch (error) {
@@ -2423,7 +2571,7 @@ Week 4: □□□□□□□
 
   // 渲染空状态的欢迎界面
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
+    <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
       <Icon name="document-text-outline" size={80} color={colors.primary} />
       <Text style={[styles.emptyTitle, { color: colors.text }]}>欢迎使用零屿笔记</Text>
       <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
@@ -2521,7 +2669,7 @@ Week 4: □□□□□□□
         isLandscape && {
           paddingHorizontal: 24,
           paddingVertical: 10,
-        }
+        },
       ]}>
         {/* 搜索栏 - 占据剩余空间 */}
         <View style={[
@@ -2530,7 +2678,7 @@ Week 4: □□□□□□□
           isLandscape && {
             flex: 1,
             marginRight: 4,
-          }
+          },
         ]}>
           <UnifiedSearchBar
             searchScope="home"
@@ -2540,10 +2688,10 @@ Week 4: □□□□□□□
         </View>
 
         {/* 分类按钮 - 与排序按钮大小一致 */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.categoryButton,
-            { backgroundColor: colors.card, borderColor: `${colors.border}80` }
+            { backgroundColor: colors.card, borderColor: `${colors.border}80` },
           ]}
           onPress={() => navigation.navigate('Category')}
         >
@@ -2567,7 +2715,7 @@ Week 4: □□□□□□□
           // 横屏时调整排序控件宽度
           isLandscape && {
             flex: 0.1,
-          }
+          },
         ]}>
           <SortControl
             onSortChange={handleSortChange}
@@ -2584,47 +2732,37 @@ Week 4: □□□□□□□
         showsVerticalScrollIndicator={true}
         bounces={true}
       >
-        {notes && notes.length > 0 ? (
+        {validNotes.length > 0 ? (
           <FlatList
-            key={`flatlist-${isLandscape ? 'landscape' : 'portrait'}`} // 添加基于屏幕方向的key
-            data={notes.filter(note => note && (note._id || note.id))} // 过滤掉无效的笔记
+            key={`flatlist-${isLandscape ? 'landscape' : 'portrait'}-${columnCount}`}
+            data={gridNotes}
             renderItem={renderNoteItem}
-            keyExtractor={item => {
-              // 安全地提取ID
-              if (!item) return `invalid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-              // 优先使用_id字段
+            keyExtractor={(item, idx) => {
+              if (!item) {
+                return `invalid_${idx}`;
+              }
+              if (item.__placeholder) {
+                return item.id || `placeholder_${idx}`;
+              }
               if (item._id !== undefined) {
                 return typeof item._id === 'object' ? item._id.toString() : String(item._id);
               }
-
-              // 其次使用id字段
               if (item.id !== undefined) {
                 return typeof item.id === 'object' ? item.id.toString() : String(item.id);
               }
-
-              // 如果都没有，生成一个临时ID
-              return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+              return `temp_${idx}`;
             }}
             contentContainerStyle={styles.listContainer}
-            numColumns={isLandscape ? 4 : 3} // 横屏时显示4列，竖屏时显示3列
+            numColumns={columnCount}
             columnWrapperStyle={[
               styles.columnWrapper,
-              { justifyContent: 'flex-start' } // 从左到右排列
+              { justifyContent: 'flex-start' },
             ]}
-            getItemLayout={(_, index) => {
-              // 根据屏幕方向计算每个项目的宽度
-              const columnCount = isLandscape ? 4 : 3;
-              // 统一计算方式，确保横竖屏边距一致
-              const totalPadding = 32; // 左右两侧各16的内边距
-              const totalGap = (columnCount - 1) * 10; // 项目之间的间距总和
-              const itemWidth = (screenWidth - totalPadding - totalGap) / columnCount;
-              return {
-                length: itemWidth,
-                offset: itemWidth * Math.floor(index / columnCount),
-                index,
-              };
-            }}
+            getItemLayout={(_, index) => ({
+              length: gridItemWidth,
+              offset: gridItemWidth * Math.floor(index / columnCount),
+              index,
+            })}
             scrollEnabled={false} // 禁用FlatList的滚动，由外层ScrollView处理
             // 性能优化配置
             removeClippedSubviews={true}
@@ -2645,7 +2783,7 @@ Week 4: □□□□□□□
         isLandscape && {
           right: 32,
           bottom: 32,
-        }
+        },
       ]}>
         <TouchableOpacity
           style={[
@@ -2656,7 +2794,7 @@ Week 4: □□□□□□□
               width: 60,
               height: 60,
               borderRadius: 30,
-            }
+            },
           ]}
           onPress={() => {
             // 显示创建选项
@@ -2675,6 +2813,7 @@ Week 4: □□□□□□□
           onClose={() => setShowCreateOptions(false)}
           onCreateNote={createNote}
           onCreateCardNote={createCardNote}
+          onCreateFromTemplate={() => setShowTemplatePicker(true)}
           onCreateLinedNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
           onImportMarkdown={importMarkdown}
           onImportPDF={importPDF}
@@ -2689,6 +2828,13 @@ Week 4: □□□□□□□
           visible={showCardTypeModal}
           onClose={() => setShowCardTypeModal(false)}
           onSelectType={handleCardTypeSelect}
+        />
+
+        {/* 模板选择弹窗 */}
+        <TemplatePickerModal
+          visible={showTemplatePicker}
+          onClose={() => setShowTemplatePicker(false)}
+          onSelectTemplate={handleSelectTemplate}
         />
 
         {/* 画布样式选择弹窗 */}
@@ -2741,9 +2887,9 @@ Week 4: □□□□□□□
 };
 
 
-const styles = StyleSheet.create({
+const getStyles = (colors) => StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
   },
   // 滚动容器样式
   scrollContainer: {
@@ -2824,55 +2970,65 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingVertical: 16,
-    paddingHorizontal: 16 // 统一左右边距
+    paddingHorizontal: 8,
   },
   columnWrapper: {
-    justifyContent: 'flex-start', // 从左到右排列
-    paddingHorizontal: 0, // 移除额外的水平内边距，由listContainer控制
-    gap: 10, // 添加间距
+    justifyContent: 'space-between', // 均匀分布
+    paddingHorizontal: 8, // 添加水平内边距
   },
   noteItem: {
-    padding: 8, // 减小内边距
-    borderRadius: 10, // 减小圆角
-    marginBottom: 12, // 减小底部边距
-    elevation: 2, // 减小阴影
+    padding: 8,
+    borderRadius: 10,
+    marginBottom: 12,
+    minHeight: 180,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    // 宽度将在renderNoteItem中动态设置
-    margin: 0, // 移除外边距，由FlatList的columnWrapper控制间距
-    // 移除marginRight，使用columnWrapper的gap属性控制间���
+    margin: 0,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
+  noteItemPlaceholder: {
+    margin: 0,
+    opacity: 0,
+    minHeight: 180,
+    borderRadius: 10,
+  },
   noteTitle: {
-    fontSize: 12, // 减小字体大小
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 4, // 减小边距
-    marginBottom: 2, // 减小边距
-    lineHeight: 16, // 减小行高
+    marginTop: 4,
+    marginBottom: 2,
+    lineHeight: 16,
+    color: colors.text,
   },
   noteContent: {
-    fontSize: 11, // 减小字体大小
-    marginBottom: 4, // 减小边距
-    lineHeight: 14, // 减小行高
+    fontSize: 11,
+    marginBottom: 4,
+    lineHeight: 14,
   },
   noteFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // 两端对齐
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4, // 增加边距
-    paddingTop: 4, // 增加上内边距
-    paddingBottom: 2, // 增加下内边距
+    marginTop: 4,
+    paddingTop: 4,
+    paddingBottom: 2,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(0,0,0,0.05)', // 边框颜色
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  noteSnippet: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
   noteDate: {
-    fontSize: 9, // 字体大小
+    fontSize: 9,
     fontWeight: '400',
-    color: 'rgba(0,0,0,0.5)', // 设置颜色
+    color: 'rgba(0,0,0,0.5)',
   },
   noteActions: {
     flexDirection: 'row',
@@ -2900,10 +3056,10 @@ const styles = StyleSheet.create({
   },
   // 封面样式
   coverContainer: {
-    height: undefined, // 高度将根据屏幕方向动态计算
-    aspectRatio: 1.8, // 增加宽高比，使卡片更扁一些
-    width: '100%', // 确保宽度占满父容器
-    borderRadius: 6, // 减小圆角
+    height: undefined,
+    aspectRatio: 1.8,
+    width: '100%',
+    borderRadius: 6,
     backgroundColor: '#FFF8E1', // 默认淡黄色背景
     justifyContent: 'center',
     alignItems: 'center',
@@ -3263,7 +3419,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginRight: 8,
-  }
+  },
 });
 
 

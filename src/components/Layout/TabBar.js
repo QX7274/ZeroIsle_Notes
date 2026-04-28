@@ -41,22 +41,22 @@ const TabBar = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 获取安全区域
   const insets = useSafeAreaInsets();
-  
+
   // 状态
   const [activeIndex, setActiveIndex] = useState(0);
-  
+
   // 动画值
   const indicatorPosition = new Animated.Value(0);
-  
+
   // 当activeTab变化时，更新activeIndex
   useEffect(() => {
     const index = tabs.findIndex((tab) => tab.key === activeTab);
     if (index !== -1) {
       setActiveIndex(index);
-      
+
       // 如果使用动画，则执行指示器动画
       if (animated && showIndicator) {
         Animated.spring(indicatorPosition, {
@@ -70,18 +70,18 @@ const TabBar = ({
       }
     }
   }, [activeTab, tabs, animated, showIndicator]);
-  
+
   // 处理标签点击
   const handleTabPress = (tab, index) => {
     if (onTabPress) {
       onTabPress(tab.key);
     }
   };
-  
+
   // 渲染标签
   const renderTab = (tab, index) => {
     const isActive = index === activeIndex;
-    
+
     return (
       <TouchableOpacity
         key={tab.key}
@@ -96,7 +96,7 @@ const TabBar = ({
             size={24}
             color={isActive ? colors.primary : colors.textSecondary}
           />
-          
+
           {/* 标签文本 */}
           {showLabels && (
             <Text
@@ -112,7 +112,7 @@ const TabBar = ({
               {tab.label}
             </Text>
           )}
-          
+
           {/* 徽章 */}
           {tab.badge && (
             <View
@@ -143,11 +143,11 @@ const TabBar = ({
       </TouchableOpacity>
     );
   };
-  
+
   // 渲染指示器
   const renderIndicator = () => {
-    if (!showIndicator) return null;
-    
+    if (!showIndicator) {return null;}
+
     return (
       <Animated.View
         style={[
@@ -166,7 +166,7 @@ const TabBar = ({
       />
     );
   };
-  
+
   return (
     <View
       style={[
@@ -181,7 +181,7 @@ const TabBar = ({
     >
       {/* 指示器 */}
       {renderIndicator()}
-      
+
       {/* 标签 */}
       <View style={styles.tabsContainer}>
         {tabs.map((tab, index) => renderTab(tab, index))}

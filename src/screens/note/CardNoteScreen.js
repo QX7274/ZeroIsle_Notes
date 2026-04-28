@@ -10,13 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   PermissionsAndroid,
-  Keyboard
+  Keyboard,
 } from 'react-native';
-import Voice from '@react-native-voice/voice';
 import nativeAudioService from '../../services/audio/nativeAudioService';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { addNote, updateOneNote } from '../../redux/slices/notesSlice';
+import { Card, XiaohongshuCard, DouyinCard, ZhihuCard } from '../../components/common/Card';
+import ImagePicker from 'react-native-image-picker';
+import uuid from 'react-native-uuid';
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
 import realmService from '../../services/database/realmService';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
@@ -35,9 +37,10 @@ const CardNoteScreen = ({ route, navigation }) => {
   const { noteId, title: initialTitle = '新建笔记', content: initialContent = '' } = route.params || {};
   const { colors } = useTheme();
   const dispatch = useDispatch();
+  const { user } = useSelector(state => state.auth);
   const notesEntities = useSelector(state => state.notes.entities);
 
-  
+
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [wordCount, setWordCount] = useState(0);
@@ -53,13 +56,26 @@ const CardNoteScreen = ({ route, navigation }) => {
   const [currentRecordingPath, setCurrentRecordingPath] = useState('');
   const [noteCreated, setNoteCreated] = useState(false); // 跟踪笔记是否已创建
 
+  // 卡片样式相关状态
+  const [cardStyle, setCardStyle] = useState('default'); // default, xiaohongshu, douyin, zhihu
+  const [showStylePicker, setShowStylePicker] = useState(false);
+  const [cardData, setCardData] = useState({
+    image: '',
+    cover: '',
+    author: '用户',
+    authorAvatar: 'https://via.placeholder.com/50',
+    likes: 0,
+    comments: 0,
+    shares: 0,
+  });
+
   const contentInputRef = useRef(null);
   const autoSaveTimeoutRef = useRef(null);
   const recordingTimerRef = useRef(null);
-  
+
   // 添加键盘状态监听
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  
+
   // 缓存语音按钮文本，减少重新渲染
   const voiceButtonText = useMemo(() => {
     if (isRecording) {
@@ -71,22 +87,22 @@ const CardNoteScreen = ({ route, navigation }) => {
       return '语音';
     }
   }, [isRecording, isListening, recordTime]);
-  
+
   // 缓存语音按钮图标名称
   const voiceButtonIcon = useMemo(() => {
     if (isRecording) {
-      return "stop";
+      return 'stop';
     } else if (isListening) {
-      return "hearing";
+      return 'hearing';
     } else {
-      return "keyboard-voice";
+      return 'keyboard-voice';
     }
   }, [isRecording, isListening]);
-  
+
   // 初始化音频服务
   useEffect(() => {
     let isMounted = true;
-    
+
     // 添加音频事件监听器
     const recordingProgressListener = (data) => {
       if (isMounted && data.formattedTime !== recordTime) {
@@ -151,28 +167,41 @@ const CardNoteScreen = ({ route, navigation }) => {
   // 组件加载时恢复笔记数据
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadNote = async () => {
       try {
         if (noteId) {
           console.log('CardNoteScreen: 尝试加载现有笔记:', noteId);
-          
+
           // 尝试从离线存储加载笔记
           const realm = await realmService.getRealm();
           const existingNote = realm.objectForPrimaryKey('Note', noteId);
-          
+
           if (isMounted && existingNote) {
             console.log('CardNoteScreen: 找到现有笔记:', existingNote.title);
             setTitle(existingNote.title || initialTitle);
             setContent(existingNote.content || initialContent);
             setWordCount(existingNote.word_count || 0);
             setNoteCreated(true); // 标记笔记已存在
-            
+
+            // 恢复卡片样式和数据
+            if (existingNote.cardStyle) {
+              setCardStyle(existingNote.cardStyle);
+            }
+            if (existingNote.cardData) {
+              try {
+                const parsedCardData = JSON.parse(existingNote.cardData);
+                setCardData(parsedCardData);
+              } catch (e) {
+                console.error('解析卡片数据失败:', e);
+              }
+            }
+
             // 恢复其他状态
             if (existingNote.audioFiles) {
               setAudioFiles(existingNote.audioFiles);
             }
-            
+
             console.log('CardNoteScreen: 笔记数据恢复完成');
           } else if (isMounted) {
             console.log('CardNoteScreen: 未找到笔记:', noteId);
@@ -203,7 +232,7 @@ const CardNoteScreen = ({ route, navigation }) => {
           if (networkErrorService.isNetworkError(error)) {
             networkErrorService.handleApiError(error, {
               context: '加载笔记',
-              customMessage: '网络连接失败，无法加载笔记'
+              customMessage: '网络连接失败，无法加载笔记',
             });
           } else {
             Alert.alert('错误', '加载笔记失败，请重试');
@@ -213,7 +242,7 @@ const CardNoteScreen = ({ route, navigation }) => {
     };
 
     loadNote();
-    
+
     return () => {
       isMounted = false;
     };
@@ -242,13 +271,13 @@ const CardNoteScreen = ({ route, navigation }) => {
         console.log('CardNoteScreen: 笔记已创建，跳过重复创建');
         return;
       }
-      
-      // 优先使用传入的noteId，如果没有则生成新的
-      const newNoteId = noteId || `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // 使用UUID v4生成一个安全的、唯一的ID
+      const newNoteId = noteId || uuid.v4();
       console.log('CardNoteScreen: 创建新笔记，ID:', newNoteId, '使用传入ID:', !!noteId, '传入ID:', noteId);
-      
+
       const newNote = {
-        _id: newNoteId,
+        _id: newNoteId, // 使用字符串，Realm 会自动转换为 ObjectId
         id: newNoteId,
         title: title || initialTitle || '新建笔记',
         content: initialContent || '',
@@ -261,42 +290,48 @@ const CardNoteScreen = ({ route, navigation }) => {
         is_deleted: false,
         is_synced: false,
         is_offline: true,
-        user_id: 'current_user',
+        user_id: user?._id || 'anonymous_user',
         // 添加文件URI用于识别
         file_uri: `card://${newNoteId}`,
-        uri: `card://${newNoteId}`
+        uri: `card://${newNoteId}`,
       };
 
       // 保存到离线存储
       const realm = await realmService.getRealm();
-      let saveResult;
+      let savedNote;
       realm.write(() => {
-        saveResult = realm.create('Note', newNote);
+        // ✅ 使用'modified'模式：如果对象存在则更新，不存在则创建
+        savedNote = realm.create('Note', newNote, 'modified');
       });
-      
-      if (saveResult.success) {
+
+      if (savedNote) {
         // 更新Redux store
         if (dispatch) {
           dispatch(addNote(newNote));
         }
-        
-        console.log('CardNoteScreen: 新笔记创建成功');
-        
+
+        console.log('CardNoteScreen: 新笔记创建成功', {
+          id: newNoteId,
+          title: newNote.title,
+          contentLength: newNote.content?.length || 0,
+        });
+
         // 更新本地状态
         setTitle(newNote.title);
         setContent(newNote.content);
         setWordCount(newNote.word_count);
         setNoteCreated(true); // 标记笔记已创建
-        
+
         // 重要：更新noteId，确保后续保存使用正确的ID
         // 由于noteId是从route.params来的，我们需要通过navigation.setParams来更新
         if (navigation && navigation.setParams) {
           navigation.setParams({ noteId: newNoteId });
         }
       } else {
-        throw new Error('保存新笔记失败');
+        console.error('CardNoteScreen: Realm.create返回null或undefined');
+        throw new Error('保存新笔记失败：未能创建Realm对象');
       }
-      
+
     } catch (error) {
       console.error('CardNoteScreen: 创建新笔记失败:', error);
       throw error;
@@ -332,7 +367,7 @@ const CardNoteScreen = ({ route, navigation }) => {
   // 添加到文件历史（进入页面或标题变化时）
   useEffect(() => {
     let isMounted = true;
-    
+
     try {
       const fileHistoryService = require('../../services/fileHistoryService').default;
       const effectiveTitle = (title || initialTitle || '卡片笔记').trim();
@@ -344,21 +379,21 @@ const CardNoteScreen = ({ route, navigation }) => {
           type: 'card',
           noteType: 'card',
           fileName: title || initialTitle || '新建笔记',
-          noteId: noteId
+          noteId: noteId,
         });
       } else {
-        console.log('CardNoteScreen: 跳过添加到文件历史记录:', { 
-          isMounted, 
-          noteId, 
-          effectiveTitle, 
+        console.log('CardNoteScreen: 跳过添加到文件历史记录:', {
+          isMounted,
+          noteId,
+          effectiveTitle,
           hasFileHistoryService: !!fileHistoryService,
-          hasAddFile: !!(fileHistoryService && fileHistoryService.addFile)
+          hasAddFile: !!(fileHistoryService && fileHistoryService.addFile),
         });
       }
     } catch (e) {
       console.error('CardNoteScreen: 添加到文件历史记录失败:', e);
     }
-    
+
     return () => {
       isMounted = false;
     };
@@ -369,7 +404,7 @@ const CardNoteScreen = ({ route, navigation }) => {
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log('[CardNoteScreen] 屏幕获得焦点');
     });
-    
+
     const unsubscribeBlur = navigation.addListener('blur', () => {
       console.log('[CardNoteScreen] 屏幕失去焦点，保存数据...');
       // 失焦时保存数据
@@ -377,13 +412,13 @@ const CardNoteScreen = ({ route, navigation }) => {
         saveNote().catch(err => console.error('[CardNoteScreen] 失焦保存失败:', err));
       }
     });
-    
+
     return () => {
       unsubscribeFocus();
       unsubscribeBlur();
     };
   }, [navigation, noteId, title, content]);
-  
+
   // 组件卸载时的清理函数
   useEffect(() => {
     return () => {
@@ -394,7 +429,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
       }
-      
+
       // 停止录音和语音识别
       if (isRecording) {
         stopRecording();
@@ -402,7 +437,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       if (isListening) {
         stopSpeechRecognition();
       }
-      
+
       // ✅ 组件卸载时保存 - 只有在有noteId且有内容时才保存
       console.log('[CardNoteScreen] 组件卸载，保存数据...');
       if (noteId && (title.trim() || content.trim())) {
@@ -411,57 +446,35 @@ const CardNoteScreen = ({ route, navigation }) => {
     };
   }, [noteId, title, content, isRecording, isListening]);
 
-  // 初始化语音识别
-  useEffect(() => {
-    let isMounted = true;
-    
-    Voice.onSpeechStart = () => {
-      if (isMounted) setIsListening(true);
-    };
-    Voice.onSpeechEnd = () => {
-      if (isMounted) setIsListening(false);
-    };
-    Voice.onSpeechError = (error) => {
-      console.error('语音识别错误:', error);
-      if (isMounted) setIsListening(false);
-    };
-    Voice.onSpeechResults = (result) => {
-      if (isMounted && result.value && result.value.length > 0) {
-        const recognizedText = result.value[0];
-        setRecognizedText(recognizedText);
 
-        // 自动插入识别的文字到笔记中
-        if (recognizedText.trim()) {
-          Alert.alert(
-            '语音识别完成',
-            `识别结果: "${recognizedText}"\n\n是否插入到笔记中？`,
-            [
-              { text: '取消', style: 'cancel' },
-              {
-                text: '插入',
-                onPress: () => {
-                  const timestamp = new Date().toLocaleString();
-                  const textToInsert = `\n\n[🎤 语音转文字 - ${timestamp}]\n${recognizedText}\n\n`;
-                  setContent(prev => prev + textToInsert);
-                  setRecognizedText('');
-                }
-              }
-            ]
-          );
-        }
-      }
-    };
-    Voice.onSpeechPartialResults = (result) => {
-      if (isMounted && result.value && result.value.length > 0) {
-        setRecognizedText(result.value[0]);
-      }
+  // 新增：处理图片选择
+  const handleChooseImage = (imageField = 'image') => {
+    const options = {
+      title: '选择图片',
+      storageOptions: {
+        skipBackup: true,
+        path: 'images',
+      },
     };
 
-    return () => {
-      isMounted = false;
-      Voice.destroy().then(Voice.removeAllListeners);
-    };
-  }, []);
+    ImagePicker.launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('用户取消了图片选择');
+      } else if (response.error) {
+        console.log('ImagePicker 错误: ', response.error);
+        Alert.alert('错误', '选择图片失败');
+      } else if (response.assets && response.assets.length > 0) {
+        const source = { uri: response.assets[0].uri };
+        setCardData(prev => ({ ...prev, [imageField]: source.uri }));
+      }
+    });
+  };
+
+  // 新增：切换卡片样式
+  const handleStyleChange = (style) => {
+    setCardStyle(style);
+    setShowStylePicker(false);
+  };
 
   const saveNote = async () => {
     try {
@@ -478,7 +491,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       }
 
       // 确保有标题
-      const finalTitle = title.trim() || `卡片笔记_${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
+      const finalTitle = title.trim() || `卡片笔记_${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
 
       const noteData = {
         _id: currentNoteId,
@@ -488,28 +501,31 @@ const CardNoteScreen = ({ route, navigation }) => {
         type: 'card',
         noteType: 'card', // 添加noteType字段
         file_type: 'card',
+        cardStyle: cardStyle, // 新增：保存卡片样式
+        cardData: JSON.stringify(cardData), // 新增：保存卡片数据
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         word_count: wordCount,
         is_deleted: false,
         is_synced: false,
         is_offline: true, // 标记为离线笔记
-        user_id: 'current_user',
+        user_id: user?._id || 'anonymous_user',
         // 确保有文件URI
         file_uri: `card://${currentNoteId}`,
-        uri: `card://${currentNoteId}`
+        uri: `card://${currentNoteId}`,
       };
 
       const realm = await realmService.getRealm();
-      let result;
+      let savedNote;
       realm.write(() => {
-        result = realm.create('Note', noteData);
+        // ✅ 使用'modified'模式：如果对象存在则更新，不存在则创建
+        savedNote = realm.create('Note', noteData, 'modified');
       });
-      
-      if (result.success) {
+
+      if (savedNote) {
         // 使用保存后返回的笔记数据，确保ID字段一致
-        const savedNote = result.note || noteData;
-        
+        // savedNote 已经是 Realm 对象，需要转换为普通对象
+
         // 确保ID字段一致
         const finalNote = {
           ...savedNote,
@@ -529,55 +545,38 @@ const CardNoteScreen = ({ route, navigation }) => {
           is_deleted: false,
           is_synced: false,
           is_offline: true,
-          user_id: 'current_user'
+          user_id: user?._id || 'anonymous_user',
         };
-        
-        try {
-          if (dispatch) {
-            // 检查笔记是否已存在于Redux状态中
-            const existingNote = notesEntities[finalNote.id];
-            
-            if (existingNote) {
-              // 如果笔记已存在，使用updateOneNote（同步action）
-              dispatch(updateOneNote({
-                id: finalNote.id,
-                changes: finalNote
-              }));
-            } else {
-              // 如果是新笔记，使用addNote
-              dispatch(addNote(finalNote));
-            }
-          }
-        } catch (reduxError) {
-          console.warn('Redux更新失败:', reduxError);
-          // Redux失败不影响保存功能
-        }
-        
+
+        // Redux store 将通过监听 Realm 的变化来自动更新，此处不再需要手动 dispatch。
+
         // 如果noteId是新创建的，更新路由参数
         if (!noteId && currentNoteId) {
           if (navigation && navigation.setParams) {
             navigation.setParams({ noteId: currentNoteId });
           }
         }
-        
+
         console.log('卡片笔记保存成功:', finalNote.id);
         console.log('保存的笔记数据:', {
           id: finalNote.id,
           title: finalNote.title,
           type: finalNote.type,
           noteType: finalNote.noteType,
-          file_type: finalNote.file_type
+          file_type: finalNote.file_type,
+          contentLength: finalNote.content?.length || 0,
         });
         return { success: true, note: finalNote };
       } else {
-        throw new Error('保存失败');
+        console.error('CardNoteScreen: Realm.create返回null或undefined');
+        throw new Error('保存失败：未能创建Realm对象');
       }
     } catch (error) {
       console.error('保存失败:', error.message);
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '保存笔记',
-          customMessage: '网络连接失败，无法保存笔记'
+          customMessage: '网络连接失败，无法保存笔记',
         });
       }
       throw error;
@@ -611,7 +610,7 @@ const CardNoteScreen = ({ route, navigation }) => {
   const startRecording = async () => {
     try {
       const recordingPath = await nativeAudioService.startRecording({
-        fileName: `card_note_${Date.now()}`
+        fileName: `card_note_${Date.now()}`,
       });
 
       setIsRecording(true);
@@ -657,7 +656,7 @@ const CardNoteScreen = ({ route, navigation }) => {
           path: result.path,
           duration: recordingDuration,
           timestamp: new Date().toLocaleString(),
-          name: `录音_${new Date().toLocaleTimeString()}`
+          name: `录音_${new Date().toLocaleTimeString()}`,
         };
         setAudioFiles(prev => [...prev, audioFile]);
 
@@ -674,7 +673,7 @@ const CardNoteScreen = ({ route, navigation }) => {
                 setContent(prev => prev + audioReference);
 
                 console.log('录音已插入到笔记中:', audioFile);
-              }
+              },
             },
             {
               text: '转为文字',
@@ -686,12 +685,12 @@ const CardNoteScreen = ({ route, navigation }) => {
                     { text: '取消', style: 'cancel' },
                     {
                       text: '开始识别',
-                      onPress: () => startSpeechRecognition()
-                    }
+                      onPress: () => startSpeechRecognition(),
+                    },
                   ]
                 );
-              }
-            }
+              },
+            },
           ]
         );
       }
@@ -759,7 +758,7 @@ const CardNoteScreen = ({ route, navigation }) => {
   const handleVoiceAction = () => {
     // 立即隐藏键盘，确保语音按钮可见
     Keyboard.dismiss();
-    
+
     // 添加一个小延迟，确保键盘完全隐藏
     setTimeout(() => {
       Alert.alert(
@@ -774,7 +773,7 @@ const CardNoteScreen = ({ route, navigation }) => {
               } else {
                 startRecording();
               }
-            }
+            },
           },
           {
             text: '语音转文字',
@@ -789,23 +788,23 @@ const CardNoteScreen = ({ route, navigation }) => {
                     [
                       {
                         text: '暂停',
-                        onPress: pauseVoiceRecognition
+                        onPress: pauseVoiceRecognition,
                       },
                       {
                         text: '停止',
                         onPress: stopSpeechRecognition,
-                        style: 'destructive'
+                        style: 'destructive',
                       },
-                      { text: '取消', style: 'cancel' }
+                      { text: '取消', style: 'cancel' },
                     ]
                   );
                 }
               } else {
                 startSpeechRecognition();
               }
-            }
+            },
           },
-          { text: '取消', style: 'cancel' }
+          { text: '取消', style: 'cancel' },
         ]
       );
     }, 100);
@@ -820,6 +819,52 @@ const CardNoteScreen = ({ route, navigation }) => {
 
 
 
+
+  // 新增：渲染卡片预览
+  const renderCardPreview = () => {
+    const data = {
+      ...cardData,
+      title: title,
+      content: content,
+    };
+
+    switch (cardStyle) {
+      case 'xiaohongshu':
+        return <XiaohongshuCard data={data} />;
+      case 'douyin':
+        return <DouyinCard data={data} />;
+      case 'zhihu':
+        return <ZhihuCard data={data} />;
+      default:
+        return null; // 默认样式不预览
+    }
+  };
+
+  // 新增：渲染工具栏
+  const renderToolbar = () => {
+    return (
+      <View style={[styles.toolbar, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity style={styles.toolButton} onPress={() => setShowStylePicker(true)}>
+          <Icon name="palette" size={20} color={colors.primary} />
+          <Text style={[styles.toolButtonText, { color: colors.text }]}>样式</Text>
+        </TouchableOpacity>
+
+        {(cardStyle === 'xiaohongshu' || cardStyle === 'zhihu') && (
+          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('image')}>
+            <Icon name="image" size={20} color={colors.primary} />
+            <Text style={[styles.toolButtonText, { color: colors.text }]}>图片</Text>
+          </TouchableOpacity>
+        )}
+
+        {cardStyle === 'douyin' && (
+          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('cover')}>
+            <Icon name="videocam" size={20} color={colors.primary} />
+            <Text style={[styles.toolButtonText, { color: colors.text }]}>封面</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -876,7 +921,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             <TextInput
               style={[styles.titleInput, {
                 color: colors.onSurface,
-                borderBottomColor: colors.outline
+                borderBottomColor: colors.outline,
               }]}
               value={title}
               onChangeText={setTitle}
@@ -888,6 +933,16 @@ const CardNoteScreen = ({ route, navigation }) => {
               returnKeyType="next"
               onSubmitEditing={() => contentInputRef.current?.focus()}
             />
+
+            {/* 工具栏 */}
+            {renderToolbar()}
+
+            {/* 卡片预览 */}
+            {cardStyle !== 'default' && (
+              <View style={styles.cardPreviewContainer}>
+                {renderCardPreview()}
+              </View>
+            )}
 
             {/* 内容输入 */}
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
@@ -923,8 +978,8 @@ const CardNoteScreen = ({ route, navigation }) => {
                             if (latestAudio) {
                               playAudio(latestAudio.path);
                             }
-                          }
-                        }
+                          },
+                        },
                       ]
                     );
                   }}
@@ -974,7 +1029,7 @@ const CardNoteScreen = ({ route, navigation }) => {
                     color={isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant}
                   />
                   <Text style={[styles.voiceControlText, {
-                    color: isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant
+                    color: isVoicePaused ? colors.onPrimary : colors.onSurfaceVariant,
                   }]}>
                     {isVoicePaused ? '继续' : '暂停'}
                   </Text>
@@ -995,6 +1050,54 @@ const CardNoteScreen = ({ route, navigation }) => {
         </ViewerLayout>
       </KeyboardAvoidingView>
 
+      {/* 样式选择器模态框 */}
+      {showStylePicker && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.stylePickerModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>选择卡片样式</Text>
+
+            <TouchableOpacity
+              style={[styles.styleOption, cardStyle === 'default' && styles.styleOptionActive]}
+              onPress={() => handleStyleChange('default')}
+            >
+              <Icon name="note" size={24} color={colors.primary} />
+              <Text style={[styles.styleOptionText, { color: colors.text }]}>默认样式</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.styleOption, cardStyle === 'xiaohongshu' && styles.styleOptionActive]}
+              onPress={() => handleStyleChange('xiaohongshu')}
+            >
+              <Icon name="photo-library" size={24} color="#FF2442" />
+              <Text style={[styles.styleOptionText, { color: colors.text }]}>小红书风格</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.styleOption, cardStyle === 'douyin' && styles.styleOptionActive]}
+              onPress={() => handleStyleChange('douyin')}
+            >
+              <Icon name="video-library" size={24} color="#000" />
+              <Text style={[styles.styleOptionText, { color: colors.text }]}>抖音风格</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.styleOption, cardStyle === 'zhihu' && styles.styleOptionActive]}
+              onPress={() => handleStyleChange('zhihu')}
+            >
+              <Icon name="question-answer" size={24} color="#0084FF" />
+              <Text style={[styles.styleOptionText, { color: colors.text }]}>知乎风格</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowStylePicker(false)}
+            >
+              <Text style={[styles.modalCloseButtonText, { color: colors.onPrimary }]}>关闭</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* 右下角语音按钮 - 使用绝对定位，确保不受键盘影响 */}
       <TouchableOpacity
         style={[
@@ -1006,7 +1109,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             right: 20,
             position: 'absolute',
             zIndex: 9999,
-          }
+          },
         ]}
         onPress={handleVoiceAction}
         activeOpacity={0.8}
@@ -1225,6 +1328,75 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.3,
+  },
+
+  // 新增样式
+  toolbar: {
+    flexDirection: 'row',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  toolButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  toolButtonText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  cardPreviewContainer: {
+    padding: 12,
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stylePickerModal: {
+    width: '85%',
+    padding: 20,
+    borderRadius: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  styleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  styleOptionActive: {
+    borderWidth: 2,
+    borderColor: '#007AFF',
+  },
+  styleOptionText: {
+    fontSize: 16,
+    marginLeft: 15,
+  },
+  modalCloseButton: {
+    marginTop: 15,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

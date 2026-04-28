@@ -247,11 +247,11 @@ class KnowledgeEdge extends Realm.Object {
       results = results.sorted('updated_at', true);
     }
 
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
+    // 分页 (性能优化：先 slice 再 materialize)
+    if (options.skip !== undefined || options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 1000;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = results.slice(skip, skip + limit);
     }
 
     return results;

@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
-  Platform
+  Platform,
 } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -26,12 +26,12 @@ const NonBlockingProgressIndicator = ({
   textStyle = {},
   progressBarStyle = {},
   showDetails = true,
-  animated = true
+  animated = true,
 }) => {
   const [localProgress, setLocalProgress] = useState(0);
   const [localMessage, setLocalMessage] = useState('');
   const [localStage, setLocalStage] = useState('');
-  
+
   const progressAnim = useRef(new Animated.Value(0)).current;
   const messageAnim = useRef(new Animated.Value(1)).current;
   const stageAnim = useRef(new Animated.Value(1)).current;
@@ -151,14 +151,14 @@ const NonBlockingProgressIndicator = ({
       {/* 阶段指示器 */}
       <View style={styles.stageContainer}>
         <Text style={styles.stageIcon}>{getStageIcon(localStage)}</Text>
-        <Animated.Text 
+        <Animated.Text
           style={[
             styles.stageText,
-            { 
+            {
               color: getStageColor(localStage),
               opacity: stageAnim,
-              transform: [{ scale: stageAnim }]
-            }
+              transform: [{ scale: stageAnim }],
+            },
           ]}
         >
           {localStage.toUpperCase()}
@@ -168,16 +168,16 @@ const NonBlockingProgressIndicator = ({
       {/* 进度条 */}
       <View style={[styles.progressContainer, progressBarStyle]}>
         <View style={styles.progressBackground}>
-          <Animated.View 
+          <Animated.View
             style={[
               styles.progressFill,
-              { 
+              {
                 width: progressAnim.interpolate({
                   inputRange: [0, 100],
-                  outputRange: ['0%', '100%']
+                  outputRange: ['0%', '100%'],
                 }),
-                backgroundColor: getStageColor(localStage)
-              }
+                backgroundColor: getStageColor(localStage),
+              },
             ]}
           />
         </View>
@@ -185,17 +185,17 @@ const NonBlockingProgressIndicator = ({
       </View>
 
       {/* 消息 */}
-      <Animated.Text 
+      <Animated.Text
         style={[
           styles.messageText,
           textStyle,
-          { 
+          {
             opacity: messageAnim,
             transform: [{ translateY: messageAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [10, 0]
-            })}]
-          }
+              outputRange: [10, 0],
+            })}],
+          },
         ]}
         numberOfLines={2}
       >

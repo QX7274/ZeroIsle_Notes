@@ -12,7 +12,7 @@ export const enableDevMode = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const success = await devModeService.enableDevMode();
-      
+
       if (success) {
         const devAccount = devModeService.getDevAccount();
         if (devAccount) {
@@ -20,7 +20,7 @@ export const enableDevMode = createAsyncThunk(
           return { success: true, user: devAccount };
         }
       }
-      
+
       throw new Error('启用开发者模式失败');
     } catch (error) {
       console.error('启用开发者模式失败:', error);
@@ -35,12 +35,12 @@ export const disableDevMode = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const success = await devModeService.disableDevMode();
-      
+
       if (success) {
         console.log('开发者模式已禁用');
         return { success: true };
       }
-      
+
       throw new Error('禁用开发者模式失败');
     } catch (error) {
       console.error('禁用开发者模式失败:', error);
@@ -56,7 +56,7 @@ export const checkDevModeStatus = createAsyncThunk(
     try {
       const status = devModeService.getDevModeStatus();
       const devAccount = devModeService.getDevAccount();
-      
+
       return { status, devAccount };
     } catch (error) {
       console.error('检查开发者模式状态失败:', error);
@@ -77,7 +77,7 @@ const initialState = {
     autoFillTestData: false,
     showDebugInfo: false,
     enablePerformanceMonitor: false,
-  }
+  },
 };
 
 const devAuthSlice = createSlice({
@@ -88,17 +88,17 @@ const devAuthSlice = createSlice({
     setDevMode: (state, action) => {
       state.isDevMode = action.payload;
     },
-    
+
     // 设置开发者账户
     setDevAccount: (state, action) => {
       state.devAccount = action.payload;
     },
-    
+
     // 设置开发者模式特性
     setDevFeatures: (state, action) => {
       state.features = { ...state.features, ...action.payload };
     },
-    
+
     // 清除开发者模式状态
     clearDevMode: (state) => {
       state.isDevMode = false;
@@ -106,16 +106,16 @@ const devAuthSlice = createSlice({
       state.devModeStatus = null;
       state.features = initialState.features;
     },
-    
+
     // 设置错误
     setError: (state, action) => {
       state.error = action.payload;
     },
-    
+
     // 清除错误
     clearError: (state) => {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -129,7 +129,7 @@ const devAuthSlice = createSlice({
         state.isDevMode = true;
         state.devAccount = action.payload.user;
         state.lastCheck = Date.now();
-        
+
         // 更新特性状态
         if (action.payload.user) {
           state.features = {
@@ -144,7 +144,7 @@ const devAuthSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 禁用开发者模式
       .addCase(disableDevMode.pending, (state) => {
         state.isLoading = true;
@@ -161,7 +161,7 @@ const devAuthSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // 检查开发者模式状态
       .addCase(checkDevModeStatus.pending, (state) => {
         state.isLoading = true;
@@ -178,7 +178,7 @@ const devAuthSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       });
-  }
+  },
 });
 
 // 导出actions
@@ -188,7 +188,7 @@ export const {
   setDevFeatures,
   clearDevMode,
   setError,
-  clearError
+  clearError,
 } = devAuthSlice.actions;
 
 // 导出selectors

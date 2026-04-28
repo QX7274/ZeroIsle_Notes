@@ -4,7 +4,7 @@
 
 import { AppState } from 'react-native';
 import realmService from '../database/realmService';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../network/networkService';
 
 class AppStateService {
   constructor() {
@@ -37,7 +37,14 @@ class AppStateService {
     this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
 
     // 监听网络状态变化
-    this.netInfoSubscription = NetInfo.addEventListener(this.handleNetworkChange);
+    this.netInfoSubscription = networkService.addNetworkListener(this.handleNetworkChange);
+
+    networkService.checkConnection().then(isOnline => {
+      this.appState.isOnline = Boolean(isOnline);
+      this.notifyListeners();
+    }).catch(error => {
+      console.error('初始化网络状态失败:', error);
+    });
 
     // 加载上次会话信息
     this.loadLastSession();
@@ -131,7 +138,7 @@ class AppStateService {
    */
   handleNetworkChange = (state) => {
     const wasOnline = this.appState.isOnline;
-    this.appState.isOnline = state.isConnected && state.isInternetReachable;
+    this.appState.isOnline = Boolean(state?.isOnline);
 
     // 网络状态变化
     if (wasOnline !== this.appState.isOnline) {
@@ -257,4 +264,9 @@ class AppStateService {
   }
 }
 
-export const appStateService = new AppStateService();
+const appStateService = new AppStateService();
+
+module.exports = appStateService;
+module.exports.default = appStateService;
+module.exports.appStateService = appStateService;
+module.exports.AppStateService = AppStateService;

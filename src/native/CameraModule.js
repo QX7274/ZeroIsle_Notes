@@ -1,9 +1,12 @@
-import { NativeModules } from 'react-native';
+const { NativeModules } = require('react-native');
 
-const { CameraModule } = NativeModules;
+const CameraModule = NativeModules.CameraModule || null;
 
-export default {
+const cameraWrapper = {
     takePicture: () => {
+        if (!CameraModule) {
+            return Promise.reject(new Error('CameraModule not available'));
+        }
         return new Promise((resolve, reject) => {
             CameraModule.takePicture()
                 .then(result => resolve(result))
@@ -12,10 +15,17 @@ export default {
     },
 
     startCamera: () => {
-        CameraModule.startCamera();
+        if (CameraModule) {
+            CameraModule.startCamera();
+        }
     },
 
     stopCamera: () => {
-        CameraModule.stopCamera();
+        if (CameraModule) {
+            CameraModule.stopCamera();
+        }
     },
-}; 
+};
+
+module.exports = cameraWrapper;
+module.exports.default = cameraWrapper;

@@ -74,7 +74,7 @@ export function goBack() {
     try {
       // 尝试获取当前路由状态
       const state = navigationRef.current.getState();
-      
+
       // 检查是否有可返回的路由
       if (state && state.routes && state.routes.length > 1) {
         navigationRef.current.goBack();

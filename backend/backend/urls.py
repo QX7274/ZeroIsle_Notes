@@ -7,6 +7,60 @@ from django.http import JsonResponse
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# Health Check View - for Docker/K8s probes
+def health_check(request):
+    """
+    Health check endpoint for container orchestration (Docker/K8s).
+    Checks Redis and MongoDB connectivity.
+
+    说明：探针必须“快速失败”，避免 Redis/Mongo 不可用时阻塞整个接口。
+    """
+    health_status = {
+        'status': 'healthy',
+        'timestamp': time.time(),
+        'services': {}
+    }
+
+    # Redis：使用短超时快速探测
+    try:
+        import redis
+        host, port = settings.CHANNEL_LAYERS['default']['CONFIG']['hosts'][0]
+        r = redis.Redis(
+            host=host,
+            port=port,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        r.ping()
+        health_status['services']['redis'] = 'ok'
+    except Exception as e:
+        health_status['services']['redis'] = f'error: {str(e)[:80]}'
+        health_status['status'] = 'degraded'
+
+    # MongoDB：不要复用 development.py 里可能长超时的全局客户端
+    try:
+        from pymongo import MongoClient
+        mongo_client = MongoClient(
+            host=getattr(settings, 'MONGO_HOST', 'localhost'),
+            port=int(getattr(settings, 'MONGO_PORT', 27017)),
+            serverSelectionTimeoutMS=1000,
+            connectTimeoutMS=1000,
+            socketTimeoutMS=1000,
+        )
+        mongo_client.admin.command('ping')
+        health_status['services']['mongodb'] = 'ok'
+    except Exception as e:
+        health_status['services']['mongodb'] = f'error: {str(e)[:80]}'
+        health_status['status'] = 'degraded'
+
+    status_code = 200 if health_status['status'] == 'healthy' else 503
+    return JsonResponse(health_status, status=status_code)
 
 # 根路径视图函数 - 返回JSON格式的API信息
 def api_root_json(request):
@@ -38,11 +92,12 @@ def api_v1_root(request):
         'search': '/api/v1/search/',
         'community': '/api/v1/community/',
         'canvas': '/api/v1/canvas/',
-        'code': '/api/v1/code/',
+        'code_editor': '/api/v1/code-editor/',
         'common': '/api/v1/common/',
         'notifications': '/api/v1/notifications/',
         'groups': '/api/v1/groups/',
         'sync': '/api/v1/sync/',
+        'personal_activity': '/api/v1/personal-activity/',
     }
 
     return JsonResponse({
@@ -67,12 +122,25 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+# Conditionally include Prometheus metrics if available
+try:
+    import django_prometheus  # noqa: F401
+    PROMETHEUS_URLS = [path('metrics/', include('django_prometheus.urls'))]
+except Exception:
+    PROMETHEUS_URLS = []
+
 # API版本前缀
 api_prefix = 'api/v1/'
 
 urlpatterns = [
     # 根路径 - 使用HTML模板
     path('', TemplateView.as_view(template_name='index.html'), name='api-root'),
+
+    # Health Check - for Docker/K8s/Load Balancers
+    path('health/', health_check, name='health-check'),
+
+    # 条件引入 Prometheus 指标路由
+    *PROMETHEUS_URLS,
 
     # API根路径 - JSON格式
     path('api.json', api_root_json, name='api-root-json'),
@@ -93,22 +161,31 @@ urlpatterns = [
 
     # API端点
     path(f'{api_prefix}auth/', include('users.urls')),
-    path(f'{api_prefix}notes/', include('notes.urls')),
-    path(f'{api_prefix}reminders/', include('reminder.urls')),
-    path(f'{api_prefix}knowledge-graph/', include('knowledge_graph.urls')),
-    path(f'{api_prefix}mind-map/', include('mind_map.urls')),
     path(f'{api_prefix}ai-assistant/', include('ai_assistant.urls')),
-    path(f'{api_prefix}voice-recognition/', include('voice_recognition.urls')),
     path(f'{api_prefix}search/', include('search.urls')),
-    path(f'{api_prefix}community/', include('community.urls')),
-    path(f'{api_prefix}canvas/', include('canvas.urls')),
-    path(f'{api_prefix}code/', include('code.urls')),
-    path(f'{api_prefix}common/', include('common.urls')),
-    path(f'{api_prefix}notifications/', include('notification.urls')),
-    path(f'{api_prefix}groups/', include('groups.urls')),
-    path(f'{api_prefix}sync/', include('sync.urls')),
-    path(f'{api_prefix}document-converter/', include('document_converter.urls')),
 ]
+
+# 在模块底部，尝试性地追加业务模块路由（如导入失败则记录原因）
+try:
+    urlpatterns.append(path(f'{api_prefix}notes/', include('notes.urls')))
+except Exception as e:
+    logger.exception("Failed to include notes.urls: %s", e)
+
+try:
+    urlpatterns.append(path(f'{api_prefix}knowledge-graph/', include('knowledge_graph.urls')))
+except Exception as e:
+    logger.exception("Failed to include knowledge_graph.urls: %s", e)
+
+try:
+    urlpatterns.append(path(f'{api_prefix}sync/', include('sync.urls')))
+except Exception as e:
+    logger.exception("Failed to include sync.urls: %s", e)
+
+try:
+    urlpatterns.append(path(f'{api_prefix}voice-recognition/', include('voice_recognition.urls')))
+except Exception as e:
+    logger.exception("Failed to include voice_recognition.urls: %s", e)
+
 
 # 添加媒体文件URL
 if settings.DEBUG:

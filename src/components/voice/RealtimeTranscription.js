@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  Platform
+  Platform,
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -28,7 +28,7 @@ const RealtimeTranscription = ({
   onTranscriptionComplete,
   onError,
   language = 'zh',
-  style = {}
+  style = {},
 }) => {
   const { colors } = useTheme();
 
@@ -263,7 +263,7 @@ const RealtimeTranscription = ({
             onTranscriptionComplete({
               text: result.finalResult.text || transcribedText,
               transcriptionId: result.finalResult.transcription_id,
-              duration: recordingDuration
+              duration: recordingDuration,
             });
           }
 
@@ -274,7 +274,7 @@ const RealtimeTranscription = ({
             if (onTranscriptionComplete) {
               onTranscriptionComplete({
                 text: transcribedText,
-                duration: recordingDuration
+                duration: recordingDuration,
               });
             }
 
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   cursor: {
     color: '#007AFF',
     fontWeight: 'bold',
-  }
+  },
 });
 
 export default RealtimeTranscription;

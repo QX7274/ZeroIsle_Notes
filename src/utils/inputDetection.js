@@ -24,7 +24,7 @@ export const detectInputType = (nativeEvent) => {
       force: touch.force,
       toolType: touch.toolType,
       type: touch.type,
-      identifier: touch.identifier
+      identifier: touch.identifier,
     });
 
     // 优先检查明确的touchType属性（最可靠）
@@ -128,7 +128,7 @@ export class InputModeManager {
     this.currentMode = 'auto'; // 'auto' | 'finger' | 'stylus'
     this.listeners = [];
   }
-  
+
   /**
    * 设置输入模式
    * @param {string} mode - 'auto' | 'finger' | 'stylus'
@@ -139,7 +139,7 @@ export class InputModeManager {
       this.notifyListeners(mode);
     }
   }
-  
+
   /**
    * 获取当前输入模式
    * @returns {string}
@@ -147,7 +147,7 @@ export class InputModeManager {
   getMode() {
     return this.currentMode;
   }
-  
+
   /**
    * 根据触摸事件确定操作类型
    * @param {Object} nativeEvent - 原生触摸事件对象
@@ -166,7 +166,7 @@ export class InputModeManager {
       return operationType;
     }
   }
-  
+
   /**
    * 添加模式变化监听器
    * @param {Function} listener - 监听器函数
@@ -174,7 +174,7 @@ export class InputModeManager {
   addListener(listener) {
     this.listeners.push(listener);
   }
-  
+
   /**
    * 移除模式变化监听器
    * @param {Function} listener - 监听器函数
@@ -185,7 +185,7 @@ export class InputModeManager {
       this.listeners.splice(index, 1);
     }
   }
-  
+
   /**
    * 通知所有监听器
    * @param {string} mode - 新的模式
@@ -210,31 +210,31 @@ export const globalInputModeManager = new InputModeManager();
  */
 export const useInputMode = () => {
   const [mode, setModeState] = React.useState(globalInputModeManager.getMode());
-  
+
   React.useEffect(() => {
     const listener = (newMode) => {
       setModeState(newMode);
     };
-    
+
     globalInputModeManager.addListener(listener);
-    
+
     return () => {
       globalInputModeManager.removeListener(listener);
     };
   }, []);
-  
+
   const setMode = (newMode) => {
     globalInputModeManager.setMode(newMode);
   };
-  
+
   const getOperationType = (nativeEvent) => {
     return globalInputModeManager.getOperationType(nativeEvent);
   };
-  
+
   return {
     mode,
     setMode,
-    getOperationType
+    getOperationType,
   };
 };
 
@@ -245,12 +245,12 @@ export const useInputMode = () => {
 export const enhanceTouchEvent = (nativeEvent) => {
   const inputType = detectInputType(nativeEvent);
   const operationType = globalInputModeManager.getOperationType(nativeEvent);
-  
+
   return {
     ...nativeEvent,
     inputType,
     operationType,
     isStylusInput: inputType === 'stylus',
-    isFingerInput: inputType === 'finger'
+    isFingerInput: inputType === 'finger',
   };
 };

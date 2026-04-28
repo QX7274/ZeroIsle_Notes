@@ -8,6 +8,8 @@ import GroupDetailScreen from '../screens/groups/GroupDetailScreen';
 import CreateGroupScreen from '../screens/groups/CreateGroupScreen';
 import JoinGroupScreen from '../screens/groups/JoinGroupScreen';
 import ScreenShareScreen from '../screens/groups/ScreenShareScreen';
+import InvitationsScreen from '../screens/groups/InvitationsScreen';
+import InviteMembersScreen from '../screens/groups/InviteMembersScreen';
 
 const Stack = createStackNavigator();
 
@@ -20,7 +22,7 @@ const GroupsNavigator = () => {
     <Stack.Navigator
       initialRouteName="GroupsList"
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
         cardStyle: { backgroundColor: 'white' },
       }}
     >
@@ -45,9 +47,19 @@ const GroupsNavigator = () => {
         options={{ title: '加入群组' }}
       />
       <Stack.Screen
+        name="Invitations"
+        component={InvitationsScreen}
+        options={{ title: '群组邀请' }}
+      />
+      <Stack.Screen
         name="ScreenShare"
         component={ScreenShareScreen}
         options={{ title: '屏幕共享' }}
+      />
+      <Stack.Screen
+        name="InviteMembers"
+        component={InviteMembersScreen}
+        options={{ title: '邀请成员' }}
       />
     </Stack.Navigator>
   );

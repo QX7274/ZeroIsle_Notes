@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { format, subDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import reminderApi from '../../services/api/reminderApi';
 
 const AnalyticsScreen = () => {
   const { theme } = useTheme();
@@ -34,23 +35,25 @@ const AnalyticsScreen = () => {
   const loadStats = async () => {
     setLoading(true);
     try {
-      // 这里可以添加从服务器获取统计数据的逻辑
-      // 模拟数据
-      const mockStats = {
-        reminderStats: {
-          total: 50,
-          completed: 30,
-          pending: 20,
-        },
-        dailyStats: generateDailyStats(),
-        categoryStats: [
-          { name: '工作', count: 20 },
-          { name: '生活', count: 15 },
-          { name: '学习', count: 10 },
-          { name: '其他', count: 5 },
-        ],
+      const [statisticsResponse, dailyStats] = await Promise.all([
+        reminderApi.getReminderStatistics(),
+        loadDailyStats(timeRange),
+      ]);
+
+      const statisticsData = statisticsResponse?.data || {};
+      const reminderStats = {
+        total: statisticsData.total ?? 0,
+        completed: statisticsData.completed ?? 0,
+        pending: statisticsData.active ?? 0,
       };
-      setStats(mockStats);
+
+      const categoryStats = mapCategoryStats(statisticsData.categories || {});
+
+      setStats({
+        reminderStats,
+        dailyStats,
+        categoryStats,
+      });
     } catch (error) {
       console.error('加载统计数据失败:', error);
     } finally {
@@ -58,15 +61,59 @@ const AnalyticsScreen = () => {
     }
   };
 
-  const generateDailyStats = () => {
-    const days = 7;
-    return Array.from({ length: days }, (_, i) => {
-      const date = subDays(new Date(), i);
+  const mapCategoryStats = (categories) => {
+    if (!categories || typeof categories !== 'object') {
+      return [];
+    }
+
+    return Object.values(categories).map((category) => ({
+      name: category?.name || '未分类',
+      count: category?.count ?? 0,
+    }));
+  };
+
+  const loadDailyStats = async (range) => {
+    const days = range === 'day' ? 1 : range === 'month' ? 30 : 7;
+    const now = new Date();
+    const dateList = Array.from({ length: days }, (_, index) => subDays(now, index)).reverse();
+    const months = getMonthKeys(dateList);
+    const calendarResponses = await Promise.all(
+      months.map((monthKey) => {
+        const [year, month] = monthKey.split('-');
+        return reminderApi.getCalendarData(Number(year), Number(month));
+      })
+    );
+
+    const calendarData = calendarResponses.reduce((acc, response) => {
+      if (response?.data && typeof response.data === 'object') {
+        Object.entries(response.data).forEach(([day, items]) => {
+          if (!acc[day]) {
+            acc[day] = [];
+          }
+          if (Array.isArray(items)) {
+            acc[day].push(...items);
+          }
+        });
+      }
+      return acc;
+    }, {});
+
+    return dateList.map((date) => {
+      const dayKey = String(date.getDate());
+      const count = Array.isArray(calendarData[dayKey]) ? calendarData[dayKey].length : 0;
       return {
         date: format(date, 'MM-dd', { locale: zhCN }),
-        count: Math.floor(Math.random() * 10),
+        count,
       };
-    }).reverse();
+    });
+  };
+
+  const getMonthKeys = (dates) => {
+    const uniqueKeys = new Set();
+    dates.forEach((date) => {
+      uniqueKeys.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
+    });
+    return Array.from(uniqueKeys);
   };
 
   if (loading) {
@@ -251,4 +298,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AnalyticsScreen; 
+export default AnalyticsScreen;

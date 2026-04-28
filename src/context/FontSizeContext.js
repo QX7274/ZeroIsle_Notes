@@ -21,7 +21,7 @@ export const FONT_SIZES = {
     button: 14,
     input: 14,
     label: 12,
-    small: 10
+    small: 10,
   },
   medium: {
     heading1: 28,
@@ -34,7 +34,7 @@ export const FONT_SIZES = {
     button: 16,
     input: 16,
     label: 14,
-    small: 12
+    small: 12,
   },
   large: {
     heading1: 32,
@@ -47,8 +47,8 @@ export const FONT_SIZES = {
     button: 18,
     input: 18,
     label: 16,
-    small: 14
-  }
+    small: 14,
+  },
 };
 
 // 获取字体大小
@@ -94,7 +94,7 @@ const FontSizeContext = createContext({
   fontSize: 'medium',
   fontSizes: FONT_SIZES.medium,
   setFontSize: () => {},
-  getFontSizeValue: () => {}
+  getFontSizeValue: () => {},
 });
 
 /**
@@ -103,18 +103,18 @@ const FontSizeContext = createContext({
 export const FontSizeProvider = ({ children }) => {
   // 字体大小状态
   const [fontSize, setFontSizeState] = useState('medium');
-  
+
   // 加载保存的字体大小设置
   useEffect(() => {
     const loadFontSizeSettings = async () => {
       try {
         console.log('FontSizeContext: 开始加载字体大小设置...');
-        
+
         // 添加超时机制
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('加载字体大小设置超时')), 3000);
         });
-        
+
         // 加载字体大小设置的Promise
         const loadSettingsPromise = (async () => {
           const savedFontSize = await getFontSize();
@@ -124,7 +124,7 @@ export const FontSizeProvider = ({ children }) => {
           }
           return true;
         })();
-        
+
         // 使用Promise.race确保不会无限等待
         await Promise.race([loadSettingsPromise, timeoutPromise]);
       } catch (error) {
@@ -132,10 +132,10 @@ export const FontSizeProvider = ({ children }) => {
         console.error('FontSizeContext: 使用默认字体大小设置');
       }
     };
-    
+
     loadFontSizeSettings();
   }, []);
-  
+
   /**
    * 设置字体大小
    * @param {string} size - 字体大小：small, medium, large
@@ -145,39 +145,39 @@ export const FontSizeProvider = ({ children }) => {
       console.warn(`无效的字体大小: ${size}，使用 medium`);
       size = 'medium';
     }
-    
+
     setFontSizeState(size);
-    
+
     try {
       await saveFontSize(size);
     } catch (error) {
       console.error('保存字体大小失败:', error);
     }
   }, []);
-  
+
   /**
    * 获取字体大小值
    * @param {string} type - 字体类型：heading1, body, caption等
    * @returns {number} - 对应的字体大小值
    */
   const getFontSizeValue = useCallback((type) => {
-    if (!type) return FONT_SIZES[fontSize].body;
+    if (!type) {return FONT_SIZES[fontSize].body;}
     return FONT_SIZES[fontSize][type] || FONT_SIZES[fontSize].body;
   }, [fontSize]);
-  
+
   // 当前字体大小配置
   const currentFontSizes = useMemo(() => {
     return FONT_SIZES[fontSize] || FONT_SIZES.medium;
   }, [fontSize]);
-  
+
   // 上下文值
   const contextValue = useMemo(() => ({
     fontSize,
     fontSizes: currentFontSizes,
     setFontSize,
-    getFontSizeValue
+    getFontSizeValue,
   }), [fontSize, currentFontSizes, setFontSize, getFontSizeValue]);
-  
+
   return (
     <FontSizeContext.Provider value={contextValue}>
       {children}
@@ -199,7 +199,7 @@ export const useFontSize = () => {
         fontSize: 'medium',
         fontSizes: FONT_SIZES.medium,
         setFontSize: () => {},
-        getFontSizeValue: () => FONT_SIZES.medium.body
+        getFontSizeValue: () => FONT_SIZES.medium.body,
       };
     }
     return context;
@@ -210,7 +210,7 @@ export const useFontSize = () => {
       fontSize: 'medium',
       fontSizes: FONT_SIZES.medium,
       setFontSize: () => {},
-      getFontSizeValue: () => FONT_SIZES.medium.body
+      getFontSizeValue: () => FONT_SIZES.medium.body,
     };
   }
 };

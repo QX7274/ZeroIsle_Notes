@@ -2,94 +2,101 @@
 
 from rest_framework import serializers
 from django.utils import timezone
-from .models import NoteShare, Note
-from users.models import User
+from .mongodb_models import NoteShare, Note
+from users.mongodb_models import User
+import logging
 
+logger = logging.getLogger(__name__)
 
-class NoteShareCreateSerializer(serializers.ModelSerializer):
-    """笔记分享创建序列化器"""
-    allowed_users_emails = serializers.ListField(
-        child=serializers.EmailField(),
-        required=False,
-        write_only=True
-    )
-    
-    class Meta:
-        model = NoteShare
-        fields = ['access_type', 'password', 'allowed_users_emails', 'is_editable', 'expires_at']
-        extra_kwargs = {
-            'password': {'write_only': True, 'required': False},
-        }
+class NoteShareCreateSerializer(serializers.Serializer):
+    """笔记分享创建序列化器 (MongoEngine适配)"""
+    share_type = serializers.ChoiceField(choices=[('link', '链接'), ('email', '邮件'), ('user', '用户')])
+    share_to = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
+    max_view_count = serializers.IntegerField(required=False, allow_null=True)
     
     def validate(self, attrs):
-        # 验证访问类型和密码
-        access_type = attrs.get('access_type')
+        share_type = attrs.get('share_type')
+        share_to = attrs.get('share_to')
         password = attrs.get('password')
-        allowed_users_emails = attrs.pop('allowed_users_emails', [])
         
-        if access_type == 'password' and not password:
-            raise serializers.ValidationError({'password': '密码访问类型必须提供密码'})
-        
-        # 保存允许访问的用户列表
-        self.context['allowed_users_emails'] = allowed_users_emails
-        
+        if share_type in ['email', 'user'] and not share_to:
+            raise serializers.ValidationError({'share_to': '此分享类型必须指定分享对象'})
+            
         return attrs
     
     def create(self, validated_data):
         note = self.context['note']
-        allowed_users_emails = self.context.get('allowed_users_emails', [])
+        user = self.context['request'].user
         
+        # 转换Django User到Mongo User (如果需要)
+        # 假设request.user是Django User, 我们需要找到对应的Mongo User
+        # 或者假设已在中间件处理。暂时假设user有一个mongo_id或者同样的username
+        mongo_user = User.objects(username=user.username).first()
+        if not mongo_user:
+             # Fallback or error? For now try to find by email
+             mongo_user = User.objects(email=user.email).first()
+             if not mongo_user:
+                 logger.error(f"Cannot find Mongo user for {user.username}")
+                 raise serializers.ValidationError("用户数据不一致")
+
         # 创建分享记录
-        share = NoteShare.objects.create(
+        share = NoteShare(
             note=note,
-            **validated_data
+            user=mongo_user,
+            share_type=validated_data.get('share_type'),
+            share_to=validated_data.get('share_to'),
+            expires_at=validated_data.get('expires_at'),
+            max_view_count=validated_data.get('max_view_count'),
+            share_code=NoteShare.generate_share_code()
         )
         
-        # 如果是指定用户访问类型，添加允许的用户
-        if allowed_users_emails and share.access_type == 'specific_users':
-            users = User.objects.filter(email__in=allowed_users_emails)
-            share.allowed_users.set(users)
-        
+        password = validated_data.get('password')
+        if password:
+            share.set_password(password)
+            
+        share.save()
         return share
 
 
-class NoteShareDetailSerializer(serializers.ModelSerializer):
+class NoteShareDetailSerializer(serializers.Serializer):
     """笔记分享详情序列化器"""
+    id = serializers.CharField(read_only=True)
+    note_id = serializers.CharField(source='note.id', read_only=True)
     note_title = serializers.CharField(source='note.title', read_only=True)
-    share_url = serializers.CharField(read_only=True)
+    share_type = serializers.CharField(read_only=True)
+    share_to = serializers.CharField(read_only=True)
+    share_code = serializers.CharField(read_only=True)
+    share_url = serializers.SerializerMethodField()
+    is_password_protected = serializers.BooleanField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
     is_expired = serializers.SerializerMethodField()
-    allowed_users = serializers.SerializerMethodField()
+    view_count = serializers.IntegerField(read_only=True)
+    max_view_count = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
     
-    class Meta:
-        model = NoteShare
-        fields = ['id', 'note_title', 'share_id', 'access_type', 'is_editable', 
-                  'expires_at', 'created_at', 'updated_at', 'view_count', 
-                  'share_url', 'is_expired', 'allowed_users']
-        read_only_fields = ['id', 'share_id', 'created_at', 'updated_at', 'view_count']
+    def get_share_url(self, obj):
+        # 假设前端路由格式
+        return f"/share/{obj.share_code}"
     
     def get_is_expired(self, obj):
-        if obj.expires_at and obj.expires_at < timezone.now():
-            return True
-        return False
-    
-    def get_allowed_users(self, obj):
-        if obj.access_type == 'specific_users':
-            return [{
-                'id': user.id,
-                'username': user.username,
-                'email': user.email
-            } for user in obj.allowed_users.all()]
-        return []
+        return obj.is_expired()
 
 
-class SharedNoteSerializer(serializers.ModelSerializer):
-    """共享笔记序列化器"""
-    owner_username = serializers.CharField(source='user.username', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+class SharedNoteSerializer(serializers.Serializer):
+    """共享笔记内容序列化器"""
+    id = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    content = serializers.CharField(read_only=True)
+    owner_username = serializers.SerializerMethodField()
+    category_name = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
     
-    class Meta:
-        model = Note
-        fields = ['id', 'title', 'content', 'owner_username', 'category_name', 
-                  'created_at', 'updated_at']
-        read_only_fields = ['id', 'title', 'owner_username', 'category_name', 
-                           'created_at', 'updated_at']
+    def get_owner_username(self, obj):
+        return obj.user.username if obj.user else "Unknown"
+        
+    def get_category_name(self, obj):
+        return obj.category.name if obj.category else None

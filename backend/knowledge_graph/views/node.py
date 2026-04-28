@@ -10,6 +10,8 @@ import uuid
 from django.utils import timezone
 from mongoengine.queryset.visitor import Q
 
+from ..utils.response import KGResponse, PaginationHelper, ErrorCodes
+
 from knowledge_graph.mongodb_models import KnowledgeNode, KnowledgeEdge
 from knowledge_graph.serializers import (
     KnowledgeNodeSerializer,
@@ -33,8 +35,22 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
     def list(self, request):
         """获取节点列表"""
         nodes = KnowledgeNode.objects.filter(user=request.user, is_deleted=False)
-        serializer = KnowledgeNodeListSerializer(nodes, many=True)
-        return Response(serializer.data)
+        # 分页处理
+        params = PaginationHelper.validate_and_get_params(request)
+        if not params:
+            return KGResponse.error(
+                ErrorCodes.INVALID_PARAM,
+                '分页参数不合法',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        page = params['page']
+        page_size = params['page_size']
+        offset = (page - 1) * page_size
+        total = nodes.count()
+        items = nodes[offset:offset + page_size]
+        serializer = KnowledgeNodeListSerializer(items, many=True)
+        pagination_meta = PaginationHelper.get_pagination_meta(nodes, page, page_size)
+        return KGResponse.success(serializer.data, pagination=pagination_meta)
 
     def retrieve(self, request, pk=None):
         """获取单个节点详情"""
@@ -42,12 +58,13 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
             node = KnowledgeNode.objects.get(id=pk, is_deleted=False)
             # 检查权限
             if node.user != request.user and not node.is_public:
-                return Response(
-                    {"detail": "您没有权限查看此节点"},
-                    status=status.HTTP_403_FORBIDDEN
+                return KGResponse.error(
+                    ErrorCodes.FORBIDDEN,
+                    '您没有权限查看此节点',
+                    status_code=status.HTTP_403_FORBIDDEN
                 )
             serializer = KnowledgeNodeSerializer(node)
-            return Response(serializer.data)
+            return KGResponse.success(serializer.data)
         except KnowledgeNode.DoesNotExist:
             return Response(
                 {"detail": "节点不存在或已删除"},
@@ -95,8 +112,13 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
                 pass
 
             serializer = KnowledgeNodeSerializer(node)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return KGResponse.success(serializer.data, status_code=status.HTTP_201_CREATED)
+        return KGResponse.error(
+            ErrorCodes.INVALID_PARAM,
+            '参数校验失败',
+            details=serializer.errors,
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
 
     def update(self, request, pk=None):
         """更新节点"""
@@ -129,8 +151,13 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
                     pass
 
                 serializer = KnowledgeNodeSerializer(node)
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return KGResponse.success(serializer.data)
+            return KGResponse.error(
+                ErrorCodes.INVALID_PARAM,
+                '参数校验失败',
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
         except KnowledgeNode.DoesNotExist:
             return Response(
                 {"detail": "节点不存在或已删除"},
@@ -153,7 +180,7 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
                 # 如果Neo4j操作失败，不影响数据库操作
                 pass
 
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return KGResponse.success({}, status_code=status.HTTP_204_NO_CONTENT)
         except KnowledgeNode.DoesNotExist:
             return Response(
                 {"detail": "节点不存在或已删除"},
@@ -196,7 +223,7 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
             nodes_data = KnowledgeNodeListSerializer(related_nodes, many=True).data
             edges_data = KnowledgeEdgeListSerializer(related_edges, many=True).data
 
-            return Response({
+            return KGResponse.success({
                 'nodes': nodes_data,
                 'edges': edges_data
             })
@@ -224,7 +251,7 @@ class KnowledgeNodeViewSet(viewsets.ViewSet):
 
             related = find_related_concepts(request.user, node.id, max_depth=max_depth)
 
-            return Response(related)
+            return KGResponse.success(related)
         except KnowledgeNode.DoesNotExist:
             return Response(
                 {"detail": "节点不存在或已删除"},

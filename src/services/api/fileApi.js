@@ -32,7 +32,7 @@ const fileApi = {
       return response.data;
     } catch (error) {
       logService.error('获取文件列表失败', error);
-      
+
       // 尝试从本地获取文件作为备份
       try {
         const userId = options.userId || 'current_user';
@@ -44,7 +44,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 获取文件详情
    * @param {string} id 文件ID
@@ -64,7 +64,7 @@ const fileApi = {
       return response.data;
     } catch (error) {
       logService.error(`获取文件(ID: ${id})详情失败`, error);
-      
+
       // 尝试从本地获取文件作为备份
       try {
         const file = await fileAdapter.getFileById(id);
@@ -75,7 +75,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 上传文件
    * @param {Object} data 文件数据
@@ -93,25 +93,25 @@ const fileApi = {
 
       // 创建FormData
       const formData = new FormData();
-      
+
       // 添加文件
       if (data.file) {
         formData.append('file', data.file);
       }
-      
+
       // 添加其他数据
-      if (data.name) formData.append('name', data.name);
-      if (data.noteId) formData.append('note_id', data.noteId);
-      if (data.type) formData.append('type', data.type);
-      if (data.tags) formData.append('tags', JSON.stringify(data.tags));
-      
+      if (data.name) {formData.append('name', data.name);}
+      if (data.noteId) {formData.append('note_id', data.noteId);}
+      if (data.type) {formData.append('type', data.type);}
+      if (data.tags) {formData.append('tags', JSON.stringify(data.tags));}
+
       // 使用API客户端上传文件
       const response = await apiClient.post('/api/v1/files/upload/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
+
       // 同步到本地
       try {
         const userId = data.userId || 'current_user';
@@ -123,11 +123,11 @@ const fileApi = {
       } catch (syncError) {
         logService.warn('同步文件到本地失败', syncError);
       }
-      
+
       return response.data;
     } catch (error) {
       logService.error('上传文件失败', error);
-      
+
       // 尝试在本地保存文件作为备份
       try {
         const userId = data.userId || 'current_user';
@@ -139,7 +139,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 更新文件
    * @param {string} id 文件ID
@@ -157,7 +157,7 @@ const fileApi = {
 
       // 使用API客户端更新文件
       const response = await apiClient.put(`/api/v1/files/${id}/`, data);
-      
+
       // 同步到本地
       try {
         await fileAdapter.updateFile(id, {
@@ -167,11 +167,11 @@ const fileApi = {
       } catch (syncError) {
         logService.warn('同步文件更新到本地失败', syncError);
       }
-      
+
       return response.data;
     } catch (error) {
       logService.error(`更新文件(ID: ${id})失败`, error);
-      
+
       // 尝试在本地更新文件作为备份
       try {
         const file = await fileAdapter.updateFile(id, data);
@@ -182,7 +182,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 删除文件
    * @param {string} id 文件ID
@@ -199,18 +199,18 @@ const fileApi = {
 
       // 使用API客户端删除文件
       const response = await apiClient.delete(`/api/v1/files/${id}/`);
-      
+
       // 同步到本地
       try {
         await fileAdapter.deleteFile(id);
       } catch (syncError) {
         logService.warn('同步文件删除到本地失败', syncError);
       }
-      
+
       return response.data;
     } catch (error) {
       logService.error(`删除文件(ID: ${id})失败`, error);
-      
+
       // 尝试在本地删除文件作为备份
       try {
         await fileAdapter.deleteFile(id);
@@ -221,7 +221,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 下载文件
    * @param {string} id 文件ID
@@ -233,11 +233,11 @@ const fileApi = {
       if (!networkService.isOnline()) {
         // 使用适配器从本地获取文件
         const file = await fileAdapter.getFileById(id);
-        
+
         if (!file || !file.path) {
           throw new Error('文件不存在或路径无效');
         }
-        
+
         return { data: { path: file.path }, success: true, isOffline: true };
       }
 
@@ -245,19 +245,19 @@ const fileApi = {
       const response = await apiClient.get(`/api/v1/files/${id}/download/`, {
         responseType: 'blob',
       });
-      
+
       return response.data;
     } catch (error) {
       logService.error(`下载文件(ID: ${id})失败`, error);
-      
+
       // 尝试从本地获取文件作为备份
       try {
         const file = await fileAdapter.getFileById(id);
-        
+
         if (!file || !file.path) {
           throw new Error('文件不存在或路径无效');
         }
-        
+
         return { data: { path: file.path }, success: true, isOffline: true };
       } catch (offlineError) {
         logService.error(`从本地获取文件(ID: ${id})失败`, offlineError);
@@ -265,7 +265,7 @@ const fileApi = {
       }
     }
   },
-  
+
   /**
    * 获取笔记的文件
    * @param {string} noteId 笔记ID
@@ -285,7 +285,7 @@ const fileApi = {
       return response.data;
     } catch (error) {
       logService.error(`获取笔记(ID: ${noteId})的文件失败`, error);
-      
+
       // 尝试从本地获取笔记的文件作为备份
       try {
         const files = await fileAdapter.findByNote(noteId);
@@ -295,7 +295,7 @@ const fileApi = {
         throw error;
       }
     }
-  }
+  },
 };
 
 export default fileApi;

@@ -175,7 +175,7 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
       statusBarTranslucent={true}
       presentationStyle="overFullScreen"
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
@@ -210,7 +210,7 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
                       backgroundColor: colors.background,
                       borderColor: selectedType === type.id ? colors.primary : colors.border,
                       borderWidth: selectedType === type.id ? 2 : 1,
-                    }
+                    },
                   ]}
                   onPress={() => setSelectedType(type.id)}
                 >
@@ -244,8 +244,8 @@ const CardTypeModal = ({ visible, onClose, onSelectType }) => {
                 {
                   borderColor: colors.border,
                   backgroundColor: colors.background,
-                  color: colors.text
-                }
+                  color: colors.text,
+                },
               ]}
               placeholder="输入卡片名称（可选）"
               placeholderTextColor={colors.textLight}

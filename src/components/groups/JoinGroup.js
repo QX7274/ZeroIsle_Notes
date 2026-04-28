@@ -40,7 +40,7 @@ const JoinGroup = () => {
 
   const handleCodeChange = (text, index) => {
     // 只允许输入数字
-    if (!/^\d*$/.test(text)) return;
+    if (!/^\d*$/.test(text)) {return;}
 
     const newCode = [...code];
     newCode[index] = text;
@@ -72,12 +72,12 @@ const JoinGroup = () => {
       })
       .catch((error) => {
         console.error('加入群组失败:', error);
-        
+
         // 使用网络错误服务处理错误
         if (networkErrorService.isNetworkError(error)) {
           networkErrorService.handleApiError(error, {
             context: '加入群组',
-            customMessage: '网络连接失败，无法加入群组'
+            customMessage: '网络连接失败，无法加入群组',
           });
         }
       });

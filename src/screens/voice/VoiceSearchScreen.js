@@ -36,7 +36,7 @@ const VoiceSearchScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors } = theme;
   const dispatch = useDispatch();
-  
+
   // 状态管理
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -48,7 +48,7 @@ const VoiceSearchScreen = ({ navigation }) => {
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
-  
+
   // 引用
   const audioRecorderPlayer = useRef(null);
   const durationTimerRef = useRef(null);
@@ -62,7 +62,7 @@ const VoiceSearchScreen = ({ navigation }) => {
       console.warn('VoiceSearchScreen: AudioRecorderPlayer初始化失败:', error);
     }
   }, []);
-  
+
   // 清理函数
   useEffect(() => {
     return () => {
@@ -79,7 +79,7 @@ const VoiceSearchScreen = ({ navigation }) => {
       }
     };
   }, []);
-  
+
   // 请求录音权限
   const requestAudioPermission = async () => {
     if (Platform.OS === 'android') {
@@ -89,7 +89,7 @@ const VoiceSearchScreen = ({ navigation }) => {
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         ]);
-        
+
         if (
           grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED &&
           grants[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED &&
@@ -108,14 +108,14 @@ const VoiceSearchScreen = ({ navigation }) => {
       return true; // iOS会自动请求权限
     }
   };
-  
+
   // 显示提示
   const displayToast = (message) => {
     setToastMessage(message);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
-  
+
   // 开始录音
   const startRecording = async () => {
     try {
@@ -123,12 +123,12 @@ const VoiceSearchScreen = ({ navigation }) => {
       if (!hasPermission) {
         return;
       }
-      
+
       const path = Platform.select({
         ios: `${RNFS.LibraryDirectoryPath}/voice_search.m4a`,
         android: `${RNFS.ExternalDirectoryPath}/voice_search_${Date.now()}.mp3`,
       });
-      
+
       if (!audioRecorderPlayer.current) {
         displayToast('录音器未初始化');
         return;
@@ -136,36 +136,36 @@ const VoiceSearchScreen = ({ navigation }) => {
 
       await audioRecorderPlayer.current.startRecorder(path);
       audioRecorderPlayer.current.addRecordBackListener(() => {});
-      
+
       setRecordingPath(path);
       setIsRecording(true);
       setRecordingDuration(0);
       setAudioUri(null);
       setSearchResults([]);
       setRecognizedText('');
-      
+
       durationTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-      
+
       displayToast('开始录音...');
     } catch (error) {
       console.error('开始录音失败:', error);
       displayToast(`录音失败: ${error.message}`);
     }
   };
-  
+
   // 停止录音
   const stopRecording = async () => {
     try {
       clearInterval(durationTimerRef.current);
       const path = await audioRecorderPlayer.stopRecorder();
       audioRecorderPlayer.removeRecordBackListener();
-      
+
       setIsRecording(false);
       setAudioUri(`file://${path}`);
       displayToast('录音已完成，准备搜索');
-      
+
       // 自动开始搜索
       performVoiceSearch(`file://${path}`);
     } catch (error) {
@@ -173,14 +173,14 @@ const VoiceSearchScreen = ({ navigation }) => {
       displayToast('停止录音失败');
     }
   };
-  
+
   // 执行语音搜索
   const performVoiceSearch = async (uri) => {
     if (!uri) {
       displayToast('没有录音文件');
       return;
     }
-    
+
     try {
       // 检查网络连接
       const netInfo = await NetInfo.fetch();
@@ -188,22 +188,22 @@ const VoiceSearchScreen = ({ navigation }) => {
         displayToast('需要网络连接');
         return;
       }
-      
+
       setIsSearching(true);
       setError(null);
-      
+
       // 读取音频文件
       const fileContent = await RNFS.readFile(uri.replace('file://', ''), 'base64');
-      
+
       // 调用语音搜索API
       const result = await searchApi.voiceSearch(fileContent, {
         useKnowledgeGraph: true,
       });
-      
+
       if (result.success) {
         setSearchResults(result.data.results || []);
         setRecognizedText(result.data.recognized_text || '');
-        
+
         if (result.data.results?.length === 0) {
           displayToast('未找到相关结果');
         }
@@ -218,7 +218,7 @@ const VoiceSearchScreen = ({ navigation }) => {
       setIsSearching(false);
     }
   };
-  
+
   // 处理结果点击
   const handleResultPress = (item) => {
     // 根据结果类型导航到不同页面
@@ -236,14 +236,16 @@ const VoiceSearchScreen = ({ navigation }) => {
         navigation.navigate('NoteList');
     }
   };
-  
+
   // 格式化录音时长
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
+
+  const waveHeights = [12, 20, 28, 18, 24];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -255,7 +257,7 @@ const VoiceSearchScreen = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>语音搜索</Text>
       </View>
-      
+
       <View style={styles.contentContainer}>
         <View style={styles.recordingSection}>
           <View style={[styles.recordingVisualizer, { backgroundColor: colors.cardBackground }]}>
@@ -265,13 +267,13 @@ const VoiceSearchScreen = ({ navigation }) => {
                   {formatDuration(recordingDuration)}
                 </Text>
                 <View style={styles.waveContainer}>
-                  {[...Array(5)].map((_, i) => (
+                  {waveHeights.map((height, i) => (
                     <View
                       key={i}
                       style={[
                         styles.wave,
                         {
-                          height: 10 + Math.random() * 30,
+                          height,
                           backgroundColor: colors.primary,
                         },
                       ]}
@@ -294,7 +296,7 @@ const VoiceSearchScreen = ({ navigation }) => {
               </Text>
             )}
           </View>
-          
+
           <View style={styles.controlsContainer}>
             {isRecording ? (
               <TouchableOpacity
@@ -313,7 +315,7 @@ const VoiceSearchScreen = ({ navigation }) => {
             )}
           </View>
         </View>
-        
+
         <View style={styles.resultsContainer}>
           {isSearching ? (
             <View style={styles.loadingContainer}>
@@ -348,7 +350,7 @@ const VoiceSearchScreen = ({ navigation }) => {
           ) : null}
         </View>
       </View>
-      
+
       {showToast && (
         <Toast message={toastMessage} />
       )}

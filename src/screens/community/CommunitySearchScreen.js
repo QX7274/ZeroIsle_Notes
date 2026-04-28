@@ -23,7 +23,7 @@ import {
   MultiModalSearch,
   SearchResults,
   SearchHistory,
-  UnifiedSearchBar
+  UnifiedSearchBar,
 } from '../../components/search';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -94,7 +94,7 @@ const CommunitySearchScreen = ({ navigation, route }) => {
       query: historyItem.query,
       options: {
         scope: 'community',
-      }
+      },
     }));
     setSearchPerformed(true);
     setShowHistory(false);

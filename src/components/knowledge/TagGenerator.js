@@ -36,7 +36,7 @@ const TagGenerator = ({
 
   // 生成标签
   const generateTags = async () => {
-    if (!text || loading) return;
+    if (!text || loading) {return;}
 
     setLoading(true);
     try {
@@ -60,14 +60,14 @@ const TagGenerator = ({
 
   // 添加标签
   const addTag = (tag) => {
-    if (tags.length >= maxTags || tags.includes(tag)) return;
+    if (tags.length >= maxTags || tags.includes(tag)) {return;}
 
     const newTags = [...tags, tag];
     setTags(newTags);
-    
+
     // 从建议中移除
     setSuggestedTags(suggestedTags.filter((t) => t !== tag));
-    
+
     // 通知父组件
     if (onTagsChange) {
       onTagsChange(newTags);
@@ -78,7 +78,7 @@ const TagGenerator = ({
   const removeTag = (tag) => {
     const newTags = tags.filter((t) => t !== tag);
     setTags(newTags);
-    
+
     // 通知父组件
     if (onTagsChange) {
       onTagsChange(newTags);

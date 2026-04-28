@@ -21,12 +21,12 @@ const AppInitializer = ({ children }) => {
   const initializeApp = async () => {
     try {
       setInitStatus('正在初始化认证...');
-      
+
       // 初始化认证服务
       await simpleAuth.initialize();
-      
+
       setInitStatus('正在检查配置...');
-      
+
       // 修复颜色配置
       if (colors) {
         // 确保颜色对象中没有undefined值
@@ -36,9 +36,9 @@ const AppInitializer = ({ children }) => {
           }
         });
       }
-      
+
       setInitStatus('初始化完成');
-      
+
       // 延迟一下让用户看到完成状态
       setTimeout(() => {
         setIsInitializing(false);
@@ -47,7 +47,7 @@ const AppInitializer = ({ children }) => {
     } catch (error) {
       console.error('AppInitializer: 初始化失败:', error);
       setInitStatus('初始化完成');
-      
+
       // 即使失败也要继续，不阻塞应用启动
       setTimeout(() => {
         setIsInitializing(false);

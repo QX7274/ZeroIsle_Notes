@@ -10,6 +10,9 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from django.utils import timezone
+from users.mongodb_models import User as MongoUser, VerificationCode
+
 User = get_user_model()
 
 class UserAuthTest(TestCase):
@@ -17,40 +20,44 @@ class UserAuthTest(TestCase):
     
     def setUp(self):
         """测试前准备"""
+        MongoUser.objects.all().delete()
         self.client = APIClient()
-        self.register_url = reverse('user-register')
-        self.login_url = reverse('user-login')
+        self.register_url = reverse('register')
+        self.login_url = reverse('login')
+
+
         
         # 创建测试用户
         self.test_user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpassword123'
+            password='TestPassword123!'
         )
         
         # 测试数据
         self.valid_user_data = {
             'username': 'newuser',
             'email': 'newuser@example.com',
-            'password': 'newpassword123',
-            'confirm_password': 'newpassword123'
+            'password': 'TestPassword123!',
+            'confirm_password': 'TestPassword123!'
         }
         
         self.valid_login_data = {
             'username': 'testuser',
-            'password': 'testpassword123'
+            'password': 'TestPassword123!'
         }
         
+
         self.email_login_data = {
             'email': 'test@example.com',
-            'password': 'testpassword123'
+            'password': 'TestPassword123!'
         }
         
         self.phone_user_data = {
             'username': 'phoneuser',
             'phone': '13800138000',
-            'password': 'phonepassword123',
-            'confirm_password': 'phonepassword123'
+            'password': 'TestPassword123!',
+            'confirm_password': 'TestPassword123!'
         }
     
     def test_user_register_with_username(self):
@@ -61,6 +68,8 @@ class UserAuthTest(TestCase):
             content_type='application/json'
         )
         
+        if response.status_code != status.HTTP_201_CREATED:
+            print(f"Register failed: {response.data}")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue('access' in response.data)
         self.assertTrue('refresh' in response.data)
@@ -104,6 +113,8 @@ class UserAuthTest(TestCase):
             content_type='application/json'
         )
         
+        if response.status_code != status.HTTP_201_CREATED:
+            print(f"Register failed: {response.data}")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue('access' in response.data)
         self.assertTrue('refresh' in response.data)
@@ -117,12 +128,12 @@ class UserAuthTest(TestCase):
         phone_user = User.objects.create_user(
             username='phoneuser',
             phone='13800138000',
-            password='phonepassword123'
+            password='TestPassword123!'
         )
         
         login_data = {
             'phone': '13800138000',
-            'password': 'phonepassword123'
+            'password': 'TestPassword123!'
         }
         
         response = self.client.post(
@@ -142,13 +153,13 @@ class UserAuthTest(TestCase):
         # 创建一个只有用户名的用户
         binding_user = User.objects.create_user(
             username='bindinguser',
-            password='bindingpassword123'
+            password='TestPassword123!'
         )
         
         # 登录
         login_data = {
             'username': 'bindinguser',
-            'password': 'bindingpassword123'
+            'password': 'TestPassword123!'
         }
         
         response = self.client.post(
@@ -161,10 +172,10 @@ class UserAuthTest(TestCase):
         token = response.data['access']
         
         # 绑定邮箱
-        bind_email_url = reverse('user-bind-email')
+        bind_email_url = reverse('bind-email')
         bind_email_data = {
             'email': 'binding@example.com',
-            'password': 'bindingpassword123'  # 验证身份
+            'password': 'TestPassword123!'  # 验证身份
         }
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
@@ -179,7 +190,7 @@ class UserAuthTest(TestCase):
         # 使用邮箱登录
         email_login_data = {
             'email': 'binding@example.com',
-            'password': 'bindingpassword123'
+            'password': 'TestPassword123!'
         }
         
         self.client.credentials()  # 清除认证头
@@ -194,11 +205,19 @@ class UserAuthTest(TestCase):
         
         # 绑定手机号
         token = response.data['access']
-        bind_phone_url = reverse('user-bind-phone')
+        bind_phone_url = reverse('bind-phone')
+        # Create verification code in DB
+        VerificationCode(
+            phone='13900139000',
+            code='1234',
+            purpose='bind',
+            expires_at=timezone.now() + timezone.timedelta(minutes=10)
+        ).save()
+
         bind_phone_data = {
             'phone': '13900139000',
             'code': '1234',  # 模拟验证码
-            'password': 'bindingpassword123'  # 验证身份
+            'password': 'TestPassword123!'  # 验证身份
         }
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
@@ -213,7 +232,7 @@ class UserAuthTest(TestCase):
         # 使用手机号登录
         phone_login_data = {
             'phone': '13900139000',
-            'password': 'bindingpassword123'
+            'password': 'TestPassword123!'
         }
         
         self.client.credentials()  # 清除认证头
@@ -225,3 +244,7 @@ class UserAuthTest(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['user']['username'], 'bindinguser')
+
+    def tearDown(self):
+        """测试后清理"""
+        MongoUser.objects.all().delete()

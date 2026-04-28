@@ -13,7 +13,7 @@ class NoteSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     title = serializers.CharField(max_length=255, required=True)
     content = serializers.CharField(required=True)
-    category = serializers.UUIDField(source='category.id', allow_null=True)
+    category = serializers.UUIDField(source='category.id', required=False, allow_null=True)
     tags = serializers.ListField(child=serializers.UUIDField(), required=False)
     is_favorite = serializers.BooleanField(default=False)
     is_public = serializers.BooleanField(default=False)

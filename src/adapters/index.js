@@ -28,5 +28,5 @@ export {
   userAdapter,
   settingsAdapter,
   syncInfoAdapter,
-  offlineQueueAdapter
+  offlineQueueAdapter,
 };

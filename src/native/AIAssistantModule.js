@@ -1,5 +1,8 @@
-import { Platform } from 'react-native';
-import axios from 'axios';
+
+import { NativeModules, NativeEventEmitter } from 'react-native';
+const { AIAssistant } = NativeModules;
+import apiClient from '../services/api/apiClient';
+import tokenService from '../services/auth/tokenService';
 
 // 引擎类型常量
 const ENGINE_BAIDU = 'baidu';
@@ -20,7 +23,8 @@ const MODEL_QIANFAN_LLAMA = 'qianfan_llama';
 const MODEL_MOONSHOT_V1 = 'moonshot_v1';
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_URL, API_VERSION } from '../config';
+const API_BASE_URL = `${API_URL}/api/${API_VERSION}`;
 
 // 获取API URL
 const getApiUrl = (endpoint) => `${API_BASE_URL}/${endpoint}`;
@@ -58,19 +62,21 @@ export default {
      * @returns {Promise<Object>} - 包含AI回复的Promise
      */
     sendMessage: (message, engine = ENGINE_BAIDU) => {
-        // 使用后端 API
-        return axios.post(getApiUrl('ai-assistant/chat/'), {
+        // 使用 apiClient 以注入认证令牌
+        return apiClient.post('ai-assistant/chat/', {
             prompt: message,
             engine: engine,
-            stream: false
+            stream: false,
         })
-        .then(response => {
-            return { text: response.data.response };
-        })
-        .catch(error => {
-            console.error('API请求失败:', error);
-            throw new Error(error.response?.data?.error || error.message);
-        });
+            .then(response => {
+                // apiClient 可能已经解包了 data，取决于其拦截器配置
+                const responseData = response.data || response;
+                return { text: responseData.response };
+            })
+            .catch(error => {
+                console.error('API请求失败:', error);
+                throw new Error(error.response?.data?.error || error.message);
+            });
     },
 
     /**
@@ -80,12 +86,18 @@ export default {
      * @param {Array} history - 历史消息
      * @returns {Object} - 包含流式响应控制器
      */
-    sendMessageStream: (message, engine = ENGINE_BAIDU, history = []) => {
+    sendMessageStream: (message, options = {}) => {
+        const {
+            engine = ENGINE_BAIDU,
+            model = null,
+            history = [],
+            prompt = null, // Custom system prompt
+        } = options;
+
         // 创建回调函数
-        let onMessageCallback = () => {};
-        let onCompleteCallback = () => {};
-        let onErrorCallback = () => {};
-        let intervalId = null;
+        let onMessageCallback = () => { };
+        let onCompleteCallback = () => { };
+        let onErrorCallback = () => { };
         let xhr = null;
 
         // 创建流式响应控制器
@@ -103,85 +115,80 @@ export default {
                 return controller;
             },
             start: () => {
-
-                // 使用XMLHttpRequest连接后端流式响应
                 const url = getApiUrl('ai-assistant/chat/');
-
-                // 使用axios发送POST请求并获取流式响应
                 xhr = new XMLHttpRequest();
                 xhr.open('POST', url);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.setRequestHeader('Accept', 'text/event-stream');
 
-                // 添加认证头
-                const authToken = localStorage.getItem('auth_token');
-                if (authToken) {
-                    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-                }
+                let lastResponseLength = 0;
+                xhr.onprogress = function () {
+                    const newData = xhr.responseText.substring(lastResponseLength);
+                    lastResponseLength = xhr.responseText.length;
 
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 3) {
-                        // 流式响应中
-                        const newData = xhr.responseText;
-
-                        // 处理SSE格式的数据
-                        const events = newData.split('\n\n');
-                        let fullText = '';
-
-                        for (const event of events) {
-                            if (event.startsWith('data: ')) {
-                                try {
-                                    const jsonData = JSON.parse(event.substring(6));
-
-                                    if (jsonData.error) {
-                                        onErrorCallback(jsonData.error);
-                                        return;
-                                    }
-
-                                    if (jsonData.done) {
-                                        onCompleteCallback(jsonData.full_text);
-                                        return;
-                                    }
-
-                                    fullText = jsonData.full_text;
-                                    onMessageCallback(jsonData.content, fullText);
-                                } catch (e) {
-                                    console.error('解析SSE数据失败:', e);
+                    const events = newData.split('\n\n');
+                    for (const event of events) {
+                        if (event.startsWith('data: ')) {
+                            try {
+                                const eventData = event.substring(6);
+                                if (eventData.trim() === '[DONE]') {
+                                    onCompleteCallback();
+                                    return;
                                 }
+                                const jsonData = JSON.parse(eventData);
+                                if (jsonData.error) {
+                                    onErrorCallback(jsonData.error);
+                                    return;
+                                }
+                                onMessageCallback(jsonData.content, jsonData.full_text);
+                            } catch (e) {
+                                // Ignore parsing errors for incomplete data chunks
                             }
-                        }
-                    } else if (xhr.readyState === 4) {
-                        // 请求完成
-                        if (xhr.status !== 200) {
-                            onErrorCallback(`请求失败: ${xhr.status}`);
                         }
                     }
                 };
 
-                xhr.onerror = function() {
-                    onErrorCallback('连接错误');
+                xhr.onload = function () {
+                    if (xhr.status !== 200) {
+                        onErrorCallback(`Request failed with status: ${xhr.status}`);
+                    }
+                    onCompleteCallback();
                 };
 
-                // 发送请求
-                xhr.send(JSON.stringify({
-                    prompt: message,
-                    engine: engine,
-                    history: history,
-                    stream: true
-                }));
+                xhr.onerror = function () {
+                    onErrorCallback('Connection error');
+                };
 
+                const startAsync = async () => {
+                    const tokenData = await tokenService.getAccessToken();
+                    const authToken = tokenData ? tokenData.token : null;
+
+                    if (authToken) {
+                        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                    }
+
+                    const payload = {
+                        prompt: message,
+                        engine: engine,
+                        history: history,
+                        stream: true,
+                    };
+
+                    if (model) {payload.model = model;}
+                    if (prompt) {payload.system_prompt = prompt;}
+
+                    xhr.send(JSON.stringify(payload));
+                };
+
+                startAsync();
                 return controller;
             },
             stop: () => {
-                if (intervalId) {
-                    clearInterval(intervalId);
-                    intervalId = null;
-                }
                 if (xhr) {
                     xhr.abort();
                     xhr = null;
                 }
-            }
+            },
         };
 
         return controller;
@@ -191,8 +198,8 @@ export default {
      * 重置会话
      */
     resetSession: () => {
-        // 使用后端API重置会话
-        return axios.post(getApiUrl('ai-assistant/reset-session/'))
+        // 使用 apiClient 以注入认证令牌
+        return apiClient.post('ai-assistant/reset-session/')
             .then(() => ({ success: true }))
             .catch(error => {
                 console.error('重置会话失败:', error);
@@ -242,20 +249,21 @@ export default {
      * @returns {Promise<Object>} - 包含AI回复的Promise
      */
     sendMessageWithModel: (message, engine, model) => {
-        // 使用后端API发送消息
-        return axios.post(getApiUrl('ai-assistant/chat/'), {
+        // 使用 apiClient 以注入认证令牌
+        return apiClient.post('ai-assistant/chat/', {
             prompt: message,
             engine: engine,
             model: model,
-            stream: false
+            stream: false,
         })
-        .then(response => {
-            return { text: response.data.response };
-        })
-        .catch(error => {
-            console.error('API请求失败:', error);
-            throw new Error(error.response?.data?.error || error.message);
-        });
+            .then(response => {
+                const responseData = response.data || response;
+                return { text: responseData.response };
+            })
+            .catch(error => {
+                console.error('API请求失败:', error);
+                throw new Error(error.response?.data?.error || error.message);
+            });
     },
 
     /**
@@ -324,5 +332,67 @@ export default {
             // 这里应该调用Moonshot AI配置模块，目前简单返回成功
             resolve({ success: true });
         });
+    },
+
+    sendNativeStreamingMessage: (message, options = {}) => {
+        const {
+            engine = 'default',
+            model = 'default',
+            prompt = '',
+        } = options;
+
+        const aiAssistantEmitter = new NativeEventEmitter(AIAssistant);
+        let onMessageCallback = () => { };
+        let onCompleteCallback = () => { };
+        let onErrorCallback = () => { };
+        let subscription = null;
+
+        const controller = {
+            onMessage: (callback) => {
+                onMessageCallback = callback;
+                return controller;
+            },
+            onComplete: (callback) => {
+                onCompleteCallback = callback;
+                return controller;
+            },
+            onError: (callback) => {
+                onErrorCallback = callback;
+                return controller;
+            },
+            start: () => {
+                if (subscription) {
+                    subscription.remove();
+                }
+
+                let fullText = '';
+                subscription = aiAssistantEmitter.addListener('onAiStreamChunk', (event) => {
+                    if (event.error) {
+                        onErrorCallback(event.error);
+                        controller.stop();
+                        return;
+                    }
+
+                    fullText += event.chunk;
+                    onMessageCallback(event.chunk, fullText);
+
+                    if (event.isFinal) {
+                        onCompleteCallback(fullText);
+                        controller.stop();
+                    }
+                });
+
+                AIAssistant.sendStreamingMessage(message, engine, model, { prompt });
+                return controller;
+            },
+            stop: () => {
+                if (subscription) {
+                    subscription.remove();
+                    subscription = null;
+                }
+            },
+        };
+
+        return controller;
     },
 };

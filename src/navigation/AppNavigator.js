@@ -17,7 +17,7 @@ import { navigationRef } from './navigationRef';
 // import { getProfile } from '../redux/slices/authSlice';
 
 // 导入组件
-import { Loading, SplashScreen } from '../screens/common';
+import SplashScreen from '../screens/common/SplashScreen';
 
 // 导入导航
 import AuthNavigator from './AuthNavigator';
@@ -30,7 +30,7 @@ import { AddReminderScreen, ReminderDetailScreen } from '../screens/reminder';
 import { SettingsScreen, ThemeSettingsScreen, AIAssistantSettingsScreen } from '../screens/settings';
 import { ThemeCustomizationScreen } from '../screens/theme';
 import { AnalyticsScreen } from '../screens/analytics';
-import { GroupScreen } from '../screens/groups';
+// 移除旧的 GroupScreen 入口，统一使用 GroupsNavigator
 import { CodeEditorScreen } from '../screens/code';
 // 导入文件查看器组件（直接使用原生实现）
 import PDFViewerNative from '../screens/viewers/PDFViewerNative';
@@ -43,29 +43,87 @@ import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
-import { CommunityScreen, PostDetailScreen, CreatePostScreen } from '../screens/community';
+import { CommunityScreen, PostDetailScreen, CreatePostScreen, FollowersScreen, FollowingScreen, NotificationsScreen, ActivityScreen } from '../screens/community';
 import ApiTest from '../screens/community/ApiTest';
 import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
-// 导入知识图谱相关组件
-import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+// 导入知识图谱相关组件（避免通过 barrel 导出导致的 undefined）
+import KnowledgeGraphScreen from '../screens/knowledge/KnowledgeGraphScreen';
+import NodeDetailScreen from '../screens/knowledge/NodeDetailScreen';
+import EdgeEditScreen from '../screens/knowledge/EdgeEditScreen';
+import KnowledgeAnalysisScreen from '../screens/knowledge/KnowledgeAnalysisScreen';
 // 导入思维导图相关组件
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
 // 导入群组导航
-import GroupsNavigator from './GroupsNavigator';
+
+// 导入知识库导航
+import KnowledgeNavigator from './KnowledgeNavigator';
+// 导入个人纪录相关页面
+import PersonalActivityScreen from '../screens/personal_activity/PersonalActivityScreen';
+import CategoryManagerScreen from '../screens/personal_activity/CategoryManagerScreen';
+import GoalManagerScreen from '../screens/personal_activity/GoalManagerScreen';
+import PAAnalyticsScreen from '../screens/personal_activity/AnalyticsScreen';
+import ActivityFormScreen from '../screens/personal_activity/ActivityFormScreen';
+
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// 递归获取最深层聚焦路由
+const getDeepestFocusedRoute = (route) => {
+  const state = route?.state;
+  if (!state || state.index === undefined || !state.routes?.[state.index]) {
+    return route;
+  }
+  return getDeepestFocusedRoute(state.routes[state.index]);
+};
+
+// 获取最深层聚焦路由参数
+const getFocusedRouteParams = (route) => {
+  const deepestRoute = getDeepestFocusedRoute(route);
+  return deepestRoute?.params || {};
+};
+
+// 获取最深层聚焦路由名称
+const getFocusedRouteNameDeep = (route) => {
+  const deepestRoute = getDeepestFocusedRoute(route);
+  return deepestRoute?.name;
+};
+
 // 定义一个函数来处理特定屏幕的底部导航栏显示逻辑
 const getTabBarStyle = (route, colors) => {
-  // 获取当前路由的状态
-  const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
+  // 获取最深层路由的参数与名称
+  const params = getFocusedRouteParams(route);
+  const routeName = getFocusedRouteNameDeep(route) || getFocusedRouteNameFromRoute(route) || 'Home';
 
-  // 在这些屏幕中隐藏底部导航栏
-  const hideTabBarScreens = ['PDFViewer', 'DocViewer', 'PagedNote', 'FluidPagedNote', 'InfiniteCanvas', 'MindMapEdit', 'MarkdownViewer', 'PPTViewer', 'CardNote', 'Settings'];
+  // 仅对“笔记编辑/查看”相关全屏页面隐藏底部栏
+  const fullscreenScreens = [
+    'NoteEditor',
+    'InfiniteCanvas',
+    'FluidPagedNote',
+    'PDFViewer',
+    'MarkdownViewer',
+    'PPTViewer',
+    'DocViewer',
+    'CardNote',
+  ];
 
-  // 如果当前屏幕在隐藏列表中，则隐藏底部导航栏
-  if (hideTabBarScreens.includes(routeName)) {
+  // HomeStack 当前激活页名（优先使用官方方法，兜底读取 state）
+  const focusedHomeRouteName =
+    getFocusedRouteNameFromRoute(route) ||
+    route?.state?.routes?.[route?.state?.index]?.name ||
+    'Home';
+
+  // 显式参数优先：某页面声明 hideTabBar=true 则直接隐藏
+  if (params.hideTabBar === true) {
+    return { display: 'none' };
+  }
+
+  // 主页要保留底栏，仅当进入笔记相关页面时隐藏
+  if (route.name === 'HomeStack' && fullscreenScreens.includes(focusedHomeRouteName)) {
+    return { display: 'none' };
+  }
+
+  if (fullscreenScreens.includes(routeName)) {
     return { display: 'none' };
   }
 
@@ -91,6 +149,10 @@ const getTabBarStyle = (route, colors) => {
 const AppNavigator = () => {
   const dispatch = useDispatch();
 
+  // 开发调试开关：真机联调时可直接跳过登录
+  // 仅在 __DEV__ 下生效，避免影响生产构建
+  const DEV_SKIP_LOGIN = __DEV__;
+
   // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
   let theme;
   try {
@@ -103,7 +165,7 @@ const AppNavigator = () => {
       theme = {
         colors: {
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -112,7 +174,7 @@ const AppNavigator = () => {
     theme = {
       colors: {
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -139,9 +201,16 @@ const AppNavigator = () => {
     console.log('AppNavigator: 使用user状态或默认值');
     return {
       isAuthenticated: state?.user?.isAuthenticated || false,
-      isLoading: state?.user?.isLoading || false
+      isLoading: state?.user?.isLoading || false,
     };
   });
+
+  const effectiveAuthenticated = DEV_SKIP_LOGIN ? true : isAuthenticated;
+  const effectiveLoading = DEV_SKIP_LOGIN ? false : isLoading;
+
+  if (DEV_SKIP_LOGIN) {
+    console.log('AppNavigator: DEV_SKIP_LOGIN 已启用，直接进入主界面');
+  }
 
   console.log('AppNavigator: 认证状态:', isAuthenticated ? '已认证' : '未认证');
   console.log('AppNavigator: 加载状态:', isLoading ? '加载中' : '已加载');
@@ -149,15 +218,15 @@ const AppNavigator = () => {
   // 应用启动时检查认证状态
   useEffect(() => {
     console.log('AppNavigator: 认证状态变化，当前状态:', isAuthenticated ? '已认证' : '未认证');
-    if (isAuthenticated) {
-      console.log('AppNavigator: 用户已认证');
+    if (effectiveAuthenticated) {
+      console.log('AppNavigator: 用户已认证或处于开发跳过登录模式');
       // 注意：authSlice中没有getProfile函数，暂时注释掉
       // dispatch(getProfile());
     }
-  }, [dispatch, isAuthenticated]);
+  }, [dispatch, isAuthenticated, effectiveAuthenticated]);
 
   // 如果正在检查认证状态，显示启动屏幕
-  if (isLoading) {
+  if (effectiveLoading) {
     console.log('AppNavigator: 显示启动屏幕...');
     return <SplashScreen message="应用加载中..." />;
   }
@@ -171,7 +240,7 @@ const AppNavigator = () => {
         cardStyle: { backgroundColor: theme.colors.background },
       }}
     >
-      {isAuthenticated ? (
+      {effectiveAuthenticated ? (
         <Stack.Screen name="MainTabs" component={MainTabs} />
       ) : (
         <Stack.Screen name="Auth" component={AuthNavigator} />
@@ -203,7 +272,7 @@ const MainTabs = () => {
           text: '#000000',
           background: '#F2F2F2',
           border: '#E5E5EA',
-        }
+        },
       };
     }
     colors = theme.colors;
@@ -219,7 +288,7 @@ const MainTabs = () => {
         text: '#000000',
         background: '#F2F2F2',
         border: '#E5E5EA',
-      }
+      },
     };
     colors = theme.colors;
   }
@@ -241,6 +310,12 @@ const MainTabs = () => {
             case 'AIAssistant':
               iconName = 'smart-toy'; // AI助手
               break;
+            case 'KnowledgeStack':
+              iconName = 'auto-stories'; // 知识库
+              break;
+            case 'PersonalActivity':
+              iconName = 'space-dashboard'; // 零屿空间
+              break;
             case 'MindMapStack':
               iconName = 'account-tree'; // 思维导图
               break;
@@ -260,9 +335,6 @@ const MainTabs = () => {
             case 'CommunityStack':
               iconName = 'chat'; // 社区
               break;
-            case 'GroupsStack':
-              iconName = 'people'; // 群组
-              break;
             default:
               iconName = 'circle';
               break;
@@ -278,7 +350,7 @@ const MainTabs = () => {
                     height: 4,
                     borderRadius: 2,
                     backgroundColor: color,
-                    marginTop: 2
+                    marginTop: 2,
                   }}
                 />
               )}
@@ -324,6 +396,9 @@ const MainTabs = () => {
           tabBarLabel: 'AI',
         }}
       />
+
+
+
       <Tab.Screen
         name="CommunityStack"
         component={CommunityStack}
@@ -333,6 +408,8 @@ const MainTabs = () => {
           tabBarLabel: '社区',
         }}
       />
+
+      {/* 删除：群组 Tab（已在“我的”中提供入口） */}
       <Tab.Screen
         name="Profile"
         component={SettingsNavigator}
@@ -366,7 +443,7 @@ const HomeStack = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -378,7 +455,7 @@ const HomeStack = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -480,6 +557,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="InfiniteCanvas"
         component={FluidInfiniteCanvasScreenNative}
+        initialParams={{ hideTabBar: true }}
         options={({ route }) => ({
           title: route.params?.title || '无限画布',
           headerShown: false,
@@ -489,13 +567,14 @@ const HomeStack = () => {
       <Stack.Screen
         name="FluidPagedNote"
         component={SkiaPagedCanvasScreenNative}
+        initialParams={{ hideTabBar: true }}
         options={({ route }) => ({
           title: route.params?.title || '分页笔记',
           headerShown: false,
           gestureEnabled: true,
         })}
       />
-  
+
       {/* ReminderScreen已移除，使用AddReminderScreen */}
       <Stack.Screen
         name="AddReminder"
@@ -520,6 +599,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="PDFViewer"
         component={PDFViewerNative}
+        initialParams={{ hideTabBar: true }}
         options={({ navigation, route }) => ({
           title: route.params?.title || 'PDF查看器',
           headerShown: false, // 隐藏头部导航栏，实现全屏显示
@@ -531,6 +611,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="MarkdownViewer"
         component={MarkdownViewer}
+        initialParams={{ hideTabBar: true }}
         options={({ navigation, route }) => ({
           title: route.params?.title || 'Markdown',
           headerShown: false,
@@ -540,6 +621,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="PPTViewer"
         component={PPTViewer}
+        initialParams={{ hideTabBar: true }}
         options={({ navigation, route }) => ({
           title: route.params?.title || '演示文稿',
           headerShown: false,
@@ -549,6 +631,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="DocViewer"
         component={DocViewer}
+        initialParams={{ hideTabBar: true }}
         options={({ navigation, route }) => ({
           title: route.params?.title || '文档查看器',
           headerShown: false, // 隐藏头部导航栏，实现全屏显示
@@ -572,6 +655,7 @@ const HomeStack = () => {
       <Stack.Screen
         name="CardNote"
         component={CardNoteScreen}
+        initialParams={{ hideTabBar: true }}
         options={({ navigation, route }) => ({
           title: route.params?.title || '卡片笔记',
           headerShown: false,
@@ -602,7 +686,7 @@ const CategoryStack = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -614,7 +698,7 @@ const CategoryStack = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -666,7 +750,7 @@ const KnowledgeGraphStack = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -678,7 +762,7 @@ const KnowledgeGraphStack = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -753,7 +837,7 @@ const CommunityStack = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -765,7 +849,7 @@ const CommunityStack = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -793,8 +877,29 @@ const CommunityStack = () => {
         options={{ title: '社区' }}
       />
       <Stack.Screen
+        name="Followers"
+        component={FollowersScreen}
+        options={{ title: '关注者' }}
+      />
+      <Stack.Screen
+        name="Following"
+        component={FollowingScreen}
+        options={{ title: '关注中' }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{ title: '通知' }}
+      />
+      <Stack.Screen
+        name="Activity"
+        component={ActivityScreen}
+        options={{ title: '动态' }}
+      />
+      <Stack.Screen
         name="PostDetail"
         component={PostDetailScreen}
+        initialParams={{ hideTabBar: true }}
         options={({ route }) => ({
           title: route.params?.title || '帖子详情',
           headerBackTitleVisible: false,
@@ -811,6 +916,7 @@ const CommunityStack = () => {
       <Stack.Screen
         name="CreatePost"
         component={CreatePostScreen}
+        initialParams={{ hideTabBar: true }}
         options={{
           title: '创建帖子',
           headerShown: false,
@@ -819,6 +925,7 @@ const CommunityStack = () => {
       <Stack.Screen
         name="CommunitySearch"
         component={CommunitySearchScreen}
+        initialParams={{ hideTabBar: true }}
         options={{
           title: '社区搜索',
           headerBackTitleVisible: false,
@@ -848,7 +955,7 @@ const MindMapStack = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -860,7 +967,7 @@ const MindMapStack = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -890,6 +997,7 @@ const MindMapStack = () => {
       <Stack.Screen
         name="MindMapEdit"
         component={MindMapEditScreen}
+        initialParams={{ hideTabBar: true }}
         options={{
           title: '编辑思维导图',
           headerShown: false,
@@ -927,7 +1035,7 @@ const AIAssistantNavigator = () => {
           shadow: 'rgba(0, 0, 0, 0.1)',
           text: '#000000',
           background: '#F2F2F2',
-        }
+        },
       };
     }
   } catch (error) {
@@ -939,7 +1047,7 @@ const AIAssistantNavigator = () => {
         shadow: 'rgba(0, 0, 0, 0.1)',
         text: '#000000',
         background: '#F2F2F2',
-      }
+      },
     };
   }
 
@@ -970,5 +1078,48 @@ const AIAssistantNavigator = () => {
     </Stack.Navigator>
   );
 };
+
+/**
+ * 个人纪录堆栈导航
+ */
+const PersonalActivityStack = () => {
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+    if (!theme || !theme.colors) {
+      theme = { colors: { card: '#FFFFFF', shadow: 'rgba(0,0,0,0.1)', text: '#000', background: '#F2F2F2' } };
+    }
+  } catch (e) {
+    theme = { colors: { card: '#FFFFFF', shadow: 'rgba(0,0,0,0.1)', text: '#000', background: '#F2F2F2' } };
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.card,
+          elevation: 4,
+          shadowColor: theme.colors.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        headerTintColor: theme.colors.text,
+        headerTitleStyle: { fontWeight: '600' },
+        cardStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen name="PersonalActivity" component={PersonalActivityScreen} options={{ title: '零屿空间' }} />
+      <Stack.Screen name="PersonalActivityAnalytics" component={AnalyticsScreen} options={{ title: '数据分析' }} />
+      <Stack.Screen name="PersonalActivitySettings" component={CategoryManagerScreen} options={{ title: '分类管理' }} />
+      <Stack.Screen name="GoalManager" component={GoalManagerScreen} options={{ title: '目标管理' }} />
+      <Stack.Screen name="ActivityForm" component={ActivityFormScreen} options={{ title: '活动表单', headerShown: false }} />
+    </Stack.Navigator>
+  );
+};
+
+
+
 
 export default AppNavigator;

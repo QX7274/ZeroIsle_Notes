@@ -2,7 +2,6 @@
  * 用户模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 用户模式
@@ -11,7 +10,7 @@ const UserSchema = {
   name: 'User',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
+    _id: { type: 'string' },
     username: { type: 'string', default: '' },
     email: { type: 'string', default: '' },
     avatar_url: { type: 'string', optional: true },

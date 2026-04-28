@@ -18,6 +18,7 @@ class VerificationCode(Document):
         ('reset_password', '重置密码'),
         ('change_phone', '变更手机号'),
         ('change_email', '变更邮箱'),
+        ('bind', '绑定账号'),
     )
 
     phone = StringField(max_length=20, required=False, sparse=True, verbose_name='手机号')

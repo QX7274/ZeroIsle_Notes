@@ -5,3 +5,7 @@ class NotesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'notes'
     verbose_name = '笔记管理'
+
+    def ready(self):
+        from . import signals
+        signals.connect_signals()

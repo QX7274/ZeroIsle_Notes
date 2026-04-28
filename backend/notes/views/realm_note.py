@@ -3,7 +3,10 @@ MongoDB Realm笔记视图
 使用MongoDB Realm服务替代SQLite服务
 """
 
+from django.http import Http404
 from rest_framework import viewsets, permissions, response, status
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from django.utils import timezone
 # 导入模型
@@ -17,6 +20,7 @@ from common.permissions import IsOwnerOrReadOnly
 import uuid
 import logging
 from mongoengine.queryset.visitor import Q
+from knowledge_graph.tasks import build_graph_for_note_task
 
 logger = logging.getLogger(__name__)
 
@@ -28,35 +32,64 @@ class RealmNoteViewSet(viewsets.ViewSet):
     serializer_class = NoteSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
 
-    def get_queryset(self):
-        """获取查询集"""
+    def _get_mongo_user(self, request):
+        """
+        从请求中获取对应的 MongoDB 用户对象
+        优先使用中间件注入的 request.mongo_user
+        """
+        # 优先使用中间件注入的 mongo_user
+        if hasattr(request, 'mongo_user') and request.mongo_user:
+            return request.mongo_user
+
+        # 降级方案：手动查找（兼容旧代码）
         try:
-            # 获取MongoDB用户模型
             from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = self.request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
+            django_user = request.user
+            if not django_user or not django_user.is_authenticated:
+                return None
             mongo_user = MongoUser.objects(username=django_user.username).first()
             if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                # 返回空查询集
-                return Note.objects(id=None)
-
-            logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
-
-            # 基础查询：用户自己的未删除笔记 或 公开的未删除笔记
-            queryset = Note.objects(
-                Q(user=mongo_user, is_deleted=False) |
-                Q(is_public=True, is_deleted=False)
-            )
-            return queryset
+                logger.warning(f"未找到对应的MongoDB用户: {django_user.username}")
+            return mongo_user
         except Exception as e:
-            logger.error(f"获取笔记查询集失败: {str(e)}", exc_info=True)
-            # 返回空查询集
-            return Note.objects(id=None)
+            logger.error(f"获取 MongoDB 用户失败: {e}", exc_info=True)
+            return None
+
+    def get_queryset(self):
+        """获取当前用户可访问的笔记查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            # 对于未认证或找不到用户的，只返回公开笔记
+            return Note.objects(is_public=True, is_deleted=False)
+
+        # 用户自己的笔记 或 其他用户的公开笔记
+        return Note.objects(
+            Q(user=mongo_user, is_deleted=False) |
+            Q(is_public=True, is_deleted=False)
+        )
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供笔记ID")
+
+        try:
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的笔记ID格式")
+
+        # 使用 get_queryset 来确保基础的可见性
+        queryset = self.get_queryset()
+        try:
+            obj = queryset.get(id=pk)
+        except Note.DoesNotExist:
+            raise Http404("笔记不存在或无权访问")
+
+        # 关键：DRF 会自动调用此方法来检查对象级权限
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
         """获取笔记列表"""
@@ -92,375 +125,230 @@ class RealmNoteViewSet(viewsets.ViewSet):
 
         # 排序
         ordering = request.query_params.get('ordering', '-updated_at')
-        if ordering.startswith('-'):
-            queryset = queryset.order_by(ordering[1:]).reverse()
-        else:
-            queryset = queryset.order_by(ordering)
+        queryset = queryset.order_by(ordering)
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        start = (page - 1) * page_size
-        end = start + page_size
+        # 使用 DRF 分页
+        paginator = PageNumberPagination()
+        # 允许通过查询参数覆盖 page_size（默认 settings.PAGE_SIZE）
+        page_size = request.query_params.get('page_size')
+        if page_size:
+            try:
+                paginator.page_size = int(page_size)
+            except Exception:
+                pass
+        page_qs = paginator.paginate_queryset(queryset, request)
 
-        # 序列化
-        serializer = NoteListSerializer(queryset[start:end], many=True, context={'request': request})
-
-        return response.Response({
-            'count': queryset.count(),
-            'results': serializer.data
-        })
+        serializer = NoteListSerializer(page_qs, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个笔记详情"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return response.Response(
-                    {"detail": "未找到用户数据"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return response.Response(
-                    {"detail": "无效的笔记ID格式"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 获取笔记
-            note = Note.objects.get(id=pk)
-
-            # 检查权限
-            if note.user.id != mongo_user.id and not note.is_public:
-                logger.warning(f"用户无权查看笔记, 笔记用户ID: {note.user.id}, 当前用户ID: {mongo_user.id}")
-                return response.Response(
-                    {"detail": "您没有权限查看此笔记"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+            note = self.get_object()
+            mongo_user = self._get_mongo_user(request)
 
             # 更新查看次数和最后查看时间
-            if note.user.id != mongo_user.id:
+            if mongo_user and note.user.id != mongo_user.id:
+                # 只有其他用户查看公开笔记时才增加浏览次数
                 note.view_count += 1
-                note.save()
+                note.save(update_fields=['view_count'])
 
-            if note.user.id == mongo_user.id:
+            if mongo_user and note.user.id == mongo_user.id:
+                # 只有所有者查看时才更新最后查看时间
                 note.last_viewed_at = timezone.now()
-                note.save()
+                note.save(update_fields=['last_viewed_at'])
 
             serializer = NoteDetailSerializer(note, context={'request': request})
             return response.Response(serializer.data)
-        except Note.DoesNotExist:
-            logger.warning(f"笔记不存在: {pk}")
-            return response.Response(
-                {"detail": "笔记不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        except Http404 as e:
+            return response.Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"获取笔记详情失败: {str(e)}", exc_info=True)
             return response.Response(
-                {"detail": f"获取笔记详情失败: {str(e)}"},
+                {"detail": "获取笔记详情时发生内部错误"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def create(self, request):
         """创建笔记"""
-        try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return response.Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # 获取Django用户
-            django_user = request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return response.Response(
-                    {"detail": "未找到用户数据"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            serializer = NoteSerializer(data=request.data, context={'request': request})
-            if serializer.is_valid():
-                # 处理分类
-                category = None
-                category_id = serializer.validated_data.get('category')
-                if category_id:
-                    try:
-                        category = Category.objects.get(id=category_id, user=mongo_user)
-                    except Category.DoesNotExist:
-                        logger.warning(f"分类不存在: {category_id}")
-                        return response.Response(
-                            {"detail": "分类不存在"},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-
-                # 处理标签
-                tags = []
-                tag_ids = serializer.validated_data.get('tags', [])
-                for tag_id in tag_ids:
-                    try:
-                        tag = Tag.objects.get(id=tag_id, user=mongo_user)
-                        tags.append(tag)
-                    except Tag.DoesNotExist:
-                        logger.warning(f"标签不存在: {tag_id}")
-                        pass
-
-                # 创建笔记
-                note_data = {
-                    'id': uuid.uuid4(),
-                    'user': mongo_user,
-                    'title': serializer.validated_data['title'],
-                    'content': serializer.validated_data['content'],
-                    'category': category,
-                    'tags': tags,
-                    'is_favorite': serializer.validated_data.get('is_favorite', False),
-                    'is_public': serializer.validated_data.get('is_public', False),
-                    'is_encrypted': serializer.validated_data.get('is_encrypted', False),
-                    'encryption_key': serializer.validated_data.get('encryption_key'),
-                    'created_at': timezone.now(),
-                    'updated_at': timezone.now(),
-                    'realm_sync_status': 'pending'
-                }
-
-                note = Note(**note_data)
-                note.save()
-                logger.debug(f"笔记创建成功, ID: {note.id}")
-
-                # 返回序列化后的笔记
-                serializer = NoteDetailSerializer(note, context={'request': request})
-                return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
+        serializer = NoteSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
             logger.warning(f"笔记创建失败, 验证错误: {serializer.errors}")
             return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"创建笔记失败: {str(e)}", exc_info=True)
-            return response.Response(
-                {"detail": f"创建笔记失败: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+
+        try:
+            validated_data = serializer.validated_data
+            category = None
+
+            # 兼容两种入参结构：category_id（旧）或 category.id（当前序列化器source）
+            category_id = validated_data.get('category_id')
+            if not category_id:
+                category_obj = validated_data.get('category')
+                if isinstance(category_obj, dict):
+                    category_id = category_obj.get('id')
+
+            if category_id:
+                try:
+                    category = Category.objects.get(id=category_id, user=mongo_user)
+                except Category.DoesNotExist:
+                    return response.Response({"detail": "分类不存在"}, status=status.HTTP_400_BAD_REQUEST)
+
+            tags = []
+            # 兼容两种入参结构：tag_ids（旧）或 tags（当前序列化器）
+            tag_ids = validated_data.get('tag_ids', []) or validated_data.get('tags', [])
+            for tag_id in tag_ids:
+                try:
+                    tags.append(Tag.objects.get(id=tag_id, user=mongo_user))
+                except Tag.DoesNotExist:
+                    logger.warning(f"创建笔记时指定的标签不存在: {tag_id}")
+                    pass  # 忽略不存在的标签
+
+            note = Note(
+                id=uuid.uuid4(),
+                user=mongo_user,
+                title=validated_data['title'],
+                content=validated_data['content'],
+                category=category,
+                tags=tags,
+                is_favorite=validated_data.get('is_favorite', False),
+                is_public=validated_data.get('is_public', False),
+                is_encrypted=validated_data.get('is_encrypted', False),
+                encryption_key=validated_data.get('encryption_key'),
+                realm_sync_status='pending'
             )
+            note.save()
+            logger.debug(f"笔记创建成功, ID: {note.id}")
+
+            # 异步触发知识图谱构建已移至 signals.py 处理
+            # try:
+            #     build_graph_for_note_task.delay(str(note.id), str(mongo_user.id), True)
+            # except Exception as e:
+            #     logger.warning(f"提交构建知识图谱任务失败: {e}")
+
+
+            response_serializer = NoteDetailSerializer(note, context={'request': request})
+            return response.Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"创建笔记时发生内部错误: {str(e)}", exc_info=True)
+            return response.Response({"detail": "创建笔记时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, pk=None):
         """更新笔记"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            note = self.get_object()  # get_object 已经处理了权限和存在性检查
+            mongo_user = self._get_mongo_user(request)
 
-            # 获取Django用户
-            django_user = request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return response.Response(
-                    {"detail": "未找到用户数据"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return response.Response(
-                    {"detail": "无效的笔记ID格式"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 获取笔记
-            note = Note.objects.get(id=pk, user=mongo_user, is_deleted=False)
             serializer = NoteSerializer(data=request.data, context={'request': request})
+            if not serializer.is_valid():
+                logger.warning(f"笔记更新失败, 验证错误: {serializer.errors}")
+                return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            if serializer.is_valid():
-                # 处理分类
-                category = note.category
-                category_id = serializer.validated_data.get('category')
-                if category_id:
-                    try:
-                        category = Category.objects.get(id=category_id, user=mongo_user)
-                    except Category.DoesNotExist:
-                        logger.warning(f"分类不存在: {category_id}")
-                        return response.Response(
-                            {"detail": "分类不存在"},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+            validated_data = serializer.validated_data
+            category = note.category
 
-                # 处理标签
-                tags = []
-                tag_ids = serializer.validated_data.get('tags', [])
-                for tag_id in tag_ids:
-                    try:
-                        tag = Tag.objects.get(id=tag_id, user=mongo_user)
-                        tags.append(tag)
-                    except Tag.DoesNotExist:
-                        logger.warning(f"标签不存在: {tag_id}")
-                        pass
+            category_id = validated_data.get('category_id')
+            if not category_id:
+                category_obj = validated_data.get('category')
+                if isinstance(category_obj, dict):
+                    category_id = category_obj.get('id')
 
-                # 更新笔记
-                note.title = serializer.validated_data['title']
-                note.content = serializer.validated_data['content']
-                note.category = category
-                note.tags = tags
-                note.is_favorite = serializer.validated_data.get('is_favorite', note.is_favorite)
-                note.is_public = serializer.validated_data.get('is_public', note.is_public)
-                note.is_encrypted = serializer.validated_data.get('is_encrypted', note.is_encrypted)
-                note.encryption_key = serializer.validated_data.get('encryption_key', note.encryption_key)
-                note.updated_at = timezone.now()
-                note.realm_sync_status = 'pending'
-                note.save()
-                logger.debug(f"笔记更新成功, ID: {note.id}")
+            if category_id:
+                try:
+                    category = Category.objects.get(id=category_id, user=mongo_user)
+                except Category.DoesNotExist:
+                    return response.Response({"detail": "分类不存在"}, status=status.HTTP_400_BAD_REQUEST)
 
-                # 返回序列化后的笔记
-                serializer = NoteDetailSerializer(note, context={'request': request})
-                return response.Response(serializer.data)
+            tags = []
+            tag_ids = validated_data.get('tag_ids', []) or validated_data.get('tags', [])
+            for tag_id in tag_ids:
+                try:
+                    tags.append(Tag.objects.get(id=tag_id, user=mongo_user))
+                except Tag.DoesNotExist:
+                    logger.warning(f"更新笔记时指定的标签不存在: {tag_id}")
+                    pass
 
-            logger.warning(f"笔记更新失败, 验证错误: {serializer.errors}")
-            return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Note.DoesNotExist:
-            logger.warning(f"笔记不存在或已删除: {pk}")
-            return response.Response(
-                {"detail": "笔记不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # 更新字段
+            note.title = validated_data['title']
+            note.content = validated_data['content']
+            note.category = category
+            note.tags = tags
+            note.is_favorite = validated_data.get('is_favorite', note.is_favorite)
+            note.is_public = validated_data.get('is_public', note.is_public)
+            note.is_encrypted = validated_data.get('is_encrypted', note.is_encrypted)
+            note.encryption_key = validated_data.get('encryption_key', note.encryption_key)
+            note.updated_at = timezone.now()
+            note.realm_sync_status = 'pending'
+            note.save()
+            logger.debug(f"笔记更新成功, ID: {note.id}")
+
+            # 异步触发知识图谱构建已移至 signals.py 处理
+            # try:
+            #     build_graph_for_note_task.delay(str(note.id), str(mongo_user.id), True)
+            # except Exception as e:
+            #     logger.warning(f"提交构建知识图谱任务失败: {e}")
+
+
+            response_serializer = NoteDetailSerializer(note, context={'request': request})
+            return response.Response(response_serializer.data)
+
+        except Http404 as e:
+            return response.Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied as e:
+            return response.Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
-            logger.error(f"更新笔记失败: {str(e)}", exc_info=True)
-            return response.Response(
-                {"detail": f"更新笔记失败: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.error(f"更新笔记时发生内部错误: {str(e)}", exc_info=True)
+            return response.Response({"detail": "更新笔记时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, pk=None):
-        """删除笔记"""
+        """删除笔记（软删除）"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return response.Response(
-                    {"detail": "未找到用户数据"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return response.Response(
-                    {"detail": "无效的笔记ID格式"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 获取笔记
-            note = Note.objects.get(id=pk, user=mongo_user, is_deleted=False)
+            note = self.get_object()  # get_object 已经处理了权限和存在性检查
             note.is_deleted = True
             note.deleted_at = timezone.now()
             note.realm_sync_status = 'pending'
             note.save()
-            logger.debug(f"笔记删除成功, ID: {note.id}")
+            logger.debug(f"笔记软删除成功, ID: {note.id}")
             return response.Response(status=status.HTTP_204_NO_CONTENT)
-        except Note.DoesNotExist:
-            logger.warning(f"笔记不存在或已删除: {pk}")
-            return response.Response(
-                {"detail": "笔记不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        except Http404 as e:
+            return response.Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied as e:
+            return response.Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
-            logger.error(f"删除笔记失败: {str(e)}", exc_info=True)
-            return response.Response(
-                {"detail": f"删除笔记失败: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.error(f"删除笔记时发生内部错误: {str(e)}", exc_info=True)
+            return response.Response({"detail": "删除笔记时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """获取笔记统计信息"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return response.Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
+
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            user_notes = Note.objects(user=mongo_user)
+            total_notes = user_notes.filter(is_deleted=False).count()
+            favorite_notes = user_notes.filter(is_favorite=True, is_deleted=False).count()
+            public_notes = user_notes.filter(is_public=True, is_deleted=False).count()
+            deleted_notes = user_notes.filter(is_deleted=True).count()
 
-            # 获取Django用户
-            django_user = request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return response.Response(
-                    {"detail": "未找到用户数据"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
-
-            # 获取笔记总数
-            total_notes = Note.objects.filter(user=mongo_user, is_deleted=False).count()
-
-            # 获取收藏笔记数
-            favorite_notes = Note.objects.filter(user=mongo_user, is_favorite=True, is_deleted=False).count()
-
-            # 获取公开笔记数
-            public_notes = Note.objects.filter(user=mongo_user, is_public=True, is_deleted=False).count()
-
-            # 获取已删除笔记数
-            deleted_notes = Note.objects.filter(user=mongo_user, is_deleted=True).count()
-
-            # 获取分类统计
-            categories = Category.objects.filter(user=mongo_user, is_deleted=False)
+            # 分类统计
             category_stats = []
-            for category in categories:
-                count = Note.objects.filter(user=mongo_user, category=category, is_deleted=False).count()
+            for category in Category.objects(user=mongo_user, is_deleted=False):
+                count = user_notes.filter(category=category, is_deleted=False).count()
                 if count > 0:
-                    category_stats.append({
-                        'id': str(category.id),
-                        'name': category.name,
-                        'count': count
-                    })
+                    category_stats.append({'id': str(category.id), 'name': category.name, 'count': count})
 
-            # 获取标签统计
-            tags = Tag.objects.filter(user=mongo_user)
+            # 标签统计
             tag_stats = []
-            for tag in tags:
-                count = Note.objects.filter(user=mongo_user, tags=tag, is_deleted=False).count()
+            for tag in Tag.objects(user=mongo_user):
+                count = user_notes.filter(tags=tag, is_deleted=False).count()
                 if count > 0:
-                    tag_stats.append({
-                        'id': str(tag.id),
-                        'name': tag.name,
-                        'count': count
-                    })
+                    tag_stats.append({'id': str(tag.id), 'name': tag.name, 'count': count})
 
             logger.debug(f"获取笔记统计信息成功, 用户: {mongo_user.username}, 总笔记数: {total_notes}")
             return response.Response({
@@ -474,6 +362,6 @@ class RealmNoteViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"获取笔记统计信息失败: {str(e)}", exc_info=True)
             return response.Response(
-                {"detail": f"获取笔记统计信息失败: {str(e)}"},
+                {"detail": "获取笔记统计信息时发生内部错误"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

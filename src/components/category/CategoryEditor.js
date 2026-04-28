@@ -56,7 +56,7 @@ const CategoryEditor = ({
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const isEditing = !!category;
-  
+
   // 确保 allCategories 是数组
   const validCategories = Array.isArray(allCategories) ? allCategories : [];
 
@@ -143,15 +143,15 @@ const CategoryEditor = ({
 
   // 获取父分类名称
   const getParentName = () => {
-    if (!parentId) return '无';
+    if (!parentId) {return '无';}
     const parent = validCategories.find((c) => c.id === parentId);
     return parent ? parent.name : '未知';
   };
 
   // 过滤掉当前分类及其子分类（编辑时不能选择自己作为父分类）
   const getAvailableParents = () => {
-    if (!isEditing) return validCategories;
-    
+    if (!isEditing) {return validCategories;}
+
     const excludeIds = new Set([category.id]);
     const findChildren = (id) => {
       validCategories.forEach((cat) => {
@@ -162,7 +162,7 @@ const CategoryEditor = ({
       });
     };
     findChildren(category.id);
-    
+
     return validCategories.filter((cat) => !excludeIds.has(cat.id));
   };
 

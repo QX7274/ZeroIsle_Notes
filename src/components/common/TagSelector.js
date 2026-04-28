@@ -77,7 +77,7 @@ const TagSelector = ({
 
   // 创建新标签
   const handleCreateTag = () => {
-    if (!newTagName.trim()) return;
+    if (!newTagName.trim()) {return;}
 
     if (onCreateTag) {
       onCreateTag(newTagName.trim())

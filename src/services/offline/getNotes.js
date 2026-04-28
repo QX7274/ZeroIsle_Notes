@@ -2,7 +2,7 @@
  * 从离线存储获取笔记的辅助函数
  */
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../network/networkService';
 import realmService from '../database/realmService';
 
 /**
@@ -12,31 +12,38 @@ import realmService from '../database/realmService';
 export const getNotesFromOfflineStorage = async () => {
   try {
     console.log('从离线存储获取笔记...');
-    const startTime = Date.now();
 
     // 1. 获取网络状态
-    const networkStatus = await NetInfo.fetch();
-    const isOnline = networkStatus && networkStatus.isConnected && networkStatus.isInternetReachable;
+    const networkStatus = await networkService.checkConnection();
+    const isOnline = Boolean(networkStatus);
     console.log('网络状态:', isOnline ? '在线' : '离线');
 
     // 2. 获取用户信息
     let user = null;
     try {
-      // 尝试获取用户信息，但不抛出错误
-      // 从authStorage获取用户信息
       const authStorage = require('../auth/authStorage').default;
       user = await authStorage.getUser();
 
       if (user && user.id) {
         console.log('从authStorage获取到用户信息:', user.username || user.id);
       } else {
-        console.log('未找到用户信息，使用默认用户');
-        user = { id: 'default_user', username: 'Guest', isGuest: true };
+        throw new Error('未获取到有效的用户信息，无法读取离线笔记');
       }
     } catch (userError) {
+      const DEV_SKIP_LOGIN = __DEV__;
+      if (DEV_SKIP_LOGIN) {
+        console.log('DEV_SKIP_LOGIN 模式：未获取到用户信息，返回空笔记列表以继续联调');
+        return {
+          success: true,
+          data: [],
+          isFirstUse: true,
+          isOffline: !isOnline,
+          message: '开发调试模式：未登录用户，暂无离线笔记',
+        };
+      }
+
       console.warn('获取用户信息失败:', userError);
-      // 返回一个默认用户对象，避免后续代码出错
-      user = { id: 'default_user', username: 'Guest', isGuest: true };
+      throw userError;
     }
 
     console.log('当前用户:', user.username || user.id);
@@ -45,18 +52,8 @@ export const getNotesFromOfflineStorage = async () => {
     try {
       // realmService 不需要手动初始化
 
-      // 设置较长的超时，确保有足够时间加载数据
-      const timeoutPromise = new Promise(resolve => {
-        setTimeout(() => {
-          console.log('获取笔记超时，返回空数组');
-          resolve([]);
-        }, 15000); // 15秒超时，增加等待时间
-      });
-
-      // 使用Promise.race确保不会一直等待
       const realm = await realmService.getRealm();
-      const notesPromise = Promise.resolve(realm.objects('Note').filtered('is_deleted = false'));
-      const notes = await Promise.race([notesPromise, timeoutPromise]);
+      const notes = realm.objects('Note').filtered('is_deleted = false');
 
       console.log('从离线存储获取到笔记数量:', notes ? notes.length : 0);
 
@@ -78,7 +75,7 @@ export const getNotesFromOfflineStorage = async () => {
               success: true,
               data: recentNotes,
               isOffline: !isOnline,
-              message: '显示最近导入的笔记'
+              message: '显示最近导入的笔记',
             };
           }
         } catch (recentError) {
@@ -89,14 +86,14 @@ export const getNotesFromOfflineStorage = async () => {
           success: true,
           data: [],
           isFirstUse: true,
-          message: '欢迎使用！点击右下角"+"按钮创建您的第一条笔记'
+          message: '首次使用或尚未创建笔记',
         };
       }
 
       return {
         success: true,
         data: validNotes,
-        isOffline: !isOnline
+        isOffline: !isOnline,
       };
     } catch (offlineError) {
       console.error('从离线存储获取笔记失败:', offlineError);
@@ -123,7 +120,7 @@ export const getNotesFromOfflineStorage = async () => {
               data: lastNotes,
               isOffline: true,
               isRecovered: true,
-              message: '显示上次缓存的笔记'
+              message: '显示上次缓存的笔记',
             };
           } else {
             console.warn('解析的缓存笔记不是数组或为空');
@@ -135,19 +132,10 @@ export const getNotesFromOfflineStorage = async () => {
         console.error('从本地存储中恢复笔记失败:', recoveryError);
       }
 
-      return {
-        success: true,
-        data: [],
-        isOffline: true,
-        message: '获取笔记失败，请稍后重试'
-      };
+      throw new Error('获取笔记失败，请稍后重试');
     }
   } catch (error) {
     console.error('获取笔记列表失败:', error);
-    return {
-      success: true,
-      data: [],
-      message: '获取笔记失败，请稍后重试'
-    };
+    throw error;
   }
 };

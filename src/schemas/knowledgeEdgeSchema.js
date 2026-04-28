@@ -2,7 +2,6 @@
  * 知识边模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 知识边模式
@@ -11,11 +10,11 @@ const KnowledgeEdgeSchema = {
   name: 'KnowledgeEdge',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
-    source_id: { type: 'objectId', optional: true },
-    target_id: { type: 'objectId', optional: true },
-    graph_id: { type: 'objectId', optional: true },
-    user_id: { type: 'objectId', optional: true },
+    _id: { type: 'string' },
+    source_id: { type: 'string', optional: true },
+    target_id: { type: 'string', optional: true },
+    graph_id: { type: 'string', optional: true },
+    user_id: { type: 'string', optional: true },
     label: { type: 'string', default: '' },
     type: { type: 'string', default: 'default' },
     color: { type: 'string', optional: true },

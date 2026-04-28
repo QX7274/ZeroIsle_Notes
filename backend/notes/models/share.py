@@ -1,6 +1,16 @@
 """
-笔记分享模型
-用于实现笔记的分享功能
+笔记分享模型（Django ORM版本 - 已弃用）
+
+⚠️ 警告：此模型已弃用，请使用 notes.mongodb_models.note_share.NoteShare
+⚠️ 本文件保留仅用于向后兼容，不应在新代码中使用
+
+推荐使用：
+    from notes.mongodb_models import NoteShare
+
+迁移说明：
+    1. 所有新功能应使用MongoEngine版本的NoteShare
+    2. 现有代码应逐步迁移到MongoEngine版本
+    3. 本模型将在未来版本中移除
 """
 
 from django.db import models
@@ -13,8 +23,9 @@ User = get_user_model()
 
 class NoteShare(models.Model):
     """
-    笔记分享模型
-    存储笔记的分享信息
+    笔记分享模型（已弃用 - 请使用MongoEngine版本）
+
+    ⚠️ 此模型已弃用，请使用 notes.mongodb_models.note_share.NoteShare
     """
     SHARE_TYPE_CHOICES = (
         ('public', '公开分享'),

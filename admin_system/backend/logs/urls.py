@@ -4,9 +4,9 @@ from .views import AdminOperationLogViewSet, SystemLogViewSet, LogAnalyticsView,
 
 # 创建路由器并注册视图集
 router = DefaultRouter()
-router.register(r'admin-logs', AdminOperationLogViewSet)
-router.register(r'system-logs', SystemLogViewSet)
-router.register(r'export-history', LogExportHistoryViewSet)
+router.register(r'admin-logs', AdminOperationLogViewSet, basename='admin-operation-log')
+router.register(r'system-logs', SystemLogViewSet, basename='system-log')
+router.register(r'export-history', LogExportHistoryViewSet, basename='log-export-history')
 
 urlpatterns = [
     path('', include(router.urls)),

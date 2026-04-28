@@ -8,6 +8,10 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import javax.annotation.Nullable;
+import android.os.Handler;
+import android.os.Looper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +29,7 @@ public class AIAssistantModule extends ReactContextBaseJavaModule {
 
     // 当前选择的模型
     private String currentModel = "local";
+    private int listenerCount = 0;
 
     public AIAssistantModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -36,6 +41,25 @@ public class AIAssistantModule extends ReactContextBaseJavaModule {
     @Override
     public String getName() {
         return "AIAssistant";
+    }
+
+    /**
+     * 添加事件监听器 - 供 NativeEventEmitter 统计订阅数量
+     */
+    @ReactMethod
+    public void addListener(String eventName) {
+        listenerCount += 1;
+        Log.d(TAG, "addListener event=" + eventName + ", listenerCount=" + listenerCount);
+    }
+
+    /**
+     * 移除事件监听器 - 供 NativeEventEmitter 在 JS 端 remove 时回收计数
+     */
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        int removeCount = count != null ? count : 0;
+        listenerCount = Math.max(0, listenerCount - removeCount);
+        Log.d(TAG, "removeListeners count=" + removeCount + ", listenerCount=" + listenerCount);
     }
 
     @Override
@@ -181,6 +205,34 @@ public class AIAssistantModule extends ReactContextBaseJavaModule {
         } catch (Exception e) {
             Log.e(TAG, "Error getting current model", e);
             promise.reject("ERROR", "获取当前模型失败: " + e.getMessage());
+        }
+    }
+
+    private void sendEvent(String eventName, @Nullable WritableMap params) {
+        reactContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+            .emit(eventName, params);
+    }
+
+    @ReactMethod
+    public void sendStreamingMessage(String message, String engine, String model, ReadableMap options) {
+        final String requestId = UUID.randomUUID().toString();
+        String customPrompt = options.hasKey("prompt") ? options.getString("prompt") : "";
+
+        // Simulate a streaming response
+        String fullResponse = "This is a simulated streaming response to your message: '" + message + "' with custom prompt: '" + customPrompt + "'";
+        String[] chunks = fullResponse.split(" ");
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        for (int i = 0; i < chunks.length; i++) {
+            final int index = i;
+            handler.postDelayed(() -> {
+                WritableMap chunkMap = Arguments.createMap();
+                chunkMap.putString("requestId", requestId);
+                chunkMap.putString("chunk", chunks[index] + " ");
+                chunkMap.putBoolean("isFinal", index == chunks.length - 1);
+                sendEvent("onAiStreamChunk", chunkMap);
+            }, i * 100); // 100ms delay between chunks
         }
     }
 

@@ -13,13 +13,32 @@ const DEFAULT_NODE_HEIGHT = 60;
 const DEFAULT_NODE_MARGIN_X = 80;
 const DEFAULT_NODE_MARGIN_Y = 60;
 
+// 稳定哈希与伪随机工具
+const hashStringToInt = (value) => {
+  const text = String(value || '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // 转换为32位整数
+  }
+  return Math.abs(hash);
+};
+
+const getStableUnitValue = (seed) => (hashStringToInt(seed) % 10000) / 10000;
+
+const getStableOffset = (seed, range) => (getStableUnitValue(seed) - 0.5) * range;
+
+const getStableAngle = (seed) => getStableUnitValue(seed) * Math.PI * 2;
+
+
 /**
  * 计算节点树
  * @param {Array} nodes - 节点数组
  * @returns {Object} 节点树和根节点
  */
 export const buildNodeTree = (nodes) => {
-  if (!nodes || !nodes.length) return { nodeMap: {}, rootNode: null };
+  if (!nodes || !nodes.length) {return { nodeMap: {}, rootNode: null };}
 
   // 找到根节点（没有父节点的节点）
   const rootNode = nodes.find(node => !node.parent_id) || nodes[0];
@@ -190,7 +209,7 @@ export const calculateHorizontalLayout = (rootNode, options = {}) => {
  */
 export const calculateForceDirectedLayout = (nodes, edges, options = {}) => {
   // 如果没有节点，直接返回空对象
-  if (!nodes || nodes.length === 0) return {};
+  if (!nodes || nodes.length === 0) {return {};}
 
   const {
     nodeWidth = DEFAULT_NODE_WIDTH,
@@ -237,9 +256,10 @@ export const calculateForceDirectedLayout = (nodes, edges, options = {}) => {
     // 如果节点已有位置，使用现有位置，否则随机分配
     const hasPosition = node.x !== undefined && node.y !== undefined;
 
+    const seedBase = `init-${node.id}`;
     positions[node.id] = {
-      x: hasPosition ? node.x : centerX + (Math.random() - 0.5) * width * 0.6,
-      y: hasPosition ? node.y : centerY + (Math.random() - 0.5) * height * 0.6,
+      x: hasPosition ? node.x : centerX + getStableOffset(`${seedBase}-x`, width * 0.6),
+      y: hasPosition ? node.y : centerY + getStableOffset(`${seedBase}-y`, height * 0.6),
       vx: 0,
       vy: 0,
     };
@@ -248,10 +268,10 @@ export const calculateForceDirectedLayout = (nodes, edges, options = {}) => {
   // 构建边的查找表，提高性能
   const edgeMap = {};
   edges.forEach(edge => {
-    if (!edgeMap[edge.source]) edgeMap[edge.source] = [];
+    if (!edgeMap[edge.source]) {edgeMap[edge.source] = [];}
     edgeMap[edge.source].push(edge.target);
 
-    if (!edgeMap[edge.target]) edgeMap[edge.target] = [];
+    if (!edgeMap[edge.target]) {edgeMap[edge.target] = [];}
     edgeMap[edge.target].push(edge.source);
   });
 
@@ -272,8 +292,9 @@ export const calculateForceDirectedLayout = (nodes, edges, options = {}) => {
       // 添加随机扰动（仅在前几次迭代）
       if (jitter && i < iterations / 3) {
         const jitterForce = 0.1 * Math.pow(0.9, i);
-        pos1.vx += (Math.random() - 0.5) * jitterForce;
-        pos1.vy += (Math.random() - 0.5) * jitterForce;
+        const jitterSeed = `jitter-${node1.id}-${i}`;
+        pos1.vx += getStableOffset(`${jitterSeed}-x`, jitterForce);
+        pos1.vy += getStableOffset(`${jitterSeed}-y`, jitterForce);
       }
     });
 
@@ -282,7 +303,7 @@ export const calculateForceDirectedLayout = (nodes, edges, options = {}) => {
       const sourcePos = positions[edge.source];
       const targetPos = positions[edge.target];
 
-      if (!sourcePos || !targetPos) return;
+      if (!sourcePos || !targetPos) {return;}
 
       const dx = targetPos.x - sourcePos.x;
       const dy = targetPos.y - sourcePos.y;
@@ -388,7 +409,7 @@ const buildQuadtree = (nodes, positions, centerX, centerY, width, height) => {
     mass: 0,
     centerOfMass: { x: 0, y: 0 },
     children: [],
-    nodes: []
+    nodes: [],
   };
 
   // 插入所有节点
@@ -433,7 +454,7 @@ const insertNode = (quadNode, nodeId, x, y) => {
         mass: 0,
         centerOfMass: { x: 0, y: 0 },
         children: [],
-        nodes: []
+        nodes: [],
       },
       { // 右上
         x: quadNode.x + halfWidth / 2,
@@ -443,7 +464,7 @@ const insertNode = (quadNode, nodeId, x, y) => {
         mass: 0,
         centerOfMass: { x: 0, y: 0 },
         children: [],
-        nodes: []
+        nodes: [],
       },
       { // 左下
         x: quadNode.x - halfWidth / 2,
@@ -453,7 +474,7 @@ const insertNode = (quadNode, nodeId, x, y) => {
         mass: 0,
         centerOfMass: { x: 0, y: 0 },
         children: [],
-        nodes: []
+        nodes: [],
       },
       { // 右下
         x: quadNode.x + halfWidth / 2,
@@ -463,8 +484,8 @@ const insertNode = (quadNode, nodeId, x, y) => {
         mass: 0,
         centerOfMass: { x: 0, y: 0 },
         children: [],
-        nodes: []
-      }
+        nodes: [],
+      },
     ];
 
     // 重新分配现有节点
@@ -478,8 +499,8 @@ const insertNode = (quadNode, nodeId, x, y) => {
 
   // 确定节点应该放在哪个象限
   let index = 0;
-  if (x >= quadNode.x) index += 1; // 右侧
-  if (y >= quadNode.y) index += 2; // 下方
+  if (x >= quadNode.x) {index += 1;} // 右侧
+  if (y >= quadNode.y) {index += 2;} // 下方
 
   // 递归插入到对应子节点
   if (quadNode.children[index]) {
@@ -510,10 +531,10 @@ const calculateCenterOfMass = (quadNode) => {
  */
 const applyRepulsiveForces = (nodeId, pos, quadNode, coefficient, theta) => {
   // 如果四叉树节点没有质量，直接返回
-  if (quadNode.mass === 0) return;
+  if (quadNode.mass === 0) {return;}
 
   // 如果是叶节点且只包含当前节点，直接返回
-  if (quadNode.nodes.length === 1 && quadNode.nodes[0].id === nodeId) return;
+  if (quadNode.nodes.length === 1 && quadNode.nodes[0].id === nodeId) {return;}
 
   // 计算节点到四叉树节点质量中心的距离
   const dx = quadNode.centerOfMass.x - pos.x;
@@ -546,7 +567,7 @@ const applyRepulsiveForces = (nodeId, pos, quadNode, coefficient, theta) => {
  * @returns {Object} 节点数量和最大深度
  */
 const countNodesAndDepth = (node, level = 0) => {
-  if (!node) return { nodeCount: 0, maxDepth: 0 };
+  if (!node) {return { nodeCount: 0, maxDepth: 0 };}
 
   let nodeCount = 1;
   let maxDepth = level;
@@ -570,7 +591,7 @@ const countNodesAndDepth = (node, level = 0) => {
  * @returns {Object} 每个层级的节点数量
  */
 const countNodesByLevel = (node, counts = {}, level = 0) => {
-  if (!node) return counts;
+  if (!node) {return counts;}
 
   counts[level] = (counts[level] || 0) + 1;
 
@@ -594,7 +615,7 @@ const calculateSubtreeSizes = (node, nodeWidth, nodeMarginX) => {
   const sizes = {};
 
   const calculateSize = (node) => {
-    if (!node) return 0;
+    if (!node) {return 0;}
 
     if (!node.children || node.children.length === 0) {
       sizes[node.id] = nodeWidth;
@@ -631,7 +652,7 @@ const calculateSubtreeHeights = (node, nodeHeight, nodeMarginY) => {
   const heights = {};
 
   const calculateHeight = (node) => {
-    if (!node) return 0;
+    if (!node) {return 0;}
 
     if (!node.children || node.children.length === 0) {
       heights[node.id] = nodeHeight;
@@ -673,12 +694,12 @@ const calculateTreeNodePositions = (
   nodeMarginY,
   subtreeSizes
 ) => {
-  if (!node) return;
+  if (!node) {return;}
 
   // 设置当前节点位置
   positions[node.id] = { x, y };
 
-  if (!node.children || node.children.length === 0) return;
+  if (!node.children || node.children.length === 0) {return;}
 
   // 计算子节点起始位置
   const totalChildrenWidth = subtreeSizes[node.id];
@@ -723,7 +744,7 @@ const calculateRadialNodePositions = (
   endAngle,
   levelCounts
 ) => {
-  if (!node) return;
+  if (!node) {return;}
 
   if (level === 0) {
     // 根节点在中心
@@ -784,12 +805,12 @@ const calculateHorizontalNodePositions = (
   nodeMarginY,
   subtreeSizes
 ) => {
-  if (!node) return;
+  if (!node) {return;}
 
   // 设置当前节点位置
   positions[node.id] = { x, y };
 
-  if (!node.children || node.children.length === 0) return;
+  if (!node.children || node.children.length === 0) {return;}
 
   // 计算子节点起始位置
   const totalChildrenHeight = subtreeSizes[node.id];
@@ -858,7 +879,7 @@ const resolveOverlaps = (positions, nodeWidth, nodeHeight) => {
   const nodeIds = Object.keys(positions);
   const nodeCount = nodeIds.length;
 
-  if (nodeCount <= 1) return;
+  if (nodeCount <= 1) {return;}
 
   // 节点有效区域（考虑边距）
   const effectiveWidth = nodeWidth * 1.2;
@@ -922,7 +943,7 @@ const resolveOverlaps = (positions, nodeWidth, nodeHeight) => {
 
           // 如果节点几乎重叠，添加随机扰动避免死锁
           if (distance < 5) {
-            const angle = Math.random() * Math.PI * 2;
+            const angle = getStableAngle(`overlap-${nodeId1}-${nodeId2}`);
             forceX += Math.cos(angle) * 0.1;
             forceY += Math.sin(angle) * 0.1;
           }
@@ -958,7 +979,7 @@ const resolveOverlaps = (positions, nodeWidth, nodeHeight) => {
         totalMovement += Math.abs(vel.vx) + Math.abs(vel.vy);
       });
 
-      if (totalMovement < 0.5) break;
+      if (totalMovement < 0.5) {break;}
     }
   }
 
@@ -977,7 +998,7 @@ const resolveOverlaps = (positions, nodeWidth, nodeHeight) => {
         Math.abs(pos1.y - pos2.y) < nodeHeight * 0.5
       ) {
         // 强制分离
-        const angle = Math.random() * Math.PI * 2;
+        const angle = getStableAngle(`separate-${nodeId1}-${nodeId2}`);
         const distance = Math.max(nodeWidth, nodeHeight) * 0.8;
 
         pos2.x = pos1.x + Math.cos(angle) * distance;

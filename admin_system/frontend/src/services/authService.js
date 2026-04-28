@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -62,18 +63,29 @@ export const logout = async () => {
   }
 };
 
-// 检查认证状态
-export const checkAuth = async () => {
+// 检查认证状态 (优化版：本地校验JWT)
+export const checkAuth = () => {
   try {
     const token = localStorage.getItem('adminToken');
     if (!token) {
       return false;
     }
 
-    const response = await api.get('/auth/check');
-    return response.data.data.isAuthenticated;
+    // 解码Token并检查过期时间
+    const decodedToken = jwtDecode(token);
+    const currentTime = Date.now() / 1000; // 转换为秒
+
+    if (decodedToken.exp < currentTime) {
+      // Token已过期
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      return false;
+    }
+
+    return true; // Token有效
   } catch (error) {
     console.error('认证检查错误:', error);
+    // 如果解码失败等，视为无效
     return false;
   }
 };

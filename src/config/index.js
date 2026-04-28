@@ -3,21 +3,22 @@
  * 统一管理应用的配置项
  */
 
-// API配置 - 根据设备网络环境自动选择
-// 如果平板和手机在同一WiFi网络下，使用WiFi网络地址
-// 如果需要使用手机热点，请确保平板连接到手机热点，然后使用热点地址
+import { Platform } from 'react-native';
+
+// API配置 - 开发环境优先指向本机后端
+// 统一走 localhost，并通过 adb reverse tcp:8001 tcp:8001 打通 Android 真机/模拟器到宿主机后端
+const DEV_API_HOST = '127.0.0.1';
+const DEV_API_PORT = '8001';
+
 export const API_URL = __DEV__
-  //? 'http://192.168.1.100:8000'  // WiFi网络地址 - 请根据实际网络情况修改
-  ? 'http://192.168.234.232:8000'  // 手机热点地址 - 如果使用热点请取消注释此行并注释上一行
-  : 'https://api.zeroislenotes.com'; // 生产环境地址
+  ? `http://${DEV_API_HOST}:${DEV_API_PORT}`
+  : 'https://api.zeroislenotes.com';
 
 // 调试信息
 console.log('当前API_URL:', API_URL);
 console.log('开发模式:', __DEV__);
-console.log('网络配置说明:');
-console.log('- 如果平板和手机在同一WiFi下，使用WiFi网络地址');
-console.log('- 如果使用手机热点，请确保平板连接热点后使用热点地址');
-console.log('如果无法连接，请检查后端服务是否在此地址运行:', API_URL);
+console.log('平台:', Platform.OS);
+console.log('如无法连接，请检查后端服务是否运行于:', API_URL);
 
 export const API_VERSION = 'v1';
 export const API_TIMEOUT = 15000;
@@ -26,14 +27,14 @@ export const API_TIMEOUT = 15000;
 export const THEME = {
   LIGHT: 'light',
   DARK: 'dark',
-  SYSTEM: 'system'
+  SYSTEM: 'system',
 };
 export const THEME_KEY = 'app_theme';
 export const DEFAULT_THEME = 'light';
 
 // 语言配置（仅支持中文）
 export const LANGUAGES = {
-  ZH: 'zh'
+  ZH: 'zh',
 };
 export const DEFAULT_LANGUAGE = 'zh';
 
@@ -75,9 +76,9 @@ export const DEV_MODE_CONFIG = {
   // 开发者模式特性
   FEATURES: {
     // 是否跳过登录界面
-    SKIP_LOGIN_SCREEN: true,
+    SKIP_LOGIN_SCREEN: false,
     // 是否自动填充测试数据
-    AUTO_FILL_TEST_DATA: true,
+    AUTO_FILL_TEST_DATA: false,
     // 是否显示调试信息
     SHOW_DEBUG_INFO: true,
     // 是否启用性能监控
@@ -91,7 +92,7 @@ export const DEV_MODE_CONFIG = {
     LOG_DEV_ACTIONS: true,
     // 开发者模式过期时间（小时）
     EXPIRE_AFTER_HOURS: 24,
-  }
+  },
 };
 
 // 存储键
@@ -102,17 +103,17 @@ export const STORAGE_KEYS = {
   TOKEN_EXPIRY: 'token_expiry',
   USER_INFO: 'user_info',
   USER: 'user',
-  
+
   // 开发者模式相关
   DEV_MODE_STATE: 'dev_mode_state',
   DEV_ACTION_LOGS: 'dev_action_logs',
-  
+
   // 其他存储键...
   THEME: 'theme',
   LANGUAGE: 'language',
   SETTINGS: 'settings',
   CACHE: 'cache',
-  LOGS: 'logs'
+  LOGS: 'logs',
 };
 
 // 通知渠道
@@ -122,7 +123,7 @@ export const NOTIFICATION_CHANNELS = {
   SHARE: 'share_channel',
   SYNC: 'sync_channel',
   COMMUNITY: 'community_channel',
-  UPDATE: 'update_channel'
+  UPDATE: 'update_channel',
 };
 
 // 错误消息
@@ -132,7 +133,7 @@ export const ERROR_MESSAGES = {
   UNAUTHORIZED: '未授权，请重新登录',
   FORBIDDEN: '禁止访问',
   NOT_FOUND: '未找到资源',
-  VALIDATION_ERROR: '输入数据验证失败'
+  VALIDATION_ERROR: '输入数据验证失败',
 };
 
 // 错误码
@@ -267,5 +268,5 @@ export default {
   PAGINATION,
   UPLOAD_LIMITS,
   FEATURES,
-  ANALYTICS_EVENTS
+  ANALYTICS_EVENTS,
 };

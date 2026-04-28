@@ -90,6 +90,7 @@ class Post(Document):
     
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='帖子ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
+    group = ReferenceField('groups.Group', null=True, verbose_name='群组') # 新增字段
     title = StringField(max_length=255, required=True, verbose_name='标题')
     content = StringField(required=True, verbose_name='内容')
     excerpt = StringField(verbose_name='摘要')
@@ -130,10 +131,17 @@ class Post(Document):
         return self.title
     
     def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
+        """保存前清理内容并更新时间"""
+        import bleach
+
+        if self.content:
+            allowed_tags = bleach.sanitizer.ALLOWED_TAGS + ['p', 'h1', 'h2', 'h3', 'br', 'span', 'div', 'img']
+            allowed_attrs = {**bleach.sanitizer.ALLOWED_ATTRIBUTES, '*': ['style', 'class'], 'img': ['src', 'alt', 'title']}
+            self.content = bleach.clean(self.content, tags=allowed_tags, attributes=allowed_attrs)
+
         # 如果没有摘要，自动生成
         if not self.excerpt and self.content:
-            self.excerpt = self.content[:200]
+            self.excerpt = bleach.clean(self.content, tags=[], strip=True)[:200]
         
         # 如果状态是已发布但没有发布时间，设置为当前时间
         if self.status == 'published' and not self.published_at:
@@ -152,20 +160,17 @@ class Post(Document):
         """硬删除"""
         super().delete()
     
-    def update_comment_count(self):
-        """更新评论数量"""
-        self.comment_count = Comment.objects(post=self, is_deleted=False).count()
-        self.save()
+    def update_comment_count(self, delta=1):
+        """更新评论数量 (Atomic Increment/Decrement)"""
+        Post.objects(id=self.id).update_one(inc__comment_count=delta, set__updated_at=timezone.now())
     
-    def update_like_count(self):
-        """更新点赞数量"""
-        self.like_count = Like.objects(content_type='Post', object_id=str(self.id), is_active=True).count()
-        self.save()
+    def update_like_count(self, delta=1):
+        """更新点赞数量 (Atomic Increment/Decrement)"""
+        Post.objects(id=self.id).update_one(inc__like_count=delta, set__updated_at=timezone.now())
     
     def increment_view_count(self):
-        """增加浏览次数"""
-        self.view_count += 1
-        self.save()
+        """增加浏览次数 (Atomic)"""
+        Post.objects(id=self.id).update_one(inc__view_count=1)
 
 class Comment(Document):
     """
@@ -201,15 +206,21 @@ class Comment(Document):
         return f"{self.user.username}: {self.content[:50]}"
     
     def save(self, *args, **kwargs):
-        """保存前更新更新时间"""
+        """保存前清理内容并更新时间"""
+        import bleach
         is_new = self.id is None
+
+        if self.content:
+            allowed_tags = bleach.sanitizer.ALLOWED_TAGS + ['p', 'br', 'span']
+            allowed_attrs = {**bleach.sanitizer.ALLOWED_ATTRIBUTES, '*': ['style', 'class']}
+            self.content = bleach.clean(self.content, tags=allowed_tags, attributes=allowed_attrs)
         
         self.updated_at = timezone.now()
         result = super().save(*args, **kwargs)
         
         # 如果是新评论，更新帖子评论数
         if is_new and not self.is_deleted:
-            self.post.update_comment_count()
+            self.post.update_comment_count(1)
             
         return result
     
@@ -220,19 +231,18 @@ class Comment(Document):
         self.save()
         
         # 更新帖子评论数
-        self.post.update_comment_count()
+        self.post.update_comment_count(-1)
     
     def hard_delete(self):
         """硬删除"""
         super().delete()
         
         # 更新帖子评论数
-        self.post.update_comment_count()
+        self.post.update_comment_count(-1)
     
-    def update_like_count(self):
-        """更新点赞次数"""
-        self.like_count = Like.objects(content_type='Comment', object_id=str(self.id), is_active=True).count()
-        self.save()
+    def update_like_count(self, delta=1):
+        """更新点赞次数 (Atomic Increment/Decrement)"""
+        Comment.objects(id=self.id).update_one(inc__like_count=delta, set__updated_at=timezone.now())
 
 class Like(Document):
     """
@@ -272,19 +282,13 @@ class Like(Document):
         return result
     
     def update_target_like_count(self):
-        """更新被点赞对象的点赞数"""
+        """更新被点赞对象的点赞数 (Atomic)"""
+        delta = 1 if self.is_active else -1
+        
         if self.content_type == 'Post':
-            try:
-                post = Post.objects.get(id=self.object_id)
-                post.update_like_count()
-            except Post.DoesNotExist:
-                pass
+            Post.objects(id=self.object_id).update_one(inc__like_count=delta)
         elif self.content_type == 'Comment':
-            try:
-                comment = Comment.objects.get(id=self.object_id)
-                comment.update_like_count()
-            except Comment.DoesNotExist:
-                pass
+            Comment.objects(id=self.object_id).update_one(inc__like_count=delta)
 
 class Follow(Document):
     """

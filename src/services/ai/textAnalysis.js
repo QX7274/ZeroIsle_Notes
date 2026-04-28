@@ -19,14 +19,14 @@ class TextAnalysisService {
     try {
       const response = await apiService.post('/ai/text/keywords', {
         text,
-        limit
+        limit,
       });
-      
+
       analyticsService.trackEvent('extract_keywords', {
         textLength: text.length,
-        keywordCount: response.data.keywords.length
+        keywordCount: response.data.keywords.length,
       });
-      
+
       return response.data.keywords;
     } catch (error) {
       console.error('提取关键词失败:', error);
@@ -34,7 +34,7 @@ class TextAnalysisService {
       throw error;
     }
   }
-  
+
   /**
    * 生成摘要
    * @param {string} text - 要分析的文本
@@ -45,14 +45,14 @@ class TextAnalysisService {
     try {
       const response = await apiService.post('/ai/text/summary', {
         text,
-        max_length: maxLength
+        max_length: maxLength,
       });
-      
+
       analyticsService.trackEvent('generate_summary', {
         textLength: text.length,
-        summaryLength: response.data.summary.length
+        summaryLength: response.data.summary.length,
       });
-      
+
       return response.data.summary;
     } catch (error) {
       console.error('生成摘要失败:', error);
@@ -60,7 +60,7 @@ class TextAnalysisService {
       throw error;
     }
   }
-  
+
   /**
    * 情感分析
    * @param {string} text - 要分析的文本
@@ -69,13 +69,13 @@ class TextAnalysisService {
   async analyzeSentiment(text) {
     try {
       const response = await apiService.post('/ai/text/sentiment', {
-        text
+        text,
       });
-      
+
       analyticsService.trackEvent('analyze_sentiment', {
-        textLength: text.length
+        textLength: text.length,
       });
-      
+
       return response.data;
     } catch (error) {
       console.error('情感分析失败:', error);
@@ -83,7 +83,7 @@ class TextAnalysisService {
       throw error;
     }
   }
-  
+
   /**
    * 文本分类
    * @param {string} text - 要分析的文本
@@ -94,14 +94,14 @@ class TextAnalysisService {
     try {
       const response = await apiService.post('/ai/text/classify', {
         text,
-        categories
+        categories,
       });
-      
+
       analyticsService.trackEvent('classify_text', {
         textLength: text.length,
-        categoryCount: categories.length
+        categoryCount: categories.length,
       });
-      
+
       return response.data;
     } catch (error) {
       console.error('文本分类失败:', error);
@@ -109,7 +109,7 @@ class TextAnalysisService {
       throw error;
     }
   }
-  
+
   /**
    * 实体识别
    * @param {string} text - 要分析的文本
@@ -118,14 +118,14 @@ class TextAnalysisService {
   async recognizeEntities(text) {
     try {
       const response = await apiService.post('/ai/text/entities', {
-        text
+        text,
       });
-      
+
       analyticsService.trackEvent('recognize_entities', {
         textLength: text.length,
-        entityCount: response.data.entities.length
+        entityCount: response.data.entities.length,
       });
-      
+
       return response.data.entities;
     } catch (error) {
       console.error('实体识别失败:', error);

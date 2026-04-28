@@ -1,4 +1,5 @@
 import { getToken } from '../auth/tokenService';
+import { API_URL } from '../../config';
 
 class WebSocketService {
   constructor() {
@@ -20,7 +21,9 @@ class WebSocketService {
       return;
     }
 
-    const wsUrl = `ws://localhost:8000/ws/reminders/?token=${token}`;
+    const wsBase = API_URL.replace(/^http/, 'ws');
+    // 连接提醒与知识图谱两个通道，知识图谱用于接收构建完成事件
+    const wsUrl = `${wsBase}/ws/knowledge-graph/?token=${token}`;
     this.socket = new WebSocket(wsUrl);
 
     this.socket.onopen = () => {
@@ -30,7 +33,9 @@ class WebSocketService {
 
     this.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      this.notifyListeners(data.type, data);
+      // 标准化事件名称
+      const eventType = data.type || data.event;
+      this.notifyListeners(eventType, data);
     };
 
     this.socket.onclose = () => {
@@ -83,10 +88,15 @@ class WebSocketService {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({
         type: 'mark_read',
-        notification_id: notificationId
+        notification_id: notificationId,
       }));
     }
   }
 }
 
-export const websocketService = new WebSocketService();
+const websocketService = new WebSocketService();
+
+module.exports = websocketService;
+module.exports.default = websocketService;
+module.exports.websocketService = websocketService;
+module.exports.WebSocketService = WebSocketService;

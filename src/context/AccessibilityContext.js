@@ -26,38 +26,38 @@ export const AccessibilityProvider = ({ children }) => {
   const [isBoldTextEnabled, setIsBoldTextEnabled] = useState(false);
   const [isGrayscaleEnabled, setIsGrayscaleEnabled] = useState(false);
   const [isInvertColorsEnabled, setIsInvertColorsEnabled] = useState(false);
-  
+
   // 初始化可访问性状态
   useEffect(() => {
     const initAccessibility = async () => {
       // 获取屏幕阅读器状态
       const screenReaderEnabled = await Accessibility.isScreenReaderEnabled();
       setIsScreenReaderEnabled(screenReaderEnabled);
-      
+
       // 获取减少动画状态
       const reduceMotionEnabled = await Accessibility.isReduceMotionEnabled();
       setIsReduceMotionEnabled(reduceMotionEnabled);
-      
+
       // 获取高对比度状态
       const highContrastEnabled = await Accessibility.isHighContrastEnabled();
       setIsHighContrastEnabled(highContrastEnabled);
-      
+
       // 获取粗体文本状态
       const boldTextEnabled = await Accessibility.isBoldTextEnabled();
       setIsBoldTextEnabled(boldTextEnabled);
-      
+
       // 获取灰度模式状态
       const grayscaleEnabled = await Accessibility.isGrayscaleEnabled();
       setIsGrayscaleEnabled(grayscaleEnabled);
-      
+
       // 获取反转颜色状态
       const invertColorsEnabled = await Accessibility.isInvertColorsEnabled();
       setIsInvertColorsEnabled(invertColorsEnabled);
     };
-    
+
     initAccessibility();
   }, []);
-  
+
   // 添加可访问性状态变化监听器
   useEffect(() => {
     // 屏幕阅读器状态变化监听器
@@ -66,42 +66,42 @@ export const AccessibilityProvider = ({ children }) => {
         setIsScreenReaderEnabled(isEnabled);
       }
     );
-    
+
     // 减少动画状态变化监听器
     const reduceMotionListener = Accessibility.addReduceMotionListener(
       (isEnabled) => {
         setIsReduceMotionEnabled(isEnabled);
       }
     );
-    
+
     // 高对比度状态变化监听器
     const highContrastListener = Accessibility.addHighContrastListener(
       (isEnabled) => {
         setIsHighContrastEnabled(isEnabled);
       }
     );
-    
+
     // 粗体文本状态变化监听器
     const boldTextListener = Accessibility.addBoldTextListener(
       (isEnabled) => {
         setIsBoldTextEnabled(isEnabled);
       }
     );
-    
+
     // 灰度模式状态变化监听器
     const grayscaleListener = Accessibility.addGrayscaleListener(
       (isEnabled) => {
         setIsGrayscaleEnabled(isEnabled);
       }
     );
-    
+
     // 反转颜色状态变化监听器
     const invertColorsListener = Accessibility.addInvertColorsListener(
       (isEnabled) => {
         setIsInvertColorsEnabled(isEnabled);
       }
     );
-    
+
     // 清理监听器
     return () => {
       screenReaderListener();
@@ -112,12 +112,12 @@ export const AccessibilityProvider = ({ children }) => {
       invertColorsListener();
     };
   }, []);
-  
+
   // 宣告屏幕阅读器消息
   const announceForAccessibility = (message) => {
     Accessibility.announceForAccessibility(message);
   };
-  
+
   // 获取可访问性属性
   const getAccessibilityProps = (
     label,
@@ -134,7 +134,7 @@ export const AccessibilityProvider = ({ children }) => {
       isDisabled
     );
   };
-  
+
   // 上下文值
   const contextValue = {
     isScreenReaderEnabled,
@@ -146,7 +146,7 @@ export const AccessibilityProvider = ({ children }) => {
     announceForAccessibility,
     getAccessibilityProps,
   };
-  
+
   return (
     <AccessibilityContext.Provider value={contextValue}>
       {children}

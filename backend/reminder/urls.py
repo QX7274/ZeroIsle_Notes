@@ -20,6 +20,8 @@ from reminder.views.calendar_integration_views import (
     import_from_calendar,
     export_to_calendar
 )
+from reminder.views.actions import ReminderActionView
+
 
 # 创建路由器
 router = DefaultRouter()
@@ -62,5 +64,11 @@ urlpatterns = [
     path('export-to-calendar/', export_to_calendar, name='reminder-export-to-calendar'),
 
     # 每日摘要API
+
+    # Reminder instance actions
+    path('reminders/<uuid:pk>/complete/', ReminderActionView.as_view({'post': 'complete'}), name='reminder-complete'),
+    path('reminders/<uuid:pk>/cancel/', ReminderActionView.as_view({'post': 'cancel'}), name='reminder-cancel'),
+    path('reminders/<uuid:pk>/delay/', ReminderActionView.as_view({'post': 'delay'}), name='reminder-delay'),
+
     path('daily-summary/', MongoReminderViewSet.as_view({'get': 'daily_summary'}), name='reminder-daily-summary'),
 ]

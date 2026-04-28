@@ -1,0 +1,503 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.10.10, pytest-8.0.0, pluggy-1.5.0
+django: settings: backend.settings.testing (from ini)
+rootdir: D:\ZeroIsle_Notes
+configfile: pytest.ini
+plugins: anyio-4.9.0, Faker-19.13.0, asyncio-0.23.5, cov-4.1.0, django-4.5.2, typeguard-2.13.3
+asyncio: mode=strict
+collected 3 items
+
+pytest : Exception ig
+nored in: <coroutine 
+object OriginValidato
+r.__call__ at 0x00000
+2671E890890>
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+est notes/tests/test_
+consumers.py > test_o
+utput_consum ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Excepti   
+ on ignor...00026    
+71E890890>:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\security\websocket
+.py", line 41, in __c
+all__
+    return await deni
+er(scope, receive, se
+nd)
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\consumer.py", line
+ 58, in __call__
+    await await_many_
+dispatch(
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\utils.py", line 55
+, in await_many_dispa
+tch
+    task.cancel()
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 753, in cal
+l_soon
+    self._check_close
+d()
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 515, in _ch
+eck_closed
+    raise RuntimeErro
+r('Event loop is clos
+ed')
+RuntimeError: Event l
+oop is closed
+notes\tests\test_consumers.py FFF                                        [100%]
+
+================================== FAILURES ===================================
+________________ test_collaboration_connection_authentication _________________
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (89ec9702-4857-4541-82c4-f4845c913338)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_collaboration_connection_authentication(setup_users_and_notes):
+        """Test that only authenticated users with permission can connect."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+        other_user = setup_users_and_notes['other_user']
+    
+        # Test Case 1: Note owner can connect
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        connected_owner, _ = await communicator_owner.connect()
+>       assert connected_owner, "Owner should be able to connect"
+E       AssertionError: Owner should be able to connect
+E       assert False
+
+notes\tests\test_consumers.py:66: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Building prefix dict from the default dictionary ...
+Dumping model to file cache C:\Users\QX\AppData\Local\Temp\jieba.cache
+Loading model cost 1.275 seconds.
+Prefix dict has been built successfully.
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+DEBUG    jieba:__init__.py:113 Building prefix dict from the default dictionary ...
+DEBUG    jieba:__init__.py:146 Dumping model to file cache C:\Users\QX\AppData\Local\Temp\jieba.cache
+DEBUG    jieba:__init__.py:164 Loading model cost 1.275 seconds.
+DEBUG    jieba:__init__.py:166 Prefix dict has been built successfully.
+WARNING  ai_assistant.services.base_provider:base_provider.py:32 OPENAI_API_KEY 未配置，将在调用处抛出错误
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=89ec9702-4857-4541-82c4-f4845c913338: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note 89ec9702-4857-4541-82c4-f4845c913338: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+__________________________ test_message_broadcasting __________________________
+
+self = <channels.testing.websocket.WebsocketCommunicator object at 0x000002671EA73F40>
+timeout = 1
+
+    async def receive_output(self, timeout=1):
+        """
+        Receives a single message from the application, with optional timeout.
+        """
+        # Make sure there's not an exception to raise from the task
+        if self.future.done():
+            self.future.result()
+        # Wait and receive the message
+        try:
+            async with async_timeout(timeout):
+>               return await self.output_queue.get()
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Queue at 0x2671ea72dd0 maxsize=0 tasks=1>
+
+    async def get(self):
+        """Remove and return an item from the queue.
+    
+        If queue is empty, wait until an item is available.
+        """
+        while self.empty():
+            getter = self._get_loop().create_future()
+            self._getters.append(getter)
+            try:
+>               await getter
+E               asyncio.exceptions.CancelledError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\asyncio\queues.py:159: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+self = <channels.testing.websocket.WebsocketCommunicator object at 0x000002671EA73F40>
+timeout = 1
+
+    async def receive_output(self, timeout=1):
+        """
+        Receives a single message from the application, with optional timeout.
+        """
+        # Make sure there's not an exception to raise from the task
+        if self.future.done():
+            self.future.result()
+        # Wait and receive the message
+        try:
+>           async with async_timeout(timeout):
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:71: in __aexit__
+    self._do_exit(exc_type)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <asgiref.timeout.timeout object at 0x000002671EA73D00>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+
+    def _do_exit(self, exc_type: Type[BaseException]) -> None:
+        if exc_type is asyncio.CancelledError and self._cancelled:
+            self._cancel_handler = None
+            self._task = None
+>           raise asyncio.TimeoutError
+E           asyncio.exceptions.TimeoutError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:108: TimeoutError
+
+During handling of the above exception, another exception occurred:
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (f56d1831-032b-4ce7-bc95-5802698182f2)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_message_broadcasting(setup_users_and_notes):
+        """Test that messages are correctly broadcast to all clients except the sender."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+    
+        # Connect owner
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        await communicator_owner.connect()
+    
+        # Connect collaborator
+        communicator_collaborator = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_collaborator.scope['user'] = collaborator
+        await communicator_collaborator.connect()
+    
+        try:
+            # Owner sends a message
+            test_message = {"action": "update", "payload": "Hello, world!"}
+            await communicator_owner.send_to(text_data=json.dumps(test_message))
+    
+            # Collaborator should receive the message
+>           response = await communicator_collaborator.receive_from()
+
+notes\tests\test_consumers.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\testing\websocket.py:72: in receive_from
+    response = await self.receive_output(timeout)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:84: in receive_output
+    self.future.result()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\routing.py:62: in __call__
+    return await application(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\security\websocket.py:41: in __call__
+    return await denier(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\consumer.py:58: in __call__
+    await await_many_dispatch(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+consumer_callables = [<bound method Queue.get of <Queue at 0x2671ea73fa0 maxsize=0 tasks=1>>, functools.partial(<bound method RedisChannelL...nelLayer object at 0x000002671E870940>>, 'specific.9ea4f39c49c945388b78e04be120e425!3cb631bb70c44ad4954cb113a614d346')]
+dispatch = <bound method AsyncConsumer.dispatch of <channels.security.websocket.WebsocketDenier object at 0x000002671EA73F70>>
+
+    async def await_many_dispatch(consumer_callables, dispatch):
+        """
+        Given a set of consumer callables, awaits on them all and passes results
+        from them to the dispatch awaitable as they come in.
+        """
+        # Call all callables, and ensure all return types are Futures
+        tasks = [
+            asyncio.ensure_future(consumer_callable())
+            for consumer_callable in consumer_callables
+        ]
+        try:
+            while True:
+                # Wait for any of them to complete
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                # Find the completed one(s), yield results, and replace them
+                for i, task in enumerate(tasks):
+                    if task.done():
+                        result = task.result()
+                        await dispatch(result)
+                        tasks[i] = asyncio.ensure_future(consumer_callables[i]())
+        finally:
+            # Make sure we clean up tasks on exit
+            for task in tasks:
+                task.cancel()
+                try:
+>                   await task
+E                   RuntimeError: Two event loops are trying to receive() on one channel layer at once!
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\utils.py:57: RuntimeError
+
+During handling of the above exception, another exception occurred:
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (f56d1831-032b-4ce7-bc95-5802698182f2)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_message_broadcasting(setup_users_and_notes):
+        """Test that messages are correctly broadcast to all clients except the sender."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+    
+        # Connect owner
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        await communicator_owner.connect()
+    
+        # Connect collaborator
+        communicator_collaborator = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_collaborator.scope['user'] = collaborator
+        await communicator_collaborator.connect()
+    
+        try:
+            # Owner sends a message
+            test_message = {"action": "update", "payload": "Hello, world!"}
+            await communicator_owner.send_to(text_data=json.dumps(test_message))
+    
+            # Collaborator should receive the message
+            response = await communicator_collaborator.receive_from()
+            received_message = json.loads(response)
+            assert received_message == test_message, "Collaborator should receive the owner's message"
+    
+            # Owner should not receive their own message back
+            with pytest.raises(TimeoutError):
+                await communicator_owner.receive_from(timeout=0.1)
+    
+        finally:
+            # Disconnect clients
+>           await communicator_owner.disconnect()
+
+notes\tests\test_consumers.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\testing\websocket.py:102: in disconnect
+    await self.wait(timeout)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:36: in wait
+    await self.future
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\routing.py:62: in __call__
+    return await application(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\security\websocket.py:41: in __call__
+    return await denier(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\consumer.py:58: in __call__
+    await await_many_dispatch(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+consumer_callables = [<bound method Queue.get of <Queue at 0x2671ea77d00 maxsize=0 _queue=[{'type': 'websocket.receive', 'text': '{"action"...nelLayer object at 0x000002671E870940>>, 'specific.9ea4f39c49c945388b78e04be120e425!7c38fc72a541469f96bfd06bb359d5b2')]
+dispatch = <bound method AsyncConsumer.dispatch of <channels.security.websocket.WebsocketDenier object at 0x000002671EA751E0>>
+
+    async def await_many_dispatch(consumer_callables, dispatch):
+        """
+        Given a set of consumer callables, awaits on them all and passes results
+        from them to the dispatch awaitable as they come in.
+        """
+        # Call all callables, and ensure all return types are Futures
+        tasks = [
+            asyncio.ensure_future(consumer_callable())
+            for consumer_callable in consumer_callables
+        ]
+        try:
+            while True:
+                # Wait for any of them to complete
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                # Find the completed one(s), yield results, and replace them
+                for i, task in enumerate(tasks):
+                    if task.done():
+                        result = task.result()
+                        await dispatch(result)
+                        tasks[i] = asyncio.ensure_future(consumer_callables[i]())
+        finally:
+            # Make sure we clean up tasks on exit
+            for task in tasks:
+                task.cancel()
+                try:
+>                   await task
+E                   RuntimeError: Two event loops are trying to receive() on one channel layer at once!
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\utils.py:57: RuntimeError
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=f56d1831-032b-4ce7-bc95-5802698182f2: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note f56d1831-032b-4ce7-bc95-5802698182f2: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+_____________________ test_sync_status_and_user_tracking ______________________
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (200fc59c-4e64-425b-99b5-82902916ed93)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_sync_status_and_user_tracking(setup_users_and_notes):
+        """Test user tracking (joined/left) and sync status (cursor/ack)."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+    
+        # Connect owner
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        await communicator_owner.connect()
+    
+        # Receive own join message (depending on implementation, may or may not receive)
+        # The implementation sends to group, so owner might receive it if they are in the group before send.
+        # But usually group_send excludes sender in receive, but here it's `user_joined` sent to group.
+        # NoteConsumer.connect: await self.accept() -> add_user -> group_send('type': 'user_joined')
+        # Since accept() happens before group_send, owner is in group.
+        # But receive() filters sender?
+        # NoteConsumer.note_update checks sender_channel.
+        # But user_joined is a different handler. Let's check NoteConsumer.user_joined.
+        # It sends to self. So everyone in group receives it.
+    
+        # Connect collaborator
+        communicator_collaborator = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_collaborator.scope['user'] = collaborator
+        await communicator_collaborator.connect()
+    
+        # Owner should receive 'user_joined' for collaborator
+>       response = await communicator_owner.receive_from()
+
+notes\tests\test_consumers.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\testing\websocket.py:72: in receive_from
+    response = await self.receive_output(timeout)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:76: in receive_output
+    self.future.result()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\routing.py:62: in __call__
+    return await application(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\security\websocket.py:41: in __call__
+    return await denier(scope, receive, send)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\consumer.py:58: in __call__
+    await await_many_dispatch(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+consumer_callables = [<bound method Queue.get of <Queue at 0x2671eac4130 maxsize=0 tasks=1>>, functools.partial(<bound method RedisChannelL...nelLayer object at 0x000002671E870940>>, 'specific.9ea4f39c49c945388b78e04be120e425!dcf7efa75c474a0f8127bb1bf5901461')]
+dispatch = <bound method AsyncConsumer.dispatch of <channels.security.websocket.WebsocketDenier object at 0x000002671EADFD30>>
+
+    async def await_many_dispatch(consumer_callables, dispatch):
+        """
+        Given a set of consumer callables, awaits on them all and passes results
+        from them to the dispatch awaitable as they come in.
+        """
+        # Call all callables, and ensure all return types are Futures
+        tasks = [
+            asyncio.ensure_future(consumer_callable())
+            for consumer_callable in consumer_callables
+        ]
+        try:
+            while True:
+                # Wait for any of them to complete
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                # Find the completed one(s), yield results, and replace them
+                for i, task in enumerate(tasks):
+                    if task.done():
+                        result = task.result()
+                        await dispatch(result)
+                        tasks[i] = asyncio.ensure_future(consumer_callables[i]())
+        finally:
+            # Make sure we clean up tasks on exit
+            for task in tasks:
+                task.cancel()
+                try:
+>                   await task
+E                   RuntimeError: Two event loops are trying to receive() on one channel layer at once!
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\utils.py:57: RuntimeError
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=200fc59c-4e64-425b-99b5-82902916ed93: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note 200fc59c-4e64-425b-99b5-82902916ed93: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+=========================== short test summary info ===========================
+FAILED notes\tests\test_consumers.py::test_collaboration_connection_authentication
+FAILED notes\tests\test_consumers.py::test_message_broadcasting - RuntimeErro...
+FAILED notes\tests\test_consumers.py::test_sync_status_and_user_tracking - Ru...
+======================== 3 failed in 69.11s (0:01:09) =========================
+Task exception was ne
+ver retrieved
+future: <Task finishe
+d name='Task-24' coro
+=<ProtocolTypeRouter.
+__call__() done, defi
+ned at C:\Users\QX\Ap
+pData\Local\Programs\
+Python\Python310\lib\
+site-packages\channel
+s\routing.py:59> exce
+ption=RuntimeError('T
+wo event loops are tr
+ying to receive() on 
+one channel layer at 
+once!')>
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\routing.py", line 
+62, in __call__
+    return await appl
+ication(scope, receiv
+e, send)
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\security\websocket
+.py", line 41, in __c
+all__
+    return await deni
+er(scope, receive, se
+nd)
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\consumer.py", line
+ 58, in __call__
+    await await_many_
+dispatch(
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\utils.py", line 57
+, in await_many_dispa
+tch
+    await task
+RuntimeError: Two eve
+nt loops are trying t
+o receive() on one ch
+annel layer at once!

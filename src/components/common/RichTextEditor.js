@@ -16,7 +16,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../../services/network/networkService';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -42,7 +42,7 @@ const RichTextEditor = ({
   noteId = null,
   readOnly = false,
   onImageUpload,
-  showToast
+  showToast,
  }) => {
   // 解析内容为富文本格式
   const [content, setContent] = useState(value);
@@ -162,7 +162,7 @@ const RichTextEditor = ({
         maxHeight: 1200,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         Alert.alert('错误', '选择图片失败: ' + result.errorMessage);
@@ -204,7 +204,7 @@ const RichTextEditor = ({
         maxHeight: 1200,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         Alert.alert('错误', '拍照失败: ' + result.errorMessage);
@@ -233,8 +233,8 @@ const RichTextEditor = ({
 
       // 检查网络状态
       if (Platform.OS !== 'web') {
-        const netInfo = await NetInfo.fetch();
-        if (!netInfo.isConnected) {
+        const isOnline = await networkService.checkConnection();
+        if (!isOnline) {
           Alert.alert(
             '离线状态',
             '当前处于离线状态，无法上传图片到服务器。是否要将图片插入到笔记中？上线后可以再次同步。',
@@ -245,7 +245,7 @@ const RichTextEditor = ({
                 insertImage(asset.uri);
                 // 清除预览状态
                 setTimeout(() => setImagePreview(null), 300);
-              }}
+              }},
             ]
           );
           return;
@@ -268,7 +268,7 @@ const RichTextEditor = ({
                 insertImage(asset.uri);
                 // 清除预览状态
                 setTimeout(() => setImagePreview(null), 300);
-              }}
+              }},
             ]
           );
           return;
@@ -310,7 +310,7 @@ const RichTextEditor = ({
                 [
                   {text: '取消', style: 'cancel', onPress: () => setImagePreview(null)},
                   {text: '继续上传', onPress: () => continueUpload()},
-                  {text: '插入本地图片', onPress: () => insertImage(asset.uri)}
+                  {text: '插入本地图片', onPress: () => insertImage(asset.uri)},
                 ]
               );
               return;
@@ -388,7 +388,7 @@ const RichTextEditor = ({
             // 直接插入本地图片路径，标记为离线图片
             insertImage(imagePreview.uri);
           }
-        }}
+        }},
       ];
     } else if (isServerError) {
       errorMessage = '服务器暂时无法处理请求，请稍后再试。';
@@ -403,7 +403,7 @@ const RichTextEditor = ({
           if (imagePreview) {
             insertImage(imagePreview.uri);
           }
-        }}
+        }},
       ];
     } else if (isAuthError) {
       errorMessage = '您没有权限上传图片，请重新登录后再试。';
@@ -413,7 +413,7 @@ const RichTextEditor = ({
           if (imagePreview) {
             insertImage(imagePreview.uri);
           }
-        }}
+        }},
       ];
     } else {
       options = [
@@ -428,7 +428,7 @@ const RichTextEditor = ({
             // 直接插入本地图片路径，标记为离线图片
             insertImage(imagePreview.uri);
           }
-        }}
+        }},
       ];
     }
 
@@ -497,7 +497,7 @@ const RichTextEditor = ({
             if (imagePreview) {
               uploadImageToServer(imagePreview);
             }
-          }}
+          }},
         ]
       );
     }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Row, Col, Tabs, Button, DatePicker, 
-  Select, Typography, Spin, Empty, Space, Tooltip, 
-  Statistic, Badge, Divider, Alert
+import {
+  Card, Row, Col, Tabs, Button, DatePicker,
+  Typography, Spin, Empty, Space, Badge, Alert, message
 } from 'antd';
 import {
   UserOutlined, FileTextOutlined, TagOutlined,
@@ -13,13 +12,12 @@ import {
   SettingOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import { Line, Bar, Pie, Area } from '@ant-design/plots';
-import { getDashboardStats } from '../../services/statsService';
+import { getDashboardStats, exportStats } from '../../services/statsService';
 import '../../styles/DataAnalytics.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
-const { Option } = Select;
 
 const DataAnalytics = () => {
   const [loading, setLoading] = useState(true);
@@ -38,76 +36,50 @@ const DataAnalytics = () => {
   });
   const [dateRange, setDateRange] = useState([null, null]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     fetchStats();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = async (params = {}) => {
     setLoading(true);
+    setLoadError('');
     try {
-      // 在实际应用中，这里应该从API获取统计数据
-      // const response = await getDashboardStats();
-      // setStats(response);
-      
-      // 模拟API响应
-      setTimeout(() => {
-        const mockData = {
-          totalUsers: 1234,
-          totalNotes: 5678,
-          totalTags: 256,
-          totalComments: 789,
-          todayNewUsers: 12,
-          todayNewNotes: 45,
-          userGrowthData: {
-            dates: ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05', '2025-01-06', '2025-01-07'],
-            values: [100, 120, 140, 160, 180, 200, 220]
-          },
-          userActivityData: {
-            dates: ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05', '2025-01-06', '2025-01-07'],
-            values: [50, 60, 45, 80, 65, 75, 90]
-          },
-          contentDistribution: {
-            notes: 45,
-            images: 25,
-            audio: 15,
-            video: 10,
-            documents: 5
-          },
-          systemStatus: {
-            cpu: 35,
-            memory: 60,
-            disk: 45
-          },
-          recentUsers: [
-            { id: 1, username: 'user1', email: 'user1@example.com', createdAt: '2025-01-07', status: 'active' },
-            { id: 2, username: 'user2', email: 'user2@example.com', createdAt: '2025-01-06', status: 'active' },
-            { id: 3, username: 'user3', email: 'user3@example.com', createdAt: '2025-01-05', status: 'inactive' }
-          ]
-        };
-        setStats(mockData);
-        setLoading(false);
-      }, 1000);
+      const response = await getDashboardStats(params);
+      setStats((prev) => ({ ...prev, ...(response || {}) }));
     } catch (error) {
-      console.error('获取统计数据失败:', error);
+      const errMsg = error?.response?.data?.message || error?.message || '获取统计数据失败';
+      setLoadError(errMsg);
+      message.error(errMsg);
+    } finally {
       setLoading(false);
     }
   };
 
   const handleDateRangeChange = (dates) => {
     setDateRange(dates);
-    // 在实际应用中，这里应该根据日期范围重新获取数据
-    // fetchStats({ startDate: dates[0], endDate: dates[1] });
+    if (dates && dates.length === 2 && dates[0] && dates[1]) {
+      fetchStats({ startDate: dates[0].format('YYYY-MM-DD'), endDate: dates[1].format('YYYY-MM-DD') });
+    }
   };
 
   const handleRefresh = () => {
     fetchStats();
   };
 
-  const handleExport = () => {
-    // 在实际应用中，这里应该导出统计数据
-    // exportStats();
-    console.log('导出统计数据');
+  const handleExport = async () => {
+    try {
+      const params = {};
+      if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
+        params.startDate = dateRange[0].format('YYYY-MM-DD');
+        params.endDate = dateRange[1].format('YYYY-MM-DD');
+      }
+      await exportStats(params);
+    } catch (error) {
+      const errMsg = error?.response?.data?.message || error?.message || '导出统计数据失败';
+      message.error(errMsg);
+    }
   };
 
   // 用户增长趋势图配置
@@ -682,6 +654,18 @@ const DataAnalytics = () => {
           <Spin size="large" />
           <p>加载数据中...</p>
         </div>
+      ) : loadError ? (
+        <Alert
+          type="error"
+          message="数据加载失败"
+          description={loadError}
+          showIcon
+          action={(
+            <Button size="small" onClick={handleRefresh}>
+              重试
+            </Button>
+          )}
+        />
       ) : (
         <div className="analytics-content">
           {activeTab === 'overview' && renderOverviewTab()}

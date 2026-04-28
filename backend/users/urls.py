@@ -4,9 +4,9 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
+from .views.token_views import CustomTokenRefreshView, CustomLogoutView
 from .views import (
-    UserLogoutView,
+    # UserLogoutView, # Replaced by CustomLogoutView
     UserProfileView,
     PasswordChangeView,
     PasswordResetView,
@@ -36,10 +36,16 @@ from .views.password_reset_api import (
     send_sms_verification,
     reset_password
 )
+# 导入GDPR合规视图
+from .views.gdpr_views import (
+    export_user_data,
+    request_account_deletion,
+    cancel_account_deletion
+)
 
 # 创建路由器
 router = DefaultRouter()
-router.register(r'users', UserViewSet)
+router.register(r'users', UserViewSet, basename='user')
 router.register(r'profiles', UserProfileViewSet, basename='profile')
 router.register(r'settings', UserSettingsViewSet, basename='settings')
 router.register(r'devices', UserDeviceViewSet, basename='device')
@@ -66,8 +72,8 @@ auth_urls = [
     path('login/email/', MongoUserLoginView.as_view({'post': 'create'}), name='login-email'),
 
     # 其他认证相关
-    path('logout/', UserLogoutView.as_view(), name='logout'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('logout/', CustomLogoutView.as_view(), name='logout'),
+    path('token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', UserProfileView.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update'}), name='profile'),
     path('password/change/', PasswordChangeView.as_view(), name='password_change'),
     path('password/reset/', PasswordResetView.as_view(), name='password_reset'),
@@ -97,6 +103,11 @@ auth_urls = [
     path('realm/register/', RealmRegisterView.as_view(), name='realm-register'),
     path('realm/login/', RealmLoginView.as_view(), name='realm-login'),
     path('realm/sync-user/', realm_sync_user, name='realm-sync-user'),
+
+    # GDPR Compliance APIs
+    path('gdpr/export/', export_user_data, name='gdpr-export'),
+    path('gdpr/delete/', request_account_deletion, name='gdpr-delete'),
+    path('gdpr/delete/cancel/', cancel_account_deletion, name='gdpr-delete-cancel'),
 ]
 
 urlpatterns = [

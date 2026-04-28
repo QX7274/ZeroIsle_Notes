@@ -10,17 +10,20 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
-import { requestNotificationPermission } from '../../services/notifications';
+import { requestNotificationPermission } from '../../utils/permissions';
+import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
 
 const NotificationSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  // Ensure we have the correct color object
+  const colors = theme.colors || theme;
   const dispatch = useDispatch();
 
   // 从Redux获取设置
@@ -102,14 +105,14 @@ const NotificationSettingsScreen = ({ navigation }) => {
 
   // 渲染设置项
   const renderSettingItem = ({ icon, title, description, key, disabled = false }) => (
-    <View style={styles.settingItem}>
+    <View style={[styles.settingItem, { borderBottomColor: colors.border || '#f0f0f0' }]}>
       <View style={styles.settingInfo}>
         <View style={styles.settingHeader}>
-          <Icon name={icon} size={20} color={disabled ? colors.textSecondary : colors.text} />
+          <Icon name={icon} size={SIZE.icon.sm} color={disabled ? colors.textSecondary : colors.text} />
           <Text
             style={[
               styles.settingTitle,
-              { color: disabled ? colors.textSecondary : colors.text }
+              { color: disabled ? colors.textSecondary : colors.text },
             ]}
           >
             {title}
@@ -120,7 +123,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
           <Text
             style={[
               styles.settingDescription,
-              { color: colors.textSecondary, fontSize: 12 }
+              { color: colors.textSecondary, fontSize: 12 },
             ]}
           >
             {description}
@@ -131,8 +134,8 @@ const NotificationSettingsScreen = ({ navigation }) => {
       <Switch
         value={settings[key]}
         onValueChange={(value) => updateNotificationSetting(key, value)}
-        trackColor={{ false: colors.border, true: colors.primary + '80' }}
-        thumbColor={settings[key] ? colors.primary : colors.card}
+        trackColor={{ false: colors.border, true: (colors.primary || '#007AFF') + '80' }}
+        thumbColor={settings[key] ? (colors.primary || '#007AFF') : (colors.card || '#FFFFFF')}
         disabled={disabled}
       />
     </View>
@@ -142,17 +145,17 @@ const NotificationSettingsScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content}>
         {/* 通知权限状态 */}
-        <View style={[styles.permissionCard, { backgroundColor: colors.card }]}>
+        <View style={[styles.permissionCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
           <View style={styles.permissionHeader}>
             <Icon
               name={hasPermission ? 'notifications-active' : 'notifications-off'}
-              size={24}
+              size={SIZE.icon.md}
               color={hasPermission ? colors.success : colors.error}
             />
             <Text
               style={[
                 styles.permissionTitle,
-                { fontWeight: 'bold' }
+                { fontWeight: 'bold', color: colors.text },
               ]}
             >
               {hasPermission ? '通知已启用' : '通知已禁用'}
@@ -162,7 +165,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
           <Text
             style={[
               styles.permissionDescription,
-              { color: colors.textSecondary, fontSize: 13 }
+              { color: colors.textSecondary, fontSize: 13 },
             ]}
           >
             {hasPermission
@@ -172,13 +175,13 @@ const NotificationSettingsScreen = ({ navigation }) => {
 
           {!hasPermission && (
             <TouchableOpacity
-              style={[styles.permissionButton, { backgroundColor: colors.primary }]}
+              style={[styles.permissionButton, { backgroundColor: colors.primary || '#007AFF' }]}
               onPress={requestPermission}
               disabled={isLoading}
             >
               <Text
                 style={[
-                  { color: colors.card, fontSize: 13 }
+                  { color: colors.card || '#FFFFFF', fontSize: 13 },
                 ]}
               >
                 {isLoading ? '请求中...' : '授予权限'}
@@ -188,7 +191,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
         </View>
 
         {/* 通知设置 */}
-        <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
           {renderSettingItem({
             icon: 'notifications',
             title: '启用通知',
@@ -231,7 +234,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
         </View>
 
         {/* 通知时间设置 */}
-        <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
           <TouchableOpacity
             style={styles.timeSettingItem}
             onPress={() => navigation.navigate('NotificationTimeSettings')}
@@ -241,13 +244,13 @@ const NotificationSettingsScreen = ({ navigation }) => {
               <View style={styles.settingHeader}>
                 <Icon
                   name="access-time"
-                  size={20}
+                  size={SIZE.icon.sm}
                   color={!hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text}
                 />
                 <Text
                   style={[
                     styles.settingTitle,
-                    { color: !hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text }
+                    { color: !hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text },
                   ]}
                 >
                   免打扰时间
@@ -257,7 +260,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
               <Text
                 style={[
                   styles.settingDescription,
-                  { color: colors.textSecondary, fontSize: 12 }
+                  { color: colors.textSecondary, fontSize: 12 },
                 ]}
               >
                 设置不接收通知的时间段
@@ -266,16 +269,124 @@ const NotificationSettingsScreen = ({ navigation }) => {
 
             <Icon
               name="chevron-right"
-              size={24}
+              size={SIZE.icon.md}
               color={!hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text}
             />
           </TouchableOpacity>
         </View>
 
+        {/* 多渠道通知配置 */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>通知渠道</Text>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+          {renderSettingItem({
+            icon: 'smartphone',
+            title: '推送通知',
+            description: '通过系统推送接收通知',
+            key: 'pushNotificationEnabled',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+
+          {renderSettingItem({
+            icon: 'email',
+            title: '邮件通知',
+            description: '通过邮件接收重要通知摘要',
+            key: 'emailNotificationEnabled',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+
+          {renderSettingItem({
+            icon: 'inbox',
+            title: '应用内通知',
+            description: '在应用内显示通知徽章和弹窗',
+            key: 'inAppNotificationEnabled',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+        </View>
+
+        {/* 通知优先级 */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>通知优先级</Text>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+          <TouchableOpacity
+            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
+            onPress={() => updateNotificationSetting('notificationPriority', 'high')}
+            disabled={!hasPermission || !settings.notificationEnabled}
+          >
+            <View style={styles.priorityInfo}>
+              <Icon name="priority-high" size={SIZE.icon.sm} color={colors.error} />
+              <Text style={[styles.priorityText, { color: colors.text }]}>高优先级</Text>
+            </View>
+            <View style={styles.priorityCheck}>
+              {settings.notificationPriority === 'high' && (
+                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
+            onPress={() => updateNotificationSetting('notificationPriority', 'medium')}
+            disabled={!hasPermission || !settings.notificationEnabled}
+          >
+            <View style={styles.priorityInfo}>
+              <Icon name="notifications" size={SIZE.icon.sm} color={colors.warning} />
+              <Text style={[styles.priorityText, { color: colors.text }]}>中优先级</Text>
+            </View>
+            <View style={styles.priorityCheck}>
+              {settings.notificationPriority === 'medium' && (
+                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
+            onPress={() => updateNotificationSetting('notificationPriority', 'low')}
+            disabled={!hasPermission || !settings.notificationEnabled}
+          >
+            <View style={styles.priorityInfo}>
+              <Icon name="notifications-none" size={SIZE.icon.sm} color={colors.textSecondary} />
+              <Text style={[styles.priorityText, { color: colors.text }]}>低优先级</Text>
+            </View>
+            <View style={styles.priorityCheck}>
+              {settings.notificationPriority === 'low' && (
+                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* 声音和振动 */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>声音和振动</Text>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+          {renderSettingItem({
+            icon: 'volume-up',
+            title: '通知声音',
+            description: '播放通知提示音',
+            key: 'notificationSound',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+
+          {renderSettingItem({
+            icon: 'vibration',
+            title: '振动',
+            description: '收到通知时振动',
+            key: 'notificationVibration',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+
+          {renderSettingItem({
+            icon: 'flash-on',
+            title: 'LED指示灯',
+            description: '有未读通知时闪烁LED灯',
+            key: 'notificationLED',
+            disabled: !hasPermission || !settings.notificationEnabled,
+          })}
+        </View>
+
         <Text
           style={[
             styles.note,
-            { color: colors.textSecondary, fontSize: 12 }
+            { color: colors.textSecondary, fontSize: 12 },
           ]}
         >
           注意：即使启用了通知，您也可能需要在设备设置中允许应用发送通知
@@ -291,55 +402,46 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: SPACING.md,
   },
   permissionCard: {
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...ELEVATION.sm,
   },
   permissionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   permissionTitle: {
-    marginLeft: 8,
+    marginLeft: SPACING.sm,
   },
   permissionDescription: {
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   permissionButton: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
   },
   settingsCard: {
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...ELEVATION.sm,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: SPACING.md,
+    borderBottomWidth: BORDER.width.thin,
   },
   settingInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: SPACING.md,
   },
   settingHeader: {
     flexDirection: 'row',
@@ -347,19 +449,48 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   settingTitle: {
-    marginLeft: 8,
+    marginLeft: SPACING.sm,
   },
   settingDescription: {
-    marginLeft: 28,
+    marginLeft: 28, // Icon size + margin
   },
   timeSettingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: SPACING.md,
   },
   note: {
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
+    paddingHorizontal: 4,
+  },
+  priorityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    borderBottomWidth: BORDER.width.thin,
+  },
+  priorityInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priorityText: {
+    marginLeft: SPACING.sm,
+    fontSize: 14,
+  },
+  priorityCheck: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

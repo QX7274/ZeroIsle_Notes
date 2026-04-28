@@ -18,6 +18,7 @@ SECRET_KEY = 'django-insecure-zeroislenotes-secret-key-for-development'
 
 # 应用定义
 INSTALLED_APPS = [
+    'django_prometheus',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     # 第三方应用
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'channels',
     'django_filters',
     'corsheaders',
@@ -44,26 +46,32 @@ INSTALLED_APPS = [
     'community',
     'search',
     'canvas',
-    'code',
+    'code_editor',
     'common',
     'notification',
     'groups',
     'sync',
     'document_converter',
+    'personal_activity',
+    'tasks',
 ]
 
 # 中间件配置
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'common.middleware.SecurityHeadersMiddleware',
+    'common.middleware.XSSProtectionMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    # 使用自定义认证中间件替换Django的认证中间件
     'users.middleware.CustomAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'common.middleware.RequestLogMiddleware',  # 请求日志中间件
+    'common.middleware.RateLimitMiddleware',
+    'common.middleware.RequestLogMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # URL配置
@@ -107,9 +115,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 连接到MongoDB 
-mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+# 连接到MongoDB
+mongo_uri = os.environ.get('MONGO_URI')  # 强制通过环境变量配置，在开发未设置时走本地连接分支
 mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
+MONGO_DB_NAME = mongo_db_name
 
 # 断开所有现有连接
 mongoengine.disconnect_all()
@@ -199,7 +208,7 @@ AUTH_USER_MODEL = 'users.User'
 # 认证后端
 AUTHENTICATION_BACKENDS = [
     'users.auth.MongoDBUserBackend',
-    'django.contrib.auth.backends.ModelBackend',
+    # 'django.contrib.auth.backends.ModelBackend', # Replaced by MongoDBUserBackend
 ]
 
 # 密码哈希设置
@@ -265,18 +274,34 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+        'user_minute': '20/min',
+        'user_day': '100/day',
+    },
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
     'DEFAULT_VERSION': 'v1',
     'ALLOWED_VERSIONS': ['v1', 'v2'],
     'VERSION_PARAM': 'version',
 }
 
+# Rate Limiting (per IP)
+# Used by common.middleware.RateLimitMiddleware
+RATE_LIMIT = 1000  # requests
+RATE_LIMIT_WINDOW = 60  # seconds
+
+
 # JWT配置
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'BLACKLIST_AFTER_ROTATION': False, # Set to False as we use a custom MongoEngine blacklist
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'VERIFYING_KEY': None,
@@ -322,14 +347,10 @@ WECHAT_APP_SECRET = os.environ.get('WECHAT_APP_SECRET', 'your_wechat_app_secret'
 QQ_APP_ID = os.environ.get('QQ_APP_ID', 'your_qq_app_id')
 QQ_APP_KEY = os.environ.get('QQ_APP_KEY', 'your_qq_app_key')
 
-# CORS配置
-CORS_ALLOW_ALL_ORIGINS = True  # 开发环境下允许所有来源
-# 生产环境应该指定允许的来源
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
-CORS_ALLOW_CREDENTIALS = True
+# CORS配置（按环境覆盖）
+# 在 development.py 中启用 CORS_ALLOW_ALL_ORIGINS = True
+# 在 production.py 中配置 CORS_ALLOWED_ORIGINS 白名单
+# CORS_ALLOW_CREDENTIALS 也由各环境文件自行设置
 
 # Swagger文档配置
 SWAGGER_SETTINGS = {
@@ -342,4 +363,109 @@ SWAGGER_SETTINGS = {
     },
     'USE_SESSION_AUTH': False,
     'JSON_EDITOR': True,
+}
+
+# 搜索服务配置
+SEARCH_VECTOR_MAX_CANDIDATES = 1000  # 向量搜索中用于重排的最大候选集大小
+SEARCH_VECTOR_SIMILARITY_THRESHOLD = 0.1  # 向量搜索的最低相似度阈值
+
+# Vector Search Configuration / 搜索模型配置
+VECTOR_MODEL_TYPE = os.environ.get('VECTOR_MODEL_TYPE', 'sentence_transformer')
+VECTOR_MODEL_NAME = os.environ.get('VECTOR_MODEL_NAME', 'paraphrase-multilingual-MiniLM-L12-v2')
+VECTOR_STORE_TYPE = os.environ.get('VECTOR_STORE_TYPE', 'faiss')
+VECTOR_COLLECTION_NAME = 'zeroisle_notes_vectors'
+
+
+
+
+# 文档转换模式（可选：lite|loffice）
+DOC_CONVERTER_MODE = os.environ.get('DOC_CONVERTER_MODE', 'lite')
+
+# 文档转换器配置
+LIBREOFFICE_PATH = os.environ.get('LIBREOFFICE_PATH', 'libreoffice')
+PANDOC_PATH = os.environ.get('PANDOC_PATH', 'pandoc')
+CONVERSION_TIMEOUT = int(os.environ.get('CONVERSION_TIMEOUT', 300))
+DOWNLOAD_TOKEN_TTL_SECONDS = int(os.environ.get('DOWNLOAD_TOKEN_TTL_SECONDS', 600))
+
+
+# 文件上传配置
+MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 20))
+ALLOWED_UPLOAD_EXTENSIONS = ['.doc', '.docx', '.ppt', '.pptx', '.pdf', '.md', '.txt']
+
+# 对象存储（可选）
+OBJECT_STORAGE_PROVIDER = os.environ.get('OBJECT_STORAGE_PROVIDER', 'none')  # none|s3|minio
+AWS_S3_BUCKET_NAME = os.environ.get('AWS_S3_BUCKET_NAME')
+AWS_S3_ENDPOINT_URL = os.environ.get('AWS_S3_ENDPOINT_URL')
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME')
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+
+# 转换任务限制（资源保护）
+CONVERSION_SOFT_LIMIT = int(os.environ.get('CONVERSION_SOFT_LIMIT', 240))  # seconds
+CONVERSION_HARD_LIMIT = int(os.environ.get('CONVERSION_HARD_LIMIT', 300))  # seconds
+# 病毒扫描（可选）
+DOC_CONVERTER_VIRUS_SCAN = os.environ.get('DOC_CONVERTER_VIRUS_SCAN', 'false').lower() in ('1','true','yes')
+VIRUS_SCAN_AUDIT_LOG_ENABLED = os.environ.get('VIRUS_SCAN_AUDIT_LOG_ENABLED', 'false').lower() in ('1','true','yes')
+
+CLAMAV_HOST = os.environ.get('CLAMAV_HOST', '127.0.0.1')
+CLAMAV_PORT = int(os.environ.get('CLAMAV_PORT', 3310))
+
+DOC_CONVERTER_MAX_PAGES = int(os.environ.get('DOC_CONVERTER_MAX_PAGES', 200))  # pages
+
+
+# Logging Configuration
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'audit': {
+            'format': '{asctime} | {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 2,
+            'formatter': 'verbose',
+        },
+        'virus_scan_audit_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'virus_scan_audit.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 2,
+            'formatter': 'audit',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'virus_scan_audit': {
+            'handlers': ['virus_scan_audit_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
 }

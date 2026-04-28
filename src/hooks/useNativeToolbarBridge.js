@@ -1,494 +1,585 @@
 /**
- * 原生工具栏桥接 Hook
- * 
- * 统一管理工具栏操作到原生组件的桥接逻辑
- * 消除重复代码，一次编写，所有原生页面通用
+ * Native handwriting toolbar bridge.
+ *
+ * JS owns the single source of truth for toolbar state and only sends
+ * normalized protocol commands / tool config snapshots to native surfaces.
  */
 
-import { useCallback, useMemo, useState, useRef } from 'react';
-import { UIManager, findNodeHandle, Alert } from 'react-native';
-import { NATIVE_COMMANDS, TOOL_TYPES, CLEAR_TYPES } from '../config/nativeCommandMap';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { UIManager, findNodeHandle } from 'react-native';
+import {
+  CLEAR_TYPES,
+  DEFAULT_RECOGNITION_DEBOUNCE_MS,
+  INTERACTION_MODES,
+  SURFACE_COMPONENTS,
+  getSurfaceCommandNames,
+  normalizeClearScope,
+  normalizeInteractionMode,
+  normalizeRecognitionSelection,
+} from '../config/nativeCommandMap';
+import { recognizeHandwriting } from '../native/recognitionBridge';
 
-/**
- * 分发命令到原生组件
- * @param {Object} viewRef - 原生视图引用
- * @param {number} commandId - 命令ID
- * @param {Array} args - 命令参数
- */
-const dispatchCommand = (viewRef, commandId, args = []) => {
-  if (!viewRef || !viewRef.current) {
-    console.warn('[useNativeToolbarBridge] 原生视图引用无效');
-    return;
-  }
+const PROFILE_DEFAULTS = Object.freeze({
+  fountain: {
+    penProfile: 'fountain',
+    pressureSensitivity: 0.9,
+    velocitySensitivity: 0.45,
+    taperIn: 0.28,
+    taperOut: 0.22,
+    smoothing: 0.72,
+  },
+  pencil: {
+    penProfile: 'pencil',
+    pressureSensitivity: 0.55,
+    velocitySensitivity: 0.35,
+    taperIn: 0.08,
+    taperOut: 0.08,
+    smoothing: 0.45,
+  },
+  brush: {
+    penProfile: 'brush',
+    pressureSensitivity: 1,
+    velocitySensitivity: 0.7,
+    taperIn: 0.32,
+    taperOut: 0.26,
+    smoothing: 0.82,
+  },
+  marker: {
+    penProfile: 'marker',
+    pressureSensitivity: 0.18,
+    velocitySensitivity: 0.08,
+    taperIn: 0,
+    taperOut: 0,
+    smoothing: 0.3,
+  },
+});
 
-  if (commandId === null || commandId === undefined) {
-    console.warn('[useNativeToolbarBridge] 命令ID无效，可能该操作不被支持');
-    return;
-  }
+const TOOL_TO_PROFILE = Object.freeze({
+  pen: 'fountain',
+  pencil: 'pencil',
+  brush: 'brush',
+  highlighter: 'marker',
+});
 
-  try {
-    const nodeHandle = findNodeHandle(viewRef.current);
-    if (!nodeHandle) {
-      console.error('[useNativeToolbarBridge] 无法获取原生视图句柄');
-      return;
-    }
+const TOOL_TO_INTERACTION_MODE = Object.freeze({
+  pan: INTERACTION_MODES.GESTURE,
+  lasso: INTERACTION_MODES.MIXED,
+  eraser: INTERACTION_MODES.MIXED,
+  default: INTERACTION_MODES.MIXED,
+});
 
-    UIManager.dispatchViewManagerCommand(
-      nodeHandle,
-      commandId.toString(),
-      args
-    );
-  } catch (error) {
-    console.error('[useNativeToolbarBridge] 命令分发失败:', error);
-  }
+const DEFAULT_TOOL_CONFIG = Object.freeze({
+  tool: 'pen',
+  color: '#000000',
+  size: 2,
+  opacity: 1,
+  penProfile: 'fountain',
+  shape: 'freehand',
+  pressureSensitivity: PROFILE_DEFAULTS.fountain.pressureSensitivity,
+  velocitySensitivity: PROFILE_DEFAULTS.fountain.velocitySensitivity,
+  taperIn: PROFILE_DEFAULTS.fountain.taperIn,
+  taperOut: PROFILE_DEFAULTS.fountain.taperOut,
+  smoothing: PROFILE_DEFAULTS.fountain.smoothing,
+  recognitionEnabled: true,
+  recognitionDebounceMs: DEFAULT_RECOGNITION_DEBOUNCE_MS,
+  palmRejectionEnabled: true,
+  fingerMode: 'gesture_only',
+});
+
+const toFiniteNumber = (value, fallback) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-/**
- * 原生工具栏桥接 Hook
- * 
- * @param {Object} nativeViewRef - 原生视图引用
- * @param {string} viewType - 视图类型: 'pdf' | 'paged' | 'infinite'
- * @param {Object} options - 配置选项
- * @returns {Object} 工具栏 props
- */
-export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) => {
-  const {
-    onSaveSuccess,
-    onSaveError,
-    currentPage = 1,
-    totalPages = 1,
-  } = options;
+const clamp = (value, min, max, fallback) => {
+  const numeric = toFiniteNumber(value, fallback);
+  return Math.min(max, Math.max(min, numeric));
+};
 
-  // 获取对应的命令映射
-  const commands = NATIVE_COMMANDS[viewType];
-  if (!commands) {
-    console.error(`[useNativeToolbarBridge] 未知的视图类型: ${viewType}`);
-    // 返回默认命令映射，防止完全失败
-    return {
-      currentTool: 'pen',
-      currentColor: '#000000',
-      currentStrokeWidth: 2,
-      onToolChange: () => {},
-      onColorChange: () => {},
-      onStrokeWidthChange: () => {},
-      onUndo: () => {},
-      onRedo: () => {},
-      onClear: () => {},
-      canUndo: false,
-      canRedo: false,
-      onAIToolSelect: () => {},
-      onBookmarkAdd: () => {},
-      onBookmarkList: () => {},
-      onBookmarkNavigate: () => {},
-      onTextAdd: () => {},
-      onImageUpload: () => {},
-      onLassoSelect: () => {},
-      onLassoComplete: () => {},
-      currentPage: currentPage,
-    };
+const normalizeColor = (value, fallback = DEFAULT_TOOL_CONFIG.color) => {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  return fallback;
+};
+
+const inferPenProfile = (tool, nextProfile, previousProfile) => {
+  if (typeof nextProfile === 'string' && PROFILE_DEFAULTS[nextProfile]) {
+    return nextProfile;
   }
 
-  // 状态管理
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const [currentTool, setCurrentTool] = useState('pen');
-  const [currentColor, setCurrentColor] = useState('#000000');
-  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+  if (typeof previousProfile === 'string' && PROFILE_DEFAULTS[previousProfile]) {
+    return previousProfile;
+  }
 
-  // 历史记录追踪（用于撤销/重做按钮状态）
-  const historyStack = useRef({ undoStack: [], redoStack: [] });
+  return TOOL_TO_PROFILE[tool] || DEFAULT_TOOL_CONFIG.penProfile;
+};
 
-  /**
-   * 处理工具变化
-   */
+export const buildHandwritingToolConfig = (partialConfig = {}, previousConfig = DEFAULT_TOOL_CONFIG) => {
+  const mergedInput = partialConfig && typeof partialConfig === 'object'
+    ? partialConfig
+    : { tool: partialConfig };
+
+  const tool = mergedInput.tool || mergedInput.type || previousConfig.tool || DEFAULT_TOOL_CONFIG.tool;
+  const penProfile = inferPenProfile(tool, mergedInput.penProfile, previousConfig.penProfile);
+  const profileDefaults = PROFILE_DEFAULTS[penProfile] || PROFILE_DEFAULTS.fountain;
+  const defaultOpacity = tool === 'highlighter' ? 0.4 : previousConfig.opacity ?? DEFAULT_TOOL_CONFIG.opacity;
+
+  return {
+    ...DEFAULT_TOOL_CONFIG,
+    ...previousConfig,
+    ...profileDefaults,
+    ...mergedInput,
+    tool,
+    color: normalizeColor(mergedInput.color ?? previousConfig.color),
+    size: toFiniteNumber(mergedInput.size ?? mergedInput.strokeWidth ?? previousConfig.size, DEFAULT_TOOL_CONFIG.size),
+    opacity: clamp(mergedInput.opacity ?? defaultOpacity, 0, 1, defaultOpacity),
+    penProfile,
+    shape: mergedInput.shape || previousConfig.shape || DEFAULT_TOOL_CONFIG.shape,
+    pressureSensitivity: clamp(
+      mergedInput.pressureSensitivity ?? previousConfig.pressureSensitivity ?? profileDefaults.pressureSensitivity,
+      0,
+      1,
+      profileDefaults.pressureSensitivity
+    ),
+    velocitySensitivity: clamp(
+      mergedInput.velocitySensitivity ?? previousConfig.velocitySensitivity ?? profileDefaults.velocitySensitivity,
+      0,
+      1,
+      profileDefaults.velocitySensitivity
+    ),
+    taperIn: clamp(mergedInput.taperIn ?? previousConfig.taperIn ?? profileDefaults.taperIn, 0, 1, profileDefaults.taperIn),
+    taperOut: clamp(mergedInput.taperOut ?? previousConfig.taperOut ?? profileDefaults.taperOut, 0, 1, profileDefaults.taperOut),
+    smoothing: clamp(mergedInput.smoothing ?? previousConfig.smoothing ?? profileDefaults.smoothing, 0, 1, profileDefaults.smoothing),
+    recognitionEnabled: mergedInput.recognitionEnabled ?? previousConfig.recognitionEnabled ?? DEFAULT_TOOL_CONFIG.recognitionEnabled,
+    recognitionDebounceMs: Math.max(
+      0,
+      Math.round(
+        toFiniteNumber(
+          mergedInput.recognitionDebounceMs ?? previousConfig.recognitionDebounceMs,
+          DEFAULT_RECOGNITION_DEBOUNCE_MS
+        )
+      )
+    ),
+    palmRejectionEnabled: mergedInput.palmRejectionEnabled ?? previousConfig.palmRejectionEnabled ?? DEFAULT_TOOL_CONFIG.palmRejectionEnabled,
+    fingerMode: mergedInput.fingerMode || previousConfig.fingerMode || DEFAULT_TOOL_CONFIG.fingerMode,
+  };
+};
+
+const resolveInteractionMode = (config) => {
+  if (config?.interactionMode) {
+    return normalizeInteractionMode(config.interactionMode);
+  }
+
+  return TOOL_TO_INTERACTION_MODE[config?.tool] || TOOL_TO_INTERACTION_MODE.default;
+};
+
+const getCommandId = (viewType, commandName) => {
+  const componentName = SURFACE_COMPONENTS[viewType];
+  if (!componentName) {
+    return null;
+  }
+
+  const managerConfig = UIManager.getViewManagerConfig(componentName);
+  const commandMap = managerConfig?.Commands;
+  if (!commandMap) {
+    return null;
+  }
+
+  const aliases = getSurfaceCommandNames(viewType, commandName);
+  for (const alias of aliases) {
+    if (commandMap[alias] !== undefined && commandMap[alias] !== null) {
+      return commandMap[alias];
+    }
+  }
+
+  return null;
+};
+
+const dispatchCommand = (viewRef, viewType, commandName, args = []) => {
+  if (!viewRef?.current) {
+    return false;
+  }
+
+  const nodeHandle = findNodeHandle(viewRef.current);
+  if (!nodeHandle) {
+    return false;
+  }
+
+  const commandId = getCommandId(viewType, commandName);
+  if (commandId === null || commandId === undefined) {
+    return false;
+  }
+
+  UIManager.dispatchViewManagerCommand(nodeHandle, commandId.toString(), args);
+  return true;
+};
+
+export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) => {
+  const {
+    onAIToolSelect: onAIToolSelectExternal,
+    onBookmarkAdd: onBookmarkAddExternal,
+    onBookmarkList: onBookmarkListExternal,
+    onBookmarkNavigate: onBookmarkNavigateExternal,
+    onHistoryStateChange,
+    onRecognitionResult,
+    canUndo: canUndoExternal,
+    canRedo: canRedoExternal,
+    historyState,
+    currentPage = 1,
+    totalPages = 1,
+    initialToolConfig,
+  } = options;
+
+  const initialConfig = useMemo(
+    () => buildHandwritingToolConfig(initialToolConfig || {}),
+    [initialToolConfig]
+  );
+
+  const [canUndo, setCanUndo] = useState(Boolean(historyState?.canUndo ?? canUndoExternal));
+  const [canRedo, setCanRedo] = useState(Boolean(historyState?.canRedo ?? canRedoExternal));
+  const [currentToolConfig, setCurrentToolConfig] = useState(initialConfig);
+
+  const currentToolConfigRef = useRef(initialConfig);
+  const lastSentToolConfigRef = useRef('');
+  const recognitionTimerRef = useRef(null);
+  const pendingRecognitionRef = useRef(null);
+
+  useEffect(() => {
+    const undoState = historyState?.canUndo;
+    if (typeof undoState === 'boolean') {
+      setCanUndo(undoState);
+    } else if (typeof canUndoExternal === 'boolean') {
+      setCanUndo(canUndoExternal);
+    }
+  }, [historyState?.canUndo, canUndoExternal]);
+
+  useEffect(() => {
+    const redoState = historyState?.canRedo;
+    if (typeof redoState === 'boolean') {
+      setCanRedo(redoState);
+    } else if (typeof canRedoExternal === 'boolean') {
+      setCanRedo(canRedoExternal);
+    }
+  }, [historyState?.canRedo, canRedoExternal]);
+
+  useEffect(() => {
+    if (typeof onHistoryStateChange === 'function') {
+      onHistoryStateChange({ canUndo, canRedo, viewType });
+    }
+  }, [canUndo, canRedo, viewType, onHistoryStateChange]);
+
+  useEffect(() => () => {
+    if (recognitionTimerRef.current) {
+      clearTimeout(recognitionTimerRef.current);
+    }
+  }, []);
+
+  const applyToolConfig = useCallback((nextConfigInput) => {
+    const nextConfig = buildHandwritingToolConfig(nextConfigInput, currentToolConfigRef.current);
+    currentToolConfigRef.current = nextConfig;
+    setCurrentToolConfig(nextConfig);
+
+    dispatchCommand(nativeViewRef, viewType, 'setTool', [nextConfig.tool]);
+    dispatchCommand(nativeViewRef, viewType, 'setColor', [nextConfig.color]);
+    dispatchCommand(nativeViewRef, viewType, 'setStrokeWidth', [nextConfig.size]);
+    dispatchCommand(nativeViewRef, viewType, 'setInteractionMode', [resolveInteractionMode(nextConfig)]);
+
+    const serializedConfig = JSON.stringify(nextConfig);
+    if (serializedConfig !== lastSentToolConfigRef.current) {
+      dispatchCommand(nativeViewRef, viewType, 'setToolConfig', [serializedConfig]);
+      lastSentToolConfigRef.current = serializedConfig;
+    }
+
+    return nextConfig;
+  }, [nativeViewRef, viewType]);
+
+  useEffect(() => {
+    applyToolConfig(initialConfig);
+  }, [applyToolConfig, initialConfig]);
+
   const handleToolChange = useCallback((tool) => {
-    const toolType = typeof tool === 'string' ? tool : tool.type || 'pen';
-    console.log(`[useNativeToolbarBridge:${viewType}] 工具变化:`, tool);
+    const nextConfig = typeof tool === 'string' ? { tool } : tool;
+    applyToolConfig(nextConfig);
+  }, [applyToolConfig]);
 
-    setCurrentTool(toolType);
-
-    // 发送基础工具类型
-    dispatchCommand(
-      nativeViewRef,
-      commands.setDrawingTool || commands.setCurrentTool,
-      [toolType]
-    );
-
-    // 处理工具特殊配置
-    if (tool && typeof tool === 'object' && commands.setToolConfig) {
-      const config = {};
-
-      if (tool.type === 'highlighter') {
-        config.opacity = tool.opacity || 0.4;
-        config.blendMode = tool.blendMode || 'multiply';
-      } else if (tool.type === 'laser') {
-        config.fadeOutDuration = tool.fadeOutDuration || 3000;
-        config.animationSteps = tool.animationSteps || 60;
-      } else if (tool.type === 'eraser') {
-        config.size = tool.size || 16;
-        config.mode = tool.mode || 'erase';
-      } else if (tool.type === 'lasso') {
-        config.mode = tool.mode || 'select';
-        config.allowMove = tool.allowMove !== false;  // 默认允许移动
-        config.allowCopy = tool.allowCopy !== false;  // 默认允许复制
-        config.allowDelete = tool.allowDelete !== false;  // 默认允许删除
-      } else if (tool.type === 'shape') {
-        config.shape = tool.shape || 'line';
-      }
-
-      // 如果有配置，发送到原生层
-      if (Object.keys(config).length > 0) {
-        console.log(`[useNativeToolbarBridge:${viewType}] 工具配置:`, config);
-        dispatchCommand(
-          nativeViewRef,
-          commands.setToolConfig,
-          [JSON.stringify(config)]
-        );
-      }
-    }
-  }, [nativeViewRef, commands, viewType]);
-
-  /**
-   * 处理颜色变化
-   */
   const handleColorChange = useCallback((color) => {
-    const colorValue = typeof color === 'string' ? color : color.hex || '#000000';
-    console.log(`[useNativeToolbarBridge:${viewType}] 颜色变化:`, colorValue);
+    applyToolConfig({ color });
+  }, [applyToolConfig]);
 
-    setCurrentColor(colorValue);
-    dispatchCommand(
-      nativeViewRef,
-      commands.setDrawingColor || commands.setCurrentColor,
-      [colorValue]
-    );
-  }, [nativeViewRef, commands, viewType]);
-
-  /**
-   * 处理笔触粗细变化
-   */
   const handleStrokeWidthChange = useCallback((width) => {
-    const widthValue = Number(width) || 2;
-    console.log(`[useNativeToolbarBridge:${viewType}] 粗细变化:`, widthValue);
+    applyToolConfig({ size: width });
+  }, [applyToolConfig]);
 
-    setCurrentStrokeWidth(widthValue);
-    dispatchCommand(
-      nativeViewRef,
-      commands.setDrawingWidth || commands.setCurrentStrokeWidth,
-      [widthValue]
-    );
-  }, [nativeViewRef, commands, viewType]);
+  const handleToolConfigChange = useCallback((config) => {
+    applyToolConfig(config);
+  }, [applyToolConfig]);
 
-  /**
-   * 撤销
-   */
   const handleUndo = useCallback(() => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 撤销`);
-
-    if (commands.undo) {
-      dispatchCommand(nativeViewRef, commands.undo, []);
-      // 更新历史状态（简化版，实际应该监听原生事件）
-      setCanUndo(historyStack.current.undoStack.length > 1);
+    if (dispatchCommand(nativeViewRef, viewType, 'undo')) {
       setCanRedo(true);
-    } else {
-      console.warn(`[useNativeToolbarBridge:${viewType}] 该视图不支持撤销操作`);
     }
-  }, [nativeViewRef, commands, viewType]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 重做
-   */
   const handleRedo = useCallback(() => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 重做`);
-
-    if (commands.redo) {
-      dispatchCommand(nativeViewRef, commands.redo, []);
-      // 更新历史状态
-      setCanRedo(historyStack.current.redoStack.length > 1);
+    if (dispatchCommand(nativeViewRef, viewType, 'redo')) {
       setCanUndo(true);
-    } else {
-      console.warn(`[useNativeToolbarBridge:${viewType}] 该视图不支持重做操作`);
     }
-  }, [nativeViewRef, commands, viewType]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 清除 - 多级菜单
-   */
-  const handleClear = useCallback((clearType) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 清除类型:`, clearType);
+  const handleClear = useCallback((clearScope) => {
+    const normalizedScope = normalizeClearScope(clearScope);
+    if (dispatchCommand(nativeViewRef, viewType, 'clear', [normalizedScope])) {
+      setCanUndo(true);
+      setCanRedo(false);
+    }
+  }, [nativeViewRef, viewType]);
 
-    if (!clearType) {
-      // 显示第一级菜单：选择清除类型
-      Alert.alert(
-        '清除',
-        '选择清除类型：',
-        [
-          { text: '取消', style: 'cancel' },
-          {
-            text: '按范围清除',
-            onPress: () => showRangeClearOptions()
-          },
-          {
-            text: '清除选中内容',
-            onPress: () => confirmClear(CLEAR_TYPES.SELECTED)
-          }
-        ]
+  const handleAIToolSelect = useCallback((tool) => {
+    if (typeof onAIToolSelectExternal === 'function') {
+      onAIToolSelectExternal(tool);
+    }
+  }, [onAIToolSelectExternal]);
+
+  const handleBookmarkAdd = useCallback((bookmark) => {
+    if (typeof onBookmarkAddExternal === 'function') {
+      onBookmarkAddExternal(bookmark);
+    }
+  }, [onBookmarkAddExternal]);
+
+  const handleBookmarkList = useCallback(() => {
+    if (typeof onBookmarkListExternal === 'function') {
+      onBookmarkListExternal();
+    }
+  }, [onBookmarkListExternal]);
+
+  const handleBookmarkNavigate = useCallback((bookmark) => {
+    if (typeof onBookmarkNavigateExternal === 'function') {
+      onBookmarkNavigateExternal(bookmark);
+    }
+
+    if (bookmark?.pageNumber) {
+      dispatchCommand(nativeViewRef, viewType, 'setPage', [bookmark.pageNumber - 1]);
+    }
+  }, [nativeViewRef, onBookmarkNavigateExternal, viewType]);
+
+  const handleTextAdd = useCallback((textConfig) => {
+    if (textConfig?.text) {
+      dispatchCommand(nativeViewRef, viewType, 'addText', [textConfig.text]);
+    }
+  }, [nativeViewRef, viewType]);
+
+  const handleImageUpload = useCallback((imageInfo) => {
+    if (imageInfo?.uri) {
+      dispatchCommand(nativeViewRef, viewType, 'addImage', [imageInfo.uri]);
+    }
+  }, [nativeViewRef, viewType]);
+
+  const handleLassoSelect = useCallback((selectionPath) => {
+    dispatchCommand(nativeViewRef, viewType, 'lassoUpdate', [JSON.stringify(selectionPath)]);
+  }, [nativeViewRef, viewType]);
+
+  const handleLassoComplete = useCallback((selectedItems) => {
+    dispatchCommand(nativeViewRef, viewType, 'lassoComplete', [JSON.stringify(selectedItems)]);
+  }, [nativeViewRef, viewType]);
+
+  const requestRecognition = useCallback(async (request = {}) => {
+    if (!currentToolConfigRef.current.recognitionEnabled) {
+      return '';
+    }
+
+    const normalizedRequest = typeof request === 'string'
+      ? { selection: request }
+      : (request || {});
+
+    const scope = normalizeRecognitionSelection(normalizedRequest.selection || normalizedRequest.scope);
+    const payload = {
+      scope,
+      selection: scope,
+      count: normalizedRequest.count || 5,
+      strokeId: normalizedRequest.strokeId || null,
+      strokeIds: Array.isArray(normalizedRequest.strokeIds) ? normalizedRequest.strokeIds : [],
+      surfaceId: viewType,
+      pageId: normalizedRequest.pageId || null,
+      documentPage: normalizedRequest.documentPage || currentPage || null,
+      bounds: normalizedRequest.bounds || null,
+    };
+
+    if (viewType === 'pdf') {
+      dispatchCommand(
+        nativeViewRef,
+        viewType,
+        'recognize',
+        [JSON.stringify(payload)]
       );
+      return '';
+    }
+
+    const reactTag = findNodeHandle(nativeViewRef?.current);
+    if (!reactTag) {
+      return '';
+    }
+
+    try {
+      const text = await recognizeHandwriting(viewType, reactTag, {
+        count: payload.count,
+        strokeIds: payload.strokeIds,
+      });
+
+      if (typeof onRecognitionResult === 'function') {
+        onRecognitionResult({
+          surfaceId: viewType,
+          scope,
+          text,
+          confidence: 0,
+          bounds: payload.bounds,
+          sourceStrokeIds: payload.strokeIds,
+        });
+      }
+
+      return text;
+    } catch (error) {
+      console.error(`[useNativeToolbarBridge:${viewType}] recognition failed`, error);
+      if (typeof onRecognitionResult === 'function') {
+        onRecognitionResult({
+          surfaceId: viewType,
+          scope,
+          text: '',
+          confidence: 0,
+          bounds: payload.bounds,
+          sourceStrokeIds: payload.strokeIds,
+          error,
+        });
+      }
+      return '';
+    }
+  }, [currentPage, nativeViewRef, onRecognitionResult, viewType]);
+
+  const cancelScheduledRecognition = useCallback(() => {
+    if (recognitionTimerRef.current) {
+      clearTimeout(recognitionTimerRef.current);
+      recognitionTimerRef.current = null;
+    }
+    pendingRecognitionRef.current = null;
+  }, []);
+
+  const scheduleRecognition = useCallback((request = {}) => {
+    if (!currentToolConfigRef.current.recognitionEnabled) {
       return;
     }
 
-    // 第二级：范围选择
-    const showRangeClearOptions = () => {
-      Alert.alert(
-        '清除范围',
-        '选择范围：',
-        [
-          { text: '返回', style: 'cancel' },
-          {
-            text: '当前视图',
-            onPress: () => confirmClear(CLEAR_TYPES.CURRENT_VIEW)
-          },
-          {
-            text: '当前页面',
-            onPress: () => confirmClear(CLEAR_TYPES.CURRENT_PAGE)
-          },
-          {
-            text: '整个文档',
-            onPress: () => confirmClear(CLEAR_TYPES.ENTIRE_DOCUMENT),
-            style: 'destructive'
-          }
-        ]
-      );
-    };
-
-    // 第三级：危险操作确认
-    const confirmClear = (type) => {
-      if (type === CLEAR_TYPES.ENTIRE_DOCUMENT || type === CLEAR_TYPES.CURRENT_PAGE) {
-        const message = type === CLEAR_TYPES.ENTIRE_DOCUMENT 
-          ? '确定要清除整个文档吗？此操作无法撤销。'
-          : '确定要清除当前页面吗？此操作无法撤销。';
-        
-        Alert.alert(
-          '确认',
-          message,
-          [
-            { text: '取消', style: 'cancel' },
-            {
-              text: '确定',
-              style: 'destructive',
-              onPress: () => executeClear(type)
-            }
-          ]
-        );
-      } else {
-        executeClear(type);
-      }
-    };
-
-    // 执行清除
-    const executeClear = (type) => {
-      if (commands.clear) {
-        dispatchCommand(nativeViewRef, commands.clear, [type]);
-        setCanUndo(true);
-        setCanRedo(false);
-      } else {
-        console.warn(`[useNativeToolbarBridge:${viewType}] 该视图不支持清除操作`);
-      }
-    };
-
-    // 如果直接传入了清除类型，执行确认流程
-    if (clearType) {
-      confirmClear(clearType);
+    pendingRecognitionRef.current = request;
+    if (recognitionTimerRef.current) {
+      clearTimeout(recognitionTimerRef.current);
     }
-  }, [nativeViewRef, commands, viewType]);
 
-  /**
-   * AI工具选择（仅传递到上层，不直接操作原生层）
-   */
-  const handleAIToolSelect = useCallback((tool) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] AI工具:`, tool.id);
-    // AI处理在JS层完成，这里只是占位
-  }, [viewType]);
+    recognitionTimerRef.current = setTimeout(() => {
+      const pendingRequest = pendingRecognitionRef.current || {};
+      pendingRecognitionRef.current = null;
+      recognitionTimerRef.current = null;
+      requestRecognition(pendingRequest);
+    }, currentToolConfigRef.current.recognitionDebounceMs || DEFAULT_RECOGNITION_DEBOUNCE_MS);
+  }, [requestRecognition]);
 
-  /**
-   * 书签添加
-   */
-  const handleBookmarkAdd = useCallback((bookmark) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 添加书签:`, bookmark);
-    // 书签功能在JS层处理
-  }, [viewType]);
+  const setInteractionMode = useCallback((mode) => {
+    dispatchCommand(nativeViewRef, viewType, 'setInteractionMode', [normalizeInteractionMode(mode)]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 书签列表
-   */
-  const handleBookmarkList = useCallback(() => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 显示书签列表`);
-    // 书签功能在JS层处理
-  }, [viewType]);
-
-  /**
-   * 书签导航
-   */
-  const handleBookmarkNavigate = useCallback((bookmark) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 导航到书签:`, bookmark);
-    
-    // 如果有页码跳转命令，执行跳转
-    if (bookmark.pageNumber && commands.goToPage) {
-      dispatchCommand(
-        nativeViewRef,
-        commands.goToPage,
-        [bookmark.pageNumber - 1] // 转换为0-based索引
-      );
-    } else if (bookmark.pageNumber && commands.setCurrentPage) {
-      dispatchCommand(
-        nativeViewRef,
-        commands.setCurrentPage,
-        [bookmark.pageNumber - 1]
-      );
+  const setViewport = useCallback((viewport) => {
+    const didDispatch = dispatchCommand(nativeViewRef, viewType, 'setViewport', [JSON.stringify(viewport)]);
+    if (!didDispatch && nativeViewRef?.current?.setNativeProps) {
+      nativeViewRef.current.setNativeProps({ viewport });
     }
-  }, [nativeViewRef, commands, viewType]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 文本添加
-   */
-  const handleTextAdd = useCallback((textConfig) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 添加文本:`, textConfig);
-
-    if (commands.addTextAnnotation) {
-      // PDF 文本注释
-      dispatchCommand(
-        nativeViewRef,
-        commands.addTextAnnotation,
-        [textConfig.text]
-      );
-    } else if (commands.insertText) {
-      // 分页笔记文本插入
-      dispatchCommand(
-        nativeViewRef,
-        commands.insertText,
-        [textConfig.text]
-      );
-    } else if (commands.addTextElement) {
-      // 无限画布文本元素
-      dispatchCommand(
-        nativeViewRef,
-        commands.addTextElement,
-        [textConfig.text]
-      );
+  const resetViewport = useCallback(() => {
+    const didDispatch = dispatchCommand(nativeViewRef, viewType, 'resetViewport', []);
+    if (!didDispatch) {
+      setViewport({ x: 0, y: 0, scale: 1 });
     }
-  }, [nativeViewRef, commands, viewType]);
+  }, [setViewport, nativeViewRef, viewType]);
 
-  /**
-   * 图片上传
-   */
-  const handleImageUpload = useCallback((imageInfo) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 上传图片:`, imageInfo);
-    // 图片处理逻辑（如果原生支持）
-  }, [viewType]);
+  const exportAnnotations = useCallback((optionsPayload) => {
+    const payload = typeof optionsPayload === 'string'
+      ? optionsPayload
+      : JSON.stringify(optionsPayload || {});
+    dispatchCommand(nativeViewRef, viewType, 'exportAnnotations', [payload]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 套索选择
-   */
-  const handleLassoSelect = useCallback((selectionPath) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 套索选择:`, selectionPath);
-    
-    if (commands.lassoSelect) {
-      dispatchCommand(
-        nativeViewRef,
-        commands.lassoSelect,
-        [JSON.stringify(selectionPath)]
-      );
-    }
-  }, [nativeViewRef, commands, viewType]);
+  const importAnnotations = useCallback((payload) => {
+    const serializedPayload = typeof payload === 'string' ? payload : JSON.stringify(payload || {});
+    dispatchCommand(nativeViewRef, viewType, 'importAnnotations', [serializedPayload]);
+  }, [nativeViewRef, viewType]);
 
-  /**
-   * 套索完成
-   */
-  const handleLassoComplete = useCallback((selectedItems) => {
-    console.log(`[useNativeToolbarBridge:${viewType}] 套索完成，选中项:`, selectedItems);
-    
-    if (commands.lassoComplete) {
-      dispatchCommand(
-        nativeViewRef,
-        commands.lassoComplete,
-        [JSON.stringify(selectedItems)]
-      );
-    }
-  }, [nativeViewRef, commands, viewType]);
-
-  // 组装工具栏 props
-  const toolbarProps = useMemo(() => {
-    const props = {
-      // 工具切换
-      onToolChange: handleToolChange,
-      onColorChange: handleColorChange,
-      onStrokeWidthChange: handleStrokeWidthChange,
-
-      // 编辑操作
-      onUndo: handleUndo,
-      onRedo: handleRedo,
-      onClear: handleClear,
-      canUndo: canUndo,
-      canRedo: canRedo,
-
-      // AI工具
-      onAIToolSelect: handleAIToolSelect,
-
-      // 书签
-      onBookmarkAdd: handleBookmarkAdd,
-      onBookmarkList: handleBookmarkList,
-      onBookmarkNavigate: handleBookmarkNavigate,
-      currentPage: currentPage,
-
-      // 文本和图片
-      onTextAdd: handleTextAdd,
-      onImageUpload: handleImageUpload,
-
-      // 套索工具
-      onLassoSelect: handleLassoSelect,
-      onLassoComplete: handleLassoComplete,
-
-      // 当前状态（保持向后兼容）
-      initialTool: currentTool,
-      initialColor: currentColor,
-      initialStrokeWidth: currentStrokeWidth,
-      // 添加当前状态属性供原生组件使用
-      currentTool: currentTool,
-      currentColor: currentColor,
-      currentStrokeWidth: currentStrokeWidth,
-    };
-    
-    // 确保所有必需的属性都存在
-    console.log(`[useNativeToolbarBridge:${viewType}] 工具栏属性初始化:`, {
-      currentTool: props.currentTool,
-      currentColor: props.currentColor,
-      currentStrokeWidth: props.currentStrokeWidth,
-    });
-    
-    return props;
-  }, [
-    handleToolChange,
-    handleColorChange,
-    handleStrokeWidthChange,
-    handleUndo,
-    handleRedo,
-    handleClear,
+  const toolbarProps = useMemo(() => ({
+    onToolChange: handleToolChange,
+    onToolConfigChange: handleToolConfigChange,
+    onColorChange: handleColorChange,
+    onStrokeWidthChange: handleStrokeWidthChange,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onClear: handleClear,
     canUndo,
     canRedo,
+    onAIToolSelect: handleAIToolSelect,
+    onBookmarkAdd: handleBookmarkAdd,
+    onBookmarkList: handleBookmarkList,
+    onBookmarkNavigate: handleBookmarkNavigate,
+    currentPage,
+    totalPages,
+    onTextAdd: handleTextAdd,
+    onImageUpload: handleImageUpload,
+    onLassoSelect: handleLassoSelect,
+    onLassoComplete: handleLassoComplete,
+    initialTool: currentToolConfig.tool,
+    initialColor: currentToolConfig.color,
+    initialStrokeWidth: currentToolConfig.size,
+    currentTool: currentToolConfig.tool,
+    currentColor: currentToolConfig.color,
+    currentStrokeWidth: currentToolConfig.size,
+    currentToolConfig,
+    requestRecognition,
+    scheduleRecognition,
+    cancelScheduledRecognition,
+    setToolConfig: applyToolConfig,
+    setInteractionMode,
+    setViewport,
+    resetViewport,
+    exportAnnotations,
+    importAnnotations,
+  }), [
+    applyToolConfig,
+    canRedo,
+    canUndo,
+    cancelScheduledRecognition,
+    currentPage,
+    currentToolConfig,
+    exportAnnotations,
     handleAIToolSelect,
     handleBookmarkAdd,
     handleBookmarkList,
     handleBookmarkNavigate,
-    handleTextAdd,
+    handleClear,
+    handleColorChange,
     handleImageUpload,
-    handleLassoSelect,
     handleLassoComplete,
-    currentTool,
-    currentColor,
-    currentStrokeWidth,
-    currentPage,
+    handleLassoSelect,
+    handleRedo,
+    handleStrokeWidthChange,
+    handleTextAdd,
+    handleToolChange,
+    handleToolConfigChange,
+    handleUndo,
+    importAnnotations,
+    requestRecognition,
+    resetViewport,
+    scheduleRecognition,
+    setInteractionMode,
+    setViewport,
+    totalPages,
   ]);
 
   return toolbarProps;
 };
 
-
+export default useNativeToolbarBridge;

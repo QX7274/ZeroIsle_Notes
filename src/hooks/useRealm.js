@@ -40,7 +40,7 @@ const useRealm = (collectionName) => {
 
     try {
       const collection = realm.objects(collectionName);
-      
+
       // 应用过滤条件
       let filteredResults = collection;
       if (Object.keys(filter).length > 0) {
@@ -52,19 +52,19 @@ const useRealm = (collectionName) => {
             return `${key} == ${value}`;
           })
           .join(' AND ');
-        
+
         filteredResults = collection.filtered(filterString);
       }
-      
+
       // 应用排序
       if (options.sort) {
         const { field, ascending = true } = options.sort;
         filteredResults = filteredResults.sorted(field, ascending);
       }
-      
+
       // 转换为普通数组
       const resultsArray = Array.from(filteredResults);
-      
+
       // 应用分页
       let paginatedResults = resultsArray;
       if (options.skip || options.limit) {
@@ -72,7 +72,7 @@ const useRealm = (collectionName) => {
         const limit = options.limit || resultsArray.length;
         paginatedResults = resultsArray.slice(skip, skip + limit);
       }
-      
+
       setResults(paginatedResults);
       setIsLoading(false);
       return paginatedResults;
@@ -126,10 +126,10 @@ const useRealm = (collectionName) => {
       const result = await transaction((realmInstance) => {
         return realmInstance.create(collectionName, data);
       });
-      
+
       // 刷新数据
       fetchAll();
-      
+
       setIsLoading(false);
       return { ...result };
     } catch (err) {
@@ -160,20 +160,20 @@ const useRealm = (collectionName) => {
         if (!obj) {
           throw new Error(`${collectionName} 文档(ID: ${id})不存在`);
         }
-        
+
         // 更新对象属性
         Object.keys(data).forEach(key => {
           if (key !== '_id') { // 不更新主键
             obj[key] = data[key];
           }
         });
-        
+
         return obj;
       });
-      
+
       // 刷新数据
       fetchAll();
-      
+
       setIsLoading(false);
       return { ...result };
     } catch (err) {
@@ -204,10 +204,10 @@ const useRealm = (collectionName) => {
           realmInstance.delete(obj);
         }
       });
-      
+
       // 刷新数据
       fetchAll();
-      
+
       setIsLoading(false);
       return true;
     } catch (err) {
@@ -248,7 +248,7 @@ const useRealm = (collectionName) => {
     isLoading,
     error: error || realmError,
     results,
-    
+
     // 方法
     fetchAll,
     fetchById,

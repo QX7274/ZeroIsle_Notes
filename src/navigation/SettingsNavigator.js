@@ -27,7 +27,9 @@ import { ThemeCustomizationScreen } from '../screens/theme';
 import ReminderNavigator from './ReminderNavigator';
 import GroupsNavigator from './GroupsNavigator';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
-import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
+import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen, KnowledgeBaseListScreen, KnowledgeBaseDetailScreen, KnowledgeBaseEditScreen, KnowledgeNodeEditScreen } from '../screens/knowledge';
+import PersonalActivityScreen from '../screens/personal_activity/PersonalActivityScreen';
+import ActivityFormScreen from '../screens/personal_activity/ActivityFormScreen';
 
 const Stack = createStackNavigator();
 
@@ -61,93 +63,111 @@ const ProfileNavigator = () => {
       <Stack.Screen
         name="BindPhone"
         component={BindPhone}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '手机绑定', headerShown: false }}
       />
       <Stack.Screen
         name="BindEmail"
         component={BindEmail}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '邮箱绑定', headerShown: false }}
       />
       <Stack.Screen
         name="BindWechat"
         component={BindWechat}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '微信绑定', headerShown: false }}
       />
       <Stack.Screen
         name="BindQQ"
         component={BindQQ}
+        initialParams={{ hideTabBar: true }}
         options={{ title: 'QQ绑定', headerShown: false }}
       />
       <Stack.Screen
         name="ThemeSettings"
         component={ThemeSettingsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '主题设置', headerShown: false }}
       />
       <Stack.Screen
         name="FontSettings"
         component={FontSettings}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '字体设置', headerShown: false }}
       />
       <Stack.Screen
         name="AIAssistantSettings"
         component={AIAssistantSettingsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: 'AI助手设置', headerShown: false }}
       />
       <Stack.Screen
         name="ThemeCustomization"
         component={ThemeCustomizationScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '自定义主题', headerShown: false }}
       />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '设置', headerShown: false }}
       />
       <Stack.Screen
         name="OfflineData"
         component={OfflineDataScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '离线数据', headerShown: false }}
       />
       <Stack.Screen
         name="SyncSettings"
         component={SyncSettingsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '数据同步', headerShown: false }}
       />
       {/* 备份与恢复功能已移除 */}
       <Stack.Screen
         name="NotificationSettings"
         component={NotificationSettingsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '通知设置', headerShown: false }}
       />
       <Stack.Screen
         name="About"
         component={AboutScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '关于', headerShown: false }}
       />
       <Stack.Screen
         name="Help"
         component={HelpScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '帮助与反馈', headerShown: false }}
       />
       {/* 功能中心相关屏幕 */}
       <Stack.Screen
         name="Reminder"
         component={ReminderNavigator}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '日程', headerShown: false }}
       />
       <Stack.Screen
         name="Groups"
         component={GroupsNavigator}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '群组', headerShown: false }}
       />
       <Stack.Screen
         name="MindMap"
         component={MindMapScreen}
-        options={{ title: '思维导图' }}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '思维导图', headerShown: false }}
       />
       <Stack.Screen
         name="MindMapEdit"
         component={MindMapEditScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '编辑思维导图', headerShown: false }}
       />
       <Stack.Screen
@@ -158,7 +178,8 @@ const ProfileNavigator = () => {
       <Stack.Screen
         name="KnowledgeGraph"
         component={KnowledgeGraphScreen}
-        options={{ title: '知识图谱' }}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '知识图谱', headerShown: false }}
       />
       <Stack.Screen
         name="NodeDetail"
@@ -178,6 +199,44 @@ const ProfileNavigator = () => {
         name="KnowledgeAnalysis"
         component={KnowledgeAnalysisScreen}
         options={{ title: '知识分析' }}
+      />
+      {/* 知识库相关 */}
+      <Stack.Screen
+        name="KnowledgeBase"
+        component={KnowledgeBaseListScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '知识库', headerShown: false }}
+      />
+      <Stack.Screen
+        name="KnowledgeBaseDetail"
+        component={KnowledgeBaseDetailScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '知识库详情', headerShown: false }}
+      />
+      <Stack.Screen
+        name="KnowledgeBaseEdit"
+        component={KnowledgeBaseEditScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '编辑知识库', headerShown: false }}
+      />
+      <Stack.Screen
+        name="KnowledgeNodeEdit"
+        component={KnowledgeNodeEditScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '编辑知识节点', headerShown: false }}
+      />
+
+      <Stack.Screen
+        name="PersonalActivity"
+        component={PersonalActivityScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '零屿空间', headerShown: false }}
+      />
+      <Stack.Screen
+        name="ActivityForm"
+        component={ActivityFormScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '活动表单', headerShown: false }}
       />
     </Stack.Navigator>
   );

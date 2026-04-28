@@ -1,9 +1,9 @@
 /**
  * 思维导图编辑屏幕
- * 用于编辑和查看思维导图
+ * 本地优先加载与保存
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
-import { Button, Toast } from '../../components/common';
+import { Toast } from '../../components/common';
 import MindMapToolbar from '../../components/mind_map/MindMapToolbar';
 import MindMapView from '../../components/mind_map/MindMapView';
 import mindMapApi from '../../services/api/mindMapApi';
@@ -30,15 +30,21 @@ import mindMapService from '../../services/ai/mindMapService';
 
 const { width, height } = Dimensions.get('window');
 
+const THEME_SWATCHS = {
+  default: [null],
+  colorful: ['#4285F4', '#EA4335', '#FBBC05', '#34A853'],
+  pastel: ['#B5EAD7', '#C7CEEA', '#FFDAC1', '#FFB7B2'],
+  dark: ['#2C3E50', '#34495E', '#8E44AD', '#2980B9'],
+  professional: ['#1A237E', '#0D47A1', '#01579B', '#006064'],
+};
+
 const MindMapEditScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { colors } = useTheme();
   const styles = getStyles(colors);
-  const { mindMapId, title: routeTitle, isExample, nodes: routeNodes, edges: routeEdges, layoutType: routeLayoutType, theme: routeTheme } = route.params || {};
+  const { mindMapId } = route.params || {};
 
-  // 状态
-  const [mindMap, setMindMap] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,202 +62,110 @@ const MindMapEditScreen = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
 
-  // 引用
   const mindMapViewRef = useRef(null);
 
-  // 加载思维导图
-  const loadMindMap = async () => {
-    try {
-      setLoading(true);
+  const showToastMessage = useCallback((message) => {
+    setToastMessage(message);
+    setShowToast(true);
 
-      const response = await mindMapApi.getMindMap(mindMapId);
-      if (!response.success) {
-        throw new Error(response.message || '加载思维导图失败');
-      }
-      const data = response.data;
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
+  }, []);
 
-      setMindMap(data);
-      setTitle(data.title);
-      setDescription(data.description || '');
-      setLayoutType(data.layout_type || 'tree');
-      setTheme(data.theme || 'default');
-
-      // 处理节点和边
-      if (data.data && typeof data.data === 'object') {
-        if (Array.isArray(data.data.nodes)) {
-          setNodes(data.data.nodes);
-        }
-        if (Array.isArray(data.data.edges)) {
-          setEdges(data.data.edges);
-        }
-      } else if (data.nodes && data.edges) {
-        setNodes(data.nodes);
-        setEdges(data.edges);
-      }
-
-      analyticsService.trackEvent('view_mind_map', { id: mindMapId });
-    } catch (err) {
-      console.error('加载思维导图失败:', err);
-      Alert.alert('错误', '加载思维导图失败，请稍后重试');
-      analyticsService.trackError(err, { action: 'load_mind_map' });
-      navigation.goBack();
-    } finally {
+  const loadMindMap = useCallback(async () => {
+    if (!mindMapId) {
+      setTitle('未命名思维导图');
+      setDescription('');
+      setNodes([]);
+      setEdges([]);
       setLoading(false);
-    }
-  };
-
-  // 首次加载
-  useEffect(() => {
-    if (isExample && routeNodes && routeEdges) {
-      // 处理示例数据
-      setTitle(routeTitle || '示例思维导图');
-      setNodes(routeNodes);
-      setEdges(routeEdges);
-      setLayoutType(routeLayoutType || 'tree');
-      setTheme(routeTheme || 'default');
-      setLoading(false);
-    } else if (mindMapId) {
-      loadMindMap();
-    } else {
-      setLoading(false);
-    }
-  }, [mindMapId, isExample, routeNodes, routeEdges]);
-
-  // 保存思维导图
-  const saveMindMap = async () => {
-    if (!title.trim()) {
-      Alert.alert('提示', '请输入思维导图标题');
       return;
     }
 
     try {
+      setLoading(true);
+      const response = await mindMapApi.getMindMapById(mindMapId);
+
+      if (!response.success) {
+        throw new Error(response.message || '加载思维导图失败');
+      }
+
+      const data = response.data;
+      setTitle(data.title || '未命名思维导图');
+      setDescription(data.description || '');
+      setLayoutType(data.layout_type || 'tree');
+      setTheme(data.theme || 'default');
+      setNodes(data.nodes || data.data?.nodes || []);
+      setEdges(data.edges || data.data?.edges || []);
+      analyticsService.trackEvent('view_mind_map', { id: mindMapId, local_first: true });
+    } catch (err) {
+      console.error('加载思维导图失败:', err);
+      setTitle('未命名思维导图');
+      setDescription('');
+      setNodes([]);
+      setEdges([]);
+      showToastMessage(err?.message || '加载失败，已切换为空白画布');
+      analyticsService.trackError(err, { action: 'load_mind_map' });
+    } finally {
+      setLoading(false);
+    }
+  }, [mindMapId, showToastMessage]);
+
+  useEffect(() => {
+    loadMindMap();
+  }, [loadMindMap]);
+
+  const saveMindMap = async () => {
+    if (!title.trim()) {
+      showToastMessage('请输入思维导图标题');
+      return;
+    }
+
+    const mindMapData = {
+      title: title.trim(),
+      description: description.trim(),
+      layout_type: layoutType,
+      theme,
+      data: {
+        nodes,
+        edges,
+      },
+    };
+
+    try {
       setSaving(true);
+      const response = mindMapId
+        ? await mindMapApi.updateMindMap(mindMapId, mindMapData)
+        : await mindMapApi.createMindMap(mindMapData);
 
-      // 如果是示例思维导图，提示用户
-      if (isExample) {
-        Alert.alert(
-          '保存示例思维导图',
-          '您正在编辑示例思维导图。是否要将其保存为新的思维导图？',
-          [
-            { text: '取消', style: 'cancel', onPress: () => setSaving(false) },
-            {
-              text: '保存',
-              onPress: async () => {
-                try {
-                  const mindMapData = {
-                    title: title.trim(),
-                    description: description.trim(),
-                    layout_type: layoutType,
-                    theme: theme,
-                    data: {
-                      nodes,
-                      edges
-                    }
-                  };
-
-                  // 创建新思维导图
-                  const response = await apiService.post('/mind-map/maps/', mindMapData);
-                  navigation.setParams({
-                    mindMapId: response.data.id,
-                    isExample: false
-                  });
-                  showToastMessage('思维导图已创建');
-                  analyticsService.trackEvent('save_mind_map', { id: response.data.id, from_example: true });
-                } catch (err) {
-                  console.error('保存思维导图失败:', err);
-                  Alert.alert('错误', '保存思维导图失败，请稍后重试');
-                  analyticsService.trackError(err, { action: 'save_mind_map' });
-                } finally {
-                  setSaving(false);
-                }
-              }
-            }
-          ]
-        );
-        return;
+      if (!response.success || !response.data?.id) {
+        throw new Error(mindMapId ? '更新思维导图失败' : '创建思维导图失败');
       }
 
-      const mindMapData = {
-        title: title.trim(),
-        description: description.trim(),
-        layout_type: layoutType,
-        theme: theme,
-        data: {
-          nodes,
-          edges
-        }
-      };
+      const savedMindMap = response.data;
+      setTitle(savedMindMap.title || title);
+      setDescription(savedMindMap.description || '');
+      setLayoutType(savedMindMap.layout_type || 'tree');
+      setTheme(savedMindMap.theme || 'default');
+      setNodes(savedMindMap.nodes || savedMindMap.data?.nodes || []);
+      setEdges(savedMindMap.edges || savedMindMap.data?.edges || []);
 
-      let response;
-
-      if (mindMapId && !isExample) {
-        // 更新现有思维导图
-        response = await mindMapApi.updateMindMap(mindMapId, mindMapData);
-        if (!response.success) {
-          throw new Error(response.message || '更新思维导图失败');
-        }
-        showToastMessage('思维导图已保存');
-      } else {
-        // 创建新思维导图
-        response = await mindMapApi.createMindMap(mindMapData);
-        if (!response.success) {
-          throw new Error(response.message || '创建思维导图失败');
-        }
-        navigation.setParams({ mindMapId: response.data.id });
-        showToastMessage('思维导图已创建');
+      if (!mindMapId) {
+        navigation.setParams({ mindMapId: savedMindMap.id });
       }
 
-      analyticsService.trackEvent('save_mind_map', { id: response.data.id });
-      
-      // 同时保存到本地存储作为备份
-      try {
-        // 使用 realmService 保存笔记
-        const realm = await realmService.getRealm();
-        realm.write(() => {
-          realm.create('Note', {
-            _id: `mindmap_${response.data.id}`,
-            title: title.trim(),
-            content: JSON.stringify(mindMapData),
-            type: 'mind_map',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-        });
-        console.log('思维导图已保存到本地存储');
-      } catch (localError) {
-        console.warn('保存到本地存储失败:', localError);
-      }
-      
+      showToastMessage(mindMapId ? '思维导图已保存' : '思维导图已创建');
+      analyticsService.trackEvent('save_mind_map', { id: savedMindMap.id, local_first: true });
     } catch (err) {
       console.error('保存思维导图失败:', err);
-      
-      // 如果服务器保存失败，尝试保存到本地
-      try {
-        // 使用 realmService 保存笔记
-        const realm = await realmService.getRealm();
-        realm.write(() => {
-          realm.create('Note', {
-            _id: `mindmap_local_${Date.now()}`,
-            title: title.trim(),
-            content: JSON.stringify(mindMapData),
-            type: 'mind_map',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-        });
-        Alert.alert('提示', '思维导图已保存到本地，网络恢复后将自动同步');
-      } catch (localError) {
-        console.error('本地保存也失败:', localError);
-        Alert.alert('错误', '保存思维导图失败，请稍后重试');
-      }
-      
+      showToastMessage(err?.message || '保存思维导图失败，请稍后重试');
       analyticsService.trackError(err, { action: 'save_mind_map' });
     } finally {
       setSaving(false);
     }
   };
 
-  // 添加节点
   const handleAddNode = (parentId = null) => {
     const newNode = {
       id: `node-${Date.now()}`,
@@ -259,93 +173,65 @@ const MindMapEditScreen = () => {
       content: '',
       parent_id: parentId,
       x: 0,
-      y: 0
+      y: 0,
+      type: parentId ? 'topic' : 'root',
     };
 
-    setNodes([...nodes, newNode]);
+    setNodes((current) => [...current, newNode]);
 
     if (parentId) {
       const newEdge = {
         id: `edge-${Date.now()}`,
         source: parentId,
         target: newNode.id,
-        style: 'solid'
+        style: 'solid',
+        type: 'default',
       };
 
-      setEdges([...edges, newEdge]);
+      setEdges((current) => [...current, newEdge]);
     }
 
-    // 选中新节点进行编辑
     setSelectedNode(newNode);
     setNodeTitle(newNode.title);
-    setNodeContent(newNode.content || '');
+    setNodeContent(newNode.content);
     setShowNodeEditor(true);
   };
 
-  // 编辑节点
   const handleEditNode = (node) => {
     setSelectedNode(node);
-    setNodeTitle(node.title);
+    setNodeTitle(node.title || '');
     setNodeContent(node.content || '');
     setShowNodeEditor(true);
   };
 
-  // 保存节点编辑
   const handleSaveNodeEdit = () => {
-    if (!nodeTitle.trim()) {
-      Alert.alert('提示', '请输入节点标题');
+    if (!selectedNode) {
       return;
     }
 
-    const updatedNodes = nodes.map(node => {
-      if (node.id === selectedNode.id) {
-        return {
-          ...node,
-          title: nodeTitle.trim(),
-          content: nodeContent.trim()
-        };
-      }
-      return node;
-    });
+    if (!nodeTitle.trim()) {
+      showToastMessage('请输入节点标题');
+      return;
+    }
 
-    setNodes(updatedNodes);
+    setNodes((current) => current.map((node) => (
+      node.id === selectedNode.id
+        ? { ...node, title: nodeTitle.trim(), content: nodeContent.trim() }
+        : node
+    )));
     setShowNodeEditor(false);
     setSelectedNode(null);
   };
 
-  // 删除节点
-  const handleDeleteNode = (nodeId) => {
-    // 找到要删除的节点的所有子节点
-    const childNodeIds = findAllChildNodeIds(nodeId);
-    const allNodesToDelete = [nodeId, ...childNodeIds];
-
-    // 过滤掉要删除的节点
-    const updatedNodes = nodes.filter(node => !allNodesToDelete.includes(node.id));
-
-    // 过滤掉与要删除的节点相关的边
-    const updatedEdges = edges.filter(edge =>
-      !allNodesToDelete.includes(edge.source) && !allNodesToDelete.includes(edge.target)
-    );
-
-    setNodes(updatedNodes);
-    setEdges(updatedEdges);
-
-    if (selectedNode && selectedNode.id === nodeId) {
-      setSelectedNode(null);
-      setShowNodeEditor(false);
-    }
-  };
-
-  // 查找所有子节点ID
   const findAllChildNodeIds = (nodeId) => {
     const childIds = [];
 
     const findChildren = (id) => {
       const directChildren = edges
-        .filter(edge => edge.source === id)
-        .map(edge => edge.target);
+        .filter((edge) => edge.source === id)
+        .map((edge) => edge.target);
 
-      directChildren.forEach(childId => {
+      directChildren.forEach((childId) => {
         childIds.push(childId);
         findChildren(childId);
       });
@@ -355,87 +241,78 @@ const MindMapEditScreen = () => {
     return childIds;
   };
 
-  // 导出思维导图
+  const handleDeleteNode = (nodeId) => {
+    const childNodeIds = findAllChildNodeIds(nodeId);
+    const allNodesToDelete = [nodeId, ...childNodeIds];
+
+    setNodes((current) => current.filter((node) => !allNodesToDelete.includes(node.id)));
+    setEdges((current) => current.filter((edge) => (
+      !allNodesToDelete.includes(edge.source) && !allNodesToDelete.includes(edge.target)
+    )));
+
+    if (selectedNode?.id === nodeId) {
+      setSelectedNode(null);
+      setShowNodeEditor(false);
+    }
+  };
+
   const handleExport = async (format) => {
     try {
       setShowExportOptions(false);
-
-      const mindMapData = {
+      const result = await mindMapService.exportToImage({
         nodes,
         edges,
         layout_type: layoutType,
-        theme: theme
-      };
+        theme,
+      }, format);
 
-      const result = await mindMapService.exportToImage(mindMapData, format);
-
-      // 处理导出结果
       if (result) {
-        showToastMessage(`思维导图已导出为${format.toUpperCase()}格式`);
+        showToastMessage(`思维导图已导出为 ${format.toUpperCase()}`);
         analyticsService.trackEvent('export_mind_map', { format });
       }
     } catch (err) {
       console.error('导出思维导图失败:', err);
-      Alert.alert('错误', '导出思维导图失败，请稍后重试');
+      showToastMessage(err?.message || '导出失败，请稍后重试');
       analyticsService.trackError(err, { action: 'export_mind_map' });
     }
   };
 
-  // 更改布局
   const handleChangeLayout = (newLayout) => {
     setLayoutType(newLayout);
     setShowLayoutOptions(false);
-
-    // 通知MindMapView更新布局
-    if (mindMapViewRef.current) {
+    if (mindMapViewRef.current?.updateLayout) {
       mindMapViewRef.current.updateLayout(newLayout);
     }
   };
 
-  // 显示提示消息
-  const showToastMessage = (message) => {
-    setToastMessage(message);
-    setShowToast(true);
-
-    setTimeout(() => {
-      setShowToast(false);
-    }, 3000);
-  };
-
-  // 从笔记生成思维导图
   const handleGenerateFromNote = () => {
-    // 导航到笔记选择页面
     navigation.navigate('NoteList', {
       selectionMode: true,
       onNoteSelected: async (note) => {
         try {
           setLoading(true);
-
           const result = await mindMapService.generateFromNote(note.id);
 
           if (result) {
-            // 更新思维导图数据
             setNodes(result.nodes || []);
             setEdges(result.edges || []);
             setTitle(result.title || `基于 ${note.title} 的思维导图`);
-
             showToastMessage('已从笔记生成思维导图');
             analyticsService.trackEvent('generate_mind_map_from_note', { noteId: note.id });
           }
         } catch (err) {
           console.error('从笔记生成思维导图失败:', err);
-          Alert.alert('错误', '从笔记生成思维导图失败，请稍后重试');
+          showToastMessage(err?.message || '生成失败，请稍后重试');
           analyticsService.trackError(err, { action: 'generate_mind_map_from_note' });
         } finally {
           setLoading(false);
         }
-      }
+      },
     });
   };
 
   return (
     <View style={styles.container}>
-      {/* 头部 */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -483,13 +360,14 @@ const MindMapEditScreen = () => {
         </View>
       </View>
 
-      {/* 工具栏 */}
       <MindMapToolbar
         onAddNode={() => handleAddNode()}
         onGenerateFromNote={handleGenerateFromNote}
+        onResetZoom={() => mindMapViewRef.current?.resetView?.()}
+        onZoomIn={() => mindMapViewRef.current?.zoomIn?.()}
+        onZoomOut={() => mindMapViewRef.current?.zoomOut?.()}
       />
 
-      {/* 思维导图内容 */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -508,7 +386,7 @@ const MindMapEditScreen = () => {
           onNodeLongPress={(node) => {
             Alert.alert(
               '节点操作',
-              `选择对"${node.title}"的操作`,
+              `选择对“${node.title}”的操作`,
               [
                 { text: '取消', style: 'cancel' },
                 { text: '编辑', onPress: () => handleEditNode(node) },
@@ -519,25 +397,24 @@ const MindMapEditScreen = () => {
                   onPress: () => {
                     Alert.alert(
                       '确认删除',
-                      '删除此节点将同时删除其所有子节点，确定要继续吗？',
+                      '删除此节点将同时删除其所有子节点，确定继续吗？',
                       [
                         { text: '取消', style: 'cancel' },
                         {
                           text: '删除',
                           style: 'destructive',
-                          onPress: () => handleDeleteNode(node.id)
-                        }
+                          onPress: () => handleDeleteNode(node.id),
+                        },
                       ]
                     );
-                  }
-                }
+                  },
+                },
               ]
             );
           }}
         />
       )}
 
-      {/* 节点编辑模态框 */}
       <Modal
         visible={showNodeEditor}
         transparent
@@ -549,9 +426,7 @@ const MindMapEditScreen = () => {
           style={styles.modalContainer}
         >
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              编辑节点
-            </Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>编辑节点</Text>
 
             <TextInput
               style={[styles.input, { borderColor: colors.border, color: colors.text }]}
@@ -562,10 +437,7 @@ const MindMapEditScreen = () => {
             />
 
             <TextInput
-              style={[
-                styles.textArea,
-                { borderColor: colors.border, color: colors.text }
-              ]}
+              style={[styles.textArea, { borderColor: colors.border, color: colors.text }]}
               placeholder="节点内容（可选）"
               placeholderTextColor={colors.placeholder}
               value={nodeContent}
@@ -579,25 +451,20 @@ const MindMapEditScreen = () => {
                 style={[styles.modalButton, { backgroundColor: colors.background }]}
                 onPress={() => setShowNodeEditor(false)}
               >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>
-                  取消
-                </Text>
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>取消</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.primary }]}
                 onPress={handleSaveNodeEdit}
               >
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>
-                  保存
-                </Text>
+                <Text style={styles.modalButtonTextInverse}>保存</Text>
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 导出选项模态框 */}
       <Modal
         visible={showExportOptions}
         transparent
@@ -606,57 +473,28 @@ const MindMapEditScreen = () => {
       >
         <View style={styles.modalContainer}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              导出思维导图
-            </Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>导出思维导图</Text>
 
-            <TouchableOpacity
-              style={styles.exportOption}
-              onPress={() => handleExport('png')}
-            >
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport('png')}>
               <Icon name="image" size={24} color={colors.primary} />
-              <Text style={[styles.exportOptionText, { color: colors.text }]}>
-                导出为PNG图片
-              </Text>
+              <Text style={[styles.exportOptionText, { color: colors.text }]}>导出为 PNG 图片</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.exportOption}
-              onPress={() => handleExport('svg')}
-            >
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport('svg')}>
               <Icon name="code" size={24} color={colors.primary} />
-              <Text style={[styles.exportOptionText, { color: colors.text }]}>
-                导出为SVG矢量图
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.exportOption}
-              onPress={() => {
-                setShowExportOptions(false);
-                // 实现导出为大纲的功能
-              }}
-            >
-              <Icon name="format-list-bulleted" size={24} color={colors.primary} />
-              <Text style={[styles.exportOptionText, { color: colors.text }]}>
-                导出为文本大纲
-              </Text>
+              <Text style={[styles.exportOptionText, { color: colors.text }]}>导出为 SVG 矢量图</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.cancelButton, { borderColor: colors.border }]}
               onPress={() => setShowExportOptions(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                取消
-              </Text>
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>取消</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* 布局选项模态框 */}
-      {/* 布局选项模态框 */}
       <Modal
         visible={showLayoutOptions}
         transparent
@@ -665,258 +503,82 @@ const MindMapEditScreen = () => {
       >
         <View style={styles.modalContainer}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              选择布局
-            </Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>选择布局和主题</Text>
 
             <ScrollView style={styles.optionsScrollView}>
-              <TouchableOpacity
-                style={[
-                  styles.layoutOption,
-                  layoutType === 'tree' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => handleChangeLayout('tree')}
-              >
-                <Icon
-                  name="account-tree"
-                  size={24}
-                  color={layoutType === 'tree' ? colors.primary : colors.text}
-                />
-                <Text
+              {[
+                ['tree', 'account-tree', '树形布局'],
+                ['radial', 'radio-button-unchecked', '放射布局'],
+                ['horizontal', 'swap-horiz', '水平布局'],
+                ['vertical', 'swap-vert', '垂直布局'],
+                ['force', 'bubble-chart', '力导向布局'],
+              ].map(([value, icon, label]) => (
+                <TouchableOpacity
+                  key={value}
                   style={[
-                    styles.layoutOptionText,
-                    { color: layoutType === 'tree' ? colors.primary : colors.text }
+                    styles.layoutOption,
+                    layoutType === value && { backgroundColor: colors.primaryLight },
                   ]}
+                  onPress={() => handleChangeLayout(value)}
                 >
-                  树形布局
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.layoutOption,
-                  layoutType === 'radial' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => handleChangeLayout('radial')}
-              >
-                <Icon
-                  name="radio-button-unchecked"
-                  size={24}
-                  color={layoutType === 'radial' ? colors.primary : colors.text}
-                />
-                <Text
-                  style={[
-                    styles.layoutOptionText,
-                    { color: layoutType === 'radial' ? colors.primary : colors.text }
-                  ]}
-                >
-                  放射状布局
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.layoutOption,
-                  layoutType === 'horizontal' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => handleChangeLayout('horizontal')}
-              >
-                <Icon
-                  name="swap-horiz"
-                  size={24}
-                  color={layoutType === 'horizontal' ? colors.primary : colors.text}
-                />
-                <Text
-                  style={[
-                    styles.layoutOptionText,
-                    { color: layoutType === 'horizontal' ? colors.primary : colors.text }
-                  ]}
-                >
-                  水平布局
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.layoutOption,
-                  layoutType === 'vertical' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => handleChangeLayout('vertical')}
-              >
-                <Icon
-                  name="swap-vert"
-                  size={24}
-                  color={layoutType === 'vertical' ? colors.primary : colors.text}
-                />
-                <Text
-                  style={[
-                    styles.layoutOptionText,
-                    { color: layoutType === 'vertical' ? colors.primary : colors.text }
-                  ]}
-                >
-                  垂直布局
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.layoutOption,
-                  layoutType === 'force' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => handleChangeLayout('force')}
-              >
-                <Icon
-                  name="bubble-chart"
-                  size={24}
-                  color={layoutType === 'force' ? colors.primary : colors.text}
-                />
-                <Text
-                  style={[
-                    styles.layoutOptionText,
-                    { color: layoutType === 'force' ? colors.primary : colors.text }
-                  ]}
-                >
-                  力导向布局
-                </Text>
-              </TouchableOpacity>
+                  <Icon name={icon} size={24} color={layoutType === value ? colors.primary : colors.text} />
+                  <Text
+                    style={[
+                      styles.layoutOptionText,
+                      { color: layoutType === value ? colors.primary : colors.text },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
 
               <View style={styles.divider} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>主题样式</Text>
 
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                主题样式
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'default' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('default')}
-              >
-                <View style={[styles.themeColorPreview, { backgroundColor: colors.primary }]} />
-                <Text
+              {Object.entries(THEME_SWATCHS).map(([themeKey, swatches]) => (
+                <TouchableOpacity
+                  key={themeKey}
                   style={[
-                    styles.themeOptionText,
-                    { color: theme === 'default' ? colors.primary : colors.text }
+                    styles.themeOption,
+                    theme === themeKey && { backgroundColor: colors.primaryLight },
                   ]}
+                  onPress={() => setTheme(themeKey)}
                 >
-                  默认主题
-                </Text>
-              </TouchableOpacity>
+                  {themeKey === 'default' ? (
+                    <View style={[styles.themeColorPreview, { backgroundColor: colors.primary }]} />
+                  ) : themeKey === 'minimal' ? (
+                    <View
+                      style={[
+                        styles.themeColorPreview,
+                        { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+                      ]}
+                    />
+                  ) : (
+                    <View style={styles.colorfulPreview}>
+                      {swatches.map((color) => (
+                        <View key={color} style={[styles.colorDot, { backgroundColor: color }]} />
+                      ))}
+                    </View>
+                  )}
 
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'colorful' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('colorful')}
-              >
-                <View style={styles.colorfulPreview}>
-                  <View style={[styles.colorDot, { backgroundColor: '#4285F4' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#EA4335' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#FBBC05' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#34A853' }]} />
-                </View>
-                <Text
-                  style={[
-                    styles.themeOptionText,
-                    { color: theme === 'colorful' ? colors.primary : colors.text }
-                  ]}
-                >
-                  多彩主题
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'minimal' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('minimal')}
-              >
-                <View style={[styles.themeColorPreview, {
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border
-                }]} />
-                <Text
-                  style={[
-                    styles.themeOptionText,
-                    { color: theme === 'minimal' ? colors.primary : colors.text }
-                  ]}
-                >
-                  简约主题
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'pastel' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('pastel')}
-              >
-                <View style={styles.colorfulPreview}>
-                  <View style={[styles.colorDot, { backgroundColor: '#B5EAD7' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#C7CEEA' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#FFDAC1' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#FFB7B2' }]} />
-                </View>
-                <Text
-                  style={[
-                    styles.themeOptionText,
-                    { color: theme === 'pastel' ? colors.primary : colors.text }
-                  ]}
-                >
-                  柔和主题
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'dark' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('dark')}
-              >
-                <View style={styles.colorfulPreview}>
-                  <View style={[styles.colorDot, { backgroundColor: '#2C3E50' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#34495E' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#8E44AD' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#2980B9' }]} />
-                </View>
-                <Text
-                  style={[
-                    styles.themeOptionText,
-                    { color: theme === 'dark' ? colors.primary : colors.text }
-                  ]}
-                >
-                  深色主题
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  theme === 'professional' && { backgroundColor: colors.primaryLight }
-                ]}
-                onPress={() => setTheme('professional')}
-              >
-                <View style={styles.colorfulPreview}>
-                  <View style={[styles.colorDot, { backgroundColor: '#1A237E' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#0D47A1' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#01579B' }]} />
-                  <View style={[styles.colorDot, { backgroundColor: '#006064' }]} />
-                </View>
-                <Text
-                  style={[
-                    styles.themeOptionText,
-                    { color: theme === 'professional' ? colors.primary : colors.text }
-                  ]}
-                >
-                  专业主题
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      { color: theme === themeKey ? colors.primary : colors.text },
+                    ]}
+                  >
+                    {{
+                      default: '默认主题',
+                      colorful: '多彩主题',
+                      minimal: '简约主题',
+                      pastel: '柔和主题',
+                      dark: '深色主题',
+                      professional: '专业主题',
+                    }[themeKey]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
 
             <View style={styles.modalButtonsContainer}>
@@ -924,39 +586,25 @@ const MindMapEditScreen = () => {
                 style={[styles.modalButton, { backgroundColor: colors.background }]}
                 onPress={() => setShowLayoutOptions(false)}
               >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>
-                  取消
-                </Text>
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>取消</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  // 应用当前选择的布局和主题
-                  if (mindMapViewRef.current) {
-                    mindMapViewRef.current.updateLayout(layoutType);
-                  }
-                  setShowLayoutOptions(false);
-                }}
+                onPress={() => setShowLayoutOptions(false)}
               >
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>
-                  应用
-                </Text>
+                <Text style={styles.modalButtonTextInverse}>应用</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* 提示消息 */}
-      {showToast && (
-        <Toast message={toastMessage} />
-      )}
+      {showToast ? <Toast message={toastMessage} /> : null}
     </View>
   );
 };
 
-// 样式
 const getStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
@@ -1056,6 +704,10 @@ const getStyles = (colors) => StyleSheet.create({
   modalButtonText: {
     fontWeight: 'bold',
   },
+  modalButtonTextInverse: {
+    fontWeight: 'bold',
+    color: '#fff',
+  },
   exportOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1066,6 +718,10 @@ const getStyles = (colors) => StyleSheet.create({
   exportOptionText: {
     marginLeft: 16,
     fontSize: 16,
+  },
+  optionsScrollView: {
+    maxHeight: height * 0.5,
+    marginBottom: 16,
   },
   layoutOption: {
     flexDirection: 'row',
@@ -1079,13 +735,9 @@ const getStyles = (colors) => StyleSheet.create({
     marginLeft: 16,
     fontSize: 16,
   },
-  optionsScrollView: {
-    maxHeight: height * 0.5,
-    marginBottom: 16,
-  },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: colors.border,
     marginVertical: 16,
   },
   sectionTitle: {

@@ -5,14 +5,15 @@
 from pymongo import MongoClient
 from datetime import datetime
 import unittest
+import mongomock
 
 class TestMongoDB(unittest.TestCase):
     """测试MongoDB连接"""
     
     def setUp(self):
         """测试前准备"""
-        self.client = MongoClient('mongodb://localhost:27017/')
-        self.db = self.client['zeroislenotes']
+        self.client = mongomock.MongoClient()
+        self.db = self.client['zeroislenotes_test']
     
     def tearDown(self):
         """测试后清理"""

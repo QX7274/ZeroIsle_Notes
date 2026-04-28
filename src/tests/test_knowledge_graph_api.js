@@ -31,7 +31,7 @@ async function testCreateNode() {
     x: 100,
     y: 100,
     color: '#2196F3',
-    size: 20
+    size: 20,
   };
   const response = await knowledgeGraphApi.createNode(nodeData);
   console.log('响应:', response);
@@ -56,7 +56,7 @@ async function testUpdateNode(id) {
     x: 200,
     y: 200,
     color: '#4CAF50',
-    size: 25
+    size: 25,
   };
   const response = await knowledgeGraphApi.updateNode(id, nodeData);
   console.log('响应:', response);
@@ -79,7 +79,7 @@ async function testCreateEdge(sourceId, targetId) {
     target: targetId,
     type: 'related',
     label: '相关',
-    weight: 1
+    weight: 1,
   };
   const response = await knowledgeGraphApi.createEdge(edgeData);
   console.log('响应:', response);
@@ -100,7 +100,7 @@ async function testUpdateEdge(id) {
   const edgeData = {
     type: 'related',
     label: '更新后的相关',
-    weight: 2
+    weight: 2,
   };
   const response = await knowledgeGraphApi.updateEdge(id, edgeData);
   console.log('响应:', response);
@@ -160,60 +160,60 @@ async function runTests() {
   try {
     // 获取知识图谱
     await testGetKnowledgeGraph();
-    
+
     // 获取所有节点
     const nodesResponse = await testGetAllNodes();
-    
+
     // 创建两个节点
     const createNode1Response = await testCreateNode();
     const createNode2Response = await testCreateNode();
-    
+
     if (createNode1Response.success && createNode2Response.success) {
       const node1Id = createNode1Response.data.id;
       const node2Id = createNode2Response.data.id;
-      
+
       // 获取节点详情
       await testGetNodeById(node1Id);
-      
+
       // 更新节点
       await testUpdateNode(node1Id);
-      
+
       // 获取所有边
       await testGetAllEdges();
-      
+
       // 创建边
       const createEdgeResponse = await testCreateEdge(node1Id, node2Id);
-      
+
       if (createEdgeResponse.success) {
         const edgeId = createEdgeResponse.data.id;
-        
+
         // 获取边详情
         await testGetEdgeById(edgeId);
-        
+
         // 更新边
         await testUpdateEdge(edgeId);
-        
+
         // 查找路径
         await testFindPath(node1Id, node2Id);
-        
+
         // 获取相关概念
         await testGetRelatedConcepts(node1Id);
-        
+
         // 删除边
         await testDeleteEdge(edgeId);
       }
-      
+
       // 分析图谱
       await testAnalyzeGraph();
-      
+
       // 生成标签
       await testGenerateTags();
-      
+
       // 删除节点
       await testDeleteNode(node1Id);
       await testDeleteNode(node2Id);
     }
-    
+
     console.log('所有测试完成!');
   } catch (error) {
     console.error('测试过程中出错:', error);

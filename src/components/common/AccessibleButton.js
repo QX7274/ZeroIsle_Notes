@@ -45,7 +45,7 @@ const AccessibleButton = ({
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
   const { getAccessibilityProps } = useAccessibility();
-  
+
   // 按钮类型样式
   const getTypeStyle = () => {
     switch (type) {
@@ -119,7 +119,7 @@ const AccessibleButton = ({
         };
     }
   };
-  
+
   // 按钮尺寸样式
   const getSizeStyle = () => {
     switch (size) {
@@ -166,10 +166,10 @@ const AccessibleButton = ({
         };
     }
   };
-  
+
   const typeStyle = getTypeStyle();
   const sizeStyle = getSizeStyle();
-  
+
   // 按钮容器样式
   const buttonStyle = [
     styles.button,
@@ -182,7 +182,7 @@ const AccessibleButton = ({
     disabled && styles.disabled,
     style,
   ];
-  
+
   // 按钮文字样式
   const buttonTextStyle = [
     styles.text,
@@ -191,7 +191,7 @@ const AccessibleButton = ({
     disabled && styles.disabledText,
     textStyle,
   ];
-  
+
   // 可访问性属性
   const accessibilityProps = getAccessibilityProps(
     accessibilityLabel || title,
@@ -200,7 +200,7 @@ const AccessibleButton = ({
     false,
     disabled || loading
   );
-  
+
   return (
     <TouchableOpacity
       style={buttonStyle}

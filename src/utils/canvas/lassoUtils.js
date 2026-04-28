@@ -10,7 +10,7 @@
  * @returns {boolean} - True if point is inside polygon
  */
 export const isPointInPolygon = (point, polygon) => {
-  if (!polygon || polygon.length < 3) return false;
+  if (!polygon || polygon.length < 3) {return false;}
 
   let inside = false;
   const x = point.x;
@@ -25,7 +25,7 @@ export const isPointInPolygon = (point, polygon) => {
     const intersect =
       yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
 
-    if (intersect) inside = !inside;
+    if (intersect) {inside = !inside;}
   }
 
   return inside;
@@ -38,7 +38,7 @@ export const isPointInPolygon = (point, polygon) => {
  * @returns {boolean} - True if stroke intersects lasso
  */
 export const doesStrokeIntersectLasso = (strokePoints, lassoPoints) => {
-  if (!strokePoints || !lassoPoints || lassoPoints.length < 3) return false;
+  if (!strokePoints || !lassoPoints || lassoPoints.length < 3) {return false;}
 
   // Check if any segment of the stroke crosses the lasso boundary
   for (let i = 0; i < strokePoints.length - 1; i++) {
@@ -86,7 +86,7 @@ export const findStrokesInLasso = (lassoPoints, strokes, threshold = 0.5) => {
   const selectedStrokeIds = [];
 
   strokes.forEach((stroke) => {
-    if (!stroke.points || stroke.points.length === 0) return;
+    if (!stroke.points || stroke.points.length === 0) {return;}
 
     // Count how many points are inside the lasso
     let pointsInside = 0;
@@ -116,7 +116,7 @@ export const findStrokesInLasso = (lassoPoints, strokes, threshold = 0.5) => {
  * @returns {Object} - Bounding box with minX, maxX, minY, maxY
  */
 export const getSelectionBoundingBox = (strokes) => {
-  if (!strokes || strokes.length === 0) return null;
+  if (!strokes || strokes.length === 0) {return null;}
 
   let minX = Infinity;
   let maxX = -Infinity;
@@ -124,7 +124,7 @@ export const getSelectionBoundingBox = (strokes) => {
   let maxY = -Infinity;
 
   strokes.forEach((stroke) => {
-    if (!stroke.points) return;
+    if (!stroke.points) {return;}
 
     stroke.points.forEach((point) => {
       minX = Math.min(minX, point.x);
@@ -171,7 +171,7 @@ export const moveStrokes = (strokes, deltaX, deltaY) => {
  * @returns {string|null} - Handle position ('tl', 'tr', 'bl', 'br') or null
  */
 export const getResizeHandle = (point, boundingBox, handleSize = 20) => {
-  if (!boundingBox) return null;
+  if (!boundingBox) {return null;}
 
   const { minX, maxX, minY, maxY } = boundingBox;
   const { x, y } = point;
@@ -200,7 +200,7 @@ export const getResizeHandle = (point, boundingBox, handleSize = 20) => {
  * @returns {boolean} - True if point is inside
  */
 export const isPointInBoundingBox = (point, boundingBox) => {
-  if (!boundingBox) return false;
+  if (!boundingBox) {return false;}
 
   const { minX, maxX, minY, maxY } = boundingBox;
   const { x, y } = point;
@@ -215,7 +215,7 @@ export const isPointInBoundingBox = (point, boundingBox) => {
  * @returns {Array} - Simplified points
  */
 export const simplifyLassoPath = (points, tolerance = 5) => {
-  if (points.length <= 2) return points;
+  if (points.length <= 2) {return points;}
 
   const simplified = [points[0]];
 
@@ -254,7 +254,7 @@ const pointToLineDistance = (point, lineStart, lineEnd) => {
   const lenSq = C * C + D * D;
   let param = -1;
 
-  if (lenSq !== 0) param = dot / lenSq;
+  if (lenSq !== 0) {param = dot / lenSq;}
 
   let xx, yy;
 

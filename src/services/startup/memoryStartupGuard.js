@@ -30,10 +30,10 @@ class MemoryStartupGuard {
 
       // 检查应用启动时的内存状态
       const memoryStats = await this.checkStartupMemory();
-      
+
       // 清理可能的临时文件
       await this.cleanupTempFiles();
-      
+
       // 检查大文件
       await this.checkLargeFiles();
 
@@ -41,7 +41,7 @@ class MemoryStartupGuard {
         success: true,
         memoryStats,
         timestamp: new Date().toISOString(),
-        message: '启动内存守护初始化成功'
+        message: '启动内存守护初始化成功',
       };
 
       this.isInitialized = true;
@@ -51,11 +51,11 @@ class MemoryStartupGuard {
 
     } catch (error) {
       console.error('MemoryStartupGuard: 初始化失败:', error);
-      
+
       this.startupStats = {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       return this.startupStats;
@@ -77,7 +77,7 @@ class MemoryStartupGuard {
           deviceMemory = {
             used: global.performance.memory.usedJSHeapSize,
             total: global.performance.memory.totalJSHeapSize,
-            limit: global.performance.memory.jsHeapSizeLimit
+            limit: global.performance.memory.jsHeapSizeLimit,
           };
         }
       } catch (memError) {
@@ -91,7 +91,7 @@ class MemoryStartupGuard {
         deviceMemory,
         cacheSize,
         cacheSizeMB: Math.round(cacheSize / 1024 / 1024),
-        memoryGuardStats: memoryGuard.getMemoryStats()
+        memoryGuardStats: memoryGuard.getMemoryStats(),
       };
 
       console.log('MemoryStartupGuard: 内存状态检查完成:', memoryStats);
@@ -111,7 +111,7 @@ class MemoryStartupGuard {
     try {
       const cacheDir = RNFS.CachesDirectoryPath;
       const exists = await RNFS.exists(cacheDir);
-      
+
       if (!exists) {
         return 0;
       }
@@ -143,7 +143,7 @@ class MemoryStartupGuard {
       const tempDirs = [
         RNFS.CachesDirectoryPath,
         `${RNFS.DocumentDirectoryPath}/temp`,
-        `${RNFS.DocumentDirectoryPath}/converted_cache`
+        `${RNFS.DocumentDirectoryPath}/converted_cache`,
       ];
 
       let cleanedSize = 0;
@@ -152,7 +152,7 @@ class MemoryStartupGuard {
       for (const dir of tempDirs) {
         try {
           const exists = await RNFS.exists(dir);
-          if (!exists) continue;
+          if (!exists) {continue;}
 
           const files = await RNFS.readDir(dir);
           const now = Date.now();
@@ -194,7 +194,7 @@ class MemoryStartupGuard {
       // 检查持久化文档目录
       const persistentDocsDir = `${RNFS.DocumentDirectoryPath}/persistent_documents`;
       const exists = await RNFS.exists(persistentDocsDir);
-      
+
       if (!exists) {
         console.log('MemoryStartupGuard: 持久化文档目录不存在');
         return;
@@ -245,18 +245,18 @@ class MemoryStartupGuard {
       return {
         needsWarning: true,
         level: 'error',
-        message: '内存守护初始化失败，应用可能不稳定'
+        message: '内存守护初始化失败，应用可能不稳定',
       };
     }
 
     const memoryStats = this.startupStats.memoryStats;
-    
+
     // 检查缓存大小
     if (memoryStats.cacheSizeMB > 100) {
       return {
         needsWarning: true,
         level: 'warning',
-        message: `缓存占用过大 (${memoryStats.cacheSizeMB}MB)，建议清理缓存`
+        message: `缓存占用过大 (${memoryStats.cacheSizeMB}MB)，建议清理缓存`,
       };
     }
 
@@ -266,13 +266,13 @@ class MemoryStartupGuard {
       return {
         needsWarning: true,
         level: 'info',
-        message: `有 ${deferredCount} 个大文件将延迟加载，首次打开可能较慢`
+        message: `有 ${deferredCount} 个大文件将延迟加载，首次打开可能较慢`,
       };
     }
 
     return {
       needsWarning: false,
-      message: '内存状态正常'
+      message: '内存状态正常',
     };
   }
 

@@ -2,6 +2,7 @@
  * 认证工具函数
  */
 import authStorage from '../auth/authStorage';
+import tokenService from '../auth/tokenService';
 
 /**
  * 获取访问令牌
@@ -9,8 +10,8 @@ import authStorage from '../auth/authStorage';
  */
 export const getToken = async () => {
   try {
-    const token = await authStorage.getItem('access_token');
-    return token;
+    const tokenData = await tokenService.getAccessToken();
+    return tokenData ? tokenData.token : null;
   } catch (error) {
     console.error('获取令牌失败:', error);
     return null;
@@ -23,8 +24,8 @@ export const getToken = async () => {
  */
 export const getRefreshToken = async () => {
   try {
-    const refreshToken = await authStorage.getItem('refresh_token');
-    return refreshToken;
+    const tokenData = await tokenService.getRefreshToken();
+    return tokenData ? tokenData.token : null;
   } catch (error) {
     console.error('获取刷新令牌失败:', error);
     return null;

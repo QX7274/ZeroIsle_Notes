@@ -18,6 +18,7 @@ from ai_assistant.serializers import (
 from ai_assistant.services import ConversationService
 from common.permissions import IsOwner
 from common.pagination import StandardResultsSetPagination
+from ..throttling import UserMinuteRateThrottle, UserDayRateThrottle
 
 class ConversationViewSet(viewsets.ModelViewSet):
     """对话视图集"""
@@ -30,10 +31,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'updated_at', 'last_message_at']
     ordering = ['-last_message_at']
 
+    def get_throttles(self):
+        """为 send_message 操作应用速率限制"""
+        if self.action == 'send_message':
+            return [UserMinuteRateThrottle(), UserDayRateThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
-        """获取查询集"""
+        """获取查询集（使用Mongo用户）"""
         return Conversation.objects(
-            user=self.request.user,
+            user=getattr(self.request, 'mongo_user', None),
             is_deleted=False
         )
 
@@ -54,6 +61,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         """发送消息"""
         conversation = self.get_object()
         content = request.data.get('content')
+        tools = request.data.get('tools')
+        response_format = request.data.get('response_format')
 
         if not content:
             return Response(
@@ -66,7 +75,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
         assistant_message = conversation_service.send_message(
             conversation=conversation,
             content=content,
-            user=request.user
+            user=request.user,
+            tools=tools,
+            response_format=response_format
         )
 
         return Response({

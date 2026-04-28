@@ -9,7 +9,7 @@
   // 确保COLORS对象已经初始化
 })();
 
-export const COLORS = {
+const COLORS = {
   // 主色调
   PRIMARY: '#007AFF', // 蓝色，代表可靠和专业
   SECONDARY: '#FF9500', // 橙色，用于次要强调
@@ -59,7 +59,7 @@ export const COLORS = {
  * @param {boolean} isDarkMode - 是否为暗黑模式
  * @returns {string} - 对应主题的颜色值
  */
-export const getThemeColor = (colorKey, isDarkMode) => {
+const getThemeColor = (colorKey, isDarkMode) => {
   switch (colorKey) {
     case 'BACKGROUND':
       return isDarkMode ? COLORS.BACKGROUND_DARK : COLORS.BACKGROUND_LIGHT;
@@ -79,7 +79,7 @@ export const getThemeColor = (colorKey, isDarkMode) => {
 };
 
 // 根据当前主题更新颜色
-export const updateThemeColors = (isDarkMode) => {
+const updateThemeColors = (isDarkMode) => {
   // 更新背景色
   COLORS.BACKGROUND = isDarkMode ? COLORS.BACKGROUND_DARK : COLORS.BACKGROUND_LIGHT;
   // 更新文本色
@@ -90,3 +90,11 @@ export const updateThemeColors = (isDarkMode) => {
   COLORS.BORDER = isDarkMode ? COLORS.BORDER_DARK : COLORS.BORDER_LIGHT;
   COLORS.DIVIDER = isDarkMode ? COLORS.DIVIDER_DARK : COLORS.DIVIDER_LIGHT;
 };
+
+module.exports = {
+  COLORS,
+  getThemeColor,
+  updateThemeColors,
+};
+module.exports.default = { COLORS, getThemeColor, updateThemeColors };
+module.exports.COLORS = COLORS;

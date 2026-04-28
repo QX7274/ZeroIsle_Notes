@@ -27,7 +27,7 @@ async function testCreateNote() {
   const noteData = {
     title: '测试笔记',
     content: '这是一个测试笔记的内容',
-    is_public: false
+    is_public: false,
   };
   const response = await notesApi.createNote(noteData);
   console.log('响应:', response);
@@ -40,7 +40,7 @@ async function testUpdateNote(id) {
   const noteData = {
     title: '更新后的测试笔记',
     content: '这是更新后的测试笔记内容',
-    is_public: true
+    is_public: true,
   };
   const response = await notesApi.updateNote(id, noteData);
   console.log('响应:', response);
@@ -100,51 +100,51 @@ async function runTests() {
   try {
     // 获取笔记列表
     const notesResponse = await testGetAllNotes();
-    
+
     if (notesResponse.success && notesResponse.data.results && notesResponse.data.results.length > 0) {
       const noteId = notesResponse.data.results[0].id;
-      
+
       // 获取笔记详情
       await testGetNoteById(noteId);
-      
+
       // 收藏/取消收藏笔记
       await testToggleFavorite(noteId);
-      
+
       // 获取笔记历史版本
       await testGetNoteHistory(noteId);
-      
+
       // 更新笔记
       await testUpdateNote(noteId);
     } else {
       // 如果没有笔记，创建一个
       const createResponse = await testCreateNote();
-      
+
       if (createResponse.success) {
         const noteId = createResponse.data.id;
-        
+
         // 获取笔记详情
         await testGetNoteById(noteId);
-        
+
         // 收藏/取消收藏笔记
         await testToggleFavorite(noteId);
-        
+
         // 更新笔记
         await testUpdateNote(noteId);
-        
+
         // 删除笔记
         await testDeleteNote(noteId);
       }
     }
-    
+
     // 获取笔记统计信息
     await testGetNoteStats();
-    
+
     // 获取笔记标签
     await testGetNoteTags();
-    
+
     // 获取笔记分类
     await testGetNoteCategories();
-    
+
     console.log('所有测试完成!');
   } catch (error) {
     console.error('测试过程中出错:', error);

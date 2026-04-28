@@ -13,30 +13,59 @@ logger = logging.getLogger(__name__)
 
 class MongoDBService:
     """
-    MongoDB服务类
+    MongoDB服务类（单例模式）
     提供与MongoDB Atlas的连接和操作
     """
 
-    def __init__(self):
-        """
-        初始化MongoDB服务
-        """
-        self.client = None
-        self.db = None
-        self.initialized = False
-        self.initialize()
+    _instance = None
+    client = None
+    db = None
+    initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(MongoDBService, cls).__new__(cls)
+            # 防止在模块导入时立即初始化，改为首次调用时初始化
+        return cls._instance
 
     def initialize(self):
         """
         初始化MongoDB连接
         """
+        if self.initialized:
+            return
+
         try:
             # 获取MongoDB连接URI
-            mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+            mongo_uri = os.environ.get('MONGO_URI')
+            if not mongo_uri:
+                raise ValueError("MONGO_URI environment variable not set.")
             db_name = os.environ.get('MONGO_DB_NAME', 'ZeroIsle_Notes')
 
+            # 获取连接参数
+            server_selection_timeout_ms = int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', 5000))
+            connect_timeout_ms = int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', 5000))
+            socket_timeout_ms = int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', 10000))
+
+            # TLS/SSL 配置
+            tls_enabled = os.environ.get('MONGO_TLS', 'False').lower() in ('true', '1', 't')
+            tls_ca_file = os.environ.get('MONGO_TLS_CA_FILE')
+
+            kwargs = {
+                'serverSelectionTimeoutMS': server_selection_timeout_ms,
+                'connectTimeoutMS': connect_timeout_ms,
+                'socketTimeoutMS': socket_timeout_ms,
+            }
+
+            if tls_enabled:
+                kwargs['tls'] = True
+                if tls_ca_file and os.path.exists(tls_ca_file):
+                    kwargs['tlsCAFile'] = tls_ca_file
+                else:
+                    logger.warning("MONGO_TLS is enabled but MONGO_TLS_CA_FILE is not set or does not exist.")
+
             # 创建MongoDB客户端
-            self.client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+            self.client = MongoClient(mongo_uri, **kwargs)
 
             # 测试连接
             self.client.admin.command('ping')
@@ -44,37 +73,18 @@ class MongoDBService:
             # 获取数据库
             self.db = self.client[db_name]
 
-            # 创建索引
-            self._create_indexes()
-
             self.initialized = True
             logger.info(f"MongoDB连接成功: {db_name}")
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
             logger.error(f"MongoDB连接失败: {str(e)}")
             self.initialized = False
+            raise  # 抛出异常，让调用方处理
         except Exception as e:
             logger.error(f"MongoDB初始化失败: {str(e)}")
             self.initialized = False
+            raise  # 抛出异常，让调用方处理
 
-    def _create_indexes(self):
-        """
-        创建索引
-        """
-        try:
-            # 笔记集合索引
-            self.db.notes.create_index([('user_id', 1)])
-            self.db.notes.create_index([('user_id', 1), ('updated_at', -1)])
 
-            # 提醒集合索引
-            self.db.reminders.create_index([('user_id', 1)])
-            self.db.reminders.create_index([('user_id', 1), ('updated_at', -1)])
-
-            # 用户设置集合索引
-            self.db.user_settings.create_index([('user_id', 1)], unique=True)
-
-            logger.info("MongoDB索引创建成功")
-        except Exception as e:
-            logger.error(f"MongoDB索引创建失败: {str(e)}")
 
     def close(self):
         """

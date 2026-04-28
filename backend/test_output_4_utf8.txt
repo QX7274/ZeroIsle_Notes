@@ -1,0 +1,271 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+登录过程中发生异常: Cannot ass
+ign "<User: bindingus
+er>": "OutstandingTok
+en.user" must be a "U
+ser" instance.
+登录失败记录: username=bind
+inguser, ip=127.0.0.1
+, reason=Cannot assig
+n "<User: bindinguser
+>": "OutstandingToken
+.user" must be a "Use
+r" instance.
+ERROR Internal Server
+ Error: /api/v1/auth/
+login/
+FE密码登录失败: 用户不存在, 用户名:
+ None, 邮箱: None, 手机号:
+ 13800138000
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='用户不存在', code=
+'invalid')]}
+登录失败记录: username=1380
+0138000, ip=127.0.0.1
+, reason={'non_field_
+errors': [ErrorDetail
+(string='用户不存在', code
+='invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+FEEE
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_logi
+n_with_email (users.t
+ests.test_auth.UserAu
+thTest.test_user_logi
+n_with_email)
+测试邮箱登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 96, in test_user_l
+ogin_with_email
+    data=json.dumps(s
+elf.email_login_data)
+,
+                    ^
+^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+AuthTest' object has 
+no attribute 'email_l
+ogin_data'
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_logi
+n_with_username (user
+s.tests.test_auth.Use
+rAuthTest.test_user_l
+ogin_with_username)
+测试用户名登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 82, in test_user_l
+ogin_with_username
+    data=json.dumps(s
+elf.valid_login_data)
+,
+                    ^
+^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+AuthTest' object has 
+no attribute 'valid_l
+ogin_data'
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_regi
+ster_with_phone (user
+s.tests.test_auth.Use
+rAuthTest.test_user_r
+egister_with_phone)
+测试手机号注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 110, in test_user_
+register_with_phone
+    data=json.dumps(s
+elf.phone_user_data),
+                    ^
+^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+AuthTest' object has 
+no attribute 'phone_u
+ser_data'
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_regi
+ster_with_username (u
+sers.tests.test_auth.
+UserAuthTest.test_use
+r_register_with_usern
+ame)
+测试用户名注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 67, in test_user_r
+egister_with_username
+    data=json.dumps(s
+elf.valid_user_data),
+                    ^
+^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+AuthTest' object has 
+no attribute 'valid_u
+ser_data'
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_bindi
+ng_methods (users.tes
+ts.test_auth.UserAuth
+Test.test_user_bindin
+g_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 167, in test_user_
+binding_methods
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 500 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_phone (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_phone)
+测试手机号登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 141, in test_user_
+login_with_phone
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 46.051
+s
+
+FAILED (failures=2, e
+rrors=4)
+Destroying test datab
+ase for alias 'defaul
+t'...
+
+Found 6 test(s).
+System check identified no issues (0 silenced).

@@ -12,7 +12,7 @@ export const MONGODB_CONFIG = {
   // 本地数据库名称
   LOCAL_DB_NAME: 'zeroislenotes_local',
   // 本地数据库版本
-  SCHEMA_VERSION: 1,
+  SCHEMA_VERSION: 12,
 };
 
 // 本地存储配置

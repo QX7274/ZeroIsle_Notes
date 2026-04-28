@@ -3,6 +3,7 @@
  * 提供笔记书签的本地存储和管理功能
  */
 
+import realmService from '../database/realmService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logService } from '../../utils/logService';
 
@@ -21,7 +22,7 @@ class BookmarkService {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {return;}
 
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
@@ -36,7 +37,7 @@ class BookmarkService {
     } catch (error) {
       logService.error('书签服务初始化失败', error);
       this.bookmarks = [];
-      this.initialized = true; // 即使失败也标记为已初始化，避免重复尝试
+      throw error;
     }
   }
 
@@ -49,7 +50,7 @@ class BookmarkService {
       return true;
     } catch (error) {
       logService.error('保存书签失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -72,7 +73,7 @@ class BookmarkService {
       }
 
       const newBookmark = {
-        id: `bookmark_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: realmService.createObjectId(),
         noteId,
         pageNumber,
         position,
@@ -100,12 +101,12 @@ class BookmarkService {
     try {
       await this.initialize();
       // 返回书签副本，按时间倒序排序
-      return [...this.bookmarks].sort((a, b) => 
+      return [...this.bookmarks].sort((a, b) =>
         new Date(b.timestamp) - new Date(a.timestamp)
       );
     } catch (error) {
       logService.error('获取所有书签失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -117,10 +118,10 @@ class BookmarkService {
   async getBookmarks(noteId) {
     try {
       await this.initialize();
-      
+
       if (!noteId) {
         logService.warn('获取书签时未提供noteId');
-        return [];
+        throw new Error('获取书签失败：noteId不能为空');
       }
 
       // 过滤出指定笔记的书签，按页码排序
@@ -132,7 +133,7 @@ class BookmarkService {
       return noteBookmarks;
     } catch (error) {
       logService.error('获取书签失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -148,7 +149,7 @@ class BookmarkService {
       return bookmark || null;
     } catch (error) {
       logService.error('获取书签失败', error);
-      return null;
+      throw error;
     }
   }
 
@@ -165,7 +166,7 @@ class BookmarkService {
       const index = this.bookmarks.findIndex(b => b.id === id);
       if (index === -1) {
         logService.warn(`书签不存在: ${id}`);
-        return null;
+        throw new Error(`书签不存在: ${id}`);
       }
 
       // 更新书签
@@ -182,7 +183,7 @@ class BookmarkService {
       return this.bookmarks[index];
     } catch (error) {
       logService.error('更新书签失败', error);
-      return null;
+      throw error;
     }
   }
 
@@ -200,7 +201,7 @@ class BookmarkService {
 
       if (this.bookmarks.length === initialLength) {
         logService.warn(`书签不存在: ${id}`);
-        return false;
+        throw new Error(`书签不存在: ${id}`);
       }
 
       await this.save();
@@ -208,7 +209,7 @@ class BookmarkService {
       return true;
     } catch (error) {
       logService.error('删除书签失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -233,7 +234,7 @@ class BookmarkService {
       return deletedCount;
     } catch (error) {
       logService.error('清除书签失败', error);
-      return 0;
+      throw error;
     }
   }
 
@@ -253,7 +254,7 @@ class BookmarkService {
       return count;
     } catch (error) {
       logService.error('清除所有书签失败', error);
-      return 0;
+      throw error;
     }
   }
 
@@ -267,11 +268,11 @@ class BookmarkService {
       await this.initialize();
 
       if (!query || query.trim() === '') {
-        return this.getAllBookmarks();
+        throw new Error('搜索书签失败：query不能为空');
       }
 
       const lowerQuery = query.toLowerCase();
-      const results = this.bookmarks.filter(bookmark => 
+      const results = this.bookmarks.filter(bookmark =>
         bookmark.title.toLowerCase().includes(lowerQuery) ||
         bookmark.noteId.toLowerCase().includes(lowerQuery)
       );
@@ -280,7 +281,7 @@ class BookmarkService {
       return results;
     } catch (error) {
       logService.error('搜索书签失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -337,7 +338,12 @@ class BookmarkService {
 }
 
 // 导出单例
-export const bookmarkService = new BookmarkService();
+const bookmarkService = new BookmarkService();
+
+module.exports = bookmarkService;
+module.exports.default = bookmarkService;
+module.exports.bookmarkService = bookmarkService;
+module.exports.BookmarkService = BookmarkService;
 export default bookmarkService;
 
 

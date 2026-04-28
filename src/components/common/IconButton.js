@@ -38,7 +38,7 @@ const IconButton = ({
   // 根据类型和大小确定样式
   const getButtonStyle = () => {
     let buttonStyle = {};
-    
+
     // 类型样式
     switch (type) {
       case 'primary':
@@ -141,7 +141,7 @@ const IconButton = ({
       style={[
         styles.button,
         getButtonStyle(),
-        style
+        style,
       ]}
       onPress={onPress}
       disabled={disabled}

@@ -3,11 +3,19 @@
 """
 
 import logging
+import importlib.util
+from pathlib import Path
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from ..services.password_service import PasswordService
+
+# users/services.py 与 users/services/ 目录同名，使用动态加载避免导入冲突
+_password_service_path = Path(__file__).resolve().parents[1] / 'services' / 'password_service.py'
+_spec = importlib.util.spec_from_file_location('users_password_service_module', _password_service_path)
+_password_service_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_password_service_module)
+PasswordService = _password_service_module.PasswordService
 
 logger = logging.getLogger(__name__)
 

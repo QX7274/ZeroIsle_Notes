@@ -1,0 +1,78 @@
+# ==================================================
+# ZeroIsle Notes - Electron Builder Configuration
+# ==================================================
+appId: com.zeroislenotes.app
+productName: 零屿笔记
+copyright: Copyright © 2026 ZeroIsle Team
+
+directories:
+  buildResources: electron/assets
+  output: dist
+
+files:
+  - electron/**/*
+  - web-build/**/*
+  - "!**/*.map"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,LICENSE,license,License}"
+
+extraMetadata:
+  main: electron/main.js
+
+# macOS Configuration
+mac:
+  category: public.app-category.productivity
+  icon: electron/assets/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Windows Configuration
+win:
+  icon: electron/assets/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  installerIcon: electron/assets/icon.ico
+  uninstallerIcon: electron/assets/icon.ico
+  artifactName: ${productName}-Setup-${version}.exe
+
+# Linux Configuration
+linux:
+  icon: electron/assets
+  category: Office
+  target:
+    - AppImage
+    - deb
+
+# Auto-updater Configuration (requires GitHub releases or custom server)
+publish:
+  provider: github
+  owner: your-github-org
+  repo: ZeroIsle_Notes
+  releaseType: release
+
+# Build Optimization
+asar: true
+compression: maximum

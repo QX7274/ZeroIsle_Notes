@@ -48,12 +48,7 @@ class UserRegistrationView(viewsets.ViewSet):
     """
     permission_classes = [permissions.AllowAny]
 
-    def _hash_password(self, password):
-        """使用PBKDF2算法加密密码"""
-        salt = settings.SECRET_KEY[:16].encode()
-        iterations = 100000
-        key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, iterations)
-        return base64.b64encode(key).decode()
+
 
     @transaction.atomic
     def create(self, request):
@@ -93,149 +88,7 @@ class UserRegistrationView(viewsets.ViewSet):
         """
         return self.create(request)
 
-    @action(detail=False, methods=['post'])
-    def register_with_username(self, request):
-        """
-        用户名注册
-        """
-        username = request.data.get('username')
-        password = request.data.get('password')
 
-        if not username or not password:
-            return Response({'error': '用户名和密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if User.objects.filter(username=username).exists():
-            return Response({'error': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 创建用户，确保用户名设置正确
-        user = User.objects.create_user(username=username, password=password)
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
-
-        # 记录设备信息
-        self._record_device(request, user)
-
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=['post'])
-    def register_with_email(self, request):
-        """
-        邮箱注册
-        """
-        email = request.data.get('email')
-        password = request.data.get('password')
-        username = request.data.get('username')
-
-        if not email or not password:
-            return Response({'error': '邮箱和密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if User.objects.filter(email=email).exists():
-            return Response({'error': '邮箱已注册'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 如果没有提供用户名，使用邮箱前缀作为用户名
-        if not username:
-            username = email.split('@')[0]
-
-            # 确保用户名唯一
-            base_username = username
-            count = 1
-            while User.objects.filter(username=username).exists():
-                username = f"{base_username}{count}"
-                count += 1
-
-        # 创建用户，确保用户名和邮箱都设置正确
-        user = User.objects.create_user(username=username, password=password)
-        user.email = email
-        user.save()
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
-
-        # 记录设备信息
-        self._record_device(request, user)
-
-        # 发送欢迎邮件
-        EmailService.send_welcome_email(user)
-
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=['post'])
-    def register_with_phone(self, request):
-        """
-        手机号注册
-        """
-        phone = request.data.get('phone')
-        code = request.data.get('code')
-        password = request.data.get('password')
-        username = request.data.get('username')
-
-        if not phone or not code or not password:
-            return Response({'error': '手机号、验证码和密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 在开发环境中，跳过验证码验证
-        if settings.DEBUG:
-            # 开发环境中跳过验证码验证
-            logger.info("开发环境中跳过验证码验证")
-            pass
-        else:
-            # 生产环境中验证验证码
-            try:
-                verification = VerificationCode.objects.get(
-                    phone=phone,
-                    purpose='register',
-                    is_used=False,
-                    expires_at__gt=timezone.now()
-                )
-
-                if verification.code != code:
-                    return Response({'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
-
-                # 标记验证码为已使用
-                verification.is_used = True
-                verification.save()
-
-            except VerificationCode.DoesNotExist:
-                return Response({'error': '验证码无效或已过期'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if User.objects.filter(phone=phone).exists():
-            return Response({'error': '手机号已注册'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 如果没有提供用户名，使用手机号作为用户名
-        if not username:
-            username = f"user_{phone[-4:]}"
-
-            # 确保用户名唯一
-            base_username = username
-            count = 1
-            while User.objects.filter(username=username).exists():
-                username = f"{base_username}{count}"
-                count += 1
-
-        # 创建用户，确保用户名和手机号都设置正确
-        user = User.objects.create_user(username=username, password=password)
-        user.phone = phone
-        user.save()
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
-
-        # 记录设备信息
-        self._record_device(request, user)
-
-        return Response({
-            'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
 
     def _record_device(self, request, user):
         """记录用户设备信息"""
@@ -262,83 +115,16 @@ class UserLoginView(viewsets.ViewSet):
     """
     permission_classes = [permissions.AllowAny]
 
-    def _verify_password(self, password, hashed_password):
-        """验证密码"""
-        # 使用Django的check_password方法
-        return check_password(password, hashed_password)
 
-    def _check_login_attempts(self, ip_address):
-        """检查登录尝试次数"""
-        # 在开发环境中，跳过登录尝试次数检查
-        if settings.DEBUG:
-            return True
-
-        try:
-            attempts = LoginAttempt.objects.filter(
-                ip_address=ip_address,
-                timestamp__gte=timezone.now() - timedelta(minutes=15)
-            ).count()
-
-            if attempts >= 5:
-                return False
-            return True
-        except Exception as e:
-            # 如果查询失败，记录错误并允许登录
-            logger.error(f"检查登录尝试次数失败: {str(e)}")
-            return True
-
-    def _record_login_attempt(self, ip_address, success):
-        """记录登录尝试"""
-        # 在开发环境中，跳过记录登录尝试
-        if settings.DEBUG:
-            return
-
-        try:
-            LoginAttempt.objects.create(
-                ip_address=ip_address,
-                success=success,
-                timestamp=timezone.now()
-            )
-        except Exception as e:
-            # 如果记录失败，只记录错误
-            logger.error(f"记录登录尝试失败: {str(e)}")
 
     @transaction.atomic
     def create(self, request):
         """
         标准登录方法
         """
-        ip_address = get_client_ip(request)
-
-        # 检查登录尝试次数
-        if not self._check_login_attempts(ip_address):
-            return Response(
-                {'error': '登录尝试次数过多，请15分钟后再试'},
-                status=status.HTTP_429_TOO_MANY_REQUESTS
-            )
-
-        serializer = UserLoginSerializer(data=request.data)
+        serializer = UserLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
-
-            # 用户已经在序列化器中通过authenticate验证，不需要再次验证密码
-
-            # 在开发环境中，跳过更新最后登录信息
-            if not settings.DEBUG:
-                try:
-                    # 更新最后登录信息
-                    user.last_login = timezone.now()
-                    user.last_login_ip = ip_address
-                    user.save(update_fields=['last_login', 'last_login_ip'])
-                except Exception as e:
-                    # 如果更新失败，记录错误但继续处理
-                    logger.error(f"更新用户登录信息失败: {str(e)}")
-
-            # 记录设备信息
-            self._record_device(request, user)
-
-            # 记录成功登录
-            self._record_login_attempt(ip_address, True)
 
             # 生成令牌
             refresh = RefreshToken.for_user(user)
@@ -436,10 +222,6 @@ class UserLoginView(viewsets.ViewSet):
 
     def _record_device(self, request, user):
         """记录用户设备信息"""
-        # 在开发环境中，跳过记录设备信息
-        if settings.DEBUG:
-            return
-
         try:
             device_data = request.data.get('device', {})
             if device_data and 'device_id' in device_data:
@@ -526,26 +308,24 @@ class UserBindingView(viewsets.ViewSet):
         if User.objects.filter(phone=phone).exclude(id=user.id).exists():
             return Response({'error': '该手机号已被其他用户绑定'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 在开发环境中，跳过验证码验证
-        if not settings.DEBUG:
-            # 验证验证码
-            try:
-                verification = VerificationCode.objects.get(
-                    phone=phone,
-                    purpose='bind',
-                    is_used=False,
-                    expires_at__gt=timezone.now()
-                )
+        # 验证验证码
+        try:
+            verification = VerificationCode.objects.get(
+                phone=phone,
+                purpose='bind',
+                is_used=False,
+                expires_at__gt=timezone.now()
+            )
 
-                if verification.code != code:
-                    return Response({'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
+            if verification.code != code:
+                return Response({'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
 
-                # 标记验证码为已使用
-                verification.is_used = True
-                verification.save()
+            # 标记验证码为已使用
+            verification.is_used = True
+            verification.save()
 
-            except VerificationCode.DoesNotExist:
-                return Response({'error': '验证码无效或已过期'}, status=status.HTTP_400_BAD_REQUEST)
+        except VerificationCode.DoesNotExist:
+            return Response({'error': '验证码无效或已过期'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 绑定手机号
         user.phone = phone
@@ -692,13 +472,15 @@ class UserProfileView(viewsets.ViewSet):
             from users.serializers import UserUpdateSerializer
             logger.debug(f"更新用户资料, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
 
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            # 获取或创建对应的MongoDB用户（优先使用中间件注入）
+            try:
+                from users.utils import get_mongo_user_from_django
+                mongo_user = getattr(request, 'mongo_user', None) or get_mongo_user_from_django(request.user)
+            except Exception:
+                mongo_user = None
 
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=request.user.username).first()
             if mongo_user:
-                logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
+                logger.debug(f"找到MongoDB用户: {getattr(mongo_user, 'username', 'unknown')}, ID: {getattr(mongo_user, 'id', None)}")
                 # 同步更新MongoDB用户的相关字段
                 if 'nickname' in request.data:
                     mongo_user.nickname = request.data['nickname']
@@ -890,12 +672,7 @@ class VerificationCodeView(viewsets.ViewSet):
             elif phone:
                 SmsService.send_verification_code(phone, verification_code.code, purpose)
 
-                # 开发环境下，直接返回验证码
-                if settings.DEBUG:
-                    return Response({
-                        'detail': '验证码已发送',
-                        'code': verification_code.code  # 仅在开发环境下返回
-                    })
+
 
             return Response({'detail': '验证码已发送'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

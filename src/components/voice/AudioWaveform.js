@@ -3,6 +3,12 @@ import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 
+
+const pseudoRandom = (seed) => {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+};
+
 /**
  * 音频波形组件
  * 显示音频录制或播放时的波形
@@ -22,7 +28,7 @@ const AudioWaveform = ({
   style = {},
   gradientColors = null,
   mirrorWave = true, // 是否镜像波形（上下对称）
-  rounded = true // 是否使用圆角
+  rounded = true, // 是否使用圆角
 }) => {
   const { colors } = useTheme();
   const [bars, setBars] = useState([]);
@@ -36,7 +42,7 @@ const AudioWaveform = ({
     return gradientColors || [
       colors.primary + 'CC', // 主色带透明度
       colors.primary,
-      colors.primary + '99' // 主色带透明度
+      colors.primary + '99', // 主色带透明度
     ];
   }, [colors.primary, gradientColors]);
 
@@ -48,7 +54,7 @@ const AudioWaveform = ({
     // 初始化柱状图数据
     const initialBars = Array(actualBarCount).fill().map(() => ({
       height: minHeight,
-      opacity: 0.3
+      opacity: 0.3,
     }));
     setBars(initialBars);
   }, [actualBarCount, minHeight]);
@@ -91,12 +97,13 @@ const AudioWaveform = ({
   // 开始波形动画 - 增强版
   const startWaveformAnimation = () => {
     // 随机生成初始波形 - 使用更自然的分布
+    const baseSeed = Date.now();
     const randomBars = Array(actualBarCount).fill().map((_, index) => {
       // 创建中间高两边低的自然分布
       const positionFactor = 1 - 0.4 * Math.abs((index - actualBarCount / 2) / (actualBarCount / 2));
 
-      // 添加一些随机性
-      const randomFactor = 0.7 + Math.random() * 0.6;
+      // 添加一些确定性扰动
+      const randomFactor = 0.7 + pseudoRandom(baseSeed + index) * 0.6;
 
       // 计算高度和不透明度
       const height = minHeight + (positionFactor * randomFactor * 15);
@@ -112,8 +119,8 @@ const AudioWaveform = ({
       // 使用不同的动画持续时间，创造更自然的效果
       // 中间的柱子动画更快，两边的更慢
       const positionFactor = 1 - 0.3 * Math.abs((index - actualBarCount / 2) / (actualBarCount / 2));
-      const duration1 = 500 + (1 - positionFactor) * 800 + Math.random() * 400;
-      const duration2 = 500 + (1 - positionFactor) * 800 + Math.random() * 400;
+      const duration1 = 500 + (1 - positionFactor) * 800 + pseudoRandom(baseSeed + index + 1) * 400;
+      const duration2 = 500 + (1 - positionFactor) * 800 + pseudoRandom(baseSeed + index + 2) * 400;
 
       // 使用交错的动画开始时间，创造波浪效果
       const delay = Math.abs(index - actualBarCount / 2) * 20;
@@ -126,14 +133,14 @@ const AudioWaveform = ({
               toValue: 1,
               duration: duration1,
               easing: Easing.inOut(Easing.sine),
-              useNativeDriver: true
+              useNativeDriver: true,
             }),
             Animated.timing(anim, {
               toValue: 0,
               duration: duration2,
               easing: Easing.inOut(Easing.sine),
-              useNativeDriver: true
-            })
+              useNativeDriver: true,
+            }),
           ])
         ).start();
       }, delay);
@@ -159,8 +166,8 @@ const AudioWaveform = ({
       // 创建波浪效果：中间的柱子高一些，两边的低一些
       const positionFactor = 1 - 0.3 * Math.abs((index - actualBarCount / 2) / (actualBarCount / 2));
 
-      // 添加一些随机性，使波形看起来更自然，但不要太随机
-      const randomFactor = 0.85 + Math.random() * 0.3;
+      // 添加一些确定性扰动，使波形看起来更自然，但不要太随机
+      const randomFactor = 0.85 + pseudoRandom(Date.now() + index) * 0.3;
 
       // 应用波浪偏移
       const waveOffset = waveOffsets[index];
@@ -176,14 +183,14 @@ const AudioWaveform = ({
         toValue: targetHeight,
         friction: 6,  // 降低摩擦力，使动画更流畅
         tension: 50,  // 增加张力，使动画更快速响应
-        useNativeDriver: false
+        useNativeDriver: false,
       }).start();
     });
   };
 
   // 开始播放波形动画
   const startPlaybackAnimation = () => {
-    if (duration <= 0) return;
+    if (duration <= 0) {return;}
 
     // 计算播放进度
     const progress = currentTime / duration;
@@ -194,14 +201,14 @@ const AudioWaveform = ({
       if (index < activeBarCount) {
         // 已播放部分 - 更活跃的波形
         return {
-          height: minHeight + Math.random() * (maxHeight - minHeight),
-          opacity: 1
+          height: minHeight + pseudoRandom(Date.now() + index) * (maxHeight - minHeight),
+          opacity: 1,
         };
       } else {
         // 未播放部分 - 较静态的波形
         return {
-          height: minHeight + Math.random() * 10,
-          opacity: 0.4
+          height: minHeight + pseudoRandom(Date.now() + index + 1) * 10,
+          opacity: 0.4,
         };
       }
     });
@@ -217,7 +224,7 @@ const AudioWaveform = ({
       Animated.timing(anim, {
         toValue: 0.5,
         duration: 300,
-        useNativeDriver: true
+        useNativeDriver: true,
       }).start();
     });
   };
@@ -233,14 +240,14 @@ const AudioWaveform = ({
         toValue: minHeight,
         duration: 500,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: false
+        useNativeDriver: false,
       }).start();
     });
 
     // 重置柱状图数据
     const resetBars = Array(actualBarCount).fill().map(() => ({
       height: minHeight,
-      opacity: 0.3
+      opacity: 0.3,
     }));
     setBars(resetBars);
   };
@@ -250,7 +257,7 @@ const AudioWaveform = ({
     // 计算不透明度动画值
     const opacity = animatedValues.current[index].interpolate({
       inputRange: [0, 0.5, 1],
-      outputRange: [0.4, 0.7, 1]
+      outputRange: [0.4, 0.7, 1],
     });
 
     // 计算柱子高度
@@ -266,8 +273,8 @@ const AudioWaveform = ({
             marginHorizontal: barGap / 2,
             opacity: opacity,
             height: height,
-            transform: [{ scaleY: isBottom ? -1 : 1 }] // 镜像效果
-          }
+            transform: [{ scaleY: isBottom ? -1 : 1 }], // 镜像效果
+          },
         ]}
       >
         <LinearGradient
@@ -277,8 +284,8 @@ const AudioWaveform = ({
             {
               width: '100%',
               height: '100%',
-              borderRadius: rounded ? 50 : 0
-            }
+              borderRadius: rounded ? 50 : 0,
+            },
           ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
@@ -338,7 +345,7 @@ const styles = StyleSheet.create({
   bar: {
     width: '100%',
     height: '100%',
-  }
+  },
 });
 
 export default AudioWaveform;

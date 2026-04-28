@@ -100,7 +100,7 @@ class Settings extends Realm.Object {
 
           this[key] = JSON.stringify(newSettings);
         } else {
-          throw new Error(`设置值必须是对象`);
+          throw new Error('设置值必须是对象');
         }
       } else {
         // 简单值直接赋值

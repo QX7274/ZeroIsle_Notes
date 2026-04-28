@@ -104,13 +104,13 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
     setFilters(prev => {
       const tags = [...prev.tags];
       const index = tags.indexOf(tagId);
-      
+
       if (index >= 0) {
         tags.splice(index, 1);
       } else {
         tags.push(tagId);
       }
-      
+
       return {
         ...prev,
         tags,
@@ -120,7 +120,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
   // 格式化日期
   const formatDate = (date) => {
-    if (!date) return '选择日期';
+    if (!date) {return '选择日期';}
     return format(date, 'yyyy-MM-dd', { locale: zhCN });
   };
 
@@ -152,7 +152,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <FlatList
             data={availableTags}
             keyExtractor={item => item.id}
@@ -160,7 +160,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <TouchableOpacity
                 style={[
                   styles.tagItem,
-                  filters.tags.includes(item.id) && { backgroundColor: colors.primaryLight }
+                  filters.tags.includes(item.id) && { backgroundColor: colors.primaryLight },
                 ]}
                 onPress={() => toggleTag(item.id)}
               >
@@ -178,7 +178,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
             )}
             contentContainerStyle={styles.tagsList}
           />
-          
+
           <View style={styles.modalFooter}>
             <TouchableOpacity
               style={[styles.footerButton, { borderColor: colors.border }]}
@@ -214,7 +214,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <FlatList
             data={CONTENT_TYPES}
             keyExtractor={item => item.id}
@@ -222,7 +222,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <TouchableOpacity
                 style={[
                   styles.optionItem,
-                  filters.contentType === item.id && { backgroundColor: colors.primaryLight }
+                  filters.contentType === item.id && { backgroundColor: colors.primaryLight },
                 ]}
                 onPress={() => {
                   updateFilter('contentType', item.id);
@@ -270,7 +270,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <FlatList
             data={SORT_OPTIONS}
             keyExtractor={item => item.id}
@@ -278,7 +278,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
               <TouchableOpacity
                 style={[
                   styles.optionItem,
-                  filters.sortBy === item.id && { backgroundColor: colors.primaryLight }
+                  filters.sortBy === item.id && { backgroundColor: colors.primaryLight },
                 ]}
                 onPress={() => {
                   updateFilter('sortBy', item.id);
@@ -321,7 +321,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
         <TouchableOpacity
           style={[
             styles.filterChip,
-            { backgroundColor: colors.card, borderColor: colors.border }
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
           onPress={() => setShowTypeModal(true)}
         >
@@ -342,7 +342,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
-            filters.tags.length > 0 && { borderColor: colors.primary }
+            filters.tags.length > 0 && { borderColor: colors.primary },
           ]}
           onPress={() => setShowTagsModal(true)}
         >
@@ -371,7 +371,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
-            filters.dateFrom && { borderColor: colors.primary }
+            filters.dateFrom && { borderColor: colors.primary },
           ]}
           onPress={() => setShowDateFromPicker(true)}
         >
@@ -395,7 +395,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
-            filters.dateTo && { borderColor: colors.primary }
+            filters.dateTo && { borderColor: colors.primary },
           ]}
           onPress={() => setShowDateToPicker(true)}
         >
@@ -418,7 +418,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
         <TouchableOpacity
           style={[
             styles.filterChip,
-            { backgroundColor: colors.card, borderColor: colors.border }
+            { backgroundColor: colors.card, borderColor: colors.border },
           ]}
           onPress={() => setShowSortModal(true)}
         >
@@ -438,7 +438,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
         <TouchableOpacity
           style={[
             styles.filterChip,
-            { backgroundColor: colors.errorLight, borderColor: colors.error }
+            { backgroundColor: colors.errorLight, borderColor: colors.error },
           ]}
           onPress={resetFilters}
         >

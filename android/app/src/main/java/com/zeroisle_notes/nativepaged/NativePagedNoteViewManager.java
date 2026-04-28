@@ -5,54 +5,67 @@ import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.annotations.ReactProp;
+import com.facebook.react.bridge.ReactApplicationContext;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 
 import java.util.Map;
 
 public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNoteView> {
-    
+
     public static final String REACT_CLASS = "NativePagedNoteView";
-    
+
     @Override
     public String getName() {
         return REACT_CLASS;
     }
-    
+
     @Override
     protected NativePagedNoteView createViewInstance(ThemedReactContext reactContext) {
         return new NativePagedNoteView(reactContext);
     }
-    
+
     @ReactProp(name = "noteId")
     public void setNoteId(NativePagedNoteView view, String noteId) {
         view.setNoteId(noteId);
     }
-    
+
     @ReactProp(name = "styleConfig")
     public void setStyleConfig(NativePagedNoteView view, ReadableMap config) {
         view.setStyleConfig(config);
     }
-    
+
     @ReactProp(name = "currentTool")
     public void setCurrentTool(NativePagedNoteView view, String tool) {
         view.setCurrentTool(tool);
     }
-    
+
     @ReactProp(name = "currentColor")
     public void setCurrentColor(NativePagedNoteView view, String color) {
         view.setCurrentColor(color);
     }
-    
+
     @ReactProp(name = "currentStrokeWidth")
     public void setCurrentStrokeWidth(NativePagedNoteView view, float width) {
         view.setCurrentStrokeWidth(width);
     }
-    
+
     // MARK: - Commands
-    
+
     @Nullable
     @Override
     public Map<String, Integer> getCommandsMap() {
@@ -70,15 +83,17 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .put("addNewPage", 11)
             .put("importNote", 12) // 导入笔记数据
             .put("setToolConfig", 15)
+            .put("addImage", 18)    // 新增图片上传
             .build();
     }
-    
+
     @Override
     public void receiveCommand(@NonNull NativePagedNoteView root, int commandId, @Nullable ReadableArray args) {
         switch (commandId) {
             case 1: // recognizeHandwriting
                 if (args != null && args.size() > 0) {
-                    root.recognizeHandwriting(args.getString(0));
+                    String strokeId = args.getString(0);
+                    root.recognizeHandwriting(strokeId);
                 }
                 break;
             case 2: // insertText
@@ -133,9 +148,14 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
                     root.setToolConfig(args.getString(0));
                 }
                 break;
+            case 18: // addImage
+                if (args != null && args.size() > 0) {
+                    root.addImage(args.getString(0));
+                }
+                break;
         }
     }
-    
+
     @Override
     public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
         return MapBuilder.<String, Object>builder()
@@ -149,6 +169,101 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .put("onExportComplete", MapBuilder.of("registrationName", "onExportComplete"))
             .put("onMetrics", MapBuilder.of("registrationName", "onMetrics"))
             .build();
+    }
+
+    // Promise API: 识别选区文本（ML Kit 本地 OCR）
+    @ReactMethod
+    public void recognizeTextInRegion(final int viewTag, double x, double y, double width, double height, final Promise promise) {
+        try {
+            final ReactApplicationContext reactContext = this.getReactApplicationContext();
+            if (reactContext == null) {
+                promise.reject("E_NO_CONTEXT", "React context is null");
+                return;
+            }
+
+            final Rect region = new Rect((int)x, (int)y, (int)(x + width), (int)(y + height));
+
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        View view = reactContext.getCurrentActivity().findViewById(viewTag);
+                        if (view == null) {
+                            promise.reject("E_VIEW_NOT_FOUND", "View not found");
+                            return;
+                        }
+
+                        // 渲染视图为位图
+                        Bitmap fullBitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+                        Canvas canvas = new Canvas(fullBitmap);
+                        view.draw(canvas);
+
+                        // 裁剪选区
+                        int cropX = Math.max(0, region.left);
+                        int cropY = Math.max(0, region.top);
+                        int cropW = Math.min(region.width(), fullBitmap.getWidth() - cropX);
+                        int cropH = Math.min(region.height(), fullBitmap.getHeight() - cropY);
+
+                        if (cropW <= 0 || cropH <= 0) {
+                            promise.resolve("");
+                            return;
+                        }
+
+                        Bitmap croppedBitmap = Bitmap.createBitmap(fullBitmap, cropX, cropY, cropW, cropH);
+                        fullBitmap.recycle();
+
+                        // 使用 ML Kit 中文识别
+                        TextRecognizer recognizer = TextRecognition.getClient(new ChineseTextRecognizerOptions.Builder().build());
+                        InputImage image = InputImage.fromBitmap(croppedBitmap, 0);
+
+                        recognizer.process(image)
+                            .addOnSuccessListener(visionText -> {
+                                String text = visionText.getText();
+                                promise.resolve(text != null ? text : "");
+                                croppedBitmap.recycle();
+                            })
+                            .addOnFailureListener(e -> {
+                                promise.reject("E_OCR_FAILED", e.getMessage(), e);
+                                croppedBitmap.recycle();
+                            });
+
+                    } catch (Exception e) {
+                        promise.reject("E_OCR_FAILED", e.getMessage(), e);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            promise.reject("E_OCR_FAILED", e.getMessage(), e);
+        }
+    }
+
+    @ReactMethod
+    public void recognizeHandwriting(final int viewTag, final int count, final Promise promise) {
+        try {
+            final ReactApplicationContext reactContext = this.getReactApplicationContext();
+            if (reactContext == null) {
+                promise.reject("E_NO_CONTEXT", "React context is null");
+                return;
+            }
+
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        View view = reactContext.getCurrentActivity().findViewById(viewTag);
+                        if (view instanceof NativePagedNoteView) {
+                            ((NativePagedNoteView) view).recognizeHandwriting(count, promise);
+                        } else {
+                            promise.reject("E_VIEW_NOT_FOUND", "View not found or is not a NativePagedNoteView");
+                        }
+                    } catch (Exception e) {
+                        promise.reject("E_HANDWRITING_FAILED", e.getMessage(), e);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            promise.reject("E_HANDWRITING_FAILED", e.getMessage(), e);
+        }
     }
 }
 

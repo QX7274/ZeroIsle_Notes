@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class NoteCategoryViewSet(viewsets.ModelViewSet):
     """笔记分类视图集"""
-    queryset = NoteCategory.objects.all()
+    queryset = []
     serializer_class = NoteCategorySerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -98,7 +98,7 @@ class NoteCategoryViewSet(viewsets.ModelViewSet):
 
 class TagViewSet(viewsets.ModelViewSet):
     """标签视图集"""
-    queryset = Tag.objects.all()
+    queryset = []
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -152,7 +152,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 class ContentReportViewSet(viewsets.ModelViewSet):
     """内容举报视图集"""
-    queryset = ContentReport.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'reason', 'content_type']
@@ -334,7 +334,7 @@ class ContentReportViewSet(viewsets.ModelViewSet):
 
 class NoteViewSet(viewsets.ModelViewSet):
     """笔记视图集"""
-    queryset = Note.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content']
@@ -793,7 +793,7 @@ class NoteViewSet(viewsets.ModelViewSet):
 
 class CommentViewSet(viewsets.ModelViewSet):
     """评论视图集"""
-    queryset = Comment.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['content', 'username']
@@ -958,7 +958,7 @@ class CommentViewSet(viewsets.ModelViewSet):
 
 class AttachmentViewSet(viewsets.ModelViewSet):
     """附件视图集"""
-    queryset = Attachment.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['filename', 'mime_type']

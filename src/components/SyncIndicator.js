@@ -17,22 +17,22 @@ import { zhCN } from 'date-fns/locale';
  */
 const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
   const theme = useTheme();
-  const { 
-    isSyncing, 
-    lastSyncTime, 
-    queueLength, 
-    isOnline, 
-    syncNow, 
-    error 
+  const {
+    isSyncing,
+    lastSyncTime,
+    queueLength,
+    isOnline,
+    syncNow,
+    error,
   } = useSyncStatus();
-  
+
   const [spinValue] = useState(new Animated.Value(0));
   const [lastSyncTimeText, setLastSyncTimeText] = useState('');
 
   // 旋转动画
   useEffect(() => {
     let animation;
-    
+
     if (isSyncing) {
       // 创建旋转动画
       animation = Animated.loop(
@@ -43,14 +43,14 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
           useNativeDriver: true,
         })
       );
-      
+
       // 启动动画
       animation.start();
     } else {
       // 停止动画
       spinValue.setValue(0);
     }
-    
+
     return () => {
       if (animation) {
         animation.stop();
@@ -64,7 +64,7 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
       const updateTimeText = () => {
         try {
           const syncDate = new Date(lastSyncTime);
-          const timeText = formatDistanceToNow(syncDate, { 
+          const timeText = formatDistanceToNow(syncDate, {
             addSuffix: true,
             locale: zhCN,
           });
@@ -73,13 +73,13 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
           setLastSyncTimeText('未知时间');
         }
       };
-      
+
       // 立即更新
       updateTimeText();
-      
+
       // 每分钟更新一次
       const interval = setInterval(updateTimeText, 60000);
-      
+
       return () => clearInterval(interval);
     } else {
       setLastSyncTimeText('从未同步');
@@ -100,28 +100,28 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
         color: theme.colors.notification,
       };
     }
-    
+
     if (error) {
       return {
         icon: 'error',
         color: theme.colors.error,
       };
     }
-    
+
     if (isSyncing) {
       return {
         icon: 'sync',
         color: theme.colors.primary,
       };
     }
-    
+
     if (queueLength > 0) {
       return {
         icon: 'sync-problem',
         color: theme.colors.warning || '#FFA000',
       };
     }
-    
+
     return {
       icon: 'cloud-done',
       color: theme.colors.success || '#4CAF50',
@@ -136,12 +136,12 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
       onPress();
       return;
     }
-    
+
     if (!isOnline) {
       // 离线状态下不执行同步
       return;
     }
-    
+
     if (!isSyncing && queueLength > 0) {
       try {
         await syncNow();
@@ -152,25 +152,25 @@ const SyncIndicator = ({ style, showText = false, size = 24, onPress }) => {
   };
 
   return (
-    <TouchableOpacity 
-      style={[styles.container, style]} 
+    <TouchableOpacity
+      style={[styles.container, style]}
       onPress={handlePress}
       disabled={isSyncing || (!onPress && (queueLength === 0 || !isOnline))}
     >
       <Animated.View style={{ transform: [{ rotate: spin }] }}>
         <Icon name={icon} size={size} color={color} />
       </Animated.View>
-      
+
       {showText && (
         <View style={styles.textContainer}>
           <Text style={[styles.statusText, { color: theme.colors.text }]}>
-            {isSyncing ? '正在同步...' : 
+            {isSyncing ? '正在同步...' :
              !isOnline ? '离线模式' :
              error ? '同步错误' :
-             queueLength > 0 ? `待同步: ${queueLength}` : 
+             queueLength > 0 ? `待同步: ${queueLength}` :
              '已同步'}
           </Text>
-          
+
           {lastSyncTime && (
             <Text style={[styles.timeText, { color: theme.colors.text }]}>
               {`上次同步: ${lastSyncTimeText}`}

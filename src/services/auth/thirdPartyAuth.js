@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import userApi from '../api/userApi';
-import { setToken as storeToken, setUser as storeUserInfo } from './tokenService';
+import authService from './authService';
+import { logService } from '../../utils/logService';
 
 class ThirdPartyAuthService {
   constructor() {
@@ -14,13 +15,12 @@ class ThirdPartyAuthService {
       const authResult = await this.wechatAuth();
       if (authResult && authResult.code) {
         // 使用授权码调用后端接口
-        const response = await userApi.loginWithWeChat(authResult.code);
-        await this.handleLoginResponse(response);
-        return true;
+        const response = await userApi.wechatLogin(authResult.code, authResult.userInfo);
+        return await this.handleLoginResponse('weChat', response);
       }
       return false;
     } catch (error) {
-      console.error('微信登录失败:', error);
+      logService.error('微信登录失败', error);
       throw error;
     }
   }
@@ -31,22 +31,29 @@ class ThirdPartyAuthService {
       const authResult = await this.qqAuth();
       if (authResult && authResult.code) {
         // 使用授权码调用后端接口
-        const response = await userApi.loginWithQQ(authResult.code);
-        await this.handleLoginResponse(response);
-        return true;
+        const response = await userApi.qqLogin(authResult.code, authResult.userInfo);
+        return await this.handleLoginResponse('qq', response);
       }
       return false;
     } catch (error) {
-      console.error('QQ登录失败:', error);
+      logService.error('QQ登录失败', error);
       throw error;
     }
   }
 
-  async handleLoginResponse(response) {
-    if (response.token && response.user) {
-      await storeToken(response.token);
-      await storeUserInfo(response.user);
-      return true;
+  /**
+   * 统一处理后端返回的登录响应
+   * 必须包含业务 token 和 realm_jwt
+   */
+  async handleLoginResponse(provider, response) {
+    if (response.success && response.data) {
+      try {
+        await authService.handleThirdPartyLoginSuccess(provider, response);
+        return true;
+      } catch (err) {
+        logService.error(`${provider} 登录落地失败`, err);
+        return false;
+      }
     }
     return false;
   }
@@ -76,4 +83,9 @@ class ThirdPartyAuthService {
   }
 }
 
-export const thirdPartyAuthService = new ThirdPartyAuthService();
+const thirdPartyAuthService = new ThirdPartyAuthService();
+
+module.exports = thirdPartyAuthService;
+module.exports.default = thirdPartyAuthService;
+module.exports.thirdPartyAuthService = thirdPartyAuthService;
+module.exports.ThirdPartyAuthService = ThirdPartyAuthService;

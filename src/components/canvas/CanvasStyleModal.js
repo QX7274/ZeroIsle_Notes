@@ -6,7 +6,7 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
-  TextInput
+  TextInput,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Svg, { Rect, Line } from 'react-native-svg';
@@ -19,42 +19,42 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
   const { colors } = useTheme();
   const [selectedStyle, setSelectedStyle] = useState('white');
   const [canvasName, setCanvasName] = useState('');
-  
+
   const canvasStyles = [
     {
       id: 'white',
       name: '白色纸张',
       description: '纯白色背景，适合一般绘画',
       backgroundColor: '#FFFFFF',
-      pattern: null
+      pattern: null,
     },
     {
       id: 'yellow',
       name: '淡黄色纸张',
       description: '温暖的淡黄色背景，护眼舒适',
       backgroundColor: '#FFF8DC',
-      pattern: null
+      pattern: null,
     },
     {
       id: 'grid',
       name: '方格纸',
       description: '网格背景，适合绘制图表和几何图形',
       backgroundColor: '#FFFFFF',
-      pattern: 'grid'
+      pattern: 'grid',
     },
     {
       id: 'lines',
       name: '横线纸',
       description: '横线背景，适合书写和笔记',
       backgroundColor: '#FFFFFF',
-      pattern: 'lines'
-    }
+      pattern: 'lines',
+    },
   ];
-  
+
   // 渲染样式预览
   const renderStylePreview = (style) => {
     const previewSize = 60;
-    
+
     return (
       <View style={[styles.previewContainer, { backgroundColor: style.backgroundColor }]}>
         <Svg width={previewSize} height={previewSize}>
@@ -65,7 +65,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
             stroke="#E0E0E0"
             strokeWidth={1}
           />
-          
+
           {style.pattern === 'grid' && (
             <>
               {/* 垂直线 */}
@@ -94,7 +94,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
               ))}
             </>
           )}
-          
+
           {style.pattern === 'lines' && (
             <>
               {/* 水平线 */}
@@ -115,10 +115,10 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
       </View>
     );
   };
-  
+
   const handleConfirm = () => {
     const trimmedName = canvasName.trim();
-    const finalName = trimmedName || `无限画布_${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
+    const finalName = trimmedName || `无限画布_${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2,'0')}${new Date().getDate().toString().padStart(2,'0')}_${new Date().getHours().toString().padStart(2,'0')}${new Date().getMinutes().toString().padStart(2,'0')}`;
 
     console.log('创建画布:', { originalName: canvasName, trimmedName, finalName });
 
@@ -126,7 +126,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
     onClose();
     setCanvasName('');
   };
-  
+
   return (
     <Modal
       visible={visible}
@@ -149,12 +149,12 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Text style={[styles.subtitle, { color: colors.textLight }]}>
               选择适合您需求的画布背景样式
             </Text>
-            
+
             <View style={styles.stylesGrid}>
               {canvasStyles.map((style) => (
                 <TouchableOpacity
@@ -165,12 +165,12 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
                       backgroundColor: colors.background,
                       borderColor: selectedStyle === style.id ? colors.primary : colors.border,
                       borderWidth: selectedStyle === style.id ? 2 : 1,
-                    }
+                    },
                   ]}
                   onPress={() => setSelectedStyle(style.id)}
                 >
                   {renderStylePreview(style)}
-                  
+
                   <View style={styles.styleInfo}>
                     <Text style={[styles.styleName, { color: colors.text }]}>
                       {style.name}
@@ -179,7 +179,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
                       {style.description}
                     </Text>
                   </View>
-                  
+
                   {selectedStyle === style.id && (
                     <View style={[styles.selectedIndicator, { backgroundColor: colors.primary }]}>
                       <Text style={styles.selectedText}>✓</Text>
@@ -189,7 +189,7 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
               ))}
             </View>
           </ScrollView>
-          
+
           <View style={styles.footer}>
             <TextInput
               style={[
@@ -197,8 +197,8 @@ const CanvasStyleModal = ({ visible, onClose, onSelect }) => {
                 {
                   borderColor: colors.border,
                   backgroundColor: colors.background,
-                  color: colors.text
-                }
+                  color: colors.text,
+                },
               ]}
               placeholder="输入名称（默认日期）"
               placeholderTextColor={colors.textLight}

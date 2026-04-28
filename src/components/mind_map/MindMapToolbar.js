@@ -1,6 +1,7 @@
 /**
  * 思维导图工具栏组件
  * 提供思维导图编辑工具
+ * Refactored with Design Tokens
  */
 
 import React from 'react';
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
+import { SPACING, SIZE, BORDER, ELEVATION, RADIUS } from '../../theme/tokens';
 
 const MindMapToolbar = ({
   onAddNode,
@@ -82,13 +84,13 @@ const MindMapToolbar = ({
     >
       <Icon
         name={tool.icon}
-        size={24}
-        color={tool.onPress ? colors.text : colors.textDisabled}
+        size={SIZE.icon.lg}
+        color={tool.onPress ? colors.text : (colors.textDisabled || '#BDBDBD')}
       />
       <Text
         style={[
           styles.toolLabel,
-          { color: tool.onPress ? colors.text : colors.textDisabled }
+          { color: tool.onPress ? colors.text : (colors.textDisabled || '#BDBDBD') },
         ]}
       >
         {tool.label}
@@ -97,7 +99,7 @@ const MindMapToolbar = ({
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.card }]}>
+    <View style={styles.container}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -112,21 +114,25 @@ const MindMapToolbar = ({
 // 样式
 const getStyles = (colors) => StyleSheet.create({
   container: {
-    borderBottomWidth: 1,
+    borderBottomWidth: BORDER.width.thin,
     borderBottomColor: colors.border,
+    backgroundColor: colors.card || colors.surface,
+    ...ELEVATION.sm,
   },
   toolsContainer: {
     flexDirection: 'row',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
   },
   toolButton: {
     alignItems: 'center',
-    marginRight: 24,
+    marginRight: SPACING.lg,
+    padding: SPACING.xs,
+    borderRadius: RADIUS.sm,
   },
   toolLabel: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 12, // Small label
+    marginTop: SPACING.xs,
   },
 });
 

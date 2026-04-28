@@ -37,7 +37,7 @@ class File extends Realm.Object {
       is_public: { type: 'bool', default: false },
       public_url: { type: 'string', optional: true },
       expiry_date: { type: 'date', optional: true },
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
     },
   };
 

@@ -12,12 +12,12 @@ export {
   realmService,
   databaseInitService,
   dataService,
-  mongoDBService
+  mongoDBService,
 };
 
 export default {
   realmService,
   databaseInitService,
   dataService,
-  mongoDBService
+  mongoDBService,
 };

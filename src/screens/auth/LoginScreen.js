@@ -11,8 +11,10 @@ import { Button, Input, Loading } from '../../components/common';
 import { useTheme } from '../../context/ThemeContext';
 
 import authApi from '../../services/api/authApi';
-import realmService from '../../services/database/realmService';
+import authService from '../../services/auth/authService';
+import authStorage from '../../services/auth/authStorage';
 import networkErrorService from '../../services/networkErrorService';
+import { DEV_MODE_CONFIG } from '../../config';
 
 // 导入LinearGradient组件
 let LinearGradient;
@@ -96,7 +98,7 @@ const LoginScreen = ({ navigation }) => {
 
   // 判断标识符类型
   const getIdentifierType = (value) => {
-    if (!value) return null;
+    if (!value) {return null;}
 
     // 手机号格式：11位数字
     if (/^1\d{10}$/.test(value)) {
@@ -121,9 +123,29 @@ const LoginScreen = ({ navigation }) => {
       }, 1000);
     }
     return () => {
-      if (timer) clearTimeout(timer);
+      if (timer) {clearTimeout(timer);}
     };
   }, [countdown]);
+
+  // 统一错误处理，避免未定义函数导致登录流程中断
+  const handleError = (err, options = {}) => {
+    try {
+      networkErrorService.handleApiError(err, options);
+    } catch (handleErr) {
+      console.error('处理认证错误失败:', handleErr);
+    }
+  };
+
+  // 统一成功提示，避免未定义函数导致流程报错
+  const showSuccessMessage = (message, title = '提示') => {
+    try {
+      Alert.alert(title, message);
+    } catch (alertError) {
+      console.log(`${title}: ${message}`);
+      console.error('显示成功提示失败:', alertError);
+    }
+  };
+
 
   // 发送验证码
   const handleSendCode = async () => {
@@ -211,34 +233,18 @@ const LoginScreen = ({ navigation }) => {
           const result = await authApi.registerWithPhone({
             phone: identifier,
             code,
-            password
+            password,
           });
 
           if (result.success) {
             dispatch(login(result.data));
 
-            // 同步用户信息到Realm数据库
+            // 使用认证存储服务保存用户信息
             try {
-              // 使用Realm存储服务保存用户信息
-              const realm = await realmService.getRealm();
-              realm.write(() => {
-                const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
-                if (existingItem.length > 0) {
-                  existingItem[0].value = JSON.stringify(result.data.user);
-                  existingItem[0].updated_at = new Date();
-                } else {
-                  realm.create('StorageItem', {
-                    key: 'user_info',
-                    value: JSON.stringify(result.data.user),
-                    createdAt: new Date(),
-                    updated_at: new Date(),
-                  });
-                }
-              });
-              console.log('手机验证码注册用户信息已保存到Realm数据库');
+              await authStorage.saveUser(result.data.user);
+              console.log('手机验证码注册用户信息已通过认证存储服务保存');
             } catch (syncError) {
               console.error('保存手机验证码注册用户信息失败:', syncError);
-              // 继续处理，不阻止注册流程
             }
 
             showSuccessMessage('欢迎加入零屿笔记！', '注册成功');
@@ -248,7 +254,7 @@ const LoginScreen = ({ navigation }) => {
         } catch (error) {
           handleError(error, {
             context: '用户注册',
-            customMessage: '注册失败，请检查网络连接后重试'
+            customMessage: '注册失败，请检查网络连接后重试',
           });
           setError('注册失败，请稍后重试');
         }
@@ -259,14 +265,14 @@ const LoginScreen = ({ navigation }) => {
           // 密码注册时，统一使用用户名
           const result = await authApi.registerWithUsername({
             username: identifier,
-            password
+            password,
           });
 
           if (result.success) {
             // 注册成功后，使用用户名和密码进行登录
             const loginResult = await authApi.login({
               username: identifier,
-              password: password
+              password: password,
             });
 
             if (loginResult.success) {
@@ -275,28 +281,12 @@ const LoginScreen = ({ navigation }) => {
               dispatch({ type: 'auth/setAuthToken', payload: loginResult.data.access });
               dispatch({ type: 'auth/setAuthRefreshToken', payload: loginResult.data.refresh });
 
-              // 同步用户信息到Realm数据库
+              // 使用认证存储服务保存用户信息
               try {
-                // 使用Realm存储服务保存用户信息
-                const realm = await realmService.getRealm();
-                realm.write(() => {
-                  const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
-                  if (existingItem.length > 0) {
-                    existingItem[0].value = JSON.stringify(loginResult.data.user);
-                    existingItem[0].updated_at = new Date();
-                  } else {
-                    realm.create('StorageItem', {
-                      key: 'user_info',
-                      value: JSON.stringify(loginResult.data.user),
-                      createdAt: new Date(),
-                      updated_at: new Date(),
-                    });
-                  }
-                });
-                console.log('注册用户信息已保存到Realm数据库');
+                await authStorage.saveUser(loginResult.data.user);
+                console.log('注册用户信息已通过认证存储服务保存');
               } catch (syncError) {
                 console.error('保存注册用户信息失败:', syncError);
-                // 继续处理，不阻止注册流程
               }
 
               showSuccessMessage('欢迎加入零屿笔记！', '注册成功');
@@ -311,7 +301,7 @@ const LoginScreen = ({ navigation }) => {
         } catch (error) {
           handleError(error, {
             context: '密码注册',
-            customMessage: '注册失败，请检查网络连接后重试'
+            customMessage: '注册失败，请检查网络连接后重试',
           });
           setError('注册失败，请稍后重试');
         }
@@ -342,37 +332,26 @@ const LoginScreen = ({ navigation }) => {
 
           const result = await authApi.loginWithCode({
             phone: identifier,
-            code
+            code,
           });
 
           if (result && result.success) {
             // 直接更新Redux状态
             dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
-            dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
+            dispatch({ type: 'auth/setAuthToken', payload: result.data.access || result.data.token });
             dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
+            dispatch({ type: 'auth/setIsAuthenticated', payload: true });
 
-            // 同步用户信息到Realm数据库
+            // 使用认证存储服务保存用户信息与令牌
             try {
-              // 使用Realm存储服务保存用户信息
-              const realm = await realmService.getRealm();
-              realm.write(() => {
-                const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
-                if (existingItem.length > 0) {
-                  existingItem[0].value = JSON.stringify(result.data.user);
-                  existingItem[0].updated_at = new Date();
-                } else {
-                  realm.create('StorageItem', {
-                    key: 'user_info',
-                    value: JSON.stringify(result.data.user),
-                    createdAt: new Date(),
-                    updated_at: new Date(),
-                  });
-                }
+              await authStorage.saveUser(result.data.user);
+              await authStorage.saveToken({
+                access_token: result.data.access || result.data.token,
+                refresh_token: result.data.refresh,
+                realm_jwt: result.data.realm_jwt || result.data.tokens?.realm_jwt,
               });
-              console.log('验证码登录用户信息已保存到Realm数据库');
             } catch (syncError) {
-              console.error('保存验证码登录用户信息失败:', syncError);
-              // 继续处理，不阻止登录流程
+              console.error('保存验证码登录用户信息或令牌失败:', syncError);
             }
           } else {
             setError(result?.message || '登录失败，请检查验证码');
@@ -381,7 +360,7 @@ const LoginScreen = ({ navigation }) => {
           console.error('验证码登录错误:', error);
           handleError(error, {
             context: '验证码登录',
-            customMessage: '登录失败，请检查验证码是否正确'
+            customMessage: '登录失败，请检查验证码是否正确',
           });
           setError(error?.message || '登录失败，请稍后重试');
         }
@@ -395,69 +374,52 @@ const LoginScreen = ({ navigation }) => {
 
         // 密码登录时，统一使用用户名
         const loginData = {
-          username: identifier
+          username: identifier,
         };
 
         loginData.password = password;
 
         try {
-          console.log('开始登录请求，登录数据:', loginData);
+          console.log('开始登录请求');
 
           // 直接调用API而不是通过Redux
           const result = await authApi.login(loginData);
 
-          console.log('登录请求结果:', result);
+          console.log('登录请求已完成');
 
           if (result && result.success && result.data) {
-            console.log('登录成功，用户数据:', result.data.user);
+            // 使用认证存储服务保存用户信息与令牌
+            try {
+              await authStorage.saveUser(result.data.user);
+              await authStorage.saveToken({
+                access_token: result.data.access || result.data.token,
+                refresh_token: result.data.refresh,
+                realm_jwt: result.data.realm_jwt || result.data.tokens?.realm_jwt,
+              });
+              console.log('用户信息和令牌已通过认证存储服务保存');
+            } catch (syncError) {
+              console.error('保存用户信息或令牌失败:', syncError);
+            }
 
             try {
               // 登录成功，更新Redux状态
               dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
-              dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
+              dispatch({ type: 'auth/setAuthToken', payload: result.data.access || result.data.token });
               dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
 
               // 显式设置认证状态
               dispatch({ type: 'auth/setIsAuthenticated', payload: true });
 
-              // 同步用户信息到Realm数据库
-              try {
-                // 使用Realm存储服务保存用户信息
-                const realm = await realmService.getRealm();
-                realm.write(() => {
-                  const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
-                  if (existingItem.length > 0) {
-                    existingItem[0].value = JSON.stringify(result.data.user);
-                    existingItem[0].updated_at = new Date();
-                  } else {
-                    realm.create('StorageItem', {
-                      key: 'user_info',
-                      value: JSON.stringify(result.data.user),
-                      createdAt: new Date(),
-                      updated_at: new Date(),
-                    });
-                  }
-                });
-                console.log('用户信息已保存到Realm数据库');
-              } catch (syncError) {
-                console.error('保存用户信息失败:', syncError);
-                // 继续处理，不阻止登录流程
-              }
-
               // 显示成功消息
               showSuccessMessage('欢迎回到零屿笔记！', '登录成功');
 
-              // 登录成功后更新Redux状态，让AppNavigator自动切换到主页
-              // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
               console.log('登录成功，Redux状态已更新，等待AppNavigator自动切换到主页');
             } catch (reduxError) {
               console.error('更新Redux状态失败:', reduxError);
 
-              // 即使Redux更新失败，也尝试导航到主页
               Alert.alert('登录成功', '欢迎回到零屿笔记！但应用状态更新失败，可能需要重新登录。');
 
               try {
-                // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
                 console.log('登录成功，但Redux状态更新失败，尝试通过其他方式更新认证状态');
               } catch (navError) {
                 console.error('导航失败:', navError);
@@ -466,19 +428,63 @@ const LoginScreen = ({ navigation }) => {
             }
           } else {
             // 登录失败，显示错误信息
-            console.error('登录失败:', result);
+            console.error('登录失败');
             setError(result?.message || '登录失败，请检查用户名和密码');
           }
         } catch (error) {
-          console.error('登录错误:', error);
-          console.error('错误详情:', error.response?.data || error.message);
+          console.error('登录异常');
           handleError(error, {
             context: '密码登录',
-            customMessage: '登录失败，请检查用户名和密码是否正确'
+            customMessage: '登录失败，请检查用户名和密码是否正确',
           });
           setError(error?.message || '登录失败，请稍后重试');
         }
       }
+    }
+  };
+
+  // 开发者模式快速进入（按用户要求：登录失败时可跳过登录继续功能测试）
+  const handleEnterDevMode = async () => {
+    setError('');
+    try {
+      if (!DEV_MODE_CONFIG?.ENABLED) {
+        setError('当前环境未启用开发者模式');
+        return;
+      }
+
+      const devModeService = require('../../services/auth/devModeService').default;
+      const enabled = await devModeService.enableDevMode();
+      if (!enabled) {
+        setError('启用开发者模式失败');
+        return;
+      }
+
+      const devAccount = devModeService.getDevAccount() || DEV_MODE_CONFIG.DEV_ACCOUNT;
+      const devToken = `dev-token-${Date.now()}`;
+
+      // 先保存本地凭据，避免重启后丢失状态
+      try {
+        await authStorage.saveUser(devAccount);
+        await authStorage.saveToken({
+          access_token: devToken,
+          refresh_token: devToken,
+          realm_jwt: null,
+        });
+      } catch (syncError) {
+        console.error('保存开发者模式认证信息失败:', syncError);
+      }
+
+      // 同步Redux认证状态
+      dispatch({ type: 'auth/setUserInfo', payload: devAccount });
+      dispatch({ type: 'auth/setAuthToken', payload: devToken });
+      dispatch({ type: 'auth/setAuthRefreshToken', payload: devToken });
+      dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+
+      showSuccessMessage('已进入开发者模式，开始功能测试', '开发者模式');
+      console.log('开发者模式进入成功，等待AppNavigator切换到主页');
+    } catch (err) {
+      console.error('进入开发者模式失败:', err);
+      setError(err?.message || '进入开发者模式失败');
     }
   };
 
@@ -497,13 +503,16 @@ const LoginScreen = ({ navigation }) => {
       let result;
       let loginMethod;
       let serviceName;
+      let providerKey;
 
       if (type === 'wechat') {
         loginMethod = authApi.thirdPartyLogin || authApi.wechatLogin;
         serviceName = '微信';
+        providerKey = 'weChat';
       } else if (type === 'qq') {
         loginMethod = authApi.thirdPartyLogin || authApi.qqLogin;
         serviceName = 'QQ';
+        providerKey = 'qq';
       }
 
       if (!loginMethod) {
@@ -512,44 +521,12 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // 调用第三方登录方法
-      result = await loginMethod('mock_code', type);
-
-      if (result && result.success) {
-        // 登录成功，更新Redux状态
-        dispatch({ type: 'auth/setUserInfo', payload: result.data.user });
-        dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
-        dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
-
-        // 同步用户信息到Realm数据库
-        try {
-          // 使用Realm存储服务保存用户信息
-          const realm = await realmService.getRealm();
-          realm.write(() => {
-            const existingItem = realm.objects('StorageItem').filtered('key = "user_info"');
-            if (existingItem.length > 0) {
-              existingItem[0].value = JSON.stringify(result.data.user);
-              existingItem[0].updated_at = new Date();
-            } else {
-              realm.create('StorageItem', {
-                key: 'user_info',
-                value: JSON.stringify(result.data.user),
-                createdAt: new Date(),
-                updated_at: new Date(),
-              });
-            }
-          });
-          console.log(`${serviceName}登录用户信息已保存到Realm数据库`);
-        } catch (storageError) {
-          console.error(`保存${serviceName}登录用户信息失败:`, storageError);
-          // 继续处理，不阻止登录流程
-        }
-      } else {
-        setError(result?.message || `${serviceName}登录失败`);
-      }
+      // 调用第三方登录方法：必须使用真实 SDK 授权码
+      setError('暂未接入第三方登录 SDK，请使用手机号登录');
+      return;
     } catch (error) {
-      console.error(`第三方登录错误:`, error);
-      setError(`第三方登录失败，请重试`);
+      console.error('第三方登录错误:', error);
+      setError('第三方登录失败，请重试');
     }
   };
 
@@ -587,7 +564,7 @@ const LoginScreen = ({ navigation }) => {
                     style={{
                       color: !isRegister ? 'white' : colors.textSecondary,
                       fontSize: 16,
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
                     }}
                   >
                     登录
@@ -601,7 +578,7 @@ const LoginScreen = ({ navigation }) => {
                     style={{
                       color: isRegister ? 'white' : colors.textSecondary,
                       fontSize: 16,
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
                     }}
                   >
                     注册
@@ -622,7 +599,7 @@ const LoginScreen = ({ navigation }) => {
                     style={{
                       color: !isRegister ? 'white' : colors.textSecondary,
                       fontSize: 16,
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
                     }}
                   >
                     登录
@@ -636,7 +613,7 @@ const LoginScreen = ({ navigation }) => {
                     style={{
                       color: isRegister ? 'white' : colors.textSecondary,
                       fontSize: 16,
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
                     }}
                   >
                     注册
@@ -650,255 +627,276 @@ const LoginScreen = ({ navigation }) => {
             styles.formContainer,
             {
               backgroundColor: colors.card,
-              ...dimensions.SHADOW.MEDIUM
-            }
+              ...dimensions.SHADOW.MEDIUM,
+            },
           ]}>
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text
-                style={[styles.errorText, { fontSize: 14 }]}
-              >
-                {error}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* 登录方式选择器 */}
-          <View style={styles.loginTypeSelector}>
-            <TouchableOpacity
-              style={[
-                styles.loginTypeButton,
-                loginType === 'password' && styles.activeLoginType
-              ]}
-              onPress={() => setLoginType('password')}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: loginType === 'password' ? colors.primary : colors.hint || '#999',
-                  fontWeight: loginType === 'password' ? 'bold' : 'normal'
-                }}
-              >
-                密码{isRegister ? '注册' : '登录'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.loginTypeButton,
-                loginType === 'code' && styles.activeLoginType
-              ]}
-              onPress={() => setLoginType('code')}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: loginType === 'code' ? colors.primary : colors.hint || '#999',
-                  fontWeight: loginType === 'code' ? 'bold' : 'normal'
-                }}
-              >
-                验证码{isRegister ? '注册' : '登录'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* 添加可移动的指示器 */}
-            <Animated.View
-              style={[
-                styles.tabIndicator,
-                {
-                  left: indicatorPosition.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0%', '50%']
-                  }),
-                  borderBottomColor: colors.primary
-                }
-              ]}
-            />
-          </View>
-
-          {/* 统一的标识符输入框 */}
-          <Input
-            label={loginType === 'password' ? "用户" : "手机号"}
-            value={identifier}
-            onChangeText={setIdentifier}
-            placeholder={loginType === 'password' ?
-                        (isRegister ? "请设置用户名/手机号/邮箱" : "请输入用户名/手机号/邮箱") :
-                        "请输入手机号"}
-            autoCapitalize="none"
-            keyboardType={loginType === 'code' || getIdentifierType(identifier) === 'phone' ? 'phone-pad' :
-                          getIdentifierType(identifier) === 'email' ? 'email-address' : 'default'}
-            size="small"
-            inputStyle={styles.customInputField}
-            labelStyle={styles.customInputLabel}
-          />
-
-          {/* 验证码输入框 - 验证码登录/注册时显示 */}
-          {loginType === 'code' && (
-            <View style={styles.codeInputContainer}>
-              <View style={styles.codeInputWrapper}>
-                <Text style={styles.codeInputLabel}>验证码</Text>
-                <View style={styles.codeInputField}>
-                  <TextInput
-                    value={code}
-                    onChangeText={setCode}
-                    placeholder="请输入手机验证码"
-                    keyboardType="number-pad"
-                    style={styles.codeInputText}
-                    placeholderTextColor="#999"
-                  />
-                </View>
-              </View>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => {
-                  console.log('验证码按钮点击');
-                  if (/^1\d{10}$/.test(identifier) && countdown === 0) {
-                    handleSendCode();
-                  } else if (!/^1\d{10}$/.test(identifier)) {
-                    setError('请输入正确的手机号');
-                  }
-                }}
-                style={[
-                  styles.codeButtonTouchable,
-                  { opacity: countdown > 0 || !/^1\d{10}$/.test(identifier) ? 0.5 : 1 }
-                ]}
-              >
-                <LinearGradient
-                  colors={['#1E90FF', '#87CEFA']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.codeButtonGradient}
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Text
+                  style={[styles.errorText, { fontSize: 14 }]}
                 >
-                  <Text style={styles.codeButtonText}>
-                    {countdown > 0 ? `${countdown}秒` : hasSentCode ? "重新发送" : "获取验证码"}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* 密码输入框 - 密码登录/注册时显示 */}
-          {loginType === 'password' && (
-            <View style={styles.passwordInputWrapper}>
-              <Text style={styles.customInputLabel}>密码</Text>
-              <View style={styles.passwordInputContainer}>
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="请输入密码"
-                  secureTextEntry={!passwordVisible}
-                  style={styles.passwordInputField}
-                  placeholderTextColor="#999"
-                />
-                <TouchableOpacity
-                  style={styles.passwordVisibilityToggle}
-                  onPress={() => setPasswordVisible(!passwordVisible)}
-                >
-                  <Text style={styles.passwordVisibilityText}>
-                    {passwordVisible ? '隐藏' : '显示'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* 确认密码输入框 - 注册模式下显示 */}
-          {isRegister && loginType === 'password' && (
-            <View style={styles.passwordInputWrapper}>
-              <Text style={styles.customInputLabel}>确认密码</Text>
-              <View style={styles.passwordInputContainer}>
-                <TextInput
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="请再次输入密码"
-                  secureTextEntry={!confirmPasswordVisible}
-                  style={styles.passwordInputField}
-                  placeholderTextColor="#999"
-                />
-                <TouchableOpacity
-                  style={styles.passwordVisibilityToggle}
-                  onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
-                >
-                  <Text style={styles.passwordVisibilityText}>
-                    {confirmPasswordVisible ? '隐藏' : '显示'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleSubmit}
-            disabled={isLoading}
-            style={styles.gradientButtonContainer}
-          >
-            <LinearGradient
-              colors={['#1E90FF', '#87CEFA']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradientButton}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.gradientButtonText}>
-                  {isRegister ? "注册" : "登录"}
+                  {error}
                 </Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+              </View>
+            ) : null}
 
-          {!isRegister && (
-            <View style={styles.linkContainer}>
-              <Button
-                title="忘记密码？"
-                type="text"
-                onPress={() => navigation.navigate('ForgotPassword')}
-                style={styles.linkButton}
-                size="small"
+            {/* 登录方式选择器 */}
+            <View style={styles.loginTypeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.loginTypeButton,
+                  loginType === 'password' && styles.activeLoginType,
+                ]}
+                onPress={() => setLoginType('password')}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: loginType === 'password' ? colors.primary : colors.hint || '#999',
+                    fontWeight: loginType === 'password' ? 'bold' : 'normal',
+                  }}
+                >
+                  密码{isRegister ? '注册' : '登录'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.loginTypeButton,
+                  loginType === 'code' && styles.activeLoginType,
+                ]}
+                onPress={() => setLoginType('code')}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: loginType === 'code' ? colors.primary : colors.hint || '#999',
+                    fontWeight: loginType === 'code' ? 'bold' : 'normal',
+                  }}
+                >
+                  验证码{isRegister ? '注册' : '登录'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 添加可移动的指示器 */}
+              <Animated.View
+                style={[
+                  styles.tabIndicator,
+                  {
+                    left: indicatorPosition.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '50%'],
+                    }),
+                    borderBottomColor: colors.primary,
+                  },
+                ]}
               />
             </View>
-          )}
 
-          {/* 第三方登录 */}
-          <View style={styles.thirdPartyContainer}>
-            <Text style={styles.thirdPartyTitle}>
-              第三方账号登录
-            </Text>
-            <View style={styles.thirdPartyButtons}>
-              <TouchableOpacity
-                style={styles.thirdPartyButton}
-                onPress={() => handleThirdPartyLogin('wechat')}
+            {/* 统一的标识符输入框 */}
+            <Input
+              label={loginType === 'password' ? '用户' : '手机号'}
+              value={identifier}
+              onChangeText={setIdentifier}
+              onBlur={() => {
+                if (!identifier) {return;}
+                const type = getIdentifierType(identifier);
+                if (type === 'phone' && !/^1\d{10}$/.test(identifier)) {
+                  setError('请输入格式正确的手机号');
+                } else if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+                  setError('请输入格式正确的邮箱地址');
+                } else {
+                  setError('');
+                }
+              }}
+              placeholder={loginType === 'password' ?
+                (isRegister ? '请设置用户名/手机号/邮箱' : '请输入用户名/手机号/邮箱') :
+                '请输入手机号'}
+              autoCapitalize="none"
+              keyboardType={loginType === 'code' || getIdentifierType(identifier) === 'phone' ? 'phone-pad' :
+                getIdentifierType(identifier) === 'email' ? 'email-address' : 'default'}
+              size="small"
+              inputStyle={styles.customInputField}
+              labelStyle={styles.customInputLabel}
+            />
+
+            {/* 验证码输入框 - 验证码登录/注册时显示 */}
+            {loginType === 'code' && (
+              <View style={styles.codeInputContainer}>
+                <View style={styles.codeInputWrapper}>
+                  <Text style={styles.codeInputLabel}>验证码</Text>
+                  <View style={styles.codeInputField}>
+                    <TextInput
+                      value={code}
+                      onChangeText={setCode}
+                      placeholder="请输入手机验证码"
+                      keyboardType="number-pad"
+                      style={styles.codeInputText}
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    console.log('验证码按钮点击');
+                    if (/^1\d{10}$/.test(identifier) && countdown === 0) {
+                      handleSendCode();
+                    } else if (!/^1\d{10}$/.test(identifier)) {
+                      setError('请输入正确的手机号');
+                    }
+                  }}
+                  style={[
+                    styles.codeButtonTouchable,
+                    { opacity: countdown > 0 || !/^1\d{10}$/.test(identifier) ? 0.5 : 1 },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={['#1E90FF', '#87CEFA']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.codeButtonGradient}
+                  >
+                    <Text style={styles.codeButtonText}>
+                      {countdown > 0 ? `${countdown}秒` : hasSentCode ? '重新发送' : '获取验证码'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 密码输入框 - 密码登录/注册时显示 */}
+            {loginType === 'password' && (
+              <View style={styles.passwordInputWrapper}>
+                <Text style={styles.customInputLabel}>密码</Text>
+                <View style={styles.passwordInputContainer}>
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="请输入密码"
+                    secureTextEntry={!passwordVisible}
+                    style={styles.passwordInputField}
+                    placeholderTextColor="#999"
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordVisibilityToggle}
+                    onPress={() => setPasswordVisible(!passwordVisible)}
+                  >
+                    <Text style={styles.passwordVisibilityText}>
+                      {passwordVisible ? '隐藏' : '显示'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* 确认密码输入框 - 注册模式下显示 */}
+            {isRegister && loginType === 'password' && (
+              <View style={styles.passwordInputWrapper}>
+                <Text style={styles.customInputLabel}>确认密码</Text>
+                <View style={styles.passwordInputContainer}>
+                  <TextInput
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="请再次输入密码"
+                    secureTextEntry={!confirmPasswordVisible}
+                    style={styles.passwordInputField}
+                    placeholderTextColor="#999"
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordVisibilityToggle}
+                    onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
+                  >
+                    <Text style={styles.passwordVisibilityText}>
+                      {confirmPasswordVisible ? '隐藏' : '显示'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleSubmit}
+              disabled={isLoading}
+              style={styles.gradientButtonContainer}
+            >
+              <LinearGradient
+                colors={['#1E90FF', '#87CEFA']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientButton}
               >
-                <Image
-                  source={require('../../assets/images/wechat.png')}
-                  style={styles.thirdPartyIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.thirdPartyText}>
-                  微信
-                </Text>
-              </TouchableOpacity>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.gradientButtonText}>
+                    {isRegister ? '注册' : '登录'}
+                  </Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {__DEV__ && !isRegister && (
               <TouchableOpacity
-                style={styles.thirdPartyButton}
-                onPress={() => handleThirdPartyLogin('qq')}
+                activeOpacity={0.8}
+                onPress={handleEnterDevMode}
+                style={styles.devModeButton}
               >
-                <Image
-                  source={require('../../assets/images/QQ.png')}
-                  style={styles.thirdPartyIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.thirdPartyText}>
-                  QQ
-                </Text>
+                <Text style={styles.devModeButtonText}>跳过登录（开发者模式）</Text>
               </TouchableOpacity>
+            )}
+
+            {!isRegister && (
+              <View style={styles.linkContainer}>
+                <Button
+                  title="忘记密码？"
+                  type="text"
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                  style={styles.linkButton}
+                  size="small"
+                />
+              </View>
+            )}
+
+            {/* 第三方登录 */}
+            <View style={styles.thirdPartyContainer}>
+              <Text style={styles.thirdPartyTitle}>
+                第三方账号登录
+              </Text>
+              <View style={styles.thirdPartyButtons}>
+                <TouchableOpacity
+                  style={styles.thirdPartyButton}
+                  onPress={() => handleThirdPartyLogin('wechat')}
+                >
+                  <Image
+                    source={require('../../assets/images/wechat.png')}
+                    style={styles.thirdPartyIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.thirdPartyText}>
+                    微信
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.thirdPartyButton}
+                  onPress={() => handleThirdPartyLogin('qq')}
+                >
+                  <Image
+                    source={require('../../assets/images/QQ.png')}
+                    style={styles.thirdPartyIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.thirdPartyText}>
+                    QQ
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
           </View>
         </View>
       </ScrollView>
 
-      {isLoading && <Loading type="fullscreen" text={isRegister ? "注册中..." : "登录中..."} />}
+      {isLoading && <Loading type="fullscreen" text={isRegister ? '注册中...' : '登录中...'} />}
     </KeyboardAvoidingView>
   );
 };
@@ -1179,6 +1177,17 @@ const styles = StyleSheet.create({
   passwordVisibilityText: {
     color: '#2A88D0',
     fontSize: 12,
+  },
+  devModeButton: {
+    marginTop: 10,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  devModeButtonText: {
+    color: '#2A88D0',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

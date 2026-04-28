@@ -3,7 +3,7 @@
  */
 
 import Realm from 'realm';
-import bcrypt from 'react-native-bcrypt';
+import { getBcrypt } from '../utils/bcryptInit';
 
 /**
  * 用户模型定义
@@ -41,6 +41,11 @@ class User extends Realm.Object {
    * @param {string} password 密码
    */
   static async hashPassword(password) {
+    const bcrypt = getBcrypt();
+    if (!bcrypt) {
+      throw new Error('bcrypt 未初始化');
+    }
+
     // 生成盐
     const salt = await bcrypt.genSalt(10);
 
@@ -58,10 +63,10 @@ class User extends Realm.Object {
     const devices = this.devices ? JSON.parse(this.devices) : [];
 
     // 删除社交令牌
-    if (social.google) delete social.google.token;
-    if (social.facebook) delete social.facebook.token;
-    if (social.twitter) delete social.twitter.token;
-    if (social.github) delete social.github.token;
+    if (social.google) {delete social.google.token;}
+    if (social.facebook) {delete social.facebook.token;}
+    if (social.twitter) {delete social.twitter.token;}
+    if (social.github) {delete social.github.token;}
 
     return {
       _id: this._id,
@@ -89,6 +94,10 @@ class User extends Realm.Object {
    * @returns {Promise<boolean>} 是否匹配
    */
   async comparePassword(password) {
+    const bcrypt = getBcrypt();
+    if (!bcrypt) {
+      throw new Error('bcrypt 未初始化');
+    }
     return bcrypt.compare(password, this.password);
   }
 

@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端思维导图对象
  */
 export const toFrontendMindMap = (mindMap) => {
-  if (!mindMap) return null;
-  
+  if (!mindMap) {return null;}
+
   try {
     return {
       id: mindMap._id,
@@ -45,8 +45,8 @@ export const toFrontendMindMap = (mindMap) => {
  * @returns {Object} 前端思维导图节点对象
  */
 export const toFrontendNode = (node) => {
-  if (!node) return null;
-  
+  if (!node) {return null;}
+
   try {
     return {
       id: node._id,
@@ -81,8 +81,8 @@ export const toFrontendNode = (node) => {
  * @returns {Object} 后端思维导图模型
  */
 export const toBackendMindMap = (mindMap) => {
-  if (!mindMap) return null;
-  
+  if (!mindMap) {return null;}
+
   try {
     return {
       _id: mindMap.id,
@@ -112,8 +112,8 @@ export const toBackendMindMap = (mindMap) => {
  * @returns {Object} 后端思维导图节点模型
  */
 export const toBackendNode = (node) => {
-  if (!node) return null;
-  
+  if (!node) {return null;}
+
   try {
     return {
       _id: node.id,
@@ -152,11 +152,11 @@ export const createMindMap = async (mindMapData, userId) => {
   try {
     // 准备思维导图数据
     const now = new Date();
-    const mindMapId = `mindmap_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const mindMapId = realmService.createObjectId();
+
     // 创建根节点
-    const rootNodeId = `node_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    
+    const rootNodeId = realmService.createObjectId();
+
     const rootNode = {
       _id: rootNodeId,
       mind_map_id: mindMapId,
@@ -178,7 +178,7 @@ export const createMindMap = async (mindMapData, userId) => {
       level: 0,
       order: 0,
     };
-    
+
     const backendMindMap = {
       _id: mindMapId,
       name: mindMapData.name || '新思维导图',
@@ -195,14 +195,14 @@ export const createMindMap = async (mindMapData, userId) => {
       nodes: [rootNode],
       note_id: mindMapData.noteId,
     };
-    
+
     // 创建思维导图模型
     const realm = await realmService.getRealm();
     let mindMap;
     realm.write(() => {
       mindMap = realm.create('MindMap', backendMindMap);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: mindMap._id,
@@ -211,7 +211,7 @@ export const createMindMap = async (mindMapData, userId) => {
       data: mindMap.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端思维导图对象
     return toFrontendMindMap(mindMap);
   } catch (error) {
@@ -232,22 +232,22 @@ export const addNode = async (mindMapId, parentId, nodeData) => {
     // 查找思维导图
     const realm = await realmService.getRealm();
     const mindMap = realm.objectForPrimaryKey('MindMap', mindMapId);
-    
+
     if (!mindMap) {
       throw new Error(`思维导图不存在: ${mindMapId}`);
     }
-    
+
     // 查找父节点
     const parentNode = mindMap.nodes.find(node => node._id === parentId);
-    
+
     if (!parentNode) {
       throw new Error(`父节点不存在: ${parentId}`);
     }
-    
+
     // 准备节点数据
     const now = new Date();
-    const nodeId = `node_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const nodeId = realmService.createObjectId();
+
     const backendNode = {
       _id: nodeId,
       mind_map_id: mindMapId,
@@ -269,23 +269,23 @@ export const addNode = async (mindMapId, parentId, nodeData) => {
       level: parentNode.level + 1,
       order: parentNode.children.length,
     };
-    
+
     // 创建节点模型
     const writeRealm = await realmService.getRealm();
     let node;
     writeRealm.write(() => {
       node = writeRealm.create('MindMapNode', backendNode);
     });
-    
+
     // 更新父节点
     parentNode.children.push(nodeId);
-    
+
     // 更新思维导图
     mindMap.nodes.push(node);
     mindMap.updated_at = now;
     mindMap.is_synced = false;
     await mindMap.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: node._id,
@@ -294,7 +294,7 @@ export const addNode = async (mindMapId, parentId, nodeData) => {
       data: node.toJSON(),
       user_id: mindMap.user_id,
     });
-    
+
     // 返回前端节点对象
     return toFrontendNode(node);
   } catch (error) {
@@ -315,39 +315,39 @@ export const updateNode = async (mindMapId, nodeId, nodeData) => {
     // 查找思维导图
     const readRealm = await realmService.getRealm();
     const mindMap = readRealm.objectForPrimaryKey('MindMap', mindMapId);
-    
+
     if (!mindMap) {
       throw new Error(`思维导图不存在: ${mindMapId}`);
     }
-    
+
     // 查找节点
     const nodeIndex = mindMap.nodes.findIndex(node => node._id === nodeId);
-    
+
     if (nodeIndex === -1) {
       throw new Error(`节点不存在: ${nodeId}`);
     }
-    
+
     const node = mindMap.nodes[nodeIndex];
-    
+
     // 更新节点属性
-    if (nodeData.content !== undefined) node.content = nodeData.content;
-    if (nodeData.note !== undefined) node.note = nodeData.note;
-    if (nodeData.position !== undefined) node.position = nodeData.position;
-    if (nodeData.size !== undefined) node.size = nodeData.size;
-    if (nodeData.style !== undefined) node.style = { ...node.style, ...nodeData.style };
-    if (nodeData.isExpanded !== undefined) node.is_expanded = nodeData.isExpanded;
-    if (nodeData.metadata !== undefined) node.metadata = { ...node.metadata, ...nodeData.metadata };
-    
+    if (nodeData.content !== undefined) {node.content = nodeData.content;}
+    if (nodeData.note !== undefined) {node.note = nodeData.note;}
+    if (nodeData.position !== undefined) {node.position = nodeData.position;}
+    if (nodeData.size !== undefined) {node.size = nodeData.size;}
+    if (nodeData.style !== undefined) {node.style = { ...node.style, ...nodeData.style };}
+    if (nodeData.isExpanded !== undefined) {node.is_expanded = nodeData.isExpanded;}
+    if (nodeData.metadata !== undefined) {node.metadata = { ...node.metadata, ...nodeData.metadata };}
+
     // 更新时间
     node.updated_at = new Date();
     node.is_synced = false;
-    
+
     // 更新思维导图
     mindMap.nodes[nodeIndex] = node;
     mindMap.updated_at = new Date();
     mindMap.is_synced = false;
     await mindMap.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: node._id,
@@ -356,7 +356,7 @@ export const updateNode = async (mindMapId, nodeId, nodeData) => {
       data: node,
       user_id: mindMap.user_id,
     });
-    
+
     // 返回前端节点对象
     return toFrontendNode(node);
   } catch (error) {

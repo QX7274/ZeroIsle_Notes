@@ -18,7 +18,8 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     用户资料视图集
     提供用户资料的CRUD操作
     """
-    queryset = UserProfile.objects.all()
+    # 避免在模块导入阶段触发 MongoDB 连接（例如 manage.py check）
+    queryset = None
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 

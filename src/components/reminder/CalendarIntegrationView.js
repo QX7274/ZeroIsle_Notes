@@ -45,12 +45,12 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
     try {
       setLoading(true);
       const availableCalendars = await calendarIntegrationService.getCalendars();
-      
+
       // 过滤出可写的日历
       const writableCalendars = availableCalendars.filter(cal => cal.allowsModifications);
-      
+
       setCalendars(writableCalendars);
-      
+
       // 如果有默认日历，选中它
       const defaultCalendarId = await calendarIntegrationService._getDefaultCalendarId();
       if (defaultCalendarId) {
@@ -71,7 +71,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
     if (reminder.calendar_event_id) {
       // 查找日历名称
       const calendarName = calendars.find(cal => cal.id === reminder.calendar_id)?.title || '未知日历';
-      
+
       setSyncStatus({
         synced: true,
         eventId: reminder.calendar_event_id,
@@ -95,24 +95,24 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
 
     try {
       setLoading(true);
-      
+
       // 创建日历事件
       const eventId = await calendarIntegrationService.createCalendarEvent(
         reminder,
         selectedCalendarId
       );
-      
+
       if (eventId) {
         // 查找日历名称
         const calendarName = calendars.find(cal => cal.id === selectedCalendarId)?.title || '未知日历';
-        
+
         // 更新同步状态
         setSyncStatus({
           synced: true,
           eventId,
           calendarName,
         });
-        
+
         // 回调
         if (onSyncComplete) {
           onSyncComplete({
@@ -120,7 +120,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
             calendar_id: selectedCalendarId,
           });
         }
-        
+
         Alert.alert('成功', `提醒已同步到日历: ${calendarName}`);
       } else {
         Alert.alert('错误', '同步到日历失败');
@@ -142,13 +142,13 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
 
     try {
       setLoading(true);
-      
+
       // 更新日历事件
       const success = await calendarIntegrationService.updateCalendarEvent(
         syncStatus.eventId,
         reminder
       );
-      
+
       if (success) {
         Alert.alert('成功', '日历事件已更新');
       } else {
@@ -181,12 +181,12 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
           onPress: async () => {
             try {
               setLoading(true);
-              
+
               // 删除日历事件
               const success = await calendarIntegrationService.deleteCalendarEvent(
                 syncStatus.eventId
               );
-              
+
               if (success) {
                 // 更新同步状态
                 setSyncStatus({
@@ -194,7 +194,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
                   eventId: null,
                   calendarName: null,
                 });
-                
+
                 // 回调
                 if (onSyncComplete) {
                   onSyncComplete({
@@ -202,7 +202,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
                     calendar_id: null,
                   });
                 }
-                
+
                 Alert.alert('成功', '日历事件已删除');
               } else {
                 Alert.alert('错误', '删除日历事件失败');
@@ -242,7 +242,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
   return (
     <View style={styles.container}>
       <Text style={[styles.title, { color: theme.text }]}>日历集成</Text>
-      
+
       {loading ? (
         <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
       ) : (
@@ -280,7 +280,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 选择要同步到的日历:
               </Text>
-              
+
               {calendars.length > 0 ? (
                 <FlatList
                   data={calendars}
@@ -295,7 +295,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
                   没有可用的日历
                 </Text>
               )}
-              
+
               <View style={styles.optionRow}>
                 <Text style={[styles.optionLabel, { color: theme.text }]}>自动同步更改</Text>
                 <Switch
@@ -305,7 +305,7 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
                   thumbColor={autoSync ? theme.primary : '#f4f3f4'}
                 />
               </View>
-              
+
               <TouchableOpacity
                 style={[styles.syncButton, styles.mainSyncButton, { backgroundColor: theme.primary }]}
                 onPress={handleSyncToCalendar}

@@ -22,18 +22,9 @@ class GraphService:
         self.neo4j_service = Neo4jService()
 
     def create_node(self, data, user):
-        """
-        创建知识节点
-
-        Args:
-            data: 节点数据
-            user: 用户对象
-
-        Returns:
-            KnowledgeNode: 创建的节点
-        """
+        """创建知识节点 (Neo4j 降级安全)"""
+        # 1. 在MongoDB中创建节点
         try:
-            # 创建节点
             node = KnowledgeNode(
                 id=uuid.uuid4(),
                 title=data['title'],
@@ -41,101 +32,94 @@ class GraphService:
                 type=data.get('type', 'concept'),
                 user=user,
                 note=data.get('note'),
-                x=data.get('x', 0),
-                y=data.get('y', 0),
-                color=data.get('color'),
-                size=data.get('size', 20),
-                icon=data.get('icon'),
                 properties=data.get('properties', {}),
-                is_public=data.get('is_public', False),
-                created_at=timezone.now(),
-                updated_at=timezone.now()
             )
             node.save()
-
-            # 同步到Neo4j
-            try:
-                self.neo4j_service.create_node({
-                    'id': node.id,
-                    'title': node.title,
-                    'description': node.description,
-                    'type': node.type,
-                    'user_id': node.user.id,
-                    'note_id': node.note.id if node.note else None,
-                    'properties': node.properties,
-                    'created_at': node.created_at.isoformat(),
-                    'updated_at': node.updated_at.isoformat()
-                })
-            except Exception as e:
-                logger.error(f"同步节点到Neo4j失败: {e}")
-
-            return node
+            logger.info(f"节点已在 MongoDB 中创建: {node.id}")
         except Exception as e:
-            logger.error(f"创建知识节点失败: {e}")
-            raise
+            logger.error(f"在 MongoDB 中创建节点失败: {e}")
+            raise  # MongoDB ailed, abort
+
+        # 2. 尝试在Neo4j中创建节点
+        try:
+            node_payload = {
+                'id': str(node.id),
+                'title': node.title,
+                'description': node.description,
+                'type': node.type,
+                'user_id': str(node.user.id),
+                'note_id': str(node.note.id) if node.note else None,
+                'properties': node.properties,
+                'created_at': node.created_at.isoformat(),
+                'updated_at': node.updated_at.isoformat()
+            }
+            self.neo4j_service.create_node(node_payload)
+            logger.info(f"节点已同步到 Neo4j: {node.id}")
+        except Exception as e:
+            logger.error(f"同步节点到 Neo4j 失败: {e}。将任务添加到补偿队列。")
+            # 降级：将操作记录到同步队列
+            from .mongodb_models import GraphSyncQueue
+            GraphSyncQueue.objects.create(
+                operation='create_node',
+                payload=node_payload,
+                last_error=str(e)
+            )
+
+        return node
 
     def create_edge(self, data, user):
-        """
-        创建知识边
-
-        Args:
-            data: 边数据
-            user: 用户对象
-
-        Returns:
-            KnowledgeEdge: 创建的边
-        """
+        """创建知识边 (Neo4j 降级安全)"""
+        # 1. 在MongoDB中创建边
         try:
-            # 获取源节点和目标节点
-            source_node = KnowledgeNode.objects.get(id=data['source_id'])
-            target_node = KnowledgeNode.objects.get(id=data['target_id'])
+            source_node = KnowledgeNode.objects.get(id=data['source_id'], user=user)
+            target_node = KnowledgeNode.objects.get(id=data['target_id'], user=user)
 
-            # 检查节点是否属于当前用户
-            if source_node.user != user or target_node.user != user:
-                raise ValueError("无法连接其他用户的节点")
-
-            # 创建边
             edge = KnowledgeEdge(
                 id=uuid.uuid4(),
                 source=source_node,
                 target=target_node,
                 type=data.get('type', 'related'),
                 label=data.get('label', ''),
-                description=data.get('description', ''),
                 weight=data.get('weight', 1.0),
-                color=data.get('color'),
                 properties=data.get('properties', {}),
-                user=user,
-                is_public=data.get('is_public', False),
-                created_at=timezone.now(),
-                updated_at=timezone.now()
+                user=user
             )
             edge.save()
-
-            # 同步到Neo4j
-            try:
-                self.neo4j_service.create_relationship({
-                    'id': edge.id,
-                    'source_id': source_node.id,
-                    'target_id': target_node.id,
-                    'type': edge.type,
-                    'label': edge.label,
-                    'weight': edge.weight,
-                    'properties': edge.properties,
-                    'user_id': edge.user.id,
-                    'created_at': edge.created_at.isoformat(),
-                    'updated_at': edge.updated_at.isoformat()
-                })
-            except Exception as e:
-                logger.error(f"同步边到Neo4j失败: {e}")
-
-            return edge
+            logger.info(f"边已在 MongoDB 中创建: {edge.id}")
         except KnowledgeNode.DoesNotExist:
-            logger.error("创建知识边失败: 节点不存在")
+            logger.error(f"创建知识边失败: 节点不存在 (source: {data.get('source_id')}, target: {data.get('target_id')})")
             raise ValueError("节点不存在")
         except Exception as e:
-            logger.error(f"创建知识边失败: {e}")
-            raise
+            logger.error(f"在 MongoDB 中创建边失败: {e}")
+            raise # MongoDB failed, abort
+
+        # 2. 尝试在Neo4j中创建关系
+        try:
+            edge_payload = {
+                'id': str(edge.id),
+                'source_id': str(source_node.id),
+                'target_id': str(target_node.id),
+                'type': edge.type,
+                'label': edge.label,
+                'weight': edge.weight,
+                'properties': edge.properties,
+                'user_id': str(edge.user.id),
+                'created_at': edge.created_at.isoformat(),
+                'updated_at': edge.updated_at.isoformat()
+            }
+            self.neo4j_service.create_relationship(edge_payload)
+            logger.info(f"边已同步到 Neo4j: {edge.id}")
+        except Exception as e:
+            logger.error(f"同步边到 Neo4j 失败: {e}。将任务添加到补偿队列。")
+            # 降级：将操作记录到同步队列
+            from .mongodb_models import GraphSyncQueue
+            GraphSyncQueue.objects.create(
+                operation='create_edge',
+                payload=edge_payload,
+                last_error=str(e)
+            )
+
+        return edge
 
     def create_graph(self, data, user):
         """
@@ -327,3 +311,92 @@ class GraphService:
         except Exception as e:
             logger.error(f"分析图谱失败: {e}")
             raise
+
+
+    def get_nodes_with_aggregation(self, user, node_types=None, aggregate=False, threshold=1000, hide_isolated=False):
+        """
+        获取节点列表，支持聚合和孤点隐藏
+
+        Args:
+            user: Mongo用户对象
+            node_types: 可选，节点类型过滤列表
+            aggregate: 是否启用聚合
+            threshold: 触发聚合的阈值
+            hide_isolated: 是否隐藏孤立节点（度为0）
+
+        Returns:
+            dict: {
+                'nodes': [...],
+                'aggregation_info': {
+                    'original_count': int,
+                    'aggregated_count': int,
+                    'strategy': str
+                }
+            }
+        """
+        # 查询节点和边
+        nodes_qs = KnowledgeNode.objects.filter(user=user, is_deleted=False)
+        if node_types:
+            nodes_qs = nodes_qs.filter(type__in=node_types)
+        edges_qs = KnowledgeEdge.objects.filter(user=user, is_deleted=False)
+
+        original_count = nodes_qs.count()
+
+        # 计算度数
+        degree_map = {}
+        for e in edges_qs:
+            degree_map[str(e.source.id)] = degree_map.get(str(e.source.id), 0) + 1
+            degree_map[str(e.target.id)] = degree_map.get(str(e.target.id), 0) + 1
+
+        # 过滤孤点
+        if hide_isolated:
+            nodes_qs = [n for n in nodes_qs if degree_map.get(str(n.id), 0) > 0]
+        else:
+            nodes_qs = list(nodes_qs)
+
+        # 是否需要聚合
+        if aggregate and len(nodes_qs) > int(threshold):
+            # 按类型聚合
+            groups = {}
+            for n in nodes_qs:
+                key = n.type
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(n)
+
+            aggregated_nodes = []
+            for key, items in groups.items():
+                aggregated_nodes.append({
+                    'id': f'agg_{key}',
+                    'label': f'{key} ({len(items)})',
+                    'type': key,
+                    'is_aggregated': True,
+                    'child_nodes': [str(nn.id) for nn in items],
+                    'child_count': len(items)
+                })
+
+            return {
+                'nodes': aggregated_nodes,
+                'aggregation_info': {
+                    'original_count': original_count,
+                    'aggregated_count': len(aggregated_nodes),
+                    'strategy': 'by_type'
+                }
+            }
+
+        # 不聚合，直接返回节点列表
+        nodes_data = [{
+            'id': str(n.id),
+            'label': n.title,
+            'type': n.type,
+            'properties': n.properties or {},
+        } for n in nodes_qs]
+
+        return {
+            'nodes': nodes_data,
+            'aggregation_info': {
+                'original_count': original_count,
+                'aggregated_count': len(nodes_data),
+                'strategy': 'none'
+            }
+        }

@@ -9,18 +9,14 @@ import {
   ActivityIndicator,
   SafeAreaView,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
-import AllInOneToolbar from '../../components/common/AllInOneToolbar';
-import ViewerLayout from '../../components/viewer/ViewerLayout';
-import ToolbarContainer from '../../components/viewer/ToolbarContainer';
-import BackButton from '../../components/viewer/BackButton';
-import PageControl from '../../components/viewer/PageControl';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { PDFViewer as EnhancedPDFViewer, DocViewer as EnhancedDocViewer, MarkdownViewer as EnhancedMarkdownViewer, PPTViewer as EnhancedPPTViewer } from '../../screens/viewers';
 import RNFS from 'react-native-fs';
+import { downloadCacheService } from '../../services/files/downloadCacheService';
+import { fileService } from '../../services/files';
 import { useNavigation } from '@react-navigation/native';
 
 /**
@@ -63,6 +59,39 @@ const FileViewerScreen = ({ route }) => {
 
         // 处理文件路径
         let processedUri = uri;
+        let isRemote = uri.startsWith('http://') || uri.startsWith('https://');
+
+        if (isRemote) {
+          console.log('[FileViewer] 检测到远程 URL，正在检查缓存:', uri);
+          const cachedPath = await downloadCacheService.getCachePath(uri);
+          if (cachedPath) {
+            console.log('[FileViewer] 命中缓存:', cachedPath);
+            processedUri = cachedPath;
+            isRemote = false; // 已转换为本地路径
+          } else {
+            console.log('[FileViewer] 未命中缓存，准备下载...');
+            setLoading(true);
+            // 这里可以添加进度监听
+            const destPath = `${RNFS.CachesDirectoryPath}/temp_${Date.now()}_${name || 'file'}`;
+            const success = await fileService.downloadFileFromURL(uri, destPath, (progress) => {
+              console.log(`[FileViewer] 下载进度: ${Math.round(progress * 100)}%`);
+            });
+
+            if (success) {
+              processedUri = await downloadCacheService.saveToCache(uri, destPath, {
+                name,
+                extension: uri.split('.').pop().toLowerCase(),
+                size: (await RNFS.stat(destPath)).size,
+              });
+              isRemote = false;
+              // 清理临时文件
+              await RNFS.unlink(destPath).catch(() => {});
+            } else {
+              throw new Error('下载文件失败');
+            }
+          }
+        }
+
         if (processedUri.startsWith('file://')) {
           processedUri = processedUri.replace('file://', '');
         } else if (processedUri.startsWith('content://')) {
@@ -101,7 +130,7 @@ const FileViewerScreen = ({ route }) => {
           stats = {
             size: 0,
             name: name || '未命名文件',
-            mtime: new Date()
+            mtime: new Date(),
           };
         } else {
           stats = await RNFS.stat(processedUri);
@@ -162,7 +191,7 @@ const FileViewerScreen = ({ route }) => {
 
   // 渲染文件查看器
   const renderFileViewer = () => {
-    if (!fileInfo) return null;
+    if (!fileInfo) {return null;}
 
     switch (fileInfo.type) {
       case 'pdf':
@@ -239,8 +268,8 @@ const FileViewerScreen = ({ route }) => {
                   uri: fileInfo.uri,
                   title: fileInfo.name,
                   noteId: route.params.noteId,
-                  isHandwritingMode
-                }
+                  isHandwritingMode,
+                },
               }}
             />
           </View>
@@ -253,7 +282,7 @@ const FileViewerScreen = ({ route }) => {
           title: fileInfo.name,
           noteId: route.params.noteId,
           type: fileInfo.type,
-          isHandwritingMode
+          isHandwritingMode,
         }}} />;
 
       case 'markdown':
@@ -261,17 +290,17 @@ const FileViewerScreen = ({ route }) => {
         return <EnhancedMarkdownViewer route={{ params: {
           uri: fileInfo.uri,
           title: fileInfo.name,
-          noteId: route.params.noteId
+          noteId: route.params.noteId,
         }}} />;
 
       case 'powerpoint':
         return <EnhancedPPTViewer route={{ params: {
           uri: fileInfo.uri,
           title: fileInfo.name,
-          noteId: route.params.noteId
+          noteId: route.params.noteId,
         }}} />;
 
-      
+
       default:
         // 不支持的文件类型
         return (
@@ -359,13 +388,6 @@ const FileViewerScreen = ({ route }) => {
   // 渲染文件查看器
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <AllInOneToolbar
-        mode="file-viewer"
-        fileType={fileInfo?.type}
-        isHandwritingMode={isHandwritingMode}
-        onHandwritingToggle={() => setIsHandwritingMode(!isHandwritingMode)}
-        onClose={() => navigation.goBack()}
-      />
       <View style={styles.contentContainer}>
         {renderFileViewer()}
       </View>
@@ -379,7 +401,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    marginTop: 56, // 为工具栏留出空间
   },
   loadingContainer: {
     flex: 1,

@@ -4,7 +4,6 @@
 """
 
 import logging
-from django.db import transaction
 from django.utils import timezone
 from notes.models import Note, NoteVersion
 
@@ -69,18 +68,17 @@ class NoteService:
             version = NoteVersion.objects.get(id=version_id)
             note = version.note
             
-            with transaction.atomic():
-                # 先创建当前版本的备份
-                NoteService.create_note_version(note)
-                
-                # 恢复到指定版本
-                note.title = version.title
-                note.content = version.content
-                note.updated_at = timezone.now()
-                note.save()
-                
-                logger.info(f"笔记 {note.id} 已恢复到版本 {version.version_number}")
-                return note
+            # 先创建当前版本的备份
+            NoteService.create_note_version(note)
+            
+            # 恢复到指定版本
+            note.title = version.title
+            note.content = version.content
+            note.updated_at = timezone.now()
+            note.save()
+            
+            logger.info(f"笔记 {note.id} 已恢复到版本 {version.version_number}")
+            return note
         except NoteVersion.DoesNotExist:
             logger.error(f"版本 {version_id} 不存在")
             raise

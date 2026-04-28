@@ -25,6 +25,23 @@ from knowledge_graph.views.auto_classification_views import (
     analyze_note_connections,
     suggest_related_content
 )
+from knowledge_graph.views.task import (
+    create_build_task,
+    get_task_status,
+    list_tasks
+)
+from knowledge_graph.views.recommendation import (
+    suggest_edges as suggest_edges_view,
+    accept_suggestions as accept_suggestions_view,
+    ignore_suggestions as ignore_suggestions_view,
+)
+from knowledge_graph.views.health import neo4j_health_check
+from knowledge_graph.views.export_import_views import (
+    export_knowledge_graph,
+    import_knowledge_graph,
+    export_statistics,
+)
+
 
 # 创建路由器
 router = DefaultRouter()
@@ -43,6 +60,8 @@ api_urls = [
     path('find-path/', KnowledgeGraphViewSet.as_view({'post': 'find_path'}), name='knowledge-graph-find-path'),
     path('analyze/', KnowledgeGraphViewSet.as_view({'get': 'analyze'}), name='knowledge-graph-analyze'),
     path('search/', KnowledgeGraphViewSet.as_view({'get': 'search'}), name='knowledge-graph-search'),
+    path('nodes/', KnowledgeGraphViewSet.as_view({'get': 'nodes'}), name='knowledge-graph-nodes'),
+    path('health/', neo4j_health_check, name='neo4j-health-check'),
     path('generate-tags/', KnowledgeGraphViewSet.as_view({'post': 'generate_tags'}), name='knowledge-graph-generate-tags'),
 ]
 
@@ -63,6 +82,24 @@ auto_classification_urls = [
     path('build-user-graph/', build_knowledge_graph_for_user, name='build-user-graph'),
     path('analyze-connections/', analyze_note_connections, name='analyze-connections'),
     path('suggest-related-content/', suggest_related_content, name='suggest-related-content'),
+    # 推荐与候选边
+    path('suggest-edges/', suggest_edges_view, name='suggest-edges'),
+    path('accept-suggestions/', accept_suggestions_view, name='accept-suggestions'),
+    path('ignore-suggestions/', ignore_suggestions_view, name='ignore-suggestions'),
+]
+
+# 任务管理API路径
+task_urls = [
+    path('build/', create_build_task, name='create-build-task'),
+    path('<str:task_id>/status/', get_task_status, name='get-task-status'),
+    path('list/', list_tasks, name='list-tasks'),
+]
+
+# 导入导出API路径
+export_import_urls = [
+    path('export/', export_knowledge_graph, name='export-knowledge-graph'),
+    path('import/', import_knowledge_graph, name='import-knowledge-graph'),
+    path('statistics/', export_statistics, name='export-statistics'),
 ]
 
 urlpatterns = [
@@ -77,6 +114,12 @@ urlpatterns = [
 
     # 自动分类和知识图谱构建URL
     path('auto/', include(auto_classification_urls)),
+
+    # 任务管理URL
+    path('task/', include(task_urls)),
+
+    # 导入导出URL
+    path('io/', include(export_import_urls)),
 
     # MongoDB API URL
     path('mongo/', include(mongo_router.urls)),

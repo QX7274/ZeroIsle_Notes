@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端设置对象
  */
 export const toFrontendSettings = (settings) => {
-  if (!settings) return null;
-  
+  if (!settings) {return null;}
+
   try {
     return {
       id: settings._id,
@@ -52,8 +52,8 @@ export const toFrontendSettings = (settings) => {
  * @returns {Object} 后端设置模型
  */
 export const toBackendSettings = (settings) => {
-  if (!settings) return null;
-  
+  if (!settings) {return null;}
+
   try {
     return {
       _id: settings.id,
@@ -94,12 +94,12 @@ export const getUserSettings = async (userId) => {
     // 查找用户设置
     const realm = await realmService.getRealm();
     let settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
-    
+
     // 如果不存在，创建默认设置
     if (!settings) {
       settings = await createUserSettings(userId);
     }
-    
+
     // 返回前端设置对象
     return toFrontendSettings(settings);
   } catch (error) {
@@ -118,8 +118,8 @@ export const createUserSettings = async (userId, settingsData = {}) => {
   try {
     // 准备设置数据
     const now = new Date();
-    const settingsId = `settings_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const settingsId = realmService.createObjectId();
+
     const backendSettings = {
       _id: settingsId,
       user_id: userId,
@@ -143,14 +143,14 @@ export const createUserSettings = async (userId, settingsData = {}) => {
       created_at: now,
       updated_at: now,
     };
-    
+
     // 创建设置模型
     const realm = await realmService.getRealm();
     let settings;
     realm.write(() => {
       settings = realm.create('Settings', backendSettings);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: settings._id,
@@ -159,7 +159,7 @@ export const createUserSettings = async (userId, settingsData = {}) => {
       data: settings.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端设置对象
     return toFrontendSettings(settings);
   } catch (error) {
@@ -179,25 +179,25 @@ export const updateUserSettings = async (userId, settingsData) => {
     // 查找用户设置
     const realm = await realmService.getRealm();
     let settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
-    
+
     // 如果不存在，创建默认设置
     if (!settings) {
       settings = await createUserSettings(userId, settingsData);
       return toFrontendSettings(settings);
     }
-    
+
     // 更新设置属性
-    if (settingsData.theme !== undefined) settings.theme = settingsData.theme;
-    if (settingsData.language !== undefined) settings.language = settingsData.language;
-    if (settingsData.fontSize !== undefined) settings.font_size = settingsData.fontSize;
-    if (settingsData.fontFamily !== undefined) settings.font_family = settingsData.fontFamily;
-    if (settingsData.autoSave !== undefined) settings.auto_save = settingsData.autoSave;
-    if (settingsData.autoSaveInterval !== undefined) settings.auto_save_interval = settingsData.autoSaveInterval;
-    if (settingsData.syncEnabled !== undefined) settings.sync_enabled = settingsData.syncEnabled;
-    if (settingsData.syncInterval !== undefined) settings.sync_interval = settingsData.syncInterval;
-    if (settingsData.notificationsEnabled !== undefined) settings.notifications_enabled = settingsData.notificationsEnabled;
-    if (settingsData.soundEnabled !== undefined) settings.sound_enabled = settingsData.soundEnabled;
-    
+    if (settingsData.theme !== undefined) {settings.theme = settingsData.theme;}
+    if (settingsData.language !== undefined) {settings.language = settingsData.language;}
+    if (settingsData.fontSize !== undefined) {settings.font_size = settingsData.fontSize;}
+    if (settingsData.fontFamily !== undefined) {settings.font_family = settingsData.fontFamily;}
+    if (settingsData.autoSave !== undefined) {settings.auto_save = settingsData.autoSave;}
+    if (settingsData.autoSaveInterval !== undefined) {settings.auto_save_interval = settingsData.autoSaveInterval;}
+    if (settingsData.syncEnabled !== undefined) {settings.sync_enabled = settingsData.syncEnabled;}
+    if (settingsData.syncInterval !== undefined) {settings.sync_interval = settingsData.syncInterval;}
+    if (settingsData.notificationsEnabled !== undefined) {settings.notifications_enabled = settingsData.notificationsEnabled;}
+    if (settingsData.soundEnabled !== undefined) {settings.sound_enabled = settingsData.soundEnabled;}
+
     // 更新复杂设置
     if (settingsData.editorSettings !== undefined) {
       settings.editor_settings = {
@@ -205,49 +205,49 @@ export const updateUserSettings = async (userId, settingsData) => {
         ...settingsData.editorSettings,
       };
     }
-    
+
     if (settingsData.viewSettings !== undefined) {
       settings.view_settings = {
         ...settings.view_settings,
         ...settingsData.viewSettings,
       };
     }
-    
+
     if (settingsData.privacySettings !== undefined) {
       settings.privacy_settings = {
         ...settings.privacy_settings,
         ...settingsData.privacySettings,
       };
     }
-    
+
     if (settingsData.securitySettings !== undefined) {
       settings.security_settings = {
         ...settings.security_settings,
         ...settingsData.securitySettings,
       };
     }
-    
+
     if (settingsData.accessibilitySettings !== undefined) {
       settings.accessibility_settings = {
         ...settings.accessibility_settings,
         ...settingsData.accessibilitySettings,
       };
     }
-    
+
     if (settingsData.customSettings !== undefined) {
       settings.custom_settings = {
         ...settings.custom_settings,
         ...settingsData.customSettings,
       };
     }
-    
+
     // 更新时间
     settings.updated_at = new Date();
     settings.is_synced = false;
-    
+
     // 保存设置
     await settings.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: settings._id,
@@ -256,7 +256,7 @@ export const updateUserSettings = async (userId, settingsData) => {
       data: settings.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端设置对象
     return toFrontendSettings(settings);
   } catch (error) {
@@ -275,15 +275,15 @@ export const resetUserSettings = async (userId) => {
     // 查找用户设置
     const realm = await realmService.getRealm();
     const settings = realm.objects('Settings').filtered(`user_id = "${userId}"`)[0];
-    
+
     // 如果不存在，创建默认设置
     if (!settings) {
       return createUserSettings(userId);
     }
-    
+
     // 删除旧设置
     await settings.remove();
-    
+
     // 创建新设置
     return createUserSettings(userId);
   } catch (error) {

@@ -24,7 +24,7 @@ class SearchService {
       analyticsService.trackSearchAction('text', {
         queryLength: query.length,
         resultCount: response.data?.length || 0,
-        options
+        options,
       });
 
       this.addToHistory('text', query);
@@ -51,7 +51,7 @@ class SearchService {
         fileSize: imageFile.size,
         fileType: imageFile.type,
         resultCount: response.data?.length || 0,
-        options
+        options,
       });
 
       this.addToHistory('image', imageFile.name || '图像搜索');
@@ -81,7 +81,7 @@ class SearchService {
           fileSize: audioFile.size,
           fileType: audioFile.type,
           resultCount: response.data?.length || 0,
-          options
+          options,
         });
 
         this.addToHistory('voice', response.query || '语音搜索');
@@ -97,7 +97,7 @@ class SearchService {
         fileType: audioFile.type,
         resultCount: results.length,
         transcribedText: text,
-        options
+        options,
       });
 
       this.addToHistory('voice', text);
@@ -122,7 +122,7 @@ class SearchService {
       analyticsService.trackSearchAction('knowledge_graph', {
         queryLength: query.length,
         resultCount: response.data?.length || 0,
-        options
+        options,
       });
 
       this.addToHistory('knowledge_graph', query);
@@ -244,4 +244,9 @@ class SearchService {
   }
 }
 
-export const searchService = new SearchService();
+const searchService = new SearchService();
+
+module.exports = searchService;
+module.exports.default = searchService;
+module.exports.searchService = searchService;
+module.exports.SearchService = SearchService;

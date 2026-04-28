@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  SectionList
+  SectionList,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
@@ -28,10 +28,10 @@ const ReminderCategoryView = ({ navigation }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await api.get(API_ENDPOINTS.REMINDER.CATEGORIES);
       setCategories(response.data);
-      
+
       // 默认选择第一个分类
       if (response.data.length > 0 && !selectedCategory) {
         setSelectedCategory(response.data[0].id);
@@ -50,42 +50,42 @@ const ReminderCategoryView = ({ navigation }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await api.get(API_ENDPOINTS.REMINDER.BASE, {
-        params: { category: categoryId, is_completed: false }
+        params: { category: categoryId, is_completed: false },
       });
-      
+
       // 按优先级分组
       const highPriority = response.data.results.filter(item => item.priority === 'high');
       const mediumPriority = response.data.results.filter(item => item.priority === 'medium');
       const lowPriority = response.data.results.filter(item => item.priority === 'low');
-      
+
       const sections = [];
-      
+
       if (highPriority.length > 0) {
         sections.push({
           title: '高优先级',
           data: highPriority,
-          priority: 'high'
+          priority: 'high',
         });
       }
-      
+
       if (mediumPriority.length > 0) {
         sections.push({
           title: '中优先级',
           data: mediumPriority,
-          priority: 'medium'
+          priority: 'medium',
         });
       }
-      
+
       if (lowPriority.length > 0) {
         sections.push({
           title: '低优先级',
           data: lowPriority,
-          priority: 'low'
+          priority: 'low',
         });
       }
-      
+
       setReminders(sections);
     } catch (error) {
       console.error('获取提醒数据失败:', error);
@@ -113,7 +113,7 @@ const ReminderCategoryView = ({ navigation }) => {
         styles.categoryItem,
         {
           backgroundColor: selectedCategory === item.id ? theme.primary : theme.cardBackground,
-        }
+        },
       ]}
       onPress={() => handleCategorySelect(item.id)}
     >
@@ -122,7 +122,7 @@ const ReminderCategoryView = ({ navigation }) => {
           styles.categoryName,
           {
             color: selectedCategory === item.id ? '#ffffff' : theme.text,
-          }
+          },
         ]}
       >
         {item.name}
@@ -132,7 +132,7 @@ const ReminderCategoryView = ({ navigation }) => {
           styles.categoryBadge,
           {
             backgroundColor: selectedCategory === item.id ? '#ffffff' : theme.primary,
-          }
+          },
         ]}
       >
         <Text
@@ -140,7 +140,7 @@ const ReminderCategoryView = ({ navigation }) => {
             styles.categoryCount,
             {
               color: selectedCategory === item.id ? theme.primary : '#ffffff',
-            }
+            },
           ]}
         >
           {item.count}
@@ -157,7 +157,7 @@ const ReminderCategoryView = ({ navigation }) => {
         {
           backgroundColor: theme.cardBackground,
           borderLeftColor: item.color || theme.primary,
-        }
+        },
       ]}
       onPress={() => navigation.navigate('ReminderDetail', { id: item.id })}
     >
@@ -168,7 +168,7 @@ const ReminderCategoryView = ({ navigation }) => {
             {
               color: theme.text,
               textDecorationLine: item.is_completed ? 'line-through' : 'none',
-            }
+            },
           ]}
         >
           {item.title}
@@ -212,7 +212,7 @@ const ReminderCategoryView = ({ navigation }) => {
         {
           backgroundColor: theme.background,
           borderBottomColor: theme.border,
-        }
+        },
       ]}
     >
       <Text style={[styles.sectionTitle, { color: theme.text }]}>

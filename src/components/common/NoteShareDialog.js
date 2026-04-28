@@ -156,8 +156,8 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
             } finally {
               setIsLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -188,8 +188,8 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
             } finally {
               setIsLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -236,7 +236,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
 
   // 渲染密码输入框
   const renderPasswordInput = () => {
-    if (accessType !== 'password') return null;
+    if (accessType !== 'password') {return null;}
 
     return (
       <View style={styles.section}>
@@ -254,7 +254,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
 
   // 渲染指定用户输入框
   const renderAllowedUsersInput = () => {
-    if (accessType !== 'specific_users') return null;
+    if (accessType !== 'specific_users') {return null;}
 
     return (
       <View style={styles.section}>
@@ -330,7 +330,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
 
   // 渲染分享结果
   const renderShareResult = () => {
-    if (!shareResult) return null;
+    if (!shareResult) {return null;}
 
     return (
       <View style={styles.shareResultContainer}>
@@ -354,7 +354,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
               'public': '公开访问',
               'link': '链接访问',
               'password': '密码访问',
-              'specific_users': '指定用户'
+              'specific_users': '指定用户',
             }[shareResult.access_type]}
           </Text>
         </View>
@@ -400,7 +400,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
                     'public': 'public',
                     'link': 'link',
                     'password': 'lock',
-                    'specific_users': 'people'
+                    'specific_users': 'people',
                   }[share.access_type]}
                   size={16}
                   color={colors.primary}
@@ -410,7 +410,7 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
                     'public': '公开访问',
                     'link': '链接访问',
                     'password': '密码访问',
-                    'specific_users': '指定用户'
+                    'specific_users': '指定用户',
                   }[share.access_type]}
                 </Text>
               </View>
@@ -852,7 +852,7 @@ const getStyles = (colors) => StyleSheet.create({
   shareAction: {
     marginLeft: 10,
     padding: 5,
-  }
+  },
 });
 
 export default NoteShareDialog;

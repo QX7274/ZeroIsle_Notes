@@ -29,7 +29,7 @@ async function testCreatePost() {
     content: '这是一个测试帖子的内容',
     excerpt: '测试帖子摘要',
     tags: ['测试', 'API'],
-    is_public: true
+    is_public: true,
   };
   const response = await communityApi.createPost(postData);
   console.log('响应:', response);
@@ -48,7 +48,7 @@ async function testGetComments(postId) {
 async function testAddComment(postId) {
   console.log(`测试添加评论 (帖子ID: ${postId})...`);
   const commentData = {
-    content: '这是一条测试评论'
+    content: '这是一条测试评论',
   };
   const response = await communityApi.addComment(postId, commentData);
   console.log('响应:', response);
@@ -84,45 +84,45 @@ async function runTests() {
   try {
     // 获取帖子列表
     const postsResponse = await testGetPosts();
-    
+
     if (postsResponse.success && postsResponse.data.results && postsResponse.data.results.length > 0) {
       const postId = postsResponse.data.results[0].id;
-      
+
       // 获取帖子详情
       await testGetPostDetail(postId);
-      
+
       // 获取评论
       await testGetComments(postId);
-      
+
       // 添加评论
       await testAddComment(postId);
-      
+
       // 点赞帖子
       await testTogglePostLike(postId);
     } else {
       // 如果没有帖子，创建一个
       const createResponse = await testCreatePost();
-      
+
       if (createResponse.success) {
         const postId = createResponse.data.id;
-        
+
         // 获取帖子详情
         await testGetPostDetail(postId);
-        
+
         // 添加评论
         await testAddComment(postId);
-        
+
         // 点赞帖子
         await testTogglePostLike(postId);
       }
     }
-    
+
     // 获取标签
     await testGetTags();
-    
+
     // 获取分类
     await testGetCategories();
-    
+
     console.log('所有测试完成!');
   } catch (error) {
     console.error('测试过程中出错:', error);

@@ -69,20 +69,22 @@ export const TOOL_CONFIGS = {
 };
 
 /**
- * 创建Skia路径
- * @param {Array} points - 点数组 [{x, y, timestamp, pressure?}, ...]
+ * 创建Skia路径 - 使用高级平滑算法
+ * @param {Array} points - 点数组 [{x, y, timestamp, pressure?, speed?}, ...]
  * @param {boolean} smoothing - 是否平滑处理
+ * @param {string} smoothingType - 平滑类型: 'simple' | 'bezier' | 'catmull-rom'
  * @returns {SkiaPath} Skia路径对象
  */
-export const createPath = (points, smoothing = true) => {
-  if (!points || points.length === 0) return null;
+export const createPath = (points, smoothing = true, smoothingType = 'catmull-rom') => {
+  if (!points || points.length === 0) {return null;}
 
   const path = Skia.Path.Make();
 
   if (points.length === 1) {
     // 单点绘制为小圆点
     const { x, y } = points[0];
-    path.addCircle(x, y, 1);
+    const radius = points[0].width ? points[0].width / 2 : 1;
+    path.addCircle(x, y, radius);
     return path;
   }
 
@@ -95,7 +97,86 @@ export const createPath = (points, smoothing = true) => {
     return path;
   }
 
-  // 贝塞尔曲线平滑
+  // 根据平滑类型选择算法
+  switch (smoothingType) {
+    case 'catmull-rom':
+      return createCatmullRomPath(points, path);
+    case 'bezier':
+      return createBezierPath(points, path);
+    case 'simple':
+    default:
+      return createSimpleSmoothPath(points, path);
+  }
+};
+
+/**
+ * 创建 Catmull-Rom 样条曲线路径（更光滑）
+ */
+function createCatmullRomPath(points, path) {
+  const numPoints = points.length;
+
+  if (numPoints < 2) {
+    return path;
+  }
+
+  // 起点
+  path.moveTo(points[0].x, points[0].y);
+
+  if (numPoints === 2) {
+    path.lineTo(points[1].x, points[1].y);
+    return path;
+  }
+
+  const tension = 0.5; // Catmull-Rom 张力参数
+  const segments = 8; // 每段插值点数
+
+  for (let i = 0; i < numPoints - 1; i++) {
+    const p0 = i > 0 ? points[i - 1] : points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = i < numPoints - 2 ? points[i + 2] : p2;
+
+    // Catmull-Rom 插值
+    for (let j = 1; j <= segments; j++) {
+      const t = j / segments;
+      const point = catmullRom(p0, p1, p2, p3, t, tension);
+      path.lineTo(point.x, point.y);
+    }
+  }
+
+  return path;
+}
+
+/**
+ * Catmull-Rom 样条曲线插值函数
+ */
+function catmullRom(p0, p1, p2, p3, t, tension = 0.5) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+
+  // Catmull-Rom 系数矩阵
+  const m1 = (p2.x - p0.x) * tension;
+  const m2 = (p3.x - p1.x) * tension;
+  const m1y = (p2.y - p0.y) * tension;
+  const m2y = (p3.y - p1.y) * tension;
+
+  const x = (2 * t3 - 3 * t2 + 1) * p1.x +
+            (t3 - 2 * t2 + t) * m1 +
+            (-2 * t3 + 3 * t2) * p2.x +
+            (t3 - t2) * m2;
+
+  const y = (2 * t3 - 3 * t2 + 1) * p1.y +
+            (t3 - 2 * t2 + t) * m1y +
+            (-2 * t3 + 3 * t2) * p2.y +
+            (t3 - t2) * m2y;
+
+  return { x, y };
+}
+
+/**
+ * 创建二次贝塞尔曲线路径
+ */
+function createBezierPath(points, path) {
   path.moveTo(points[0].x, points[0].y);
 
   for (let i = 1; i < points.length - 1; i++) {
@@ -109,7 +190,31 @@ export const createPath = (points, smoothing = true) => {
   path.lineTo(lastPoint.x, lastPoint.y);
 
   return path;
-};
+}
+
+/**
+ * 创建简单平滑路径（三点平均）
+ */
+function createSimpleSmoothPath(points, path) {
+  path.moveTo(points[0].x, points[0].y);
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    // 三点平均平滑
+    const smoothedX = (prev.x + curr.x + next.x) / 3;
+    const smoothedY = (prev.y + curr.y + next.y) / 3;
+
+    path.quadTo(curr.x, curr.y, smoothedX, smoothedY);
+  }
+
+  const lastPoint = points[points.length - 1];
+  path.lineTo(lastPoint.x, lastPoint.y);
+
+  return path;
+}
 
 /**
  * 检测两个笔画是否相交
@@ -153,7 +258,7 @@ export const isStrokeIntersecting = (eraserPoints, strokePoints, threshold = 16)
  * @returns {boolean}
  */
 export const isPointInStrokeBounds = (point, strokePoints, padding = 10) => {
-  if (!strokePoints || strokePoints.length === 0) return false;
+  if (!strokePoints || strokePoints.length === 0) {return false;}
 
   let minX = Infinity, minY = Infinity;
   let maxX = -Infinity, maxY = -Infinity;
@@ -183,7 +288,7 @@ export const getStrokesInRect = (rect, strokes) => {
   const selectedIds = [];
 
   strokes.forEach(stroke => {
-    if (!stroke.points || stroke.points.length === 0) return;
+    if (!stroke.points || stroke.points.length === 0) {return;}
 
     // 检查笔画的任意点是否在矩形内
     const hasPointInRect = stroke.points.some(p => {
@@ -274,17 +379,64 @@ export const getStrokeBounds = (points) => {
 };
 
 /**
+ * 优化点插值 - 确保点与点之间有足够的密度
+ * @param {Array} points - 原始点数组
+ * @param {number} minDistance - 最小点间距（像素）
+ * @param {number} maxDistance - 最大点间距（像素，超过此距离会插值）
+ * @returns {Array} 优化后的点数组
+ */
+export const optimizePointInterpolation = (points, minDistance = 1, maxDistance = 10) => {
+  if (!points || points.length < 2) {return points;}
+
+  const optimized = [points[0]];
+
+  for (let i = 1; i < points.length; i++) {
+    const prev = optimized[optimized.length - 1];
+    const curr = points[i];
+
+    const dx = curr.x - prev.x;
+    const dy = curr.y - prev.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > maxDistance) {
+      // 距离过大，插入中间点
+      const numSegments = Math.ceil(distance / maxDistance);
+      const dt = 1 / numSegments;
+
+      for (let j = 1; j < numSegments; j++) {
+        const t = j * dt;
+        const interpolated = {
+          x: prev.x + dx * t,
+          y: prev.y + dy * t,
+          timestamp: prev.timestamp
+            ? prev.timestamp + (curr.timestamp - prev.timestamp) * t
+            : undefined,
+          pressure: prev.pressure !== undefined && curr.pressure !== undefined
+            ? prev.pressure + (curr.pressure - prev.pressure) * t
+            : prev.pressure || curr.pressure || 1.0,
+        };
+        optimized.push(interpolated);
+      }
+    }
+    // 距离合适或过小，都保留原有点
+    optimized.push(curr);
+  }
+
+  return optimized;
+};
+
+/**
  * 简化笔画点（减少点数，优化性能）
  * @param {Array} points - 原始点数组
  * @param {number} tolerance - 容差值（越大简化越多）
  * @returns {Array} 简化后的点数组
  */
 export const simplifyStroke = (points, tolerance = 2) => {
-  if (!points || points.length <= 2) return points;
+  if (!points || points.length <= 2) {return points;}
 
   // Douglas-Peucker 算法简化
   const simplify = (pts, tol) => {
-    if (pts.length <= 2) return pts;
+    if (pts.length <= 2) {return pts;}
 
     let maxDist = 0;
     let maxIndex = 0;

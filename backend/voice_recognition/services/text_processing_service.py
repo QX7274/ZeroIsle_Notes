@@ -20,78 +20,162 @@ class TextProcessingService:
         self.api_key = settings.OPENAI_API_KEY
         openai.api_key = self.api_key
     
-    def generate_meeting_summary(self, text):
+    def generate_meeting_summary(self, text, summary_type='detailed', language='zh', segments=None):
         """
-        生成会议纪要
-        
+        生成会议纪要 - 增强版
+
         Args:
             text: 会议转录文本
-            
+            summary_type: 摘要类型 (detailed, brief, action_focused)
+            language: 输出语言 (zh, en)
+            segments: 时间戳分段信息（可选）
+
         Returns:
             dict: 会议纪要结果
         """
         try:
-            # 构建提示词
-            prompt = f"""
-            请根据以下会议转录内容，生成一份详细的会议纪要，包括以下部分：
-            1. 会议摘要：简要概括会议的主要内容和目的
-            2. 关键点：列出会议中讨论的主要观点和决定
-            3. 行动项：列出会议中确定的任务、负责人和截止日期
-            4. 参会人员：识别会议中提到的所有参与者
+            # 根据摘要类型构建不同的提示词
+            if summary_type == 'brief':
+                task_description = "生成一份简洁的会议摘要，突出最重要的内容"
+            elif summary_type == 'action_focused':
+                task_description = "重点关注会议中的行动项、任务分配和决策"
+            else:  # detailed
+                task_description = "生成一份详细的会议纪要"
 
-            会议转录内容：
-            {text}
-            """
-            
+            # 构建提示词
+            if language == 'en':
+                prompt = f"""
+                Please {task_description} based on the following meeting transcript, including:
+                1. Meeting Summary: Brief overview of the main content and purpose
+                2. Key Points: Main viewpoints and decisions discussed
+                3. Action Items: Tasks, assignees, and deadlines
+                4. Participants: All participants mentioned
+                5. Decisions: Important decisions made
+                6. Topics: Main topics discussed
+
+                Meeting Transcript:
+                {text}
+                """
+                system_content = "You are a professional meeting minutes assistant, skilled at extracting key information from meeting transcripts and generating structured meeting minutes."
+            else:
+                prompt = f"""
+                请{task_description}，根据以下会议转录内容，包括以下部分：
+                1. 会议摘要：简要概括会议的主要内容和目的
+                2. 关键要点：列出会议中讨论的主要观点和决定
+                3. 行动项：列出会议中确定的任务、负责人和截止日期
+                4. 参会人员：识别会议中提到的所有参与者
+                5. 决策事项：列出会议中做出的重要决定
+                6. 讨论主题：列出会议讨论的主要话题
+
+                会议转录内容：
+                {text}
+                """
+                system_content = "你是一个专业的会议纪要生成助手，擅长从会议转录中提取关键信息并生成结构化的会议纪要。"
+
             # 调用GPT生成会议纪要
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model="gpt-3.5-turbo-16k",  # 使用更大的上下文窗口
                 messages=[
-                    {"role": "system", "content": "你是一个专业的会议纪要生成助手，擅长从会议转录中提取关键信息并生成结构化的会议纪要。"},
+                    {"role": "system", "content": system_content},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=1500
+                max_tokens=2000
             )
-            
+
             # 解析生成的会议纪要
             summary_text = response.choices[0].message.content
-            
+
             # 提取各部分内容
             summary = ""
             key_points = []
             action_items = []
             participants = []
-            
-            # 简单解析（实际项目中可能需要更复杂的解析逻辑）
+            decisions = []
+            topics = []
+
+            # 解析结构化内容
             sections = summary_text.split('\n\n')
             for section in sections:
-                if '会议摘要' in section or '摘要' in section:
-                    summary = section.split('：', 1)[1].strip() if '：' in section else section
-                elif '关键点' in section or '要点' in section:
+                section_lower = section.lower()
+
+                if '会议摘要' in section or '摘要' in section or 'meeting summary' in section_lower or 'summary' in section_lower:
+                    lines = section.split('\n')
+                    if len(lines) > 1:
+                        summary = '\n'.join(lines[1:]).strip()
+                    elif '：' in section or ':' in section:
+                        summary = section.split('：' if '：' in section else ':', 1)[1].strip()
+
+                elif '关键' in section or '要点' in section or 'key points' in section_lower:
                     points = section.split('\n')
-                    for point in points[1:]:  # 跳过标题行
-                        if point.strip() and ('•' in point or '-' in point or '.' in point):
-                            key_points.append(point.strip().lstrip('•').lstrip('-').lstrip('.').strip())
-                elif '行动项' in section or '任务' in section:
+                    for point in points[1:]:
+                        if point.strip() and any(marker in point for marker in ['•', '-', '*', '.']):
+                            cleaned = point.strip()
+                            for marker in ['•', '-', '*']:
+                                cleaned = cleaned.lstrip(marker).strip()
+                            if cleaned and cleaned[0].isdigit():
+                                cleaned = cleaned.split('.', 1)[1].strip() if '.' in cleaned else cleaned
+                            if cleaned:
+                                key_points.append(cleaned)
+
+                elif '行动项' in section or '任务' in section or 'action items' in section_lower:
                     items = section.split('\n')
-                    for item in items[1:]:  # 跳过标题行
-                        if item.strip() and ('•' in item or '-' in item or '.' in item):
-                            action_items.append(item.strip().lstrip('•').lstrip('-').lstrip('.').strip())
-                elif '参会人员' in section or '参与者' in section:
+                    for item in items[1:]:
+                        if item.strip() and any(marker in item for marker in ['•', '-', '*', '.']):
+                            cleaned = item.strip()
+                            for marker in ['•', '-', '*']:
+                                cleaned = cleaned.lstrip(marker).strip()
+                            if cleaned and cleaned[0].isdigit():
+                                cleaned = cleaned.split('.', 1)[1].strip() if '.' in cleaned else cleaned
+                            if cleaned:
+                                action_items.append(cleaned)
+
+                elif '参会人员' in section or '参与者' in section or 'participants' in section_lower:
                     people = section.split('\n')
-                    for person in people[1:]:  # 跳过标题行
-                        if person.strip() and ('•' in person or '-' in person or '.' in person):
-                            participants.append(person.strip().lstrip('•').lstrip('-').lstrip('.').strip())
-            
+                    for person in people[1:]:
+                        if person.strip() and any(marker in person for marker in ['•', '-', '*', '.']):
+                            cleaned = person.strip()
+                            for marker in ['•', '-', '*']:
+                                cleaned = cleaned.lstrip(marker).strip()
+                            if cleaned and cleaned[0].isdigit():
+                                cleaned = cleaned.split('.', 1)[1].strip() if '.' in cleaned else cleaned
+                            if cleaned:
+                                participants.append(cleaned)
+
+                elif '决策' in section or 'decisions' in section_lower:
+                    items = section.split('\n')
+                    for item in items[1:]:
+                        if item.strip() and any(marker in item for marker in ['•', '-', '*', '.']):
+                            cleaned = item.strip()
+                            for marker in ['•', '-', '*']:
+                                cleaned = cleaned.lstrip(marker).strip()
+                            if cleaned and cleaned[0].isdigit():
+                                cleaned = cleaned.split('.', 1)[1].strip() if '.' in cleaned else cleaned
+                            if cleaned:
+                                decisions.append(cleaned)
+
+                elif '主题' in section or '话题' in section or 'topics' in section_lower:
+                    items = section.split('\n')
+                    for item in items[1:]:
+                        if item.strip() and any(marker in item for marker in ['•', '-', '*', '.']):
+                            cleaned = item.strip()
+                            for marker in ['•', '-', '*']:
+                                cleaned = cleaned.lstrip(marker).strip()
+                            if cleaned and cleaned[0].isdigit():
+                                cleaned = cleaned.split('.', 1)[1].strip() if '.' in cleaned else cleaned
+                            if cleaned:
+                                topics.append(cleaned)
+
             return {
                 'summary': summary,
                 'key_points': key_points,
                 'action_items': action_items,
                 'participants': participants,
+                'decisions': decisions,
+                'topics': topics,
                 'full_text': summary_text
             }
-            
+
         except Exception as e:
             logger.error(f"生成会议纪要失败: {e}")
             return {
@@ -99,5 +183,7 @@ class TextProcessingService:
                 'summary': '',
                 'key_points': [],
                 'action_items': [],
-                'participants': []
+                'participants': [],
+                'decisions': [],
+                'topics': []
             }

@@ -188,7 +188,7 @@ const ChatHistorySidebar = ({
 
   // 保存会话标题
   const saveSessionTitle = async () => {
-    if (!editingSessionId) return;
+    if (!editingSessionId) {return;}
 
     try {
       const realm = await realmService.getRealm();
@@ -243,8 +243,8 @@ const ChatHistorySidebar = ({
         {
           backgroundColor: isActive ? `${colors.primary}15` : 'transparent',
           borderLeftWidth: isActive ? 3 : 0,
-          borderLeftColor: colors.primary
-        }
+          borderLeftColor: colors.primary,
+        },
       ]}>
         {isEditing ? (
           <View style={styles.editTitleContainer}>
@@ -272,7 +272,7 @@ const ChatHistorySidebar = ({
                 bold={isActive}
                 style={{
                   color: isActive ? colors.primary : colors.text,
-                  marginBottom: 4
+                  marginBottom: 4,
                 }}
               >
                 {item.customTitle || item.title}
@@ -313,8 +313,8 @@ const ChatHistorySidebar = ({
           backgroundColor: colors.card,
           borderRightColor: colors.border,
           width: sidebarWidth,
-          transform: [{ translateX: slideAnim }]
-        }
+          transform: [{ translateX: slideAnim }],
+        },
       ]}
     >
       <View style={styles.header}>
@@ -348,14 +348,14 @@ const ChatHistorySidebar = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.2,
             shadowRadius: 3,
-          }
+          },
         ]}
         onPress={handleCreateNewSession}
       >
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
         }}>
           <Icon name="add" size={24} color={colors.primary} />
           <Text

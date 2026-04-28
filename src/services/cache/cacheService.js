@@ -107,7 +107,7 @@ class CacheService {
         realm.write(() => {
           for (const key of cacheKeys) {
             const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-            if (item.length > 0) realm.delete(item[0]);
+            if (item.length > 0) {realm.delete(item[0]);}
           }
         });
       }
@@ -127,6 +127,7 @@ class CacheService {
    * @returns {Promise<{hasUpdate: boolean, version: string, url: string}>} 更新信息
    */
   async checkForUpdates() {
+    let currentVersion = '';
     try {
       // 检查 DeviceInfo 是否可用
       if (!DeviceInfo || typeof DeviceInfo.getVersion !== 'function') {
@@ -134,27 +135,16 @@ class CacheService {
       }
 
       // 获取当前版本
-      const currentVersion = await DeviceInfo.getVersion();
+      currentVersion = await DeviceInfo.getVersion();
 
-      // 模拟API请求获取最新版本
-      // 实际应用中应该从服务器获取
-      const latestVersion = '1.1.0'; // 模拟最新版本
-      const updateUrl = 'https://zeroislenotes.com/download'; // 模拟下载链接
-
-      // 比较版本号
-      const hasUpdate = this._compareVersions(latestVersion, currentVersion) > 0;
-
-      return {
-        hasUpdate,
-        version: latestVersion,
-        url: updateUrl
-      };
+      // 未配置更新检查服务，禁止返回模拟结果
+      throw new Error('未配置更新检查服务，无法检查更新');
     } catch (error) {
       console.error('检查更新失败:', error);
       return {
         hasUpdate: false,
-        version: '1.0.0', // 提供默认版本号
-        url: ''
+        version: currentVersion,
+        url: '',
       };
     }
   }
@@ -173,8 +163,8 @@ class CacheService {
       const part1 = parts1[i] || 0;
       const part2 = parts2[i] || 0;
 
-      if (part1 > part2) return 1;
-      if (part1 < part2) return -1;
+      if (part1 > part2) {return 1;}
+      if (part1 < part2) {return -1;}
     }
 
     return 0;
@@ -208,4 +198,9 @@ class CacheService {
 }
 
 // 导出单例
-export const cacheService = new CacheService();
+const cacheService = new CacheService();
+
+module.exports = cacheService;
+module.exports.default = cacheService;
+module.exports.cacheService = cacheService;
+module.exports.CacheService = CacheService;

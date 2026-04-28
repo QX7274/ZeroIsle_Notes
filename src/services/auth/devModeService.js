@@ -127,7 +127,7 @@ class DevModeService {
       // 不包含任何令牌信息
       isDevMode: true,
       devModeStartTime: this.devModeStartTime,
-      remainingTime: this.getRemainingTime()
+      remainingTime: this.getRemainingTime(),
     };
   }
 
@@ -151,8 +151,8 @@ class DevModeService {
    * 检查是否应该跳过登录界面
    */
   shouldSkipLoginScreen() {
-    return this.isActive && 
-           !this.isDevModeExpired() && 
+    return this.isActive &&
+           !this.isDevModeExpired() &&
            DEV_MODE_CONFIG.FEATURES.SKIP_LOGIN_SCREEN;
   }
 
@@ -167,7 +167,7 @@ class DevModeService {
       startTime: this.devModeStartTime,
       remainingTime: this.getRemainingTime(),
       features: DEV_MODE_CONFIG.FEATURES,
-      security: DEV_MODE_CONFIG.SECURITY
+      security: DEV_MODE_CONFIG.SECURITY,
     };
   }
 
@@ -179,7 +179,7 @@ class DevModeService {
       const state = {
         isActive: this.isActive,
         startTime: this.devModeStartTime,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       const realm = await realmService.getRealm();
@@ -216,11 +216,11 @@ class DevModeService {
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_MODE_STATE}"`);
       const state = item.length > 0 ? JSON.parse(item[0].value) : null;
-      
+
       if (state && state.isActive) {
         this.isActive = state.isActive;
         this.devModeStartTime = state.startTime;
-        
+
         // 检查是否过期
         if (this.isDevModeExpired()) {
           console.log('恢复的开发者模式已过期，自动禁用');
@@ -248,7 +248,7 @@ class DevModeService {
       const realm = await realmService.getRealm();
       realm.write(() => {
         const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.DEV_MODE_STATE}"`);
-        if (item.length > 0) realm.delete(item[0]);
+        if (item.length > 0) {realm.delete(item[0]);}
       });
       console.log('开发者模式状态已清除');
 
@@ -267,7 +267,7 @@ class DevModeService {
         description,
         timestamp: new Date().toISOString(),
         devModeStartTime: this.devModeStartTime,
-        remainingTime: this.getRemainingTime()
+        remainingTime: this.getRemainingTime(),
       };
 
       console.log('开发者操作日志:', logEntry);

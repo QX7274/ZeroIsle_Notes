@@ -26,9 +26,11 @@ from voice_recognition.services import (
     WhisperService,
     TextProcessingService
 )
+from users.middleware import get_mongo_user
 from common.permissions import IsOwner
 from common.pagination import StandardResultsSetPagination
 
+from common.utils import validate_uploaded_file
 logger = logging.getLogger('backend')
 
 class TranscriptionViewSet(viewsets.ModelViewSet):
@@ -45,7 +47,7 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """获取查询集"""
         return Transcription.objects(
-            user=self.request.user
+            user=get_mongo_user(self.request.user)
         )
 
     def get_serializer_class(self):
@@ -215,15 +217,20 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def transcribe_audio(request):
     """
-    语音转文字API
-    将上传的音频文件转换为文本
+    语音转文字API - 增强版
+    将上传的音频文件转换为文本，支持多种识别引擎和高级功能
     """
     try:
         # 获取音频文件
-        audio_file = request.FILES.get('audio')
+        upload_field_name = 'audio' if 'audio' in request.FILES else 'file'
+        audio_file = request.FILES.get(upload_field_name)
         audio_base64 = request.data.get('audio_base64')
         language_code = request.data.get('language', 'zh')
         note_id = request.data.get('note_id')
+        engine = request.data.get('engine', 'whisper')  # whisper, xunfei, baidu
+        enable_diarization = request.data.get('enable_diarization', False)  # 是否启用说话人分离
+        enable_punctuation = request.data.get('enable_punctuation', True)  # 是否启用标点符号
+        enable_timestamp = request.data.get('enable_timestamp', True)  # 是否启用时间戳
 
         if not audio_file and not audio_base64:
             return Response(
@@ -231,16 +238,31 @@ def transcribe_audio(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # 文件校验
+        if audio_file:
+            ok, err = validate_uploaded_file(audio_file, ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'], max_size_mb=25)
+            if not ok:
+                return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
+        elif audio_base64:
+            # 粗略限制 base64 长度（~25MB 原始 => ~33MB base64）
+            if len(audio_base64) > 35_000_000:
+                return Response({'error': '音频数据过大，最大允许 25MB'}, status=status.HTTP_400_BAD_REQUEST)
+
         # 保存临时文件
+        file_name = 'upload.wav'
+        file_size = 0
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
             if audio_file:
                 for chunk in audio_file.chunks():
                     temp_file.write(chunk)
+                file_name = audio_file.name
+                file_size = audio_file.size
             else:
                 # 处理Base64编码的音频数据
                 import base64
                 audio_data = base64.b64decode(audio_base64)
                 temp_file.write(audio_data)
+                file_size = len(audio_data)
 
             temp_file_path = temp_file.name
 
@@ -251,8 +273,12 @@ def transcribe_audio(request):
             language = None
 
         # 创建音频文件记录
+        mongo_user = get_mongo_user(request.user)
         audio_file_obj = AudioFile(
-            user=request.user,
+            user=mongo_user,
+            file_path=temp_file_path,
+            file_name=file_name,
+            file_size=file_size,
             file_type='audio/wav',
             duration=0,  # 暂时设为0，后续更新
             created_at=timezone.now(),
@@ -263,25 +289,36 @@ def transcribe_audio(request):
         # 保存音频文件
         with open(temp_file_path, 'rb') as f:
             audio_file_obj.file.put(f, content_type='audio/wav')
+        audio_file_obj.save()
 
         # 创建转录记录
         transcription = Transcription(
-            user=request.user,
+            user=mongo_user,
             audio_file=audio_file_obj,
+            text='',  # 初始为空
             language=language,
-            model='whisper-1',
+            model=engine,
             status='pending',
+            is_speaker_diarization=enable_diarization,
             created_at=timezone.now(),
             updated_at=timezone.now()
         )
         transcription.save()
 
-        # 调用Whisper服务
-        whisper_service = WhisperService()
-        result = whisper_service.transcribe(temp_file_path, language_code)
-
-        # 删除临时文件
-        os.unlink(temp_file_path)
+        # 使用统一的语音识别服务
+        result = None
+        try:
+            unified_service = WhisperService()
+            result = unified_service.transcribe(
+                audio_file_path=temp_file_path,
+                language=language_code,
+                model=engine if engine != 'whisper' else 'whisper-1',
+                field_name=upload_field_name
+            )
+        finally:
+            # 删除临时文件
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
         if result.get('status') == 'failed':
             transcription.status = 'failed'
@@ -300,12 +337,22 @@ def transcribe_audio(request):
         transcription.duration = result.get('duration', 0)
         transcription.save()
 
+        # 如果启用说话人分离，进行处理
+        if enable_diarization:
+            try:
+                diarization_service = DiarizationService()
+                transcription = diarization_service.process_diarization(
+                    transcription_id=transcription.id
+                )
+            except Exception as e:
+                logger.warning(f"说话人分离失败: {str(e)}")
+
         # 如果提供了笔记ID，将转录文本添加到笔记中
         if note_id:
             try:
                 from notes.mongodb_models import Note
-                note = Note.objects.get(id=note_id, user=request.user)
-                note.content += f"\n\n{transcription.text}"
+                note = Note.objects.get(id=note_id, user=get_mongo_user(request.user))
+                note.content += f"\n\n## 语音转录 ({timezone.now().strftime('%Y-%m-%d %H:%M:%S')})\n\n{transcription.text}"
                 note.updated_at = timezone.now()
                 note.save()
             except Exception as e:
@@ -315,8 +362,11 @@ def transcribe_audio(request):
         return Response({
             'id': str(transcription.id),
             'text': transcription.text,
+            'segments': transcription.segments,
             'duration': transcription.duration,
             'language': language_code,
+            'engine': engine,
+            'has_diarization': enable_diarization and transcription.is_speaker_diarization,
             'created_at': transcription.created_at.isoformat()
         })
 
@@ -332,13 +382,17 @@ def transcribe_audio(request):
 @permission_classes([IsAuthenticated])
 def generate_meeting_summary(request):
     """
-    生成会议纪要API
-    根据转录文本生成会议纪要
+    生成会议纪要API - 增强版
+    根据转录文本生成会议纪要，支持多种格式和自定义选项
     """
     try:
         # 获取转录文本
         text = request.data.get('text')
         transcription_id = request.data.get('transcription_id')
+        note_id = request.data.get('note_id')  # 可选：保存到指定笔记
+        summary_type = request.data.get('summary_type', 'detailed')  # detailed, brief, action_focused
+        language = request.data.get('language', 'zh')  # 输出语言
+        include_timestamps = request.data.get('include_timestamps', False)  # 是否包含时间戳
 
         if not text and not transcription_id:
             return Response(
@@ -346,15 +400,17 @@ def generate_meeting_summary(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 如果提供了转录ID，获取转录文本
+        # 如果提供了转录ID，获取转录文本和segments
+        segments = []
         if transcription_id and not text:
             try:
                 transcription = Transcription.objects.get(
                     id=transcription_id,
-                    user=request.user,
+                    user=get_mongo_user(request.user),
                     status='completed'
                 )
                 text = transcription.text
+                segments = transcription.segments or []
             except Transcription.DoesNotExist:
                 return Response(
                     {'error': '转录不存在或未完成'},
@@ -363,14 +419,57 @@ def generate_meeting_summary(request):
 
         # 调用文本处理服务生成会议纪要
         text_service = TextProcessingService()
-        result = text_service.generate_meeting_summary(text)
+        result = text_service.generate_meeting_summary(
+            text=text,
+            summary_type=summary_type,
+            language=language,
+            segments=segments if include_timestamps else None
+        )
+
+        # 如果提供了笔记ID，将会议纪要保存到笔记中
+        if note_id:
+            try:
+                from notes.mongodb_models import Note
+                note = Note.objects.get(id=note_id, user=get_mongo_user(request.user))
+
+                # 格式化会议纪要
+                summary_content = f"""
+## 会议纪要 ({timezone.now().strftime('%Y-%m-%d %H:%M:%S')})
+
+### 会议摘要
+{result.get('summary', '')}
+
+### 关键要点
+"""
+                for i, point in enumerate(result.get('key_points', []), 1):
+                    summary_content += f"{i}. {point}\n"
+
+                summary_content += "\n### 行动项\n"
+                for i, item in enumerate(result.get('action_items', []), 1):
+                    summary_content += f"{i}. {item}\n"
+
+                if result.get('participants'):
+                    summary_content += "\n### 参会人员\n"
+                    for participant in result.get('participants', []):
+                        summary_content += f"- {participant}\n"
+
+                note.content += f"\n\n{summary_content}"
+                note.updated_at = timezone.now()
+                note.save()
+            except Exception as e:
+                logger.error(f"保存会议纪要到笔记失败: {str(e)}")
 
         # 返回结果
         return Response({
             'summary': result.get('summary', ''),
             'key_points': result.get('key_points', []),
             'action_items': result.get('action_items', []),
-            'participants': result.get('participants', [])
+            'participants': result.get('participants', []),
+            'decisions': result.get('decisions', []),
+            'topics': result.get('topics', []),
+            'full_text': result.get('full_text', ''),
+            'summary_type': summary_type,
+            'language': language
         })
 
     except Exception as e:

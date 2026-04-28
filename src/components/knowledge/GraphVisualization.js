@@ -18,11 +18,13 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  runOnJS
+  runOnJS,
 } from 'react-native-reanimated';
 import { colors } from '../../utils/constants/colors';
+import { interpolateHsl } from '../../utils/colorUtils';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
+import useForceLayout from '../../hooks/useForceLayout';
 
 // 屏幕尺寸
 const { width, height } = Dimensions.get('window');
@@ -45,6 +47,7 @@ const GraphVisualization = ({
   edges = [],
   visualization = {
     highlightedNodes: [],
+    secondDegreeHighlightedNodes: [],
     highlightedEdges: [],
     centerNode: null,
     zoomLevel: 1,
@@ -58,6 +61,14 @@ const GraphVisualization = ({
   isEditable = false,
 }) => {
   // 使用静态颜色
+
+  // Layout Engine
+  const { positions, isConverged, restart } = useForceLayout({
+    nodes,
+    edges,
+    width: width * 2,
+    height: height * 2,
+  });
 
   // 状态
   const [selectedNode, setSelectedNode] = useState(null);
@@ -297,33 +308,72 @@ const GraphVisualization = ({
 
   // 渲染节点
   const renderNode = (node, index) => {
-    const isHighlighted = visualization.highlightedNodes.includes(node.id) ||
-                         node.id === visualization.centerNode;
+    const isPrimaryHighlighted = (visualization.highlightedNodes || []).includes(node.id) || node.id === visualization.centerNode;
+    const isSecondaryHighlighted = (visualization.secondDegreeHighlightedNodes || []).includes(node.id) && !isPrimaryHighlighted;
     const isSelected = selectedNode?.id === node.id;
-    const nodeSize = node.size || 20;
-    const nodeColor = isSelected ? colors.primary :
-                     (isHighlighted ? colors.primary :
-                     (node.color || getNodeColorByType(node.type)));
+
+    // --- Dynamic Node Sizing (Refined) ---
+    const baseSize = 12;
+    const maxSize = 35;
+    const linkFactor = Math.log1p(node.linkCount || 0) * 5;
+    const nodeSize = Math.min(baseSize + linkFactor, maxSize);
+
+    // --- Dynamic Node Coloring (Refined with HSL) ---
+    const now = Date.now();
+    const updatedAt = new Date(node.updated_at).getTime();
+    const ageInDays = (now - updatedAt) / (1000 * 60 * 60 * 24);
+    const ageFactor = Math.min(ageInDays / 14, 1); // Normalize over two weeks
+
+    const baseColor = getNodeColorByType(node.type);
+    const fadedColor = colors.textSecondary;
+    const nodeColor = interpolateHsl(baseColor, fadedColor, ageFactor);
+
+    let finalNodeColor = node.color || nodeColor;
+    let strokeColor = colors.border;
+    let strokeWidth = 1;
+    let fillOpacity = 0.9;
+
+    if (isPrimaryHighlighted) {
+      finalNodeColor = colors.primary;
+      strokeColor = colors.primary;
+      strokeWidth = 2;
+    }
+    if (isSecondaryHighlighted) {
+      finalNodeColor = colors.secondary; // Or another distinct color
+      strokeColor = colors.secondary;
+      fillOpacity = 0.6;
+    }
+    if (isSelected) {
+      finalNodeColor = colors.primary;
+      strokeColor = colors.primary;
+      strokeWidth = 2;
+      fillOpacity = 1;
+    }
+
+    // Get position from layout engine, fallback to static node.x/y or center
+    const layoutPos = positions.get(node.id);
+    const renderX = layoutPos ? layoutPos.x : (node.x || width);
+    const renderY = layoutPos ? layoutPos.y : (node.y || height);
 
     return (
       <G key={`node-${node.id}`}>
         <Circle
-          cx={node.x}
-          cy={node.y}
+          cx={renderX}
+          cy={renderY}
           r={nodeSize}
           fill={nodeColor}
-          fillOpacity={isSelected ? 1 : 0.8}
-          stroke={isSelected ? colors.primary : (isHighlighted ? colors.primary : colors.border)}
-          strokeWidth={isSelected || isHighlighted ? 2 : 1}
+          fillOpacity={fillOpacity}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
           onPress={() => handleNodePress(node)}
           onLongPress={() => handleNodeLongPress(node)}
         />
         <SvgText
-          x={node.x}
-          y={node.y + nodeSize + 10}
+          x={renderX}
+          y={renderY + nodeSize + 10}
           fontSize="10"
-          fontWeight={isSelected || isHighlighted ? 'bold' : 'normal'}
-          fill={isSelected || isHighlighted ? colors.primary : colors.text}
+          fontWeight={isSelected || isPrimaryHighlighted ? 'bold' : 'normal'}
+          fill={isSelected || isPrimaryHighlighted ? colors.primary : colors.text}
           textAnchor="middle"
         >
           {node.label || node.title || `节点${index + 1}`}
@@ -337,27 +387,31 @@ const GraphVisualization = ({
     const sourceNode = nodes.find(node => node.id === edge.source);
     const targetNode = nodes.find(node => node.id === edge.target);
 
-    if (!sourceNode || !targetNode) return null;
+    if (!sourceNode || !targetNode) {return null;}
 
     const isHighlighted = visualization.highlightedEdges.includes(edge.id);
     const isSelected = selectedEdge?.id === edge.id;
     const edgeColor = isSelected ? colors.primary :
-                     (isHighlighted ? colors.primary :
-                     (edge.color || getEdgeColorByType(edge.type)));
+      (isHighlighted ? colors.primary :
+        (edge.color || getEdgeColorByType(edge.type)));
+
+    // Get positions
+    const sourcePos = positions.get(sourceNode.id) || { x: sourceNode.x || width, y: sourceNode.y || height };
+    const targetPos = positions.get(targetNode.id) || { x: targetNode.x || width, y: targetNode.y || height };
 
     // 计算箭头点
-    const dx = targetNode.x - sourceNode.x;
-    const dy = targetNode.y - sourceNode.y;
+    const dx = targetPos.x - sourcePos.x;
+    const dy = targetPos.y - sourcePos.y;
     const angle = Math.atan2(dy, dx);
 
     // 调整起点和终点，避免箭头与节点重叠
     const sourceNodeSize = sourceNode.size || 20;
     const targetNodeSize = targetNode.size || 20;
 
-    const startX = sourceNode.x + sourceNodeSize * Math.cos(angle);
-    const startY = sourceNode.y + sourceNodeSize * Math.sin(angle);
-    const endX = targetNode.x - targetNodeSize * Math.cos(angle);
-    const endY = targetNode.y - targetNodeSize * Math.sin(angle);
+    const startX = sourcePos.x + sourceNodeSize * Math.cos(angle);
+    const startY = sourcePos.y + sourceNodeSize * Math.sin(angle);
+    const endX = targetPos.x - targetNodeSize * Math.cos(angle);
+    const endY = targetPos.y - targetNodeSize * Math.sin(angle);
 
     // 计算箭头
     const arrowLength = 10;
@@ -365,10 +419,10 @@ const GraphVisualization = ({
     const arrowX = endX - arrowLength * Math.cos(angle);
     const arrowY = endY - arrowLength * Math.sin(angle);
 
-    const arrowPoint1X = arrowX + arrowWidth * Math.cos(angle + Math.PI/2);
-    const arrowPoint1Y = arrowY + arrowWidth * Math.sin(angle + Math.PI/2);
-    const arrowPoint2X = arrowX + arrowWidth * Math.cos(angle - Math.PI/2);
-    const arrowPoint2Y = arrowY + arrowWidth * Math.sin(angle - Math.PI/2);
+    const arrowPoint1X = arrowX + arrowWidth * Math.cos(angle + Math.PI / 2);
+    const arrowPoint1Y = arrowY + arrowWidth * Math.sin(angle + Math.PI / 2);
+    const arrowPoint2X = arrowX + arrowWidth * Math.cos(angle - Math.PI / 2);
+    const arrowPoint2Y = arrowY + arrowWidth * Math.sin(angle - Math.PI / 2);
 
     // 计算边的中点，用于显示标签
     const midX = (startX + endX) / 2;
@@ -425,10 +479,12 @@ const GraphVisualization = ({
     if (visualization.centerNode) {
       // 找到中心节点
       const centerNode = nodes.find(node => node.id === visualization.centerNode);
-      if (centerNode) {
+      const centerPos = centerNode ? positions.get(centerNode.id) : null;
+
+      if (centerNode && centerPos) {
         // 计算需要的平移量，使中心节点位于视图中心
-        const targetX = width / 2 - centerNode.x;
-        const targetY = height / 2 - centerNode.y;
+        const targetX = width / 2 - centerPos.x;
+        const targetY = height / 2 - centerPos.y;
 
         // 应用平移动画
         translateX.value = withTiming(targetX, { duration: 500 });
@@ -443,11 +499,11 @@ const GraphVisualization = ({
         }
       }
     }
-  }, [visualization.centerNode, nodes, width, height]);
+  }, [visualization.centerNode, nodes, width, height, positions]);
 
   // 渲染工具栏
   const renderToolbar = () => {
-    if (!showToolbar) return null;
+    if (!showToolbar) {return null;}
 
     return (
       <View style={[styles.toolbar, { backgroundColor: colors.card }]}>
@@ -493,7 +549,7 @@ const GraphVisualization = ({
 
   // 渲染节点菜单
   const renderNodeMenu = () => {
-    if (!showNodeMenu || !selectedNode) return null;
+    if (!showNodeMenu || !selectedNode) {return null;}
 
     return (
       <View style={[styles.nodeMenu, { backgroundColor: colors.card }]}>
@@ -501,7 +557,7 @@ const GraphVisualization = ({
           <View
             style={[
               styles.nodeTypeIndicator,
-              { backgroundColor: getNodeColorByType(selectedNode.type) }
+              { backgroundColor: getNodeColorByType(selectedNode.type) },
             ]}
           />
           <Text
@@ -572,13 +628,13 @@ const GraphVisualization = ({
 
   // 渲染边菜单
   const renderEdgeMenu = () => {
-    if (!showEdgeMenu || !selectedEdge) return null;
+    if (!showEdgeMenu || !selectedEdge) {return null;}
 
     // 获取源节点和目标节点
     const sourceNode = nodes.find(node => node.id === selectedEdge.source);
     const targetNode = nodes.find(node => node.id === selectedEdge.target);
 
-    if (!sourceNode || !targetNode) return null;
+    if (!sourceNode || !targetNode) {return null;}
 
     return (
       <View style={[styles.edgeMenu, { backgroundColor: colors.card }]}>
@@ -586,7 +642,7 @@ const GraphVisualization = ({
           <View
             style={[
               styles.edgeTypeIndicator,
-              { backgroundColor: getEdgeColorByType(selectedEdge.type) }
+              { backgroundColor: getEdgeColorByType(selectedEdge.type) },
             ]}
           />
           <Text
@@ -614,7 +670,7 @@ const GraphVisualization = ({
               <View
                 style={[
                   styles.nodeTypeIndicator,
-                  { backgroundColor: getNodeColorByType(sourceNode.type) }
+                  { backgroundColor: getNodeColorByType(sourceNode.type) },
                 ]}
               />
               <Text
@@ -632,7 +688,7 @@ const GraphVisualization = ({
               <View
                 style={[
                   styles.nodeTypeIndicator,
-                  { backgroundColor: getNodeColorByType(targetNode.type) }
+                  { backgroundColor: getNodeColorByType(targetNode.type) },
                 ]}
               />
               <Text

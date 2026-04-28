@@ -14,6 +14,9 @@ from django.conf import settings
 from .neo4j_service import Neo4jService
 from .extraction_service import ExtractionService
 from notes.mongodb_models import Note
+from knowledge_graph.mongodb_models import KnowledgeNode, KnowledgeEdge, SuggestionRecord
+from django.utils import timezone
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -122,19 +125,160 @@ class RecommendationService:
         
         return result
     
+    def suggest_edges(self, user, node_id: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """
+        生成候选边建议（基于共同邻居的共现度）
+        返回结构: [{source, target, type, confidence, evidence: [{type, score, detail}]}]
+        """
+        try:
+            # 获取目标节点和其邻居集合
+            target_node = KnowledgeNode.objects.get(id=node_id, user=user, is_deleted=False)
+            neighbor_edges = KnowledgeEdge.objects.filter(user=user, is_deleted=False).filter(__raw__={"$or": [
+                {"source": node_id}, {"target": node_id}
+            ]})
+            neighbor_ids = set()
+            for e in neighbor_edges:
+                if str(e.source.id) != node_id:
+                    neighbor_ids.add(str(e.source.id))
+                if str(e.target.id) != node_id:
+                    neighbor_ids.add(str(e.target.id))
+
+            # 统计其他节点与目标节点的共同邻居数量
+            co_counts: Dict[str, int] = defaultdict(int)
+            all_edges = KnowledgeEdge.objects.filter(user=user, is_deleted=False)
+            for edge in all_edges:
+                a = str(edge.source.id)
+                b = str(edge.target.id)
+                if a in neighbor_ids:
+                    co_counts[b] += 1
+                if b in neighbor_ids:
+                    co_counts[a] += 1
+
+            # 生成候选，排除自身与已存在直接连接
+            existing_direct = set()
+            direct_edges = KnowledgeEdge.objects.filter(user=user, is_deleted=False).filter(__raw__={"$or": [
+                {"source": node_id}, {"target": node_id}
+            ]})
+            for e in direct_edges:
+                existing_direct.add(str(e.source.id))
+                existing_direct.add(str(e.target.id))
+
+            candidates: List[Tuple[str, int]] = [
+                (nid, cnt) for nid, cnt in co_counts.items()
+                if nid != node_id and nid not in existing_direct
+            ]
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            candidates = candidates[:top_k]
+
+            max_cnt = candidates[0][1] if candidates else 1
+            suggestions: List[Dict[str, Any]] = []
+            for nid, cnt in candidates:
+                try:
+                    node = KnowledgeNode.objects.get(id=nid)
+                except Exception:
+                    continue
+                confidence = float(cnt) / float(max_cnt) if max_cnt else 0.0
+                suggestions.append({
+                    'source': node_id,
+                    'target': nid,
+                    'type': 'related',
+                    'confidence': round(confidence, 4),
+                    'evidence': [{
+                        'type': 'cooccurrence',
+                        'score': cnt,
+                        'detail': f'共同邻居数: {cnt}'
+                    }]
+                })
+            return suggestions
+        except KnowledgeNode.DoesNotExist:
+            return []
+
+    def accept_suggestions(self, user, edges: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        批量采纳候选边
+        edges: [{source, target, type, confidence, evidence}]
+        """
+        accepted = 0
+        errors: List[Dict[str, Any]] = []
+        for e in edges:
+            try:
+                # 跳过已存在的边
+                exists = KnowledgeEdge.objects.filter(user=user, is_deleted=False, source=e['source'], target=e['target']).first() or \
+                         KnowledgeEdge.objects.filter(user=user, is_deleted=False, source=e['target'], target=e['source']).first()
+                if exists:
+                    continue
+                source_node = KnowledgeNode.objects.get(id=e['source'], user=user, is_deleted=False)
+                target_node = KnowledgeNode.objects.get(id=e['target'], user=user, is_deleted=False)
+                edge = KnowledgeEdge(
+                    user=user,
+                    source=source_node,
+                    target=target_node,
+                    type=e.get('type', 'related'),
+                    weight=e.get('confidence', 1.0),
+                    properties={'evidence': e.get('evidence', [])},
+                    created_at=timezone.now(),
+                    updated_at=timezone.now()
+                )
+                edge.save()
+                # 记录审计
+                try:
+                    SuggestionRecord(
+                        user=user,
+                        source=source_node,
+                        target=target_node,
+                        action='accepted',
+                        type=edge.type,
+                        confidence=edge.weight,
+                        evidence=e.get('evidence', [])
+                    ).save()
+                except Exception:
+                    pass
+                # 可选：同步到Neo4j
+                try:
+                    self.neo4j_service.create_relation({
+                        'id': edge.id,
+                        'source_id': source_node.id,
+                        'target_id': target_node.id,
+                        'type': edge.type,
+                        'weight': edge.weight,
+                        'user_id': user.id,
+                        'created_at': edge.created_at.isoformat(),
+                        'updated_at': edge.updated_at.isoformat()
+                    })
+                except Exception:
+                    pass
+                accepted += 1
+            except Exception as ex:
+                errors.append({'edge': e, 'error': str(ex)})
+        return {'accepted': accepted, 'errors': errors}
+
+    def ignore_suggestions(self, user, edges: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        批量忽略候选边（仅记录日志或将来可持久化记录）
+        """
+        ignored = len(edges)
+        # 记录忽略
+        for e in edges:
+            try:
+                s_node = KnowledgeNode.objects.get(id=e['source'], user=user, is_deleted=False)
+                t_node = KnowledgeNode.objects.get(id=e['target'], user=user, is_deleted=False)
+                SuggestionRecord(
+                    user=user,
+                    source=s_node,
+                    target=t_node,
+                    action='ignored',
+                    type=e.get('type', 'related'),
+                    confidence=float(e.get('confidence', 0.0)),
+                    evidence=e.get('evidence', [])
+                ).save()
+            except Exception:
+                continue
+        return {'ignored': ignored, 'errors': []}
+
     def recommend_concepts_for_note(self, note_id: str, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
         """
         为笔记推荐概念
-        
-        Args:
-            note_id: 笔记ID
-            user_id: 用户ID
-            limit: 返回结果数量限制
-            
-        Returns:
-            推荐概念列表
         """
-        # 查找与笔记相关但尚未直接连接的概念
         query = """
         MATCH (note:Note {id: $note_id, user_id: $user_id})
         MATCH (concept:Concept {user_id: $user_id})

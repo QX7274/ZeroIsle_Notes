@@ -19,7 +19,8 @@ class ThirdPartyAuthViewSet(viewsets.ModelViewSet):
     第三方认证视图集
     提供第三方账号的CRUD操作和认证功能
     """
-    queryset = ThirdPartyAccount.objects.all()
+    # 避免在模块导入阶段触发 MongoDB 连接（例如 manage.py check）
+    queryset = None
     serializer_class = ThirdPartyAccountSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 

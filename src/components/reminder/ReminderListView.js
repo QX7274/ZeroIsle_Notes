@@ -29,8 +29,7 @@ import { API_ENDPOINTS } from '../../config/api';
 import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import NetInfo from '@react-native-community/netinfo';
-import networkErrorService from '../../services/networkErrorService';
+import networkService from '../../services/network/networkService';
 
 const ReminderListView = ({ navigation, route }) => {
   const { theme } = useTheme();
@@ -57,7 +56,7 @@ const ReminderListView = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reminderSections, setReminderSections] = useState([]);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'today', 'upcoming', 'completed'
   const [syncing, setSyncing] = useState(false);
   const [showSyncIndicator, setShowSyncIndicator] = useState(false);
@@ -65,6 +64,17 @@ const ReminderListView = ({ navigation, route }) => {
   const [showBatchActions, setShowBatchActions] = useState(false);
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [inlineHint, setInlineHint] = useState('');
+
+  const notifyNonBlocking = useCallback((message) => {
+    if (!message) {
+      return;
+    }
+    setInlineHint(message);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    }
+  }, []);
   const [advancedFilters, setAdvancedFilters] = useState({
     priority: 'all', // 'all', 'high', 'medium', 'low'
     category: 'all',
@@ -76,11 +86,12 @@ const ReminderListView = ({ navigation, route }) => {
   // 初始化
   useEffect(() => {
     // 检查网络状态
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected);
+    const unsubscribe = networkService.addNetworkListener(state => {
+      const online = Boolean(state?.isOnline);
+      setIsOnline(online);
 
       // 如果网络连接恢复，尝试同步离线数据
-      if (state.isConnected && offlineReminders.length > 0) {
+      if (online && offlineReminders.length > 0) {
         syncOfflineReminders();
       }
     });
@@ -128,7 +139,7 @@ const ReminderListView = ({ navigation, route }) => {
       const localReminders = await reminderNotificationService.getOfflineReminders();
 
       // 如果有网络连接，从服务器获取最新数据
-      if (isConnected) {
+      if (isOnline) {
         try {
           setSyncing(true);
 
@@ -150,13 +161,7 @@ const ReminderListView = ({ navigation, route }) => {
         } catch (error) {
           console.error('从服务器加载提醒数据失败:', error);
 
-          // 使用网络错误服务处理错误
-          if (error.isNetworkError || error.message?.includes('Network Error') || error.message?.includes('服务器请求失败')) {
-            networkErrorService.handleApiError(error, {
-              context: '加载日程数据',
-              customMessage: '无法连接到服务器，使用本地数据'
-            });
-          }
+          // 网络失败时不再弹全局阻断提示，直接静默回退本地数据
 
           // 服务器请求失败，使用本地数据
           dispatch(loadReminders(localReminders));
@@ -186,8 +191,10 @@ const ReminderListView = ({ navigation, route }) => {
     } catch (error) {
       console.error('加载提醒数据失败:', error);
 
-      // 显示错误消息
-      Alert.alert('错误', '加载提醒数据失败');
+      // 最后兜底：避免阻断弹窗，优先保证页面可继续操作
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('加载失败，已尝试使用本地数据', ToastAndroid.SHORT);
+      }
     } finally {
       setLoading(false);
     }
@@ -197,7 +204,7 @@ const ReminderListView = ({ navigation, route }) => {
   const syncOfflineReminders = async () => {
     try {
       // 如果没有网络连接或没有离线提醒，直接返回
-      if (!isConnected || offlineReminders.length === 0) {
+      if (!isOnline || offlineReminders.length === 0) {
         return;
       }
 
@@ -207,16 +214,12 @@ const ReminderListView = ({ navigation, route }) => {
       await dispatch(syncReminders());
 
       // 显示成功消息
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(`已同步${offlineReminders.length}个离线提醒`, ToastAndroid.SHORT);
-      } else {
-        Alert.alert('同步成功', `已同步${offlineReminders.length}个离线提醒`);
-      }
+      notifyNonBlocking(`已同步${offlineReminders.length}个离线提醒`);
     } catch (error) {
       console.error('同步离线提醒失败:', error);
 
-      // 显示错误消息
-      Alert.alert('同步失败', '无法同步离线提醒，请稍后重试');
+      // 显示错误消息（非阻断）
+      notifyNonBlocking('无法同步离线提醒，请稍后重试');
     } finally {
       setSyncing(false);
     }
@@ -280,7 +283,7 @@ const ReminderListView = ({ navigation, route }) => {
 
     if (advancedFilters.tags && advancedFilters.tags.length > 0) {
       filteredReminders = filteredReminders.filter(reminder => {
-        if (!reminder.tags) return false;
+        if (!reminder.tags) {return false;}
 
         // 将标签字符串转换为数组
         const reminderTags = reminder.tags.split(',').map(tag => tag.trim());
@@ -329,7 +332,7 @@ const ReminderListView = ({ navigation, route }) => {
           const dateB = new Date(b.dueDate || b.due_date);
           return dateA - dateB; // 按日期升序排序
         }),
-        key: 'overdue'
+        key: 'overdue',
       });
     }
 
@@ -341,7 +344,7 @@ const ReminderListView = ({ navigation, route }) => {
           const dateB = new Date(b.dueDate || b.due_date);
           return dateA - dateB; // 按日期升序排序
         }),
-        key: 'today'
+        key: 'today',
       });
     }
 
@@ -353,7 +356,7 @@ const ReminderListView = ({ navigation, route }) => {
           const dateB = new Date(b.dueDate || b.due_date);
           return dateA - dateB; // 按日期升序排序
         }),
-        key: 'tomorrow'
+        key: 'tomorrow',
       });
     }
 
@@ -365,7 +368,7 @@ const ReminderListView = ({ navigation, route }) => {
           const dateB = new Date(b.dueDate || b.due_date);
           return dateA - dateB; // 按日期升序排序
         }),
-        key: 'future'
+        key: 'future',
       });
     }
 
@@ -377,7 +380,7 @@ const ReminderListView = ({ navigation, route }) => {
           const dateB = new Date(b.completed_at || b.updated_at || b.created_at);
           return dateB - dateA; // 按完成时间降序排序
         }),
-        key: 'completed'
+        key: 'completed',
       });
     }
 
@@ -411,7 +414,7 @@ const ReminderListView = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error('切换提醒完成状态失败:', error);
-      Alert.alert('错误', '更新提醒失败');
+      notifyNonBlocking('更新提醒失败');
     }
   };
 
@@ -441,7 +444,7 @@ const ReminderListView = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error('切换提醒启用状态失败:', error);
-      Alert.alert('错误', '更新提醒失败');
+      notifyNonBlocking('更新提醒失败');
     }
   };
 
@@ -470,10 +473,10 @@ const ReminderListView = ({ navigation, route }) => {
                 }
               } catch (error) {
                 console.error('删除提醒失败:', error);
-                Alert.alert('错误', '删除提醒失败');
+                notifyNonBlocking('删除提醒失败');
               }
-            }
-          }
+            },
+          },
         ]
       );
     } catch (error) {
@@ -488,7 +491,7 @@ const ReminderListView = ({ navigation, route }) => {
       await loadRemindersData();
 
       // 如果有网络连接，尝试同步离线提醒
-      if (isConnected && offlineReminders.length > 0) {
+      if (isOnline && offlineReminders.length > 0) {
         await syncOfflineReminders();
       }
     } catch (error) {
@@ -496,7 +499,7 @@ const ReminderListView = ({ navigation, route }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [isConnected, offlineReminders]);
+  }, [isOnline, offlineReminders]);
 
   // 切换提醒选择状态
   const handleToggleSelect = (reminder) => {
@@ -518,7 +521,7 @@ const ReminderListView = ({ navigation, route }) => {
       );
 
       if (selectedItems.length === 0) {
-        Alert.alert('提示', '没有选中未完成的提醒');
+        notifyNonBlocking('没有选中未完成的提醒');
         return;
       }
 
@@ -544,7 +547,7 @@ const ReminderListView = ({ navigation, route }) => {
                   dispatch(updateReminder(updatedReminder));
 
                   // 更新服务器
-                  if (isConnected) {
+                  if (isOnline) {
                     try {
                       await api.post(API_ENDPOINTS.REMINDER.COMPLETE(reminder.id));
                     } catch (error) {
@@ -563,24 +566,20 @@ const ReminderListView = ({ navigation, route }) => {
                 setShowBatchActions(false);
 
                 // 显示成功消息
-                if (Platform.OS === 'android') {
-                  ToastAndroid.show(`已完成 ${selectedItems.length} 个提醒`, ToastAndroid.SHORT);
-                } else {
-                  Alert.alert('成功', `已完成 ${selectedItems.length} 个提醒`);
-                }
+                notifyNonBlocking(`已完成 ${selectedItems.length} 个提醒`);
               } catch (error) {
                 console.error('批量完成提醒失败:', error);
-                Alert.alert('错误', '批量完成提醒失败');
+                notifyNonBlocking('批量完成提醒失败');
               } finally {
                 setSyncing(false);
               }
-            }
-          }
+            },
+          },
         ]
       );
     } catch (error) {
       console.error('批量操作失败:', error);
-      Alert.alert('错误', '批量操作失败');
+      notifyNonBlocking('批量操作失败');
       setSyncing(false);
     }
   };
@@ -589,7 +588,7 @@ const ReminderListView = ({ navigation, route }) => {
   const handleBatchDelete = async () => {
     try {
       if (selectedReminders.length === 0) {
-        Alert.alert('提示', '没有选中的提醒');
+        notifyNonBlocking('没有选中的提醒');
         return;
       }
 
@@ -612,7 +611,7 @@ const ReminderListView = ({ navigation, route }) => {
                   dispatch(deleteReminder(id));
 
                   // 更新服务器
-                  if (isConnected) {
+                  if (isOnline) {
                     try {
                       await api.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
                     } catch (error) {
@@ -626,24 +625,20 @@ const ReminderListView = ({ navigation, route }) => {
                 setShowBatchActions(false);
 
                 // 显示成功消息
-                if (Platform.OS === 'android') {
-                  ToastAndroid.show(`已删除 ${selectedReminders.length} 个提醒`, ToastAndroid.SHORT);
-                } else {
-                  Alert.alert('成功', `已删除 ${selectedReminders.length} 个提醒`);
-                }
+                notifyNonBlocking(`已删除 ${selectedReminders.length} 个提醒`);
               } catch (error) {
                 console.error('批量删除提醒失败:', error);
-                Alert.alert('错误', '批量删除提醒失败');
+                notifyNonBlocking('批量删除提醒失败');
               } finally {
                 setSyncing(false);
               }
-            }
-          }
+            },
+          },
         ]
       );
     } catch (error) {
       console.error('批量操作失败:', error);
-      Alert.alert('错误', '批量操作失败');
+      notifyNonBlocking('批量操作失败');
     }
   };
 
@@ -668,13 +663,13 @@ const ReminderListView = ({ navigation, route }) => {
   const renderReminderItem = ({ item }) => {
     const dueDate = new Date(item.dueDate || item.due_date);
     const isPastDue = isPast(dueDate) && !isToday(dueDate);
-    
+
     // 确保主题颜色存在，提供默认值
     const defaultColor = '#2196F3'; // 默认蓝色
     const errorColor = theme?.error || '#F44336'; // 错误颜色
     const warningColor = theme?.warning || '#FFEB3B'; // 警告颜色
     const primaryColor = theme?.primary || defaultColor; // 主色调
-    
+
     const color = item.color || (
       isPastDue
         ? errorColor
@@ -698,7 +693,7 @@ const ReminderListView = ({ navigation, route }) => {
             borderLeftWidth: 4,
             borderLeftColor: color,
             opacity: !item.is_enabled ? 0.7 : 1,
-          }
+          },
         ]}
                  onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id })}
         onLongPress={() => {
@@ -718,7 +713,7 @@ const ReminderListView = ({ navigation, route }) => {
               {
                 borderColor: theme?.primary || '#2196F3',
                 backgroundColor: isSelected ? (theme?.primary || '#2196F3') : 'transparent',
-              }
+              },
             ]}>
               {isSelected && (
                 <Icon name="check" size={16} color="#fff" />
@@ -735,7 +730,7 @@ const ReminderListView = ({ navigation, route }) => {
               {
                 borderColor: color,
                 backgroundColor: item.is_completed ? color : 'transparent',
-              }
+              },
             ]}>
               {item.is_completed && (
                 <Icon name="check" size={16} color="#fff" />
@@ -752,7 +747,7 @@ const ReminderListView = ({ navigation, route }) => {
                 color: theme?.text || '#000000',
                 textDecorationLine: item.is_completed ? 'line-through' : 'none',
                 fontWeight: item.is_completed ? 'normal' : 'bold',
-              }
+              },
             ]}>
               {item.title}
             </Text>
@@ -803,7 +798,7 @@ const ReminderListView = ({ navigation, route }) => {
                        : item.priority === 'low'
                          ? getThemeColor('success', '#4CAF50')
                          : getThemeColor('border', '#E0E0E0'),
-                 }
+                 },
                ]}>
                  <Text style={[
                    styles.priorityText,
@@ -813,8 +808,8 @@ const ReminderListView = ({ navigation, route }) => {
                          ? getThemeColor('error', '#F44336')
                          : item.priority === 'low'
                            ? getThemeColor('success', '#4CAF50')
-                           : getThemeColor('textSecondary', '#666666')
-                   }
+                           : getThemeColor('textSecondary', '#666666'),
+                   },
                  ]}>
                   {item.priority === 'high' ? '高优先级' : item.priority === 'low' ? '低优先级' : '中优先级'}
                 </Text>
@@ -845,7 +840,7 @@ const ReminderListView = ({ navigation, route }) => {
                style={styles.iconButton}
              >
                <Icon
-                 name={item.is_enabled ? "notifications-active" : "notifications-off"}
+                 name={item.is_enabled ? 'notifications-active' : 'notifications-off'}
                  size={20}
                  color={item.is_enabled ? color : getThemeColor('textSecondary', '#666666')}
                />
@@ -908,13 +903,13 @@ const ReminderListView = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'all' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+            filter === 'all' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('all')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'all' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
+            { color: filter === 'all' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') },
           ]}>
             全部
           </Text>
@@ -923,13 +918,13 @@ const ReminderListView = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'today' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+            filter === 'today' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('today')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'today' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
+            { color: filter === 'today' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') },
           ]}>
             今日
           </Text>
@@ -938,13 +933,13 @@ const ReminderListView = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'upcoming' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+            filter === 'upcoming' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('upcoming')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'upcoming' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
+            { color: filter === 'upcoming' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') },
           ]}>
             即将到期
           </Text>
@@ -953,13 +948,13 @@ const ReminderListView = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'completed' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+            filter === 'completed' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('completed')}
         >
           <Text style={[
             styles.filterText,
-            { color: filter === 'completed' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') }
+            { color: filter === 'completed' ? getThemeColor('primary', '#2196F3') : getThemeColor('textSecondary', '#666666') },
           ]}>
             已完成
           </Text>
@@ -974,7 +969,7 @@ const ReminderListView = ({ navigation, route }) => {
             advancedFilters.startDate ||
             advancedFilters.endDate ||
             advancedFilters.tags.length > 0) &&
-           { backgroundColor: getThemeColor('primary', '#2196F3') + '20' }
+           { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
          ]}
          onPress={() => setShowFilterModal(true)}
        >
@@ -1000,8 +995,8 @@ const ReminderListView = ({ navigation, route }) => {
                advancedFilters.endDate ||
                advancedFilters.tags.length > 0)
                  ? getThemeColor('primary', '#2196F3')
-                 : getThemeColor('textSecondary', '#666666')
-           }
+                 : getThemeColor('textSecondary', '#666666'),
+           },
          ]}>
            筛选
          </Text>
@@ -1061,13 +1056,13 @@ const ReminderListView = ({ navigation, route }) => {
                       advancedFilters.priority === priority && {
                         backgroundColor: getThemeColor('primary', '#2196F3') + '20',
                         borderColor: getThemeColor('primary', '#2196F3'),
-                      }
+                      },
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, priority})}
                   >
                     <Text style={[
                       styles.filterOptionText,
-                      { color: advancedFilters.priority === priority ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') }
+                      { color: advancedFilters.priority === priority ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') },
                     ]}>
                       {priority === 'all' ? '全部' :
                        priority === 'high' ? '高' :
@@ -1090,13 +1085,13 @@ const ReminderListView = ({ navigation, route }) => {
                       advancedFilters.category === category && {
                         backgroundColor: getThemeColor('primary', '#2196F3') + '20',
                         borderColor: getThemeColor('primary', '#2196F3'),
-                      }
+                      },
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, category})}
                   >
                     <Text style={[
                       styles.filterOptionText,
-                      { color: advancedFilters.category === category ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') }
+                      { color: advancedFilters.category === category ? getThemeColor('primary', '#2196F3') : getThemeColor('text', '#000000') },
                     ]}>
                       {category === 'all' ? '全部' : getCategoryName(category)}
                     </Text>
@@ -1200,7 +1195,7 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 渲染同步指示器
   const renderSyncIndicator = () => {
-    if (!showSyncIndicator) return null;
+    if (!showSyncIndicator) {return null;}
 
     const spin = syncRotation.interpolate({
       inputRange: [0, 1],
@@ -1223,6 +1218,12 @@ const ReminderListView = ({ navigation, route }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
       {renderFilterBar()}
+
+      {inlineHint ? (
+        <View style={[styles.hintBanner, { backgroundColor: getThemeColor('warning', '#ff9800') + '22' }]}>
+          <Text style={[styles.hintText, { color: getThemeColor('warning', '#ff9800') }]}>{inlineHint}</Text>
+        </View>
+      ) : null}
 
       <SectionList
         sections={reminderSections}
@@ -1307,6 +1308,17 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 16,
     flexGrow: 1,
+  },
+  hintBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  hintText: {
+    fontSize: 13,
   },
   reminderItem: {
     flexDirection: 'row',

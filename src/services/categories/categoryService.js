@@ -18,7 +18,7 @@ class CategoryService {
    * 初始化分类服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -128,18 +128,38 @@ class CategoryService {
       // 离线模式：从本地存储获取
       const realm = await realmService.getRealm();
       let categories = realm.objects('Category');
-      
-      if (defaultFilter) {
-        categories = categories.filtered(defaultFilter);
+
+      // 应用过滤 - 转换MongoDB格式为Realm查询字符串
+      if (defaultFilter && Object.keys(defaultFilter).length > 0) {
+        const queryParts = [];
+        for (const [key, value] of Object.entries(defaultFilter)) {
+          if (typeof value === 'boolean') {
+            queryParts.push(`${key} == ${value}`);
+          } else if (typeof value === 'string') {
+            queryParts.push(`${key} == "${value}"`);
+          } else if (typeof value === 'number') {
+            queryParts.push(`${key} == ${value}`);
+          }
+        }
+        if (queryParts.length > 0) {
+          categories = categories.filtered(queryParts.join(' AND '));
+        }
       }
-      if (sort) {
-        categories = categories.sorted(sort);
+
+      // 应用排序 - 转换MongoDB格式为Realm格式
+      if (sort && Object.keys(sort).length > 0) {
+        const sortField = Object.keys(sort)[0];
+        const sortDirection = sort[sortField] === -1; // -1 = descending = true in Realm
+        categories = categories.sorted(sortField, sortDirection);
       }
-      if (limit) {
-        categories = categories.slice(skip || 0, (skip || 0) + limit);
+
+      // 应用分页 (性能优化：先分页再 materialize)
+      if (limit && limit > 0) {
+        return Array.from(categories.slice(skip || 0, (skip || 0) + limit));
       }
-      
-      return categories;
+
+      console.warn('[Performance] getCategories 未指定 limit，强制限制前 200 条以防全量加载');
+      return Array.from(categories.slice(0, 200));
     } catch (error) {
       console.error('获取分类列表失败:', error);
       throw error;
@@ -394,4 +414,9 @@ class CategoryService {
   }
 }
 
-export const categoryService = new CategoryService();
+const categoryService = new CategoryService();
+
+module.exports = categoryService;
+module.exports.default = categoryService;
+module.exports.categoryService = categoryService;
+module.exports.CategoryService = CategoryService;

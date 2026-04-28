@@ -30,10 +30,10 @@ const CommentItem = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [showReplies, setShowReplies] = useState(false);
-  
+
   // 提取评论信息
   const {
     content,
@@ -45,16 +45,16 @@ const CommentItem = ({
     reply_to,
     is_author = false,
   } = comment || {};
-  
+
   // 格式化日期
   const formatDate = (dateString) => {
-    if (!dateString) return '';
-    
+    if (!dateString) {return '';}
+
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    
+
     if (diffMinutes < 1) {
       return '刚刚';
     } else if (diffMinutes < 60) {
@@ -67,11 +67,11 @@ const CommentItem = ({
       return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
     }
   };
-  
+
   // 渲染回复
   const renderReplies = () => {
-    if (!replies || replies.length === 0) return null;
-    
+    if (!replies || replies.length === 0) {return null;}
+
     if (!showReplies) {
       return (
         <TouchableOpacity
@@ -90,7 +90,7 @@ const CommentItem = ({
         </TouchableOpacity>
       );
     }
-    
+
     return (
       <View style={styles.repliesContainer}>
         {replies.map((reply, index) => (
@@ -103,7 +103,7 @@ const CommentItem = ({
             onUserPress={onUserPress}
           />
         ))}
-        
+
         <TouchableOpacity
           style={styles.hideRepliesButton}
           onPress={() => setShowReplies(false)}
@@ -120,7 +120,7 @@ const CommentItem = ({
       </View>
     );
   };
-  
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -136,7 +136,7 @@ const CommentItem = ({
           style={styles.avatar}
         />
       </TouchableOpacity>
-      
+
       <View style={styles.contentContainer}>
         <View style={styles.header}>
           <TouchableOpacity
@@ -160,7 +160,7 @@ const CommentItem = ({
               )}
             </Text>
           </TouchableOpacity>
-          
+
           <Text
             variant="caption"
             color="hint"
@@ -168,7 +168,7 @@ const CommentItem = ({
             {formatDate(created_at)}
           </Text>
         </View>
-        
+
         {reply_to && (
           <View style={styles.replyToContainer}>
             <Icon name="reply" size={12} color={colors.textSecondary} />
@@ -177,7 +177,7 @@ const CommentItem = ({
               color="hint"
               style={styles.replyToText}
             >
-              回复 
+              回复
             </Text>
             <Text
               variant="caption"
@@ -187,7 +187,7 @@ const CommentItem = ({
             </Text>
           </View>
         )}
-        
+
         <View style={styles.commentContent}>
           {content.includes('**') || content.includes('*') || content.includes('`') ? (
             <MarkdownPreview
@@ -203,7 +203,7 @@ const CommentItem = ({
             </Text>
           )}
         </View>
-        
+
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -224,7 +224,7 @@ const CommentItem = ({
               </Text>
             )}
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => onReply && onReply()}
@@ -238,7 +238,7 @@ const CommentItem = ({
               回复
             </Text>
           </TouchableOpacity>
-          
+
           {(user?.is_current_user || is_author) && (
             <TouchableOpacity
               style={styles.actionButton}
@@ -255,7 +255,7 @@ const CommentItem = ({
             </TouchableOpacity>
           )}
         </View>
-        
+
         {renderReplies()}
       </View>
     </View>

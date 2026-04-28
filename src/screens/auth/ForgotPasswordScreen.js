@@ -133,7 +133,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
       // 准备请求数据
       const requestData = {
-        type: 'reset_password'
+        type: 'reset_password',
       };
 
       // 根据重置类型设置请求参数
@@ -181,7 +181,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
       // 准备请求数据
       const requestData = {
-        code: verificationCode
+        code: verificationCode,
       };
 
       // 根据重置类型设置请求参数
@@ -227,7 +227,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
       // 准备请求数据
       const requestData = {
         verification_id: verificationId,
-        new_password: newPassword
+        new_password: newPassword,
       };
 
       // 根据重置类型设置请求参数
@@ -256,7 +256,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
   // 重新发送验证码
   const handleResendCode = async () => {
-    if (countdown > 0) return;
+    if (countdown > 0) {return;}
     await handleSendCode();
   };
 
@@ -313,14 +313,14 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.resetTypeButton,
-                    resetType === 'email' && styles.resetTypeButtonActive
+                    resetType === 'email' && styles.resetTypeButtonActive,
                   ]}
                   onPress={() => setResetType('email')}
                 >
                   <Text
                     style={[
                       styles.resetTypeText,
-                      resetType === 'email' && styles.resetTypeTextActive
+                      resetType === 'email' && styles.resetTypeTextActive,
                     ]}
                   >
                     邮箱验证
@@ -330,14 +330,14 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.resetTypeButton,
-                    resetType === 'phone' && styles.resetTypeButtonActive
+                    resetType === 'phone' && styles.resetTypeButtonActive,
                   ]}
                   onPress={() => setResetType('phone')}
                 >
                   <Text
                     style={[
                       styles.resetTypeText,
-                      resetType === 'phone' && styles.resetTypeTextActive
+                      resetType === 'phone' && styles.resetTypeTextActive,
                     ]}
                   >
                     手机验证
@@ -395,7 +395,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
               />
 
               <Button
-                title={countdown > 0 ? `重新发送(${countdown}s)` : "重新发送验证码"}
+                title={countdown > 0 ? `重新发送(${countdown}s)` : '重新发送验证码'}
                 onPress={handleResendCode}
                 type="text"
                 disabled={countdown > 0}

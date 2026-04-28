@@ -68,7 +68,7 @@ const tagApi = {
         const userId = data.userId || 'current_user';
         await tagAdapter.findOrCreateTag(response.data.name, userId, {
           color: response.data.color,
-          _id: response.data.id
+          _id: response.data.id,
         });
       } catch (syncError) {
         logService.warn('同步标签到本地失败', syncError);
@@ -112,7 +112,7 @@ const tagApi = {
       try {
         await tagAdapter.updateTag(id, {
           name: response.data.name,
-          color: response.data.color
+          color: response.data.color,
         });
       } catch (syncError) {
         logService.warn('同步标签更新到本地失败', syncError);
@@ -186,7 +186,7 @@ const tagApi = {
         const { noteAdapter } = require('../../adapters');
         const notes = await noteAdapter.getNotes('current_user', {
           tags: [id],
-          ...options
+          ...options,
         });
         return { data: notes, success: true, isOffline: true };
       }
@@ -202,7 +202,7 @@ const tagApi = {
         const { noteAdapter } = require('../../adapters');
         const notes = await noteAdapter.getNotes('current_user', {
           tags: [id],
-          ...options
+          ...options,
         });
         return { data: notes, success: true, isOffline: true };
       } catch (offlineError) {
@@ -317,7 +317,7 @@ const tagApi = {
         throw error;
       }
     }
-  }
+  },
 };
 
 export default tagApi;

@@ -37,9 +37,9 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
     const processedNodes = [rootNode];
     const processedConnections = [];
 
-    // 递归处理子节�?
+    // 递归处理子节�?
     const processChildren = (parent, children, level) => {
-      if (!children || children.length === 0) return;
+      if (!children || children.length === 0) {return;}
 
       const angleStep = (2 * Math.PI) / children.length;
       const radius = 150 * (level + 1); // 根据层级增加半径
@@ -136,11 +136,11 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
                 ],
               }}
             >
-              {/* 连接�?*/}
+              {/* 连接�?*/}
               {connections.map((connection) => {
                 const fromNode = nodes.find(node => node.id === connection.from);
                 const toNode = nodes.find(node => node.id === connection.to);
-                if (!fromNode || !toNode) return null;
+                if (!fromNode || !toNode) {return null;}
 
                 return (
                   <Path

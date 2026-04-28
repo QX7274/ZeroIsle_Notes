@@ -1,4 +1,6 @@
 import { Alert } from 'react-native';
+import realmService from '../services/database/realmService';
+
 
 /**
  * 通用GB级内存分配器
@@ -20,7 +22,7 @@ class UniversalMemoryAllocator {
       'pptx': { multiplier: 4, maxMB: 8192 },
       'xls': { multiplier: 3, maxMB: 4096 }, // Excel文件：3倍文件大小，最大4GB
       'xlsx': { multiplier: 3, maxMB: 4096 },
-      
+
       // 图片类型 - 提高内存限制
       'jpg': { multiplier: 2, maxMB: 2048 }, // 图片文件：2倍文件大小，最大2GB
       'jpeg': { multiplier: 2, maxMB: 2048 },
@@ -28,25 +30,25 @@ class UniversalMemoryAllocator {
       'gif': { multiplier: 2, maxMB: 2048 },
       'bmp': { multiplier: 2, maxMB: 2048 },
       'webp': { multiplier: 2, maxMB: 2048 },
-      
+
       // 视频类型 - 提高内存限制
       'mp4': { multiplier: 1.5, maxMB: 4096 }, // 视频文件：1.5倍文件大小，最大4GB
       'avi': { multiplier: 1.5, maxMB: 4096 },
       'mov': { multiplier: 1.5, maxMB: 4096 },
       'mkv': { multiplier: 1.5, maxMB: 4096 },
-      
+
       // 音频类型 - 提高内存限制
       'mp3': { multiplier: 1.5, maxMB: 1024 }, // 音频文件：1.5倍文件大小，最大1GB
       'wav': { multiplier: 1.5, maxMB: 1024 },
       'm4a': { multiplier: 1.5, maxMB: 1024 },
       'ogg': { multiplier: 1.5, maxMB: 1024 },
-      
+
       // 文本类型 - 提高内存限制
       'txt': { multiplier: 2, maxMB: 512 }, // 文本文件：2倍文件大小，最大512MB
       'md': { multiplier: 2, maxMB: 512 },
       'json': { multiplier: 2, maxMB: 512 },
       'xml': { multiplier: 1.5, maxMB: 128 },
-      
+
       // 代码类型
       'js': { multiplier: 1.2, maxMB: 64 }, // 代码文件：1.2倍文件大小，最大64MB
       'ts': { multiplier: 1.2, maxMB: 64 },
@@ -56,9 +58,9 @@ class UniversalMemoryAllocator {
       'c': { multiplier: 1.2, maxMB: 64 },
       'html': { multiplier: 1.2, maxMB: 64 },
       'css': { multiplier: 1.2, maxMB: 64 },
-      
+
       // 默认类型
-      'default': { multiplier: 2, maxMB: 512 } // 默认：2倍文件大小，最大512MB
+      'default': { multiplier: 2, maxMB: 512 }, // 默认：2倍文件大小，最大512MB
     };
   }
 
@@ -68,22 +70,22 @@ class UniversalMemoryAllocator {
   async initializeMemoryPool(targetGB = 2) {
     try {
       console.log(`UniversalMemoryAllocator: 开始初始化 ${targetGB}GB 通用内存池...`);
-      
+
       const targetBytes = targetGB * 1024 * 1024 * 1024;
       const chunkSize = 100 * 1024 * 1024; // 100MB块
       const chunks = Math.ceil(targetBytes / chunkSize);
-      
+
       console.log(`UniversalMemoryAllocator: 目标内存: ${targetGB}GB, 块大小: 100MB, 块数量: ${chunks}`);
-      
+
       // 逐步分配内存块
       for (let i = 0; i < chunks; i++) {
         try {
           const chunk = this.allocateMemoryChunk(chunkSize);
           this.memoryChunks.push(chunk);
           this.totalAllocated += chunkSize;
-          
+
           console.log(`UniversalMemoryAllocator: 已分配第 ${i + 1}/${chunks} 块 (${(this.totalAllocated / 1024 / 1024 / 1024).toFixed(2)}GB)`);
-          
+
           // 每分配几个块后暂停一下，避免阻塞UI
           if ((i + 1) % 5 === 0) {
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -93,20 +95,20 @@ class UniversalMemoryAllocator {
           break;
         }
       }
-      
+
       console.log(`UniversalMemoryAllocator: 通用内存池初始化完成，总分配: ${(this.totalAllocated / 1024 / 1024 / 1024).toFixed(2)}GB`);
-      
+
       return {
         success: true,
         allocatedGB: this.totalAllocated / 1024 / 1024 / 1024,
-        chunks: this.memoryChunks.length
+        chunks: this.memoryChunks.length,
       };
     } catch (error) {
       console.error('UniversalMemoryAllocator: 通用内存池初始化失败:', error);
       return {
         success: false,
         error: error.message,
-        allocatedGB: this.totalAllocated / 1024 / 1024 / 1024
+        allocatedGB: this.totalAllocated / 1024 / 1024 / 1024,
       };
     }
   }
@@ -118,23 +120,23 @@ class UniversalMemoryAllocator {
     try {
       // 使用Buffer分配内存
       const buffer = Buffer.alloc(size);
-      
+
       // 安全填充数据以确保内存被实际分配
       try {
         for (let i = 0; i < size; i += 1024) {
           if (i < buffer.length) {
-            buffer[i] = Math.floor(Math.random() * 255);
+            buffer[i] = (i / 1024) % 255;
           }
         }
       } catch (fillError) {
         console.warn('UniversalMemoryAllocator: 内存填充失败，但分配成功:', fillError.message);
       }
-      
+
       return {
-        id: Date.now() + Math.random(),
+        id: realmService.createObjectId(),
         buffer,
         size,
-        allocatedAt: Date.now()
+        allocatedAt: Date.now(),
       };
     } catch (error) {
       throw new Error(`内存块分配失败: ${error.message}`);
@@ -147,27 +149,27 @@ class UniversalMemoryAllocator {
   async allocateMemoryForFile(filePath, fileSizeMB) {
     try {
       console.log(`UniversalMemoryAllocator: 为文件分配内存，路径: ${filePath}, 大小: ${fileSizeMB}MB`);
-      
+
       // 获取文件扩展名
       const fileExtension = this.getFileExtension(filePath);
       console.log(`UniversalMemoryAllocator: 检测到文件类型: ${fileExtension}`);
-      
+
       // 获取内存需求配置
       const memoryConfig = this.fileTypeMemoryRequirements[fileExtension] || this.fileTypeMemoryRequirements.default;
-      
+
       // 计算需要的内存
       const requiredMemoryMB = Math.min(fileSizeMB * memoryConfig.multiplier, memoryConfig.maxMB);
-      
+
       console.log(`UniversalMemoryAllocator: 文件类型: ${fileExtension}, 内存倍数: ${memoryConfig.multiplier}, 最大内存: ${memoryConfig.maxMB}MB, 计算所需内存: ${requiredMemoryMB}MB`);
-      
+
       const result = await this.allocateMemory(requiredMemoryMB, `file_processing_${fileExtension}`);
-      
+
       if (result.success) {
         console.log(`UniversalMemoryAllocator: 文件内存分配成功: ${requiredMemoryMB}MB`);
         return {
           ...result,
           fileType: fileExtension,
-          memoryConfig
+          memoryConfig,
         };
       } else {
         throw new Error(result.error);
@@ -184,39 +186,39 @@ class UniversalMemoryAllocator {
   async allocateMemory(sizeMB, purpose = 'general') {
     try {
       console.log(`UniversalMemoryAllocator: 请求分配 ${sizeMB}MB 内存用于 ${purpose}`);
-      
+
       const sizeBytes = sizeMB * 1024 * 1024;
-      
+
       // 检查是否有足够的内存
       if (this.totalAllocated + sizeBytes > this.maxMemoryGB * 1024 * 1024 * 1024) {
         throw new Error(`内存不足: 已分配 ${(this.totalAllocated / 1024 / 1024 / 1024).toFixed(2)}GB，请求 ${sizeMB}MB`);
       }
-      
+
       // 分配内存
       const memoryChunk = this.allocateMemoryChunk(sizeBytes);
-      
+
       // 记录分配
       this.allocatedMemory.set(memoryChunk.id, {
         ...memoryChunk,
         purpose,
-        allocatedAt: Date.now()
+        allocatedAt: Date.now(),
       });
-      
+
       this.totalAllocated += sizeBytes;
-      
+
       console.log(`UniversalMemoryAllocator: 成功分配 ${sizeMB}MB 内存，总分配: ${(this.totalAllocated / 1024 / 1024 / 1024).toFixed(2)}GB`);
-      
+
       return {
         success: true,
         memoryId: memoryChunk.id,
         sizeMB,
-        totalAllocatedGB: this.totalAllocated / 1024 / 1024 / 1024
+        totalAllocatedGB: this.totalAllocated / 1024 / 1024 / 1024,
       };
     } catch (error) {
       console.error('UniversalMemoryAllocator: 内存分配失败:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -245,18 +247,18 @@ class UniversalMemoryAllocator {
         console.warn(`UniversalMemoryAllocator: 内存ID ${memoryId} 不存在`);
         return false;
       }
-      
+
       // 释放Buffer
       if (memory.buffer) {
         memory.buffer = null;
       }
-      
+
       // 从记录中移除
       this.allocatedMemory.delete(memoryId);
       this.totalAllocated -= memory.size;
-      
+
       console.log(`UniversalMemoryAllocator: 释放内存 ${memoryId}，剩余: ${(this.totalAllocated / 1024 / 1024 / 1024).toFixed(2)}GB`);
-      
+
       return true;
     } catch (error) {
       console.error('UniversalMemoryAllocator: 内存释放失败:', error);
@@ -273,7 +275,7 @@ class UniversalMemoryAllocator {
       maxMemoryGB: this.maxMemoryGB,
       availableGB: this.maxMemoryGB - (this.totalAllocated / 1024 / 1024 / 1024),
       allocatedChunks: this.allocatedMemory.size,
-      memoryChunks: this.memoryChunks.length
+      memoryChunks: this.memoryChunks.length,
     };
   }
 
@@ -283,12 +285,12 @@ class UniversalMemoryAllocator {
   async cleanupAllMemory() {
     try {
       console.log('UniversalMemoryAllocator: 开始清理所有内存...');
-      
+
       // 释放所有分配的内存
       for (const [memoryId, memory] of this.allocatedMemory) {
         this.releaseMemory(memoryId);
       }
-      
+
       // 清理内存块
       this.memoryChunks.forEach(chunk => {
         if (chunk.buffer) {
@@ -296,11 +298,11 @@ class UniversalMemoryAllocator {
         }
       });
       this.memoryChunks = [];
-      
+
       this.totalAllocated = 0;
-      
+
       console.log('UniversalMemoryAllocator: 所有内存已清理');
-      
+
       return true;
     } catch (error) {
       console.error('UniversalMemoryAllocator: 内存清理失败:', error);
@@ -314,7 +316,7 @@ class UniversalMemoryAllocator {
   showMemoryWarning() {
     try {
       const status = this.getMemoryStatus();
-      
+
       const safeCleanupCallback = () => {
         try {
           this.cleanupAllMemory().catch(error => {
@@ -324,16 +326,16 @@ class UniversalMemoryAllocator {
           console.warn('UniversalMemoryAllocator: 清理回调执行失败:', callbackError.message);
         }
       };
-      
+
       Alert.alert(
         '通用内存分配器状态',
         `已分配内存: ${status.totalAllocatedGB.toFixed(2)}GB\n` +
         `可用内存: ${status.availableGB.toFixed(2)}GB\n` +
         `内存块数量: ${status.allocatedChunks}\n\n` +
-        `建议在内存不足时清理不必要的内存。`,
+        '建议在内存不足时清理不必要的内存。',
         [
           { text: '清理内存', onPress: safeCleanupCallback },
-          { text: '确定', style: 'cancel' }
+          { text: '确定', style: 'cancel' },
         ]
       );
     } catch (error) {
@@ -347,7 +349,7 @@ class UniversalMemoryAllocator {
   hasEnoughMemory(requiredMB) {
     const status = this.getMemoryStatus();
     const requiredGB = requiredMB / 1024;
-    
+
     return status.availableGB >= requiredGB;
   }
 
@@ -357,17 +359,17 @@ class UniversalMemoryAllocator {
   getMemoryStats() {
     const status = this.getMemoryStatus();
     const allocations = Array.from(this.allocatedMemory.values());
-    
+
     return {
       ...status,
       allocations: allocations.map(alloc => ({
         id: alloc.id,
         sizeMB: alloc.size / 1024 / 1024,
         purpose: alloc.purpose,
-        allocatedAt: alloc.allocatedAt
+        allocatedAt: alloc.allocatedAt,
       })),
-      averageAllocationMB: allocations.length > 0 ? 
-        allocations.reduce((sum, alloc) => sum + alloc.size / 1024 / 1024, 0) / allocations.length : 0
+      averageAllocationMB: allocations.length > 0 ?
+        allocations.reduce((sum, alloc) => sum + alloc.size / 1024 / 1024, 0) / allocations.length : 0,
     };
   }
 
@@ -385,7 +387,7 @@ class UniversalMemoryAllocator {
     try {
       this.fileTypeMemoryRequirements[extension.toLowerCase()] = {
         multiplier: config.multiplier || 2,
-        maxMB: config.maxMB || 512
+        maxMB: config.maxMB || 512,
       };
       console.log(`UniversalMemoryAllocator: 添加文件类型配置: ${extension}`, config);
     } catch (error) {
@@ -394,6 +396,10 @@ class UniversalMemoryAllocator {
   }
 }
 
-export default new UniversalMemoryAllocator();
+const universalMemoryAllocator = new UniversalMemoryAllocator();
+
+module.exports = universalMemoryAllocator;
+module.exports.default = universalMemoryAllocator;
+module.exports.UniversalMemoryAllocator = UniversalMemoryAllocator;
 
 

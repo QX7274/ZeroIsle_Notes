@@ -2,7 +2,6 @@
  * 思维导图节点模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 位置模式
@@ -23,13 +22,13 @@ const MindMapNodeSchema = {
   name: 'MindMapNode',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
+    _id: { type: 'string' },
     text: { type: 'string', default: '' },
-    mind_map_id: { type: 'objectId', optional: true },
-    user_id: { type: 'objectId', optional: true },
+    mind_map_id: { type: 'string', optional: true },
+    user_id: { type: 'string', optional: true },
     is_root: { type: 'bool', default: false },
     level: { type: 'int', default: 0 },
-    parent_id: { type: 'objectId', optional: true },
+    parent_id: { type: 'string', optional: true },
     position: { type: 'Position', default: {} },
     color: { type: 'string', optional: true },
     background_color: { type: 'string', optional: true },
@@ -42,7 +41,7 @@ const MindMapNodeSchema = {
     updated_at: { type: 'date', default: () => new Date() },
     deleted_at: { type: 'date', optional: true },
     metadata: { type: 'dictionary', default: {} },
-    note_id: { type: 'objectId', optional: true },
+    note_id: { type: 'string', optional: true },
     collapsed: { type: 'bool', default: false },
     order: { type: 'int', default: 0 },
     _partition: { type: 'string', default: 'mind_map_nodes' },

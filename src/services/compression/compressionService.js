@@ -133,13 +133,9 @@ class CompressionService {
     } catch (error) {
       console.warn('使用CryptoJS生成随机密钥失败，使用备用方法:', error);
 
-      // 备用方法：生成随机字符串
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let result = '';
-      for (let i = 0; i < 32; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return result;
+      // 备用方法：使用稳定的对象ID派生字符串
+      const objectId = realmService.createObjectId();
+      return objectId.toString().padEnd(32, objectId.toString());
     }
   }
 
@@ -278,6 +274,10 @@ class CompressionService {
   }
 }
 
-export const compressionService = new CompressionService();
-export default compressionService;
+const compressionService = new CompressionService();
+
+module.exports = compressionService;
+module.exports.default = compressionService;
+module.exports.compressionService = compressionService;
+module.exports.CompressionService = CompressionService;
 

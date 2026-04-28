@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { eventEmitter } from './utils/eventEmitter';
+import networkErrorService from './networkErrorService';
+import realmService from './database/realmService';
+
 // STORAGE_EVENTS 常量定义
 const STORAGE_EVENTS = {
   STORAGE_INITIALIZED: 'storage:initialized',
@@ -9,7 +12,7 @@ const STORAGE_EVENTS = {
   ITEM_DELETED: 'storage:item_deleted',
   STORAGE_CLEARED: 'storage:cleared',
 };
-import networkErrorService from './networkErrorService';
+
 
 /**
  * 文件历史服务
@@ -21,7 +24,7 @@ class FileHistoryService {
     this.maxHistorySize = 30;
     this.history = [];
     this.listeners = [];
-    
+
     // 监听文件删除事件，同步清理历史记录
     this.setupEventListeners();
   }
@@ -70,10 +73,10 @@ class FileHistoryService {
   async addFile(fileInfo) {
     try {
       const { uri, title, type, fileName, noteId, noteType, file_uri } = fileInfo;
-      
+
       // 对于笔记类型，如果没有uri但有noteId，使用noteId作为uri
       const effectiveUri = uri || (noteId ? `${noteType || 'note'}://${noteId}` : null);
-      
+
       if (!effectiveUri || !title) {
         console.warn('FileHistoryService: 文件信息不完整，跳过添加', { uri, effectiveUri, title, noteId });
         return;
@@ -81,7 +84,7 @@ class FileHistoryService {
 
       // 创建历史记录项
       const historyItem = {
-        id: noteId || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: noteId || realmService.createObjectId(),
         noteId: noteId, // 添加noteId字段，确保与主页匹配逻辑兼容
         uri: effectiveUri,
         title,
@@ -90,13 +93,13 @@ class FileHistoryService {
         noteType: noteType || null,
         file_uri: file_uri || effectiveUri,
         lastOpened: new Date().toISOString(),
-        openCount: 1
+        openCount: 1,
       };
 
       // 检查是否已存在 - 优化匹配逻辑
       console.log('FileHistoryService: 查找现有记录，参数:', { noteId, effectiveUri, fileName, title });
       console.log('FileHistoryService: 当前历史记录数量:', this.history.length);
-      
+
       const existingIndex = this.history.findIndex(item => {
         // 优先匹配noteId（对于笔记类型）
         if (noteId && item.id === noteId) {
@@ -107,7 +110,7 @@ class FileHistoryService {
           console.log('FileHistoryService: 通过noteId字段匹配到现有记录:', item.title);
           return true;
         }
-        
+
         // 匹配uri
         if (item.uri === effectiveUri) {
           console.log('FileHistoryService: 通过uri匹配到现有记录:', item.title);
@@ -117,16 +120,16 @@ class FileHistoryService {
           console.log('FileHistoryService: 通过file_uri匹配到现有记录:', item.title);
           return true;
         }
-        
+
         // 匹配文件名（作为备用）
         if (item.fileName === fileName && item.title === title) {
           console.log('FileHistoryService: 通过文件名和标题匹配到现有记录:', item.title);
           return true;
         }
-        
+
         return false;
       });
-      
+
       console.log('FileHistoryService: 查找结果，existingIndex:', existingIndex);
 
       if (existingIndex !== -1) {
@@ -134,19 +137,19 @@ class FileHistoryService {
         const existingItem = this.history[existingIndex];
         const oldTime = existingItem.lastOpened;
         const newTime = new Date().toISOString();
-        
+
         const updatedItem = {
           ...existingItem,
           ...historyItem,
           openCount: existingItem.openCount + 1,
-          lastOpened: newTime // 确保更新时间戳
+          lastOpened: newTime, // 确保更新时间戳
         };
-        
+
         // 从原位置移除
         this.history.splice(existingIndex, 1);
         // 添加到最前面
         this.history.unshift(updatedItem);
-        
+
         console.log('FileHistoryService: 更新现有文件记录:', title, '打开次数:', updatedItem.openCount);
         console.log('FileHistoryService: 时间戳更新:', oldTime, '->', newTime);
       } else {
@@ -162,12 +165,12 @@ class FileHistoryService {
 
       // 保存到存储
       await this.saveHistory();
-      
+
       // 通知监听器
       this.notifyListeners();
 
       console.log('FileHistoryService: 文件已添加到历史记录:', title);
-      
+
     } catch (error) {
       console.error('FileHistoryService: 添加文件失败:', error);
     }
@@ -181,7 +184,7 @@ class FileHistoryService {
     try {
       const initialLength = this.history.length;
       this.history = this.history.filter(item => item.noteId !== noteId);
-      
+
       if (this.history.length < initialLength) {
         await this.saveHistory();
         this.notifyListeners();
@@ -199,21 +202,21 @@ class FileHistoryService {
   async cleanupNonExistentFiles(existingFileIds = []) {
     try {
       const initialLength = this.history.length;
-      
+
       // 过滤掉不存在的文件
       this.history = this.history.filter(item => {
         // 检查文件ID是否在现有文件列表中
-        const exists = existingFileIds.includes(item.id) || 
+        const exists = existingFileIds.includes(item.id) ||
                       existingFileIds.includes(item.noteId) ||
                       existingFileIds.includes(item.fileName);
-        
+
         if (!exists) {
           console.log('FileHistoryService: 清理不存在的文件历史记录:', item.title);
         }
-        
+
         return exists;
       });
-      
+
       if (this.history.length < initialLength) {
         await this.saveHistory();
         this.notifyListeners();
@@ -230,9 +233,9 @@ class FileHistoryService {
    * @returns {boolean} 是否存在
    */
   hasFile(fileId) {
-    return this.history.some(item => 
-      item.id === fileId || 
-      item.noteId === fileId || 
+    return this.history.some(item =>
+      item.id === fileId ||
+      item.noteId === fileId ||
       item.fileName === fileId
     );
   }
@@ -243,9 +246,9 @@ class FileHistoryService {
    * @returns {Object|null} 文件历史记录
    */
   getFileHistory(fileId) {
-    return this.history.find(item => 
-      item.id === fileId || 
-      item.noteId === fileId || 
+    return this.history.find(item =>
+      item.id === fileId ||
+      item.noteId === fileId ||
       item.fileName === fileId
     ) || null;
   }
@@ -258,13 +261,13 @@ class FileHistoryService {
     try {
       const initialLength = this.history.length;
       this.history = this.history.filter(item => item.id !== fileId);
-      
+
       if (this.history.length < initialLength) {
         await this.saveHistory();
         this.notifyListeners();
         console.log('FileHistoryService: 文件已从历史记录中移除:', fileId);
       }
-      
+
     } catch (error) {
       console.error('FileHistoryService: 移除文件失败:', error);
     }
@@ -282,7 +285,7 @@ class FileHistoryService {
       const dateB = new Date(b.lastOpened || 0);
       return dateB - dateA; // 降序排列，最新的在前面
     });
-    
+
     return sortedHistory.slice(0, limit);
   }
 
@@ -311,7 +314,7 @@ class FileHistoryService {
     }
 
     const lowerQuery = query.toLowerCase();
-    return this.history.filter(item => 
+    return this.history.filter(item =>
       item.title.toLowerCase().includes(lowerQuery) ||
       item.fileName.toLowerCase().includes(lowerQuery) ||
       item.type.toLowerCase().includes(lowerQuery)
@@ -401,7 +404,7 @@ class FileHistoryService {
       totalOpenCount,
       typeCount,
       mostRecentFile: this.history[0] || null,
-      oldestFile: this.history[this.history.length - 1] || null
+      oldestFile: this.history[this.history.length - 1] || null,
     };
   }
 
@@ -412,7 +415,7 @@ class FileHistoryService {
     return {
       version: '1.0',
       exportDate: new Date().toISOString(),
-      history: this.history
+      history: this.history,
     };
   }
 
@@ -444,15 +447,15 @@ class FileHistoryService {
     console.log('排序前:', this.history.map(item => ({
       title: item.title,
       lastOpened: item.lastOpened,
-      openCount: item.openCount
+      openCount: item.openCount,
     })));
-    
+
     this.sortHistoryByLastOpened();
-    
+
     console.log('排序后:', this.history.map(item => ({
       title: item.title,
       lastOpened: item.lastOpened,
-      openCount: item.openCount
+      openCount: item.openCount,
     })));
   }
 }

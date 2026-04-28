@@ -29,7 +29,7 @@ const KnowledgeGraph = ({ data, onNodeClick }) => {
             id: node.id,
             label: node.properties.title,
             type: node.properties.node_type,
-            group: getNodeGroup(node.properties.node_type)
+            group: getNodeGroup(node.properties.node_type),
           });
           nodes.push(nodeMap.get(node.id));
         }
@@ -41,7 +41,7 @@ const KnowledgeGraph = ({ data, onNodeClick }) => {
           source: rel.start,
           target: rel.end,
           type: rel.type,
-          value: rel.properties.weight || 1
+          value: rel.properties.weight || 1,
         });
       });
     });

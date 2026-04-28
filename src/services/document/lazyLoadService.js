@@ -110,7 +110,7 @@ class LazyLoadService {
         ...note,
         ...loadedContent,
         _isDeferred: false,
-        _loadedAt: Date.now()
+        _loadedAt: Date.now(),
       };
 
       console.log('LazyLoadService: 文件加载完成:', fileUri);
@@ -118,12 +118,12 @@ class LazyLoadService {
 
     } catch (error) {
       console.error('LazyLoadService: 延迟加载失败:', error);
-      
+
       // 返回原始笔记，但标记加载失败
       return {
         ...note,
         _loadError: error.message,
-        _loadFailedAt: Date.now()
+        _loadFailedAt: Date.now(),
       };
     }
   }
@@ -137,25 +137,25 @@ class LazyLoadService {
    */
   async _loadFileContent(note, filePath, onProgress) {
     const fileType = note.type || note.file_type;
-    
+
     switch (fileType) {
       case 'pdf':
         return await this._loadPDFContent(filePath, onProgress);
-      
+
       case 'ppt':
       case 'pptx':
         return await this._loadPPTContent(filePath, onProgress);
-      
+
       case 'word':
       case 'docx':
         return await this._loadWordContent(filePath, onProgress);
-      
+
       default:
         // 对于其他类型，只返回基本信息
         return {
           content: `${fileType}文件: ${note.file_name || '未命名'}`,
           file_path: filePath,
-          file_uri: `file://${filePath}`
+          file_uri: `file://${filePath}`,
         };
     }
   }
@@ -169,10 +169,10 @@ class LazyLoadService {
   async _loadPDFContent(filePath, onProgress) {
     // PDF文件不需要读取全部内容，只需要路径
     return {
-      content: `PDF文件已准备就绪`,
+      content: 'PDF文件已准备就绪',
       file_path: filePath,
       file_uri: `file://${filePath}`,
-      pdfPath: filePath
+      pdfPath: filePath,
     };
   }
 
@@ -185,10 +185,10 @@ class LazyLoadService {
   async _loadPPTContent(filePath, onProgress) {
     // PPT文件不需要读取全部内容，只需要路径
     return {
-      content: `PPT文件已准备就绪`,
+      content: 'PPT文件已准备就绪',
       file_path: filePath,
       file_uri: `file://${filePath}`,
-      pptPath: filePath
+      pptPath: filePath,
     };
   }
 
@@ -201,10 +201,10 @@ class LazyLoadService {
   async _loadWordContent(filePath, onProgress) {
     // Word文件不需要读取全部内容，只需要路径
     return {
-      content: `Word文件已准备就绪`,
+      content: 'Word文件已准备就绪',
       file_path: filePath,
       file_uri: `file://${filePath}`,
-      wordPath: filePath
+      wordPath: filePath,
     };
   }
 
@@ -227,7 +227,7 @@ class LazyLoadService {
       this.loadedContent.set(fileUri, {
         ...content,
         _cachedAt: Date.now(),
-        _cacheSize: contentSize
+        _cacheSize: contentSize,
       });
 
       this.currentCacheSize += contentSize;
@@ -251,7 +251,7 @@ class LazyLoadService {
 
     let freedSize = 0;
     for (const [fileUri, content] of sortedEntries) {
-      if (freedSize >= requiredSize) break;
+      if (freedSize >= requiredSize) {break;}
 
       this.loadedContent.delete(fileUri);
       freedSize += content._cacheSize || 0;
@@ -275,7 +275,7 @@ class LazyLoadService {
       maxCacheSizeMB: Math.round(this.maxCacheSize / 1024 / 1024),
       cachedItemsCount: this.loadedContent.size,
       loadingItemsCount: this.loadingFiles.size,
-      cacheUsagePercentage: Math.round((this.currentCacheSize / this.maxCacheSize) * 100)
+      cacheUsagePercentage: Math.round((this.currentCacheSize / this.maxCacheSize) * 100),
     };
   }
 

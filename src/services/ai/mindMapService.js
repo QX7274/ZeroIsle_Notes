@@ -28,32 +28,21 @@ class MindMapService {
           layout_type: options.layoutType || 'tree',
           theme: options.theme || 'default',
           max_depth: options.maxDepth || 3,
-          max_children: options.maxChildren || 7
-        }
+          max_children: options.maxChildren || 7,
+        },
       });
 
       // 记录分析事件
       analyticsService.trackEvent('generate_mind_map', {
         textLength: text.length,
         layoutType: options.layoutType || 'tree',
-        theme: options.theme || 'default'
+        theme: options.theme || 'default',
       });
 
       return response.data;
     } catch (error) {
       console.error('生成思维导图失败:', error);
       analyticsService.trackError(error, { action: 'generate_mind_map' });
-
-      // 尝试使用本地AI生成（离线备份方案）
-      if (options.fallbackToLocal) {
-        try {
-          return await this._generateLocalFallback(text, options);
-        } catch (localError) {
-          console.error('本地生成思维导图失败:', localError);
-          throw error; // 仍然抛出原始错误
-        }
-      }
-
       throw error;
     }
   }
@@ -72,15 +61,15 @@ class MindMapService {
           layout_type: options.layoutType || 'tree',
           theme: options.theme || 'default',
           max_depth: options.maxDepth || 3,
-          max_children: options.maxChildren || 7
-        }
+          max_children: options.maxChildren || 7,
+        },
       });
 
       // 记录分析事件
       analyticsService.trackEvent('generate_mind_map_from_note', {
         noteId,
         layoutType: options.layoutType || 'tree',
-        theme: options.theme || 'default'
+        theme: options.theme || 'default',
       });
 
       return response.data;
@@ -102,27 +91,20 @@ class MindMapService {
       // 调用API扩展节点
       const response = await apiService.post('/mind-map/generator/expand-node/', {
         node,
-        depth
+        depth,
       });
 
       // 记录分析事件
       analyticsService.trackEvent('expand_mind_map_node', {
         nodeId: node.id,
-        depth
+        depth,
       });
 
       return response.data.children;
     } catch (error) {
       console.error('扩展思维导图节点失败:', error);
       analyticsService.trackError(error, { action: 'expand_mind_map_node' });
-
-      // 尝试使用本地AI扩展（离线备份方案）
-      try {
-        return await this._expandNodeLocalFallback(node, depth);
-      } catch (localError) {
-        console.error('本地扩展节点失败:', localError);
-        throw error; // 仍然抛出原始错误
-      }
+      throw error;
     }
   }
 
@@ -161,7 +143,7 @@ class MindMapService {
     const rootNode = {
       id: `node-${Date.now()}`,
       title: rootTitle.length > 30 ? rootTitle.substring(0, 27) + '...' : rootTitle,
-      children: []
+      children: [],
     };
 
     // 为每个段落创建子节点
@@ -174,7 +156,7 @@ class MindMapService {
       const childNode = {
         id: `node-${Date.now()}-${i}`,
         title: title.length > 30 ? title.substring(0, 27) + '...' : title,
-        children: []
+        children: [],
       };
 
       // 为每个句子创建孙节点
@@ -185,7 +167,7 @@ class MindMapService {
           const grandchildNode = {
             id: `node-${Date.now()}-${i}-${j}`,
             title: sentence.length > 30 ? sentence.substring(0, 27) + '...' : sentence,
-            children: []
+            children: [],
           };
           childNode.children.push(grandchildNode);
         }
@@ -200,8 +182,8 @@ class MindMapService {
       title: options.title || '思维导图',
       data: {
         nodes: this._flattenNodes(rootNode),
-        edges: this._generateEdges(rootNode)
-      }
+        edges: this._generateEdges(rootNode),
+      },
     };
   }
 
@@ -220,9 +202,9 @@ class MindMapService {
     for (let i = 0; i < childCount; i++) {
       const childNode = {
         id: `node-${Date.now()}-${i}`,
-        title: `${node.title} - 子项 ${i+1}`,
+        title: `${node.title} - 子项 ${i + 1}`,
         parent_id: node.id,
-        children: []
+        children: [],
       };
 
       children.push(childNode);
@@ -244,7 +226,7 @@ class MindMapService {
       const flatNode = {
         id: node.id,
         title: node.title,
-        parent_id: parentId
+        parent_id: parentId,
       };
 
       if (node.content) {
@@ -281,7 +263,7 @@ class MindMapService {
           edges.push({
             id: `edge-${node.id}-${child.id}`,
             source: node.id,
-            target: child.id
+            target: child.id,
           });
 
           traverse(child);
@@ -308,24 +290,22 @@ class MindMapService {
           balance: options.balance !== undefined ? options.balance : true,
           simplify: options.simplify !== undefined ? options.simplify : false,
           recolor: options.recolor !== undefined ? options.recolor : false,
-          reorganize: options.reorganize !== undefined ? options.reorganize : true
-        }
+          reorganize: options.reorganize !== undefined ? options.reorganize : true,
+        },
       });
 
       // 记录分析事件
       analyticsService.trackEvent('optimize_mind_map', {
         nodeCount: mindMap.nodes?.length || 0,
         edgeCount: mindMap.edges?.length || 0,
-        options: JSON.stringify(options)
+        options: JSON.stringify(options),
       });
 
       return response.data;
     } catch (error) {
       console.error('优化思维导图失败:', error);
       analyticsService.trackError(error, { action: 'optimize_mind_map' });
-
-      // 如果API调用失败，返回原始思维导图
-      return mindMap;
+      throw error;
     }
   }
 
@@ -338,13 +318,13 @@ class MindMapService {
     try {
       // 调用API转换为大纲
       const response = await apiService.post('/mind-map/generator/to-outline/', {
-        mind_map: mindMap
+        mind_map: mindMap,
       });
 
       // 记录分析事件
       analyticsService.trackEvent('convert_mind_map_to_outline', {
         nodeCount: mindMap.nodes?.length || 0,
-        edgeCount: mindMap.edges?.length || 0
+        edgeCount: mindMap.edges?.length || 0,
       });
 
       return response.data.outline;
@@ -373,14 +353,14 @@ class MindMapService {
       // 调用API导出为图片
       const response = await apiService.post('/mind-map/generator/export/', {
         mind_map: mindMap,
-        format
+        format,
       });
 
       // 记录分析事件
       analyticsService.trackEvent('export_mind_map', {
         nodeCount: mindMap.nodes?.length || 0,
         edgeCount: mindMap.edges?.length || 0,
-        format
+        format,
       });
 
       return response.data.image;

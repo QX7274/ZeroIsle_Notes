@@ -13,18 +13,14 @@ import { API_ENDPOINTS } from '../../config/api';
 export const autoClassifyNote = async (noteId) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.AUTO_CLASSIFY, {
-      note_id: noteId
+      note_id: noteId,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '自动分类笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -38,18 +34,14 @@ export const suggestTags = async (noteId, count = 10) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.SUGGEST_TAGS, {
       note_id: noteId,
-      count
+      count,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '推荐标签失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -65,18 +57,14 @@ export const extractKeywords = async (text, title = '', count = 10) => {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.EXTRACT_KEYWORDS, {
       text,
       title,
-      count
+      count,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '提取关键词失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -92,18 +80,14 @@ export const findSimilarNotes = async (noteId, threshold = 0.3, limit = 10) => {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.FIND_SIMILAR_NOTES, {
       note_id: noteId,
       threshold,
-      limit
+      limit,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '查找相似笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -115,18 +99,14 @@ export const findSimilarNotes = async (noteId, threshold = 0.3, limit = 10) => {
 export const integrateWithExistingNotes = async (noteId) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.INTEGRATE_NOTES, {
-      note_id: noteId
+      note_id: noteId,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '整合笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -140,18 +120,32 @@ export const buildKnowledgeGraph = async (noteId, extractConcepts = true) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.BUILD_GRAPH, {
       note_id: noteId,
-      extract_concepts: extractConcepts
+      extract_concepts: extractConcepts,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * 触发为用户构建完整知识图谱
+ */
+export const buildUserKnowledgeGraph = async (limit = 100, extractConcepts = true) => {
+  try {
+    const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.BUILD_USER_GRAPH, {
+      limit,
+      extract_concepts: extractConcepts,
+    });
     return {
-      success: false,
-      message: error.message || '构建知识图谱失败',
-      error
+      success: true,
+      data: response.data,
     };
+  } catch (error) {
+    throw error;
   }
 };
 
@@ -165,18 +159,14 @@ export const buildKnowledgeGraphForUser = async (limit = 100, extractConcepts = 
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.BUILD_USER_GRAPH, {
       limit,
-      extract_concepts: extractConcepts
+      extract_concepts: extractConcepts,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '为用户构建知识图谱失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -188,18 +178,14 @@ export const buildKnowledgeGraphForUser = async (limit = 100, extractConcepts = 
 export const analyzeNoteConnections = async (noteId) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.ANALYZE_CONNECTIONS, {
-      note_id: noteId
+      note_id: noteId,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '分析笔记关联失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -211,18 +197,14 @@ export const analyzeNoteConnections = async (noteId) => {
 export const suggestRelatedContent = async (noteId) => {
   try {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.SUGGEST_RELATED_CONTENT, {
-      note_id: noteId
+      note_id: noteId,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '推荐相关内容失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -235,7 +217,7 @@ const autoClassificationApi = {
   buildKnowledgeGraph,
   buildKnowledgeGraphForUser,
   analyzeNoteConnections,
-  suggestRelatedContent
+  suggestRelatedContent,
 };
 
 export default autoClassificationApi;

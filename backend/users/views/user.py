@@ -1,33 +1,38 @@
-"""用户视图
+"""用户视图 (MongoEngine版本)
 
-提供用户相关的API接口
+提供用户相关的API接口，完全基于MongoEngine。
 """
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.contrib.auth import get_user_model
 from mongoengine.queryset.visitor import Q
-from users.serializers import UserSerializer, UserDetailSerializer
-from users.permissions import IsOwnerOrAdmin
 from users.mongodb_models import User as MongoUser
+from users.serializers.mongo_auth import (
+    MongoUserSerializer,
+    MongoUserDetailSerializer,
+    MongoUserUpdateSerializer
+)
+from users.permissions import IsOwnerOrAdmin
+import logging
 
-User = get_user_model()
+logger = logging.getLogger(__name__)
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(viewsets.ViewSet):
     """
-    用户视图集
+    用户视图集 (MongoEngine)
     提供用户的CRUD操作
     """
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
 
     def get_serializer_class(self):
         """根据操作选择序列化器"""
         if self.action in ['retrieve', 'me']:
-            return UserDetailSerializer
-        return UserSerializer
+            return MongoUserDetailSerializer
+        if self.action in ['update', 'partial_update']:
+            return MongoUserUpdateSerializer
+        return MongoUserSerializer
 
     def get_permissions(self):
         """根据操作设置权限"""
@@ -35,52 +40,64 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsOwnerOrAdmin()]
         return super().get_permissions()
 
-    def get_queryset(self):
-        """根据用户角色过滤查询集"""
-        user = self.request.user
-        # 管理员可以查看所有用户
-        if user.is_staff or user.is_superuser:
-            return User.objects.all()
-        # 普通用户只能查看自己
-        return User.objects.filter(id=user.id)
+    def list(self, request):
+        """获取用户列表 (仅管理员)"""
+        user = request.user
+        if not (user.is_staff or user.is_superuser):
+            return Response({'error': '没有权限执行此操作'}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = MongoUser.objects.all()
+        serializer = MongoUserSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, id=None):
+        """获取单个用户详情"""
+        try:
+            user = MongoUser.objects.get(id=id)
+            self.check_object_permissions(request, user)
+            serializer = MongoUserDetailSerializer(user)
+            return Response(serializer.data)
+        except MongoUser.DoesNotExist:
+            return Response({'error': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    def update(self, request, id=None):
+        """更新用户信息"""
+        try:
+            user = MongoUser.objects.get(id=id)
+            self.check_object_permissions(request, user)
+            serializer = MongoUserUpdateSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.update(user, serializer.validated_data)
+                return Response(MongoUserDetailSerializer(user).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except MongoUser.DoesNotExist:
+            return Response({'error': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    def partial_update(self, request, id=None):
+        """部分更新用户信息"""
+        return self.update(request, id)
 
     @action(detail=False, methods=['get'])
     def me(self, request):
         """获取当前用户信息"""
-        try:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.debug(f"获取当前用户信息, 用户ID: {request.user.id}, 类型: {type(request.user.id)}")
-            serializer = self.get_serializer(request.user)
-            return Response(serializer.data)
-        except Exception as e:
-            logger.error(f"获取当前用户信息失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取当前用户信息失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        serializer = MongoUserDetailSerializer(request.user)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def search(self, request):
-        """搜索用户
+        """搜索用户 (仅管理员)"""
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({'error': '没有权限执行此操作'}, status=status.HTTP_403_FORBIDDEN)
 
-        可以通过用户名、昵称、邮箱等字段搜索用户
-        """
         keyword = request.query_params.get('keyword', '')
         if not keyword:
             return Response({'error': '搜索关键词不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 只有管理员可以搜索所有用户
-        if not (request.user.is_staff or request.user.is_superuser):
-            return Response({'error': '没有权限执行此操作'}, status=status.HTTP_403_FORBIDDEN)
-
-        # 使用MongoDB查询
-        mongo_users = MongoUser.objects(
+        users = MongoUser.objects(
             Q(username__icontains=keyword) |
             Q(nickname__icontains=keyword) |
             Q(email__icontains=keyword)
-        )[:20]  # 限制返回数量
+        )[:20]
 
-        # 获取对应的Django用户
-        user_ids = [str(user.django_user_id) for user in mongo_users]
-        users = User.objects.filter(id__in=user_ids)
-
-        serializer = UserSerializer(users, many=True)
+        serializer = MongoUserSerializer(users, many=True)
         return Response(serializer.data)

@@ -14,14 +14,10 @@ export const getAllCanvases = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.CANVAS.BASE, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取画布列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -35,14 +31,10 @@ export const getCanvasById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.CANVAS.DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取画布详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -56,14 +48,10 @@ export const createCanvas = async (canvasData) => {
     const response = await instance.post(API_ENDPOINTS.CANVAS.BASE, canvasData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建画布失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -78,14 +66,10 @@ export const updateCanvas = async (id, canvasData) => {
     const response = await instance.put(API_ENDPOINTS.CANVAS.DETAIL(id), canvasData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新画布失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -98,14 +82,10 @@ export const deleteCanvas = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.CANVAS.DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除画布失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -120,19 +100,15 @@ export const getCanvasElements = async (canvasId, params = {}) => {
     const response = await instance.get(API_ENDPOINTS.CANVAS.ELEMENTS, {
       params: {
         canvas_id: canvasId,
-        ...params
-      }
+        ...params,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取画布元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -146,14 +122,10 @@ export const getElementById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.CANVAS.ELEMENT_DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取元素详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -167,14 +139,10 @@ export const createElement = async (elementData) => {
     const response = await instance.post(API_ENDPOINTS.CANVAS.ELEMENTS, elementData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -186,18 +154,14 @@ export const createElement = async (elementData) => {
 export const createElements = async (elementsData) => {
   try {
     const response = await instance.post(`${API_ENDPOINTS.CANVAS.ELEMENTS}/batch/`, {
-      elements: elementsData
+      elements: elementsData,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '批量创建元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -212,14 +176,10 @@ export const updateElement = async (id, elementData) => {
     const response = await instance.put(API_ENDPOINTS.CANVAS.ELEMENT_DETAIL(id), elementData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -231,18 +191,14 @@ export const updateElement = async (id, elementData) => {
 export const updateElements = async (elementsData) => {
   try {
     const response = await instance.put(`${API_ENDPOINTS.CANVAS.ELEMENTS}/batch/`, {
-      elements: elementsData
+      elements: elementsData,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '批量更新元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -255,14 +211,10 @@ export const deleteElement = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.CANVAS.ELEMENT_DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -275,18 +227,14 @@ export const deleteElements = async (elementIds) => {
   try {
     await instance.delete(`${API_ENDPOINTS.CANVAS.ELEMENTS}/batch/`, {
       data: {
-        element_ids: elementIds
-      }
+        element_ids: elementIds,
+      },
     });
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '批量删除元素失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -299,18 +247,14 @@ export const deleteElements = async (elementIds) => {
 export const exportCanvas = async (id, format) => {
   try {
     const response = await instance.get(`${API_ENDPOINTS.CANVAS.EXPORT(id)}?format=${format}`, {
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '导出画布失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -323,19 +267,15 @@ export const importCanvas = async (formData) => {
   try {
     const response = await instance.post(API_ENDPOINTS.CANVAS.IMPORT, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '导入画布失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -354,7 +294,7 @@ const canvasApi = {
   deleteElement,
   deleteElements,
   exportCanvas,
-  importCanvas
+  importCanvas,
 };
 
 export default canvasApi;

@@ -6,120 +6,91 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.settings import api_settings
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 from rest_framework import exceptions
 import uuid
 import logging
 
+from django.contrib.auth import get_user_model
 from .mongodb_models import User as MongoDBUser
+from .services.token_service import TokenBlacklistService
 
 logger = logging.getLogger(__name__)
+DjangoUser = get_user_model()
 
 class CustomJWTAuthentication(JWTAuthentication):
     """
     自定义JWT认证类，处理UUID格式的用户ID
+    在开发模式下支持简单的开发令牌
+    同时检查Access Token是否被加入黑名单
     """
+    
+    def authenticate(self, request):
+        """
+        重写authenticate方法：
+        1) 走标准JWT解析流程
+        2) 校验令牌是否在黑名单中（基于JTI）
+        3) 返回(user, validated_token)
+        """
+        header = self.get_header(request)
+        if header is None:
+            return None
 
+        raw_token = self.get_raw_token(header)
+        if raw_token is None:
+            return None
+
+        # 验证并解析JWT
+        validated_token = self.get_validated_token(raw_token)
+
+        # 黑名单校验：若在黑名单中则拒绝
+        try:
+            if TokenBlacklistService and TokenBlacklistService.is_blacklisted(validated_token):
+                logger.warning('访问令牌命中黑名单，拒绝访问')
+                raise exceptions.AuthenticationFailed(_('Token is blacklisted'))
+        except Exception as e:
+            logger.error(f'黑名单校验失败: {e}')
+            # 出于安全考虑，校验异常时也拒绝
+            raise exceptions.AuthenticationFailed(_('Token validation error'))
+
+        user = self.get_user(validated_token)
+        return (user, validated_token)
+    
     def get_user(self, validated_token):
         """
-        重写get_user方法，处理UUID格式的用户ID
+        重写get_user方法，直接从MongoDB获取用户。
         """
         try:
             user_id = validated_token[api_settings.USER_ID_CLAIM]
-            logger.debug(f"从JWT令牌获取用户ID: {user_id}, 类型: {type(user_id)}")
         except KeyError:
             logger.error(f"JWT令牌中没有用户ID声明: {api_settings.USER_ID_CLAIM}")
             raise exceptions.AuthenticationFailed(_('Token contained no recognizable user identification'))
 
         try:
-            # 获取Django用户模型
-            User = self.user_model
-            django_user = None
+            user_id_str = str(user_id)
+            normalized_user_id = user_id_str.replace('-', '')
 
-            # 1. 首先尝试直接使用ID查找Django用户
-            try:
-                # 如果是字符串ID，尝试转换为UUID
-                if isinstance(user_id, str):
-                    try:
-                        user_id_uuid = uuid.UUID(user_id)
-                        logger.debug(f"将字符串用户ID转换为UUID: {user_id_uuid}")
-                        django_user = User.objects.filter(id=user_id_uuid).first()
-                    except ValueError:
-                        logger.warning(f"无效的UUID格式用户ID: {user_id}")
-                        # 尝试作为字符串ID查找
-                        django_user = User.objects.filter(id=user_id).first()
-                else:
-                    # 直接使用ID查找
-                    django_user = User.objects.filter(id=user_id).first()
+            # 优先直接通过JWT中的user_id查询Mongo用户（兼容带/不带连字符）
+            user = MongoDBUser.objects(id__in=[user_id_str, normalized_user_id]).first()
 
-                if django_user:
-                    logger.debug(f"通过ID直接找到Django用户: {django_user.username}")
-                    return django_user
-            except Exception as e:
-                logger.warning(f"通过ID查找Django用户失败: {str(e)}")
+            # 若未命中，则兼容“JWT user_id=django user.id”的场景，转映射到mongo_id
+            if user is None:
+                django_user = DjangoUser.objects.filter(id__in=[user_id_str, normalized_user_id]).first()
+                if django_user and getattr(django_user, 'mongo_id', None):
+                    mongo_id = str(django_user.mongo_id)
+                    user = MongoDBUser.objects(id__in=[mongo_id, mongo_id.replace('-', '')]).first()
 
-            # 2. 尝试通过ID查找MongoDB用户
-            mongo_user = None
-            try:
-                # 尝试直接使用ID
-                mongo_user = MongoDBUser.objects(id=user_id).first()
+            if user is None:
+                logger.warning(f"在MongoDB中未找到用户ID: {user_id}")
+                raise MongoDBUser.DoesNotExist
 
-                # 如果是字符串，尝试转换为UUID
-                if not mongo_user and isinstance(user_id, str):
-                    try:
-                        user_id_uuid = uuid.UUID(user_id)
-                        mongo_user = MongoDBUser.objects(id=user_id_uuid).first()
-                    except ValueError:
-                        pass
-
-                # 如果找到MongoDB用户，尝试查找或创建对应的Django用户
-                if mongo_user:
-                    logger.debug(f"找到MongoDB用户: {mongo_user.username}")
-
-                    # 尝试通过mongo_id查找Django用户
-                    django_user = User.objects.filter(mongo_id=mongo_user.id).first()
-                    if django_user:
-                        logger.debug(f"通过mongo_id找到Django用户: {django_user.username}")
-                        return django_user
-
-                    # 尝试通过username查找Django用户
-                    django_user = User.objects.filter(username=mongo_user.username).first()
-                    if django_user:
-                        logger.debug(f"通过username找到Django用户: {django_user.username}")
-                        # 更新mongo_id
-                        if not django_user.mongo_id:
-                            django_user.mongo_id = mongo_user.id
-                            django_user.save(update_fields=['mongo_id'])
-                            logger.debug(f"更新Django用户的mongo_id: {django_user.username} -> {mongo_user.id}")
-                        return django_user
-
-                    # 如果没有找到Django用户，创建一个新用户
-                    logger.debug(f"创建新Django用户: {mongo_user.username}")
-                    django_user = User(
-                        id=uuid.uuid4(),  # 生成新的UUID
-                        mongo_id=mongo_user.id,
-                        username=mongo_user.username,
-                        email=mongo_user.email,
-                        first_name=mongo_user.first_name,
-                        last_name=mongo_user.last_name,
-                        is_active=mongo_user.is_active,
-                        is_staff=getattr(mongo_user, 'is_staff', False),
-                        is_superuser=getattr(mongo_user, 'is_superuser', False),
-                        last_login=mongo_user.last_login,
-                        date_joined=mongo_user.date_joined
-                    )
-                    # 设置密码哈希
-                    django_user.password = mongo_user.password
-                    django_user.save()
-                    return django_user
-            except Exception as e:
-                logger.warning(f"查找MongoDB用户失败: {str(e)}")
-
-            # 如果所有尝试都失败，抛出异常
-            if not django_user:
-                logger.error(f"未找到用户ID: {user_id}")
-                raise exceptions.AuthenticationFailed(_('User not found'))
-
-            return django_user
+        except MongoDBUser.DoesNotExist:
+            raise exceptions.AuthenticationFailed(_('User not found'))
         except Exception as e:
-            logger.error(f"获取用户失败: {str(e)}", exc_info=True)
+            logger.error(f"通过JWT获取用户时发生异常: {e}")
             raise exceptions.AuthenticationFailed(_('Invalid token or user not found'))
+
+        if not user.is_active:
+            raise exceptions.AuthenticationFailed(_('User is inactive'))
+
+        return user

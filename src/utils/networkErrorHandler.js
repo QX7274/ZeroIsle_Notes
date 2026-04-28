@@ -15,7 +15,7 @@ const ERROR_TYPES = {
   AUTH_ERROR: 'auth_error',
   NOT_FOUND_ERROR: 'not_found_error',
   VALIDATION_ERROR: 'validation_error',
-  UNKNOWN_ERROR: 'unknown_error'
+  UNKNOWN_ERROR: 'unknown_error',
 };
 
 /**
@@ -25,38 +25,38 @@ const USER_FRIENDLY_MESSAGES = {
   [ERROR_TYPES.NETWORK_ERROR]: {
     title: '网络连接问题',
     message: '请检查您的网络连接后重试',
-    icon: '🌐'
+    icon: '🌐',
   },
   [ERROR_TYPES.TIMEOUT_ERROR]: {
     title: '请求超时',
     message: '服务器响应较慢，请稍后重试',
-    icon: '⏱️'
+    icon: '⏱️',
   },
   [ERROR_TYPES.SERVER_ERROR]: {
     title: '服务暂时不可用',
     message: '服务器正在维护中，请稍后重试',
-    icon: '🔧'
+    icon: '🔧',
   },
   [ERROR_TYPES.AUTH_ERROR]: {
     title: '身份验证失败',
     message: '请重新登录后继续使用',
-    icon: '🔐'
+    icon: '🔐',
   },
   [ERROR_TYPES.NOT_FOUND_ERROR]: {
     title: '资源不存在',
     message: '请求的内容不存在或已被删除',
-    icon: '📭'
+    icon: '📭',
   },
   [ERROR_TYPES.VALIDATION_ERROR]: {
     title: '数据格式错误',
     message: '请检查输入的信息是否正确',
-    icon: '📝'
+    icon: '📝',
   },
   [ERROR_TYPES.UNKNOWN_ERROR]: {
     title: '未知错误',
     message: '发生了意外错误，请重试',
-    icon: '❓'
-  }
+    icon: '❓',
+  },
 };
 
 /**
@@ -64,7 +64,7 @@ const USER_FRIENDLY_MESSAGES = {
  */
 const analyzeError = (error) => {
   // 网络连接错误
-  if (error.code === 'NETWORK_ERROR' || 
+  if (error.code === 'NETWORK_ERROR' ||
       error.message?.includes('Network Error') ||
       error.message?.includes('网络错误') ||
       !navigator.onLine) {
@@ -72,7 +72,7 @@ const analyzeError = (error) => {
   }
 
   // 超时错误
-  if (error.code === 'ECONNABORTED' || 
+  if (error.code === 'ECONNABORTED' ||
       error.message?.includes('timeout') ||
       error.message?.includes('超时')) {
     return ERROR_TYPES.TIMEOUT_ERROR;
@@ -96,7 +96,7 @@ const analyzeError = (error) => {
   }
 
   // 服务器错误关键词
-  if (error.message?.includes('服务器') || 
+  if (error.message?.includes('服务器') ||
       error.message?.includes('Server') ||
       error.message?.includes('Internal')) {
     return ERROR_TYPES.SERVER_ERROR;
@@ -122,7 +122,7 @@ const logDetailedError = (error, context = '') => {
     method: error.config?.method,
     headers: error.config?.headers,
     data: error.config?.data,
-    response: error.response?.data
+    response: error.response?.data,
   };
 
   console.group(`🚨 网络错误详情 [${timestamp}]`);
@@ -145,7 +145,7 @@ const showUserFriendlyError = (errorType, customMessage = null, actions = []) =>
   const message = customMessage || errorConfig.message;
 
   const defaultActions = [
-    { text: '确定', style: 'default' }
+    { text: '确定', style: 'default' },
   ];
 
   const alertActions = actions.length > 0 ? actions : defaultActions;
@@ -162,7 +162,7 @@ export const handleNetworkError = (error, options = {}) => {
     showAlert = true,
     customMessage = null,
     actions = [],
-    logError = true
+    logError = true,
   } = options;
 
   // 记录详细的开发者日志
@@ -181,7 +181,7 @@ export const handleNetworkError = (error, options = {}) => {
   return {
     type: errorType,
     userMessage: customMessage || USER_FRIENDLY_MESSAGES[errorType].message,
-    originalError: error
+    originalError: error,
   };
 };
 
@@ -205,32 +205,32 @@ export const createNetworkWrapper = (requestFunction, context) => {
 export const quickErrorHandler = {
   // 网络连接错误
   network: (customMessage) => handleNetworkError(
-    new Error('Network connection failed'), 
+    new Error('Network connection failed'),
     { customMessage }
   ),
-  
+
   // 服务器错误
   server: (customMessage) => handleNetworkError(
-    { response: { status: 500 } }, 
+    { response: { status: 500 } },
     { customMessage }
   ),
-  
+
   // 认证错误
   auth: (customMessage) => handleNetworkError(
-    { response: { status: 401 } }, 
+    { response: { status: 401 } },
     { customMessage }
   ),
-  
+
   // 超时错误
   timeout: (customMessage) => handleNetworkError(
-    new Error('Request timeout'), 
+    new Error('Request timeout'),
     { customMessage }
-  )
+  ),
 };
 
 export default {
   handleNetworkError,
   createNetworkWrapper,
   quickErrorHandler,
-  ERROR_TYPES
+  ERROR_TYPES,
 };

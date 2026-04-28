@@ -37,7 +37,7 @@ const AutoClassification = ({
 
   // 加载推荐
   const loadRecommendations = async () => {
-    if (!noteId) return;
+    if (!noteId) {return;}
 
     setLoading(true);
     setError(null);

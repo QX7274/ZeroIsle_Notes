@@ -17,8 +17,8 @@ class DocumentCacheService {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return;
-    
+    if (this.initialized) {return;}
+
     try {
       // 创建缓存目录
       const cacheDir = `${RNFS.DocumentDirectoryPath}/document_cache`;
@@ -26,7 +26,7 @@ class DocumentCacheService {
       if (!exists) {
         await RNFS.mkdir(cacheDir);
       }
-      
+
       this.cacheDir = cacheDir;
       this.initialized = true;
       console.log('文档缓存服务初始化成功');
@@ -64,24 +64,24 @@ class DocumentCacheService {
    */
   async getCachedDocument(uri, type) {
     await this.initialize();
-    
+
     const cacheKey = this.generateCacheKey(uri, type);
-    
+
     // 先检查内存缓存
     if (this.cache.has(cacheKey)) {
       console.log('从内存缓存获取文档:', cacheKey);
       return this.cache.get(cacheKey);
     }
-    
+
     // 检查磁盘缓存
     try {
       const cacheFile = `${this.cacheDir}/${cacheKey}.json`;
       const exists = await RNFS.exists(cacheFile);
-      
+
       if (exists) {
         const cachedData = await RNFS.readFile(cacheFile, 'utf8');
         const parsedData = JSON.parse(cachedData);
-        
+
         // 检查缓存是否过期（24小时）
         const now = Date.now();
         if (now - parsedData.timestamp < 24 * 60 * 60 * 1000) {
@@ -97,7 +97,7 @@ class DocumentCacheService {
     } catch (error) {
       console.warn('读取磁盘缓存失败:', error);
     }
-    
+
     return null;
   }
 
@@ -121,7 +121,7 @@ class DocumentCacheService {
             isLocalFile: true,
             fileSize: stats.size,
             lastModified: stats.mtime,
-            filePath: uri
+            filePath: uri,
           };
         }
       } catch (error) {
@@ -134,12 +134,12 @@ class DocumentCacheService {
       type,
       data,
       timestamp: Date.now(),
-      ...fileInfo
+      ...fileInfo,
     };
 
     // 保存到内存缓存
     this.cache.set(cacheKey, cacheData);
-    
+
     // 保存到磁盘缓存
     try {
       const cacheFile = `${this.cacheDir}/${cacheKey}.json`;
@@ -155,27 +155,27 @@ class DocumentCacheService {
    */
   async startBackgroundLoading(uri, type, loadFunction) {
     await this.initialize();
-    
+
     const cacheKey = this.generateCacheKey(uri, type);
-    
+
     // 检查是否已经在加载
     if (this.loadingTasks.has(cacheKey)) {
       console.log('文档已在后台加载中:', cacheKey);
       return this.loadingTasks.get(cacheKey);
     }
-    
+
     // 检查是否已有缓存
     const cached = await this.getCachedDocument(uri, type);
     if (cached) {
       console.log('文档已缓存，无需后台加载:', cacheKey);
       return Promise.resolve(cached);
     }
-    
+
     // 开始后台加载
     console.log('开始后台加载文档:', cacheKey);
     const loadingPromise = this.performBackgroundLoading(uri, type, loadFunction);
     this.loadingTasks.set(cacheKey, loadingPromise);
-    
+
     return loadingPromise;
   }
 
@@ -184,17 +184,17 @@ class DocumentCacheService {
    */
   async performBackgroundLoading(uri, type, loadFunction) {
     const cacheKey = this.generateCacheKey(uri, type);
-    
+
     try {
       console.log('执行后台加载:', cacheKey);
       const data = await loadFunction();
-      
+
       // 缓存加载结果
       await this.cacheDocument(uri, type, data);
-      
+
       // 移除加载任务
       this.loadingTasks.delete(cacheKey);
-      
+
       console.log('后台加载完成:', cacheKey);
       return { uri, type, data, timestamp: Date.now() };
     } catch (error) {
@@ -211,7 +211,7 @@ class DocumentCacheService {
     const cacheKey = this.generateCacheKey(uri, type);
     return {
       isLoading: this.loadingTasks.has(cacheKey),
-      isCached: this.cache.has(cacheKey)
+      isCached: this.cache.has(cacheKey),
     };
   }
 
@@ -220,11 +220,11 @@ class DocumentCacheService {
    */
   async clearCache() {
     await this.initialize();
-    
+
     // 清理内存缓存
     this.cache.clear();
     this.loadingTasks.clear();
-    
+
     // 清理磁盘缓存
     try {
       const files = await RNFS.readDir(this.cacheDir);
@@ -245,7 +245,7 @@ class DocumentCacheService {
   getCacheStats() {
     return {
       memoryCache: this.cache.size,
-      loadingTasks: this.loadingTasks.size
+      loadingTasks: this.loadingTasks.size,
     };
   }
 }

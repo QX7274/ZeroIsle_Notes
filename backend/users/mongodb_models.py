@@ -47,6 +47,9 @@ class User(Document):
     realm_sync_enabled = BooleanField(default=True, verbose_name='是否启用Realm同步')
     realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
 
+    # Django Auth User ID
+    django_user_id = StringField(max_length=36, sparse=True, verbose_name='Django用户ID')
+
     # 统计字段
     note_count = IntField(default=0, verbose_name='笔记数量')
     canvas_count = IntField(default=0, verbose_name='画布数量')
@@ -61,6 +64,7 @@ class User(Document):
             {'fields': ['wechat_openid'], 'sparse': True},
             {'fields': ['qq_openid'], 'sparse': True},
             {'fields': ['realm_id'], 'sparse': True},
+            {'fields': ['django_user_id'], 'sparse': True},
             {'fields': ['is_active']},
             {'fields': ['date_joined']},
         ],
@@ -84,6 +88,16 @@ class User(Document):
         """验证密码"""
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password)
+
+    @property
+    def is_authenticated(self):
+        """总是返回True，因为这是用户对象"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """总是返回False"""
+        return False
 
 class VerificationCode(Document):
     """
@@ -176,8 +190,13 @@ class UserSettings(Document):
     theme = StringField(max_length=20, default='system', verbose_name='主题')
     font_size = StringField(max_length=20, default='medium', verbose_name='字体大小')
     language = StringField(max_length=10, default='zh-CN', verbose_name='语言')
-    notification_enabled = BooleanField(default=True, verbose_name='是否启用通知')
-    email_notification = BooleanField(default=True, verbose_name='是否启用邮件通知')
+    notification_preferences = DictField(default={
+        'system': {'push': True, 'email': False},
+        'reminders': {'push': True, 'email': True},
+        'comments': {'push': True, 'email': True},
+        'likes': {'push': True, 'email': False},
+        'mentions': {'push': True, 'email': True},
+    }, verbose_name='通知偏好设置')
     auto_save = BooleanField(default=True, verbose_name='是否自动保存')
     auto_save_interval = IntField(default=60, verbose_name='自动保存间隔(秒)')
     offline_mode = BooleanField(default=False, verbose_name='是否启用离线模式')
@@ -219,3 +238,26 @@ class UserSettings(Document):
             'ai_assistant_enabled': True,
             'ai_assistant_model': 'gpt-3.5-turbo',
         }
+
+
+class TokenBlacklist(Document):
+    """
+    存储被加入黑名单的JWT的JTI记录 (MongoEngine 版本)
+    """
+    jti = StringField(max_length=255, required=True, unique=True, help_text="JWT ID")
+    user = ReferenceField(User, required=False, verbose_name='用户')
+    reason = StringField(max_length=255, verbose_name='原因')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    expires_at = DateTimeField(required=True, verbose_name='令牌过期时间')
+
+    meta = {
+        'collection': 'token_blacklist',
+        'indexes': [
+            'jti',
+            {'fields': ['expires_at'], 'expireAfterSeconds': 0}  # TTL index for automatic cleanup
+        ],
+        'ordering': ['-created_at']
+    }
+
+    def __str__(self):
+        return f"Blacklisted JTI: {self.jti}"

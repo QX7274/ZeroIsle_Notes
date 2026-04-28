@@ -1,52 +1,35 @@
 # 文档转换服务
 
-这是一个基于Django的跨平台文档转换服务，支持将Word和PowerPoint文档转换为PDF格式，不依赖Microsoft Office。
+这是一个基于Django和Celery的异步文档转换服务，支持将多种办公文档格式转换为PDF，并提供丰富的功能扩展。
 
 ## 功能特性
 
-- ✅ **PPT/PPTX转PDF**: 提取文本内容并生成结构化PDF
-- ✅ **Word/DOCX转PDF**: 保持格式的高质量转换
-- ✅ **跨平台支持**: Windows、Linux、macOS
-- ✅ **不依赖Microsoft Office**: 使用纯Python库实现
-- ✅ **Django REST API**: 标准的RESTful接口
-- ✅ **多种转换方式**: 文件上传和Base64编码
-- ✅ **完善的错误处理**: 详细的错误信息和状态码
-- ✅ **COM接口备用**: Windows系统可选使用COM接口
+- ✅ **多格式转PDF**: 支持 `.doc`, `.docx`, `.ppt`, `.pptx` 等格式，并对 `.md`, `.txt`, `.html` 提供优化路径。
+- ✅ **异步任务处理**: 基于Celery，上传后立即返回任务ID，不阻塞请求。
+- ✅ **两种转换模式**: `lite` (轻量，文本优先) 和 `loffice` (高保真)。
+- ✅ **对象存储集成**: 支持S3/MinIO，自动生成预签名URL，实现安全下载。
+- ✅ **PDF缩略图生成**: 自动生成PDF首页缩略图，并提供预签名URL。
+- ✅ **病毒扫描 (可选)**: 集成ClamAV对上传文件进行扫描。
+- ✅ **安全与限流**: 支持下载令牌、IP/用户请求限流。
+- ✅ **统一错误响应**: 标准化的 `error_code` 错误结构，方便前端处理。
+- ✅ **环境自检**: 提供 `scripts/check_env.py` 脚本一键检查环境依赖。
+- ✅ **周期性清理**: 自动清理过期的缓存键，防止缓存膨胀。
 
 ## 技术栈
 
-- **Django 4.2+**: Web框架
-- **Django REST Framework**: API框架
-- **python-pptx**: PPT文档解析
-- **python-docx**: Word文档解析
-- **ReportLab**: PDF生成
-- **mammoth**: Word转HTML
-- **weasyprint**: HTML转PDF
-- **Pillow**: 图像处理
+- **核心框架**: Django, Django REST Framework, Celery
+- **外部依赖**:
+  - **LibreOffice / soffice**: 主要的文档转换引擎。
+  - **Pandoc (可选)**: 用于 `lite` 模式下的文本格式转换。
+- **Python库**: `pdf2image`, `PyPDF2`, `boto3` (S3/MinIO支持)
 
 ## 系统要求
 
-- Python 3.7+
-- 足够的磁盘空间用于临时文件
-
-### Windows系统
-- 可选：Microsoft Office（用于COM接口备用方案）
-- docx2pdf库（自动安装）
-
-### Linux系统
-```bash
-# Ubuntu/Debian
-sudo apt-get install python3-cffi python3-brotli libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0
-
-# CentOS/RHEL
-sudo yum install python3-cffi python3-brotli pango harfbuzz
-```
-
-### macOS系统
-```bash
-# 使用Homebrew安装依赖
-brew install pango harfbuzz
-```
+- Python 3.10+
+- Redis (用于Celery Broker和缓存)
+- **LibreOffice**: 必须安装，并确保 `soffice` 或 `libreoffice` 命令在系统PATH中可用。
+- **Pandoc (推荐)**: 推荐安装，以优化 `lite` 模式的性能。
+- **ClamAV (可选)**: 如需开启病毒扫描，需部署ClamAV服务。
 
 ## 安装和启动
 
@@ -92,9 +75,187 @@ POST /api/v1/document-converter/convert/
 ```json
 {
   "success": true,
-  "pdf_url": "/api/document-converter/download/converted_abc123.pdf",
-  "pdf_path": "converted_docs/converted_abc123.pdf",
-  "original_filename": "document.docx"
+  "attachment_id": "<uuid>",
+  "task_id": "<celery_task_id>",
+  "status_url": "/api/v1/document-converter/status/<celery_task_id>/",
+  "message": "文件上传成功，转换任务已开始"
+}
+```
+
+### 查询任务状态
+```
+GET /api/v1/document-converter/status/<task_id>/
+```
+
+### 生成下载令牌
+```
+POST /api/v1/document-converter/generate-download-token/
+Body(JSON): { "filename": "<converted_file_name>.pdf" }
+```
+
+### 受保护下载
+```
+GET /api/v1/document-converter/download/<filename>/?token=<token>
+```
+
+### 健康检查
+```
+GET /api/v1/document-converter/health/
+
+### 错误响应统一格式
+
+所有失败响应均采用以下结构：
+
+```json
+{
+  "success": false,
+  "error_code": "<UPPER_SNAKE_CASE>",
+  "error": "<人类可读的错误信息>"
+}
+```
+
+常见错误码：
+- UNAUTHORIZED（未登录）
+- NO_FILE（未上传文件）
+- MISSING_NOTE_ID / MISSING_PARAMS（缺少参数）
+- NOTE_NOT_FOUND（笔记不存在或无权访问）
+- INVALID_JSON（请求体 JSON 无效）
+- INVALID_FILE / INVALID_FILENAME（不支持的文件类型 / 非法文件名）
+- PAYLOAD_TOO_LARGE（上传内容超限）
+- INVALID_TOKEN（下载令牌无效或过期）
+- FILE_NOT_FOUND（文件不存在）
+- FORBIDDEN（无权访问）
+- MALWARE_DETECTED（病毒检测命中）
+- RATE_LIMITED（请求过于频繁）
+- INTERNAL_ERROR（服务器内部错误）
+
+```
+
+## 示例（curl）
+
+上传并开始转换（异步）
+```
+curl -X POST \
+  -H "Authorization: Bearer <JWT>" \
+  -F "file=@/path/to/file.docx" \
+  -F "note_id=<note_id>" \
+  http://localhost:8000/api/v1/document-converter/convert/
+```
+
+轮询状态
+```
+curl -H "Authorization: Bearer <JWT>" \
+  http://localhost:8000/api/v1/document-converter/status/<task_id>/
+```
+
+生成下载令牌
+```
+curl -X POST \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"<file>.pdf"}' \
+  http://localhost:8000/api/v1/document-converter/generate-download-token/
+```
+
+下载（带令牌）
+```
+curl -H "Authorization: Bearer <JWT>" \
+  -L "http://localhost:8000/api/v1/document-converter/download/<file>.pdf?token=<token>"
+```
+
+
+
+## 对象存储启用与回退
+
+本模块支持两种下载模式：
+- presigned（对象存储启用时，直接返回预签名URL）
+- local（未启用对象存储时，返回短时令牌 + 受保护下载路径）
+
+### 开启对象存储（S3/MinIO）
+在 `backend/.env` 中配置：
+```
+OBJECT_STORAGE_PROVIDER=s3   # 或 minio；不配置/none 表示关闭对象存储
+AWS_S3_BUCKET_NAME=your-bucket
+AWS_S3_ENDPOINT_URL=https://s3.example.com   # MinIO/私有S3需要
+AWS_S3_REGION_NAME=your-region
+AWS_ACCESS_KEY_ID=your-ak
+AWS_SECRET_ACCESS_KEY=your-sk
+```
+
+任务完成后：
+- status 接口的 `data` 将包含：
+  - `download_mode`: `presigned` | `local`
+  - `filename`: 转换后文件名（如 `<attachment_id>.pdf`）
+  - `pdf_url`: 若为 `presigned` 则为预签名直链；否则为本地下载URL
+- generate-download-token 接口：
+  - 对象存储开启时：直接返回 `presigned_url`（同时保留 `token` 以兼容）
+  - 未开启：返回 `token` 与本地下载URL
+
+### 示例：生成令牌（对象存储启用）
+```
+curl -X POST \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"<file>.pdf"}' \
+  http://localhost:8000/api/v1/document-converter/generate-download-token/
+```
+响应：
+```json
+{
+  "success": true,
+  "mode": "presigned",
+  "expires_in": 600,
+  "download_url": "https://s3.example.com/...presigned...",
+  "presigned_url": "https://s3.example.com/...presigned...",
+  "token": "<compat-only>"
+}
+```
+
+### 示例：查询任务状态
+
+**成功状态 (对象存储启用):**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "completed",
+    "progress": 100,
+    "user_id": "...",
+    "attachment_id": "...",
+    "filename": "<attachment_id>.pdf",
+    "storage_key": "converted/<attachment_id>.pdf",
+    "download_mode": "presigned",
+    "pdf_url": "https://s3.example.com/...presigned...",
+    "thumbnail_url": "https://s3.example.com/...thumbnails/<attachment_id>.jpg..."
+  }
+}
+```
+
+**成功状态 (本地存储):**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "completed",
+    "progress": 100,
+    "download_mode": "local",
+    "pdf_url": "/api/v1/document-converter/download/<attachment_id>.pdf",
+    "thumbnail_url": "/media/thumbnails/<attachment_id>.jpg"
+  }
+}
+```
+
+**失败状态:**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "failed",
+    "progress": 100,
+    "error": "Soft time limit exceeded",
+    "error_code": "TIMEOUT",
+    "error_message": "Soft time limit exceeded"
+  }
 }
 ```
 

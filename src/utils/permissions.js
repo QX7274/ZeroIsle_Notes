@@ -16,7 +16,7 @@ export const checkNotificationPermission = async () => {
       const result = await check(PERMISSIONS.IOS.NOTIFICATIONS);
       return result === RESULTS.GRANTED;
     }
-    
+
     // Android平台
     if (Platform.OS === 'android') {
       // Android 13及以上需要明确请求通知权限
@@ -24,11 +24,11 @@ export const checkNotificationPermission = async () => {
         const result = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
         return result === RESULTS.GRANTED;
       }
-      
+
       // Android 13以下默认有通知权限
       return true;
     }
-    
+
     return false;
   } catch (error) {
     console.error('检查通知权限失败:', error);
@@ -53,7 +53,7 @@ export const requestNotificationPermission = async (timeout = 5000) => {
           resolve(result === RESULTS.GRANTED);
           return;
         }
-        
+
         // Android平台
         if (Platform.OS === 'android') {
           // Android 13及以上需要明确请求通知权限
@@ -62,12 +62,12 @@ export const requestNotificationPermission = async (timeout = 5000) => {
             resolve(result === RESULTS.GRANTED);
             return;
           }
-          
+
           // Android 13以下默认有通知权限
           resolve(true);
           return;
         }
-        
+
         resolve(false);
       } catch (error) {
         console.error('请求通知权限失败:', error);
@@ -75,7 +75,7 @@ export const requestNotificationPermission = async (timeout = 5000) => {
         resolve(true);
       }
     });
-    
+
     // 创建一个超时Promise
     const timeoutPromise = new Promise((resolve) => {
       setTimeout(() => {
@@ -83,7 +83,7 @@ export const requestNotificationPermission = async (timeout = 5000) => {
         resolve(true); // 超时时默认返回true，避免阻塞应用
       }, timeout);
     });
-    
+
     // 使用Promise.race确保不会无限等待
     return await Promise.race([permissionPromise, timeoutPromise]);
   } catch (error) {
@@ -105,7 +105,7 @@ export const checkAndRequestNotificationPermission = async (timeout = 5000) => {
     if (hasPermission) {
       return true;
     }
-    
+
     // 如果没有权限，请求权限
     return await requestNotificationPermission(timeout);
   } catch (error) {

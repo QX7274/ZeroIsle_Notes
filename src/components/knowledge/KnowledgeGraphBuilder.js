@@ -26,7 +26,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
 
   // 构建知识图谱
   const buildGraph = async () => {
-    if (!noteId) return;
+    if (!noteId) {return;}
 
     setLoading(true);
     setError(null);
@@ -36,13 +36,13 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
       const response = await autoClassificationApi.buildKnowledgeGraph(noteId, true);
       if (response.success) {
         setGraphData(response.data);
-        
+
         // 分析笔记关联
         const connectionsResponse = await autoClassificationApi.analyzeNoteConnections(noteId);
         if (connectionsResponse.success) {
           setConnections(connectionsResponse.data);
         }
-        
+
         // 推荐相关内容
         const relatedResponse = await autoClassificationApi.suggestRelatedContent(noteId);
         if (relatedResponse.success) {
@@ -68,12 +68,12 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
 
   // 准备图谱数据
   const prepareGraphData = () => {
-    if (!graphData) return { nodes: [], edges: [] };
+    if (!graphData) {return { nodes: [], edges: [] };}
 
     // 收集所有节点
     const nodes = [];
     const edges = [];
-    
+
     // 添加笔记节点
     if (graphData.note_node) {
       nodes.push({
@@ -81,10 +81,10 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         label: graphData.note_node.title,
         type: 'note',
         color: '#4361EE',
-        size: 30
+        size: 30,
       });
     }
-    
+
     // 添加标签节点
     if (graphData.tag_nodes) {
       graphData.tag_nodes.forEach(tag => {
@@ -93,20 +93,20 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
           label: tag.name,
           type: 'tag',
           color: '#3A86FF',
-          size: 20
+          size: 20,
         });
-        
+
         // 添加笔记-标签边
         edges.push({
           id: `${graphData.note_node.id}-${tag.id}`,
           source: graphData.note_node.id,
           target: tag.id,
           label: '有标签',
-          color: '#CCCCCC'
+          color: '#CCCCCC',
         });
       });
     }
-    
+
     // 添加分类节点
     if (graphData.category_node) {
       nodes.push({
@@ -114,19 +114,19 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         label: graphData.category_node.name,
         type: 'category',
         color: '#4CC9F0',
-        size: 25
+        size: 25,
       });
-      
+
       // 添加笔记-分类边
       edges.push({
         id: `${graphData.note_node.id}-${graphData.category_node.id}`,
         source: graphData.note_node.id,
         target: graphData.category_node.id,
         label: '属于',
-        color: '#CCCCCC'
+        color: '#CCCCCC',
       });
     }
-    
+
     // 添加概念节点
     if (graphData.concept_nodes) {
       graphData.concept_nodes.forEach(concept => {
@@ -135,20 +135,20 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
           label: concept.name,
           type: 'concept',
           color: '#F72585',
-          size: 22
+          size: 22,
         });
-        
+
         // 添加笔记-概念边
         edges.push({
           id: `${graphData.note_node.id}-${concept.id}`,
           source: graphData.note_node.id,
           target: concept.id,
           label: '提及',
-          color: '#CCCCCC'
+          color: '#CCCCCC',
         });
       });
     }
-    
+
     // 添加相关笔记节点
     if (graphData.related_note_nodes) {
       graphData.related_note_nodes.forEach(note => {
@@ -157,20 +157,20 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
           label: note.title,
           type: 'note',
           color: '#4361EE',
-          size: 25
+          size: 25,
         });
-        
+
         // 添加笔记-相关笔记边
         edges.push({
           id: `${graphData.note_node.id}-${note.id}`,
           source: graphData.note_node.id,
           target: note.id,
           label: '相关',
-          color: '#CCCCCC'
+          color: '#CCCCCC',
         });
       });
     }
-    
+
     return { nodes, edges };
   };
 
@@ -183,7 +183,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         </Text>
       );
     }
-    
+
     return (
       <View style={styles.listContainer}>
         {connections.tags.map(tag => (
@@ -197,7 +197,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
       </View>
     );
   };
-  
+
   // 渲染分类列表
   const renderCategories = () => {
     if (!connections || !connections.categories || connections.categories.length === 0) {
@@ -207,7 +207,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         </Text>
       );
     }
-    
+
     return (
       <View style={styles.listContainer}>
         {connections.categories.map(category => (
@@ -221,7 +221,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
       </View>
     );
   };
-  
+
   // 渲染概念列表
   const renderConcepts = () => {
     if (!connections || !connections.concepts || connections.concepts.length === 0) {
@@ -231,7 +231,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         </Text>
       );
     }
-    
+
     return (
       <View style={styles.listContainer}>
         {connections.concepts.map(concept => (
@@ -252,7 +252,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
       </View>
     );
   };
-  
+
   // 渲染相关笔记列表
   const renderRelatedNotes = () => {
     if (!connections || !connections.related_notes || connections.related_notes.length === 0) {
@@ -262,7 +262,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         </Text>
       );
     }
-    
+
     return (
       <View style={styles.listContainer}>
         {connections.related_notes.map(note => (
@@ -286,7 +286,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
       </View>
     );
   };
-  
+
   // 渲染推荐内容
   const renderRecommendedContent = () => {
     if (!relatedContent) {
@@ -296,7 +296,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
         </Text>
       );
     }
-    
+
     return (
       <View style={styles.recommendedContainer}>
         {/* 推荐笔记 */}
@@ -326,7 +326,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
             </Text>
           )}
         </View>
-        
+
         {/* 推荐标签 */}
         <View style={styles.recommendedSection}>
           <Text style={[styles.recommendedTitle, { color: colors.text }]}>
@@ -505,21 +505,21 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
               </Text>
               {renderTags()}
             </View>
-            
+
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 分类
               </Text>
               {renderCategories()}
             </View>
-            
+
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 概念
               </Text>
               {renderConcepts()}
             </View>
-            
+
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 相关笔记

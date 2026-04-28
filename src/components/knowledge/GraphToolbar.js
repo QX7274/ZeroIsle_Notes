@@ -1,6 +1,7 @@
 /**
  * 知识图谱工具栏组件
  * 提供布局切换、过滤、导出等功能
+ * Refactored with Design Tokens
  */
 
 import React, { useState } from 'react';
@@ -8,6 +9,7 @@ import { View, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 import { useTheme } from '../../context/ThemeContext';
+import { SPACING, RADIUS, ELEVATION, BORDER, SIZE } from '../../theme/tokens';
 
 /**
  * 工具栏按钮组件
@@ -18,7 +20,7 @@ const ToolbarButton = ({ icon, label, onPress, active = false }) => {
 
   return (
     <TouchableOpacity style={styles.button} onPress={onPress}>
-      <Icon name={icon} size={24} color={active ? colors.primary : colors.text} />
+      <Icon name={icon} size={SIZE.icon.lg} color={active ? colors.primary : colors.text} />
       {label && <Text style={styles.label}>{label}</Text>}
     </TouchableOpacity>
   );
@@ -138,7 +140,7 @@ const GraphToolbar = ({
               >
                 <Icon
                   name={layout.icon}
-                  size={24}
+                  size={SIZE.icon.lg}
                   color={
                     currentLayout === layout.id ? colors.primary : colors.text
                   }
@@ -152,7 +154,7 @@ const GraphToolbar = ({
                   {layout.name}
                 </Text>
                 {currentLayout === layout.id && (
-                  <Icon name="check" size={20} color={colors.primary} />
+                  <Icon name="check" size={SIZE.icon.md} color={colors.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -188,10 +190,11 @@ const getStyles = (colors) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: 8,
-      backgroundColor: colors.card,
-      borderBottomWidth: 1,
+      padding: SPACING.sm,
+      backgroundColor: colors.card || colors.surface,
+      borderBottomWidth: BORDER.width.thin,
       borderBottomColor: colors.border,
+      ...ELEVATION.sm,
     },
     section: {
       flexDirection: 'row',
@@ -204,37 +207,33 @@ const getStyles = (colors) =>
       alignItems: 'center',
     },
     menuContainer: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
+      backgroundColor: colors.card || colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
       minWidth: 250,
       maxWidth: 320,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
+      ...ELEVATION.lg,
     },
     menuTitle: {
       fontSize: 18,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: 16,
+      marginBottom: SPACING.md,
     },
     menuItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 12,
-      borderRadius: 8,
-      marginBottom: 8,
+      padding: SPACING.ms,
+      borderRadius: RADIUS.md,
+      marginBottom: SPACING.sm,
     },
     menuItemActive: {
-      backgroundColor: colors.primaryLight,
+      backgroundColor: colors.primaryLight || `${colors.primary}20`, // Fallback opacity
     },
     menuItemText: {
       fontSize: 16,
       color: colors.text,
-      marginLeft: 12,
+      marginLeft: SPACING.ms,
       flex: 1,
     },
     menuItemTextActive: {
@@ -245,7 +244,7 @@ const getStyles = (colors) =>
       fontSize: 14,
       color: colors.textSecondary,
       textAlign: 'center',
-      padding: 20,
+      padding: SPACING.xl,
     },
   });
 
@@ -254,20 +253,16 @@ const getButtonStyles = (colors, active) =>
     button: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 8,
-      marginHorizontal: 4,
-      borderRadius: 8,
-      backgroundColor: active ? colors.primaryLight : 'transparent',
+      padding: SPACING.sm,
+      marginHorizontal: SPACING.xs,
+      borderRadius: RADIUS.md,
+      backgroundColor: active ? (colors.primaryLight || `${colors.primary}20`) : 'transparent',
     },
     label: {
       fontSize: 12,
       color: colors.text,
-      marginLeft: 4,
+      marginLeft: SPACING.xs,
     },
   });
 
 export default GraphToolbar;
-
-
-
-

@@ -22,6 +22,7 @@ import tagApi from './tagApi';
 import fileApi from './fileApi';
 import categoryApi from './categoryApi';
 import apiClient from './apiClient';
+import knowledgeBaseApi from './knowledgeBaseApi';
 
 // 导出API服务
 export {
@@ -29,6 +30,7 @@ export {
   authApi,
   notesApi,
   knowledgeGraphApi,
+  knowledgeBaseApi,
   aiAssistantApi,
   reminderApi,
   voiceApi,
@@ -41,7 +43,7 @@ export {
   drawingPathApi,
   tagApi,
   fileApi,
-  categoryApi
+  categoryApi,
 };
 
 // 默认导出所有API服务
@@ -50,6 +52,7 @@ export default {
   auth: authApi,
   notes: notesApi,
   knowledgeGraph: knowledgeGraphApi,
+  knowledgeBase: knowledgeBaseApi,
   aiAssistant: aiAssistantApi,
   reminder: reminderApi,
   voice: voiceApi,
@@ -63,5 +66,5 @@ export default {
   tag: tagApi,
   file: fileApi,
   category: categoryApi,
-  apiWrapper
+  apiWrapper,
 };

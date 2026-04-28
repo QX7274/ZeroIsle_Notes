@@ -34,43 +34,43 @@ export const Heading = ({
     case 'h1':
       headingStyle.push({
         ...typography.HEADING.H1,
-        fontSize: fontSizes.heading1 || typography.HEADING.H1.fontSize
+        fontSize: fontSizes.heading1 || typography.HEADING.H1.fontSize,
       });
       break;
     case 'h2':
       headingStyle.push({
         ...typography.HEADING.H2,
-        fontSize: fontSizes.heading2 || typography.HEADING.H2.fontSize
+        fontSize: fontSizes.heading2 || typography.HEADING.H2.fontSize,
       });
       break;
     case 'h3':
       headingStyle.push({
         ...typography.HEADING.H3,
-        fontSize: fontSizes.heading3 || typography.HEADING.H3.fontSize
+        fontSize: fontSizes.heading3 || typography.HEADING.H3.fontSize,
       });
       break;
     case 'h4':
       headingStyle.push({
         ...typography.HEADING.H4,
-        fontSize: fontSizes.heading4 || typography.HEADING.H4.fontSize
+        fontSize: fontSizes.heading4 || typography.HEADING.H4.fontSize,
       });
       break;
     case 'h5':
       headingStyle.push({
         ...typography.HEADING.H5,
-        fontSize: fontSizes.heading5 || typography.HEADING.H5.fontSize
+        fontSize: fontSizes.heading5 || typography.HEADING.H5.fontSize,
       });
       break;
     case 'h6':
       headingStyle.push({
         ...typography.HEADING.H6,
-        fontSize: fontSizes.heading5 || typography.HEADING.H6.fontSize
+        fontSize: fontSizes.heading5 || typography.HEADING.H6.fontSize,
       });
       break;
     default:
       headingStyle.push({
         ...typography.HEADING.H1,
-        fontSize: fontSizes.heading1 || typography.HEADING.H1.fontSize
+        fontSize: fontSizes.heading1 || typography.HEADING.H1.fontSize,
       });
   }
 
@@ -151,31 +151,31 @@ export const Body = ({
     case 'tiny':
       bodyStyle.push({
         ...typography.BODY.TINY,
-        fontSize: fontSizes.small || typography.BODY.TINY.fontSize
+        fontSize: fontSizes.small || typography.BODY.TINY.fontSize,
       });
       break;
     case 'small':
       bodyStyle.push({
         ...typography.BODY.SMALL,
-        fontSize: fontSizes.small || typography.BODY.SMALL.fontSize
+        fontSize: fontSizes.small || typography.BODY.SMALL.fontSize,
       });
       break;
     case 'medium':
       bodyStyle.push({
         ...typography.BODY.MEDIUM,
-        fontSize: fontSizes.body || typography.BODY.MEDIUM.fontSize
+        fontSize: fontSizes.body || typography.BODY.MEDIUM.fontSize,
       });
       break;
     case 'large':
       bodyStyle.push({
         ...typography.BODY.LARGE,
-        fontSize: fontSizes.body * 1.2 || typography.BODY.LARGE.fontSize
+        fontSize: fontSizes.body * 1.2 || typography.BODY.LARGE.fontSize,
       });
       break;
     default:
       bodyStyle.push({
         ...typography.BODY.MEDIUM,
-        fontSize: fontSizes.body || typography.BODY.MEDIUM.fontSize
+        fontSize: fontSizes.body || typography.BODY.MEDIUM.fontSize,
       });
   }
 
@@ -268,25 +268,25 @@ export const Label = ({
     case 'small':
       labelStyle.push({
         ...typography.LABEL.SMALL,
-        fontSize: fontSizes.label || typography.LABEL.SMALL.fontSize
+        fontSize: fontSizes.label || typography.LABEL.SMALL.fontSize,
       });
       break;
     case 'medium':
       labelStyle.push({
         ...typography.LABEL.MEDIUM,
-        fontSize: fontSizes.label || typography.LABEL.MEDIUM.fontSize
+        fontSize: fontSizes.label || typography.LABEL.MEDIUM.fontSize,
       });
       break;
     case 'large':
       labelStyle.push({
         ...typography.LABEL.LARGE,
-        fontSize: fontSizes.label * 1.2 || typography.LABEL.LARGE.fontSize
+        fontSize: fontSizes.label * 1.2 || typography.LABEL.LARGE.fontSize,
       });
       break;
     default:
       labelStyle.push({
         ...typography.LABEL.MEDIUM,
-        fontSize: fontSizes.label || typography.LABEL.MEDIUM.fontSize
+        fontSize: fontSizes.label || typography.LABEL.MEDIUM.fontSize,
       });
   }
 

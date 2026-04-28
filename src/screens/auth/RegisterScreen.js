@@ -12,7 +12,7 @@ import {
   Platform,
   ScrollView,
   Alert,
-  Image
+  Image,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -20,12 +20,13 @@ import {
   register,
   registerWithUsername,
   registerWithEmail,
-  clearError
+  clearError,
 } from '../../redux/slices/authSlice';
+import authStorage from '../../services/auth/authStorage';
 import { Button, Input, Loading } from '../../components/common';
 import { Text } from 'react-native';
 import { authApi } from '../../services/api';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../../services/network/networkService';
 import networkErrorService from '../../services/networkErrorService';
 
 const RegisterScreen = ({ navigation }) => {
@@ -61,7 +62,7 @@ const RegisterScreen = ({ navigation }) => {
   const [registerType, setRegisterType] = useState('username'); // 'username'|'phone'|'email'
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
-  const [isConnected, setIsConnected] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
 
   // 清除Redux错误
   useEffect(() => {
@@ -89,13 +90,13 @@ const RegisterScreen = ({ navigation }) => {
   // 监听网络状态
   useEffect(() => {
     // 初始检查网络状态
-    NetInfo.fetch().then(state => {
-      setIsConnected(state.isConnected);
+    networkService.checkConnection().then(online => {
+      setIsOnline(Boolean(online));
     });
 
     // 订阅网络状态变化
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected);
+    const unsubscribe = networkService.addNetworkListener(state => {
+      setIsOnline(Boolean(state?.isOnline));
     });
 
     return () => {
@@ -126,7 +127,7 @@ const RegisterScreen = ({ navigation }) => {
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '发送验证码',
-          customMessage: '网络连接失败，无法发送验证码'
+          customMessage: '网络连接失败，无法发送验证码',
         });
       }
       setError('发送验证码失败，请稍后重试');
@@ -138,8 +139,8 @@ const RegisterScreen = ({ navigation }) => {
     setError('');
 
     // 检查网络连接
-    const networkState = await NetInfo.fetch();
-    if (!networkState.isConnected) {
+    const online = await networkService.checkConnection();
+    if (!online) {
       setError('注册失败：请连接网络后再尝试注册');
       Alert.alert('网络错误', '注册需要网络连接，请检查您的网络设置后重试。');
       return;
@@ -224,23 +225,32 @@ const RegisterScreen = ({ navigation }) => {
           dispatch({ type: 'auth/setAuthToken', payload: result.data.access });
           dispatch({ type: 'auth/setAuthRefreshToken', payload: result.data.refresh });
 
+          // 将 token 写入安全存储（与登录链路保持一致）
+          try {
+            await authStorage.saveUser(result.data.user);
+            await authStorage.saveToken({
+              access_token: result.data.access,
+              refresh_token: result.data.refresh,
+              // 注册接口一般不会直接返回 realm_jwt；如后端已返回则自动存入
+              realm_jwt: result.data.realm_jwt || result.data.tokens?.realm_jwt,
+            });
+          } catch (storageError) {
+            console.error('注册成功但保存安全存储失败:', storageError);
+          }
+
           // 显式设置认证状态
           dispatch({ type: 'auth/setIsAuthenticated', payload: true });
 
           // 显示成功消息
           Alert.alert('注册成功', '欢迎加入零屿笔记！');
 
-          // 注册成功后更新Redux状态，让AppNavigator自动切换到主页
-          // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
           console.log('注册成功，Redux状态已更新，等待AppNavigator自动切换到主页');
         } catch (reduxError) {
           console.error('更新Redux状态失败:', reduxError);
 
-          // 即使Redux更新失败，也尝试导航到主页
           Alert.alert('注册成功', '欢迎加入零屿笔记！但应用状态更新失败，可能需要重新登录。');
 
           try {
-            // 不需要手动导航，因为AppNavigator会根据isAuthenticated状态自动切换
             console.log('注册成功，但Redux状态更新失败，尝试通过其他方式更新认证状态');
           } catch (navError) {
             console.error('导航失败:', navError);
@@ -256,7 +266,7 @@ const RegisterScreen = ({ navigation }) => {
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '用户注册',
-          customMessage: '网络连接失败，无法完成注册'
+          customMessage: '网络连接失败，无法完成注册',
         });
       }
       setError(error?.message || '注册失败，请稍后重试');
@@ -304,8 +314,8 @@ const RegisterScreen = ({ navigation }) => {
           {
             backgroundColor: colors.card,
             borderRadius: dimensions.BORDER_RADIUS.MEDIUM,
-            ...dimensions.SHADOW.MEDIUM
-          }
+            ...dimensions.SHADOW.MEDIUM,
+          },
         ]}>
           <Text
             variant="heading"
@@ -334,8 +344,8 @@ const RegisterScreen = ({ navigation }) => {
                 styles.registerTypeButton,
                 registerType === 'username' && [
                   styles.activeRegisterType,
-                  { borderBottomColor: colors.primary }
-                ]
+                  { borderBottomColor: colors.primary },
+                ],
               ]}
               onPress={() => setRegisterType('username')}
             >
@@ -353,8 +363,8 @@ const RegisterScreen = ({ navigation }) => {
                 styles.registerTypeButton,
                 registerType === 'phone' && [
                   styles.activeRegisterType,
-                  { borderBottomColor: colors.primary }
-                ]
+                  { borderBottomColor: colors.primary },
+                ],
               ]}
               onPress={() => setRegisterType('phone')}
             >
@@ -372,8 +382,8 @@ const RegisterScreen = ({ navigation }) => {
                 styles.registerTypeButton,
                 registerType === 'email' && [
                   styles.activeRegisterType,
-                  { borderBottomColor: colors.primary }
-                ]
+                  { borderBottomColor: colors.primary },
+                ],
               ]}
               onPress={() => setRegisterType('email')}
             >
@@ -421,7 +431,7 @@ const RegisterScreen = ({ navigation }) => {
                   size="large"
                 />
                 <Button
-                  title={countdown > 0 ? `${countdown}秒` : "获取验证码"}
+                  title={countdown > 0 ? `${countdown}秒` : '获取验证码'}
                   onPress={handleSendCode}
                   disabled={countdown > 0 || !phone || phone.length < 11}
                   type="outline"

@@ -1,0 +1,7 @@
+Using pip 26.0.1 from d:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pip (python 3.13)
+Collecting python-dotenv==1.0.0
+  Obtaining dependency information for python-dotenv==1.0.0 from https://files.pythonhosted.org/packages/44/2f/62ea1c8b593f4e093cc1a7768f0d46112107e790c3e478532329e434f00b/python_dotenv-1.0.0-py3-none-any.whl.metadata
+  Downloading python_dotenv-1.0.0-py3-none-any.whl.metadata (21 kB)
+Downloading python_dotenv-1.0.0-py3-none-any.whl (19 kB)
+Installing collected packages: python-dotenv
+Successfully installed python-dotenv-1.0.0

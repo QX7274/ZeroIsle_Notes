@@ -1,0 +1,29 @@
+﻿python : C:\Python313
+\python.exe: can't op
+en file 'D:\\ZeroIsle
+_Notes\\backend\\back
+end\\notes\\services\
+\test_redis_vector_cl
+ock.py': [Errno 2] No
+ such file or directo
+ry
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon backend/notes/ser
+vices/test_redis_vect
+or_clock.py  ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\Pyth   
+ on313\py...le or    
+ directory:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 

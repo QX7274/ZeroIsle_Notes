@@ -19,9 +19,9 @@ const DocViewer = (props) => {
       ...props.route,
       params: {
         ...props.route.params,
-        fileType: 'word'
-      }
-    }
+        fileType: 'word',
+      },
+    },
   };
 
   return <PDFViewerNative {...enhancedProps} />;

@@ -12,19 +12,19 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   Keyboard,
-  Platform
+  Platform,
 } from 'react-native';
 
-const RenameDialog = ({ 
-  visible, 
-  onClose, 
-  onSubmit, 
-  title = '重命名', 
-  message = '请输入新的名称', 
+const RenameDialog = ({
+  visible,
+  onClose,
+  onSubmit,
+  title = '重命名',
+  message = '请输入新的名称',
   initialValue = '',
   placeholder = '输入名称',
   submitText = '确定',
-  cancelText = '取消'
+  cancelText = '取消',
 }) => {
   const [value, setValue] = useState(initialValue);
 
@@ -58,7 +58,7 @@ const RenameDialog = ({
           <View style={styles.dialogContainer}>
             <Text style={styles.title}>{title}</Text>
             {message ? <Text style={styles.message}>{message}</Text> : null}
-            
+
             <TextInput
               style={styles.input}
               value={value}
@@ -69,17 +69,17 @@ const RenameDialog = ({
               returnKeyType="done"
               onSubmitEditing={handleSubmit}
             />
-            
+
             <View style={styles.buttonContainer}>
-              <TouchableOpacity 
-                style={[styles.button, styles.cancelButton]} 
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
                 onPress={onClose}
               >
                 <Text style={styles.cancelButtonText}>{cancelText}</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.button, styles.submitButton]} 
+
+              <TouchableOpacity
+                style={[styles.button, styles.submitButton]}
                 onPress={handleSubmit}
               >
                 <Text style={styles.submitButtonText}>{submitText}</Text>

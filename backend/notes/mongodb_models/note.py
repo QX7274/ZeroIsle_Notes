@@ -4,7 +4,7 @@
 
 import uuid
 from django.utils import timezone
-from mongoengine import Document, StringField, DateTimeField, BooleanField, IntField
+from mongoengine import Document, StringField, DateTimeField, BooleanField, IntField, DictField
 from mongoengine import UUIDField, ReferenceField, ListField
 from users.mongodb_models import User
 from .category import Category
@@ -18,6 +18,7 @@ class Note(Document):
     user = ReferenceField(User, required=True, verbose_name='用户')
     title = StringField(max_length=255, required=True, verbose_name='标题')
     content = StringField(required=True, verbose_name='内容')
+    vector_clock = DictField(default=dict, verbose_name='向量时钟')
     category = ReferenceField(Category, verbose_name='分类')
     tags = ListField(ReferenceField(Tag), verbose_name='标签')
     is_favorite = BooleanField(default=False, verbose_name='是否收藏')

@@ -28,13 +28,14 @@ class SyncService {
     this.syncInterval = null;
     this.listeners = [];
     this.offlineQueue = [];
+    this.networkListenerUnsubscribe = null;
   }
 
   /**
    * 初始化同步服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -86,6 +87,7 @@ class SyncService {
     } catch (error) {
       logService.error('加载上次同步时间失败', error);
       this.lastSyncTime = null;
+      throw error;
     }
   }
 
@@ -102,7 +104,7 @@ class SyncService {
       if (existingRecord) {
         await realmService.update('SyncInfo', existingRecord._id, {
           value: syncTime.toISOString(),
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       } else {
         await realmService.create('SyncInfo', {
@@ -110,7 +112,7 @@ class SyncService {
           type: 'last_sync_time',
           value: syncTime.toISOString(),
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       }
 
@@ -118,6 +120,7 @@ class SyncService {
       logService.info('保存同步时间', { syncTime });
     } catch (error) {
       logService.error('保存同步时间失败', error);
+      throw error;
     }
   }
 
@@ -128,11 +131,12 @@ class SyncService {
   async loadOfflineQueue() {
     try {
       const offlineOperations = await realmService.find('OfflineQueue', { is_synced: false });
-      this.offlineQueue = offlineOperations || [];
+      this.offlineQueue = (offlineOperations || []).map(op => op?._id).filter(Boolean);
       logService.info('加载离线队列', { count: this.offlineQueue.length });
     } catch (error) {
       logService.error('加载离线队列失败', error);
       this.offlineQueue = [];
+      throw error;
     }
   }
 
@@ -141,8 +145,13 @@ class SyncService {
    * @private
    */
   setupNetworkListeners() {
-    networkService.addListener('change', async (status) => {
-      if (status.isConnected && !this.isSyncing) {
+    if (this.networkListenerUnsubscribe) {
+      this.networkListenerUnsubscribe();
+      this.networkListenerUnsubscribe = null;
+    }
+
+    this.networkListenerUnsubscribe = networkService.addListener('change', async (status) => {
+      if (status?.isOnline && !this.isSyncing) {
         // 网络恢复连接，优先同步关键数据
         logService.info('网络已连接，优先同步关键数据');
         await this.syncKeyData();
@@ -177,11 +186,11 @@ class SyncService {
    */
   async syncKeyData() {
     if (this.isSyncing) {
-      return { success: false, message: '同步已在进行中' };
+      throw new Error('同步已在进行中');
     }
 
     if (!networkService.isOnline()) {
-      return { success: false, message: '网络离线，无法同步' };
+      throw new Error('网络离线，无法同步');
     }
 
     this.isSyncing = true;
@@ -190,13 +199,13 @@ class SyncService {
     // 通知监听器同步开始
     this.notifyListeners(SYNC_EVENTS.SYNC_STARTED, {
       timestamp: new Date(),
-      type: 'key-data'
+      type: 'key-data',
     });
 
     try {
       // 1. 获取需要同步的关键数据
       const keyData = {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // 获取用户信息
@@ -239,33 +248,30 @@ class SyncService {
       const syncTime = new Date();
       await this.saveLastSyncTime(syncTime);
 
-      this.isSyncing = false;
       logService.info('关键数据同步成功');
 
       // 通知监听器同步完成
       this.notifyListeners(SYNC_EVENTS.SYNC_COMPLETED, {
         timestamp: syncTime,
-        type: 'key-data'
+        type: 'key-data',
       });
 
       return {
         success: true,
-        timestamp: syncTime
+        timestamp: syncTime,
       };
     } catch (error) {
-      this.isSyncing = false;
       logService.error('同步关键数据失败', error);
 
       // 通知监听器同步失败
       this.notifyListeners(SYNC_EVENTS.SYNC_FAILED, {
         error: syncUtils.parseSyncError(error),
-        type: 'key-data'
+        type: 'key-data',
       });
 
-      return {
-        success: false,
-        error: syncUtils.parseSyncError(error)
-      };
+      throw error;
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -285,8 +291,8 @@ class SyncService {
       const operation = syncUtils.createSyncOperation(type, collection, documentId, data);
 
       // 创建离线队列项
-      const operationId = await realmService.create('OfflineQueue', {
-        _id: new realmService.createObjectId(),
+      const createdOperation = await realmService.create('OfflineQueue', {
+        _id: realmService.createObjectId(),
         type: operation.type,
         collection: operation.collection,
         document_id: operation.document_id,
@@ -294,8 +300,9 @@ class SyncService {
         created_at: new Date(),
         updated_at: new Date(),
         is_synced: false,
-        retry_count: 0
+        retry_count: 0,
       });
+      const operationId = createdOperation?._id || createdOperation;
 
       // 添加到内存队列
       this.offlineQueue.push(operationId);
@@ -305,7 +312,7 @@ class SyncService {
         operationId,
         type,
         collection,
-        documentId
+        documentId,
       });
 
       // 如果在线，尝试立即同步
@@ -350,11 +357,11 @@ class SyncService {
    */
   async sync() {
     if (this.isSyncing) {
-      return { success: false, message: '同步已在进行中' };
+      throw new Error('同步已在进行中');
     }
 
     if (!networkService.isOnline()) {
-      return { success: false, message: '网络离线，无法同步' };
+      throw new Error('网络离线，无法同步');
     }
 
     this.isSyncing = true;
@@ -365,41 +372,74 @@ class SyncService {
       this.notifyListeners(SYNC_EVENTS.QUEUE_PROCESSING_STARTED);
       const queueResult = await this.processOfflineQueue();
       this.notifyListeners(SYNC_EVENTS.QUEUE_PROCESSING_COMPLETED, queueResult);
+      if (!queueResult.success) {
+        this.notifyListeners(SYNC_EVENTS.QUEUE_PROCESSING_FAILED, {
+          code: 'QUEUE_PARTIAL_OR_FAILED',
+          message: '离线队列处理存在失败项',
+          details: queueResult,
+        });
+      }
 
       // 2. 然后从服务器拉取更新
       this.notifyListeners(SYNC_EVENTS.PULL_STARTED);
       const pullResult = await this.pullChanges();
       this.notifyListeners(SYNC_EVENTS.PULL_COMPLETED, pullResult);
+      if (!pullResult.success) {
+        this.notifyListeners(SYNC_EVENTS.PULL_FAILED, pullResult.error || {
+          code: 'PULL_PARTIAL_OR_FAILED',
+          message: '拉取远端更新存在失败项',
+          details: pullResult.summary,
+        });
+      }
+
+      const success = !!queueResult.success && !!pullResult.success;
+      const partialSuccess = !success && (
+        (queueResult.processed || 0) > 0 ||
+        (pullResult.count || 0) > 0
+      );
+
+      if (!success) {
+        this.notifyListeners(SYNC_EVENTS.SYNC_FAILED, {
+          code: 'SYNC_PARTIAL_OR_FAILED',
+          message: '同步流程存在失败项',
+          details: {
+            queueResult,
+            pullResult,
+          },
+        });
+        throw new Error('同步流程存在失败项');
+      }
 
       // 3. 更新同步时间
       const syncTime = new Date();
       await this.saveLastSyncTime(syncTime);
 
-      this.isSyncing = false;
       this.notifyListeners(SYNC_EVENTS.SYNC_COMPLETED, {
         timestamp: syncTime,
         queueProcessed: queueResult.processed,
+        queueFailed: queueResult.failed || 0,
         changesPulled: pullResult.count,
-        totalTime: Date.now() - syncTime.getTime()
+        pullFailed: pullResult.failed || 0,
+        partialSuccess,
+        success,
+        totalTime: Date.now() - syncTime.getTime(),
       });
 
       return {
-        success: true,
+        success,
+        partialSuccess,
         timestamp: syncTime,
         queueResult,
-        pullResult
+        pullResult,
       };
     } catch (error) {
-      this.isSyncing = false;
       logService.error('同步失败', error);
 
       const parsedError = syncUtils.parseSyncError(error);
       this.notifyListeners(SYNC_EVENTS.SYNC_FAILED, parsedError);
-
-      return {
-        success: false,
-        error: parsedError
-      };
+      throw error;
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -439,7 +479,7 @@ class SyncService {
 
         operationsByCollection[operation.collection].push({
           id: operationId,
-          operation
+          operation,
         });
       } catch (error) {
         logService.error(`获取离线操作失败: ${operationId}`, error);
@@ -452,7 +492,7 @@ class SyncService {
 
       // 准备同步数据
       const syncData = {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // 处理不同类型的集合
@@ -483,7 +523,7 @@ class SyncService {
                   await realmService.update('OfflineQueue', id, {
                     is_synced: true,
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result)
+                    server_response: JSON.stringify(result),
                   });
 
                   // 从内存队列中移除
@@ -535,7 +575,7 @@ class SyncService {
                   await realmService.update('OfflineQueue', id, {
                     is_synced: true,
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result)
+                    server_response: JSON.stringify(result),
                   });
 
                   // 从内存队列中移除
@@ -585,7 +625,7 @@ class SyncService {
                   await realmService.update('OfflineQueue', id, {
                     is_synced: true,
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result)
+                    server_response: JSON.stringify(result),
                   });
 
                   // 从内存队列中移除
@@ -637,7 +677,7 @@ class SyncService {
                   break;
                 case 'update':
                   // 只同步关键用户信息
-                  result = await apiService.put(`/users/profile`, keyUserInfo);
+                  result = await apiService.put('/users/profile', keyUserInfo);
                   break;
                 case 'delete':
                   // 用户删除操作需要特殊处理，这里跳过
@@ -651,7 +691,7 @@ class SyncService {
               await realmService.update('OfflineQueue', id, {
                 is_synced: true,
                 updated_at: new Date(),
-                server_response: JSON.stringify(result)
+                server_response: JSON.stringify(result),
               });
 
               // 从内存队列中移除
@@ -670,21 +710,10 @@ class SyncService {
           break;
 
         default:
-          // 其他集合，标记为已同步但实际上是跳过
+          // 未支持的集合不应标记为同步成功，保留在队列中并记为失败以便后续扩展处理
           for (const { id } of operations) {
-            await realmService.update('OfflineQueue', id, {
-              is_synced: true,
-              updated_at: new Date(),
-              server_response: JSON.stringify({ message: `跳过未知集合的同步: ${collection}` })
-            });
-
-            // 从内存队列中移除
-            const index = this.offlineQueue.indexOf(id);
-            if (index !== -1) {
-              this.offlineQueue.splice(index, 1);
-            }
-
-            skipped++;
+            await this.updateOperationError(id, new Error(`未支持的集合同步: ${collection}`));
+            failed++;
           }
           break;
       }
@@ -695,7 +724,7 @@ class SyncService {
       failed,
       skipped,
       remaining: this.offlineQueue.length,
-      success: failed === 0
+      success: failed === 0,
     };
   }
 
@@ -712,11 +741,12 @@ class SyncService {
         await realmService.update('OfflineQueue', operationId, {
           retry_count: (operation.retry_count || 0) + 1,
           last_error: error.message,
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       }
     } catch (updateError) {
       logService.error(`更新离线操作重试次数失败: ${operationId}`, updateError);
+      throw updateError;
     }
   }
 
@@ -743,110 +773,140 @@ class SyncService {
 
       const data = response.data || {};
       let totalCount = 0;
+      const summary = {
+        notes: { processed: 0, failed: 0, skipped: 0 },
+        reminders: { processed: 0, failed: 0, skipped: 0 },
+        settings: { processed: 0, failed: 0 },
+        user: { processed: 0, failed: 0 },
+      };
+
+      // --- 安全写入：避免在 realm.write 中混用 async ---
+      const pendingOperations = await Promise.all(
+        this.offlineQueue.map(id => realmService.findById('OfflineQueue', id).catch(() => null))
+      );
+      const offlineNoteIds = new Set(
+        pendingOperations
+          .filter(op => op && (op.collection === 'Note' || op.collection === 'Notes'))
+          .map(op => op.document_id)
+      );
+      const offlineReminderIds = new Set(
+        pendingOperations
+          .filter(op => op && (op.collection === 'Reminder' || op.collection === 'Reminders'))
+          .map(op => op.document_id)
+      );
 
       // 处理笔记更新
       if (data.notes && Array.isArray(data.notes)) {
         logService.info('从服务器拉取笔记更新', { count: data.notes.length });
-
         for (const note of data.notes) {
           try {
-            const existingNote = await realmService.findById('Note', note._id);
-
+            if (!note?._id) {
+              summary.notes.failed++;
+              continue;
+            }
+            if (offlineNoteIds.has(note._id)) {
+              logService.info(`跳过笔记更新，因为存在本地未同步的修改: ${note._id}`);
+              summary.notes.skipped++;
+              continue;
+            }
+            const existingNote = await realmService.findOne('Note', { _id: note._id });
             if (existingNote) {
-              // 更新现有笔记
-              await realmService.update('Note', note._id, note);
+              await realmService.update('Note', existingNote._id, note);
             } else {
-              // 创建新笔记
               await realmService.create('Note', note);
             }
+            summary.notes.processed++;
+            totalCount++;
           } catch (noteError) {
-            logService.error(`处理笔记更新失败: ${note._id}`, noteError);
+            summary.notes.failed++;
+            logService.error('处理笔记更新失败', noteError);
           }
         }
-
-        totalCount += data.notes.length;
       }
 
       // 处理提醒更新
       if (data.reminders && Array.isArray(data.reminders)) {
         logService.info('从服务器拉取提醒更新', { count: data.reminders.length });
-
         for (const reminder of data.reminders) {
           try {
-            const existingReminder = await realmService.findById('Reminder', reminder._id);
-
+            if (!reminder?._id) {
+              summary.reminders.failed++;
+              continue;
+            }
+            if (offlineReminderIds.has(reminder._id)) {
+              logService.info(`跳过提醒更新，因为存在本地未同步的修改: ${reminder._id}`);
+              summary.reminders.skipped++;
+              continue;
+            }
+            const existingReminder = await realmService.findOne('Reminder', { _id: reminder._id });
             if (existingReminder) {
-              // 更新现有提醒
-              await realmService.update('Reminder', reminder._id, reminder);
+              await realmService.update('Reminder', existingReminder._id, reminder);
             } else {
-              // 创建新提醒
               await realmService.create('Reminder', reminder);
             }
+            summary.reminders.processed++;
+            totalCount++;
           } catch (reminderError) {
-            logService.error(`处理提醒更新失败: ${reminder._id}`, reminderError);
+            summary.reminders.failed++;
+            logService.error('处理提醒更新失败', reminderError);
           }
         }
-
-        totalCount += data.reminders.length;
       }
 
       // 处理设置更新
       if (data.settings && typeof data.settings === 'object') {
-        logService.info('从服务器拉取设置更新');
-
         try {
+          logService.info('从服务器拉取设置更新');
           const existingSettings = await realmService.findOne('Settings', {});
-
           if (existingSettings) {
-            // 更新现有设置
             await realmService.update('Settings', existingSettings._id, data.settings);
           } else {
-            // 创建新设置
-            await realmService.create('Settings', {
-              _id: new realmService.createObjectId(),
-              ...data.settings
-            });
+            await realmService.create('Settings', data.settings);
           }
+          summary.settings.processed++;
         } catch (settingsError) {
+          summary.settings.failed++;
           logService.error('处理设置更新失败', settingsError);
         }
       }
 
       // 处理用户信息更新
       if (data.user && typeof data.user === 'object') {
-        logService.info('从服务器拉取用户信息更新');
-
         try {
-          // 只保留关键用户信息字段
-          const keyUserInfo = {
-            _id: data.user._id,
-            username: data.user.username,
-            email: data.user.email,
-            profile: data.user.profile,
-            settings: data.user.settings,
-            preferences: data.user.preferences,
-            updated_at: data.user.updated_at,
-            created_at: data.user.created_at
-          };
+          logService.info('从服务器拉取用户信息更新');
+          const keyFields = ['username', 'email', 'profile', 'settings', 'preferences', 'avatar', 'updated_at'];
+          const keyUserInfo = keyFields.reduce((acc, field) => {
+            if (data.user[field] !== undefined) {
+              acc[field] = data.user[field];
+            }
+            return acc;
+          }, { _id: data.user._id || realmService.createObjectId() });
 
-          const existingUser = await realmService.findById('User', data.user._id);
+          const existingUser = data.user._id
+            ? await realmService.findById('User', data.user._id)
+            : await realmService.findOne('User', {});
 
           if (existingUser) {
-            // 更新现有用户
-            await realmService.update('User', data.user._id, keyUserInfo);
+            await realmService.update('User', existingUser._id, keyUserInfo);
           } else {
-            // 创建新用户
             await realmService.create('User', keyUserInfo);
           }
+          summary.user.processed++;
         } catch (userError) {
+          summary.user.failed++;
           logService.error('处理用户信息更新失败', userError);
         }
       }
 
+      const totalFailed = summary.notes.failed + summary.reminders.failed + summary.settings.failed + summary.user.failed;
+
       return {
-        success: true,
+        success: totalFailed === 0,
+        partialSuccess: totalCount > 0 && totalFailed > 0,
         count: totalCount,
-        timestamp: response.timestamp
+        failed: totalFailed,
+        summary,
+        timestamp: response.timestamp,
       };
     } catch (error) {
       logService.error('从服务器拉取更新失败', error);
@@ -896,7 +956,7 @@ class SyncService {
       isSyncing: this.isSyncing,
       lastSyncTime: this.lastSyncTime,
       offlineQueueLength: this.offlineQueue.length,
-      isOnline: networkService.isOnline()
+      isOnline: networkService.isOnline(),
     };
   }
 
@@ -920,7 +980,7 @@ class SyncService {
       return offlineOperations || [];
     } catch (error) {
       logService.error('获取离线队列失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -946,7 +1006,7 @@ class SyncService {
       return true;
     } catch (error) {
       logService.error('清空离线队列失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -984,6 +1044,11 @@ class SyncService {
       this.syncInterval = null;
     }
 
+    if (this.networkListenerUnsubscribe) {
+      this.networkListenerUnsubscribe();
+      this.networkListenerUnsubscribe = null;
+    }
+
     this.listeners = [];
     this.initialized = false;
     this.initializationPromise = null;
@@ -992,5 +1057,9 @@ class SyncService {
   }
 }
 
-export const syncService = new SyncService();
-export default syncService;
+const syncService = new SyncService();
+
+module.exports = syncService;
+module.exports.default = syncService;
+module.exports.syncService = syncService;
+module.exports.SyncService = SyncService;

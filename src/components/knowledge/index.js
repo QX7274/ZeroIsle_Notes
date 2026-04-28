@@ -14,6 +14,7 @@ import AutoClassification from './AutoClassification';
 import KnowledgeGraphBuilder from './KnowledgeGraphBuilder';
 import KnowledgeGraph from './KnowledgeGraph';
 import GraphToolbar from './GraphToolbar';
+import SuggestionPanel from './SuggestionPanel';
 
 export {
   GraphVisualization,
@@ -27,6 +28,7 @@ export {
   KnowledgeGraphBuilder,
   KnowledgeGraph,
   GraphToolbar,
+  SuggestionPanel,
 };
 
 export default {
@@ -41,4 +43,5 @@ export default {
   KnowledgeGraphBuilder,
   KnowledgeGraph,
   GraphToolbar,
+  SuggestionPanel,
 };

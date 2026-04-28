@@ -1,13 +1,13 @@
 """
 索引服务
+使用 MongoEngine 统一数据访问层
 """
 
 import logging
 import time
-from django.db import transaction
-from django.contrib.contenttypes.models import ContentType
-from search.models import SearchIndex
-from .vector_service import VectorService
+import uuid
+from ..mongodb_models import SearchIndex
+from .enhanced_vector_service import EnhancedVectorService
 
 logger = logging.getLogger('backend')
 
@@ -15,88 +15,124 @@ class IndexerService:
     """
     索引服务类
     处理内容索引的业务逻辑
+    使用 MongoEngine 统一数据访问
     """
-    
+
     def __init__(self):
         """初始化"""
-        self.vector_service = VectorService()
-    
+        self.vector_service = EnhancedVectorService.get_instance()
+
     def index_object(self, obj, index_type=None, user=None, is_public=False):
         """
         索引对象
-        
+
         Args:
             obj: 要索引的对象
             index_type: 索引类型，如果为None则自动推断
             user: 用户对象，如果为None则从对象获取
             is_public: 是否公开
-            
+
         Returns:
             SearchIndex: 创建的索引对象
         """
         try:
-            # 获取内容类型
-            content_type = ContentType.objects.get_for_model(obj)
-            
+            # 获取内容类型（使用类名字符串）
+            content_type = obj.__class__.__name__
+
             # 自动推断索引类型
             if index_type is None:
                 index_type = self._infer_index_type(obj)
-            
+
             # 自动获取用户
             if user is None:
                 user = self._get_user_from_object(obj)
-            
+
             # 提取标题和内容
             title, content, keywords = self._extract_content(obj, index_type)
-            
+
             # 生成向量表示
             vector = self.vector_service.generate_vector(title, content)
-            
-            # 创建或更新索引
-            with transaction.atomic():
-                index, created = SearchIndex.objects.update_or_create(
+
+            # 创建或更新索引（使用 MongoEngine）
+            try:
+                # 尝试查找现有索引
+                index = SearchIndex.objects.get(
+                    content_type=content_type,
+                    object_id=str(obj.id)
+                )
+                # 更新现有索引
+                index.user = user
+                index.title = title
+                index.content = content
+                index.keywords = keywords
+                index.index_type = index_type
+                index.vector = vector
+                index.is_public = is_public
+                index.save()
+                created = False
+            except SearchIndex.DoesNotExist:
+                # 创建新索引
+                index = SearchIndex(
+                    id=uuid.uuid4(),
+                    user=user,
+                    title=title,
+                    content=content,
+                    keywords=keywords,
+                    index_type=index_type,
                     content_type=content_type,
                     object_id=str(obj.id),
-                    defaults={
-                        'user': user,
-                        'title': title,
-                        'content': content,
-                        'keywords': keywords,
-                        'index_type': index_type,
-                        'vector': vector,
-                        'is_public': is_public
-                    }
+                    vector=vector,
+                    is_public=is_public
                 )
-                
-                logger.info(f"{'创建' if created else '更新'}索引: {index_type} - {title}")
-                
-                return index
+                index.save()
+                created = True
+
+            # Sync to FAISS/Vector Store
+            # Prepare document for EnhancedVectorService
+            doc_for_vector_store = {
+                'id': str(obj.id),
+                'title': title,
+                'content': content,
+                'type': index_type
+            }
+            # Add to vector store (this handles embedding internally if needed, or we can pass pre-computed vector if API allowed)
+            # Since generate_vector returns bytes, and index_documents expects text to encode, 
+            # we let EnhancedVectorService re-encode or we should optimize to avoid double encoding.
+            # Current EnhancedVectorService.index_documents re-encodes. 
+            # Optimization: If vector is already computed (lines 54), we should probably use it.
+            # But EnhancedVectorService.vector_store.add expects numpy array.
+            # Let's just call index_documents for now to ensure consistency with the store implementation.
+            self.vector_service.index_documents([doc_for_vector_store], batch_size=1)
+            
+            logger.info(f"{'创建' if created else '更新'}索引: {index_type} - {title}")
+
+            return index
         except Exception as e:
             logger.error(f"索引对象失败: {e}")
             raise
-    
+
     def remove_index(self, obj):
         """
         移除索引
-        
+
         Args:
             obj: 要移除索引的对象
-            
+
         Returns:
             bool: 是否成功
         """
         try:
-            # 获取内容类型
-            content_type = ContentType.objects.get_for_model(obj)
-            
-            # 删除索引
-            deleted, _ = SearchIndex.objects.filter(
+            # 获取内容类型（使用类名字符串）
+            content_type = obj.__class__.__name__
+
+            # 删除索引（使用 MongoEngine）
+            deleted = SearchIndex.objects(
                 content_type=content_type,
                 object_id=str(obj.id)
             ).delete()
-            
+
             logger.info(f"移除索引: {obj.__class__.__name__} - {obj.id}, 删除数量: {deleted}")
-            
+
             return deleted > 0
         except Exception as e:
             logger.error(f"移除索引失败: {e}")
@@ -118,17 +154,33 @@ class IndexerService:
             # 获取所有对象
             objects = model_class.objects.all()
             total = objects.count()
-            
+
             logger.info(f"开始重新索引 {model_class.__name__}, 总数: {total}")
-            
+
+            # --- 1. 构建语料库并训练向量化模型 ---
+            logger.info("正在构建语料库以训练向量化模型...")
+            corpus = []
+            for obj in objects:
+                title, content, _ = self._extract_content(obj, index_type)
+                text = f"{title or ''} {content or ''}".strip()
+                if text.strip():
+                    corpus.append(text)
+
+            if corpus:
+                self.vector_service.fit_corpus(corpus)
+            else:
+                logger.warning("语料库为空，无法训练向量化模型。")
+
+            # --- 2. 批量处理并索引对象 ---
+            logger.info("开始批量索引对象...")
             success_count = 0
             error_count = 0
             start_time = time.time()
-            
+
             # 批量处理
             for i in range(0, total, batch_size):
                 batch = objects[i:i+batch_size]
-                
+
                 for obj in batch:
                     try:
                         self.index_object(obj, index_type)
@@ -136,7 +188,7 @@ class IndexerService:
                     except Exception as e:
                         logger.error(f"索引对象失败: {obj.id} - {e}")
                         error_count += 1
-                
+
                 logger.info(f"已处理: {i+len(batch)}/{total}, 成功: {success_count}, 失败: {error_count}")
             
             duration = time.time() - start_time
@@ -244,7 +296,7 @@ class IndexerService:
     
     def _extract_keywords_from_tags(self, obj):
         """
-        从标签提取关键词
+        从标签提取关键词 (MongoEngine 专用)
         
         Args:
             obj: 对象
@@ -252,8 +304,18 @@ class IndexerService:
         Returns:
             str: 关键词
         """
-        # 尝试获取标签
-        if hasattr(obj, 'tags'):
-            tags = obj.tags.all()
-            return ','.join(tag.name for tag in tags)
-        return ''
+        if not hasattr(obj, 'tags'):
+            return ''
+
+        tags = getattr(obj, 'tags', [])
+        if not tags:
+            return ''
+
+        # 假设 tags 是一个可迭代对象 (如 ListField)
+        # 其中的元素可能是字符串，也可能是包含 'name' 属性的对象 (如 ReferenceField)
+        try:
+            keywords = [getattr(tag, 'name', str(tag)) for tag in tags if tag]
+            return ','.join(keywords)
+        except Exception as e:
+            logger.warning(f"从对象 {obj.id} 提取标签失败: {e}")
+            return ''

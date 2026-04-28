@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SyncViewSet(viewsets.ModelViewSet):
     """同步视图集"""
-    queryset = SyncRecord.objects.all().order_by('-start_time')
+    queryset = []
     serializer_class = SyncRecordSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     
@@ -169,7 +169,7 @@ class SyncViewSet(viewsets.ModelViewSet):
 
 class SyncConfigViewSet(viewsets.ModelViewSet):
     """同步配置视图集"""
-    queryset = SyncConfig.objects.all().order_by('key')
+    queryset = []
     serializer_class = SyncConfigSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     

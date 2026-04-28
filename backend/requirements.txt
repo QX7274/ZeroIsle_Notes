@@ -8,6 +8,8 @@ django-cors-headers==4.3.1
 django-filter==23.5
 drf-yasg==1.21.7  # Swagger/OpenAPI文档
 django-extensions==3.2.3  # 扩展Django命令行工具
+django-prometheus==2.3.1
+
 
 # 异步和WebSocket
 channels==4.0.0
@@ -29,7 +31,7 @@ py2neo==2021.2.4  # Neo4j图数据库
 neo4j==5.15.0  # Neo4j官方驱动
 
 # 文件处理
-Pillow==10.1.0  # 图像处理
+Pillow==10.4.0  # 图像处理
 PyPDF2==3.0.1  # PDF处理
 python-docx==1.0.1  # Word文档处理
 python-pptx==0.6.23  # PowerPoint处理
@@ -47,11 +49,11 @@ weasyprint==60.2  # HTML转PDF
 
 # Windows文档转换 (仅Windows系统需要)
 comtypes==1.2.0  # Windows COM接口
-pywin32==306  # Windows API
+pywin32==311  # Windows API
 
 # AI和机器学习
-openai==1.3.7  # OpenAI API
-openai-whisper==20231117  # 语音识别
+openai==1.51.2  # OpenAI API (v1.x)
+# openai-whisper==20231117  # 语音识别 (Temporarily disabled due to build issue)
 tiktoken==0.5.1  # OpenAI token计数
 torch==2.1.2  # PyTorch
 torchaudio==2.1.2  # 音频处理
@@ -62,11 +64,12 @@ numpy==1.26.3  # 数值计算
 scikit-learn==1.3.0  # 机器学习
 scipy==1.11.3  # 科学计算
 pandas==2.1.1  # 数据分析
-resemblyzer==0.1.4  # 说话人识别
-soundfile==0.13.1  # 音频文件读写
-faster-whisper==1.1.1  # 快速语音识别
-librosa==0.11.0  # 音频分析
-webrtcvad>=2.0.10  # 语音活动检测，用于说话人识别
+faiss-cpu==1.7.4  # 向量检索
+# resemblyzer==0.1.4  # 说话人识别 (Temporarily disabled)
+# soundfile==0.13.1  # 音频文件读写 (Temporarily disabled)
+# faster-whisper==1.1.1  # 快速语音识别 (Temporarily disabled)
+# librosa==0.11.0  # 音频分析 (Temporarily disabled)
+# webrtcvad>=2.0.10  # 语音活动检测，用于说话人识别 (Temporarily disabled)
 
 # 知识图谱
 networkx==3.1  # 图论算法
@@ -111,8 +114,13 @@ isort==5.12.0  # 导入排序
 flake8==6.1.0  # 代码检查
 mypy==1.7.0  # 类型检查
 django-debug-toolbar==4.2.0  # 调试工具栏
+locust==2.19.1  # 性能测试
 
 # 部署
 gunicorn==21.2.0  # WSGI服务器
 whitenoise==6.6.0  # 静态文件
 sentry-sdk==1.35.0  # 错误监控
+
+# 支付
+stripe==7.6.0
+wechatpy==1.8.18

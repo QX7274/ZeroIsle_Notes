@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Pressable
+  Pressable,
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -30,7 +30,7 @@ const TranscriptionResult = ({
   style = {},
   onSegmentPress = null, // 点击片段回调
   highlightCurrentSegment = false, // 是否高亮当前播放的片段
-  currentSegmentId = null // 当前播放的片段ID
+  currentSegmentId = null, // 当前播放的片段ID
 }) => {
   const { colors } = useTheme();
   const [speakers, setSpeakers] = useState([]);
@@ -47,14 +47,14 @@ const TranscriptionResult = ({
         toValue: 1,
         duration: 500,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true
+        useNativeDriver: true,
       }).start();
     }
   }, [transcription]);
 
   // 处理转写数据变化
   useEffect(() => {
-    if (!transcription) return;
+    if (!transcription) {return;}
 
     // 提取所有说话人
     const uniqueSpeakers = new Set();
@@ -67,7 +67,7 @@ const TranscriptionResult = ({
     // 转换为数组
     const speakersArray = Array.from(uniqueSpeakers).map(id => ({
       id,
-      name: transcription.segments?.find(s => s.speaker === id)?.speaker_name || `说话人 ${id + 1}`
+      name: transcription.segments?.find(s => s.speaker === id)?.speaker_name || `说话人 ${id + 1}`,
     }));
 
     setSpeakers(speakersArray);
@@ -76,7 +76,7 @@ const TranscriptionResult = ({
 
   // 处理说话人筛选
   useEffect(() => {
-    if (!transcription) return;
+    if (!transcription) {return;}
 
     if (activeSpeaker !== null) {
       // 筛选特定说话人的片段
@@ -157,7 +157,7 @@ const TranscriptionResult = ({
 
   // 获取说话人颜色
   const getSpeakerColor = (speakerId) => {
-    if (speakerId === undefined) return colors.text;
+    if (speakerId === undefined) {return colors.text;}
 
     // 为每个说话人分配不同的颜色
     const speakerColors = [
@@ -218,11 +218,11 @@ const TranscriptionResult = ({
           transform: [{
             translateY: fadeAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [20, 0]
-            })
-          }]
+              outputRange: [20, 0],
+            }),
+          }],
         },
-        style
+        style,
       ]}
     >
       {/* 说话人筛选区域 */}
@@ -267,7 +267,7 @@ const TranscriptionResult = ({
               <TouchableOpacity
                 style={[
                   styles.diarizationButton,
-                  { backgroundColor: colors.primary }
+                  { backgroundColor: colors.primary },
                 ]}
                 onPress={onProcessDiarization}
                 disabled={isDiarizationProcessing}
@@ -313,7 +313,7 @@ const TranscriptionResult = ({
               style={[
                 styles.segmentContainer,
                 isCurrentSegment && styles.currentSegment,
-                isCurrentSegment && { borderColor: speakerColor }
+                isCurrentSegment && { borderColor: speakerColor },
               ]}
               onPress={() => {
                 if (onSegmentPress) {
@@ -348,13 +348,13 @@ const TranscriptionResult = ({
               {/* 文本内容 */}
               <View style={[
                 styles.textContainer,
-                hasSpeakerDiarization && { borderLeftColor: speakerColor }
+                hasSpeakerDiarization && { borderLeftColor: speakerColor },
               ]}>
                 <Text
                   style={[
                     styles.segmentText,
                     { color: colors.text },
-                    isExpanded && styles.expandedText
+                    isExpanded && styles.expandedText,
                   ]}
                   numberOfLines={isExpanded ? 0 : 3}
                 >
@@ -394,7 +394,7 @@ const TranscriptionResult = ({
           <View style={styles.footerContainer}>
             <Text style={[styles.footerText, { color: colors.textSecondary }]}>
               共 {filteredSegments.length} 个片段
-              {activeSpeaker !== null && ` (已筛选)`}
+              {activeSpeaker !== null && ' (已筛选)'}
             </Text>
           </View>
         )}
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-  }
+  },
 });
 
 export default TranscriptionResult;

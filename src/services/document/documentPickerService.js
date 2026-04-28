@@ -13,7 +13,7 @@ class DocumentPickerService {
       word: [DocumentPicker.types.doc, DocumentPicker.types.docx],
       powerpoint: [DocumentPicker.types.ppt, DocumentPicker.types.pptx],
       pdf: [DocumentPicker.types.pdf],
-      all: [DocumentPicker.types.allFiles]
+      all: [DocumentPicker.types.allFiles],
     };
   }
 
@@ -32,7 +32,7 @@ class DocumentPickerService {
         const document = result[0];
         return this.processSelectedDocument(document, 'word');
       }
-      
+
       return null;
     } catch (error) {
       if (DocumentPicker.isCancel(error)) {
@@ -59,7 +59,7 @@ class DocumentPickerService {
         const document = result[0];
         return this.processSelectedDocument(document, 'powerpoint');
       }
-      
+
       return null;
     } catch (error) {
       if (DocumentPicker.isCancel(error)) {
@@ -86,7 +86,7 @@ class DocumentPickerService {
         const document = result[0];
         return this.processSelectedDocument(document, 'pdf');
       }
-      
+
       return null;
     } catch (error) {
       if (DocumentPicker.isCancel(error)) {
@@ -114,7 +114,7 @@ class DocumentPickerService {
         const documentType = this.getDocumentType(document.name);
         return this.processSelectedDocument(document, documentType);
       }
-      
+
       return null;
     } catch (error) {
       if (DocumentPicker.isCancel(error)) {
@@ -159,7 +159,7 @@ class DocumentPickerService {
             localPath: destinationPath,
             localUri: destinationPath,
             fileName: document.name || `document_${Date.now()}`,
-            type: type
+            type: type,
           };
 
           console.log('DocumentPickerService: 文档持久化完成:', persistedFile);
@@ -213,10 +213,10 @@ class DocumentPickerService {
    * @returns {string} 文档类型
    */
   getDocumentType(fileName) {
-    if (!fileName) return 'unknown';
-    
+    if (!fileName) {return 'unknown';}
+
     const extension = fileName.toLowerCase().split('.').pop();
-    
+
     if (['doc', 'docx'].includes(extension)) {
       return 'word';
     } else if (['ppt', 'pptx'].includes(extension)) {
@@ -226,7 +226,7 @@ class DocumentPickerService {
     } else if (['md', 'markdown'].includes(extension)) {
       return 'markdown';
     }
-    
+
     return 'unknown';
   }
 
@@ -241,9 +241,9 @@ class DocumentPickerService {
       powerpoint: 'slideshow',
       pdf: 'picture-as-pdf',
       markdown: 'notes',
-      unknown: 'insert-drive-file'
+      unknown: 'insert-drive-file',
     };
-    
+
     return icons[documentType] || icons.unknown;
   }
 
@@ -258,9 +258,9 @@ class DocumentPickerService {
       powerpoint: '#FF6F00',
       pdf: '#D32F2F',
       markdown: '#388E3C',
-      unknown: '#757575'
+      unknown: '#757575',
     };
-    
+
     return colors[documentType] || colors.unknown;
   }
 
@@ -270,11 +270,11 @@ class DocumentPickerService {
    * @returns {string} 格式化的文件大小
    */
   formatFileSize(bytes) {
-    if (!bytes) return '0 B';
-    
+    if (!bytes) {return '0 B';}
+
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    
+
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   }
 

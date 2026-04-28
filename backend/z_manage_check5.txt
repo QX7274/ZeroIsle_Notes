@@ -1,0 +1,115 @@
+MongoDB≈‰÷√¥ÌŒÛ: database names cannot contain the character ' '
+D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\drf_yasg\__init__.py:2: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import DistributionNotFound, get_distribution
+Traceback (most recent call last):
+  File "D:\ZeroIsle_Notes\backend\manage.py", line 22, in <module>
+    main()
+    ~~~~^^
+  File "D:\ZeroIsle_Notes\backend\manage.py", line 18, in main
+    execute_from_command_line(sys.argv)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\__init__.py", line 442, in execute_from_command_line
+    utility.execute()
+    ~~~~~~~~~~~~~~~^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\__init__.py", line 436, in execute
+    self.fetch_command(subcommand).run_from_argv(self.argv)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\base.py", line 412, in run_from_argv
+    self.execute(*args, **cmd_options)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\base.py", line 458, in execute
+    output = self.handle(*args, **options)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\commands\check.py", line 76, in handle
+    self.check(
+    ~~~~~~~~~~^
+        app_configs=app_configs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        databases=options["databases"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\management\base.py", line 485, in check
+    all_issues = checks.run_checks(
+        app_configs=app_configs,
+    ...<2 lines>...
+        databases=databases,
+    )
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\checks\registry.py", line 88, in run_checks
+    new_errors = check(app_configs=app_configs, databases=databases)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\checks\urls.py", line 14, in check_url_config
+    return check_resolver(resolver)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\core\checks\urls.py", line 24, in check_resolver
+    return check_method()
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\urls\resolvers.py", line 494, in check
+    for pattern in self.url_patterns:
+                   ^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\utils\functional.py", line 57, in __get__
+    res = instance.__dict__[self.name] = self.func(instance)
+                                         ~~~~~~~~~^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\urls\resolvers.py", line 715, in url_patterns
+    patterns = getattr(self.urlconf_module, "urlpatterns", self.urlconf_module)
+                       ^^^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\utils\functional.py", line 57, in __get__
+    res = instance.__dict__[self.name] = self.func(instance)
+                                         ~~~~~~~~~^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\urls\resolvers.py", line 708, in urlconf_module
+    return import_module(self.urlconf_name)
+  File "C:\Users\QX\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1395, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1023, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\ZeroIsle_Notes\backend\backend\urls.py", line 164, in <module>
+    path(f'{api_prefix}ai-assistant/', include('ai_assistant.urls')),
+                                       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\django\urls\conf.py", line 38, in include
+    urlconf_module = import_module(urlconf_module)
+  File "C:\Users\QX\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1395, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1023, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "D:\ZeroIsle_Notes\backend\ai_assistant\urls.py", line 7, in <module>
+    from .views import (
+    ...<6 lines>...
+    )
+  File "D:\ZeroIsle_Notes\backend\ai_assistant\views\__init__.py", line 9, in <module>
+    from .model_config import ModelConfigViewSet
+  File "D:\ZeroIsle_Notes\backend\ai_assistant\views\model_config.py", line 15, in <module>
+    class ModelConfigViewSet(viewsets.ModelViewSet):
+    ...<89 lines>...
+            return Response(list(providers))
+  File "D:\ZeroIsle_Notes\backend\ai_assistant\views\model_config.py", line 17, in ModelConfigViewSet
+    queryset = ModelConfig.objects.filter(is_active=True)
+               ^^^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\mongoengine\queryset\manager.py", line 38, in __get__
+    queryset = queryset_class(owner, owner._get_collection())
+                                     ~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\mongoengine\document.py", line 231, in _get_collection
+    if cls._meta.get("auto_create_index", True) and db.client.is_primary:
+                                                    ^^^^^^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\mongo_client.py", line 1150, in is_primary
+    return self._server_property("is_writable")
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\mongo_client.py", line 917, in _server_property
+    server = self._topology.select_server(writable_server_selector)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\topology.py", line 302, in select_server
+    server = self._select_server(selector, server_selection_timeout, address)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\topology.py", line 286, in _select_server
+    servers = self.select_servers(selector, server_selection_timeout, address)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\topology.py", line 237, in select_servers
+    server_descriptions = self._select_servers_loop(selector, server_timeout, address)
+  File "D:\ZeroIsle_Notes\backend\.venv\Lib\site-packages\pymongo\topology.py", line 259, in _select_servers_loop
+    raise ServerSelectionTimeoutError(
+        f"{self._error_message(selector)}, Timeout: {timeout}s, Topology Description: {self.description!r}"
+    )
+pymongo.errors.ServerSelectionTimeoutError: 127.0.0.1 :27017: [Errno 11001] getaddrinfo failed (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 30s, Topology Description: <TopologyDescription id: 69dd433b22aeae0992614cf7, topology_type: Unknown, servers: [<ServerDescription ('127.0.0.1 ', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('127.0.0.1 :27017: [Errno 11001] getaddrinfo failed (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>

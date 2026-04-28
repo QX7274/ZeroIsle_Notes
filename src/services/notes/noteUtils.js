@@ -52,10 +52,10 @@ class NoteUtils {
    * @returns {string} 笔记类型
    */
   getNoteTypeFromFilename(filename) {
-    if (!filename) return NOTE_TYPES.TEXT;
-    
+    if (!filename) {return NOTE_TYPES.TEXT;}
+
     const extension = filename.split('.').pop().toLowerCase();
-    
+
     switch (extension) {
       case 'md':
         return NOTE_TYPES.MARKDOWN;
@@ -124,7 +124,7 @@ class NoteUtils {
    */
   createDefaultNoteData(type = NOTE_TYPES.TEXT, additionalData = {}) {
     const now = new Date();
-    
+
     const defaultData = {
       title: `新建${this.getNoteTypeName(type)}`,
       content: '',
@@ -138,7 +138,7 @@ class NoteUtils {
       is_archived: false,
       color: this.getNoteTypeColor(type),
     };
-    
+
     return { ...defaultData, ...additionalData };
   }
 
@@ -162,7 +162,7 @@ class NoteUtils {
       [NOTE_TYPES.CANVAS]: '画布',
       [NOTE_TYPES.MIND_MAP]: '思维导图',
     };
-    
+
     return typeNames[type] || '笔记';
   }
 
@@ -172,10 +172,10 @@ class NoteUtils {
    * @returns {string} 格式化后的日期字符串
    */
   formatNoteDate(date) {
-    if (!date) return '';
-    
+    if (!date) {return '';}
+
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
+
     return dateObj.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -192,8 +192,8 @@ class NoteUtils {
    * @returns {string} 摘要
    */
   generateSummary(content, maxLength = 100) {
-    if (!content) return '';
-    
+    if (!content) {return '';}
+
     // 移除Markdown语法
     let plainText = content
       .replace(/#{1,6}\s+/g, '') // 标题
@@ -207,12 +207,12 @@ class NoteUtils {
       .replace(/\n\s*[-*+]\s/g, ' ') // 无序列表
       .replace(/\n\s*\d+\.\s/g, ' ') // 有序列表
       .replace(/\n/g, ' '); // 换行
-    
+
     // 截取指定长度
     if (plainText.length > maxLength) {
       plainText = plainText.substring(0, maxLength) + '...';
     }
-    
+
     return plainText;
   }
 
@@ -222,14 +222,14 @@ class NoteUtils {
    * @returns {Array<string>} 标签数组
    */
   extractTags(content) {
-    if (!content) return [];
-    
+    if (!content) {return [];}
+
     // 匹配#标签格式
     const tagRegex = /#([a-zA-Z0-9\u4e00-\u9fa5_-]+)/g;
     const matches = content.match(tagRegex);
-    
-    if (!matches) return [];
-    
+
+    if (!matches) {return [];}
+
     // 移除#前缀并去重
     return [...new Set(matches.map(tag => tag.substring(1)))];
   }

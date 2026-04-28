@@ -11,7 +11,7 @@ from .views import (
 
 # 创建路由器并注册视图集
 router = DefaultRouter()
-router.register(r'logs', AdminLoginLogViewSet)
+router.register(r'logs', AdminLoginLogViewSet, basename='admin-login-log')
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),

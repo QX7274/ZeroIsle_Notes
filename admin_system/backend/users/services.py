@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import quote_plus
 from django.utils import timezone
 from datetime import timedelta
 from pymongo import MongoClient
@@ -28,7 +29,12 @@ class UserService:
     def _get_mongo_client(self):
         """获取MongoDB客户端连接"""
         if self.mongo_user and self.mongo_password:
-            mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_password}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
+            encoded_user = quote_plus(str(self.mongo_user))
+            encoded_password = quote_plus(str(self.mongo_password))
+            mongo_uri = (
+                f"mongodb://{encoded_user}:{encoded_password}"
+                f"@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
+            )
         else:
             mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}/{self.mongo_db}"
 
@@ -577,5 +583,20 @@ class UserService:
             "activity_distribution": activity_distribution
         }
 
-# 创建用户服务单例
-user_service = UserService()
+# 懒加载用户服务，避免在模块导入阶段触发外部连接
+_user_service_instance = None
+
+
+def get_user_service():
+    global _user_service_instance
+    if _user_service_instance is None:
+        _user_service_instance = UserService()
+    return _user_service_instance
+
+
+class _LazyUserService:
+    def __getattr__(self, item):
+        return getattr(get_user_service(), item)
+
+
+user_service = _LazyUserService()

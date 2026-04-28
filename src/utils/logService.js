@@ -4,45 +4,26 @@
  */
 
 // 日志级别
-export const LOG_LEVELS = {
+const LOG_LEVELS = {
   DEBUG: 'debug',
   INFO: 'info',
   WARN: 'warn',
   ERROR: 'error',
 };
 
-class LogService {
-  constructor() {
-    this.enabled = true;
-    this.initialized = false;
-    this.initializationPromise = null;
-  }
+// 简单的日志服务实现，避免构造函数问题
+const logService = {
+  enabled: true,
+  initialized: true,
 
   /**
    * 初始化日志服务
    * @returns {Promise<void>}
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
-
-    if (this.initializationPromise) {
-      return this.initializationPromise;
-    }
-
-    this.initializationPromise = new Promise(async (resolve, reject) => {
-      try {
-        // 简单的初始化逻辑
-        console.info('日志服务初始化成功');
-        this.initialized = true;
-        resolve();
-      } catch (error) {
-        console.error('日志服务初始化失败', error);
-        reject(error);
-      }
-    });
-
-    return this.initializationPromise;
-  }
+    console.info('日志服务初始化成功');
+    return Promise.resolve();
+  },
 
   /**
    * 记录调试日志
@@ -51,9 +32,13 @@ class LogService {
    */
   debug(message, data = null) {
     if (this.enabled) {
-      console.debug(message, data);
+      if (data) {
+        console.debug(message, data);
+      } else {
+        console.debug(message);
+      }
     }
-  }
+  },
 
   /**
    * 记录信息日志
@@ -62,9 +47,13 @@ class LogService {
    */
   info(message, data = null) {
     if (this.enabled) {
-      console.info(message, data);
+      if (data) {
+        console.info(message, data);
+      } else {
+        console.info(message);
+      }
     }
-  }
+  },
 
   /**
    * 记录警告日志
@@ -73,9 +62,13 @@ class LogService {
    */
   warn(message, data = null) {
     if (this.enabled) {
-      console.warn(message, data);
+      if (data) {
+        console.warn(message, data);
+      } else {
+        console.warn(message);
+      }
     }
-  }
+  },
 
   /**
    * 记录错误日志
@@ -84,32 +77,29 @@ class LogService {
    */
   error(message, data = null) {
     if (this.enabled) {
-      console.error(message, data);
+      if (data) {
+        console.error(message, data);
+      } else {
+        console.error(message);
+      }
     }
-  }
+  },
 
   /**
    * 启用日志
    */
   enable() {
     this.enabled = true;
-  }
+  },
 
   /**
    * 禁用日志
    */
   disable() {
     this.enabled = false;
-  }
-}
+  },
+};
 
-// 创建单例实例
-const logService = new LogService();
-
-// 初始化
-logService.initialize().catch(error => {
-  console.error('初始化日志服务失败', error);
-});
-
-export { logService };
-export default logService;
+module.exports = { logService, LOG_LEVELS };
+module.exports.default = logService;
+module.exports.logService = logService;

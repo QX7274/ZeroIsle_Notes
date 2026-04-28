@@ -20,7 +20,7 @@ class KnowledgeGraph extends Realm.Object {
       settings: { type: 'string', default: '{}' }, // 存储为JSON字符串
       user_id: 'string',
       category_id: { type: 'string', optional: true },
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
       shared_with: { type: 'string', default: '[]' }, // 存储为JSON字符串
       is_favorite: { type: 'bool', default: false },
       is_deleted: { type: 'bool', default: false },
@@ -339,11 +339,11 @@ class KnowledgeGraph extends Realm.Object {
       results = results.sorted('updated_at', true);
     }
 
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
+    // 分页 (性能优化：先 slice 再 materialize)
+    if (options.skip !== undefined || options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = results.slice(skip, skip + limit);
     }
 
     return results;
@@ -367,7 +367,7 @@ class KnowledgeGraph extends Realm.Object {
         const sharedWith = JSON.parse(graph.shared_with || '[]');
         const share = sharedWith.find(s => s.user_id === userId);
 
-        if (!share) return false;
+        if (!share) {return false;}
 
         // 如果指定了权限，检查权限
         if (permission && share.permission !== permission) {
@@ -436,11 +436,11 @@ class KnowledgeGraph extends Realm.Object {
     // 排序 - 由于Realm不支持文本搜索评分，我们使用更新时间排序
     results = results.sorted('updated_at', true);
 
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
+    // 分页 (性能优化：先 slice 再 materialize)
+    if (options.skip !== undefined || options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = results.slice(skip, skip + limit);
     }
 
     return results;

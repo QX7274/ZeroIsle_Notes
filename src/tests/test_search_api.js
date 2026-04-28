@@ -11,7 +11,7 @@ async function testSearch() {
   const query = '测试';
   const params = {
     page: 1,
-    page_size: 10
+    page_size: 10,
   };
   const response = await searchApi.search(query, params);
   console.log('响应:', response);
@@ -28,7 +28,7 @@ async function testAdvancedSearch() {
     date_to: '2023-12-31',
     tags: ['测试', 'API'],
     page: 1,
-    page_size: 10
+    page_size: 10,
   };
   const response = await searchApi.advancedSearch(searchParams);
   console.log('响应:', response);
@@ -41,7 +41,7 @@ async function testSemanticSearch() {
   const query = '如何使用人工智能提高工作效率';
   const params = {
     page: 1,
-    page_size: 10
+    page_size: 10,
   };
   const response = await searchApi.semanticSearch(query, params);
   console.log('响应:', response);
@@ -54,7 +54,7 @@ async function testSearchByTags() {
   const tags = ['测试', 'API'];
   const params = {
     page: 1,
-    page_size: 10
+    page_size: 10,
   };
   const response = await searchApi.searchByTags(tags, params);
   console.log('响应:', response);
@@ -78,7 +78,7 @@ async function testTextSearch() {
   const params = {
     content_type: 'note',
     page: 1,
-    page_size: 10
+    page_size: 10,
   };
   const response = await searchApi.textSearch(query, params);
   console.log('响应:', response);
@@ -91,7 +91,7 @@ async function testKnowledgeGraphSearch() {
   const query = '人工智能';
   const params = {
     depth: 2,
-    max_results: 10
+    max_results: 10,
   };
   const response = await searchApi.knowledgeGraphSearch(query, params);
   console.log('响应:', response);
@@ -120,31 +120,31 @@ async function runTests() {
   try {
     // 基础搜索
     await testSearch();
-    
+
     // 高级搜索
     await testAdvancedSearch();
-    
+
     // 语义搜索
     await testSemanticSearch();
-    
+
     // 标签搜索
     await testSearchByTags();
-    
+
     // 获取搜索建议
     await testGetSearchSuggestions();
-    
+
     // 文本搜索
     await testTextSearch();
-    
+
     // 知识图谱搜索
     await testKnowledgeGraphSearch();
-    
+
     // 获取搜索历史
     await testGetSearchHistory();
-    
+
     // 清除搜索历史
     await testClearSearchHistory();
-    
+
     console.log('所有测试完成!');
   } catch (error) {
     console.error('测试过程中出错:', error);

@@ -14,8 +14,7 @@ try:
         NoteShareViewSet, NoteVersionViewSet, NoteAttachmentViewSet,
         NoteCommentViewSet, NoteCollaborationViewSet, NoteTemplateViewSet,
         NoteBackupViewSet, NoteReminderViewSet, NotificationViewSet,
-        HandwritingViewSet, OCRModelViewSet, OCRTrainingDataViewSet,
-        WhisperModelViewSet, WhisperTrainingDataViewSet
+        HandwritingViewSet, WhisperModelViewSet, WhisperTrainingDataViewSet
     )
 except ImportError:
     pass
@@ -40,8 +39,6 @@ try:
     router.register(r'reminders', NoteReminderViewSet, basename='reminder')
     router.register(r'notifications', NotificationViewSet, basename='notification')
     router.register(r'handwriting', HandwritingViewSet, basename='handwriting')
-    router.register(r'ocr-models', OCRModelViewSet, basename='ocr-model')
-    router.register(r'ocr-training-data', OCRTrainingDataViewSet, basename='ocr-training-data')
     router.register(r'whisper-models', WhisperModelViewSet, basename='whisper-model')
     router.register(r'whisper-training-data', WhisperTrainingDataViewSet, basename='whisper-training-data')
 except NameError:

@@ -73,18 +73,18 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           engine: aiEngine,
           baidu_api_key: baiduApiKey,
           baidu_secret_key: baiduSecretKey,
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       } else {
         // 创建新设置
         await realmService.create('ai_settings', {
-          _id: new Realm.BSON.ObjectId().toHexString(),
+          _id: realmService.createObjectId(),
           type: 'assistant_config',
           engine: aiEngine,
           baidu_api_key: baiduApiKey,
           baidu_secret_key: baiduSecretKey,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       }
 
@@ -122,16 +122,16 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
         // 更新现有设置
         await realmService.update('ai_settings', existingSettings._id, {
           engine: AIAssistantModule.ENGINE_BAIDU,
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       } else {
         // 创建新设置
         await realmService.create('ai_settings', {
-          _id: new Realm.BSON.ObjectId().toHexString(),
+          _id: realmService.createObjectId(),
           type: 'assistant_config',
           engine: AIAssistantModule.ENGINE_BAIDU,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       }
 

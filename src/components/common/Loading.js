@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
-import { SPACING } from '../../utils/constants/dimensions';
+import token, { SPACING, RADIUS, OPACITY, Z_INDEX, ANIMATION } from '../../theme/tokens';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
@@ -49,33 +49,24 @@ const getStyles = (colors) => ({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: SPACING.MEDIUM,
+    padding: SPACING.md,
   },
   fullscreen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    zIndex: 999,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background
+      ? `${colors.background}CC` // 80% opacity hex if color is hex
+      : 'rgba(255, 255, 255, 0.8)',
+    zIndex: Z_INDEX.overlay,
   },
   indicator: {
-    marginBottom: SPACING.SMALL,
+    marginBottom: SPACING.sm,
   },
   text: {
     color: colors.text || '#000000',
     fontSize: 16,
     textAlign: 'center',
+    opacity: OPACITY.high,
   },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  container: {},
-  fullscreen: {},
-  indicator: {},
-  text: {},
 });
 
 export default Loading;

@@ -171,7 +171,7 @@ const BindPhone = ({ navigation }) => {
               <TouchableOpacity
                 style={[
                   styles.sendCodeButton,
-                  { backgroundColor: countdown > 0 ? colors.border : colors.primary }
+                  { backgroundColor: countdown > 0 ? colors.border : colors.primary },
                 ]}
                 onPress={handleSendCode}
                 disabled={countdown > 0 || isSendingCode}

@@ -349,7 +349,7 @@ class CanvasElement extends Realm.Object {
 
     if (group_id !== undefined) {
       if (group_id === null) {
-        query += ` AND group_id = null`;
+        query += ' AND group_id = null';
       } else {
         query += ` AND group_id = "${group_id}"`;
       }

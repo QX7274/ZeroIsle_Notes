@@ -20,7 +20,6 @@ try:
     from .reminder import NoteReminderViewSet
     from .notification import NotificationViewSet
 
-    from .ocr import OCRModelViewSet, OCRTrainingDataViewSet
     from .whisper import WhisperModelViewSet, WhisperTrainingDataViewSet
 except ImportError:
     pass

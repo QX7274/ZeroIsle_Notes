@@ -9,6 +9,36 @@
   - **UserProfile**: 用户资料模型，详细信息
   - **UserSettings**: 用户设置模型，个性化设置
   - **VerificationCode**: 验证码模型，验证码记录
+
+## 模型架构 (Model Architecture)
+
+本模块采用混合数据库架构，明确区分 Django ORM 模型与 MongoEngine 文档模型：
+
+### 1. Django ORM 模型 (`django.contrib.auth.models.User`)
+- **用途**: 仅用于 Django Admin 管理后台访问、Django 内置认证机制兼容。
+- **导入方式**: 
+  ```python
+  from users.models import DjangoUser
+  # 或
+  from django.contrib.auth import get_user_model
+  User = get_user_model()
+  ```
+
+### 2. MongoEngine 文档模型 (`users.mongodb_models.User`)
+- **用途**: 核心业务数据存储，包括用户注册信息、详细资料、关联数据等。
+- **导入方式**:
+  ```python
+  from users.mongodb_models import User as MongoUser
+  # 或
+  from users.models import MongoUser
+  ```
+
+### 3. 模型别名 (`users.models.__init__.py`)
+为了避免混淆，`users.models` 提供了明确的导出：
+- `User` -> `DjangoUser` (保持 Django 默认行为)
+- `MongoUser` -> `users.mongodb_models.User`
+- `VerificationCode` -> `users.models.verification_code.VerificationCode`
+
 - **auth.py**: 自定义认证后端
   - **MongoDBUserBackend**: MongoDB用户认证后端
 - **serializers/**: 序列化器

@@ -257,7 +257,7 @@ class SyncInfoModel {
     try {
       // 更新时间
       this.data.updated_at = new Date();
-      
+
       // 保存同步信息
       await this.data.save();
       return this;

@@ -6,6 +6,7 @@ import {
   View,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,10 +23,11 @@ const MarkdownPreview = ({
   style,
   scrollEnabled = true,
   onLinkPress,
+  onWikiLinkPress, // New prop for handling wiki-links
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 获取Markdown样式
   const markdownStyles = {
     body: {
@@ -159,27 +161,41 @@ const MarkdownPreview = ({
       borderRadius: dimensions.BORDER_RADIUS.MEDIUM,
     },
   };
-  
+
   // 渲染内容
   const renderContent = () => {
     // 确保内容不为空
-    if (!content) return <Text>没有内容</Text>;
-    
+    if (!content) {return <Text>没有内容</Text>;}
+
     return (
       <Markdown
         style={markdownStyles}
+        rules={{
+          wikilink: (node, children, parent, styles) => (
+            <TouchableOpacity
+              key={node.key}
+              onPress={() => onWikiLinkPress && onWikiLinkPress(node.content)}
+            >
+              <Text style={{ color: theme.colors.secondary, textDecorationLine: 'underline' }}>
+                {node.content}
+              </Text>
+            </TouchableOpacity>
+          ),
+        }}
         onLinkPress={(url) => {
+          // Handle regular links
           if (onLinkPress) {
             return onLinkPress(url);
           }
-          return true; // 默认行为
+          return true; // Default behavior
         }}
       >
+        {`[[${content}]]`}
         {content}
       </Markdown>
     );
   };
-  
+
   // 如果启用滚动，则使用ScrollView包装
   if (scrollEnabled) {
     return (
@@ -191,7 +207,7 @@ const MarkdownPreview = ({
       </ScrollView>
     );
   }
-  
+
   // 否则直接渲染
   return (
     <View style={[styles.container, style]}>

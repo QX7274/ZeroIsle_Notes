@@ -63,11 +63,11 @@ const CreatePostScreen = ({ navigation }) => {
       setAvailableTags(tagsResult || []);
     } catch (error) {
       console.error('加载分类和标签失败:', error);
-      
+
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '加载分类和标签',
-          customMessage: '网络连接失败，无法加载分类和标签'
+          customMessage: '网络连接失败，无法加载分类和标签',
         });
       }
 
@@ -108,7 +108,7 @@ const CreatePostScreen = ({ navigation }) => {
         maxHeight: 1000,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         Alert.alert('错误', '选择图片失败: ' + result.errorMessage);
@@ -273,7 +273,7 @@ const CreatePostScreen = ({ navigation }) => {
               name: attachment.name,
               type: attachment.type,
               size: attachment.size,
-              index: index
+              index: index,
             });
           });
 
@@ -330,12 +330,12 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 渲染分类选择器
   const renderCategoryPicker = () => {
-    if (!showCategoryPicker) return null;
+    if (!showCategoryPicker) {return null;}
 
     return (
       <View style={[
         styles.pickerContainer,
-        { backgroundColor: colors.card }
+        { backgroundColor: colors.card },
       ]}>
         <Text
           variant="body"
@@ -354,7 +354,7 @@ const CreatePostScreen = ({ navigation }) => {
                 style={[
                   styles.categoryItem,
                   selectedCategory === category.id && styles.categoryItemSelected,
-                  selectedCategory === category.id && { backgroundColor: colors.primary }
+                  selectedCategory === category.id && { backgroundColor: colors.primary },
                 ]}
                 onPress={() => handleSelectCategory(category.id)}
               >
@@ -393,12 +393,12 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 渲染标签选择器
   const renderTagPicker = () => {
-    if (!showTagPicker) return null;
+    if (!showTagPicker) {return null;}
 
     return (
       <View style={[
         styles.pickerContainer,
-        { backgroundColor: colors.card }
+        { backgroundColor: colors.card },
       ]}>
         <Text
           variant="body"
@@ -418,7 +418,7 @@ const CreatePostScreen = ({ navigation }) => {
                   style={[
                     styles.tagItem,
                     selectedTags.includes(tag.id) && styles.tagItemSelected,
-                    selectedTags.includes(tag.id) && { backgroundColor: colors.primary }
+                    selectedTags.includes(tag.id) && { backgroundColor: colors.primary },
                   ]}
                   onPress={() => handleToggleTag(tag.id)}
                 >
@@ -458,14 +458,14 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 获取当前选中的分类名称
   const getSelectedCategoryName = () => {
-    if (!selectedCategory) return '无分类';
+    if (!selectedCategory) {return '无分类';}
     const category = availableCategories.find(c => c.id === selectedCategory);
     return category ? category.name : '无分类';
   };
 
   // 获取当前选中的标签名称
   const getSelectedTagsText = () => {
-    if (selectedTags.length === 0) return '无标签';
+    if (selectedTags.length === 0) {return '无标签';}
     const selectedTagNames = selectedTags.map(tagId => {
       const tag = availableTags.find(t => t.id === tagId);
       return tag ? tag.name : '';
@@ -475,14 +475,14 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 获取文件大小的可读格式
   const getReadableFileSize = (size) => {
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    if (size < 1024) {return `${size} B`;}
+    if (size < 1024 * 1024) {return `${(size / 1024).toFixed(1)} KB`;}
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // 获取文件图标
   const getFileIcon = (fileName) => {
-    if (!fileName) return 'insert-drive-file';
+    if (!fileName) {return 'insert-drive-file';}
 
     const extension = fileName.split('.').pop().toLowerCase();
 
@@ -520,7 +520,7 @@ const CreatePostScreen = ({ navigation }) => {
 
   // 渲染附件列表
   const renderAttachmentsList = () => {
-    if (attachments.length === 0) return null;
+    if (attachments.length === 0) {return null;}
 
     return (
       <View style={styles.attachmentsContainer}>
@@ -616,7 +616,7 @@ const CreatePostScreen = ({ navigation }) => {
         <TextInput
           style={[
             styles.titleInput,
-            { color: colors.text, borderBottomColor: colors.border }
+            { color: colors.text, borderBottomColor: colors.border },
           ]}
           value={title}
           onChangeText={setTitle}
@@ -653,7 +653,7 @@ const CreatePostScreen = ({ navigation }) => {
         <TextInput
           style={[
             styles.contentInput,
-            { color: colors.text, backgroundColor: colors.background }
+            { color: colors.text, backgroundColor: colors.background },
           ]}
           value={content}
           onChangeText={setContent}
@@ -685,7 +685,7 @@ const CreatePostScreen = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.metadataButton,
-              { borderColor: colors.border }
+              { borderColor: colors.border },
             ]}
             onPress={() => setShowCategoryPicker(true)}
           >
@@ -704,7 +704,7 @@ const CreatePostScreen = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.metadataButton,
-              { borderColor: colors.border }
+              { borderColor: colors.border },
             ]}
             onPress={() => setShowTagPicker(true)}
           >
@@ -732,14 +732,14 @@ const CreatePostScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.toggleButton,
-                { backgroundColor: isPublic ? colors.primary : colors.border }
+                { backgroundColor: isPublic ? colors.primary : colors.border },
               ]}
               onPress={() => setIsPublic(!isPublic)}
             >
               <View
                 style={[
                   styles.toggleIndicator,
-                  { backgroundColor: colors.card, left: isPublic ? 20 : 2 }
+                  { backgroundColor: colors.card, left: isPublic ? 20 : 2 },
                 ]}
               />
             </TouchableOpacity>
@@ -755,14 +755,14 @@ const CreatePostScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.toggleButton,
-                { backgroundColor: allowComments ? colors.primary : colors.border }
+                { backgroundColor: allowComments ? colors.primary : colors.border },
               ]}
               onPress={() => setAllowComments(!allowComments)}
             >
               <View
                 style={[
                   styles.toggleIndicator,
-                  { backgroundColor: colors.card, left: allowComments ? 20 : 2 }
+                  { backgroundColor: colors.card, left: allowComments ? 20 : 2 },
                 ]}
               />
             </TouchableOpacity>

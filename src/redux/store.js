@@ -11,6 +11,7 @@ import { persistReducer } from 'redux-persist';
 import realmStorage from '../utils/realmStorage';
 
 // 导入reducers
+// 导入reducers
 import authReducer from './slices/authSlice';
 import notesReducer from './slices/notesSlice';
 import uiReducer from './slices/uiSlice';
@@ -24,9 +25,12 @@ import aiAssistantReducer from './slices/aiAssistantSlice';
 import reminderReducer from './slices/reminderSlice';
 import settingsReducer from './slices/settingsSlice';
 import categoryReducer from './slices/categorySlice';
+import knowledgeBaseReducer from './slices/knowledgeBaseSlice';
+import personalActivityReducer from './slices/personalActivitySlice';
 
 // 导入传统reducers
 import userReducer from './reducers/userReducer';
+import secureStorage from '../utils/secureStorage';
 
 // 添加调试信息
 console.log('redux/store.js: 开始创建store...');
@@ -36,24 +40,32 @@ const configureAppStore = () => {
   try {
     console.log('redux/store.js: reducers导入成功');
 
-    // 配置Redux Persist
-    const persistConfig = {
+    // Root Persistence Configuration (Realm - for non-sensitive data)
+    const rootPersistConfig = {
       key: 'root',
       storage: realmStorage,
-      // 只持久化这些reducer
-      whitelist: ['auth', 'settings', 'user'],
-      // 调试模式
+      // Blacklist auth so it's not saved in Realm
+      blacklist: ['auth'],
+      whitelist: ['settings', 'user'], // removed 'auth'
       debug: __DEV__,
-      // 添加超时设置，避免无限等待
       timeout: 10000,
+    };
+
+    // Auth Persistence Configuration (Secure Storage - for tokens)
+    const authPersistConfig = {
+      key: 'auth',
+      storage: secureStorage,
+      whitelist: ['token', 'refreshToken', 'user'], // Persist only necessary auth fields
     };
 
     // 合并所有reducers
     const rootReducer = combineReducers({
-      auth: authReducer,
+      // Wrap authReducer with secure persistence
+      auth: persistReducer(authPersistConfig, authReducer),
       notes: notesReducer,
       ui: uiReducer,
       knowledgeGraph: knowledgeGraphReducer,
+      knowledgeBase: knowledgeBaseReducer,
       mindMap: mindMapReducer,
       community: communityReducer,
       search: searchReducer,
@@ -63,11 +75,12 @@ const configureAppStore = () => {
       reminders: reminderReducer,
       settings: settingsReducer,
       category: categoryReducer,
+      personalActivity: personalActivityReducer,
       user: userReducer,
     });
 
-    // 创建持久化reducer
-    const persistedReducer = persistReducer(persistConfig, rootReducer);
+    // Apply root persistence to the combined reducer
+    const persistedReducer = persistReducer(rootPersistConfig, rootReducer);
 
     // 配置Redux存储
     const store = configureStore({
@@ -102,19 +115,19 @@ const configureAppStore = () => {
         notes: notesReducer,
         auth: authReducer,
         settings: settingsReducer,
-        fallback: (state = { initialized: true, error: error.message }, action) => state
+        fallback: (state = { initialized: true, error: error.message }, action) => state,
       },
       middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
           serializableCheck: false,
           immutableCheck: false,
         }),
-      devTools: __DEV__
+      devTools: __DEV__,
     });
-    
+
     // 记录错误详情以便调试
     console.error('store创建失败原因:', error);
-    console.error('错误堆栈:', error.stack);;
+    console.error('错误堆栈:', error.stack);
 
     console.log('redux/store.js: 创建备选store成功');
 

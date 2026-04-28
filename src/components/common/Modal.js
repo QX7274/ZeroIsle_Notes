@@ -52,7 +52,7 @@ const Modal = () => {
             title="确定"
             onPress={() => {
               closeModal();
-              if (onConfirm) onConfirm();
+              if (onConfirm) {onConfirm();}
             }}
             style={dynamicStyles.button}
           />
@@ -71,19 +71,19 @@ const Modal = () => {
         {message && <Text style={dynamicStyles.message}>{message}</Text>}
         <View style={dynamicStyles.buttonContainer}>
           <Button
-            title={cancelText || "取消"}
+            title={cancelText || '取消'}
             type="outline"
             onPress={() => {
               closeModal();
-              if (onCancel) onCancel();
+              if (onCancel) {onCancel();}
             }}
             style={[dynamicStyles.button, dynamicStyles.cancelButton]}
           />
           <Button
-            title={confirmText || "确定"}
+            title={confirmText || '确定'}
             onPress={() => {
               closeModal();
-              if (onConfirm) onConfirm();
+              if (onConfirm) {onConfirm();}
             }}
             style={dynamicStyles.button}
           />

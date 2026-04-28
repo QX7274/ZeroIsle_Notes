@@ -1,0 +1,375 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+EEEEEE
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_bind
+ing_methods (users.te
+sts.test_auth.UserAut
+hTest.test_user_bindi
+ng_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_logi
+n_with_email (users.t
+ests.test_auth.UserAu
+thTest.test_user_logi
+n_with_email)
+测试邮箱登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_logi
+n_with_phone (users.t
+ests.test_auth.UserAu
+thTest.test_user_logi
+n_with_phone)
+测试手机号登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_logi
+n_with_username (user
+s.tests.test_auth.Use
+rAuthTest.test_user_l
+ogin_with_username)
+测试用户名登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_regi
+ster_with_phone (user
+s.tests.test_auth.Use
+rAuthTest.test_user_r
+egister_with_phone)
+测试手机号注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+Found 6 test(s).
+System check identified no issues (0 silenced).
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_regi
+ster_with_username (u
+sers.tests.test_auth.
+UserAuthTest.test_use
+r_register_with_usern
+ame)
+测试用户名注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 21, in setUp
+    self.register_url
+ = reverse('user-regi
+ster')
+                     
+   ~~~~~~~^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\base.
+py", line 98, in reve
+rse
+    resolved_url = re
+solver._reverse_with_
+prefix(view, prefix, 
+*args, **kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\urls\resol
+vers.py", line 831, i
+n _reverse_with_prefi
+x
+    raise NoReverseMa
+tch(msg)
+django.urls.exception
+s.NoReverseMatch: Rev
+erse for 'user-regist
+er' not found. 'user-
+register' is not a va
+lid view function or 
+pattern name.
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 0.064s
+
+FAILED (errors=6)
+Destroying test datab
+ase for alias 'defaul
+t'...
+

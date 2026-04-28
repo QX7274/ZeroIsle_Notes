@@ -46,6 +46,7 @@ function isEqual(a, b) {
   }
 
   if (typeof a !== typeof b) {
+    // 比较语义：类型不一致即不相等（非错误）
     return false;
   }
 
@@ -55,10 +56,12 @@ function isEqual(a, b) {
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) {
+      // 比较语义：数组长度不同即不相等（非错误）
       return false;
     }
     for (let i = 0; i < a.length; i++) {
       if (!isEqual(a[i], b[i])) {
+        // 比较语义：任一元素不相等即整体不相等（非错误）
         return false;
       }
     }
@@ -70,11 +73,13 @@ function isEqual(a, b) {
     const keysB = Object.keys(b);
 
     if (keysA.length !== keysB.length) {
+      // 比较语义：键数量不同即不相等（非错误）
       return false;
     }
 
     for (const key of keysA) {
       if (!keysB.includes(key) || !isEqual(a[key], b[key])) {
+        // 比较语义：缺失键或值不等即不相等（非错误）
         return false;
       }
     }
@@ -82,6 +87,7 @@ function isEqual(a, b) {
     return true;
   }
 
+  // 比较语义：其余情况判定为不相等（非错误）
   return false;
 }
 
@@ -97,8 +103,8 @@ function isEqual(a, b) {
 export function mergeWithConflictResolution(localObj, remoteObj, options = {}) {
   const { strategy = 'newer', timestampField = 'updated_at' } = options;
 
-  if (!localObj) return remoteObj;
-  if (!remoteObj) return localObj;
+  if (!localObj) {return remoteObj;}
+  if (!remoteObj) {return localObj;}
 
   // 如果策略是'local'，优先使用本地对象
   if (strategy === 'local') {
@@ -165,7 +171,7 @@ export function createSyncOperation(type, collection, documentId, data) {
     collection,
     document_id: documentId,
     data: data || {},
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -192,7 +198,7 @@ export function parseSyncError(error) {
         type: 'api',
         status,
         message: data.message || `API错误: ${status}`,
-        data
+        data,
       };
     }
 
@@ -205,7 +211,7 @@ export function parseSyncError(error) {
     return {
       type: 'unknown',
       message: error.message || '未知错误',
-      error
+      error,
     };
   } catch (parseError) {
     logService.error('解析同步错误失败', parseError);

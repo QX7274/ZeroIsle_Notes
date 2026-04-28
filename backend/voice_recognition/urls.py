@@ -37,6 +37,12 @@ from .views.realtime_transcription import (
     finish_session,
     get_session_status
 )
+from .views.realtime_recording import (
+    start_recording,
+    upload_audio_chunk,
+    stop_recording,
+    generate_realtime_summary
+)
 
 # 创建路由器
 router = DefaultRouter()
@@ -84,4 +90,10 @@ urlpatterns = [
     path('realtime/get-results/', get_results, name='get_results'),
     path('realtime/finish-session/', finish_session, name='finish_session'),
     path('realtime/session-status/', get_session_status, name='get_session_status'),
+
+    # 实时录音和转录
+    path('recording/start/', start_recording, name='start_recording'),
+    path('recording/upload-chunk/', upload_audio_chunk, name='upload_audio_chunk'),
+    path('recording/stop/', stop_recording, name='stop_recording'),
+    path('recording/realtime-summary/', generate_realtime_summary, name='generate_realtime_summary'),
 ]

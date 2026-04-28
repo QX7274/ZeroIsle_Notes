@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端AI聊天对象
  */
 export const toFrontendChat = (chat) => {
-  if (!chat) return null;
-  
+  if (!chat) {return null;}
+
   try {
     return {
       id: chat._id,
@@ -48,8 +48,8 @@ export const toFrontendChat = (chat) => {
  * @returns {Object} 前端AI聊天消息对象
  */
 export const toFrontendMessage = (message) => {
-  if (!message) return null;
-  
+  if (!message) {return null;}
+
   try {
     return {
       id: message._id,
@@ -77,8 +77,8 @@ export const toFrontendMessage = (message) => {
  * @returns {Object} 后端AI聊天模型
  */
 export const toBackendChat = (chat) => {
-  if (!chat) return null;
-  
+  if (!chat) {return null;}
+
   try {
     return {
       _id: chat.id,
@@ -111,8 +111,8 @@ export const toBackendChat = (chat) => {
  * @returns {Object} 后端AI聊天消息模型
  */
 export const toBackendMessage = (message) => {
-  if (!message) return null;
-  
+  if (!message) {return null;}
+
   try {
     return {
       _id: message.id,
@@ -144,8 +144,8 @@ export const createChat = async (chatData, userId) => {
   try {
     // 准备聊天数据
     const now = new Date();
-    const chatId = `chat_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const chatId = realmService.createObjectId();
+
     const backendChat = {
       _id: chatId,
       title: chatData.title || '新对话',
@@ -165,14 +165,14 @@ export const createChat = async (chatData, userId) => {
       tags: [...(chatData.tags || [])],
       folder: chatData.folder || 'default',
     };
-    
+
     // 创建聊天模型
     const realm = await realmService.getRealm();
     let chat;
     realm.write(() => {
       chat = realm.create('AIChat', backendChat);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: chat._id,
@@ -181,7 +181,7 @@ export const createChat = async (chatData, userId) => {
       data: chat.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端聊天对象
     return toFrontendChat(chat);
   } catch (error) {
@@ -201,15 +201,15 @@ export const addMessage = async (chatId, messageData) => {
     // 查找聊天
     const realm = await realmService.getRealm();
     const chat = realm.objectForPrimaryKey('AIChat', chatId);
-    
+
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
     }
-    
+
     // 准备消息数据
     const now = new Date();
-    const messageId = `message_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const messageId = realmService.createObjectId();
+
     const backendMessage = {
       _id: messageId,
       chat_id: chatId,
@@ -224,19 +224,19 @@ export const addMessage = async (chatId, messageData) => {
       model: messageData.model || chat.model,
       metadata: { ...(messageData.metadata || {}) },
     };
-    
+
     // 创建消息模型
     let message;
     realm.write(() => {
       message = realm.create('AIChat', backendMessage);
     });
-    
+
     // 更新聊天
     chat.messages.push(message);
     chat.updated_at = now;
     chat.is_synced = false;
     await chat.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: message._id,
@@ -245,7 +245,7 @@ export const addMessage = async (chatId, messageData) => {
       data: message.toJSON(),
       user_id: chat.user_id,
     });
-    
+
     // 返回前端消息对象
     return toFrontendMessage(message);
   } catch (error) {
@@ -265,29 +265,29 @@ export const updateChat = async (chatId, chatData) => {
     // 查找聊天
     const realm = await realmService.getRealm();
     const chat = realm.objectForPrimaryKey('AIChat', chatId);
-    
+
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
     }
-    
+
     // 更新聊天属性
-    if (chatData.title !== undefined) chat.title = chatData.title;
-    if (chatData.model !== undefined) chat.model = chatData.model;
-    if (chatData.systemPrompt !== undefined) chat.system_prompt = chatData.systemPrompt;
-    if (chatData.temperature !== undefined) chat.temperature = chatData.temperature;
-    if (chatData.maxTokens !== undefined) chat.max_tokens = chatData.maxTokens;
-    if (chatData.isStarred !== undefined) chat.is_starred = chatData.isStarred;
-    if (chatData.isArchived !== undefined) chat.is_archived = chatData.isArchived;
-    if (chatData.tags !== undefined) chat.tags = [...chatData.tags];
-    if (chatData.folder !== undefined) chat.folder = chatData.folder;
-    
+    if (chatData.title !== undefined) {chat.title = chatData.title;}
+    if (chatData.model !== undefined) {chat.model = chatData.model;}
+    if (chatData.systemPrompt !== undefined) {chat.system_prompt = chatData.systemPrompt;}
+    if (chatData.temperature !== undefined) {chat.temperature = chatData.temperature;}
+    if (chatData.maxTokens !== undefined) {chat.max_tokens = chatData.maxTokens;}
+    if (chatData.isStarred !== undefined) {chat.is_starred = chatData.isStarred;}
+    if (chatData.isArchived !== undefined) {chat.is_archived = chatData.isArchived;}
+    if (chatData.tags !== undefined) {chat.tags = [...chatData.tags];}
+    if (chatData.folder !== undefined) {chat.folder = chatData.folder;}
+
     // 更新时间
     chat.updated_at = new Date();
     chat.is_synced = false;
-    
+
     // 保存聊天
     await chat.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: chat._id,
@@ -296,7 +296,7 @@ export const updateChat = async (chatId, chatData) => {
       data: chat.toJSON(),
       user_id: chat.user_id,
     });
-    
+
     // 返回前端聊天对象
     return toFrontendChat(chat);
   } catch (error) {
@@ -316,11 +316,11 @@ export const deleteChat = async (chatId, permanent = false) => {
     // 查找聊天
     const realm = await realmService.getRealm();
     const chat = realm.objectForPrimaryKey('AIChat', chatId);
-    
+
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
     }
-    
+
     if (permanent) {
       // 永久删除
       await chat.remove({ soft: false });
@@ -330,7 +330,7 @@ export const deleteChat = async (chatId, permanent = false) => {
       chat.deleted_at = new Date();
       chat.is_synced = false;
       await chat.save();
-      
+
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: chat._id,
@@ -340,7 +340,7 @@ export const deleteChat = async (chatId, permanent = false) => {
         user_id: chat.user_id,
       });
     }
-    
+
     return true;
   } catch (error) {
     logService.error(`删除AI聊天失败: ${chatId}`, error);
@@ -359,17 +359,17 @@ export const getChats = async (userId, options = {}) => {
     // 查找聊天
     const realm = await realmService.getRealm();
     let chats = realm.objects('AIChat').filtered(`user_id = "${userId}"`);
-    
+
     // 应用排序
     if (options.sortBy) {
       chats = chats.sorted(options.sortBy, options.sortOrder === 'desc');
     }
-    
+
     // 应用分页
     if (options.limit) {
       chats = chats.slice(0, options.limit);
     }
-    
+
     // 转换为前端聊天对象
     return chats.map(toFrontendChat);
   } catch (error) {
@@ -388,11 +388,11 @@ export const getChatById = async (chatId) => {
     // 查找聊天
     const realm = await realmService.getRealm();
     const chat = realm.objectForPrimaryKey('AIChat', chatId);
-    
+
     if (!chat) {
       throw new Error(`聊天不存在: ${chatId}`);
     }
-    
+
     // 转换为前端聊天对象
     return toFrontendChat(chat);
   } catch (error) {

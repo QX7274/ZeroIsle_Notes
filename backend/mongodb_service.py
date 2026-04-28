@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class MongoDBService:
     def __init__(self):
         # 从环境变量获取MongoDB连接信息
-        mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+        mongo_uri = os.environ.get('MONGO_URI')
         mongo_db = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
 
         # 如果没有提供MONGO_URI，则尝试使用传统的连接参数
@@ -36,12 +36,15 @@ class MongoDBService:
 
         # 创建MongoDB连接
         # 添加SSL参数
+        # 是否允许不安全的 TLS（仅用于开发调试）
+        allow_insecure = os.environ.get('ALLOW_INSECURE_TLS', '0') in ('1', 'true', 'True')
+
         if 'mongodb+srv' in mongo_uri:
             # MongoDB Atlas连接需要SSL参数
             self.client = MongoClient(
                 mongo_uri,
                 ssl=True,
-                tlsAllowInvalidCertificates=True,  # 允许无效证书
+                tlsAllowInvalidCertificates=allow_insecure,  # 生产请设置 ALLOW_INSECURE_TLS=0
                 connectTimeoutMS=30000,  # 连接超时时间
                 socketTimeoutMS=30000,   # 套接字超时时间
                 serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
@@ -57,6 +60,7 @@ class MongoDBService:
         self.async_client = None
         self.mongo_uri = mongo_uri
         self.mongo_db = mongo_db
+        self.allow_insecure = allow_insecure
 
         # 检查连接
         try:
@@ -87,7 +91,7 @@ class MongoDBService:
                 self.async_client = AsyncIOMotorClient(
                     self.mongo_uri,
                     ssl=True,
-                    tlsAllowInvalidCertificates=True,  # 允许无效证书
+                    tlsAllowInvalidCertificates=self.allow_insecure,  # 生产请设置 ALLOW_INSECURE_TLS=0
                     connectTimeoutMS=30000,  # 连接超时时间
                     socketTimeoutMS=30000,   # 套接字超时时间
                     serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
@@ -165,17 +169,19 @@ class MongoDBService:
             return None
 
     async def backup_database(self):
-        """备份数据库"""
+        """备份数据库（使用 BSON/JSON 安全序列化）"""
         try:
+            from bson import json_util
             backup_dir = f"backups/mongodb/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             os.makedirs(backup_dir, exist_ok=True)
 
-            # 导出数据
+            # 导出数据（逐行 JSONL）
             for collection in self.db.list_collection_names():
-                with open(f"{backup_dir}/{collection}.json", 'w') as f:
+                file_path = os.path.join(backup_dir, f"{collection}.jsonl")
+                with open(file_path, 'w', encoding='utf-8') as f:
                     cursor = self.db[collection].find()
                     for document in cursor:
-                        f.write(str(document) + '\n')
+                        f.write(json_util.dumps(document, ensure_ascii=False) + '\n')
 
             logger.info(f"数据库备份成功: {backup_dir}")
             return backup_dir
@@ -184,8 +190,9 @@ class MongoDBService:
             return None
 
     async def restore_database(self, backup_dir):
-        """恢复数据库"""
+        """恢复数据库（使用 BSON/JSON 安全反序列化）"""
         try:
+            from bson import json_util
             if not os.path.exists(backup_dir):
                 raise FileNotFoundError(f"备份目录不存在: {backup_dir}")
 
@@ -195,11 +202,12 @@ class MongoDBService:
 
             # 恢复数据
             for collection_file in os.listdir(backup_dir):
-                if collection_file.endswith('.json'):
-                    collection_name = collection_file[:-5]
-                    with open(f"{backup_dir}/{collection_file}", 'r') as f:
+                if collection_file.endswith('.jsonl'):
+                    collection_name = collection_file[:-6]
+                    file_path = os.path.join(backup_dir, collection_file)
+                    with open(file_path, 'r', encoding='utf-8') as f:
                         for line in f:
-                            document = eval(line.strip())
+                            document = json_util.loads(line.strip())
                             self.db[collection_name].insert_one(document)
 
             logger.info(f"数据库恢复成功: {backup_dir}")

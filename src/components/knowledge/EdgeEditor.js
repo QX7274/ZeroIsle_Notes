@@ -245,7 +245,7 @@ const EdgeEditor = ({
                     style={[
                       styles.nodeItem,
                       node.id === currentId && styles.selectedNodeItem,
-                      node.id === currentId && { borderColor: getNodeTypeColor(node.type) }
+                      node.id === currentId && { borderColor: getNodeTypeColor(node.type) },
                     ]}
                     onPress={() => {
                       if (isSource) {
@@ -261,7 +261,7 @@ const EdgeEditor = ({
                     <View
                       style={[
                         styles.nodeTypeIndicator,
-                        { backgroundColor: getNodeTypeColor(node.type) }
+                        { backgroundColor: getNodeTypeColor(node.type) },
                       ]}
                     />
                     <View style={styles.nodeInfo}>
@@ -336,7 +336,7 @@ const EdgeEditor = ({
               <TouchableOpacity
                 style={[
                   styles.nodeSelector,
-                  { borderColor: colors.border }
+                  { borderColor: colors.border },
                 ]}
                 onPress={() => {
                   setShowSourceSelector(true);
@@ -346,7 +346,7 @@ const EdgeEditor = ({
                 <View
                   style={[
                     styles.nodeSelectorIndicator,
-                    { backgroundColor: sourceId ? getNodeTypeColor(nodes.find(n => n.id === sourceId)?.type) : colors.border }
+                    { backgroundColor: sourceId ? getNodeTypeColor(nodes.find(n => n.id === sourceId)?.type) : colors.border },
                   ]}
                 />
                 <Text
@@ -372,7 +372,7 @@ const EdgeEditor = ({
               <TouchableOpacity
                 style={[
                   styles.nodeSelector,
-                  { borderColor: colors.border }
+                  { borderColor: colors.border },
                 ]}
                 onPress={() => {
                   setShowTargetSelector(true);
@@ -382,7 +382,7 @@ const EdgeEditor = ({
                 <View
                   style={[
                     styles.nodeSelectorIndicator,
-                    { backgroundColor: targetId ? getNodeTypeColor(nodes.find(n => n.id === targetId)?.type) : colors.border }
+                    { backgroundColor: targetId ? getNodeTypeColor(nodes.find(n => n.id === targetId)?.type) : colors.border },
                   ]}
                 />
                 <Text
@@ -412,14 +412,14 @@ const EdgeEditor = ({
                     style={[
                       styles.edgeTypeButton,
                       type === edgeType.value && styles.selectedEdgeType,
-                      type === edgeType.value && { borderColor: getEdgeTypeColor(edgeType.value) }
+                      type === edgeType.value && { borderColor: getEdgeTypeColor(edgeType.value) },
                     ]}
                     onPress={() => setType(edgeType.value)}
                   >
                     <View
                       style={[
                         styles.edgeTypeColor,
-                        { backgroundColor: getEdgeTypeColor(edgeType.value) }
+                        { backgroundColor: getEdgeTypeColor(edgeType.value) },
                       ]}
                     />
                     <Text
@@ -446,7 +446,7 @@ const EdgeEditor = ({
               <TextInput
                 style={[
                   styles.input,
-                  { color: colors.text, borderColor: colors.border }
+                  { color: colors.text, borderColor: colors.border },
                 ]}
                 value={label}
                 onChangeText={setLabel}
@@ -467,7 +467,7 @@ const EdgeEditor = ({
               <TextInput
                 style={[
                   styles.textArea,
-                  { color: colors.text, borderColor: colors.border }
+                  { color: colors.text, borderColor: colors.border },
                 ]}
                 value={description}
                 onChangeText={setDescription}
@@ -491,7 +491,7 @@ const EdgeEditor = ({
               <TextInput
                 style={[
                   styles.input,
-                  { color: colors.text, borderColor: colors.border }
+                  { color: colors.text, borderColor: colors.border },
                 ]}
                 value={weight}
                 onChangeText={setWeight}

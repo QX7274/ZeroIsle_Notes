@@ -21,7 +21,7 @@ export const ORIENTATION = {
 const useOrientation = () => {
   // 获取初始屏幕尺寸
   const [screenInfo, setScreenInfo] = useState(Dimensions.get('window'));
-  
+
   // 根据屏幕尺寸判断当前方向
   const isPortrait = screenInfo.height >= screenInfo.width;
   const isLandscape = screenInfo.width > screenInfo.height;

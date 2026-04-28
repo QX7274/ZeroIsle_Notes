@@ -37,7 +37,7 @@ const UserProfile = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 提取用户信息
   const {
     username,
@@ -51,19 +51,19 @@ const UserProfile = ({
     badges = [],
     recent_posts = [],
   } = user || {};
-  
+
   // 格式化日期
   const formatDate = (dateString) => {
-    if (!dateString) return '';
-    
+    if (!dateString) {return '';}
+
     const date = new Date(dateString);
     return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
   };
-  
+
   // 渲染徽章
   const renderBadges = () => {
-    if (!badges || badges.length === 0) return null;
-    
+    if (!badges || badges.length === 0) {return null;}
+
     return (
       <View style={styles.badgesContainer}>
         {badges.map((badge, index) => (
@@ -71,7 +71,7 @@ const UserProfile = ({
             key={`badge-${index}`}
             style={[
               styles.badgeItem,
-              { backgroundColor: badge.color || colors.primary }
+              { backgroundColor: badge.color || colors.primary },
             ]}
           >
             <Icon name={badge.icon || 'star'} size={12} color="#FFFFFF" />
@@ -87,11 +87,11 @@ const UserProfile = ({
       </View>
     );
   };
-  
+
   // 渲染最近帖子
   const renderRecentPosts = () => {
-    if (!recent_posts || recent_posts.length === 0) return null;
-    
+    if (!recent_posts || recent_posts.length === 0) {return null;}
+
     return (
       <View style={styles.recentPostsContainer}>
         <Text
@@ -101,13 +101,13 @@ const UserProfile = ({
         >
           最近发布
         </Text>
-        
+
         {recent_posts.map((post, index) => (
           <TouchableOpacity
             key={`post-${index}`}
             style={[
               styles.postItem,
-              { backgroundColor: colors.card }
+              { backgroundColor: colors.card },
             ]}
             onPress={() => onPostPress && onPostPress(post)}
           >
@@ -120,7 +120,7 @@ const UserProfile = ({
             >
               {post.title}
             </Text>
-            
+
             <View style={styles.postMeta}>
               <Text
                 variant="caption"
@@ -128,7 +128,7 @@ const UserProfile = ({
               >
                 {formatDate(post.created_at)}
               </Text>
-              
+
               <View style={styles.postStats}>
                 <Icon name="favorite" size={12} color={colors.textSecondary} />
                 <Text
@@ -138,7 +138,7 @@ const UserProfile = ({
                 >
                   {post.like_count || 0}
                 </Text>
-                
+
                 <Icon name="comment" size={12} color={colors.textSecondary} style={styles.postStatIcon} />
                 <Text
                   variant="caption"
@@ -154,7 +154,7 @@ const UserProfile = ({
       </View>
     );
   };
-  
+
   return (
     <ScrollView style={styles.container}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
@@ -167,7 +167,7 @@ const UserProfile = ({
             }
             style={styles.avatar}
           />
-          
+
           <View style={styles.userInfo}>
             <Text
               variant="heading"
@@ -177,7 +177,7 @@ const UserProfile = ({
             >
               {username || '匿名用户'}
             </Text>
-            
+
             <View style={styles.levelContainer}>
               <Icon name="military-tech" size={16} color="#FFD700" />
               <Text
@@ -191,7 +191,7 @@ const UserProfile = ({
           </View>
         </View>
       </View>
-      
+
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
           <Text
@@ -209,9 +209,9 @@ const UserProfile = ({
             帖子
           </Text>
         </View>
-        
+
         <View style={styles.statDivider} />
-        
+
         <View style={styles.statItem}>
           <Text
             variant="heading"
@@ -228,9 +228,9 @@ const UserProfile = ({
             粉丝
           </Text>
         </View>
-        
+
         <View style={styles.statDivider} />
-        
+
         <View style={styles.statItem}>
           <Text
             variant="heading"
@@ -248,7 +248,7 @@ const UserProfile = ({
           </Text>
         </View>
       </View>
-      
+
       <View style={styles.actionsContainer}>
         {isCurrentUser ? (
           <Button
@@ -267,7 +267,7 @@ const UserProfile = ({
               icon={isFollowing ? 'check' : 'add'}
               style={styles.actionButton}
             />
-            
+
             <Button
               title="发消息"
               onPress={onMessage}
@@ -278,9 +278,9 @@ const UserProfile = ({
           </>
         )}
       </View>
-      
+
       {renderBadges()}
-      
+
       <View style={styles.bioContainer}>
         <Text
           variant="heading"
@@ -289,7 +289,7 @@ const UserProfile = ({
         >
           个人简介
         </Text>
-        
+
         <Text
           variant="body"
           size="medium"
@@ -297,7 +297,7 @@ const UserProfile = ({
         >
           {bio || '这个人很懒，什么都没有留下...'}
         </Text>
-        
+
         <View style={styles.joinDateContainer}>
           <Icon name="event" size={16} color={colors.textSecondary} />
           <Text
@@ -309,7 +309,7 @@ const UserProfile = ({
           </Text>
         </View>
       </View>
-      
+
       {renderRecentPosts()}
     </ScrollView>
   );

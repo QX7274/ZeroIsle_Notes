@@ -16,7 +16,7 @@ class InfiniteCanvasStorage {
    * 初始化无限画布存储服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -74,7 +74,7 @@ class InfiniteCanvasStorage {
         paths: canvasData.paths || [],
         images: canvasData.images || [],
         created_at: canvasData.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       // 使用realmService保存数据
@@ -85,7 +85,7 @@ class InfiniteCanvasStorage {
     } catch (error) {
       console.error('保存画布失败:', error);
       logService.error('保存画布失败', { error: error.message, canvasId: canvasData?.id });
-      return false;
+      throw error;
     }
   }
 
@@ -105,7 +105,7 @@ class InfiniteCanvasStorage {
       }
 
       const canvas = await realmService.getData(this.collectionName, canvasId);
-      
+
       if (canvas) {
         console.log('获取画布成功:', canvas.title);
         return canvas;
@@ -116,7 +116,7 @@ class InfiniteCanvasStorage {
     } catch (error) {
       console.error('获取画布失败:', error);
       logService.error('获取画布失败', { error: error.message, canvasId });
-      return null;
+      throw error;
     }
   }
 
@@ -131,7 +131,7 @@ class InfiniteCanvasStorage {
       }
 
       const canvases = await realmService.getAllData(this.collectionName);
-      
+
       // 按更新时间排序
       const sortedCanvases = canvases.sort((a, b) => {
         const timeA = new Date(a.updated_at || a.created_at || 0);
@@ -144,7 +144,7 @@ class InfiniteCanvasStorage {
     } catch (error) {
       console.error('获取画布列表失败:', error);
       logService.error('获取画布列表失败', { error: error.message });
-      return [];
+      throw error;
     }
   }
 
@@ -164,13 +164,13 @@ class InfiniteCanvasStorage {
       }
 
       await realmService.deleteData(this.collectionName, canvasId);
-      
+
       console.log('画布删除成功:', canvasId);
       return true;
     } catch (error) {
       console.error('删除画布失败:', error);
       logService.error('删除画布失败', { error: error.message, canvasId });
-      return false;
+      throw error;
     }
   }
 
@@ -194,13 +194,13 @@ class InfiniteCanvasStorage {
       updateData.updated_at = new Date().toISOString();
 
       await realmService.updateData(this.collectionName, canvasId, updateData);
-      
+
       console.log('画布更新成功:', canvasId);
       return true;
     } catch (error) {
       console.error('更新画布失败:', error);
       logService.error('更新画布失败', { error: error.message, canvasId });
-      return false;
+      throw error;
     }
   }
 
@@ -215,13 +215,13 @@ class InfiniteCanvasStorage {
       }
 
       await realmService.clearCollection(this.collectionName);
-      
+
       console.log('所有画布数据已清空');
       return true;
     } catch (error) {
       console.error('清空画布数据失败:', error);
       logService.error('清空画布数据失败', { error: error.message });
-      return false;
+      throw error;
     }
   }
 
@@ -239,7 +239,7 @@ class InfiniteCanvasStorage {
       return canvases.length;
     } catch (error) {
       console.error('获取画布数量失败:', error);
-      return 0;
+      throw error;
     }
   }
 }

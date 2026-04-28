@@ -63,7 +63,7 @@ const RelatedConceptsView = ({
 
   // 计算节点位置 - 使用径向布局
   const calculateNodePositions = () => {
-    if (!centerNode || concepts.length === 0) return [];
+    if (!centerNode || concepts.length === 0) {return [];}
 
     const result = [];
     const centerX = svgDimensions.centerX;
@@ -80,7 +80,7 @@ const RelatedConceptsView = ({
     // 按深度分组
     const depthGroups = {};
     concepts.forEach(concept => {
-      if (concept.node.id === centerNode.id) return; // 跳过中心节点
+      if (concept.node.id === centerNode.id) {return;} // 跳过中心节点
 
       const depth = concept.depth;
       if (!depthGroups[depth]) {
@@ -159,7 +159,7 @@ const RelatedConceptsView = ({
             <G>
               {/* 渲染连接线 */}
               {positionedNodes.map((node, index) => {
-                if (node.isCenter) return null; // 跳过中心节点
+                if (node.isCenter) {return null;} // 跳过中心节点
 
                 // 连接到中心节点
                 const centerNode = positionedNodes[0];
@@ -196,7 +196,7 @@ const RelatedConceptsView = ({
                     <SvgText
                       x={node.x}
                       y={node.y}
-                      fontSize={node.isCenter ? "14" : "10"}
+                      fontSize={node.isCenter ? '14' : '10'}
                       fill={colors.white}
                       textAnchor="middle"
                       alignmentBaseline="middle"

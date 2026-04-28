@@ -7,9 +7,17 @@ from django.utils import timezone
 from mongoengine import (
     Document, EmbeddedDocument, StringField, DateTimeField,
     UUIDField, ListField, EmbeddedDocumentField, BooleanField,
-    FloatField, IntField, DictField, ReferenceField
+    FloatField, IntField, DictField, ReferenceField, PointField
 )
 from users.mongodb_models import User
+
+
+class StrokePoint(EmbeddedDocument):
+    """笔触点模型"""
+    x = FloatField(required=True)
+    y = FloatField(required=True)
+    pressure = FloatField(default=0.5)  # 压力感应
+
 
 class CanvasElement(Document):
     """
@@ -18,7 +26,8 @@ class CanvasElement(Document):
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='元素ID')
     canvas_id = UUIDField(required=True, verbose_name='画布ID')
     type = StringField(required=True, verbose_name='元素类型')
-    content = StringField(verbose_name='内容')
+    content = StringField(verbose_name='内容')  # 用于文本等简单内容
+    path_data = ListField(EmbeddedDocumentField(StrokePoint), verbose_name='路径数据')  # 用于笔触等复杂路径
     position_x = FloatField(required=True, verbose_name='X坐标')
     position_y = FloatField(required=True, verbose_name='Y坐标')
     width = FloatField(required=True, verbose_name='宽度')

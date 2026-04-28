@@ -3,7 +3,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { userApi } from '../../services/api';
+import { userApi } from '../../services/api/index';
 import { storage } from '../../utils';
 import { Platform } from 'react-native';
 import { navigate, navigationRef } from '../../navigation/navigationRef';
@@ -30,8 +30,8 @@ export const loginWithCode = createAsyncThunk(
   async ({ phone, code }, { rejectWithValue }) => {
     try {
       const response = await userApi.loginWithCode({ phone, code });
-      await storage.set('token', response.token);
-      await storage.set('user', response.user);
+      await authStorage.saveToken(response.token);
+      await authStorage.saveUser(response.user);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -45,8 +45,8 @@ export const loginWithPassword = createAsyncThunk(
   async ({ phone, password }, { rejectWithValue }) => {
     try {
       const response = await userApi.loginWithPassword({ phone, password });
-      await storage.set('token', response.token);
-      await storage.set('user', response.user);
+      await authStorage.saveToken(response.token);
+      await authStorage.saveUser(response.user);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -60,8 +60,8 @@ export const loginWithWeChat = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await userApi.loginWithWeChat();
-      await storage.set('token', response.token);
-      await storage.set('user', response.user);
+      await authStorage.saveToken(response.token);
+      await authStorage.saveUser(response.user);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -75,8 +75,8 @@ export const loginWithQQ = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await userApi.loginWithQQ();
-      await storage.set('token', response.token);
-      await storage.set('user', response.user);
+      await authStorage.saveToken(response.token);
+      await authStorage.saveUser(response.user);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -90,8 +90,8 @@ export const register = createAsyncThunk(
   async ({ phone, code, password }, { rejectWithValue }) => {
     try {
       const response = await userApi.register({ phone, code, password });
-      await storage.set('token', response.token);
-      await storage.set('user', response.user);
+      await authStorage.saveToken(response.token);
+      await authStorage.saveUser(response.user);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -106,7 +106,6 @@ export const registerWithUsername = createAsyncThunk(
     try {
       console.log('Redux: 开始用户名注册...');
       const response = await userApi.registerWithUsername({ username, password });
-      console.log('Redux: 用户名注册响应:', response);
 
       if (!response || !response.success) {
         console.error('Redux: 注册失败:', response?.message || '未知错误');
@@ -114,7 +113,7 @@ export const registerWithUsername = createAsyncThunk(
       }
 
       const responseData = response.data;
-      console.log('Redux: 处理注册响应数据:', responseData);
+      console.log('Redux: 正在处理响应...');
 
       if (!responseData) {
         console.error('Redux: 注册响应数据无效');
@@ -123,8 +122,11 @@ export const registerWithUsername = createAsyncThunk(
 
       // 保存令牌和用户信息
       try {
-        await storage.set('token', responseData.access || responseData.token);
-        await storage.set('user', responseData.user);
+        await authStorage.saveToken(responseData.access || responseData.token);
+        if (responseData.refresh) {
+          await tokenService.saveRefreshToken(responseData.refresh);
+        }
+        await authStorage.saveUser(responseData.user);
         console.log('Redux: 保存令牌和用户信息成功');
       } catch (storageError) {
         console.error('Redux: 保存令牌和用户信息失败:', storageError);
@@ -145,8 +147,8 @@ export const registerWithPhone = createAsyncThunk(
   async ({ phone, password }, { rejectWithValue }) => {
     try {
       const response = await userApi.registerWithPhone(phone, password);
-      await storage.set('token', response.data.token);
-      await storage.set('user', response.data.user);
+      await authStorage.saveToken(response.data.token);
+      await authStorage.saveUser(response.data.user);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -160,8 +162,8 @@ export const registerWithEmail = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await userApi.registerWithEmail(email, password);
-      await storage.set('token', response.data.token);
-      await storage.set('user', response.data.user);
+      await authStorage.saveToken(response.data.token);
+      await authStorage.saveUser(response.data.user);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -178,8 +180,7 @@ export const logout = createAsyncThunk(
 
       // 1. 首先清除本地存储中的认证信息
       try {
-        await storage.remove('token');
-        await storage.remove('user');
+        await authStorage.clearAuth();
         console.log('本地存储中的认证信息已清除');
       } catch (storageError) {
         console.error('清除本地存储中的认证信息失败:', storageError);
@@ -201,14 +202,14 @@ export const logout = createAsyncThunk(
           console.log('尝试导航到登录页面...');
 
           // 导入导航模块
-          const navigation = require('../navigation/navigationRef');
+          const navigation = require('../../navigation/navigationRef');
 
           // 尝试使用导航辅助函数
           if (navigation && typeof navigation.reset === 'function') {
             console.log('使用navigation.reset导航到Auth页面');
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Auth' }]
+              routes: [{ name: 'Auth' }],
             });
             return;
           }
@@ -223,7 +224,7 @@ export const logout = createAsyncThunk(
               navigationRef.current.dispatch(
                 CommonActions.reset({
                   index: 0,
-                  routes: [{ name: 'Auth' }]
+                  routes: [{ name: 'Auth' }],
                 })
               );
               return;
@@ -424,7 +425,7 @@ export const enableDevMode = createAsyncThunk(
     try {
       const devModeService = require('../../services/auth/devModeService').default;
       const success = await devModeService.enableDevMode();
-      
+
       if (success) {
         const devAccount = devModeService.getDevAccount();
         if (devAccount) {
@@ -432,12 +433,12 @@ export const enableDevMode = createAsyncThunk(
           dispatch({ type: 'auth/setUserInfo', payload: devAccount });
           dispatch({ type: 'auth/setIsDevMode', payload: true });
           dispatch({ type: 'auth/setAuthMethod', payload: 'dev_mode' });
-          
+
           console.log('Redux: 开发者模式已启用');
           return { success: true, user: devAccount };
         }
       }
-      
+
       throw new Error('启用开发者模式失败');
     } catch (error) {
       console.error('启用开发者模式失败:', error);
@@ -452,17 +453,17 @@ export const disableDevMode = createAsyncThunk(
     try {
       const devModeService = require('../../services/auth/devModeService').default;
       const success = await devModeService.disableDevMode();
-      
+
       if (success) {
         dispatch({ type: 'auth/setIsAuthenticated', payload: false });
         dispatch({ type: 'auth/setUserInfo', payload: null });
         dispatch({ type: 'auth/setIsDevMode', payload: false });
         dispatch({ type: 'auth/setAuthMethod', payload: null });
-        
+
         console.log('Redux: 开发者模式已禁用');
         return { success: true };
       }
-      
+
       throw new Error('禁用开发者模式失败');
     } catch (error) {
       console.error('禁用开发者模式失败:', error);
@@ -477,7 +478,7 @@ const initialState = {
   refreshToken: null,
   loading: false,
   error: null,
-  isAuthenticated: false
+  isAuthenticated: false,
 };
 
 const authSlice = createSlice({
@@ -504,7 +505,7 @@ const authSlice = createSlice({
     setIsAuthenticated: (state, action) => {
       state.isAuthenticated = action.payload;
       console.log('Redux: setIsAuthenticated action 已处理，认证状态已更新为:', action.payload);
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -623,7 +624,7 @@ const authSlice = createSlice({
       })
       .addCase(registerWithUsername.fulfilled, (state, action) => {
         state.loading = false;
-        console.log('Redux: registerWithUsername.fulfilled, payload:', action.payload);
+        console.log('Redux: 用户注册成功');
 
         // 确保action.payload存在
         if (!action.payload) {
@@ -695,9 +696,9 @@ const authSlice = createSlice({
       .addCase(logout.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      })
-      // 临时用户功能已移除
-  }
+      });
+    // 临时用户功能已移除
+  },
 });
 
 export const {
@@ -705,7 +706,7 @@ export const {
   setUserInfo,
   setAuthToken,
   setAuthRefreshToken,
-  setIsAuthenticated
+  setIsAuthenticated,
 } = authSlice.actions;
 
 // 注意：异步action已经通过createAsyncThunk自动导出，不需要重复导出

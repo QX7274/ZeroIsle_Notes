@@ -16,7 +16,7 @@ export const AUTH_CONFIG = {
     // 提前刷新时间（分钟）
     REFRESH_THRESHOLD_MINUTES: TOKEN_CONFIG.REFRESH_THRESHOLD_MINUTES,
   },
-  
+
   // 存储键配置
   STORAGE_KEYS: {
     AUTH_TOKEN: 'auth_token',
@@ -24,7 +24,7 @@ export const AUTH_CONFIG = {
     USER_INFO: 'user_info',
     AUTH_EXPIRED: 'auth_expired',
   },
-  
+
   // API端点配置
   API_ENDPOINTS: {
     LOGIN: '/auth/login/',
@@ -33,7 +33,7 @@ export const AUTH_CONFIG = {
     LOGOUT: '/auth/logout/',
     PROFILE: '/auth/profile/',
   },
-  
+
   // 错误消息配置
   ERROR_MESSAGES: {
     TOKEN_EXPIRED: '访问令牌已过期，请重新登录',
@@ -43,7 +43,7 @@ export const AUTH_CONFIG = {
     NETWORK_ERROR: '网络连接错误，请检查网络设置',
     SERVER_ERROR: '服务器错误，请稍后重试',
   },
-  
+
   // 认证状态配置
   AUTH_STATES: {
     AUTHENTICATED: 'authenticated',

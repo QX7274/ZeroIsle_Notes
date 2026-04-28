@@ -59,12 +59,12 @@ function MarkdownViewer({ route, navigation }) {
         saveToLocal().catch(err => console.error('[MarkdownViewer] 失焦保存失败:', err));
       }
     });
-    
+
     return () => {
       unsubscribeBlur();
     };
   }, [navigation, content, lastSavedContent]);
-  
+
   // ✅ 组件卸载时保存数据
   useEffect(() => {
     return () => {
@@ -96,7 +96,7 @@ function MarkdownViewer({ route, navigation }) {
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
+
     return () => {
       subscription?.remove();
     };
@@ -112,7 +112,7 @@ function MarkdownViewer({ route, navigation }) {
         title,
         type: 'markdown',
         fileName: title,
-        noteId
+        noteId,
       });
     }
 
@@ -151,7 +151,7 @@ function MarkdownViewer({ route, navigation }) {
         // 2. 如果没有保存的内容，加载原始文件
         console.log('MarkdownViewer: 没有保存的内容，加载原始文件...');
         let path = uri;
-        if (!path) throw new Error('无效的Markdown路径');
+        if (!path) {throw new Error('无效的Markdown路径');}
 
         try {
           // 检查是否有noteId，尝试从笔记元数据中获取本地缓存路径
@@ -232,7 +232,7 @@ function MarkdownViewer({ route, navigation }) {
                       const note = realm.objectForPrimaryKey('Note', noteId);
                       if (note) {
                         Object.assign(note, {
-                          metadata: JSON.stringify(metadata)
+                          metadata: JSON.stringify(metadata),
                         });
                         console.log('已更新笔记元数据，保存本地缓存路径');
                       }
@@ -279,10 +279,10 @@ function MarkdownViewer({ route, navigation }) {
             setContent(txt);
             setLastSavedContent(txt);
           }
-          
+
         } catch (fileError) {
           console.error('MarkdownViewer: 读取原始文件失败:', fileError);
-          
+
           // 如果是权限错误，提供更详细的错误信息
           if (fileError.message && fileError.message.includes('Permission')) {
             setError('文件访问权限不足。文件已被复制到应用缓存目录，下次打开时将不会出现此问题。');
@@ -313,7 +313,7 @@ function MarkdownViewer({ route, navigation }) {
   // 已有 MarkdownPreview（react-native-markdown-display），无需 markdown-it 依赖
   // 确保内容是有效的 Markdown 格式，如果是纯文本，则包装为 Markdown
   const html = useMemo(() => {
-    if (!content) return '';
+    if (!content) {return '';}
     // 检查内容是否已经包含 Markdown 格式
     const hasMarkdownSyntax = /[#*_`>-]/.test(content);
     return hasMarkdownSyntax ? content : `${content}`;
@@ -328,7 +328,7 @@ function MarkdownViewer({ route, navigation }) {
 
       // 先保存到本地存储
       await SaveUtils.saveMarkdownContent(docId, content, realmService);
-      
+
       // 如果有noteId，也更新笔记元数据
       if (noteId) {
         const realm = await realmService.getRealm();
@@ -342,10 +342,10 @@ function MarkdownViewer({ route, navigation }) {
           }
         });
       }
-      
+
       setLastSavedContent(content); // 更新上次保存的内容
       console.log('MarkdownViewer: 内容已手动保存');
-      
+
       return { success: true };
     } catch (error) {
       console.error('MarkdownViewer: 手动保存失败:', error);
@@ -360,7 +360,7 @@ function MarkdownViewer({ route, navigation }) {
       if (newContent === lastSavedContent) {
         return;
       }
-      
+
       const savedKey = `markdown_content_${docId}`;
       const realm = await realmService.getRealm();
       realm.write(() => {
@@ -388,12 +388,12 @@ function MarkdownViewer({ route, navigation }) {
   const debouncedAutoSave = useRef(null);
   const handleContentChange = (newContent) => {
     setContent(newContent);
-    
+
     // 清除之前的定时器
     if (debouncedAutoSave.current) {
       clearTimeout(debouncedAutoSave.current);
     }
-    
+
     // 设置新的定时器，2秒后自动保存
     debouncedAutoSave.current = setTimeout(() => {
       autoSave(newContent);
@@ -412,7 +412,7 @@ function MarkdownViewer({ route, navigation }) {
       const raw = item.length > 0 ? item[0].value : '[]';
       const list = JSON.parse(raw);
       const idx = list.findIndex(x => x.id === id);
-      if (idx >= 0) list[idx] = { ...list[idx], ...pos }; else list.push({ id, uri: images.find(x=>x.id===id)?.uri, ...pos });
+      if (idx >= 0) {list[idx] = { ...list[idx], ...pos };} else {list.push({ id, uri: images.find(x=>x.id === id)?.uri, ...pos });}
       realm.write(() => {
         const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
         if (existingItem.length > 0) {
@@ -437,7 +437,7 @@ function MarkdownViewer({ route, navigation }) {
       const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
       const raw = item.length > 0 ? item[0].value : '[]';
       const list = JSON.parse(raw);
-      if (Array.isArray(list)) setImages(list);
+      if (Array.isArray(list)) {setImages(list);}
     } catch {}
   })(); }, [docId]);
 
@@ -470,7 +470,7 @@ function MarkdownViewer({ route, navigation }) {
       y: centerY,
       z: 10,
       width: imageWidth,
-      height: imageHeight
+      height: imageHeight,
     };
     setImages(prev => [...prev, item]);
     await handleMoveImage(item.id, { x: item.x, y: item.y });
@@ -538,14 +538,14 @@ function MarkdownViewer({ route, navigation }) {
                     '请返回主页，重新选择Markdown文件。',
                     [
                       { text: '取消', style: 'cancel' },
-                      { 
-                        text: '返回主页', 
-                        onPress: () => navigation.navigate('Home')
-                      }
+                      {
+                        text: '返回主页',
+                        onPress: () => navigation.navigate('Home'),
+                      },
                     ]
                   );
-                }
-              }
+                },
+              },
             ]}
           />
         )}
@@ -568,7 +568,7 @@ function MarkdownViewer({ route, navigation }) {
             />
 
             {/* 浮动拖拽图片 */}
-            <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t+1); return false; }}>
+            <View onStartShouldSetResponder={()=>{ setDeselectTick(t=>t + 1); return false; }}>
               {images.map(img => (
                 <DraggableImage
                   key={img.id}
@@ -580,7 +580,7 @@ function MarkdownViewer({ route, navigation }) {
                   deselectSignal={deselectTick}
                   onMove={handleMoveImage}
                   onResize={async (id, data)=>{
-                    const next = images.map(it=>it.id===id?{...it, scale:data.scale}:it);
+                    const next = images.map(it=>it.id === id ? {...it, scale:data.scale} : it);
                     setImages(next);
                     const realm = await realmService.getRealm();
                     realm.write(() => {
@@ -599,7 +599,7 @@ function MarkdownViewer({ route, navigation }) {
                     });
                   }}
                   onRemove={async (id)=>{
-                    const next = images.filter(it=>it.id!==id);
+                    const next = images.filter(it=>it.id !== id);
                     setImages(next);
                     const realm = await realmService.getRealm();
                     realm.write(() => {
@@ -651,25 +651,25 @@ function MarkdownViewer({ route, navigation }) {
       </ViewerLayout>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
   },
   center: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   viewer: {
-    flex: 1
+    flex: 1,
   },
   input: {
     minHeight: 400,
     textAlignVertical: 'top',
     fontSize: 16,
-    lineHeight: 24
+    lineHeight: 24,
   },
   fullScreenInput: {
     flex: 1,
@@ -692,10 +692,10 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   editorScroll: {
-    flex: 1
+    flex: 1,
   },
   previewScroll: {
-    flex: 1
+    flex: 1,
   },
   loadingContainer: {
     position: 'absolute',

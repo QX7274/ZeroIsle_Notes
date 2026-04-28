@@ -170,10 +170,7 @@ class RealmTagViewSet(viewsets.ViewSet):
 
             # 排序
             ordering = request.query_params.get('ordering', '-updated_at')
-            if ordering.startswith('-'):
-                notes = notes.order_by(ordering[1:]).reverse()
-            else:
-                notes = notes.order_by(ordering)
+            notes = notes.order_by(ordering)
 
             # 序列化
             from notes.serializers import NoteListSerializer

@@ -12,6 +12,18 @@ from users.mongodb_models import User
 # 在运行时导入Note
 Note = None
 
+class ReminderException(EmbeddedDocument):
+    """
+    记录重复提醒的例外情况
+    """
+    STATUS_CHOICES = ('completed', 'cancelled', 'rescheduled')
+
+    original_occurrence_date = DateTimeField(required=True, verbose_name='原始发生时间')
+    status = StringField(choices=STATUS_CHOICES, required=True, verbose_name='例外状态')
+    new_due_date = DateTimeField(verbose_name='新的到期时间') # For rescheduled status
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+
+
 class Reminder(Document):
     """
     提醒文档模型
@@ -62,6 +74,7 @@ class Reminder(Document):
     calendar_event_id = StringField(verbose_name='日历事件ID')
     calendar_id = StringField(verbose_name='日历ID')
     last_sync_time = DateTimeField(verbose_name='最后同步时间')
+    exceptions = ListField(EmbeddedDocumentField(ReminderException), verbose_name='例外情况')
 
     meta = {
         'collection': 'reminders',
@@ -105,127 +118,116 @@ class Reminder(Document):
         self.completed_at = timezone.now()
         self.save()
 
-    def get_next_occurrence(self):
-        """获取下一次提醒时间"""
+    def get_priority_display(self):
+        """获取优先级显示名称"""
+        return dict(self.PRIORITY_CHOICES).get(self.priority, '')
+
+    def get_frequency_display(self):
+        """获取频率显示名称"""
+        return dict(self.FREQUENCY_CHOICES).get(self.frequency, '')
+
+    def get_category_display(self):
+        """获取分类显示名称"""
+        return dict(self.CATEGORY_CHOICES).get(self.category, '')
+
+    def get_next_occurrence(self, after=None):
+        """
+        获取下一次提醒时间，支持从指定时间点开始计算。
+
+        Args:
+            after (datetime, optional): 从此时间点之后查找。如果为None，则从当前时间开始。
+
+        Returns:
+            datetime: 下一次提醒时间，如果没有则返回None。
+        """
         if self.is_completed or not self.is_enabled:
             return None
 
-        if self.frequency == 'once':
-            return self.due_date
-
-        now = timezone.now()
-        if self.due_date > now:
-            return self.due_date
-
-        # 计算下一次提醒时间
         from datetime import timedelta, datetime
+        import calendar
 
-        # 获取原始时间的时分秒
+        ref_date = after or timezone.now()
+
+        # 对于非重复提醒，如果其 due_date 在 ref_date 之后，则返回它，否则无后续
+        if self.frequency == 'once':
+            return self.due_date if self.due_date > ref_date else None
+
+        # 如果起始日期就在未来，直接返回
+        if not after and self.due_date > ref_date:
+            return self.due_date
+
+        # 从 'after' 或 'due_date' 中较晚的一个开始计算，以避免遗漏
+        start_calc_date = max(self.due_date, ref_date)
         original_time = self.due_date.time()
+        next_date = None
 
         if self.frequency == 'daily':
-            # 计算从原始到期日到现在经过了多少天
-            delta = now - self.due_date
-            days_passed = delta.days + (1 if delta.seconds > 0 else 0)
-
-            # 计算下一次提醒时间
-            next_date = self.due_date + timedelta(days=days_passed)
-
-            # 确保时间部分保持不变
-            next_date = datetime.combine(next_date.date(), original_time)
-            if timezone.is_aware(self.due_date):
-                next_date = timezone.make_aware(next_date)
-
-            return next_date
+            # 找到严格在 start_calc_date 之后的那一天
+            if start_calc_date.time() >= original_time:
+                next_calc_day = start_calc_date.date() + timedelta(days=1)
+            else:
+                next_calc_day = start_calc_date.date()
+            next_date = datetime.combine(next_calc_day, original_time, tzinfo=self.due_date.tzinfo)
 
         elif self.frequency == 'weekly':
-            # 计算从原始到期日到现在经过了多少周
-            delta = now - self.due_date
-            weeks_passed = delta.days // 7 + (1 if delta.days % 7 > 0 or delta.seconds > 0 else 0)
-
-            # 计算下一次提醒时间
-            next_date = self.due_date + timedelta(days=weeks_passed * 7)
-
-            # 确保时间部分保持不变
-            next_date = datetime.combine(next_date.date(), original_time)
-            if timezone.is_aware(self.due_date):
-                next_date = timezone.make_aware(next_date)
-
-            return next_date
+            days_ahead = self.due_date.weekday() - start_calc_date.weekday()
+            if days_ahead < 0 or (days_ahead == 0 and start_calc_date.time() >= original_time):
+                days_ahead += 7
+            next_date = start_calc_date + timedelta(days=days_ahead)
+            next_date = datetime.combine(next_date.date(), original_time, tzinfo=self.due_date.tzinfo)
 
         elif self.frequency == 'monthly':
-            # 获取原始日期的年、月、日
-            original_year = self.due_date.year
-            original_month = self.due_date.month
-            original_day = self.due_date.day
+            year, month = start_calc_date.year, start_calc_date.month
+            day = self.due_date.day
 
-            # 计算从原始到期日到现在经过了多少个月
-            months_passed = (now.year - original_year) * 12 + (now.month - original_month)
-            if now.day > original_day or (now.day == original_day and now.time() > original_time):
-                months_passed += 1
+            if start_calc_date.day > day or (start_calc_date.day == day and start_calc_date.time() >= original_time):
+                month += 1
+                if month > 12:
+                    month = 1
+                    year += 1
 
-            # 计算下一次提醒的年和月
-            next_year = original_year + (original_month + months_passed - 1) // 12
-            next_month = (original_month + months_passed - 1) % 12 + 1
-
-            # 处理月份天数不同的情况
-            import calendar
-            last_day = calendar.monthrange(next_year, next_month)[1]
-            next_day = min(original_day, last_day)
-
-            # 创建下一次提醒时间
-            next_date = datetime(next_year, next_month, next_day,
-                                original_time.hour, original_time.minute,
-                                original_time.second, original_time.microsecond)
-
-            if timezone.is_aware(self.due_date):
-                next_date = timezone.make_aware(next_date)
-
-            return next_date
+            while True:
+                last_day_of_month = calendar.monthrange(year, month)[1]
+                actual_day = min(day, last_day_of_month)
+                try:
+                    next_date = datetime(year, month, actual_day, original_time.hour, original_time.minute, original_time.second, tzinfo=self.due_date.tzinfo)
+                    if next_date > start_calc_date:
+                        break
+                except ValueError: # Should not happen with min()
+                    pass
+                month += 1
+                if month > 12:
+                    month = 1
+                    year += 1
 
         elif self.frequency == 'yearly':
-            # 获取原始日期的月、日
-            original_month = self.due_date.month
-            original_day = self.due_date.day
+            year = start_calc_date.year
+            month = self.due_date.month
+            day = self.due_date.day
 
-            # 计算从原始到期日到现在经过了多少年
-            years_passed = now.year - self.due_date.year
-            if (now.month > original_month or
-                (now.month == original_month and now.day > original_day) or
-                (now.month == original_month and now.day == original_day and now.time() > original_time)):
-                years_passed += 1
+            if start_calc_date.month > month or \
+               (start_calc_date.month == month and start_calc_date.day > day) or \
+               (start_calc_date.month == month and start_calc_date.day == day and start_calc_date.time() >= original_time):
+                year += 1
 
-            # 处理2月29日的情况
-            next_year = self.due_date.year + years_passed
-            if original_month == 2 and original_day == 29:
-                import calendar
-                if not calendar.isleap(next_year):
-                    original_day = 28
+            while True:
+                try:
+                    # 处理闰年2月29日
+                    actual_day = day
+                    if month == 2 and day == 29 and not calendar.isleap(year):
+                        actual_day = 28
+                    next_date = datetime(year, month, actual_day, original_time.hour, original_time.minute, original_time.second, tzinfo=self.due_date.tzinfo)
+                    if next_date > start_calc_date:
+                        break
+                except ValueError:
+                    pass # Should not happen
+                year += 1
 
-            # 创建下一次提醒时间
-            try:
-                next_date = datetime(next_year, original_month, original_day,
-                                    original_time.hour, original_time.minute,
-                                    original_time.second, original_time.microsecond)
-
-                if timezone.is_aware(self.due_date):
-                    next_date = timezone.make_aware(next_date)
-
-                return next_date
-            except ValueError:
-                # 处理无效日期的情况
-                import calendar
-                last_day = calendar.monthrange(next_year, original_month)[1]
-                next_date = datetime(next_year, original_month, last_day,
-                                    original_time.hour, original_time.minute,
-                                    original_time.second, original_time.microsecond)
-
-                if timezone.is_aware(self.due_date):
-                    next_date = timezone.make_aware(next_date)
-
-                return next_date
-        else:
+        # 检查是否超过重复结束日期
+        if next_date and self.repeat_end_date and next_date > self.repeat_end_date:
             return None
+
+        return next_date
 
 class ReminderNotification(Document):
     """
@@ -235,6 +237,7 @@ class ReminderNotification(Document):
         ('pending', '待发送'),
         ('sent', '已发送'),
         ('failed', '发送失败'),
+        ('cancelled', '已取消'),
     )
 
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='通知ID')
@@ -252,7 +255,8 @@ class ReminderNotification(Document):
             {'fields': ['reminder']},
             {'fields': ['scheduled_time']},
             {'fields': ['status']},
-            {'fields': ['created_at']}
+            {'fields': ['created_at']},
+            {'fields': ['status', 'scheduled_time']}  # Compound index for batch processing
         ],
         'ordering': ['scheduled_time']
     }

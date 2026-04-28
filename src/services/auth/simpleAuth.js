@@ -4,10 +4,13 @@
  */
 
 import { RealmStorage } from '../storage/RealmStorage';
+import tokenService from './tokenService';
+import authStorage from './authStorage';
 
 class SimpleAuth {
   constructor() {
-    this.baseURL = 'http://192.168.234.232:8000/api/v1';
+    // 使用配置文件中的统一API地址
+    this.baseURL = `${API_URL}/api/v1`;
   }
 
   /**
@@ -15,33 +18,33 @@ class SimpleAuth {
    */
   async getValidToken() {
     try {
-      // 尝试从存储中获取现有令牌
-      const tokenStr = await RealmStorage.getItem('auth_token');
-      
-      if (tokenStr) {
-        try {
-          const tokenData = JSON.parse(tokenStr);
-          
-          // 检查令牌是否过期
-          if (tokenData.expires_at) {
-            const expiryTime = new Date(tokenData.expires_at);
-            const now = new Date();
-            
-            if (expiryTime > now) {
-              console.log('SimpleAuth: 使用现有有效令牌');
-              return tokenData.token;
-            }
-          }
-        } catch (parseError) {
-          console.warn('SimpleAuth: 令牌解析失败，将创建新令牌');
+      // 统一从 authStorage 获取
+      const token = await authStorage.getToken();
+      if (token) {
+        // 校验是否过期（如果有配套的 expires 信息）
+        const isExpired = await tokenService.isAccessTokenExpiredOrExpiring();
+        if (!isExpired) {
+          logService.info('SimpleAuth: 使用统一存储的有效令牌');
+          return token;
         }
       }
 
-      // 创建新的简单令牌
-      return await this.createSimpleToken();
+      // 尝试从本地持久化项获取 (兼容极端离线情况)
+      const tokenStr = await RealmStorage.getItem('auth_token');
+      if (tokenStr) {
+        try {
+          const tokenData = JSON.parse(tokenStr);
+          if (tokenData.expires_at && new Date(tokenData.expires_at) > new Date()) {
+            return tokenData.token;
+          }
+        } catch (e) {
+          // 解析失败忽略
+        }
+      }
 
+      return null;
     } catch (error) {
-      console.error('SimpleAuth: 获取令牌失败:', error);
+      logService.error('SimpleAuth: 获取令牌失败', error);
       return null;
     }
   }
@@ -53,13 +56,13 @@ class SimpleAuth {
     try {
       const timestamp = Date.now();
       const expiry = new Date(timestamp + 24 * 60 * 60 * 1000); // 24小时后过期
-      
+
       // 使用简单的令牌格式
       const tokenData = {
         token: `simple-auth-${timestamp}`,
         expires_at: expiry.toISOString(),
         token_type: 'Bearer',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
 
       // 保存到存储
@@ -84,17 +87,20 @@ class SimpleAuth {
    */
   async clearAuth() {
     try {
-      const keys = ['auth_token', 'refresh_token', 'token', 'token_expiry'];
-      
+      // 统一调用 authStorage 清除
+      const authStorage = require('./authStorage').default || require('./authStorage');
+      await authStorage.clearAuth();
+
+      // 兼容：清理旧的 RealmStorage 项
+      const keys = ['auth_token', 'refresh_token', 'token', 'token_expiry', 'realm_jwt'];
       for (const key of keys) {
         await RealmStorage.removeItem(key);
       }
 
-      console.log('SimpleAuth: 认证数据已清除');
+      logService.info('SimpleAuth: 认证数据已清理');
       return true;
-
     } catch (error) {
-      console.error('SimpleAuth: 清除认证数据失败:', error);
+      logService.error('SimpleAuth: 清理认证数据失败', error);
       return false;
     }
   }
@@ -105,11 +111,11 @@ class SimpleAuth {
   async checkAuthStatus() {
     try {
       const token = await this.getValidToken();
-      
+
       return {
         isAuthenticated: !!token,
         token: token,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
     } catch (error) {
@@ -117,7 +123,7 @@ class SimpleAuth {
       return {
         isAuthenticated: false,
         token: null,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -128,25 +134,25 @@ class SimpleAuth {
   async addAuthHeader(headers = {}) {
     try {
       const token = await this.getValidToken();
-      
+
       if (token) {
         return {
           ...headers,
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         };
       }
 
       return {
         ...headers,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       };
 
     } catch (error) {
       console.error('SimpleAuth: 添加认证头失败:', error);
       return {
         ...headers,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       };
     }
   }
@@ -159,17 +165,17 @@ class SimpleAuth {
       if (error.response?.status === 401) {
         console.log('SimpleAuth: 检测到401错误，清除认证数据');
         await this.clearAuth();
-        
+
         // 返回一个友好的离线响应
         return {
           data: {
             success: true,
             offline: true,
             message: '当前处于离线模式',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           },
           status: 200,
-          statusText: 'OK (Offline Mode)'
+          statusText: 'OK (Offline Mode)',
         };
       }
 
@@ -187,9 +193,9 @@ class SimpleAuth {
   async initialize() {
     try {
       console.log('SimpleAuth: 初始化认证服务');
-      
+
       const authStatus = await this.checkAuthStatus();
-      
+
       if (authStatus.isAuthenticated) {
         console.log('SimpleAuth: 认证服务初始化成功');
       } else {
@@ -202,7 +208,7 @@ class SimpleAuth {
       console.error('SimpleAuth: 初始化失败:', error);
       return {
         isAuthenticated: false,
-        error: error.message
+        error: error.message,
       };
     }
   }

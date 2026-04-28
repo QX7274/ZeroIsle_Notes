@@ -9,6 +9,8 @@ import reminderApi from '../api/reminderApi';
 import analyticsService from '../analytics/analyticsService';
 import { isNetworkConnected } from '../network/networkService';
 import reminderMongoDBService from './reminderMongoDBService';
+import realmService from '../database/realmService';
+
 
 // 本地存储键
 const STORAGE_KEYS = {
@@ -35,24 +37,24 @@ class ReminderNotificationService {
    * 初始化通知服务
    */
   async init() {
-    if (this.initialized) return;
+    if (this.initialized) { return; }
 
     try {
       // 配置通知
       PushNotification.configure({
         // 当应用程序打开时收到远程通知时调用
-        onNotification: function(notification) {
-          console.log("收到通知:", notification);
+        onNotification: function (notification) {
+          console.log('收到通知:', notification);
         },
 
         // 当用户点击通知时调用
-        onAction: function(notification) {
-          console.log("用户点击通知:", notification.action);
+        onAction: function (notification) {
+          console.log('用户点击通知:', notification.action);
         },
 
         // 当注册令牌时调用
-        onRegistrationError: function(err) {
-          console.error("注册令牌错误:", err.message);
+        onRegistrationError: function (err) {
+          console.error('注册令牌错误:', err.message);
         },
 
         // 是否应该在前台显示通知
@@ -112,7 +114,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('请求通知权限失败:', error);
       analyticsService.trackError(error, { action: 'request_notification_permissions' });
-      return false;
+      throw error;
     }
   }
 
@@ -134,7 +136,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('检查通知权限失败:', error);
       analyticsService.trackError(error, { action: 'check_notification_permissions' });
-      return false;
+      throw error;
     }
   }
 
@@ -157,7 +159,7 @@ class ReminderNotificationService {
       return true;
     } catch (error) {
       console.error('取消提醒通知失败:', error);
-      return false;
+      throw error;
     }
   }
 
@@ -178,7 +180,7 @@ class ReminderNotificationService {
         }
       }
 
-      // 如果提醒已完成或未启用，不发送通知
+      // 业务跳过：提醒已完成或未启用时不应发送通知（非错误场景，返回 null 表示未创建通知）
       if (reminder.is_completed || !reminder.is_enabled) {
         console.log('提醒已完成或未启用，不发送通知:', reminder.title);
         return null;
@@ -187,14 +189,14 @@ class ReminderNotificationService {
       // 计算通知时间
       const notificationTime = new Date(reminder.dueDate || reminder.due_date);
 
-      // 如果时间已过，不发送通知
+      // 业务跳过：提醒时间已过时不再安排通知（非错误场景，返回 null 表示未创建通知）
       if (notificationTime < new Date()) {
         console.log('提醒时间已过，不发送通知:', reminder.title);
         return null;
       }
 
       // 生成通知ID
-      const notificationId = `reminder_${reminder.id || Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const notificationId = `reminder_${reminder.id || realmService.createObjectId()}`;
 
       // 根据优先级设置通知颜色
       let color = '#3498db'; // 默认蓝色
@@ -230,8 +232,8 @@ class ReminderNotificationService {
           type: 'reminder',
           category: reminder.category || 'other',
           priority: reminder.priority || 'medium',
-          frequency: reminder.frequency || 'once'
-        }
+          frequency: reminder.frequency || 'once',
+        },
       });
 
       // 如果是重复提醒，安排下一次通知
@@ -251,7 +253,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('安排提醒通知失败:', error);
       analyticsService.trackError(error, { action: 'schedule_reminder_notification' });
-      return null;
+      throw error;
     }
   }
 
@@ -274,6 +276,7 @@ class ReminderNotificationService {
       if (reminder.repeat_end_date) {
         const endDate = new Date(reminder.repeat_end_date);
         if (nextNotificationTime > endDate) {
+          // 业务跳过：已达到重复结束时间（非错误场景，返回 null 表示无需继续安排）
           console.log('已达到重复结束时间，不再安排下一次通知:', reminder.title);
           return null;
         }
@@ -290,7 +293,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('安排重复提醒失败:', error);
       analyticsService.trackError(error, { action: 'schedule_repeating_reminder' });
-      return null;
+      throw error;
     }
   }
 
@@ -326,7 +329,7 @@ class ReminderNotificationService {
         nextTime.setFullYear(nextTime.getFullYear() + 1);
         break;
       default:
-        // 默认不重复
+        // 业务语义：不支持/未配置重复频率时不计算下一次时间（非错误，返回 null）
         return null;
     }
 
@@ -338,7 +341,7 @@ class ReminderNotificationService {
    * @param {string} notificationId 通知ID
    * @returns {Promise<boolean>} 是否成功
    */
-  async cancelReminderNotification(notificationId) {
+  async cancelNotificationById(notificationId) {
     try {
       PushNotification.cancelLocalNotification(notificationId);
 
@@ -350,7 +353,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('取消提醒通知失败:', error);
       analyticsService.trackError(error, { action: 'cancel_reminder_notification' });
-      return false;
+      throw error;
     }
   }
 
@@ -368,7 +371,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('获取已安排的通知失败:', error);
       analyticsService.trackError(error, { action: 'get_all_scheduled_notifications' });
-      return [];
+      throw error;
     }
   }
 
@@ -387,7 +390,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('清除所有通知失败:', error);
       analyticsService.trackError(error, { action: 'clear_all_notifications' });
-      return false;
+      throw error;
     }
   }
 
@@ -401,7 +404,7 @@ class ReminderNotificationService {
       const isConnected = await isNetworkConnected();
       if (!isConnected) {
         console.log('无网络连接，无法同步离线操作');
-        return { success: false, message: '无网络连接', synced: 0, failed: 0 };
+        throw new Error('无网络连接，无法同步离线操作，请连接网络后重试');
       }
 
       // 获取离线操作记录
@@ -498,16 +501,20 @@ class ReminderNotificationService {
         failedCount: failed,
       });
 
+      if (failed > 0) {
+        throw new Error(`${failed}个离线操作同步失败，请稍后重试`);
+      }
+
       return {
-        success: failed === 0,
-        message: failed === 0 ? '所有操作同步成功' : `${failed}个操作同步失败`,
+        succeeded: true,
+        message: '所有操作同步成功',
         synced,
-        failed
+        failed,
       };
     } catch (error) {
       console.error('同步离线操作失败:', error);
       analyticsService.trackError(error, { action: 'sync_offline_operations' });
-      return { success: false, message: error.message, synced: 0, failed: 0 };
+      throw error;
     }
   }
 
@@ -524,7 +531,7 @@ class ReminderNotificationService {
       // 添加新的离线提醒
       offlineReminders.push({
         ...reminder,
-        offlineId: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        offlineId: realmService.createObjectId(),
         createdAt: new Date().toISOString(),
       });
 
@@ -542,7 +549,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('保存离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'save_offline_reminder' });
-      return false;
+      throw error;
     }
   }
 
@@ -556,7 +563,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('获取离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_offline_reminders' });
-      return [];
+      throw error;
     }
   }
 
@@ -578,7 +585,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('保存所有提醒失败:', error);
       analyticsService.trackError(error, { action: 'save_all_reminders' });
-      return false;
+      throw error;
     }
   }
 
@@ -592,7 +599,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('获取所有提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_all_reminders' });
-      return [];
+      throw error;
     }
   }
 
@@ -609,7 +616,7 @@ class ReminderNotificationService {
 
       // 添加新的操作
       operations.push({
-        id: `${operation}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `${operation}_${realmService.createObjectId()}`,
         operation,
         data,
         timestamp: new Date().toISOString(),
@@ -622,7 +629,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('保存离线操作记录失败:', error);
       analyticsService.trackError(error, { action: 'save_offline_operation' });
-      return false;
+      throw error;
     }
   }
 
@@ -636,7 +643,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('获取离线操作记录失败:', error);
       analyticsService.trackError(error, { action: 'get_offline_operations' });
-      return [];
+      throw error;
     }
   }
 
@@ -651,7 +658,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('清除离线操作记录失败:', error);
       analyticsService.trackError(error, { action: 'clear_offline_operations' });
-      return false;
+      throw error;
     }
   }
 
@@ -664,7 +671,7 @@ class ReminderNotificationService {
     try {
       // 获取现有的离线提醒
       const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS);
-      if (!offlineReminders || !Array.isArray(offlineReminders)) return true;
+      if (!offlineReminders || !Array.isArray(offlineReminders)) { return true; }
 
       // 过滤掉要移除的提醒
       const updatedReminders = offlineReminders.filter(reminder =>
@@ -682,7 +689,7 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('移除离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'remove_offline_reminder' });
-      return false;
+      throw error;
     }
   }
 
@@ -757,7 +764,7 @@ class ReminderNotificationService {
         total: reminders.length,
         imported: 0,
         failed: 0,
-        errors: []
+        errors: [],
       };
 
       // 检查网络连接
@@ -791,7 +798,7 @@ class ReminderNotificationService {
             tags: reminder.tags || '',
             is_enabled: reminder.is_enabled !== undefined ? reminder.is_enabled : true,
             is_completed: reminder.is_completed || false,
-            repeat_end_date: reminder.repeat_end_date || null
+            repeat_end_date: reminder.repeat_end_date || null,
           };
 
           if (isConnected) {
@@ -824,7 +831,7 @@ class ReminderNotificationService {
         format,
         total: result.total,
         imported: result.imported,
-        failed: result.failed
+        failed: result.failed,
       });
 
       return result;
@@ -850,7 +857,7 @@ class ReminderNotificationService {
     const fields = [
       'title', 'description', 'due_date', 'priority', 'frequency',
       'category', 'color', 'tags', 'is_enabled', 'is_completed',
-      'repeat_end_date', 'completed_at'
+      'repeat_end_date', 'completed_at',
     ];
 
     // 创建CSV头
@@ -885,12 +892,14 @@ class ReminderNotificationService {
    * @private
    */
   _parseCSV(csv) {
+    // 工具契约：空输入视为无可解析数据（非错误，返回空数组）
     if (!csv) {
       return [];
     }
 
     // 分割行
     const lines = csv.split('\n');
+    // 工具契约：仅有表头或无有效数据行时返回空数组（非错误）
     if (lines.length < 2) {
       return [];
     }
@@ -902,7 +911,7 @@ class ReminderNotificationService {
     const reminders = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
-      if (!line) continue;
+      if (!line) { continue; }
 
       const values = this._parseCSVLine(line);
 

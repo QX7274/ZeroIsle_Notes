@@ -22,7 +22,7 @@ class UISafeProcessor {
       maxChunkTime = 16, // 每个时间片最大执行时间（毫秒）
       yieldInterval = 5,  // 让出控制权的间隔（毫秒）
       onProgress = null,  // 进度回调
-      priority = 'normal' // 优先级：'high', 'normal', 'low'
+      priority = 'normal', // 优先级：'high', 'normal', 'low'
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ class UISafeProcessor {
         reject,
         options: { maxChunkTime, yieldInterval, onProgress },
         priority,
-        createdAt: Date.now()
+        createdAt: Date.now(),
       };
 
       // 根据优先级插入队列
@@ -60,7 +60,7 @@ class UISafeProcessor {
     try {
       while (this.processingQueue.length > 0) {
         const task = this.processingQueue.shift();
-        
+
         try {
           // 等待交互完成后执行
           await new Promise(resolve => {
@@ -94,7 +94,7 @@ class UISafeProcessor {
     // 如果操作是异步生成器，分块执行
     if (typeof operation === 'function') {
       const startTime = Date.now();
-      
+
       try {
         // 包装操作，添加超时控制
         const result = await Promise.race([
@@ -103,7 +103,7 @@ class UISafeProcessor {
             setTimeout(() => {
               reject(new Error('操作超时'));
             }, 30000); // 30秒超时
-          })
+          }),
         ]);
 
         const executionTime = Date.now() - startTime;
@@ -143,15 +143,15 @@ class UISafeProcessor {
     const {
       chunkSize = 10,
       onProgress = null,
-      onChunkComplete = null
+      onChunkComplete = null,
     } = options;
 
     const results = [];
     const totalItems = items.length;
-    
+
     for (let i = 0; i < totalItems; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
-      
+
       // 处理当前块
       const chunkResults = await this.runSafely(async () => {
         const chunkResults = [];
@@ -191,7 +191,7 @@ class UISafeProcessor {
     const {
       timeout = 30000,
       retries = 3,
-      onProgress = null
+      onProgress = null,
     } = options;
 
     let lastError = null;
@@ -207,7 +207,7 @@ class UISafeProcessor {
             fileOperation(),
             new Promise((_, reject) => {
               setTimeout(() => reject(new Error('文件操作超时')), timeout);
-            })
+            }),
           ]);
         }, { priority: 'high' });
 
@@ -238,7 +238,7 @@ class UISafeProcessor {
     return {
       isProcessing: this.isProcessing,
       queueLength: this.processingQueue.length,
-      currentTime: Date.now()
+      currentTime: Date.now(),
     };
   }
 

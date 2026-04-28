@@ -31,7 +31,7 @@ export const fetchTags = createAsyncThunk(
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '获取标签列表',
-          customMessage: '网络连接失败，无法获取标签列表'
+          customMessage: '网络连接失败，无法获取标签列表',
         });
       }
       return rejectWithValue(error.message || '获取标签列表失败');
@@ -57,7 +57,7 @@ export const createTag = createAsyncThunk(
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '创建标签',
-          customMessage: '网络连接失败，无法创建标签'
+          customMessage: '网络连接失败，无法创建标签',
         });
       }
       return rejectWithValue(error.message || '创建标签失败');
@@ -227,7 +227,7 @@ const tagsSlice = createSlice({
         // 使用适配器更新标签
         tagsAdapter.updateOne(state, {
           id: action.payload.id,
-          changes: action.payload
+          changes: action.payload,
         });
       })
       .addCase(updateTag.rejected, (state, action) => {

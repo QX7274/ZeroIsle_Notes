@@ -4,7 +4,7 @@ AI助手模块MongoDB文档模型
 """
 
 from mongoengine import Document, StringField, DateTimeField, BooleanField, IntField, FloatField, DecimalField
-from mongoengine import UUIDField, ReferenceField, ListField, DictField, URLField, EmbeddedDocument, EmbeddedDocumentField
+from mongoengine import UUIDField, ReferenceField, ListField, DictField, URLField, EmbeddedDocument, EmbeddedDocumentField, FileField
 from django.utils import timezone
 import uuid
 from users.mongodb_models import User
@@ -29,7 +29,7 @@ class ModelConfig(Document):
     is_default = BooleanField(default=False, verbose_name='是否默认')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'ai_model_configs',
         'indexes': [
@@ -40,20 +40,20 @@ class ModelConfig(Document):
         ],
         'ordering': ['provider', 'name']
     }
-    
+
     def __str__(self):
         return f"{self.provider} - {self.name}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
-        
+
         # 确保只有一个默认模型
         if self.is_default:
             ModelConfig.objects(is_default=True, id__ne=self.id).update(is_default=False)
-            
+
         return super().save(*args, **kwargs)
-    
+
     @classmethod
     def get_default(cls):
         """获取默认模型"""
@@ -72,14 +72,19 @@ class Message(EmbeddedDocument):
         ('user', '用户'),
         ('assistant', '助手'),
         ('system', '系统'),
+        ('tool', '工具'),
     )
-    
+
     id = UUIDField(default=lambda: uuid.uuid4(), verbose_name='消息ID')
     role = StringField(max_length=10, choices=ROLE_CHOICES, required=True, verbose_name='角色')
-    content = StringField(required=True, verbose_name='内容')
+    content = StringField(required=False, verbose_name='内容') # Can be null for tool calls
     tokens = IntField(default=0, verbose_name='令牌数')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
+    # For tool calls
+    tool_calls = ListField(DictField(), required=False, verbose_name='工具调用')
+    tool_call_id = StringField(required=False, verbose_name='工具调用ID')
+
     def __str__(self):
         return f"{self.role}: {self.content[:50]}"
 
@@ -103,7 +108,7 @@ class Conversation(Document):
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
     deleted_at = DateTimeField(verbose_name='删除时间')
-    
+
     meta = {
         'collection': 'ai_conversations',
         'indexes': [
@@ -115,44 +120,46 @@ class Conversation(Document):
         ],
         'ordering': ['-last_message_at']
     }
-    
+
     def __str__(self):
         return self.title or f"对话 {self.id}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
-    
+
     def delete(self):
         """软删除"""
         self.is_deleted = True
         self.deleted_at = timezone.now()
         self.save()
-    
+
     def hard_delete(self):
         """硬删除"""
         super().delete()
-    
+
     @property
     def message_count(self):
         """消息数量"""
         return len(self.messages)
-    
+
     @property
     def total_tokens(self):
         """总令牌数"""
         return sum(message.tokens for message in self.messages)
-    
-    def add_message(self, role, content, tokens=0):
+
+    def add_message(self, role, content, tokens=0, tool_calls=None, tool_call_id=None):
         """
-        添加消息
-        
+        添加消息 (支持工具调用)
+
         Args:
-            role: 角色 (user/assistant/system)
-            content: 内容
-            tokens: 令牌数
-            
+            role (str): 角色 (user/assistant/system/tool)
+            content (str): 内容
+            tokens (int, optional): 令牌数. Defaults to 0.
+            tool_calls (List[Dict], optional): 工具调用列表. Defaults to None.
+            tool_call_id (str, optional): 工具调用ID. Defaults to None.
+
         Returns:
             Message: 创建的消息
         """
@@ -160,17 +167,19 @@ class Conversation(Document):
             role=role,
             content=content,
             tokens=tokens,
+            tool_calls=tool_calls,
+            tool_call_id=tool_call_id,
             created_at=timezone.now()
         )
         self.messages.append(message)
         self.last_message_at = timezone.now()
         self.save()
         return message
-    
+
     def get_messages_for_api(self):
         """
         获取用于API调用的消息列表
-        
+
         Returns:
             list: 消息列表
         """
@@ -197,7 +206,7 @@ class PromptTemplate(Document):
     user = ReferenceField(User, verbose_name='用户')  # 如果是用户自定义模板，关联用户
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'ai_prompt_templates',
         'indexes': [
@@ -209,22 +218,22 @@ class PromptTemplate(Document):
         ],
         'ordering': ['category', 'name']
     }
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
-    
+
     def render(self, variables):
         """
         渲染模板
-        
+
         Args:
             variables: 变量字典
-            
+
         Returns:
             str: 渲染后的内容
         """
@@ -247,7 +256,7 @@ class UsageRecord(Document):
     total_tokens = IntField(default=0, verbose_name='总令牌数')
     cost = DecimalField(precision=10, rounding='ROUND_HALF_UP', default=0, verbose_name='成本')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
     meta = {
         'collection': 'ai_usage_records',
         'indexes': [
@@ -258,17 +267,17 @@ class UsageRecord(Document):
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return f"{self.user.username} - {self.model} - {self.total_tokens} tokens"
-    
+
     def calculate_cost(self, model_config=None):
         """
         计算成本
-        
+
         Args:
             model_config: 模型配置对象
-            
+
         Returns:
             Decimal: 成本
         """
@@ -277,11 +286,11 @@ class UsageRecord(Document):
                 model_config = ModelConfig.objects.get(name=self.model)
             except ModelConfig.DoesNotExist:
                 return 0
-        
+
         # 计算成本
         input_cost = (self.prompt_tokens / 1000) * model_config.price_per_1k_tokens_input
         output_cost = (self.completion_tokens / 1000) * model_config.price_per_1k_tokens_output
-        
+
         return input_cost + output_cost
 
 class Feedback(Document):
@@ -296,7 +305,7 @@ class Feedback(Document):
         (4, '好'),
         (5, '非常好'),
     )
-    
+
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='反馈ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
     conversation = ReferenceField(Conversation, required=True, verbose_name='对话')
@@ -304,7 +313,7 @@ class Feedback(Document):
     rating = IntField(choices=RATING_CHOICES, required=True, verbose_name='评分')
     comment = StringField(verbose_name='评论')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    
+
     meta = {
         'collection': 'ai_feedbacks',
         'indexes': [
@@ -316,6 +325,85 @@ class Feedback(Document):
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return f"{self.user.username} - {self.rating} stars"
+
+
+
+class WhisperModel(Document):
+    """
+    Whisper模型文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='模型ID')
+    name = StringField(max_length=100, required=True, verbose_name='模型名称')
+    description = StringField(max_length=500, verbose_name='模型描述')
+    model_file = FileField(verbose_name='模型文件')
+    model_size = StringField(max_length=50, choices=('tiny', 'base', 'small', 'medium', 'large'), default='base', verbose_name='模型大小')
+    language = StringField(max_length=50, verbose_name='语言')
+    version = StringField(max_length=20, verbose_name='版本')
+    accuracy = StringField(max_length=20, verbose_name='准确率')
+    is_active = BooleanField(default=True, verbose_name='是否激活')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+
+    meta = {
+        'collection': 'whisper_models',
+        'indexes': [
+            {'fields': ['name']},
+            {'fields': ['model_size']},
+            {'fields': ['language']},
+            {'fields': ['is_active']},
+            {'fields': ['created_at']}
+        ],
+        'ordering': ['-created_at']
+    }
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        """保存前更新更新时间"""
+        self.updated_at = timezone.now()
+        return super().save(*args, **kwargs)
+
+class WhisperTrainingData(Document):
+    """
+    Whisper训练数据文档模型
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='训练数据ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    audio = FileField(verbose_name='音频')
+    text = StringField(required=True, verbose_name='文本')
+    language = StringField(max_length=50, verbose_name='语言')
+    is_verified = BooleanField(default=False, verbose_name='是否验证')
+    verified_by = ReferenceField(User, verbose_name='验证者')
+    verified_at = DateTimeField(verbose_name='验证时间')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+
+    meta = {
+        'collection': 'whisper_training_data',
+        'indexes': [
+            {'fields': ['user']},
+            {'fields': ['language']},
+            {'fields': ['is_verified']},
+            {'fields': ['created_at']}
+        ],
+        'ordering': ['-created_at']
+    }
+
+    def __str__(self):
+        return f"训练数据 {self.id}"
+
+    def save(self, *args, **kwargs):
+        """保存前更新更新时间"""
+        self.updated_at = timezone.now()
+        return super().save(*args, **kwargs)
+
+    def verify(self, user):
+        """验证训练数据"""
+        self.is_verified = True
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.save()

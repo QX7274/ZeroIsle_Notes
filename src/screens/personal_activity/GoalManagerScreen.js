@@ -1,0 +1,554 @@
+/**
+ * 目标管理界面
+ */
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Modal,
+  TextInput,
+} from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
+import { Text } from '../../components/common/Typography';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import * as Haptics from '../../utils/haptics';
+import personalActivityApi from '../../services/api/personalActivityApi';
+
+const GoalManagerScreen = ({ navigation }) => {
+  const { colors } = useTheme();
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'quantitative',
+    target_value: '',
+    unit: '',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  });
+
+  const goalTypes = [
+    { key: 'quantitative', label: '数量目标', icon: 'trending_up' },
+    { key: 'habit', label: '习惯养成', icon: 'repeat' },
+    { key: 'milestone', label: '里程碑', icon: 'flag' },
+    { key: 'qualitative', label: '定性目标', icon: 'star' },
+  ];
+
+  useEffect(() => {
+    loadGoals();
+  }, []);
+
+  const loadGoals = async () => {
+    try {
+      setLoading(true);
+      const response = await personalActivityApi.getGoals();
+      setGoals(response.data);
+    } catch (error) {
+      Alert.alert('错误', '加载目标失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveGoal = async () => {
+    if (!formData.title.trim()) {
+      Alert.alert('错误', '目标标题不能为空');
+      return;
+    }
+
+    try {
+      const goalData = {
+        ...formData,
+        target_value: formData.target_value ? parseFloat(formData.target_value) : null,
+        start_date: new Date(formData.start_date).toISOString(),
+        end_date: new Date(formData.end_date).toISOString(),
+      };
+
+      if (editingGoal) {
+        await personalActivityApi.updateGoal(editingGoal._id, goalData);
+        Alert.alert('成功', '目标更新成功');
+      } else {
+        await personalActivityApi.createGoal(goalData);
+        Alert.alert('成功', '目标创建成功');
+      }
+
+      setModalVisible(false);
+      setEditingGoal(null);
+      resetForm();
+      loadGoals();
+    } catch (error) {
+      Alert.alert('错误', editingGoal ? '更新目标失败' : '创建目标失败');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      type: 'quantitative',
+      target_value: '',
+      unit: '',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    });
+  };
+
+  const handleEditGoal = (goal) => {
+    setEditingGoal(goal);
+    setFormData({
+      title: goal.title,
+      description: goal.description || '',
+      type: goal.type,
+      target_value: goal.target_value?.toString() || '',
+      unit: goal.unit || '',
+      start_date: new Date(goal.start_date).toISOString().split('T')[0],
+      end_date: new Date(goal.end_date).toISOString().split('T')[0],
+    });
+    setModalVisible(true);
+  };
+
+  const handleDeleteGoal = (goal) => {
+    Alert.alert(
+      '确认删除',
+      `确定要删除目标"${goal.title}"吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await personalActivityApi.deleteGoal(goal._id);
+              Alert.alert('成功', '目标删除成功');
+              loadGoals();
+            } catch (error) {
+              Alert.alert('错误', '删除目标失败');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return colors.success;
+      case 'active': return colors.primary;
+      case 'paused': return colors.warning;
+      case 'cancelled': return colors.error;
+      default: return colors.text;
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed': return '已完成';
+      case 'active': return '进行中';
+      case 'paused': return '已暂停';
+      case 'cancelled': return '已取消';
+      default: return '未知';
+    }
+  };
+
+  const renderGoalItem = (goal) => (
+    <View key={goal._id} style={[styles.goalItem, { backgroundColor: colors.card }]}>
+      <View style={styles.goalHeader}>
+        <Text variant="body" style={styles.goalTitle}>{goal.title}</Text>
+        <View style={styles.goalActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleEditGoal(goal)}
+          >
+            <Icon name="edit" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleDeleteGoal(goal)}
+          >
+            <Icon name="delete" size={20} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Text variant="caption" style={styles.goalDescription}>
+        {goal.description || '无描述'}
+      </Text>
+
+      <View style={styles.goalProgress}>
+        <View style={styles.progressInfo}>
+          <Text variant="caption" style={styles.progressText}>
+            进度: {goal.completion_rate || 0}%
+          </Text>
+          <Text variant="caption" style={[styles.statusText, { color: getStatusColor(goal.status) }]}>
+            {getStatusText(goal.status)}
+          </Text>
+        </View>
+        <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                backgroundColor: getStatusColor(goal.status),
+                width: `${goal.completion_rate || 0}%`,
+              },
+            ]}
+          />
+        </View>
+      </View>
+
+      {goal.target_value && (
+        <Text variant="caption" style={styles.goalTarget}>
+          目标: {goal.current_value || 0} / {goal.target_value} {goal.unit}
+        </Text>
+      )}
+
+      <Text variant="caption" style={styles.goalDates}>
+        {new Date(goal.start_date).toLocaleDateString()} - {new Date(goal.end_date).toLocaleDateString()}
+      </Text>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 头部 */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text variant="h2" style={styles.headerTitle}>目标管理</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => {
+            setEditingGoal(null);
+            resetForm();
+            setModalVisible(true);
+          }}
+        >
+          <Icon name="add" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* 目标列表 */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {goals.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="flag" size={64} color={colors.text + '40'} />
+            <Text style={[styles.emptyText, { color: colors.text + '60' }]}>
+              还没有设置目标
+            </Text>
+            <Text style={[styles.emptySubtext, { color: colors.text + '40' }]}>
+              点击右上角的 + 号创建第一个目标
+            </Text>
+          </View>
+        ) : (
+          goals.map(renderGoalItem)
+        )}
+      </ScrollView>
+
+      {/* 编辑模态框 */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={[styles.modalButton, { color: colors.text }]}>取消</Text>
+            </TouchableOpacity>
+            <Text variant="h3" style={styles.modalTitle}>
+              {editingGoal ? '编辑目标' : '新建目标'}
+            </Text>
+            <TouchableOpacity onPress={handleSaveGoal}>
+              <Text style={[styles.modalButton, { color: colors.primary }]}>保存</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.formGroup}>
+              <Text variant="body" style={styles.formLabel}>标题 *</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                value={formData.title}
+                onChangeText={(text) => setFormData({ ...formData, title: text })}
+                placeholder="输入目标标题"
+                placeholderTextColor={colors.text + '60'}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text variant="body" style={styles.formLabel}>类型</Text>
+              <View style={styles.typeSelector}>
+                {goalTypes.map(type => (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[
+                      styles.typeOption,
+                      { backgroundColor: colors.card },
+                      formData.type === type.key && { backgroundColor: colors.primary + '20' },
+                    ]}
+                    onPress={() => setFormData({ ...formData, type: type.key })}
+                  >
+                    <Icon
+                      name={type.icon}
+                      size={20}
+                      color={formData.type === type.key ? colors.primary : colors.text}
+                    />
+                    <Text
+                      style={[
+                        styles.typeText,
+                        { color: formData.type === type.key ? colors.primary : colors.text },
+                      ]}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {(formData.type === 'quantitative' || formData.type === 'habit') && (
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 2 }]}>
+                  <Text variant="body" style={styles.formLabel}>目标值</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                    value={formData.target_value}
+                    onChangeText={(text) => setFormData({ ...formData, target_value: text })}
+                    placeholder="输入目标数值"
+                    placeholderTextColor={colors.text + '60'}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text variant="body" style={styles.formLabel}>单位</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                    value={formData.unit}
+                    onChangeText={(text) => setFormData({ ...formData, unit: text })}
+                    placeholder="单位"
+                    placeholderTextColor={colors.text + '60'}
+                  />
+                </View>
+              </View>
+            )}
+
+            <View style={styles.formRow}>
+              <View style={[styles.formGroup, { flex: 1 }]}>
+                <Text variant="body" style={styles.formLabel}>开始日期</Text>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                  value={formData.start_date}
+                  onChangeText={(text) => setFormData({ ...formData, start_date: text })}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.text + '60'}
+                />
+              </View>
+              <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
+                <Text variant="body" style={styles.formLabel}>结束日期</Text>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                  value={formData.end_date}
+                  onChangeText={(text) => setFormData({ ...formData, end_date: text })}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.text + '60'}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text variant="body" style={styles.formLabel}>描述</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea, { backgroundColor: colors.card, color: colors.text }]}
+                value={formData.description}
+                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                placeholder="输入目标描述"
+                placeholderTextColor={colors.text + '60'}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 48,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  addButton: {
+    padding: 8,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyText: {
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  goalItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  goalTitle: {
+    flex: 1,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  goalActions: {
+    flexDirection: 'row',
+  },
+  actionButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  goalDescription: {
+    opacity: 0.7,
+    marginBottom: 12,
+  },
+  goalProgress: {
+    marginBottom: 8,
+  },
+  progressInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  progressText: {
+    fontSize: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  goalTarget: {
+    fontSize: 12,
+    opacity: 0.8,
+    marginBottom: 4,
+  },
+  goalDates: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingTop: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontWeight: '600',
+  },
+  modalButton: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formRow: {
+    flexDirection: 'row',
+  },
+  formLabel: {
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  textInput: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: '48%',
+  },
+  typeText: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
+});
+
+export default GoalManagerScreen;

@@ -7,6 +7,7 @@
 import RNFS from 'react-native-fs';
 import { Platform } from 'react-native';
 import networkErrorService from '../networkErrorService';
+import { API_URL } from '../../config';
 
 // 导入非阻塞文件处理器
 import nonBlockingFileProcessor from '../../utils/nonBlockingFileProcessor';
@@ -36,7 +37,7 @@ class NonBlockingConverter {
         onProgress: options.onProgress,
         signal: options.signal,
         chunkSize: 1024 * 1024, // 1MB块大小
-        yieldInterval: 16 // 16ms让出控制权
+        yieldInterval: 16, // 16ms让出控制权
       });
 
       // 使用setTimeout确保不阻塞主线程
@@ -65,58 +66,67 @@ class NonBlockingConverter {
    */
   async performConversion(filePath, options, preprocessResult) {
     const { onProgress, method = 'upload', signal } = options;
-    
+
     // 使用预处理结果
     if (preprocessResult && preprocessResult.success) {
       console.log('NonBlockingConverter: 使用预处理结果:', preprocessResult);
-      
+
       if (onProgress) {
         onProgress({
           stage: 'preparing',
           progress: 50, // 预处理已完成，从50%开始
-          message: '文件预处理完成，准备转换...'
+          message: '文件预处理完成，准备转换...',
         });
       }
+
+      // 预处理已完成，直接返回成功，跳过chunks处理
+      return {
+        success: true,
+        method,
+        preprocessed: true,
+        totalChunks: preprocessResult.totalChunks || 0,
+        message: '文件预处理完成，准备执行转换',
+      };
     } else {
       // 如果没有预处理结果，使用传统方法
       const chunks = await this.splitFileIntoChunks(filePath);
-      
+
       if (onProgress) {
         onProgress({
           stage: 'preparing',
           progress: 5,
-          message: '正在准备文件...'
+          message: '正在准备文件...',
         });
       }
-    }
 
-    // 分块处理，每块之间让出控制权
-    for (let i = 0; i < chunks.length; i++) {
-      if (signal && signal.aborted) {
-        throw new Error('转换已取消');
+      // 分块处理，每块之间让出控制权
+      for (let i = 0; i < chunks.length; i++) {
+        if (signal && signal.aborted) {
+          throw new Error('转换已取消');
+        }
+
+        // 让出控制权，避免阻塞UI
+        await this.yieldControl();
+
+        if (onProgress) {
+          const progress = 5 + (i / chunks.length) * 15;
+          onProgress({
+            stage: 'processing',
+            progress: Math.round(progress),
+            message: `正在处理第${i + 1}/${chunks.length}块...`,
+          });
+        }
       }
 
-      // 让出控制权，避免阻塞UI
-      await this.yieldControl();
-
-      if (onProgress) {
-        const progress = 5 + (i / chunks.length) * 15;
-        onProgress({
-          stage: 'processing',
-          progress: Math.round(progress),
-          message: `正在处理第${i + 1}/${chunks.length}块...`
-        });
-      }
+      // 注意：这里需要调用外部服务的方法，所以返回一个标记
+      // 实际的转换将在外部服务中执行
+      return {
+        success: true,
+        method,
+        chunks: chunks.length,
+        message: '分块处理完成，准备执行转换',
+      };
     }
-
-    // 注意：这里需要调用外部服务的方法，所以返回一个标记
-    // 实际的转换将在外部服务中执行
-    return {
-      success: true,
-      method,
-      chunks: chunks.length,
-      message: '分块处理完成，准备执行转换'
-    };
   }
 
   /**
@@ -128,18 +138,18 @@ class NonBlockingConverter {
       const fileSize = stats.size;
       const chunkSize = Math.max(1024 * 1024, Math.floor(fileSize / 10)); // 1MB或文件大小的1/10
       const chunks = [];
-      
+
       for (let offset = 0; offset < fileSize; offset += chunkSize) {
         chunks.push({
           offset,
-          size: Math.min(chunkSize, fileSize - offset)
+          size: Math.min(chunkSize, fileSize - offset),
         });
       }
-      
+
       return chunks;
     } catch (error) {
-      console.warn('文件分块失败，使用默认分块:', error);
-      return [{ offset: 0, size: 1024 * 1024 }];
+      console.error('文件分块失败，无法继续处理:', error);
+      throw error;
     }
   }
 
@@ -163,14 +173,14 @@ class NonBlockingConverter {
    * 获取当前任务状态
    */
   getCurrentTaskStatus() {
-    if (!this.currentTask) return null;
-    
+    if (!this.currentTask) {return null;}
+
     const elapsed = Date.now() - this.currentTask.startTime;
     return {
       isProcessing: this.isProcessing,
       filePath: this.currentTask.filePath,
       elapsed,
-      options: this.currentTask.options
+      options: this.currentTask.options,
     };
   }
 
@@ -190,7 +200,7 @@ class DocumentConversionService {
   constructor() {
     // 后端API地址配置
     this.baseURL = this.getBaseURL();
-    this.timeout = 60000; // 60秒超时
+    this.timeout = 120000; // 120秒超时（增加以支持大文件）
 
     // WebSocket支持
     this.wsBaseURL = this.getWebSocketURL();
@@ -202,6 +212,7 @@ class DocumentConversionService {
     console.log('DocumentConversionService: 初始化完成');
     console.log('DocumentConversionService: API地址:', this.baseURL);
     console.log('DocumentConversionService: WebSocket地址:', this.wsBaseURL);
+    console.log('DocumentConversionService: 超时设置:', this.timeout + 'ms');
   }
 
   /**
@@ -214,22 +225,16 @@ class DocumentConversionService {
 
   /**
    * 获取后端API地址
+   * 使用配置文件中的统一API_URL，确保所有服务使用相同的网络配置
    */
   getBaseURL() {
-    // 根据平台和环境配置API地址
-    if (__DEV__) {
-      // 开发环境 - Django后端
-      if (Platform.OS === 'android') {
-        return 'http://192.168.234.232:8000/api/v1/document-converter'; // Android真机/模拟器
-      } else if (Platform.OS === 'ios') {
-        return 'http://192.168.234.232:8000/api/v1/document-converter'; // iOS真机/模拟器
-      } else {
-        return 'http://192.168.234.232:8000/api/v1/document-converter'; // 其他平台
-      }
-    } else {
-      // 生产环境 - 需要配置实际的服务器地址
-      return 'http://192.168.234.232:8000/api/v1/document-converter';
-    }
+    // 从配置文件获取基础URL，添加文档转换API路径
+    const baseURL = `${API_URL}/api/v1/document-converter`;
+
+    console.log('DocumentConversionService: 使用配置的API地址:', baseURL);
+    console.log('DocumentConversionService: 平台:', Platform.OS);
+
+    return baseURL;
   }
 
   /**
@@ -238,7 +243,7 @@ class DocumentConversionService {
   async checkServiceHealth() {
     try {
       console.log('DocumentConversionService: 检查服务健康状态...');
-      
+
       const response = await fetch(`${this.baseURL}/health/`, {
         method: 'GET',
         timeout: 5000,
@@ -253,12 +258,12 @@ class DocumentConversionService {
 
       const result = await response.json();
       console.log('DocumentConversionService: 服务状态正常:', result);
-      
+
       return {
         success: true,
         status: result.status,
         supportedFormats: result.supported_formats,
-        timestamp: result.timestamp
+        timestamp: result.timestamp,
       };
 
     } catch (error) {
@@ -266,7 +271,7 @@ class DocumentConversionService {
       return {
         success: false,
         error: error.message,
-        message: '后端转换服务不可用'
+        message: '后端转换服务不可用',
       };
     }
   }
@@ -279,12 +284,12 @@ class DocumentConversionService {
    */
   async convertToPDF(filePath, options = {}) {
     const { useNonBlocking = true, ...otherOptions } = options;
-    
+
     // 优先使用非阻塞转换
     if (useNonBlocking) {
       return this.convertToPDFNonBlocking(filePath, otherOptions);
     }
-    
+
     // 回退到传统方法
     return this.convertToPDFTraditional(filePath, otherOptions);
   }
@@ -295,12 +300,12 @@ class DocumentConversionService {
   async convertToPDFNonBlocking(filePath, options = {}) {
     try {
       console.log('DocumentConversionService: 使用非阻塞方式转换文档:', filePath);
-      
+
       const {
         onProgress = null,
         timeout = this.timeout,
         method = 'upload',
-        signal = null
+        signal = null,
       } = options;
 
       // 检查文件是否存在
@@ -317,7 +322,7 @@ class DocumentConversionService {
       console.log('DocumentConversionService: 文件信息:', {
         fileName,
         fileExtension,
-        size: fileStats.size
+        size: fileStats.size,
       });
 
       // 检查文件类型
@@ -333,7 +338,7 @@ class DocumentConversionService {
         method,
         signal,
         fileName,
-        fileExtension
+        fileExtension,
       });
 
       // 分块处理完成后，执行实际转换
@@ -341,22 +346,41 @@ class DocumentConversionService {
         if (onProgress) {
           onProgress({
             stage: 'converting',
-            progress: 20,
-            message: '分块处理完成，开始转换...'
+            progress: 60,
+            message: '分块处理完成，开始转换...',
           });
         }
 
         // 根据方法选择转换方式
         let result;
         if (method === 'websocket') {
-          result = await this.convertViaWebSocket(filePath, { onProgress, timeout, signal });
+          result = await this.convertViaWebSocket(filePath, fileName, fileExtension, onProgress);
         } else if (method === 'base64') {
-          result = await this.convertViaBase64(filePath, { onProgress, timeout, signal });
+          result = await this.convertViaBase64(filePath, fileName, fileExtension, onProgress, signal);
         } else {
-          result = await this.convertViaUpload(filePath, { onProgress, timeout, signal });
+          result = await this.convertViaUpload(filePath, fileName, fileExtension, onProgress, signal);
         }
 
-        return result;
+        // 格式化返回结果（统一格式）
+        if (result.success) {
+          return {
+            success: true,
+            pdfBase64: result.pdf_base64,
+            fileInfo: result.file_info || {
+              original_name: fileName,
+              file_type: fileExtension,
+              pages: 1,
+              conversion_method: 'unknown',
+              output_size: 0,
+            },
+            originalFile: filePath,
+            convertedSize: result.file_info?.output_size || 0,
+            conversionMethod: result.file_info?.conversion_method || 'unknown',
+            timestamp: result.timestamp || new Date().toISOString(),
+          };
+        } else {
+          throw new Error(result.error || '转换失败，未返回PDF数据');
+        }
       } else {
         throw new Error(chunkResult.error || '分块处理失败');
       }
@@ -378,7 +402,7 @@ class DocumentConversionService {
         onProgress = null,
         timeout = this.timeout,
         method = 'upload', // 'upload' 或 'base64'
-        signal = null // AbortController signal
+        signal = null, // AbortController signal
       } = options;
 
       // 检查文件是否存在
@@ -395,7 +419,7 @@ class DocumentConversionService {
       console.log('DocumentConversionService: 文件信息:', {
         fileName,
         fileExtension,
-        size: fileStats.size
+        size: fileStats.size,
       });
 
       // 检查文件类型
@@ -409,7 +433,7 @@ class DocumentConversionService {
         onProgress({
           stage: 'preparing',
           progress: 10,
-          message: '正在准备文件...'
+          message: '正在准备文件...',
         });
       }
 
@@ -433,7 +457,7 @@ class DocumentConversionService {
           onProgress({
             stage: 'complete',
             progress: 100,
-            message: '转换完成！'
+            message: '转换完成！',
           });
         }
 
@@ -445,12 +469,122 @@ class DocumentConversionService {
             file_type: fileExtension,
             pages: 1,
             conversion_method: 'unknown',
-            output_size: 0
+            output_size: 0,
           },
           originalFile: filePath,
           convertedSize: result.file_info?.output_size || 0,
           conversionMethod: result.file_info?.conversion_method || 'unknown',
-          timestamp: result.timestamp || new Date().toISOString()
+          timestamp: result.timestamp || new Date().toISOString(),
+        };
+      } else {
+        throw new Error(result.error || '转换失败');
+      }
+
+    } catch (error) {
+      // 使用统一的网络错误处理器
+      networkErrorService.handleDocumentConversionError(error, {
+        context: '文档转换',
+        onRetry: () => {
+          // 可以在这里实现重试逻辑
+          console.log('用户选择重试文档转换');
+        },
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * 非阻塞转换主方法的旧名称（向后兼容）
+   */
+  async convertDocumentNonBlocking(filePath, options = {}) {
+    return this.convertToPDFNonBlocking(filePath, options);
+  }
+
+  /**
+   * 传统转换方法（保持向后兼容）
+   */
+  async convertToPDFTraditional(filePath, options = {}) {
+    try {
+      console.log('DocumentConversionService: 开始转换文档:', filePath);
+
+      const {
+        onProgress = null,
+        timeout = this.timeout,
+        method = 'upload', // 'upload' 或 'base64'
+        signal = null, // AbortController signal
+      } = options;
+
+      // 检查文件是否存在
+      const fileExists = await RNFS.exists(filePath);
+      if (!fileExists) {
+        throw new Error(`文件不存在: ${filePath}`);
+      }
+
+      // 获取文件信息
+      const fileStats = await RNFS.stat(filePath);
+      const fileName = filePath.split('/').pop();
+      const fileExtension = fileName.split('.').pop().toLowerCase();
+
+      console.log('DocumentConversionService: 文件信息:', {
+        fileName,
+        fileExtension,
+        size: fileStats.size,
+      });
+
+      // 检查文件类型
+      const supportedFormats = ['ppt', 'pptx', 'doc', 'docx'];
+      if (!supportedFormats.includes(fileExtension)) {
+        throw new Error(`不支持的文件格式: ${fileExtension}`);
+      }
+
+      // 进度回调
+      if (onProgress) {
+        onProgress({
+          stage: 'preparing',
+          progress: 10,
+          message: '正在准备文件...',
+        });
+      }
+
+      let result;
+
+      if (method === 'websocket') {
+        // 使用WebSocket方法（实时进度）
+        result = await this.convertViaWebSocket(filePath, fileName, fileExtension, onProgress);
+      } else if (method === 'base64') {
+        // 使用Base64方法
+        result = await this.convertViaBase64(filePath, fileName, fileExtension, onProgress, signal);
+      } else {
+        // 使用文件上传方法
+        result = await this.convertViaUpload(filePath, fileName, fileExtension, onProgress, signal);
+      }
+
+      if (result.success) {
+        console.log('DocumentConversionService: 转换成功');
+
+        if (onProgress) {
+          onProgress({
+            stage: 'complete',
+            progress: 100,
+            message: '转换完成！',
+          });
+        }
+
+        return {
+          success: true,
+          pdfBase64: result.pdf_base64,
+          fileInfo: result.file_info || {
+            original_name: fileName,
+            file_type: fileExtension,
+            pages: 1,
+            conversion_method: 'unknown',
+            output_size: 0,
+          },
+          originalFile: filePath,
+          convertedSize: result.file_info?.output_size || 0,
+          conversionMethod: result.file_info?.conversion_method || 'unknown',
+          timestamp: result.timestamp || new Date().toISOString(),
         };
       } else {
         throw new Error(result.error || '转换失败');
@@ -463,14 +597,14 @@ class DocumentConversionService {
         onRetry: () => {
           // 可以在这里实现重试逻辑
           console.log('用户选择重试文档转换');
-        }
+        },
       });
 
       if (onProgress) {
         onProgress({
           stage: 'error',
           progress: 0,
-          message: `转换失败: ${error.message || '未知错误'}`
+          message: `转换失败: ${error.message || '未知错误'}`,
         });
       }
 
@@ -479,7 +613,7 @@ class DocumentConversionService {
         error: error.message || '转换失败',
         errorType: 'conversion_error',
         originalFile: filePath,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
   }
@@ -517,7 +651,7 @@ class DocumentConversionService {
             type: 'start_conversion',
             file_path: filePath,
             file_type: fileExtension,
-            file_name: fileName
+            file_name: fileName,
           }));
         };
 
@@ -531,7 +665,7 @@ class DocumentConversionService {
                   onProgress({
                     stage: data.stage,
                     progress: data.progress,
-                    message: data.message
+                    message: data.message,
                   });
                 }
                 break;
@@ -545,7 +679,7 @@ class DocumentConversionService {
                   resolve({
                     success: true,
                     pdf_base64: data.pdf_base64,
-                    file_info: data.file_info
+                    file_info: data.file_info,
                   });
                 } else {
                   reject(new Error(data.error || '转换失败'));
@@ -604,16 +738,37 @@ class DocumentConversionService {
         onProgress({
           stage: 'uploading',
           progress: 10,
-          message: '正在准备上传...'
+          message: '正在准备上传...',
         });
+      }
+
+      // 首先检查后端服务是否可访问
+      try {
+        console.log('DocumentConversionService: 检查后端服务连接...');
+        const healthCheck = await Promise.race([
+          fetch(`${this.baseURL}/health/`, {
+            method: 'GET',
+            timeout: 5000,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('健康检查超时')), 5000)
+          ),
+        ]);
+
+        if (healthCheck && healthCheck.ok) {
+          console.log('DocumentConversionService: 后端服务连接正常');
+        }
+      } catch (healthError) {
+        console.warn('DocumentConversionService: 无法连接到后端服务:', healthError.message);
+        console.warn('DocumentConversionService: 将继续尝试上传，但可能会失败');
       }
 
       // 检查文件大小和可用内存
       const fileStats = await this.getFileStats(filePath);
-      
+
       // 导入增强内存管理器
       const enhancedMemoryManager = require('../../utils/enhancedMemoryManager').default;
-      
+
       // 检查文件是否可以安全处理（支持100MB）
       const processCheck = await enhancedMemoryManager.canProcessFile(filePath, fileStats.size);
       if (!processCheck.canProcess) {
@@ -622,18 +777,18 @@ class DocumentConversionService {
 
       // 标记文件开始处理
       enhancedMemoryManager.markFileProcessing(filePath);
-      
+
       console.log('DocumentConversionService: 文件处理检查通过:', {
         fileSize: Math.round(fileStats.size / 1024 / 1024) + 'MB',
         requiredMemory: Math.round(processCheck.requiredMemory / 1024 / 1024) + 'MB',
-        availableMemory: Math.round(processCheck.availableMemory / 1024 / 1024) + 'MB'
+        availableMemory: Math.round(processCheck.availableMemory / 1024 / 1024) + 'MB',
       });
 
       // 对于大文件（超过10MB），使用内存优化器
       if (fileStats.size > 10 * 1024 * 1024) {
         console.log('DocumentConversionService: 检测到大文件，使用内存优化器');
         const memoryOptimizer = require('../../utils/memoryOptimizer').default;
-        
+
         // 使用内存优化器进行安全处理
         await memoryOptimizer.processLargeFileSafely(filePath, {
           onChunk: async (chunk, index, total) => {
@@ -642,7 +797,7 @@ class DocumentConversionService {
               onProgress({
                 progress,
                 message: `处理文件块 ${index + 1}/${total}`,
-                stage: 'chunk_processing'
+                stage: 'chunk_processing',
               });
             }
           },
@@ -652,12 +807,13 @@ class DocumentConversionService {
               onProgress({
                 progress: 40,
                 message: '大文件预处理完成',
-                stage: 'preprocessing_complete'
+                stage: 'preprocessing_complete',
               });
             }
             return data;
-          }
+          },
         }, {
+          encoding: 'base64', // 使用base64编码读取二进制文件
           chunkSize: 1024 * 1024, // 1MB块大小
           onProgress: (progressInfo) => {
             if (onProgress) {
@@ -666,37 +822,60 @@ class DocumentConversionService {
               onProgress({
                 progress: adjustedProgress,
                 message: `大文件预处理: ${progressInfo.percentage}%`,
-                stage: 'large_file_processing'
+                stage: 'large_file_processing',
               });
             }
           },
-          signal: signal
+          signal: signal,
         });
       }
+
+      // 计算合适的超时时间（基于文件大小）
+      // 基础超时 + 每MB额外10秒
+      const fileSizeMB = fileStats.size / (1024 * 1024);
+      const calculatedTimeout = Math.max(this.timeout, 60000 + (fileSizeMB * 10000));
+      console.log('DocumentConversionService: 计算的超时时间:', calculatedTimeout + 'ms', '文件大小:', fileSizeMB.toFixed(2) + 'MB');
+
+      // 设置超时定时器
+      const timeoutId = setTimeout(() => {
+        if (abortController) {
+          abortController.abort();
+        }
+      }, calculatedTimeout);
 
       if (onProgress) {
         onProgress({
           stage: 'uploading',
           progress: 20,
-          message: '正在上传文件...'
+          message: '正在上传文件...',
         });
       }
 
       // 创建FormData
       const formData = new FormData();
+      const fileUri = Platform.OS === 'android' ?
+        (filePath.startsWith('file://') ? filePath : `file://${filePath}`) :
+        filePath;
+
+      console.log('DocumentConversionService: 准备上传文件:', {
+        filePath,
+        fileUri,
+        fileName,
+        fileExtension,
+        mimeType: this.getMimeType(fileExtension),
+      });
+
       formData.append('file', {
-        uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
+        uri: fileUri,
         type: this.getMimeType(fileExtension),
-        name: fileName
+        name: fileName,
       });
 
       // 发送请求
+      // 注意：使用FormData时不要手动设置Content-Type，让fetch自动设置
       const response = await fetch(`${this.baseURL}/convert/`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         signal: abortController.signal,
       });
 
@@ -704,7 +883,7 @@ class DocumentConversionService {
         onProgress({
           stage: 'processing',
           progress: 60,
-          message: '服务器正在处理...'
+          message: '服务器正在处理...',
         });
       }
 
@@ -731,26 +910,49 @@ class DocumentConversionService {
         onProgress({
           stage: 'complete',
           progress: 100,
-          message: '转换完成！'
+          message: '转换完成！',
         });
       }
+
+      // 清除超时定时器
+      clearTimeout(timeoutId);
 
       return result;
 
     } catch (error) {
+      // 清除超时定时器
+      if (typeof timeoutId !== 'undefined') {
+        clearTimeout(timeoutId);
+      }
+
       if (error.name === 'AbortError') {
-        console.log('DocumentConversionService: 转换已取消');
-        throw new Error('转换已取消');
+        console.log('DocumentConversionService: 转换已取消或超时');
+        throw new Error('转换已取消或超时，请检查网络连接和后端服务状态');
       }
 
       console.error('DocumentConversionService: 文件上传转换失败:', error);
-      throw error;
+      console.error('DocumentConversionService: 错误详情:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        baseURL: this.baseURL,
+        fileName,
+        fileExtension,
+      });
+
+      // 提供更详细的错误信息
+      let errorMessage = error.message || '文件上传失败';
+      if (error.message === 'Network request failed') {
+        errorMessage = '网络请求失败，请检查：\n1. 后端服务是否运行在 ' + this.baseURL + '\n2. 网络连接是否正常\n3. 文件是否过大导致超时';
+      }
+
+      throw new Error(errorMessage);
     } finally {
       // 清理资源
       if (abortController && !signal) {
         abortController = null;
       }
-      
+
       // 标记文件处理完成
       try {
         const enhancedMemoryManager = require('../../utils/enhancedMemoryManager').default;
@@ -770,7 +972,7 @@ class DocumentConversionService {
       return {
         size: stats.size,
         isFile: stats.isFile(),
-        modificationTime: stats.mtime
+        modificationTime: stats.mtime,
       };
     } catch (error) {
       console.warn('获取文件统计信息失败:', error);
@@ -789,7 +991,7 @@ class DocumentConversionService {
         onProgress({
           stage: 'reading',
           progress: 20,
-          message: '正在读取文件...'
+          message: '正在读取文件...',
         });
       }
 
@@ -800,7 +1002,7 @@ class DocumentConversionService {
         onProgress({
           stage: 'uploading',
           progress: 40,
-          message: '正在发送数据...'
+          message: '正在发送数据...',
         });
       }
 
@@ -813,7 +1015,7 @@ class DocumentConversionService {
         body: JSON.stringify({
           file_data: fileData,
           file_extension: fileExtension,
-          filename: fileName
+          filename: fileName,
         }),
         timeout: this.timeout,
       });
@@ -822,7 +1024,7 @@ class DocumentConversionService {
         onProgress({
           stage: 'converting',
           progress: 70,
-          message: '正在转换文档...'
+          message: '正在转换文档...',
         });
       }
 
@@ -832,12 +1034,12 @@ class DocumentConversionService {
       }
 
       const result = await response.json();
-      
+
       if (onProgress) {
         onProgress({
           stage: 'processing',
           progress: 90,
-          message: '正在处理结果...'
+          message: '正在处理结果...',
         });
       }
 
@@ -857,7 +1059,7 @@ class DocumentConversionService {
       'ppt': 'application/vnd.ms-powerpoint',
       'pptx': 'application/vnd.openxmlformats-presentationml.presentation',
       'doc': 'application/msword',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     };
     return mimeTypes[extension] || 'application/octet-stream';
   }
@@ -869,12 +1071,12 @@ class DocumentConversionService {
     try {
       const fileName = originalFileName.replace(/\.(ppt|pptx|doc|docx)$/i, '.pdf');
       const outputPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      
+
       await RNFS.writeFile(outputPath, pdfBase64, 'base64');
-      
+
       console.log('DocumentConversionService: PDF已保存到:', outputPath);
       return outputPath;
-      
+
     } catch (error) {
       console.error('DocumentConversionService: 保存PDF失败:', error);
       throw error;

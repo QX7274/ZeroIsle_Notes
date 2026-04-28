@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class SystemSettingViewSet(viewsets.ModelViewSet):
     """系统设置视图集"""
-    queryset = SystemSetting.objects.all()
+    queryset = []
     serializer_class = SystemSettingSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -282,7 +282,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
     """系统公告视图集"""
-    queryset = Announcement.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
@@ -669,7 +669,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
 
 class SystemBackupViewSet(viewsets.ModelViewSet):
     """系统备份视图集"""
-    queryset = SystemBackup.objects.all()
+    queryset = []
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['backup_type', 'status', 'is_auto', 'created_by']

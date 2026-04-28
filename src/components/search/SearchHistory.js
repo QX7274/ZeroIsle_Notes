@@ -99,7 +99,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
         <Text
           style={[
             styles.historyItemText,
-            { color: colors.text }
+            { color: colors.text },
           ]}
           numberOfLines={1}
         >
@@ -109,7 +109,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
       <Text
         style={[
           styles.historyItemTime,
-          { color: colors.textSecondary }
+          { color: colors.textSecondary },
         ]}
       >
         {formatTime(item.timestamp)}
@@ -122,12 +122,12 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
     return (
       <View style={[
         styles.container,
-        { backgroundColor: colors.background }
+        { backgroundColor: colors.background },
       ]}>
         <Text
           style={[
             styles.emptyText,
-            { color: colors.textSecondary }
+            { color: colors.textSecondary },
           ]}
         >
           暂无搜索历史
@@ -140,13 +140,13 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
   return (
     <View style={[
       styles.container,
-      { backgroundColor: colors.background }
+      { backgroundColor: colors.background },
     ]}>
       <View style={styles.header}>
         <Text
           style={[
             styles.title,
-            { color: colors.text }
+            { color: colors.text },
           ]}
         >
           搜索历史
@@ -158,7 +158,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
           <Text
             style={[
               styles.clearButtonText,
-              { color: colors.primary }
+              { color: colors.primary },
             ]}
           >
             清除

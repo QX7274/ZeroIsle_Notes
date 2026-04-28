@@ -1,12 +1,9 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-  <!-- 合并两个AppTheme样式 -->
+  <!-- 统一应用主题 - 使用简洁的白色背景 -->
   <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
     <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     <item name="colorPrimary">@color/colorPrimary</item>
     <item name="android:statusBarColor">#ffffff</item>
-  </style>
-
-  <style name="Theme.App.SplashScreen" parent="AppTheme">
-    <item name="android:windowBackground">@drawable/splashscreen</item>
+    <item name="android:windowBackground">@android:color/white</item>
   </style>
 </resources>

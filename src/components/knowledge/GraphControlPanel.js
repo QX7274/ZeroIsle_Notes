@@ -9,12 +9,13 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
-import { SPACING } from '../../utils/constants/dimensions';
+import { SPACING, RADIUS, ELEVATION, BORDER, SIZE, Z_INDEX } from '../../theme/tokens';
 import { UnifiedSearchBar } from '../../components/search';
 
 /**
  * 知识图谱控制面板组件
  * 提供图谱过滤、搜索、布局调整等功能
+ * Refactored with Design Tokens
  */
 const GraphControlPanel = ({
   onFilterChange,
@@ -25,6 +26,9 @@ const GraphControlPanel = ({
   onToggleExpand,
 }) => {
   const { theme } = useTheme();
+  // Ensure we have correct color references from theme object
+  const colors = theme.colors || theme;
+
   const [searchText, setSearchText] = useState('');
   const [filters, setFilters] = useState({
     notes: true,
@@ -70,7 +74,7 @@ const GraphControlPanel = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: theme.cardBackground },
+        { backgroundColor: colors.card || colors.surface || '#FFFFFF' },
         expanded ? styles.expandedContainer : styles.collapsedContainer,
       ]}
     >
@@ -80,14 +84,14 @@ const GraphControlPanel = ({
       >
         <Icon
           name={expanded ? 'keyboard-arrow-left' : 'keyboard-arrow-right'}
-          size={24}
-          color={theme.text}
+          size={SIZE.icon.lg}
+          color={colors.text}
         />
       </TouchableOpacity>
 
       {expanded && (
         <ScrollView style={styles.content}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>搜索</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>搜索</Text>
           <View style={styles.searchContainer}>
             <UnifiedSearchBar
               searchScope="knowledge_graph"
@@ -101,52 +105,53 @@ const GraphControlPanel = ({
             />
           </View>
 
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>过滤器</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>过滤器</Text>
           <View style={styles.filterContainer}>
             <View style={styles.filterItem}>
-              <Text style={[styles.filterLabel, { color: theme.text }]}>笔记</Text>
+              <Text style={[styles.filterLabel, { color: colors.text }]}>笔记</Text>
               <Switch
                 value={filters.notes}
                 onValueChange={(value) => handleFilterChange('notes', value)}
-                trackColor={{ false: theme.border, true: theme.primary }}
+                trackColor={{ false: colors.border, true: colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
             <View style={styles.filterItem}>
-              <Text style={[styles.filterLabel, { color: theme.text }]}>标签</Text>
+              <Text style={[styles.filterLabel, { color: colors.text }]}>标签</Text>
               <Switch
                 value={filters.tags}
                 onValueChange={(value) => handleFilterChange('tags', value)}
-                trackColor={{ false: theme.border, true: theme.primary }}
+                trackColor={{ false: colors.border, true: colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
             <View style={styles.filterItem}>
-              <Text style={[styles.filterLabel, { color: theme.text }]}>概念</Text>
+              <Text style={[styles.filterLabel, { color: colors.text }]}>概念</Text>
               <Switch
                 value={filters.concepts}
                 onValueChange={(value) => handleFilterChange('concepts', value)}
-                trackColor={{ false: theme.border, true: theme.primary }}
+                trackColor={{ false: colors.border, true: colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
           </View>
 
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>深度</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>深度</Text>
           <View style={styles.depthContainer}>
             {[1, 2, 3, 4].map((d) => (
               <TouchableOpacity
                 key={d}
                 style={[
                   styles.depthButton,
-                  depth === d && { backgroundColor: theme.primary },
+                  depth === d && { backgroundColor: colors.primary },
+                  { borderColor: colors.border || '#E0E0E0' },
                 ]}
                 onPress={() => handleDepthChange(d)}
               >
                 <Text
                   style={[
                     styles.depthButtonText,
-                    { color: depth === d ? '#FFFFFF' : theme.text },
+                    { color: depth === d ? '#FFFFFF' : colors.text },
                   ]}
                 >
                   {d}
@@ -155,19 +160,20 @@ const GraphControlPanel = ({
             ))}
           </View>
 
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>布局</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>布局</Text>
           <View style={styles.layoutContainer}>
             <TouchableOpacity
               style={[
                 styles.layoutButton,
-                layout === 'force' && { backgroundColor: theme.primary },
+                layout === 'force' && { backgroundColor: colors.primary },
+                { borderColor: colors.border || '#E0E0E0' },
               ]}
               onPress={() => handleLayoutChange('force')}
             >
               <Text
                 style={[
                   styles.layoutButtonText,
-                  { color: layout === 'force' ? '#FFFFFF' : theme.text },
+                  { color: layout === 'force' ? '#FFFFFF' : colors.text },
                 ]}
               >
                 力导向
@@ -176,14 +182,15 @@ const GraphControlPanel = ({
             <TouchableOpacity
               style={[
                 styles.layoutButton,
-                layout === 'radial' && { backgroundColor: theme.primary },
+                layout === 'radial' && { backgroundColor: colors.primary },
+                { borderColor: colors.border || '#E0E0E0' },
               ]}
               onPress={() => handleLayoutChange('radial')}
             >
               <Text
                 style={[
                   styles.layoutButtonText,
-                  { color: layout === 'radial' ? '#FFFFFF' : theme.text },
+                  { color: layout === 'radial' ? '#FFFFFF' : colors.text },
                 ]}
               >
                 放射状
@@ -192,14 +199,15 @@ const GraphControlPanel = ({
             <TouchableOpacity
               style={[
                 styles.layoutButton,
-                layout === 'tree' && { backgroundColor: theme.primary },
+                layout === 'tree' && { backgroundColor: colors.primary },
+                { borderColor: colors.border || '#E0E0E0' },
               ]}
               onPress={() => handleLayoutChange('tree')}
             >
               <Text
                 style={[
                   styles.layoutButtonText,
-                  { color: layout === 'tree' ? '#FFFFFF' : theme.text },
+                  { color: layout === 'tree' ? '#FFFFFF' : colors.text },
                 ]}
               >
                 树状
@@ -218,13 +226,10 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    borderLeftWidth: 1,
+    borderLeftWidth: BORDER.width.thin,
     borderLeftColor: 'rgba(0,0,0,0.1)',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    ...ELEVATION.md,
+    zIndex: Z_INDEX.drawer,
   },
   expandedContainer: {
     width: 250,
@@ -233,52 +238,51 @@ const styles = StyleSheet.create({
     width: 40,
   },
   expandButton: {
-    padding: SPACING.SMALL,
+    padding: SPACING.sm,
     alignItems: 'center',
     justifyContent: 'center',
     height: 40,
   },
   content: {
     flex: 1,
-    padding: SPACING.MEDIUM,
+    padding: SPACING.md,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginTop: SPACING.MEDIUM,
-    marginBottom: SPACING.SMALL,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   searchContainer: {
-    marginBottom: SPACING.MEDIUM,
+    marginBottom: SPACING.md,
   },
   searchBar: {
     marginVertical: 0,
   },
   filterContainer: {
-    marginVertical: SPACING.SMALL,
+    marginVertical: SPACING.sm,
   },
   filterItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: SPACING.SMALL,
+    paddingVertical: SPACING.sm,
   },
   filterLabel: {
     fontSize: 14,
   },
   depthContainer: {
     flexDirection: 'row',
-    marginVertical: SPACING.SMALL,
+    marginVertical: SPACING.sm,
   },
   depthButton: {
     width: 40,
     height: 40,
-    borderRadius: 4,
-    marginRight: SPACING.SMALL,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
   },
   depthButtonText: {
     fontSize: 14,
@@ -287,16 +291,15 @@ const styles = StyleSheet.create({
   layoutContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginVertical: SPACING.SMALL,
+    marginVertical: SPACING.sm,
   },
   layoutButton: {
-    paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: SPACING.SMALL,
-    borderRadius: 4,
-    marginRight: SPACING.SMALL,
-    marginBottom: SPACING.SMALL,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
   },
   layoutButtonText: {
     fontSize: 14,

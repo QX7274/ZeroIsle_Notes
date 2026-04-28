@@ -7,19 +7,20 @@ import { mongoDBService } from '../database/mongoDBAdapter';
 import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
 import { logService } from '../../utils/logService';
+import { migrateAIChatData } from '../../utils/aiChatMigration';
 
 class ChatHistoryService {
   constructor() {
     this.initialized = false;
     this.initializationPromise = null;
-    this.collection = 'ai_conversations';
+    this.collection = 'AIChat';
   }
 
   /**
    * 初始化聊天历史服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -29,6 +30,15 @@ class ChatHistoryService {
       try {
         // 确保MongoDB服务已初始化
         await mongoDBService.initialize();
+
+        // 执行数据迁移（如果需要）
+        try {
+          await migrateAIChatData();
+          logService.info('AI聊天数据迁移检查完成');
+        } catch (migrationError) {
+          // 迁移失败不应该阻止服务初始化
+          logService.warn('AI聊天数据迁移失败，但服务将继续初始化', migrationError);
+        }
 
         // 设置已初始化标志
         this.initialized = true;
@@ -66,13 +76,14 @@ class ChatHistoryService {
       // 在线模式：保存到MongoDB
       if (networkService.isOnline()) {
         const result = await mongoDBService.insertOne(this.collection, conversation);
-        conversation._id = result.insertedId;
+        conversation._id = result.insertedId.toString();
         conversation.is_synced = true;
 
         // 同时保存到本地存储
         const realm = await realmService.getRealm();
         realm.write(() => {
-          realm.create('AIChat', conversation);
+          const realmData = this._convertToRealmFormat(conversation);
+          realm.create('AIChat', realmData, 'modified');
         });
 
         return conversation;
@@ -82,7 +93,8 @@ class ChatHistoryService {
       const realm = await realmService.getRealm();
       let conversationId;
       realm.write(() => {
-        const savedConversation = realm.create('AIChat', conversation);
+        const realmData = this._convertToRealmFormat(conversation);
+        const savedConversation = realm.create('AIChat', realmData);
         conversationId = savedConversation._id;
       });
       conversation._id = conversationId;
@@ -92,6 +104,37 @@ class ChatHistoryService {
       logService.error('创建对话失败', error);
       throw error;
     }
+  }
+
+  /**
+   * 转换MongoDB数据为Realm格式
+   * @param {Object} data MongoDB数据
+   * @returns {Object} Realm格式数据
+   */
+  _convertToRealmFormat(data) {
+    const converted = {
+      ...data,
+      _id: data._id ? data._id.toString() : data._id,
+      user_id: data.user_id ? data.user_id.toString() : data.user_id,
+      messages: typeof data.messages === 'string'
+        ? data.messages
+        : JSON.stringify(data.messages || []),
+    };
+    return converted;
+  }
+
+  /**
+   * 转换Realm数据为普通对象格式
+   * @param {Object} data Realm数据
+   * @returns {Object} 普通对象格式
+   */
+  _convertFromRealmFormat(data) {
+    return {
+      ...data,
+      messages: typeof data.messages === 'string'
+        ? JSON.parse(data.messages)
+        : (data.messages || []),
+    };
   }
 
   /**
@@ -120,7 +163,8 @@ class ChatHistoryService {
         const realm = await realmService.getRealm();
         realm.write(() => {
           for (const conversation of conversations) {
-            realm.create('AIChat', conversation);
+            const realmData = this._convertToRealmFormat(conversation);
+            realm.create('AIChat', realmData, 'modified');
           }
         });
 
@@ -130,19 +174,38 @@ class ChatHistoryService {
       // 离线模式：从本地存储获取
       const realm = await realmService.getRealm();
       let conversations = realm.objects('AIChat');
-      
-      // 应用过滤和排序
-      if (defaultFilter) {
-        conversations = conversations.filtered(defaultFilter);
+
+      // 应用过滤 - 转换MongoDB格式为Realm查询字符串
+      if (defaultFilter && Object.keys(defaultFilter).length > 0) {
+        const queryParts = [];
+        for (const [key, value] of Object.entries(defaultFilter)) {
+          if (typeof value === 'boolean') {
+            queryParts.push(`${key} == ${value}`);
+          } else if (typeof value === 'string') {
+            queryParts.push(`${key} == "${value}"`);
+          } else if (typeof value === 'number') {
+            queryParts.push(`${key} == ${value}`);
+          }
+        }
+        if (queryParts.length > 0) {
+          conversations = conversations.filtered(queryParts.join(' AND '));
+        }
       }
-      if (sort) {
-        conversations = conversations.sorted(sort);
+
+      // 应用排序 - 转换MongoDB格式为Realm格式
+      if (sort && Object.keys(sort).length > 0) {
+        const sortField = Object.keys(sort)[0];
+        const sortDirection = sort[sortField] === -1; // -1 = descending = true in Realm
+        conversations = conversations.sorted(sortField, sortDirection);
       }
+
+      // 应用分页
       if (limit) {
         conversations = conversations.slice(skip || 0, (skip || 0) + limit);
       }
-      
-      return conversations;
+
+      // 转换为普通数组并转换格式
+      return Array.from(conversations).map(conv => this._convertFromRealmFormat(conv));
     } catch (error) {
       logService.error('获取对话列表失败', error);
       throw error;
@@ -169,7 +232,8 @@ class ChatHistoryService {
         if (conversation) {
           const realm = await realmService.getRealm();
           realm.write(() => {
-            realm.create('AIChat', conversation);
+            const realmData = this._convertToRealmFormat(conversation);
+            realm.create('AIChat', realmData, 'modified');
           });
         }
 
@@ -178,7 +242,8 @@ class ChatHistoryService {
 
       // 离线模式：从本地存储获取
       const realm = await realmService.getRealm();
-      return realm.objectForPrimaryKey('AIChat', conversationId);
+      const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
+      return conversation ? this._convertFromRealmFormat(conversation) : null;
     } catch (error) {
       logService.error(`获取对话(ID: ${conversationId})失败`, error);
       throw error;
@@ -218,7 +283,7 @@ class ChatHistoryService {
       realm.write(() => {
         const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
         if (conversation) {
-          Object.assign(conversation, updateData);
+          Object.assign(conversation, update);
           updatedConversation = conversation;
         }
       });
@@ -249,7 +314,7 @@ class ChatHistoryService {
 
       // 创建新消息
       const message = {
-        id: `msg_${Date.now()}`,
+        id: realmService.createObjectId(),
         content,
         isUser,
         timestamp: new Date(),
@@ -281,8 +346,10 @@ class ChatHistoryService {
       realm.write(() => {
         const conversation = realm.objectForPrimaryKey('AIChat', conversationId);
         if (conversation) {
-          Object.assign(conversation, updateData);
-          updatedConversation = conversation;
+          conversation.messages = JSON.stringify(messages);
+          conversation.updated_at = update.updated_at;
+          conversation.is_synced = update.is_synced;
+          updatedConversation = this._convertFromRealmFormat(conversation);
         }
       });
       return updatedConversation;
@@ -403,20 +470,23 @@ class ChatHistoryService {
       const conversations = await this.getConversations(options);
 
       // 转换为AIToolbar期望的格式
-      return conversations.map(conversation => ({
-        id: conversation._id,
-        tool: conversation.title || 'chat',
-        input: conversation.messages && conversation.messages.length > 0
-          ? conversation.messages[0].content
-          : '',
-        output: conversation.messages && conversation.messages.length > 1
-          ? conversation.messages[1].content
-          : '',
-        timestamp: conversation.updated_at || conversation.created_at,
-      }));
+      return conversations.map(conversation => {
+        // 确保messages是数组
+        const messages = Array.isArray(conversation.messages)
+          ? conversation.messages
+          : [];
+
+        return {
+          id: conversation._id ? conversation._id.toString() : '',
+          tool: conversation.title || 'chat',
+          input: messages.length > 0 ? (messages[0].content || '') : '',
+          output: messages.length > 1 ? (messages[1].content || '') : '',
+          timestamp: conversation.updated_at || conversation.created_at,
+        };
+      });
     } catch (error) {
       logService.error('获取AI历史记录失败', error);
-      return []; // 出错时返回空数组
+      throw error;
     }
   }
 
@@ -465,4 +535,9 @@ class ChatHistoryService {
   }
 }
 
-export const chatHistoryService = new ChatHistoryService();
+const chatHistoryService = new ChatHistoryService();
+
+module.exports = chatHistoryService;
+module.exports.default = chatHistoryService;
+module.exports.chatHistoryService = chatHistoryService;
+module.exports.ChatHistoryService = ChatHistoryService;

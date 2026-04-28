@@ -4,9 +4,64 @@
 import instance from './apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import realmService from '../database/realmService';
-import NetInfo from '@react-native-community/netinfo';
 import { getNotesFromOfflineStorage } from '../offline/getNotes';
 import networkErrorService from '../networkErrorService';
+import RNFS from 'react-native-fs';
+import RNBlobUtil from 'react-native-blob-util';
+import { Platform } from 'react-native';
+
+// Helpers for metadata computation
+const normalizeFilePath = (uri) => {
+  if (!uri) {return null;}
+  return uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+};
+
+const base64SizeInBytes = (b64) => {
+  if (!b64) {return null;}
+  const len = b64.length;
+  const padding = (b64.endsWith('==') ? 2 : (b64.endsWith('=') ? 1 : 0));
+  return Math.floor(len * 3 / 4) - padding;
+};
+
+const estimatePdfPageCount = (text) => {
+  if (!text || typeof text !== 'string') {return null;}
+  // Count '/Type /Page' occurrences but ignore '/Pages'
+  const matches = text.match(/\/Type\s*\/Page(?!s)/g);
+  return matches ? matches.length : null;
+};
+
+const readPdfText = async (uri) => {
+  // Try RNFS first (file paths), then BlobUtil for content:// on Android
+  try {
+    const path = normalizeFilePath(uri);
+    if (path) {
+      return await RNFS.readFile(path, 'ascii');
+    }
+  } catch (_) {}
+  try {
+    return await RNBlobUtil.fs.readFile(uri, 'ascii');
+  } catch (_) {
+    return null;
+  }
+};
+
+const getFileSizeBytes = async (uri) => {
+  // Prefer RNFS.stat for file paths
+  try {
+    const path = normalizeFilePath(uri);
+    if (path) {
+      const stat = await RNFS.stat(path);
+      if (stat && stat.size != null) {return Number(stat.size);}
+    }
+  } catch (_) {}
+  // Fallback: read as base64 and compute length (works with content:// on Android)
+  try {
+    const b64 = await RNBlobUtil.fs.readFile(uri, 'base64');
+    return base64SizeInBytes(b64);
+  } catch (_) {
+    return null;
+  }
+};
 
 // 使用导入的离线存储服务
 
@@ -18,83 +73,33 @@ import networkErrorService from '../networkErrorService';
 const getAllNotes = async (params = {}) => {
   try {
     console.log('开始获取所有笔记...');
-    const startTime = Date.now();
 
-    // 设置较长的超时，确保有足够时间加载数据
-    const timeoutPromise = new Promise(resolve => {
-      setTimeout(() => {
-        console.log('获取笔记超时，显示空列表');
-        resolve({
-          success: true,
-          message: '欢迎使用！点击右下角"+"按钮创建您的第一条笔记',
-          data: [],
-          isFirstUse: true
-        });
-      }, 15000); // 15秒超时，增加等待时间
-    });
+    const notes = await getNotesFromOfflineStorage();
+    if (notes?.data && notes.data.length > 0) {
+      return notes;
+    }
 
-    // 使用辅助函数从离线存储获取笔记
-    // 直接从Redux状态获取笔记数据
-    console.log('尝试从Redux状态获取笔记数据');
-    const fetchPromise = new Promise(async (resolve) => {
-      try {
-        // 先尝试从离线存储获取笔记
-        const notes = await getNotesFromOfflineStorage();
+    const { store } = require('../../store');
+    const state = store.getState();
+    const reduxNotes = state?.notes?.entities ? Object.values(state.notes.entities) : [];
 
-        // 如果获取到笔记，直接返回
-        if (notes && notes.data && notes.data.length > 0) {
-          console.log(`成功从离线存储获取到${notes.data.length}条笔记`);
-          resolve(notes);
-          return;
-        }
+    if (reduxNotes.length > 0) {
+      return {
+        success: true,
+        data: reduxNotes,
+        message: '从本地状态获取笔记成功',
+      };
+    }
 
-        // 如果没有获取到笔记，尝试从Redux状态获取
-        console.log('离线存储中没有笔记，尝试从Redux状态获取');
-
-        // 从Redux状态获取笔记
-        const { store } = require('../../store');
-        const state = store.getState();
-        const reduxNotes = state.notes.entities ? Object.values(state.notes.entities) : [];
-
-        if (reduxNotes && reduxNotes.length > 0) {
-          console.log(`成功从Redux状态获取到${reduxNotes.length}条笔记`);
-          resolve({
-            success: true,
-            data: reduxNotes,
-            message: '从Redux状态获取笔记成功'
-          });
-        } else {
-          console.log('Redux状态中没有笔记，返回空数组');
-          resolve({
-            success: true,
-            data: [],
-            message: '欢迎使用！点击右下角"+"按钮创建您的第一条笔记',
-            isFirstUse: true
-          });
-        }
-      } catch (error) {
-        console.error('获取笔记失败:', error);
-        resolve({
-          success: true,
-          data: [],
-          message: '获取笔记失败，返回空数组',
-          error: error.message
-        });
-      }
-    });
-
-    // 使用Promise.race确保不会一直等待
-    return await Promise.race([fetchPromise, timeoutPromise]);
-  } catch (error) {
-    console.error('获取笔记列表过程中出现未处理的错误:', error);
-
-    // 即使出错，也返回空数组而不是错误，避免UI崩溃
     return {
       success: true,
-      message: '获取笔记列表失败，返回空数组',
-      error: error.message,
-      data: []
+      data: [],
+      message: '首次使用或尚未创建笔记',
+      isFirstUse: true,
     };
+  } catch (error) {
+    console.error('获取笔记列表失败:', error);
+    throw error;
   }
 };
 
@@ -148,6 +153,7 @@ const importNote = async (formData) => {
 
     // 提取文件名和URI
     const title = fileName.split('.')[0]; // 使用文件名作为标题
+    const originalFileName = fileName; // 保存原始文件名（用于样式显示）
     let fileUri = '';
 
     // 尝试多种方式获取文件URI
@@ -181,41 +187,362 @@ const importNote = async (formData) => {
         } else if (fileObj.url) {
           fileUri = fileObj.url;
           console.log('使用url作为URI:', fileUri);
-        } else {
-          // 如果仍然没有找到有效的URI，创建一个临时URI并记录警告
-          console.error('无法获取有效的文件URI，文件可能无法正常打开');
-          fileUri = `file://temp/${fileName}`;
-          console.log('创建的临时URI:', fileUri);
-
-          // 添加警告标志，表示这个URI可能无效
-          console.warn('警告：创建的临时URI可能无效，文件可能无法正常打开');
         }
-      } else {
-        // 如果fileObj不是对象，创建一个临时URI
-        console.error('文件对象无效，无法获取文件URI');
-        fileUri = `file://temp/${fileName}`;
-        console.log('创建的临时URI:', fileUri);
+      }
+
+      if (!fileUri) {
+        console.error('无法获取有效的文件URI，禁止创建临时URI');
+        throw new Error('无法获取有效的文件URI');
       }
     }
 
-    // 生成临时ID
-    const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    // 声明转换相关的变量（确保在整个函数作用域内可用）
+    let isConvertedDocument = false;
+    let originalFileTypeForWord = null;
+    let originalFileNameForWord = null;
+    let originalFileTypeForPPT = null;
+    let originalFileNameForPPT = null;
 
-    // 创建笔记对象 - 统一使用id作为主要ID字段，_id作为兼容字段
-    const noteId = tempId;
+    // ✅ 处理Word文档：上传到后端转换为PDF
+    if (fileType === 'word' || fileType === 'doc' || fileType === 'docx') {
+      console.log('📄 检测到Word文档，上传到后端转换为PDF...');
 
-    // 创建metadata对象
+      try {
+        const { API_URL } = require('../../config');
+        const RNFS = require('react-native-fs');
+        const { Platform } = require('react-native');
+
+        console.log('🔄 上传Word文档到后端转换服务...');
+        console.log('📁 原始文件URI:', fileUri);
+
+        // 确保Android平台使用正确的文件URI格式
+        let uploadUri = fileUri;
+        if (Platform.OS === 'android') {
+          // Android平台需要使用file://协议
+          if (!uploadUri.startsWith('file://') && !uploadUri.startsWith('content://')) {
+            uploadUri = `file://${uploadUri}`;
+          }
+        }
+        console.log('📤 上传URI:', uploadUri);
+
+        // 创建FormData上传到后端
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', {
+          uri: uploadUri,
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          name: fileName,
+        });
+
+        // 调用后端转换API
+        const apiEndpoint = `${API_URL}/api/v1/document-converter/convert/`;
+        console.log('📡 Word API端点:', apiEndpoint);
+        console.log('📦 上传文件信息:', {
+          name: fileName,
+          uri: uploadUri,
+          type: 'docx',
+        });
+
+        // 注意：不要手动设置Content-Type，让fetch自动处理multipart boundary
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          body: uploadFormData,
+          // 移除Content-Type header，让fetch自动设置boundary
+        });
+
+        console.log('📬 Word响应状态:', response.status, response.statusText);
+
+        if (!response.ok) {
+          let errorText = '';
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            errorText = '无法读取错误信息';
+          }
+          console.error('❌ 后端返回错误:', errorText);
+          throw new Error(`后端转换失败 (${response.status}): ${errorText}`);
+        }
+
+        const conversionResult = await response.json();
+
+        if (!conversionResult.success) {
+          throw new Error(conversionResult.error || 'Word转PDF失败');
+        }
+
+        console.log('✅ Word文档转换成功，页数:', conversionResult.file_info?.pages);
+
+        // 保存转换后的PDF到本地
+        const pdfFileName = fileName.replace(/\.(doc|docx)$/i, '.pdf');
+        const pdfPath = `${RNFS.DocumentDirectoryPath}/${pdfFileName}`;
+
+        // 将base64保存为文件
+        await RNFS.writeFile(pdfPath, conversionResult.pdf_base64, 'base64');
+
+        console.log('💾 PDF已保存到:', pdfPath);
+
+        // 保存原始文件类型（用于样式显示）
+        originalFileTypeForWord = fileType; // 保存'word'
+        originalFileNameForWord = originalFileName; // 使用最开始保存的原始文件名
+
+        // 更新fileUri为PDF路径（用于PDF查看器）
+        fileUri = pdfPath;
+        fileType = 'pdf'; // 内部使用PDF查看器
+        fileName = pdfFileName;
+
+        // 标记这是一个转换后的文档，保留原始类型信息
+        isConvertedDocument = true;
+
+        console.log('🔄 文件信息已更新为PDF:', {
+          fileUri,
+          fileType,
+          fileName,
+          originalType: originalFileTypeForWord,
+          originalName: originalFileNameForWord,
+        });
+
+      } catch (conversionError) {
+        console.error('❌ Word转PDF失败:', conversionError);
+        console.error('❌ 错误堆栈:', conversionError.stack);
+
+        // 检查是否是网络连接问题
+        if (conversionError.message.includes('Network request failed') ||
+            conversionError.message.includes('Failed to fetch')) {
+
+          // 提供更详细的诊断信息
+          console.error('🔍 网络诊断:');
+          console.error('  - API_URL:', API_URL);
+          console.error('  - 文件URI:', fileUri);
+          console.error('  - 文件名:', fileName);
+          console.error('  - 文件大小:', fileObj?.size || '未知');
+
+          throw new Error(
+            '无法连接到后端服务，请检查：\n\n' +
+            `1. 后端是否运行在: ${API_URL}\n` +
+            '2. 手机/平板是否与电脑在同一网络\n' +
+            '3. 防火墙是否阻止了连接\n' +
+            '4. 文件是否可以正常访问'
+          );
+        }
+
+        throw new Error(`Word文档转换失败: ${conversionError.message}`);
+      }
+    }
+
+    // ✅ 处理PPT文档：上传到后端转换为PDF
+    if (fileType === 'ppt' || fileType === 'pptx') {
+      console.log('📊 检测到PPT文档，上传到后端转换为PDF...');
+
+      try {
+        const { API_URL } = require('../../config');
+        const RNFS = require('react-native-fs');
+        const { Platform } = require('react-native');
+
+        console.log('🔄 上传PPT文档到后端转换服务...');
+        console.log('📁 原始文件URI:', fileUri);
+
+        // 确保Android平台使用正确的文件URI格式
+        let uploadUri = fileUri;
+        if (Platform.OS === 'android') {
+          // Android平台需要使用file://协议
+          if (!uploadUri.startsWith('file://') && !uploadUri.startsWith('content://')) {
+            uploadUri = `file://${uploadUri}`;
+          }
+        }
+        console.log('📤 上传URI:', uploadUri);
+
+        // 创建FormData上传到后端
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', {
+          uri: uploadUri,
+          type: fileType === 'pptx'
+            ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            : 'application/vnd.ms-powerpoint',
+          name: fileName,
+        });
+
+        // 调用后端转换API
+        const apiEndpoint = `${API_URL}/api/v1/document-converter/convert/`;
+        console.log('📡 PPT API端点:', apiEndpoint);
+        console.log('📦 上传文件信息:', {
+          name: fileName,
+          uri: uploadUri,
+          type: fileType,
+        });
+
+        // 注意：不要手动设置Content-Type，让fetch自动处理multipart boundary
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          body: uploadFormData,
+          // 移除Content-Type header，让fetch自动设置boundary
+        });
+
+        console.log('📬 PPT响应状态:', response.status, response.statusText);
+
+        if (!response.ok) {
+          let errorText = '';
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            errorText = '无法读取错误信息';
+          }
+          console.error('❌ 后端返回错误:', errorText);
+          throw new Error(`后端转换失败 (${response.status}): ${errorText}`);
+        }
+
+        const conversionResult = await response.json();
+
+        if (!conversionResult.success) {
+          throw new Error(conversionResult.error || 'PPT转PDF失败');
+        }
+
+        console.log('✅ PPT文档转换成功，页数:', conversionResult.file_info?.pages);
+
+        // 保存转换后的PDF到本地
+        const pdfFileName = fileName.replace(/\.(ppt|pptx)$/i, '.pdf');
+        const pdfPath = `${RNFS.DocumentDirectoryPath}/${pdfFileName}`;
+
+        // 将base64保存为文件
+        await RNFS.writeFile(pdfPath, conversionResult.pdf_base64, 'base64');
+
+        console.log('💾 PDF已保存到:', pdfPath);
+
+        // 保存原始文件类型（用于样式显示）
+        originalFileTypeForPPT = fileType; // 保存'ppt'或'pptx'
+        originalFileNameForPPT = originalFileName; // 使用最开始保存的原始文件名
+
+        // 更新fileUri为PDF路径（用于PDF查看器）
+        fileUri = pdfPath;
+        fileType = 'pdf'; // 内部使用PDF查看器
+        fileName = pdfFileName;
+
+        // 标记这是一个转换后的文档，保留原始类型信息
+        isConvertedDocument = true;
+
+        console.log('🔄 文件信息已更新为PDF:', {
+          fileUri,
+          fileType,
+          fileName,
+          originalType: originalFileTypeForPPT,
+          originalName: originalFileNameForPPT,
+        });
+
+      } catch (conversionError) {
+        console.error('❌ PPT转PDF失败:', conversionError);
+        console.error('❌ 错误堆栈:', conversionError.stack);
+
+        // 检查是否是网络连接问题
+        if (conversionError.message.includes('Network request failed') ||
+            conversionError.message.includes('Failed to fetch')) {
+
+          // 提供更详细的诊断信息
+          console.error('🔍 网络诊断:');
+          console.error('  - API_URL:', API_URL);
+          console.error('  - 文件URI:', fileUri);
+          console.error('  - 文件名:', fileName);
+          console.error('  - 文件大小:', fileObj?.size || '未知');
+
+          throw new Error(
+            '无法连接到后端服务，请检查：\n\n' +
+            `1. 后端是否运行在: ${API_URL}\n` +
+            '2. 手机/平板是否与电脑在同一网络\n' +
+            '3. 防火墙是否阻止了连接\n' +
+            '4. 文件是否可以正常访问'
+          );
+        }
+
+        throw new Error(`PPT文档转换失败: ${conversionError.message}`);
+      }
+    }
+
+    // ✅ 立即在数据库中创建或查找 Note 记录，获取永久 ID
+    console.log('📌 [notesApi] 开始创建/查找永久 Note 记录，文件URI:', fileUri);
+
+    let noteId;
+    try {
+      const realmService = require('../database/realmService').default;
+      const realm = await realmService.getRealm();
+
+      // 使用文件路径作为唯一标识查找已存在的 Note（包括已删除的）
+      const existingNote = realm.objects('Note').filtered('pdfPath == $0 OR file_uri == $0 OR file_path == $0', fileUri)[0];
+
+      if (existingNote) {
+        // 找到已存在的 Note，使用其 ID
+        noteId = existingNote._id;
+        console.log('✅ [notesApi] 找到已存在的 Note:', noteId);
+
+        // 如果笔记被标记为删除，恢复它
+        if (existingNote.is_deleted) {
+          console.log('🔄 [notesApi] 检测到笔记已被删除，正在恢复...');
+          realm.write(() => {
+            existingNote.is_deleted = false;
+            existingNote.deleted_at = null;
+            existingNote.updated_at = new Date();
+          });
+          console.log('✅ [notesApi] 笔记已恢复');
+        }
+      } else {
+        // 创建新的 Note 记录
+        noteId = realmService.createObjectId();
+
+        realm.write(() => {
+          realm.create('Note', {
+            _id: noteId,
+            title: formData.title || fileName || '未命名文件',
+            type: fileType,
+            file_type: fileType,
+            file_uri: fileUri,
+            file_path: fileUri,
+            file_name: fileName,
+            pdfPath: fileType === 'pdf' ? fileUri : null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          }, 'modified');
+        });
+
+        console.log('✅ [notesApi] 创建新的永久 Note 记录:', noteId, '文件:', fileName);
+      }
+    } catch (error) {
+      console.error('❌ [notesApi] 创建/查找 Note 失败，禁止生成临时ID:', error);
+      throw error;
+    }
+
+    // 创建metadata对象（填充文件大小与PDF页数）
+    let fileSizeBytes = null;
+    let pageCount = null;
+    try {
+      fileSizeBytes = await getFileSizeBytes(fileUri);
+      if (fileType === 'pdf') {
+        const pdfText = await readPdfText(fileUri);
+        pageCount = estimatePdfPageCount(pdfText);
+      }
+    } catch (metaErr) {
+      console.warn('计算文件 metadata 失败:', metaErr);
+    }
+
     const metadataObj = {
       pdfPath: fileType === 'pdf' ? fileUri : null,
       imagePath: fileType === 'image' ? fileUri : null,
-      fileSize: null, // 文件大小，后续可以添加
-      pageCount: null, // PDF页数，后续可以添加
-      lastOpenedPage: 1, // 上次打开的页码
-      lastOpenedTime: new Date().toISOString() // 上次打开时间
+      fileSize: fileSizeBytes,
+      pageCount: pageCount,
+      lastOpenedPage: 1,
+      lastOpenedTime: new Date().toISOString(),
     };
 
     // 将metadata转换为字符串
     const metadataString = JSON.stringify(metadataObj);
+
+    // 检查是否是转换后的文档（Word或PPT转PDF）
+    const isConvertedFromWord = isConvertedDocument && originalFileTypeForWord !== null;
+    const isConvertedFromPPT = isConvertedDocument && originalFileTypeForPPT !== null;
+
+    // 确定显示类型：如果是转换的文档，使用原始类型；否则使用实际类型
+    const displayType = isConvertedFromWord ? 'word' :
+                       isConvertedFromPPT ? 'ppt' :
+                       fileType;
+
+    // 确定显示用的文件名（带原始后缀）
+    const displayFileName = isConvertedFromWord ? originalFileNameForWord :
+                           isConvertedFromPPT ? originalFileNameForPPT :
+                           fileName;
 
     const note = {
       // 统一ID字段
@@ -223,17 +550,26 @@ const importNote = async (formData) => {
       _id: noteId, // 同时设置_id字段，确保兼容性
 
       title: title,
-      content: `导入的${fileType}文件: ${fileName}`,
+      content: `导入的${displayType}文件: ${displayFileName}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_synced: false,
+      is_deleted: false, // 确保笔记未被删除
 
-      // 统一文件类型标识 - 确保这些字段被正确设置
-      type: fileType, // 使用type作为主要类型字段
-      file_type: fileType, // 同时设置file_type字段，确保兼容性
+      // 统一文件类型标识 - 保留原始类型用于显示
+      type: displayType, // 显示类型（word/ppt/pdf）
+      file_type: displayType, // 同时设置file_type字段
 
-      // 文件信息 - 确保这些字段被正确设置
-      file_name: fileName,
+      // 内部使用的实际文件类型（用于查看器选择）
+      viewer_type: fileType, // 实际查看器类型（pdf）
+      original_type: isConvertedFromWord ? originalFileTypeForWord :
+                     isConvertedFromPPT ? originalFileTypeForPPT :
+                     fileType, // 原始文件类型
+
+      // 文件信息 - 使用原始文件名用于样式显示
+      file_name: displayFileName, // 显示用文件名（带原始后缀.docx/.pptx）
+      pdf_file_name: fileName, // PDF文件名（.pdf后缀）
+      original_file_name: displayFileName, // 原始文件名
       file_uri: fileUri,
       uri: fileUri, // 添加uri字段作为备用
       path: fileUri, // 添加path字段作为备用
@@ -242,15 +578,16 @@ const importNote = async (formData) => {
 
       imported: true,
       is_offline: true, // 标记为离线笔记
+      is_converted: isConvertedFromWord || isConvertedFromPPT, // 标记是否是转换的文档
 
-      // 添加预览图片
-      preview_image: fileType === 'pdf' ? 'https://img-blog.csdnimg.cn/20200627111426602.png' : null,
+      // 添加预览图片 - 根据显示类型设置，保持原始文档的样式
+      preview_image: displayType === 'pdf' ? 'https://img-blog.csdnimg.cn/20200627111426602.png' : null,
 
       // 添加metadata，确保是字符串类型
       metadata: metadataString,
 
       // 确保tags是字符串数组
-      tags: []
+      tags: [],
     };
 
     // 记录导入信息
@@ -259,53 +596,22 @@ const importNote = async (formData) => {
       _id: note._id,
       type: note.type,
       file_type: note.file_type,
-      file_uri: note.file_uri
+      file_uri: note.file_uri,
     }, null, 2));
 
     // 保存到离线存储
     console.log('尝试保存笔记到离线存储');
     const realm = await realmService.getRealm();
-    let saveResult;
+    let savedNote;
     realm.write(() => {
-      saveResult = realm.create('Note', note);
+      // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+      savedNote = realm.create('Note', note, 'modified');
     });
-    console.log('保存笔记结果:', saveResult);
-
-    if (!saveResult || !saveResult.success) {
-      console.error('离线存储保存失败:', saveResult?.message || '未知错误');
-
-      // 创建一个简化版的笔记对象作为备用
-      const fallbackNote = {
-        _id: note._id,
-        id: note._id, // 同时保留id字段以兼容旧代码
-        title: note.title,
-        content: note.content,
-        type: note.type,
-        file_type: note.file_type,
-        file_name: note.file_name,
-        file_uri: note.file_uri,
-        uri: note.file_uri, // 添加uri字段作为备用
-        path: note.file_uri, // 添加path字段作为备用
-        file_path: note.file_uri, // 添加file_path字段作为备用
-        url: note.file_uri, // 添加url字段作为备用
-        created_at: note.created_at,
-        updated_at: note.updated_at,
-        metadata: note.metadata || {}
-      };
-
-      // 返回备用笔记对象
-      return {
-        success: true,
-        data: {
-          ...fallbackNote,
-          message: `导入${fileType}成功（使用备用方法）`,
-          note_id: note._id,
-          _id: note._id,
-          isOffline: true
-        },
-        isOffline: true
-      };
-    }
+    console.log('✅ 笔记保存成功:', {
+      id: savedNote._id,
+      title: savedNote.title,
+      is_deleted: savedNote.is_deleted,
+    });
 
     // 不再保存到MongoDB数据库
     console.log('根据用户要求，不保存到MongoDB数据库，只保存到本地数据库');
@@ -316,23 +622,33 @@ const importNote = async (formData) => {
     // 返回本地导入的结果，包含完整的笔记对象
     console.log('准备返回导入结果');
 
-    // 确保saveResult.note存在
-    const noteToReturn = saveResult.note || {
-      _id: note._id,
-      id: note._id,
-      title: note.title,
-      content: note.content,
-      type: note.type,
-      file_type: note.file_type,
-      file_name: note.file_name,
-      file_uri: note.file_uri,
-      uri: note.file_uri, // 添加uri字段作为备用
-      path: note.file_uri, // 添加path字段作为备用
-      file_path: note.file_uri, // 添加file_path字段作为备用
-      url: note.file_uri, // 添加url字段作为备用
-      created_at: note.created_at,
-      updated_at: note.updated_at,
-      metadata: note.metadata || {}
+    // 将Realm对象转换为普通对象
+    const noteToReturn = {
+      _id: savedNote._id,
+      id: savedNote._id,
+      title: savedNote.title,
+      content: savedNote.content,
+      type: savedNote.type, // 显示类型（word/ppt）
+      file_type: savedNote.file_type, // 显示类型（word/ppt）
+      viewer_type: savedNote.viewer_type || savedNote.type, // 查看器类型（pdf）
+      original_type: savedNote.original_type || savedNote.type, // 原始类型
+      file_name: savedNote.file_name,
+      original_file_name: savedNote.original_file_name || savedNote.file_name, // 原始文件名
+      file_uri: savedNote.file_uri,
+      uri: savedNote.file_uri,
+      path: savedNote.file_uri,
+      file_path: savedNote.file_uri,
+      url: savedNote.file_uri,
+      pdfPath: savedNote.pdfPath,
+      created_at: savedNote.created_at,
+      updated_at: savedNote.updated_at,
+      is_deleted: savedNote.is_deleted,
+      is_synced: savedNote.is_synced,
+      imported: savedNote.imported,
+      is_converted: savedNote.is_converted || false, // 是否是转换的文档
+      preview_image: savedNote.preview_image,
+      metadata: savedNote.metadata,
+      tags: savedNote.tags || [],
     };
 
     return {
@@ -340,27 +656,20 @@ const importNote = async (formData) => {
       data: {
         ...noteToReturn,
         message: `导入${fileType}成功`,
-        note_id: note._id, // 使用_id字段
-        _id: note._id, // 添加_id字段
-        id: note._id, // 同时保留id字段以兼容旧代码
-        title: note.title,
-        isOffline: true
+        note_id: savedNote._id,
+        isOffline: true,
       },
-      isOffline: true
+      isOffline: true,
     };
   } catch (error) {
     console.error('导入PDF过程中出错:', error);
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '导入PDF笔记',
-        customMessage: '网络连接失败，无法导入PDF笔记'
+        customMessage: '网络连接失败，无法导入PDF笔记',
       });
     }
-    return {
-      success: false,
-      message: error.message || '导入失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -376,10 +685,7 @@ const getById = async (id) => {
     // 检查ID是否有效
     if (!id) {
       console.error('无效的笔记ID:', id);
-      return {
-        success: false,
-        message: '无效的笔记ID'
-      };
+      throw new Error('无效的笔记ID');
     }
 
     // 从离线存储获取笔记
@@ -388,13 +694,10 @@ const getById = async (id) => {
 
     if (!note) {
       console.warn(`未找到ID为${id}的笔记`);
-      return {
-        success: false,
-        message: '未找到笔记'
-      };
+      throw new Error('未找到笔记');
     }
 
-    console.log(`成功获取到笔记详情:`, note);
+    console.log('成功获取到笔记详情:', note);
 
     // 统一ID字段和文件类型标识
     const unifiedNote = { ...note };
@@ -422,30 +725,26 @@ const getById = async (id) => {
       unifiedNote.metadata.pdfPath = unifiedNote.file_uri;
     }
 
-    console.log(`统一后的笔记数据:`, {
+    console.log('统一后的笔记数据:', {
       id: unifiedNote.id,
       _id: unifiedNote._id,
       type: unifiedNote.type,
-      file_type: unifiedNote.file_type
+      file_type: unifiedNote.file_type,
     });
 
     return {
       success: true,
-      data: unifiedNote
+      data: unifiedNote,
     };
   } catch (error) {
     console.error(`获取笔记详情失败 (ID: ${id}):`, error);
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '获取笔记详情',
-        customMessage: '网络连接失败，无法获取笔记详情'
+        customMessage: '网络连接失败，无法获取笔记详情',
       });
     }
-    return {
-      success: false,
-      message: error.message || '获取笔记详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -462,10 +761,7 @@ const notesApi = {
       // 检查ID是否有效
       if (!id) {
         console.error('无效的笔记ID:', id);
-        return {
-          success: false,
-          message: '无效的笔记ID'
-        };
+        throw new Error('无效的笔记ID');
       }
 
       // 1. 首先尝试从Redux状态获取笔记
@@ -482,7 +778,7 @@ const notesApi = {
             console.log(`从Redux状态获取到笔记 (ID: ${id})`);
             return {
               success: true,
-              data: noteById
+              data: noteById,
             };
           }
 
@@ -494,10 +790,10 @@ const notesApi = {
           );
 
           if (noteByAltId) {
-            console.log(`从Redux状态获取到笔记 (通过替代ID匹配)`);
+            console.log('从Redux状态获取到笔记 (通过替代ID匹配)');
             return {
               success: true,
-              data: noteByAltId
+              data: noteByAltId,
             };
           }
         }
@@ -518,12 +814,12 @@ const notesApi = {
           const unifiedNote = {
             ...note,
             id: note.id || note._id || id,
-            _id: note._id || note.id || id
+            _id: note._id || note.id || id,
           };
 
           return {
             success: true,
-            data: unifiedNote
+            data: unifiedNote,
           };
         }
       } catch (storageError) {
@@ -547,10 +843,10 @@ const notesApi = {
           );
 
           if (matchingNote) {
-            console.log(`从最近笔记中找到匹配的笔记:`, matchingNote._id || matchingNote.id);
+            console.log('从最近笔记中找到匹配的笔记:', matchingNote._id || matchingNote.id);
             return {
               success: true,
-              data: matchingNote
+              data: matchingNote,
             };
           }
         }
@@ -558,39 +854,35 @@ const notesApi = {
         console.warn('从最近笔记中查找失败:', recentError);
       }
 
-      // 4. 如果都没有找到，返回一个默认笔记
-      console.log(`未找到笔记 (ID: ${id})，返回默认笔记`);
-      return {
-        success: true,
-        data: {
-          _id: id,
-          id: id,
-          title: '未找到笔记',
-          content: '该笔记可能已被删除或不存在',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      };
+      // 4. 所有来源均未命中，显式失败
+      console.log(`未找到笔记 (ID: ${id})`);
+      throw new Error('未找到笔记');
     } catch (error) {
       console.error(`获取笔记失败 (ID: ${id}):`, error);
-      return {
-        success: false,
-        message: error.message || '获取笔记详情失败',
-        error
-      };
+      throw error;
     }
   },
   createNote: async (noteData) => {
     try {
       // 保存到离线存储
       const realm = await realmService.getRealm();
-      let result;
+      let persistedNote;
       realm.write(() => {
-        result = realm.create('Note', noteData);
+        const payload = { ...noteData };
+        if (!payload._id && !payload.id) {
+          const createdId = realmService.createObjectId();
+          payload._id = createdId;
+          payload.id = createdId;
+        } else {
+          payload._id = payload._id || payload.id;
+          payload.id = payload.id || payload._id;
+        }
+        // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+        persistedNote = realm.create('Note', payload, 'modified');
       });
-      return { success: true, data: { ...noteData, id: noteData.id || `note_${Date.now()}` } };
+      return { success: true, data: { ...persistedNote, id: persistedNote.id || persistedNote._id, _id: persistedNote._id || persistedNote.id } };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   },
   updateNote: async (id, noteData) => {
@@ -604,46 +896,60 @@ const notesApi = {
         // 确保tags始终是数组
         safeNoteData.tags = [];
       }
-      
+
       // 更新到离线存储
       const realm = await realmService.getRealm();
       let result;
       realm.write(() => {
-        result = realm.create('Note', { ...safeNoteData, _id: id });
+        // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+        result = realm.create('Note', { ...safeNoteData, _id: id }, 'modified');
       });
       return { success: true, data: { ...safeNoteData, id } };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   },
   deleteNote: async (id) => {
     try {
       // 从离线存储删除
       const realm = await realmService.getRealm();
-      let result;
       realm.write(() => {
         const note = realm.objectForPrimaryKey('Note', id);
-        if (note) {
-          note.is_deleted = true;
-          note.deleted_at = new Date();
-          result = { success: true };
-        } else {
-          result = { success: false, message: 'Note not found' };
+        if (!note) {
+          throw new Error('Note not found');
         }
+        note.is_deleted = true;
+        note.deleted_at = new Date();
       });
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   },
-  recognizeHandwriting: (imageData) => ({ success: true, data: '识别结果' }),
-  uploadImage: (imageData, noteId) => ({ success: true, data: { url: 'https://example.com/image.jpg' } }),
-  autoSaveNote: (id, noteData) => ({ success: true, data: { ...noteData, id } }),
-  getNoteHistory: (id) => ({ success: true, data: [] }),
-  getNoteVersion: (id, versionId) => ({ success: true, data: { id, version: versionId, content: '历史版本内容' } }),
-  restoreNoteVersion: (id, versionId) => ({ success: true, data: { id, content: '恢复的内容' } }),
-  saveOfflineNote: (note) => ({ success: true, data: note }),
-  getNoteCategories: () => ({ success: true, data: [] })
+  recognizeHandwriting: async () => {
+    throw new Error('recognizeHandwriting 尚未实现，禁止返回占位成功结果');
+  },
+  uploadImage: async () => {
+    throw new Error('uploadImage 尚未实现，禁止返回占位成功结果');
+  },
+  autoSaveNote: async () => {
+    throw new Error('autoSaveNote 尚未实现，禁止返回占位成功结果');
+  },
+  getNoteHistory: async () => {
+    throw new Error('getNoteHistory 尚未实现，禁止返回占位成功结果');
+  },
+  getNoteVersion: async () => {
+    throw new Error('getNoteVersion 尚未实现，禁止返回占位成功结果');
+  },
+  restoreNoteVersion: async () => {
+    throw new Error('restoreNoteVersion 尚未实现，禁止返回占位成功结果');
+  },
+  saveOfflineNote: async () => {
+    throw new Error('saveOfflineNote 尚未实现，禁止返回占位成功结果');
+  },
+  getNoteCategories: async () => {
+    throw new Error('getNoteCategories 尚未实现，禁止返回占位成功结果');
+  },
 };
 
 export default notesApi;

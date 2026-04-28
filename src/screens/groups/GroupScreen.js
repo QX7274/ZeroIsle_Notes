@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -22,6 +24,14 @@ const GroupScreen = () => {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [members, setMembers] = useState([]);
+  const [inlineHint, setInlineHint] = useState('');
+
+  const notifyNonBlocking = useCallback((message) => {
+    setInlineHint(message);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    }
+  }, []);
 
   useEffect(() => {
     loadGroups();
@@ -32,13 +42,15 @@ const GroupScreen = () => {
       const loadedGroups = await groupService.getGroups();
       setGroups(loadedGroups);
     } catch (error) {
-      Alert.alert('错误', '加载群组失败');
+      // 无网/失败时不阻断，保留空列表并给轻提示
+      setGroups([]);
+      notifyNonBlocking('加载群组失败，已显示离线空列表');
     }
   };
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
-      Alert.alert('错误', '请输入群组名称');
+      notifyNonBlocking('请输入群组名称');
       return;
     }
 
@@ -49,7 +61,7 @@ const GroupScreen = () => {
       setShowCreateModal(false);
       loadGroups();
     } catch (error) {
-      Alert.alert('错误', '创建群组失败');
+      notifyNonBlocking('创建群组失败，请稍后重试');
     }
   };
 
@@ -60,7 +72,8 @@ const GroupScreen = () => {
       setSelectedGroup(group);
       setShowMembersModal(true);
     } catch (error) {
-      Alert.alert('错误', '获取成员列表失败');
+      setMembers([]);
+      notifyNonBlocking('获取成员失败，已显示离线空列表');
     }
   };
 
@@ -78,7 +91,7 @@ const GroupScreen = () => {
               await groupService.deleteGroup(groupId);
               loadGroups();
             } catch (error) {
-              Alert.alert('错误', '删除群组失败');
+              notifyNonBlocking('删除群组失败，请稍后重试');
             }
           },
         },
@@ -86,7 +99,7 @@ const GroupScreen = () => {
     );
   };
 
-  const renderGroupItem = ({ item }) => (
+  const renderGroupItem = useCallback(({ item }) => (
     <View style={[styles.groupItem, { backgroundColor: theme.cardBackground }]}>
       <View style={styles.groupInfo}>
         <Text style={[styles.groupName, { color: theme.text }]}>{item.name}</Text>
@@ -109,15 +122,36 @@ const GroupScreen = () => {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ), [theme, handleViewMembers, handleDeleteGroup]);
+
+  const renderMemberItem = useCallback(({ item }) => (
+    <View style={[styles.memberItem, { backgroundColor: theme.cardBackground }]}>
+      <Text style={[styles.memberName, { color: theme.text }]}>
+        {item.userId}
+      </Text>
+      <Text style={[styles.memberRole, { color: theme.textSecondary }]}>
+        {item.role}
+      </Text>
+    </View>
+  ), [theme]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {!!inlineHint && (
+        <View style={[styles.hintBanner, { backgroundColor: (theme.warning || '#FF9800') + '22' }]}>
+          <Text style={[styles.hintText, { color: theme.text }]}>{inlineHint}</Text>
+        </View>
+      )}
+
       <FlatList
         data={groups}
         renderItem={renderGroupItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        initialNumToRender={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={5}
       />
 
       <TouchableOpacity
@@ -182,16 +216,7 @@ const GroupScreen = () => {
             </Text>
             <FlatList
               data={members}
-              renderItem={({ item }) => (
-                <View style={[styles.memberItem, { backgroundColor: theme.cardBackground }]}>
-                  <Text style={[styles.memberName, { color: theme.text }]}>
-                    {item.userId}
-                  </Text>
-                  <Text style={[styles.memberRole, { color: theme.textSecondary }]}>
-                    {item.role}
-                  </Text>
-                </View>
-              )}
+              renderItem={renderMemberItem}
               keyExtractor={item => item.userId}
             />
             <TouchableOpacity
@@ -325,6 +350,18 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
+  },
+  hintBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  hintText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 

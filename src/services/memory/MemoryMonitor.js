@@ -12,16 +12,16 @@ import { Alert } from 'react-native';
 const MONITOR_CONFIG = {
   // 监控间隔
   MONITOR_INTERVAL: 5000, // 5秒监控一次
-  
+
   // 内存阈值
   WARNING_THRESHOLD: 0.6, // 60%内存使用率警告
   CRITICAL_THRESHOLD: 0.8, // 80%内存使用率严重警告
   EMERGENCY_THRESHOLD: 0.9, // 90%内存使用率紧急清理
-  
+
   // 自动清理配置
   AUTO_CLEANUP_ENABLED: true,
   CLEANUP_DELAY: 2000, // 2秒延迟清理
-  
+
   // 内存优化配置
   OPTIMIZATION_ENABLED: true,
   OPTIMIZATION_THRESHOLD: 0.7, // 70%时开始优化
@@ -32,9 +32,9 @@ const MONITOR_CONFIG = {
  */
 export const MEMORY_STATUS = {
   NORMAL: 'normal',
-  WARNING: 'warning', 
+  WARNING: 'warning',
   CRITICAL: 'critical',
-  EMERGENCY: 'emergency'
+  EMERGENCY: 'emergency',
 };
 
 /**
@@ -48,17 +48,17 @@ class MemoryMonitor {
     this.lastCleanupTime = 0;
     this.cleanupCallbacks = [];
     this.optimizationCallbacks = [];
-    
+
     // 内存使用历史
     this.memoryHistory = [];
     this.maxHistorySize = 100;
-    
+
     // 性能统计
     this.stats = {
       totalCleanups: 0,
       totalOptimizations: 0,
       averageMemoryUsage: 0,
-      peakMemoryUsage: 0
+      peakMemoryUsage: 0,
     };
   }
 
@@ -73,15 +73,15 @@ class MemoryMonitor {
 
     console.log('MemoryMonitor: 开始内存监控');
     this.isMonitoring = true;
-    
+
     // 立即执行一次检查
     this.checkMemoryStatus();
-    
+
     // 设置定期监控
     this.monitorInterval = setInterval(() => {
       this.checkMemoryStatus();
     }, MONITOR_CONFIG.MONITOR_INTERVAL);
-    
+
     // 监听应用状态变化
     this.setupAppStateListener();
   }
@@ -96,7 +96,7 @@ class MemoryMonitor {
 
     console.log('MemoryMonitor: 停止内存监控');
     this.isMonitoring = false;
-    
+
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
       this.monitorInterval = null;
@@ -110,25 +110,25 @@ class MemoryMonitor {
     try {
       const memoryInfo = await this.getMemoryInfo();
       const usageRatio = memoryInfo.used / memoryInfo.total;
-      
+
       // 更新内存历史
       this.updateMemoryHistory(memoryInfo);
-      
+
       // 更新统计信息
       this.updateStats(memoryInfo);
-      
+
       // 确定内存状态
       const newStatus = this.determineMemoryStatus(usageRatio);
-      
+
       if (newStatus !== this.currentStatus) {
         console.log(`MemoryMonitor: 内存状态变化 ${this.currentStatus} -> ${newStatus}`);
         this.currentStatus = newStatus;
         this.handleMemoryStatusChange(newStatus, memoryInfo);
       }
-      
+
       // 根据状态执行相应操作
       await this.handleMemoryStatus(newStatus, memoryInfo);
-      
+
     } catch (error) {
       console.error('MemoryMonitor: 内存状态检查失败:', error);
     }
@@ -144,7 +144,7 @@ class MemoryMonitor {
         used: 0,
         total: 0,
         available: 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       // 尝试获取实际内存信息（如果可用）
@@ -168,7 +168,7 @@ class MemoryMonitor {
         // 根据平台估算总内存
         const estimatedTotal = Platform.OS === 'ios' ? 4 * 1024 * 1024 * 1024 : 6 * 1024 * 1024 * 1024; // iOS 4GB, Android 6GB
         memoryInfo.total = estimatedTotal;
-        
+
         // 基于已分配的内存估算使用量
         const allocatedMemory = this.getEstimatedAllocatedMemory();
         memoryInfo.used = allocatedMemory;
@@ -182,7 +182,7 @@ class MemoryMonitor {
         used: 0,
         total: 4 * 1024 * 1024 * 1024, // 默认4GB
         available: 4 * 1024 * 1024 * 1024,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -202,9 +202,9 @@ class MemoryMonitor {
   updateMemoryHistory(memoryInfo) {
     this.memoryHistory.push({
       ...memoryInfo,
-      usageRatio: memoryInfo.used / memoryInfo.total
+      usageRatio: memoryInfo.used / memoryInfo.total,
     });
-    
+
     // 限制历史记录大小
     if (this.memoryHistory.length > this.maxHistorySize) {
       this.memoryHistory.shift();
@@ -216,13 +216,13 @@ class MemoryMonitor {
    */
   updateStats(memoryInfo) {
     const usageRatio = memoryInfo.used / memoryInfo.total;
-    
+
     // 更新平均使用率
     if (this.memoryHistory.length > 0) {
       const totalUsage = this.memoryHistory.reduce((sum, record) => sum + record.usageRatio, 0);
       this.stats.averageMemoryUsage = totalUsage / this.memoryHistory.length;
     }
-    
+
     // 更新峰值使用率
     if (usageRatio > this.stats.peakMemoryUsage) {
       this.stats.peakMemoryUsage = usageRatio;
@@ -249,16 +249,16 @@ class MemoryMonitor {
    */
   handleMemoryStatusChange(newStatus, memoryInfo) {
     const usagePercent = Math.round((memoryInfo.used / memoryInfo.total) * 100);
-    
+
     switch (newStatus) {
       case MEMORY_STATUS.WARNING:
         console.warn(`MemoryMonitor: 内存使用率警告: ${usagePercent}%`);
         break;
-        
+
       case MEMORY_STATUS.CRITICAL:
         console.error(`MemoryMonitor: 内存使用率严重: ${usagePercent}%`);
         break;
-        
+
       case MEMORY_STATUS.EMERGENCY:
         console.error(`MemoryMonitor: 内存使用率紧急: ${usagePercent}%`);
         break;
@@ -275,11 +275,11 @@ class MemoryMonitor {
           await this.performOptimization();
         }
         break;
-        
+
       case MEMORY_STATUS.CRITICAL:
         await this.performCleanup();
         break;
-        
+
       case MEMORY_STATUS.EMERGENCY:
         await this.performEmergencyCleanup();
         break;
@@ -295,7 +295,7 @@ class MemoryMonitor {
     }
 
     console.log('MemoryMonitor: 执行内存优化');
-    
+
     try {
       // 执行优化回调
       for (const callback of this.optimizationCallbacks) {
@@ -305,10 +305,10 @@ class MemoryMonitor {
           console.error('MemoryMonitor: 优化回调执行失败:', error);
         }
       }
-      
+
       this.stats.totalOptimizations++;
       this.lastCleanupTime = Date.now();
-      
+
       console.log('MemoryMonitor: 内存优化完成');
     } catch (error) {
       console.error('MemoryMonitor: 内存优化失败:', error);
@@ -324,7 +324,7 @@ class MemoryMonitor {
     }
 
     console.log('MemoryMonitor: 执行内存清理');
-    
+
     try {
       // 执行清理回调
       for (const callback of this.cleanupCallbacks) {
@@ -334,10 +334,10 @@ class MemoryMonitor {
           console.error('MemoryMonitor: 清理回调执行失败:', error);
         }
       }
-      
+
       this.stats.totalCleanups++;
       this.lastCleanupTime = Date.now();
-      
+
       console.log('MemoryMonitor: 内存清理完成');
     } catch (error) {
       console.error('MemoryMonitor: 内存清理失败:', error);
@@ -349,27 +349,27 @@ class MemoryMonitor {
    */
   async performEmergencyCleanup() {
     console.log('MemoryMonitor: 执行紧急内存清理');
-    
+
     try {
       // 立即执行所有清理回调
-      const cleanupPromises = this.cleanupCallbacks.map(callback => 
-        callback().catch(error => 
+      const cleanupPromises = this.cleanupCallbacks.map(callback =>
+        callback().catch(error =>
           console.error('MemoryMonitor: 紧急清理回调失败:', error)
         )
       );
-      
+
       await Promise.all(cleanupPromises);
-      
+
       this.stats.totalCleanups++;
       this.lastCleanupTime = Date.now();
-      
+
       // 显示警告
       Alert.alert(
         '内存不足',
         '应用内存使用率过高，已执行紧急清理。建议关闭其他应用或重启应用。',
         [{ text: '确定' }]
       );
-      
+
       console.log('MemoryMonitor: 紧急内存清理完成');
     } catch (error) {
       console.error('MemoryMonitor: 紧急内存清理失败:', error);
@@ -413,7 +413,7 @@ class MemoryMonitor {
       status: this.currentStatus,
       isMonitoring: this.isMonitoring,
       stats: this.stats,
-      memoryHistory: this.memoryHistory.slice(-10) // 最近10条记录
+      memoryHistory: this.memoryHistory.slice(-10), // 最近10条记录
     };
   }
 
@@ -425,7 +425,7 @@ class MemoryMonitor {
       ...this.stats,
       currentStatus: this.currentStatus,
       historySize: this.memoryHistory.length,
-      lastCleanupTime: this.lastCleanupTime
+      lastCleanupTime: this.lastCleanupTime,
     };
   }
 
@@ -437,7 +437,7 @@ class MemoryMonitor {
       totalCleanups: 0,
       totalOptimizations: 0,
       averageMemoryUsage: 0,
-      peakMemoryUsage: 0
+      peakMemoryUsage: 0,
     };
     this.memoryHistory = [];
     console.log('MemoryMonitor: 统计信息已重置');
@@ -445,4 +445,5 @@ class MemoryMonitor {
 }
 
 export default new MemoryMonitor();
+
 

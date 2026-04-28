@@ -7,3 +7,14 @@ from .graph_service import GraphService
 from .neo4j_service import Neo4jService
 from .analysis_service import AnalysisService
 from .recommendation_service import RecommendationService
+from .inference_service import InferenceService, get_inference_service
+
+__all__ = [
+    'GraphService',
+    'Neo4jService', 
+    'AnalysisService',
+    'RecommendationService',
+    'InferenceService',
+    'get_inference_service',
+]
+

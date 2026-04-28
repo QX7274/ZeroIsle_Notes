@@ -24,7 +24,7 @@ class NonBlockingFileProcessor {
       onError,
       signal,
       chunkSize = this.chunkSize,
-      yieldInterval = this.yieldInterval
+      yieldInterval = this.yieldInterval,
     } = options;
 
     const fileId = Date.now().toString();
@@ -34,7 +34,7 @@ class NonBlockingFileProcessor {
       // 获取文件信息
       const fileStats = await this.getFileStats(filePath);
       const totalChunks = Math.ceil(fileStats.size / chunkSize);
-      
+
       console.log(`NonBlockingFileProcessor: 开始处理文件 ${filePath}, 大小: ${Math.round(fileStats.size / 1024 / 1024)}MB, 分块数: ${totalChunks}`);
 
       if (onProgress) {
@@ -43,14 +43,14 @@ class NonBlockingFileProcessor {
           progress: 0,
           message: '正在准备文件...',
           totalChunks,
-          processedChunks: 0
+          processedChunks: 0,
         });
       }
 
       // 分块读取文件
       const chunks = await this.readFileInChunksNonBlocking(
-        filePath, 
-        chunkSize, 
+        filePath,
+        chunkSize,
         totalChunks,
         (chunkIndex, totalChunks) => {
           if (onProgress) {
@@ -60,7 +60,7 @@ class NonBlockingFileProcessor {
               progress,
               message: `正在读取文件... ${chunkIndex}/${totalChunks}`,
               totalChunks,
-              processedChunks: chunkIndex
+              processedChunks: chunkIndex,
             });
           }
         },
@@ -77,7 +77,7 @@ class NonBlockingFileProcessor {
           progress: 40,
           message: '正在处理文件内容...',
           totalChunks,
-          processedChunks: totalChunks
+          processedChunks: totalChunks,
         });
       }
 
@@ -94,7 +94,7 @@ class NonBlockingFileProcessor {
           progress: 100,
           message: '文件处理完成！',
           totalChunks,
-          processedChunks: totalChunks
+          processedChunks: totalChunks,
         });
       }
 
@@ -103,11 +103,11 @@ class NonBlockingFileProcessor {
         filePath,
         fileSize: fileStats.size,
         totalChunks,
-        message: '文件处理完成'
+        message: '文件处理完成',
       };
 
       this.processingFiles.set(fileId, { status: 'completed', endTime: Date.now() });
-      
+
       if (onSuccess) {
         onSuccess(result);
       }
@@ -116,13 +116,13 @@ class NonBlockingFileProcessor {
 
     } catch (error) {
       console.error('NonBlockingFileProcessor: 文件处理失败:', error);
-      
+
       this.processingFiles.set(fileId, { status: 'failed', error: error.message, endTime: Date.now() });
-      
+
       if (onError) {
         onError(error);
       }
-      
+
       throw error;
     }
   }
@@ -132,12 +132,12 @@ class NonBlockingFileProcessor {
    */
   async readFileInChunksNonBlocking(filePath, chunkSize, totalChunks, onChunkRead, yieldInterval) {
     const chunks = [];
-    let startTime = Date.now(); // Initialize startTime here
+    let startTime = Date.now(); // Use let instead of const so we can reassign
 
     for (let i = 0; i < totalChunks; i++) {
       const start = i * chunkSize;
       const end = Math.min(start + chunkSize, (await this.getFileStats(filePath)).size);
-      
+
       try {
         // 读取当前块
         const chunk = await RNFS.read(filePath, end - start, start, 'base64');
@@ -168,7 +168,7 @@ class NonBlockingFileProcessor {
    * 非阻塞处理文件块
    */
   async processChunksNonBlocking(chunks, totalChunks, onProgress, yieldInterval) {
-    const startTime = Date.now();
+    let startTime = Date.now(); // Use let instead of const so we can reassign
     let processedChunks = 0;
 
     for (let i = 0; i < chunks.length; i++) {
@@ -184,7 +184,7 @@ class NonBlockingFileProcessor {
           progress,
           message: `正在处理内容... ${processedChunks}/${totalChunks}`,
           totalChunks,
-          processedChunks
+          processedChunks,
         });
       }
 
@@ -203,9 +203,9 @@ class NonBlockingFileProcessor {
    */
   async processSingleChunk(chunk, index) {
     // 模拟处理时间，实际应用中这里可能是内容解析、格式转换等
-    const processingTime = Math.random() * 10 + 5; // 5-15ms
+    const processingTime = 10; // 固定处理时间，避免随机回退
     await this.sleep(processingTime);
-    
+
     // 可以在这里添加实际的处理逻辑
     // 例如：解析PPT内容、提取文本、分析结构等
   }
@@ -228,7 +228,7 @@ class NonBlockingFileProcessor {
       return {
         size: stats.size,
         exists: true,
-        path: filePath
+        path: filePath,
       };
     } catch (error) {
       throw new Error(`无法获取文件信息: ${error.message}`);
@@ -286,7 +286,7 @@ class NonBlockingFileProcessor {
       processing: 0,
       completed: 0,
       failed: 0,
-      cancelled: 0
+      cancelled: 0,
     };
 
     for (const fileInfo of this.processingFiles.values()) {
@@ -300,7 +300,9 @@ class NonBlockingFileProcessor {
 // 创建单例实例
 const nonBlockingFileProcessor = new NonBlockingFileProcessor();
 
-export default nonBlockingFileProcessor;
+module.exports = nonBlockingFileProcessor;
+module.exports.default = nonBlockingFileProcessor;
+module.exports.NonBlockingFileProcessor = NonBlockingFileProcessor;
 
 
 

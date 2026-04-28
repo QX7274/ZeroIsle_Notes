@@ -4,6 +4,12 @@ Django设置包初始化文件
 """
 
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# 确保通过 `manage.py` 启动时也能加载 backend/.env
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+load_dotenv(BASE_DIR / '.env')
 
 # 默认使用开发环境设置
 environment = os.environ.get('DJANGO_ENV', 'development')

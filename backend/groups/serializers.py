@@ -18,7 +18,8 @@ class GroupSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
 
     def get_member_count(self, obj):
-        return obj.members.filter(is_active=True).count()
+        # 统计活跃成员数量（MongoEngine没有反向members集合，直接查询GroupMember）
+        return GroupMember.objects.filter(group=obj, is_active=True).count()
 
 
 class GroupDetailSerializer(GroupSerializer):
@@ -35,7 +36,7 @@ class GroupDetailSerializer(GroupSerializer):
         if not request or not request.user.is_authenticated:
             return None
 
-        if obj.creator == request.user or obj.members.filter(user=request.user, role='admin', is_active=True).exists():
+        if obj.creator == request.user or GroupMember.objects.filter(group=obj, user=request.user, role='admin', is_active=True).first():
             return obj.join_code if obj.is_join_code_valid() else None
         return None
 
@@ -45,7 +46,7 @@ class GroupDetailSerializer(GroupSerializer):
         if not request or not request.user.is_authenticated:
             return None
 
-        if obj.creator == request.user or obj.members.filter(user=request.user, role='admin', is_active=True).exists():
+        if obj.creator == request.user or GroupMember.objects.filter(group=obj, user=request.user, role='admin', is_active=True).first():
             return obj.join_code_expires_at if obj.is_join_code_valid() else None
         return None
 

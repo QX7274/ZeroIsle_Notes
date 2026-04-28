@@ -4,6 +4,7 @@
 
 import { createSlice, createAsyncThunk, createEntityAdapter } from '@reduxjs/toolkit';
 import notesApi from '../../services/api/notesApi';
+import * as autoClassificationApi from '../../services/api/autoClassificationApi';
 // 验证notesApi是否正确导入
 if (!notesApi) {
   console.error('notesApi导入失败，请检查文件路径和导出');
@@ -17,7 +18,7 @@ const notesAdapter = createEntityAdapter({
     // 防止note为null或undefined
     if (!note) {
       console.warn('selectId收到无效的note对象:', note);
-      return `invalid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      return realmService.createObjectId();
     }
 
     // 优先使用_id字段（MongoDB/Realm标准）
@@ -32,12 +33,12 @@ const notesAdapter = createEntityAdapter({
 
     // 如果都没有，生成一个临时ID
     console.warn('笔记对象既没有_id也没有id字段:', note);
-    return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    return realmService.createObjectId();
   },
   // 改进的排序比较器，处理可能的无效日期
   sortComparer: (a, b) => {
     // 防止a或b为null或undefined
-    if (!a || !b) return 0;
+    if (!a || !b) {return 0;}
 
     // 获取更新时间，如果不存在则使用创建时间，如果都不存在则使用当前时间
     const aDate = a.updated_at || a.created_at || new Date().toISOString();
@@ -90,7 +91,7 @@ export const createNote = createAsyncThunk(
       console.log('Redux createNote action开始执行，笔记数据:', noteData);
 
       // 生成唯一ID，确保在离线状态下也能使用
-      const noteId = noteData.id || 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      const noteId = noteData.id || realmService.createObjectId();
 
       // 准备离线笔记数据，添加必要的元数据
       const offlineNote = {
@@ -98,7 +99,7 @@ export const createNote = createAsyncThunk(
         id: noteId,
         isOffline: true,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       console.log('准备保存离线笔记:', offlineNote);
@@ -107,7 +108,8 @@ export const createNote = createAsyncThunk(
       try {
         const realm = await realmService.getRealm();
         realm.write(() => {
-          realm.create('Note', offlineNote);
+          // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+          realm.create('Note', offlineNote, 'modified');
         });
         console.log('离线笔记保存成功:', noteId);
       } catch (offlineError) {
@@ -130,7 +132,7 @@ export const createNote = createAsyncThunk(
               if (note) {
                 Object.assign(note, {
                   ...response.data,
-                  isOffline: false
+                  isOffline: false,
                 });
               }
             });
@@ -138,6 +140,16 @@ export const createNote = createAsyncThunk(
           }
         } catch (updateError) {
           console.warn('更新离线存储中的笔记状态失败，但API保存成功:', updateError);
+        }
+
+        // 后台触发知识图谱构建（不阻塞UI）
+        try {
+          const createdId = (response && response.data && (response.data.id || response.data._id)) || noteId;
+          if (createdId) {
+            autoClassificationApi.buildKnowledgeGraph(createdId, true);
+          }
+        } catch (e) {
+          console.warn('触发知识图谱构建失败（忽略）', e);
         }
 
         // 返回API响应
@@ -162,7 +174,7 @@ export const createNote = createAsyncThunk(
           isOffline: true,
           isEmergency: true,
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
         };
 
         console.log('创建紧急恢复笔记:', emergencyNote);
@@ -181,6 +193,12 @@ export const updateNote = createAsyncThunk(
   async ({ id, noteData }, { rejectWithValue }) => {
     try {
       const response = await notesApi.updateNote(id, noteData);
+      // 异步触发知识图谱构建
+      try {
+        autoClassificationApi.buildKnowledgeGraph(id, true);
+      } catch (e) {
+        console.warn('触发知识图谱构建失败（忽略）', e);
+      }
       return response;
     } catch (error) {
       return rejectWithValue(error.message || `更新笔记(ID: ${id})失败`);
@@ -317,7 +335,7 @@ export const syncOfflineNotes = createAsyncThunk(
             if (note) {
               Object.assign(note, {
             ...response,
-                isOffline: false
+                isOffline: false,
               });
             }
           });
@@ -393,7 +411,7 @@ const initialState = notesAdapter.getInitialState({
   categories: {
     items: [],
     isLoading: false,
-    error: null
+    error: null,
   },
   filters: {
     category: null,
@@ -502,7 +520,7 @@ const notesSlice = createSlice({
         let pagination = {
           page: 1,
           totalPages: 1,
-          totalItems: 0
+          totalItems: 0,
         };
 
         try {
@@ -516,7 +534,7 @@ const notesSlice = createSlice({
               pagination = {
                 page: action.payload.page || 1,
                 totalPages: action.payload.total_pages || 1,
-                totalItems: action.payload.total_items || notes.length
+                totalItems: action.payload.total_items || notes.length,
               };
             }
             // 如果响应包含notes字段（旧API格式）
@@ -527,7 +545,7 @@ const notesSlice = createSlice({
               pagination = {
                 page: action.payload.page || 1,
                 totalPages: action.payload.total_pages || 1,
-                totalItems: action.payload.total_items || notes.length
+                totalItems: action.payload.total_items || notes.length,
               };
             }
             // 如果响应本身就是数组
@@ -599,7 +617,7 @@ const notesSlice = createSlice({
 
         // 确保笔记有一个有效的ID
         if (noteData && !noteData.id) {
-          const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          const tempId = realmService.createObjectId();
           console.log(`笔记缺少ID，生成临时ID: ${tempId}`);
           noteData.id = tempId;
         }
@@ -656,7 +674,7 @@ const notesSlice = createSlice({
             category_id: noteData.category_id || noteData.categoryId,
             is_favorite: noteData.is_favorite || noteData.isFavorite || false,
             is_offline: noteData.is_offline || noteData.isOffline || false,
-            tags: noteData.tags || []
+            tags: noteData.tags || [],
           };
 
           notesAdapter.addOne(state, normalizedNote);
@@ -671,7 +689,7 @@ const notesSlice = createSlice({
             content: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            is_emergency: true
+            is_emergency: true,
           };
 
           console.log('创建紧急恢复笔记:', emergencyNote);
@@ -718,7 +736,7 @@ const notesSlice = createSlice({
             content: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            is_emergency: true
+            is_emergency: true,
           };
 
           console.log('创建紧急恢复笔记:', emergencyNote);
@@ -924,7 +942,7 @@ const notesSlice = createSlice({
         state.offline.isLoading = false;
         state.offline.lastSynced = new Date().toISOString();
         state.offline.unsyncedCount = state.offline.unsyncedCount - action.payload.synced;
-        if (state.offline.unsyncedCount < 0) state.offline.unsyncedCount = 0;
+        if (state.offline.unsyncedCount < 0) {state.offline.unsyncedCount = 0;}
       })
       .addCase(syncOfflineNotes.rejected, (state, action) => {
         state.offline.isLoading = false;
@@ -962,7 +980,7 @@ const notesSlice = createSlice({
         // 添加导入的笔记到状态
         const note = {
           ...action.payload,
-          id: action.payload.note_id || action.payload.id
+          id: action.payload.note_id || action.payload.id,
         };
 
         console.log('导入笔记成功，添加到Redux状态:', note);
@@ -970,7 +988,7 @@ const notesSlice = createSlice({
         // 确保笔记有ID
         if (!note.id) {
           console.error('导入的笔记没有ID，生成临时ID');
-          note.id = 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+          note.id = realmService.createObjectId();
         }
 
         // 确保笔记有标题
@@ -1009,9 +1027,9 @@ const notesSlice = createSlice({
               const noteData = errorData.note || errorData.data;
               const note = {
                 ...noteData,
-                id: noteData.note_id || noteData.id || ('temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11)),
+                id: noteData.note_id || noteData.id || realmService.createObjectId(),
                 is_offline: true,
-                isOffline: true
+                isOffline: true,
               };
 
               console.log('从错误中提取的笔记数据:', note);
@@ -1092,7 +1110,7 @@ export const {
   setSyncStatus,
   addPendingSync,
   removePendingSync,
-  clearPendingSync
+  clearPendingSync,
 } = notesSlice.actions;
 
 // 导出Reducer

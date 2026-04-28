@@ -159,12 +159,14 @@ export const API_ENDPOINTS = {
     POSTS: '/community/posts/',
     POST_DETAIL: (id) => `/community/posts/${id}/`,
     LIKE_POST: (id) => `/community/posts/${id}/like/`,
-    COMMENTS: (id) => `/community/posts/${id}/comments/`,
+    // 评论：后端提供 /community/comments/ 以及 /community/comments/by_post/?post_id=...
+    COMMENTS: '/community/comments/',
+    COMMENTS_BY_POST: (id) => `/community/comments/by_post/?post_id=${id}`,
     COMMENT_DETAIL: (id) => `/community/comments/${id}/`,
     LIKE_COMMENT: (id) => `/community/comments/${id}/like/`,
-    FOLLOW: (id) => `/community/follows/toggle/`,
-    FOLLOWERS: (id) => `/community/follows/followers/`,
-    FOLLOWING: (id) => `/community/follows/following/`,
+    FOLLOW: (id) => '/community/follows/toggle/',
+    FOLLOWERS: (id) => '/community/follows/followers/',
+    FOLLOWING: (id) => '/community/follows/following/',
     CATEGORIES: '/community/categories/',
     TAGS: '/community/tags/',
     POPULAR_TAGS: '/community/tags/popular/',
@@ -189,6 +191,8 @@ export const API_ENDPOINTS = {
     BASE: '/reminder/reminders/',
     DETAIL: (id) => `/reminder/reminders/${id}/`,
     COMPLETE: (id) => `/reminder/reminders/${id}/complete/`,
+    CANCEL_OCCURRENCE: (id) => `/reminder/reminders/${id}/cancel-occurrence/`,
+    RESCHEDULE_OCCURRENCE: (id) => `/reminder/reminders/${id}/reschedule-occurrence/`,
     REOPEN: (id) => `/reminder/reminders/${id}/reopen/`,
     ENABLE: (id) => `/reminder/reminders/${id}/enable/`,
     DISABLE: (id) => `/reminder/reminders/${id}/disable/`,
@@ -246,6 +250,12 @@ export const API_ENDPOINTS = {
     SHARED_SCREENS: '/groups/shared-screens/',
     JOIN_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/join/`,
     END_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/end/`,
+  },
+
+  // 文档转换相关
+  DOCUMENT_CONVERTER: {
+    CONVERT: '/document-converter/convert/',
+    STATUS: (id) => `/document-converter/status/${id}/`,
   },
 
   // 同步相关

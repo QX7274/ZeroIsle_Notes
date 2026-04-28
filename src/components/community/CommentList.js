@@ -42,18 +42,18 @@ const CommentList = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 本地状态
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // 处理评论提交
   const handleSubmitComment = async () => {
-    if (!commentText.trim() || isSubmitting) return;
-    
+    if (!commentText.trim() || isSubmitting) {return;}
+
     setIsSubmitting(true);
-    
+
     try {
       await onAddComment(commentText, replyTo?.id);
       setCommentText('');
@@ -64,17 +64,17 @@ const CommentList = ({
       setIsSubmitting(false);
     }
   };
-  
+
   // 处理回复评论
   const handleReplyComment = (comment) => {
     setReplyTo(comment);
     onReplyComment && onReplyComment(comment);
   };
-  
+
   // 渲染评论输入框
   const renderCommentInput = () => {
-    if (!allowComments) return null;
-    
+    if (!allowComments) {return null;}
+
     return (
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -87,7 +87,7 @@ const CommentList = ({
                 variant="caption"
                 color="hint"
               >
-                回复: 
+                回复:
               </Text>
               <Text
                 variant="caption"
@@ -104,12 +104,12 @@ const CommentList = ({
               </TouchableOpacity>
             </View>
           )}
-          
+
           <View style={styles.inputRow}>
             <TextInput
               style={[
                 styles.input,
-                { color: colors.text, backgroundColor: colors.background }
+                { color: colors.text, backgroundColor: colors.background },
               ]}
               placeholder={replyTo ? '写下你的回复...' : '写下你的评论...'}
               placeholderTextColor={colors.textSecondary}
@@ -118,12 +118,12 @@ const CommentList = ({
               multiline
               maxLength={500}
             />
-            
+
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 { backgroundColor: colors.primary },
-                (!commentText.trim() || isSubmitting) && { opacity: 0.5 }
+                (!commentText.trim() || isSubmitting) && { opacity: 0.5 },
               ]}
               onPress={handleSubmitComment}
               disabled={!commentText.trim() || isSubmitting}
@@ -139,11 +139,11 @@ const CommentList = ({
       </KeyboardAvoidingView>
     );
   };
-  
+
   // 渲染空状态
   const renderEmpty = () => {
-    if (isLoading) return null;
-    
+    if (isLoading) {return null;}
+
     return (
       <View style={styles.emptyContainer}>
         <Icon name="chat-bubble-outline" size={48} color={colors.textSecondary} />
@@ -167,11 +167,11 @@ const CommentList = ({
       </View>
     );
   };
-  
+
   // 渲染错误状态
   const renderError = () => {
-    if (!error) return null;
-    
+    if (!error) {return null;}
+
     return (
       <View style={styles.errorContainer}>
         <Icon name="error" size={32} color={colors.error} />
@@ -186,11 +186,11 @@ const CommentList = ({
       </View>
     );
   };
-  
+
   // 渲染加载状态
   const renderLoading = () => {
-    if (!isLoading) return null;
-    
+    if (!isLoading) {return null;}
+
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -205,7 +205,7 @@ const CommentList = ({
       </View>
     );
   };
-  
+
   // 渲染评论项
   const renderItem = ({ item }) => (
     <CommentItem
@@ -216,12 +216,12 @@ const CommentList = ({
       onUserPress={() => onUserPress && onUserPress(item.user)}
     />
   );
-  
+
   // 渲染评论列表
   const renderCommentList = () => {
-    if (isLoading) return renderLoading();
-    if (error) return renderError();
-    
+    if (isLoading) {return renderLoading();}
+    if (error) {return renderError();}
+
     return (
       <FlatList
         data={comments}
@@ -233,7 +233,7 @@ const CommentList = ({
       />
     );
   };
-  
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -244,7 +244,7 @@ const CommentList = ({
         >
           评论 ({comments.length})
         </Text>
-        
+
         {!allowComments && (
           <View style={styles.commentsDisabledContainer}>
             <Icon name="block" size={16} color={colors.error} />
@@ -258,11 +258,11 @@ const CommentList = ({
           </View>
         )}
       </View>
-      
+
       <View style={styles.commentsContainer}>
         {renderCommentList()}
       </View>
-      
+
       {renderCommentInput()}
     </View>
   );

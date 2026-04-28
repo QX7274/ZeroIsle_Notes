@@ -2,10 +2,17 @@
 认证相关序列化器
 """
 
+import logging
+from datetime import timedelta
+from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from django.utils.translation import gettext_lazy as _
-from users.models import VerificationCode
+from users.models import VerificationCode, LoginAttempt, UserDevice
+from users.services.password_validator import validate_password
+from common.utils import get_client_ip
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -28,6 +35,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """验证密码是否匹配和验证码"""
         if data['password'] != data.pop('confirm_password'):
             raise serializers.ValidationError({'confirm_password': '两次输入的密码不匹配'})
+
+        # 验证密码强度
+        username = data.get('username', '')
+        is_valid, password_errors = validate_password(data['password'], username=username)
+        if not is_valid:
+            raise serializers.ValidationError({'password': password_errors})
 
         # 验证验证码
         if 'verification_code' in data:
@@ -85,6 +98,24 @@ class UserLoginSerializer(serializers.Serializer):
 
     def validate(self, data):
         """验证登录凭据"""
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError('Serializer requires request in context.')
+
+        ip_address = get_client_ip(request)
+
+        # 检查登录尝试次数
+        try:
+            attempts = LoginAttempt.objects.filter(
+                ip_address=ip_address,
+                timestamp__gte=timezone.now() - timedelta(minutes=15)
+            ).count()
+            if attempts >= 5:
+                raise serializers.ValidationError('登录尝试次数过多，请15分钟后再试')
+        except Exception as e:
+            logger.error(f"检查登录尝试次数失败: {str(e)}")
+            # In case of error, we allow the attempt but log it.
+
         # 处理统一标识符
         identifier = data.get('identifier')
         if identifier:
@@ -109,11 +140,8 @@ class UserLoginSerializer(serializers.Serializer):
             if not phone:
                 raise serializers.ValidationError('使用验证码登录时必须提供手机号')
 
-            # 在开发环境中，跳过验证码验证
-            from django.conf import settings
-            if not settings.DEBUG:
-                if not VerificationCode.verify(code, phone=phone, email=email, purpose='login'):
-                    raise serializers.ValidationError({'verification_code': '验证码无效或已过期'})
+            if not VerificationCode.verify(code, phone=phone, email=email, purpose='login'):
+                raise serializers.ValidationError({'verification_code': '验证码无效或已过期'})
 
             # 查找用户
             try:
@@ -163,13 +191,68 @@ class UserLoginSerializer(serializers.Serializer):
             user = None
 
         if not user:
+            self._record_login_attempt(ip_address, False)
             raise serializers.ValidationError('用户名或密码错误')
 
         if not user.is_active:
+            self._record_login_attempt(ip_address, False)
             raise serializers.ValidationError('该账号已被禁用')
+
+        # 更新用户登录信息
+        user.last_login = timezone.now()
+        user.last_login_ip = ip_address
+        user.save(update_fields=['last_login', 'last_login_ip'])
+
+        # 记录设备信息
+        self._record_device(request, user)
+
+        # 记录成功登录
+        self._record_login_attempt(ip_address, True)
 
         data['user'] = user
         return data
+
+    def _record_login_attempt(self, ip_address, success):
+        """记录登录尝试"""
+        try:
+            LoginAttempt.objects.create(
+                ip_address=ip_address,
+                success=success,
+                timestamp=timezone.now()
+            )
+        except Exception as e:
+            logger.error(f"记录登录尝试失败: {str(e)}")
+
+    def _record_device(self, request, user):
+        """记录用户设备信息"""
+        device_data = request.data.get('device', {})
+        if device_data and 'device_id' in device_data:
+            device, created = UserDevice.objects.get_or_create(
+                user=user,
+                device_id=device_data.get('device_id'),
+                defaults={
+                    'device_type': device_data.get('device_type', ''),
+                    'device_name': device_data.get('device_name', ''),
+                    'device_model': device_data.get('device_model', ''),
+                    'os_version': device_data.get('os_version', ''),
+                    'app_version': device_data.get('app_version', ''),
+                    'push_token': device_data.get('push_token', ''),
+                    'is_active': True
+                }
+            )
+
+            if not created:
+                device.device_type = device_data.get('device_type', device.device_type)
+                device.device_name = device_data.get('device_name', device.device_name)
+                device.device_model = device_data.get('device_model', device.device_model)
+                device.os_version = device_data.get('os_version', device.os_version)
+                device.app_version = device_data.get('app_version', device.app_version)
+                device.push_token = device_data.get('push_token', device.push_token)
+                device.is_active = True
+
+            device.last_login_at = timezone.now()
+            device.last_login_ip = get_client_ip(request)
+            device.save()
 
 class PasswordChangeSerializer(serializers.Serializer):
     """
@@ -187,6 +270,11 @@ class PasswordChangeSerializer(serializers.Serializer):
         user = self.context['request'].user
         if not user.check_password(data['old_password']):
             raise serializers.ValidationError({'old_password': '旧密码不正确'})
+
+        # 验证新密码强度
+        is_valid, password_errors = validate_password(data['new_password'], username=user.username)
+        if not is_valid:
+            raise serializers.ValidationError({'new_password': password_errors})
 
         return data
 

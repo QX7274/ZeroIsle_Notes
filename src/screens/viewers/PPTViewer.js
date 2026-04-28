@@ -18,9 +18,9 @@ const PPTViewer = (props) => {
       ...props.route,
       params: {
         ...props.route.params,
-        fileType: 'ppt'
-      }
-    }
+        fileType: 'ppt',
+      },
+    },
   };
 
   return <PDFViewerNative {...enhancedProps} />;

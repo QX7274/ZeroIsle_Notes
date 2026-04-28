@@ -36,12 +36,8 @@ export const getSystemLogStats = async () => {
 // 清空管理员操作日志
 export const clearAdminLogs = async () => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.delete('/logs/admin/clear');
-    // return response.data;
-
-    // 模拟成功响应
-    return { success: true, message: '日志已清空' };
+    const response = await api.delete('/logs/admin-logs/clear/');
+    return response.data?.data || response.data;
   } catch (error) {
     console.error('清空管理员操作日志错误:', error);
     throw error;
@@ -90,8 +86,8 @@ export const getSystemLogs = async (params) => {
 // 清空系统日志
 export const clearSystemLogs = async () => {
   try {
-    const response = await api.delete('/logs/system/clear');
-    return response.data;
+    const response = await api.delete('/logs/system-logs/clear/');
+    return response.data?.data || response.data;
   } catch (error) {
     console.error('清空系统日志错误:', error);
     throw error;
@@ -192,15 +188,9 @@ export const getLogAnalytics = async (params) => {
   }
 };
 
-// 获取日志导出历史
-export const getLogExportHistory = async () => {
-  try {
-    const response = await api.get('/logs/export/history/');
-    return response.data;
-  } catch (error) {
-    console.error('获取日志导出历史错误:', error);
-    throw error;
-  }
+// 获取日志导出历史（兼容别名）
+export const getLogExportHistory = async (params = {}) => {
+  return getExportHistory(params);
 };
 
 // 创建日志备份

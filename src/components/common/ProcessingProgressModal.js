@@ -23,9 +23,12 @@ const ProcessingProgressModal = ({
   message = '正在处理...',
   stage = 'processing',
   onCancel = null,
-  cancelable = false
+  cancelable = false,
 }) => {
   const { colors } = useTheme();
+
+  // 确保progress是有效的数字
+  const safeProgress = isNaN(progress) || progress === null || progress === undefined ? 0 : Math.max(0, Math.min(100, progress));
 
   const getStageText = (stage) => {
     const stageMap = {
@@ -37,14 +40,14 @@ const ProcessingProgressModal = ({
       uploading: '上传中',
       processing: '处理中',
       verifying: '验证中',
-      completed: '完成'
+      completed: '完成',
     };
     return stageMap[stage] || '处理中';
   };
 
   const getProgressColor = (progress) => {
-    if (progress < 30) return '#FF6B6B';
-    if (progress < 70) return '#FFD93D';
+    if (progress < 30) {return '#FF6B6B';}
+    if (progress < 70) {return '#FFD93D';}
     return '#6BCF7F';
   };
 
@@ -146,7 +149,7 @@ const ProcessingProgressModal = ({
       <View style={styles.overlay}>
         <View style={styles.container}>
           <Text style={styles.title}>处理文件</Text>
-          
+
           {/* 进度条 */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
@@ -154,14 +157,14 @@ const ProcessingProgressModal = ({
                 style={[
                   styles.progressFill,
                   {
-                    width: `${Math.max(0, Math.min(100, progress))}%`,
-                    backgroundColor: getProgressColor(progress),
+                    width: `${safeProgress}%`,
+                    backgroundColor: getProgressColor(safeProgress),
                   },
                 ]}
               />
             </View>
             <Text style={styles.progressText}>
-              {Math.round(progress)}%
+              {Math.round(safeProgress)}%
             </Text>
             <Text style={styles.stageText}>
               {getStageText(stage)}
@@ -173,9 +176,9 @@ const ProcessingProgressModal = ({
 
           {/* 加载指示器 */}
           <View style={styles.loadingContainer}>
-            <ActivityIndicator 
-              size="small" 
-              color={getProgressColor(progress)} 
+            <ActivityIndicator
+              size="small"
+              color={getProgressColor(safeProgress)}
             />
             <Text style={styles.loadingText}>
               请稍候，正在后台处理...

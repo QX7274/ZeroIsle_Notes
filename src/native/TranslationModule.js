@@ -1,9 +1,12 @@
-import { NativeModules } from 'react-native';
+const { NativeModules } = require('react-native');
 
-const { TranslationModule } = NativeModules;
+const TranslationModule = NativeModules.TranslationModule || null;
 
-export default {
+const translationWrapper = {
     translateText: (text, targetLanguage) => {
+        if (!TranslationModule) {
+            return Promise.reject(new Error('TranslationModule not available'));
+        }
         return new Promise((resolve, reject) => {
             TranslationModule.translateText(text, targetLanguage)
                 .then(result => resolve(result))
@@ -12,6 +15,9 @@ export default {
     },
 
     detectLanguage: (text) => {
+        if (!TranslationModule) {
+            return Promise.reject(new Error('TranslationModule not available'));
+        }
         return new Promise((resolve, reject) => {
             TranslationModule.detectLanguage(text)
                 .then(result => resolve(result))
@@ -20,10 +26,16 @@ export default {
     },
 
     getSupportedLanguages: () => {
+        if (!TranslationModule) {
+            return Promise.reject(new Error('TranslationModule not available'));
+        }
         return new Promise((resolve, reject) => {
             TranslationModule.getSupportedLanguages()
                 .then(result => resolve(result))
                 .catch(error => reject(error));
         });
     },
-}; 
+};
+
+module.exports = translationWrapper;
+module.exports.default = translationWrapper;

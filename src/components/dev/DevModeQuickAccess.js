@@ -22,7 +22,7 @@ const DevModeQuickAccess = () => {
     try {
       const status = devModeService.getDevModeStatus();
       setIsDevMode(status.isActive);
-      
+
       // 检查连接状态
       const connStatus = devModeApiClient.getConnectionStatus();
       setConnectionStatus(connStatus.status);
@@ -35,7 +35,7 @@ const DevModeQuickAccess = () => {
     try {
       setIsLoading(true);
       const success = await devModeService.enableDevMode();
-      
+
       if (success) {
         setIsDevMode(true);
         Alert.alert('成功', '开发者模式已启用，可以快速进入系统');
@@ -62,7 +62,7 @@ const DevModeQuickAccess = () => {
             try {
               setIsLoading(true);
               const success = await devModeService.disableDevMode();
-              
+
               if (success) {
                 setIsDevMode(false);
                 setConnectionStatus('disconnected');
@@ -76,8 +76,8 @@ const DevModeQuickAccess = () => {
             } finally {
               setIsLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -94,18 +94,18 @@ const DevModeQuickAccess = () => {
     try {
       setIsLoading(true);
       console.log('开始扫描热点...');
-      
+
       const connections = await devModeApiClient.scanHotspots();
-      
+
       if (connections.length > 0) {
         // 选择第一个可用连接
         const bestConnection = connections[0];
         const result = await devModeApiClient.connectToBackend(bestConnection.url);
-        
+
         if (result.success) {
           setConnectionStatus('connected');
           Alert.alert('成功', `已连接到热点: ${bestConnection.url}`);
-          
+
           // 自动测试API端点
           await handleTestEndpoints();
         } else {
@@ -125,13 +125,13 @@ const DevModeQuickAccess = () => {
     try {
       setIsLoading(true);
       console.log('开始测试API端点...');
-      
+
       const results = await devModeApiClient.testAllEndpoints();
       setApiTestResults(results);
-      
+
       const successCount = results.filter(r => r.success).length;
       Alert.alert('测试完成', `API端点测试完成，成功: ${successCount}/${results.length}`);
-      
+
     } catch (error) {
       Alert.alert('错误', `测试API端点失败: ${error.message}`);
     } finally {
@@ -185,22 +185,22 @@ const DevModeQuickAccess = () => {
         disabled={isLoading}
       >
         <Icon
-          name={isDevMode ? "code-working" : "code-slash"}
+          name={isDevMode ? 'code-working' : 'code-slash'}
           size={20}
-          color={isDevMode ? "#4CAF50" : "#666"}
+          color={isDevMode ? '#4CAF50' : '#666'}
         />
         <Text style={[styles.buttonText, isDevMode && styles.buttonTextActive]}>
-          {isDevMode ? "开发者模式已启用" : "快速进入开发者模式"}
+          {isDevMode ? '开发者模式已启用' : '快速进入开发者模式'}
         </Text>
       </TouchableOpacity>
 
       {/* 连接状态 */}
       {isDevMode && (
         <View style={styles.statusContainer}>
-          <Icon 
-            name="wifi" 
-            size={16} 
-            color={getConnectionStatusColor()} 
+          <Icon
+            name="wifi"
+            size={16}
+            color={getConnectionStatusColor()}
           />
           <Text style={[styles.statusText, { color: getConnectionStatusColor() }]}>
             热点状态: {getConnectionStatusText()}
@@ -250,9 +250,9 @@ const DevModeQuickAccess = () => {
           {apiTestResults.map((result, index) => (
             <View key={index} style={styles.resultItem}>
               <Icon
-                name={result.success ? "checkmark-circle" : "close-circle"}
+                name={result.success ? 'checkmark-circle' : 'close-circle'}
                 size={16}
-                color={result.success ? "#4CAF50" : "#F44336"}
+                color={result.success ? '#4CAF50' : '#F44336'}
               />
               <Text style={styles.resultText}>
                 {result.name}: {result.success ? '成功' : '失败'}

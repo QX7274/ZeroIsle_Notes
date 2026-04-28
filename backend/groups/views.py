@@ -15,6 +15,8 @@ from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupMemberSerializer,
     GroupInvitationSerializer, SharedScreenSerializer
 )
+import logging
+from notification.services import NotificationService
 
 
 class IsGroupCreatorOrAdmin(permissions.BasePermission):
@@ -232,7 +234,18 @@ class GroupViewSet(viewsets.ModelViewSet):
             expires_at=expires_at
         )
 
-        # TODO: 发送通知给被邀请人
+        # 发送通知给被邀请人（失败不影响主流程）
+        try:
+            NotificationService().create_notification(
+                recipient=invitee,
+                notification_type='collaboration',
+                title='群组邀请',
+                message=f'{request.user.username} 邀请你加入群组 "{group.name}"',
+                sender=request.user,
+                related_object=invitation
+            )
+        except Exception as notify_error:
+            logging.getLogger(__name__).warning(f"发送群组邀请通知失败: {notify_error}")
 
         return Response(
             GroupInvitationSerializer(invitation).data,

@@ -1,0 +1,222 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+WARNING Bad Request: 
+/api/v1/auth/bind/pho
+ne/
+F密码登录失败: 密码错误, 用户: te
+stuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=test
+@example.com, ip=127.
+0.0.1, reason={'non_f
+ield_errors': [ErrorD
+etail(string='密码错误', 
+code='invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F密码登录失败: 密码错误, 用户: ph
+oneuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=1380
+0138000, ip=127.0.0.1
+, reason={'non_field_
+errors': [ErrorDetail
+(string='密码错误', code=
+'invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F密码登录失败: 密码错误, 用户: te
+stuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=test
+user, ip=127.0.0.1, r
+eason={'non_field_err
+ors': [ErrorDetail(st
+ring='密码错误', code='in
+valid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F..
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_bindi
+ng_methods (users.tes
+ts.test_auth.UserAuth
+Test.test_user_bindin
+g_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 220, in test_user_
+binding_methods
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_email (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_email)
+测试邮箱登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 100, in test_user_
+login_with_email
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+Found 6 test(s).
+System check identified no issues (0 silenced).
+FAIL: test_user_login
+_with_phone (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_phone)
+测试手机号登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 143, in test_user_
+login_with_phone
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_username (users
+.tests.test_auth.User
+AuthTest.test_user_lo
+gin_with_username)
+测试用户名登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 86, in test_user_l
+ogin_with_username
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 58.073
+s
+
+FAILED (failures=4)
+Destroying test datab
+ase for alias 'defaul
+t'...
+

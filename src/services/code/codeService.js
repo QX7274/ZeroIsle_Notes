@@ -4,7 +4,7 @@
  */
 import { analyticsService } from '../analytics/analyticsService';
 import { codeApi } from './api/index';
-import { aiService } from './ai/index';
+import { aiService } from '../ai/index';
 
 class CodeService {
   constructor() {
@@ -196,5 +196,10 @@ class CodeService {
   }
 }
 
-export const codeService = new CodeService();
+const codeService = new CodeService();
+
+module.exports = codeService;
+module.exports.default = codeService;
+module.exports.codeService = codeService;
+module.exports.CodeService = CodeService;
 

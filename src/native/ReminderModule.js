@@ -1,9 +1,12 @@
-import { NativeModules } from 'react-native';
+const { NativeModules } = require('react-native');
 
-const { ReminderModule } = NativeModules;
+const ReminderModule = NativeModules.ReminderModule || null;
 
-export default {
+const reminderWrapper = {
     scheduleReminder: (reminder) => {
+        if (!ReminderModule) {
+            return Promise.reject(new Error('ReminderModule not available'));
+        }
         return ReminderModule.scheduleReminder({
             id: reminder.id,
             title: reminder.title,
@@ -13,6 +16,12 @@ export default {
     },
 
     cancelReminder: (id) => {
+        if (!ReminderModule) {
+            return Promise.reject(new Error('ReminderModule not available'));
+        }
         return ReminderModule.cancelReminder(id);
     },
-}; 
+};
+
+module.exports = reminderWrapper;
+module.exports.default = reminderWrapper;

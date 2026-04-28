@@ -42,37 +42,37 @@ const CodeSnippet = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 状态
   const [editorTheme, setEditorTheme] = useState(initialTheme);
   const [copied, setCopied] = useState(false);
-  
+
   // 复制代码
   const copyCode = () => {
     Clipboard.setString(code);
     setCopied(true);
-    
+
     // 记录分析事件
     analyticsService.trackCodeAction('copy_snippet', { language });
-    
+
     // 2秒后重置复制状态
     setTimeout(() => {
       setCopied(false);
     }, 2000);
   };
-  
+
   // 切换主题
   const toggleTheme = () => {
     const newTheme = editorTheme === 'dark' ? 'light' : 'dark';
     setEditorTheme(newTheme);
-    
+
     // 记录分析事件
-    analyticsService.trackCodeAction('toggle_snippet_theme', { 
-      language, 
-      theme: newTheme 
+    analyticsService.trackCodeAction('toggle_snippet_theme', {
+      language,
+      theme: newTheme,
     });
   };
-  
+
   // 获取语言显示名称
   const getLanguageDisplayName = () => {
     const languageMap = {
@@ -98,10 +98,10 @@ const CodeSnippet = ({
       'bash': 'Bash',
       'shell': 'Shell',
     };
-    
+
     return languageMap[language.toLowerCase()] || language;
   };
-  
+
   return (
     <View
       style={[
@@ -137,7 +137,7 @@ const CodeSnippet = ({
               {title}
             </Text>
           )}
-          
+
           {showLanguageLabel && (
             <View
               style={[
@@ -160,7 +160,7 @@ const CodeSnippet = ({
             </View>
           )}
         </View>
-        
+
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -172,7 +172,7 @@ const CodeSnippet = ({
               color={editorTheme === 'dark' ? '#8b949e' : '#57606a'}
             />
           </TouchableOpacity>
-          
+
           {showCopyButton && (
             <TouchableOpacity
               style={styles.headerButton}
@@ -193,7 +193,7 @@ const CodeSnippet = ({
           )}
         </View>
       </View>
-      
+
       {/* 代码内容 */}
       <ScrollView
         horizontal

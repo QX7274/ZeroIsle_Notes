@@ -5,6 +5,8 @@
 
 import { Platform } from 'react-native';
 import { Skia } from '@shopify/react-native-skia';
+import realmService from '../database/realmService';
+
 
 /**
  * 渲染配置
@@ -14,32 +16,32 @@ const RENDER_CONFIG = {
   TARGET_FPS: 60,
   MIN_FPS: 30,
   MAX_FPS: 120,
-  
+
   // 质量配置
   HIGH_QUALITY: {
     scale: 2.0,
     antialias: true,
-    smoothing: true
+    smoothing: true,
   },
   MEDIUM_QUALITY: {
     scale: 1.5,
     antialias: true,
-    smoothing: false
+    smoothing: false,
   },
   LOW_QUALITY: {
     scale: 1.0,
     antialias: false,
-    smoothing: false
+    smoothing: false,
   },
-  
+
   // 性能配置
   MAX_RENDER_TIME: 16, // 16ms (60fps)
   ADAPTIVE_THRESHOLD: 0.8, // 性能阈值
   GPU_ACCELERATION: true,
-  
+
   // 多线程配置
   WORKER_THREADS: 2,
-  RENDER_QUEUE_SIZE: 10
+  RENDER_QUEUE_SIZE: 10,
 };
 
 /**
@@ -48,7 +50,7 @@ const RENDER_CONFIG = {
 export const RENDER_QUALITY = {
   HIGH: 'high',
   MEDIUM: 'medium',
-  LOW: 'low'
+  LOW: 'low',
 };
 
 /**
@@ -58,7 +60,7 @@ export const RENDER_STATE = {
   IDLE: 'idle',
   RENDERING: 'rendering',
   QUEUED: 'queued',
-  ERROR: 'error'
+  ERROR: 'error',
 };
 
 /**
@@ -89,34 +91,34 @@ export class PerformanceMonitor {
     this.currentFPS = 60;
     this.quality = RENDER_QUALITY.HIGH;
   }
-  
+
   /**
    * 记录帧时间
    */
   recordFrameTime(frameTime) {
     this.frameTimes.push(frameTime);
-    
+
     // 保持最近100帧的记录
     if (this.frameTimes.length > 100) {
       this.frameTimes.shift();
     }
-    
+
     // 计算当前FPS
     this.currentFPS = this.calculateFPS();
   }
-  
+
   /**
    * 记录渲染时间
    */
   recordRenderTime(renderTime) {
     this.renderTimes.push(renderTime);
-    
+
     // 保持最近50次渲染的记录
     if (this.renderTimes.length > 50) {
       this.renderTimes.shift();
     }
   }
-  
+
   /**
    * 计算FPS
    */
@@ -124,11 +126,11 @@ export class PerformanceMonitor {
     if (this.frameTimes.length < 2) {
       return 60;
     }
-    
+
     const avgFrameTime = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
     return Math.round(1000 / avgFrameTime);
   }
-  
+
   /**
    * 获取平均渲染时间
    */
@@ -136,31 +138,31 @@ export class PerformanceMonitor {
     if (this.renderTimes.length === 0) {
       return 0;
     }
-    
+
     return this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length;
   }
-  
+
   /**
    * 检查是否需要降低质量
    */
   shouldReduceQuality() {
     const avgRenderTime = this.getAverageRenderTime();
     const fps = this.currentFPS;
-    
+
     return avgRenderTime > RENDER_CONFIG.MAX_RENDER_TIME || fps < RENDER_CONFIG.MIN_FPS;
   }
-  
+
   /**
    * 检查是否可以提升质量
    */
   shouldIncreaseQuality() {
     const avgRenderTime = this.getAverageRenderTime();
     const fps = this.currentFPS;
-    
-    return avgRenderTime < RENDER_CONFIG.MAX_RENDER_TIME * RENDER_CONFIG.ADAPTIVE_THRESHOLD && 
+
+    return avgRenderTime < RENDER_CONFIG.MAX_RENDER_TIME * RENDER_CONFIG.ADAPTIVE_THRESHOLD &&
            fps > RENDER_CONFIG.TARGET_FPS;
   }
-  
+
   /**
    * 获取推荐质量
    */
@@ -178,10 +180,10 @@ export class PerformanceMonitor {
         return RENDER_QUALITY.HIGH;
       }
     }
-    
+
     return this.quality;
   }
-  
+
   /**
    * 获取性能统计
    */
@@ -193,7 +195,7 @@ export class PerformanceMonitor {
       frameCount: this.frameTimes.length,
       renderCount: this.renderTimes.length,
       gpuUsage: this.gpuUsage,
-      memoryUsage: this.memoryUsage
+      memoryUsage: this.memoryUsage,
     };
   }
 }
@@ -207,7 +209,7 @@ export class GPUAcceleratedRenderer {
     this.surfaces = new Map();
     this.textures = new Map();
   }
-  
+
   /**
    * 创建GPU加速Surface
    */
@@ -215,30 +217,30 @@ export class GPUAcceleratedRenderer {
     if (!this.enabled) {
       return null;
     }
-    
+
     try {
       const config = this.getQualityConfig(quality);
       const surface = Skia.Surface.MakeOffscreen(width * config.scale, height * config.scale);
-      
+
       if (surface) {
-        const surfaceId = `gpu_${Date.now()}_${Math.random()}`;
+        const surfaceId = `gpu_${realmService.createObjectId()}`;
         this.surfaces.set(surfaceId, {
           surface,
           width,
           height,
           quality,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
-        
+
         return { id: surfaceId, surface };
       }
     } catch (error) {
       console.error('创建GPU Surface失败:', error);
     }
-    
+
     return null;
   }
-  
+
   /**
    * 获取质量配置
    */
@@ -254,7 +256,7 @@ export class GPUAcceleratedRenderer {
         return RENDER_CONFIG.MEDIUM_QUALITY;
     }
   }
-  
+
   /**
    * 渲染到GPU Surface
    */
@@ -263,11 +265,11 @@ export class GPUAcceleratedRenderer {
     if (!surfaceData) {
       return null;
     }
-    
+
     try {
       const canvas = surfaceData.surface.getCanvas();
       const result = renderFunction(canvas, surfaceData);
-      
+
       surfaceData.surface.flush();
       return result;
     } catch (error) {
@@ -275,7 +277,7 @@ export class GPUAcceleratedRenderer {
       return null;
     }
   }
-  
+
   /**
    * 清理GPU资源
    */
@@ -286,7 +288,7 @@ export class GPUAcceleratedRenderer {
       }
     });
     this.surfaces.clear();
-    
+
     this.textures.forEach((texture, id) => {
       if (texture.dispose) {
         texture.dispose();
@@ -306,7 +308,7 @@ export class MultiThreadRenderer {
     this.activeTasks = new Map();
     this.maxWorkers = RENDER_CONFIG.WORKER_THREADS;
   }
-  
+
   /**
    * 添加渲染任务
    */
@@ -314,7 +316,7 @@ export class MultiThreadRenderer {
     this.renderQueue.push(task);
     this.processQueue();
   }
-  
+
   /**
    * 处理渲染队列
    */
@@ -324,29 +326,29 @@ export class MultiThreadRenderer {
       this.executeRenderTask(task);
     }
   }
-  
+
   /**
    * 执行渲染任务
    */
   async executeRenderTask(task) {
     task.state = RENDER_STATE.RENDERING;
     this.activeTasks.set(task.id, task);
-    
+
     try {
       const startTime = performance.now();
-      
+
       // 模拟多线程渲染
       const result = await this.renderInWorker(task);
-      
+
       const endTime = performance.now();
       const renderTime = endTime - startTime;
-      
+
       task.result = result;
       task.state = RENDER_STATE.IDLE;
-      
+
       // 记录渲染时间
       this.recordRenderTime(renderTime);
-      
+
     } catch (error) {
       task.error = error;
       task.state = RENDER_STATE.ERROR;
@@ -356,7 +358,7 @@ export class MultiThreadRenderer {
       this.processQueue();
     }
   }
-  
+
   /**
    * 在Worker中渲染
    */
@@ -366,10 +368,10 @@ export class MultiThreadRenderer {
       setTimeout(() => {
         // 这里应该调用实际的渲染逻辑
         resolve({ taskId: task.id, result: 'rendered' });
-      }, Math.random() * 10); // 模拟渲染时间
+      }, 10); // 固定最小渲染等待时间，避免随机回退
     });
   }
-  
+
   /**
    * 记录渲染时间
    */
@@ -377,7 +379,7 @@ export class MultiThreadRenderer {
     // 这里应该调用性能监控器
     console.log('渲染时间:', renderTime + 'ms');
   }
-  
+
   /**
    * 获取队列状态
    */
@@ -385,10 +387,10 @@ export class MultiThreadRenderer {
     return {
       queueLength: this.renderQueue.length,
       activeTasks: this.activeTasks.size,
-      maxWorkers: this.maxWorkers
+      maxWorkers: this.maxWorkers,
     };
   }
-  
+
   /**
    * 清理渲染器
    */
@@ -410,60 +412,60 @@ export class RenderPipelineService {
     this.currentQuality = RENDER_QUALITY.HIGH;
     this.callbacks = new Map();
   }
-  
+
   /**
    * 启动渲染管线
    */
   start() {
     console.log('🚀 [RenderPipeline] 启动渲染管线');
-    
+
     // 初始化渲染管线
     this.initialize();
-    
+
     // 调用回调
     this.callCallbacks('stateChange', RENDER_STATE.RENDERING);
   }
-  
+
   /**
    * 停止渲染管线
    */
   stop() {
     console.log('🛑 [RenderPipeline] 停止渲染管线');
-    
+
     // 清理资源
     this.destroy();
-    
+
     // 调用回调
     this.callCallbacks('stateChange', RENDER_STATE.IDLE);
   }
-  
+
   /**
    * 获取自适应质量
    */
   getAdaptiveQuality() {
     return this.performanceMonitor.getRecommendedQuality();
   }
-  
+
   /**
    * 是否应该使用GPU加速
    */
   shouldUseGPUAcceleration() {
     return this.gpuRenderer.enabled && this.isEnabled;
   }
-  
+
   /**
    * 初始化渲染管线
    */
   initialize() {
     console.log('🚀 [RenderPipeline] 初始化渲染管线');
-    
+
     // 启动性能监控
     this.startPerformanceMonitoring();
-    
+
     // 启动自适应质量调整
     this.startAdaptiveQuality();
   }
-  
+
   /**
    * 启动性能监控
    */
@@ -472,7 +474,7 @@ export class RenderPipelineService {
       this.updatePerformanceStats();
     }, 1000); // 每秒更新一次
   }
-  
+
   /**
    * 启动自适应质量调整
    */
@@ -481,84 +483,84 @@ export class RenderPipelineService {
       this.adjustQuality();
     }, 2000); // 每2秒检查一次
   }
-  
+
   /**
    * 更新性能统计
    */
   updatePerformanceStats() {
     const stats = this.performanceMonitor.getPerformanceStats();
-    
+
     // 调用回调
     this.callCallbacks('performanceUpdate', stats);
   }
-  
+
   /**
    * 调整渲染质量
    */
   adjustQuality() {
     const recommendedQuality = this.performanceMonitor.getRecommendedQuality();
-    
+
     if (recommendedQuality !== this.currentQuality) {
       this.setRenderQuality(recommendedQuality);
       console.log(`🎨 [RenderPipeline] 质量调整: ${this.currentQuality} -> ${recommendedQuality}`);
     }
   }
-  
+
   /**
    * 设置渲染质量
    */
   setRenderQuality(quality) {
     this.currentQuality = quality;
-    
+
     // 调用回调
     this.callCallbacks('qualityChange', quality);
   }
-  
+
   /**
    * 创建渲染任务
    */
   createRenderTask(type, data, priority = 'normal') {
-    const taskId = `render_${Date.now()}_${Math.random()}`;
+    const taskId = `render_${realmService.createObjectId()}`;
     const task = new RenderTask(taskId, type, data, priority);
-    
+
     this.multiThreadRenderer.addRenderTask(task);
-    
+
     return task;
   }
-  
+
   /**
    * 渲染笔画
    */
   renderStroke(stroke, quality = null) {
     const renderQuality = quality || this.currentQuality;
-    
+
     return this.createRenderTask('stroke', {
       stroke,
-      quality: renderQuality
+      quality: renderQuality,
     }, 'high');
   }
-  
+
   /**
    * 渲染页面
    */
   renderPage(pageData, quality = null) {
     const renderQuality = quality || this.currentQuality;
-    
+
     return this.createRenderTask('page', {
       pageData,
-      quality: renderQuality
+      quality: renderQuality,
     }, 'normal');
   }
-  
+
   /**
    * 批量渲染
    */
   batchRender(tasks) {
     return this.createRenderTask('batch', {
-      tasks
+      tasks,
     }, 'low');
   }
-  
+
   /**
    * 注册回调
    */
@@ -568,7 +570,7 @@ export class RenderPipelineService {
     }
     this.callbacks.get(event).push(callback);
   }
-  
+
   /**
    * 取消注册回调
    */
@@ -581,7 +583,7 @@ export class RenderPipelineService {
       }
     }
   }
-  
+
   /**
    * 调用回调
    */
@@ -596,7 +598,7 @@ export class RenderPipelineService {
       });
     }
   }
-  
+
   /**
    * 获取渲染状态
    */
@@ -605,17 +607,17 @@ export class RenderPipelineService {
       enabled: this.isEnabled,
       quality: this.currentQuality,
       performance: this.performanceMonitor.getPerformanceStats(),
-      queue: this.multiThreadRenderer.getQueueStatus()
+      queue: this.multiThreadRenderer.getQueueStatus(),
     };
   }
-  
+
   /**
    * 启用/禁用服务
    */
   setEnabled(enabled) {
     this.isEnabled = enabled;
   }
-  
+
   /**
    * 销毁服务
    */
@@ -627,6 +629,11 @@ export class RenderPipelineService {
 }
 
 // 创建全局渲染管线服务实例
-export const renderPipelineService = new RenderPipelineService();
+const renderPipelineService = new RenderPipelineService();
+
+module.exports = renderPipelineService;
+module.exports.default = renderPipelineService;
+module.exports.renderPipelineService = renderPipelineService;
+module.exports.RenderPipelineService = RenderPipelineService;
 
 export default RenderPipelineService;

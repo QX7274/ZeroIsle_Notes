@@ -20,7 +20,7 @@ const PageControl = ({
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   // 控件自身高度（从styles.container获取，用于计算底部定位）
-  const controlHeight = 24; 
+  const controlHeight = 24;
   // 底部安全距离（避免贴紧屏幕边缘，可根据需求调整）
   const bottomSafeDistance = 24;
   // 新增：记录控件原始位置（用于键盘隐藏后恢复）
@@ -66,7 +66,7 @@ const PageControl = ({
   useEffect(() => {
     const updatePosition = () => {
       // 仅在「未聚焦输入框」且「未关联键盘」时调整位置
-      if (isInputFocused || isControlLinkedToKeyboard.current) return;
+      if (isInputFocused || isControlLinkedToKeyboard.current) {return;}
 
       const { width, height } = Dimensions.get('window');
       const bottomCenterPos = getBottomCenterPos(width, height);
@@ -137,7 +137,7 @@ const PageControl = ({
 
     return {
       x: Math.min(Math.max(targetPos.x, minX), maxX),
-      y: Math.min(Math.max(targetPos.y, minY), maxY)
+      y: Math.min(Math.max(targetPos.y, minY), maxY),
     };
   };
 
@@ -171,13 +171,13 @@ const PageControl = ({
       onPanResponderGrant: (e) => {
         dragging.current = true;
         // 计算触摸点与控件左上角的偏移（确保拖拽跟随手指）
-        offset.current = { 
-          x: e.nativeEvent.locationX, 
-          y: e.nativeEvent.locationY 
+        offset.current = {
+          x: e.nativeEvent.locationX,
+          y: e.nativeEvent.locationY,
         };
       },
       onPanResponderMove: (e) => {
-        if (!dragging.current) return;
+        if (!dragging.current) {return;}
         const { width, height } = Dimensions.get('window');
         // 计算新位置（触摸点坐标 - 偏移量）
         let nextX = e.nativeEvent.pageX - offset.current.x;
@@ -189,7 +189,7 @@ const PageControl = ({
         originalPosRef.current = fixedPos;
       },
       onPanResponderRelease: () => {
-        if (!dragging.current) return;
+        if (!dragging.current) {return;}
         dragging.current = false;
         persistPos(pos);
       },
@@ -199,8 +199,8 @@ const PageControl = ({
   ).current;
 
   return (
-    <View 
-      style={[styles.wrapper, { transform: [{ translateX: pos.x }, { translateY: pos.y }] }]} 
+    <View
+      style={[styles.wrapper, { transform: [{ translateX: pos.x }, { translateY: pos.y }] }]}
       pointerEvents="box-none"
     >
       {/* “一”形拖拽标记（仅拖拽标记可触发拖拽） */}
@@ -314,8 +314,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 0,
   },
-  navText: { 
-    fontSize: 12, 
+  navText: {
+    fontSize: 12,
     color: '#222',
     textAlign: 'center',
   },
@@ -340,11 +340,11 @@ const styles = StyleSheet.create({
     width: 36,
     padding: 0,
   },
-  sep: { 
-    fontSize: 12, 
-    color: '#333', 
-    fontWeight: '500', 
-    marginLeft: 4, 
+  sep: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '500',
+    marginLeft: 4,
     marginRight: 0,
     textAlign: 'left',
     minWidth: 36,

@@ -15,8 +15,8 @@ export const SyncInfoSchema = {
     type: 'string',
     value: 'string',
     created_at: 'date',
-    updated_at: 'date'
-  }
+    updated_at: 'date',
+  },
 };
 
 /**
@@ -37,8 +37,8 @@ export const OfflineQueueSchema = {
     is_synced: { type: 'bool', default: false },
     retry_count: { type: 'int', default: 0 },
     last_error: 'string?',
-    server_response: 'string?'
-  }
+    server_response: 'string?',
+  },
 };
 
 /**
@@ -57,8 +57,8 @@ export const SyncConflictSchema = {
     resolved: { type: 'bool', default: false },
     resolution: 'string?',
     created_at: 'date',
-    updated_at: 'date'
-  }
+    updated_at: 'date',
+  },
 };
 
 /**
@@ -73,8 +73,8 @@ export const SyncLogSchema = {
     type: 'string',
     message: 'string',
     details: 'string?',
-    created_at: 'date'
-  }
+    created_at: 'date',
+  },
 };
 
 /**
@@ -91,10 +91,10 @@ export const SyncSettingsSchema = {
     sync_on_app_start: { type: 'bool', default: true },
     sync_on_network_change: { type: 'bool', default: true },
     sync_on_background: { type: 'bool', default: false },
-    sync_collections: 'string[]',
+    sync_collections: { type: 'list', objectType: 'string' },
     created_at: 'date',
-    updated_at: 'date'
-  }
+    updated_at: 'date',
+  },
 };
 
 // 导出所有同步模型
@@ -103,7 +103,7 @@ export const SyncModels = [
   OfflineQueueSchema,
   SyncConflictSchema,
   SyncLogSchema,
-  SyncSettingsSchema
+  SyncSettingsSchema,
 ];
 
 export default SyncModels;

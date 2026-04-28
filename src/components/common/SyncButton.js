@@ -48,7 +48,7 @@ const SyncButton = ({ style, iconOnly = false, showStatus = false }) => {
 
     // 监听网络状态
     const networkListener = networkService.addListener('change', (status) => {
-      setIsOnline(status.isConnected);
+      setIsOnline(Boolean(status?.isOnline));
     });
 
     // 清理函数
@@ -77,12 +77,12 @@ const SyncButton = ({ style, iconOnly = false, showStatus = false }) => {
 
   // 格式化上次同步时间
   const getFormattedLastSyncTime = () => {
-    if (!lastSyncTime) return '从未同步';
+    if (!lastSyncTime) {return '从未同步';}
 
     try {
       return formatDistanceToNow(new Date(lastSyncTime), {
         addSuffix: true,
-        locale: zhCN
+        locale: zhCN,
       });
     } catch (error) {
       return '未知时间';

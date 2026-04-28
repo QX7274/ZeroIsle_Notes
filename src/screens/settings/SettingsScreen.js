@@ -66,7 +66,7 @@ const SettingItem = React.memo(({ icon, title, description, onPress, value, type
           backgroundColor: pressed ? colors.card + '80' : colors.card,
           borderLeftWidth: 3,
           borderLeftColor: pressed ? iconColor : 'transparent',
-        }
+        },
       ]}
     >
       <Animated.View style={{
@@ -79,7 +79,7 @@ const SettingItem = React.memo(({ icon, title, description, onPress, value, type
           styles.settingIcon,
           {
             backgroundColor: iconColor + '15',
-          }
+          },
         ]}>
           <Icon name={icon} size={24} color={iconColor} />
         </View>
@@ -155,7 +155,7 @@ const SettingsScreen = ({ navigation }) => {
     const loadDataAfterInteraction = async () => {
       // 等待导航动画完成后再加载数据
       await InteractionManager.runAfterInteractions();
-      
+
       // 获取应用版本
       try {
         const version = await DeviceInfo.getVersion();
@@ -298,12 +298,12 @@ const SettingsScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('检查更新出错:', error);
-      
+
       // 使用网络错误服务处理错误
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '检查更新',
-          customMessage: '网络连接失败，无法检查更新'
+          customMessage: '网络连接失败，无法检查更新',
         });
       } else {
         Alert.alert('错误', '检查更新时发生错误，请稍后重试');
@@ -671,7 +671,7 @@ const SettingsScreen = ({ navigation }) => {
             {
               backgroundColor: pressed ? colors.error + '20' : 'transparent',
               borderColor: colors.error + '40',
-            }
+            },
           ]}
           onPress={handleResetSettings}
           android_ripple={{ color: colors.error + '15', borderless: false }}
@@ -701,6 +701,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingTop: 24,
     borderBottomWidth: 1,
     elevation: 2,
     shadowColor: '#000',

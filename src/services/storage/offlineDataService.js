@@ -5,9 +5,9 @@
 
 import realmService from '../database/realmService';
 import STORAGE_KEYS from '../../constants/storageKeys';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../network/networkService';
 import axios from 'axios';
-import { API_ENDPOINTS } from '../../constants/api';
+import { API_BASE_URL } from '../../config/api';
 
 /**
  * 离线数据服务类
@@ -34,7 +34,7 @@ class OfflineDataService {
 
     try {
       this.apiClient = apiClient || axios.create({
-        baseURL: API_ENDPOINTS.BASE_URL,
+        baseURL: API_BASE_URL,
         timeout: 10000,
       });
 
@@ -42,13 +42,13 @@ class OfflineDataService {
       await this.loadSyncQueue();
 
       // 检查网络状态
-      const netInfo = await NetInfo.fetch();
-      this.isOnline = netInfo.isConnected && netInfo.isInternetReachable;
+      const netInfo = await networkService.checkConnection();
+      this.isOnline = Boolean(netInfo);
 
       // 添加网络状态监听器
-      this.unsubscribeNetInfo = NetInfo.addEventListener(state => {
+      this.unsubscribeNetInfo = networkService.addNetworkListener(state => {
         const wasOnline = this.isOnline;
-        this.isOnline = state.isConnected && state.isInternetReachable;
+        this.isOnline = Boolean(state?.isOnline);
 
         // 如果从离线变为在线，尝试同步数据
         if (!wasOnline && this.isOnline) {
@@ -64,8 +64,7 @@ class OfflineDataService {
       console.log('OfflineDataService: 初始化完成');
     } catch (error) {
       console.error('OfflineDataService: 初始化失败', error);
-      // 即使初始化失败，也标记为已初始化，以避免重复尝试
-      this.isInitialized = true;
+      throw error;
     }
   }
 
@@ -94,6 +93,7 @@ class OfflineDataService {
     } catch (error) {
       console.error('OfflineDataService: 加载同步队列失败', error);
       this.syncQueue = [];
+      throw error;
     }
   }
 
@@ -102,6 +102,7 @@ class OfflineDataService {
    */
   async saveSyncQueue() {
     try {
+      const realm = await realmService.getRealm();
       realm.write(() => {
         const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.SYNC_QUEUE}"`);
         if (existingItem.length > 0) {
@@ -119,6 +120,7 @@ class OfflineDataService {
       console.log(`OfflineDataService: 已保存 ${this.syncQueue.length} 个同步队列项`);
     } catch (error) {
       console.error('OfflineDataService: 保存同步队列失败', error);
+      throw error;
     }
   }
 
@@ -136,13 +138,13 @@ class OfflineDataService {
 
     // 创建队列项
     const queueItem = {
-      id: Date.now().toString(),
+      id: realmService.createObjectId(),
       operation,
       collection,
       recordId: id,
       data,
       timestamp: new Date().toISOString(),
-      retryCount: 0
+      retryCount: 0,
     };
 
     // 添加到队列
@@ -166,10 +168,15 @@ class OfflineDataService {
     if (!this.isOnline || this.syncInProgress || this.syncQueue.length === 0) {
       if (!this.isOnline) {
         console.log('OfflineDataService: 离线状态，跳过同步');
-      } else if (this.syncInProgress) {
+        throw new Error('离线状态，无法同步');
+      }
+      if (this.syncInProgress) {
         console.log('OfflineDataService: 同步已在进行中，跳过');
-      } else if (this.syncQueue.length === 0) {
+        throw new Error('同步已在进行中');
+      }
+      if (this.syncQueue.length === 0) {
         console.log('OfflineDataService: 同步队列为空，跳过同步');
+        throw new Error('同步队列为空，无法同步');
       }
       return;
     }
@@ -179,6 +186,7 @@ class OfflineDataService {
       console.log(`OfflineDataService: 开始同步 ${this.syncQueue.length} 个队列项`);
 
       const newQueue = [];
+      const failedItems = [];
       const maxRetries = 3;
 
       for (const item of this.syncQueue) {
@@ -206,7 +214,7 @@ class OfflineDataService {
               break;
             default:
               console.warn(`OfflineDataService: 未知操作 ${operation}，跳过同步`);
-              continue;
+              throw new Error(`未知操作 ${operation}，无法同步`);
           }
 
           // 发送API请求
@@ -220,7 +228,7 @@ class OfflineDataService {
 
           // 如果是创建操作，更新本地对象的ID
           if (operation === 'create' && response.data && response.data.id) {
-            const realm = realmService.getRealm();
+            const realm = await realmService.getRealm();
             const localObject = realm.objectForPrimaryKey(collection, recordId);
             if (localObject) {
               realm.write(() => {
@@ -236,12 +244,14 @@ class OfflineDataService {
           // 如果重试次数超过最大值，放弃此项
           if (item.retryCount >= maxRetries) {
             console.warn(`OfflineDataService: 队列项 ${item.id} 重试次数已达上限，放弃同步`);
+            failedItems.push({ id: item.id, error: itemError });
             continue;
           }
 
           // 增加重试计数并保留在队列中
           item.retryCount++;
           newQueue.push(item);
+          failedItems.push({ id: item.id, error: itemError });
         }
       }
 
@@ -249,26 +259,36 @@ class OfflineDataService {
       this.syncQueue = newQueue;
       await this.saveSyncQueue();
 
-      // 更新最后同步时间
-      this.lastSyncTime = new Date();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.LAST_SYNC_TIME}"`);
-        if (existingItem.length > 0) {
-          existingItem[0].value = this.lastSyncTime.toISOString();
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: STORAGE_KEYS.LAST_SYNC_TIME,
-            value: this.lastSyncTime.toISOString(),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
+      const hasFailures = failedItems.length > 0 || newQueue.length > 0;
+
+      if (!hasFailures) {
+        // 更新最后同步时间
+        this.lastSyncTime = new Date();
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.LAST_SYNC_TIME}"`);
+          if (existingItem.length > 0) {
+            existingItem[0].value = this.lastSyncTime.toISOString();
+            existingItem[0].updated_at = new Date();
+          } else {
+            realm.create('StorageItem', {
+              key: STORAGE_KEYS.LAST_SYNC_TIME,
+              value: this.lastSyncTime.toISOString(),
+              createdAt: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        });
+      }
 
       console.log(`OfflineDataService: 同步完成，剩余 ${newQueue.length} 个队列项`);
+
+      if (hasFailures) {
+        throw new Error(`同步未完成，失败${failedItems.length}项，待重试${newQueue.length}项`);
+      }
     } catch (error) {
       console.error('OfflineDataService: 同步数据失败', error);
+      throw error;
     } finally {
       this.syncInProgress = false;
     }
@@ -290,23 +310,24 @@ class OfflineDataService {
   async destroy() {
     try {
       console.log('OfflineDataService: 正在销毁服务...');
-      
+
       // 清理同步队列
       this.syncQueue = [];
-      
+
       // 清理状态
       this.syncInProgress = false;
       this.lastSyncTime = null;
-      
+
       // 清理网络监听器
       if (this.unsubscribeNetInfo) {
         this.unsubscribeNetInfo();
         this.unsubscribeNetInfo = null;
       }
-      
+
       console.log('OfflineDataService: 服务销毁完成');
     } catch (error) {
       console.error('OfflineDataService: 销毁服务失败:', error);
+      throw error;
     }
   }
 }

@@ -13,32 +13,32 @@ if (typeof TextDecoder === 'undefined') {
     console.log('TextEncoding polyfill: 使用text-encoding库');
   } catch (error) {
     console.warn('TextEncoding polyfill: text-encoding库不可用，使用简单实现');
-    
+
     // 简单的TextDecoder实现
     global.TextDecoder = class TextDecoder {
       constructor(encoding = 'utf-8') {
         this.encoding = encoding;
       }
-      
+
       decode(input) {
         if (input instanceof ArrayBuffer) {
           input = new Uint8Array(input);
         }
-        
+
         if (input instanceof Uint8Array) {
           return String.fromCharCode.apply(null, input);
         }
-        
+
         return String(input);
       }
     };
-    
+
     // 简单的TextEncoder实现
     global.TextEncoder = class TextEncoder {
       constructor() {
         this.encoding = 'utf-8';
       }
-      
+
       encode(input) {
         const string = String(input);
         const bytes = new Uint8Array(string.length);
@@ -64,5 +64,5 @@ if (typeof Buffer === 'undefined') {
 export default {
   TextDecoder: global.TextDecoder,
   TextEncoder: global.TextEncoder,
-  Buffer: global.Buffer
+  Buffer: global.Buffer,
 };

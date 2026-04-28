@@ -1,21 +1,24 @@
 /**
  * 功能开关配置
- * 
+ *
  * 用于控制新功能的启用/禁用，支持：
  * - 本地配置
  * - 远程配置（可选）
  * - 开发/生产环境区分
  */
 
-// 默认功能开关配置
+import { Platform } from 'react-native';
+
+// 默认功能开关配置（按平台）
 const defaultFlags = {
   // 原生实现开关
-  pdf_native: true,           // PDF 原生实现
-  paged_note_native: true,    // 分页笔记原生实现
+  pdf_native: true,             // PDF 原生实现
+  paged_note_native: true,      // 分页笔记原生实现
   infinite_canvas_native: true, // 无限画布原生实现
-  
+
   // 其他功能开关
-  handwriting_recognition: true, // 手写识别
+  // iOS：开启；Android：暂时关闭（待完全打通后开启）
+  handwriting_recognition: Platform.OS === 'ios',
   auto_save: true,              // 自动保存
   cloud_sync: true,             // 云同步
   offline_mode: true,           // 离线模式
@@ -74,10 +77,25 @@ export const resetToDefault = () => {
  */
 export const refreshFlagsRemote = async () => {
   try {
-    // 这里可以添加从服务器获取配置的逻辑
-    // const remoteFlags = await fetchRemoteFlags();
-    // setFlags(remoteFlags);
-    console.log('[FeatureFlags] 远程配置刷新（暂未实现）');
+    // 这里添加从服务器获取配置的逻辑（可选）：
+    // 1) 读本地缓存端点
+    const endpoint = (global.__featureFlagsEndpoint) || null;
+    if (!endpoint) {
+      console.log('[FeatureFlags] 未配置远程端点，跳过刷新');
+      return;
+    }
+    const res = await fetch(endpoint, { method: 'GET' });
+    if (!res.ok) {
+      console.warn('[FeatureFlags] 远程配置请求失败:', res.status);
+      return;
+    }
+    const remoteFlags = await res.json();
+    if (remoteFlags && typeof remoteFlags === 'object') {
+      setFlags(remoteFlags);
+      console.log('[FeatureFlags] 已合并远程配置');
+    } else {
+      console.warn('[FeatureFlags] 远程配置格式无效');
+    }
   } catch (error) {
     console.error('[FeatureFlags] 远程配置刷新失败:', error);
   }
@@ -93,7 +111,7 @@ if (__DEV__) {
     reset: resetToDefault,
     getAll: getAllFlags,
   };
-  
+
   console.log('[FeatureFlags] 开发模式：功能开关已暴露到 global.featureFlags');
 }
 

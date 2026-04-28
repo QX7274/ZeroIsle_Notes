@@ -1,0 +1,51 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test no
+tes.services.test_red
+is_vector_cl ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+.......Stale update d
+etected for note note
+1
+.
+---------------------
+---------------------
+---------------------
+-------
+Ran 8 tests in 0.002s
+
+OK
+Found 8 test(s).
+System check identified no issues (0 silenced).

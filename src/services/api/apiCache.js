@@ -19,7 +19,7 @@ class ApiCache {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -55,7 +55,7 @@ class ApiCache {
       return item.length > 0 ? item[0].value : null;
     } catch (error) {
       logService.error(`获取API缓存项目失败: ${key}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -86,7 +86,7 @@ class ApiCache {
       return true;
     } catch (error) {
       logService.error(`设置API缓存项目失败: ${key}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -101,12 +101,12 @@ class ApiCache {
       const realm = await realmService.getRealm();
       realm.write(() => {
         const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-        if (item.length > 0) realm.delete(item[0]);
+        if (item.length > 0) {realm.delete(item[0]);}
       });
       return true;
     } catch (error) {
       logService.error(`删除API缓存项目失败: ${key}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -122,7 +122,7 @@ class ApiCache {
       return items.map(item => item.key);
     } catch (error) {
       logService.error('获取所有API缓存键失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -138,13 +138,13 @@ class ApiCache {
       realm.write(() => {
         for (const key of keys) {
           const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-          if (item.length > 0) realm.delete(item[0]);
+          if (item.length > 0) {realm.delete(item[0]);}
         }
       });
       return true;
     } catch (error) {
       logService.error('批量删除API缓存项目失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -162,7 +162,7 @@ class ApiCache {
       const cacheData = {
         data,
         timestamp: Date.now(),
-        expiration: Date.now() + expirationMinutes * 60 * 1000
+        expiration: Date.now() + expirationMinutes * 60 * 1000,
       };
       const realm = await realmService.getRealm();
       realm.write(() => {
@@ -182,7 +182,7 @@ class ApiCache {
       return true;
     } catch (error) {
       logService.error(`缓存API响应失败: ${url}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -197,26 +197,44 @@ class ApiCache {
       const cacheKey = `cache_${url}`;
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${cacheKey}"`);
-      const cacheData = item.length > 0 ? item[0].value : null;
+      const rawCacheData = item.length > 0 ? item[0].value : null;
 
-      if (!cacheData) {
+      if (!rawCacheData) {
+        // 业务语义：缓存未命中时返回 null（非错误）
         return null;
       }
 
-      // 检查是否过期
+      let cacheData = null;
+      if (typeof rawCacheData === 'string') {
+        try {
+          cacheData = JSON.parse(rawCacheData);
+        } catch (parseError) {
+          logService.warn(`缓存数据格式无效，已清理: ${cacheKey}`, parseError);
+          realm.write(() => {
+            const corruptedItem = realm.objects('StorageItem').filtered(`key = "${cacheKey}"`);
+            if (corruptedItem.length > 0) {realm.delete(corruptedItem[0]);}
+          });
+          // 业务语义：缓存格式损坏并清理后按未命中处理，返回 null（非错误）
+          return null;
+        }
+      } else {
+        cacheData = rawCacheData;
+      }
+
       if (cacheData.expiration && cacheData.expiration < Date.now()) {
-        // 缓存已过期，删除并返回null
         realm.write(() => {
-          const item = realm.objects('StorageItem').filtered(`key = "${cacheKey}"`);
-          if (item.length > 0) realm.delete(item[0]);
+          const expiredItem = realm.objects('StorageItem').filtered(`key = "${cacheKey}"`);
+          if (expiredItem.length > 0) {realm.delete(expiredItem[0]);}
         });
+        // 业务语义：缓存已过期并清理后按未命中处理，返回 null（非错误）
         return null;
       }
 
-      return cacheData.data;
+      // 业务语义：缓存对象缺少 data 字段时返回 null（非错误）
+      return cacheData.data ?? null;
     } catch (error) {
       logService.error(`获取缓存的API响应失败: ${url}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -236,7 +254,7 @@ class ApiCache {
         realm.write(() => {
           for (const key of cacheKeys) {
             const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-            if (item.length > 0) realm.delete(item[0]);
+            if (item.length > 0) {realm.delete(item[0]);}
           }
         });
       }
@@ -244,7 +262,7 @@ class ApiCache {
       return true;
     } catch (error) {
       logService.error('清除所有API缓存失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -260,12 +278,12 @@ class ApiCache {
       const realm = await realmService.getRealm();
       realm.write(() => {
         const item = realm.objects('StorageItem').filtered(`key = "${cacheKey}"`);
-        if (item.length > 0) realm.delete(item[0]);
+        if (item.length > 0) {realm.delete(item[0]);}
       });
       return true;
     } catch (error) {
       logService.error(`清除API缓存失败: ${url}`, error);
-      return false;
+      throw error;
     }
   }
 }

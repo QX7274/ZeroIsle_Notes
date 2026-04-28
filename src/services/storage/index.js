@@ -11,12 +11,12 @@ export {
   realmService as realmStorageService,
   offlineDataService,
   realmService as storageService,
-  STORAGE_KEYS
+  STORAGE_KEYS,
 };
 
 export default {
   realmStorageService: realmService,
   offlineDataService,
   storageService: realmService,
-  STORAGE_KEYS
+  STORAGE_KEYS,
 };

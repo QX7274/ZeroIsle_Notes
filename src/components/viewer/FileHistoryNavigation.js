@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,7 +20,7 @@ const FileHistoryNavigation = ({
   noteId,
   onFileSelect,
   navigation,
-  visible = true
+  visible = true,
 }) => {
   const { colors } = useTheme();
   const [history, setHistory] = useState([]);
@@ -52,9 +52,9 @@ const FileHistoryNavigation = ({
       const sortedHistory = fileHistoryService.getHistory(10);
       setHistory(sortedHistory);
     };
-    
+
     fileHistoryService.addListener(listener);
-    
+
     return () => {
       fileHistoryService.removeListener(listener);
     };
@@ -84,7 +84,7 @@ const FileHistoryNavigation = ({
       fileName,
       noteId: id,
       type,
-      fromFileHistory: true // 标识从文件历史进入
+      fromFileHistory: true, // 标识从文件历史进入
     };
 
     // 根据文件类型或笔记类型确定导航目标
@@ -94,7 +94,7 @@ const FileHistoryNavigation = ({
         noteId: id,
         title: title || fileName,
         content: '',
-        fromFileHistory: true
+        fromFileHistory: true,
       };
     } else if (noteType === 'paged_note') {
       screenName = 'FluidPagedNote';
@@ -102,7 +102,7 @@ const FileHistoryNavigation = ({
         noteId: id,
         title: title || fileName,
         noteStyle: 'blank',
-        fromFileHistory: true
+        fromFileHistory: true,
       };
     } else if (noteType === 'canvas' || type === 'canvas') {
       screenName = 'InfiniteCanvas';
@@ -110,7 +110,7 @@ const FileHistoryNavigation = ({
         noteId: id,
         title: title || fileName,
         canvasStyle: 'white',
-        fromFileHistory: true
+        fromFileHistory: true,
       };
     } else {
       // 文档类型
@@ -147,13 +147,13 @@ const FileHistoryNavigation = ({
       `确定要从历史记录中移除"${fileName}"吗？`,
       [
         { text: '取消', style: 'cancel' },
-        { 
-          text: '移除', 
+        {
+          text: '移除',
           style: 'destructive',
           onPress: () => {
             fileHistoryService.removeFile(fileId);
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -179,7 +179,7 @@ const FileHistoryNavigation = ({
   };
 
   const truncateFileName = (name, maxLength = 15) => {
-    if (name.length <= maxLength) return name;
+    if (name.length <= maxLength) {return name;}
     return name.substring(0, maxLength - 3) + '...';
   };
 
@@ -206,8 +206,8 @@ const FileHistoryNavigation = ({
                 styles.fileItem,
                 {
                   backgroundColor: isCurrentFile ? colors.primaryContainer : colors.background,
-                  borderColor: isCurrentFile ? colors.primary : colors.outline
-                }
+                  borderColor: isCurrentFile ? colors.primary : colors.outline,
+                },
               ]}
               onPress={() => handleFileSelect(file)}
               activeOpacity={0.7}
@@ -225,8 +225,8 @@ const FileHistoryNavigation = ({
                   styles.fileName,
                   {
                     color: isCurrentFile ? colors.onPrimaryContainer : colors.onSurface,
-                    fontWeight: isCurrentFile ? '600' : '400'
-                  }
+                    fontWeight: isCurrentFile ? '600' : '400',
+                  },
                 ]}
                 numberOfLines={1}
               >

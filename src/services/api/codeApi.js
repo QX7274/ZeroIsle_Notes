@@ -14,14 +14,10 @@ export const runCode = async (codeData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.RUN, codeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '运行代码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -35,14 +31,10 @@ export const detectCodeLanguage = async (codeData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.DETECT, codeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '检测代码语言失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -56,14 +48,10 @@ export const completeCode = async (codeData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.COMPLETE, codeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '代码补全失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -77,14 +65,10 @@ export const formatCode = async (codeData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.FORMAT, codeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '格式化代码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -98,14 +82,10 @@ export const lintCode = async (codeData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.LINT, codeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '代码检查失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -119,14 +99,10 @@ export const getAllSnippets = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.CODE.SNIPPETS, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取代码片段列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -140,14 +116,10 @@ export const getSnippetById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.CODE.SNIPPET_DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取代码片段详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -161,14 +133,10 @@ export const createSnippet = async (snippetData) => {
     const response = await instance.post(API_ENDPOINTS.CODE.SNIPPETS, snippetData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建代码片段失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -183,14 +151,10 @@ export const updateSnippet = async (id, snippetData) => {
     const response = await instance.put(API_ENDPOINTS.CODE.SNIPPET_DETAIL(id), snippetData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新代码片段失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -203,14 +167,10 @@ export const deleteSnippet = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.CODE.SNIPPET_DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除代码片段失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -223,14 +183,10 @@ export const getSupportedLanguages = async () => {
     const response = await instance.get('/code/languages/');
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取支持的编程语言失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -245,14 +201,10 @@ export const createSnippetFromNote = async (noteId, snippetData) => {
     const response = await instance.post(`/code/snippets/from-note/${noteId}/`, snippetData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '从笔记创建代码片段失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -268,7 +220,7 @@ const codeApi = {
   updateSnippet,
   deleteSnippet,
   getSupportedLanguages,
-  createSnippetFromNote
+  createSnippetFromNote,
 };
 
 export default codeApi;

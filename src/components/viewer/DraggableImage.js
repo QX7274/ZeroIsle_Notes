@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
     elevation: 3,
-    marginLeft: -10 // 居中偏移
+    marginLeft: -10, // 居中偏移
   },
   closeInnerX: { position:'relative', width:12, height:12 },
   bar1: { position:'absolute', left:1, right:1, top:5, height:2, backgroundColor:'#fff', transform:[{ rotate:'45deg' }] },

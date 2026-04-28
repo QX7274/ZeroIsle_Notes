@@ -1,0 +1,38 @@
+.build-progress-panel {
+  padding: 16px;
+}
+
+.progress-section {
+  margin-bottom: 24px;
+}
+
+.progress-section .status-text {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.statistics-grid > div {
+  padding: 12px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.statistics-grid .ant-statistic-title {
+  font-size: 12px;
+  color: #666;
+}
+
+.statistics-grid .ant-statistic-content {
+  font-size: 24px;
+  font-weight: bold;
+}
+

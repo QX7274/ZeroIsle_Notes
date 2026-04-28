@@ -116,3 +116,30 @@ class CanvasElementService:
         except Exception as e:
             logger.error(f"批量删除元素失败: {e}")
             raise
+
+    def get_elements_in_viewport(self, canvas_id, viewport_rect):
+        """
+        获取视口内的元素（空间查询优化）
+        
+        Args:
+            canvas_id: 画布ID
+            viewport_rect: 视口矩形 {'x': float, 'y': float, 'width': float, 'height': float}
+            
+        Returns:
+            QuerySet: 元素查询集
+        """
+        x_min = viewport_rect['x']
+        y_min = viewport_rect['y']
+        x_max = x_min + viewport_rect['width']
+        y_max = y_min + viewport_rect['height']
+        
+        # 简单的矩形重叠查询
+        # 元素中心或边界在视口内
+        # 假设最大元素宽1000 (宽松边界)
+        return CanvasElement.objects.filter(
+            canvas_id=canvas_id,
+            position_x__lt=x_max,
+            position_x__gt=x_min - 1000, 
+            position_y__lt=y_max,
+            position_y__gt=y_min - 1000
+        )

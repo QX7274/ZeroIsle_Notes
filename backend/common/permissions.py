@@ -12,8 +12,9 @@ class IsOwner(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         # 检查对象是否有user属性
-        if hasattr(obj, 'user'):
-            return obj.user == request.user
+        if hasattr(obj, 'user') and hasattr(request, 'user') and request.user.is_authenticated:
+            # 兼容 Django User 和 MongoEngine User 的比较
+            return obj.user.id == request.user.id
 
         # 检查对象是否有owner属性
         if hasattr(obj, 'owner'):
@@ -25,7 +26,15 @@ class IsOwner(permissions.BasePermission):
 
         # 检查对象是否有author属性
         if hasattr(obj, 'author'):
-            return obj.author == request.user
+            return obj.author.id == request.user.id
+
+        # 检查 recipient 属性（用于通知）
+        if hasattr(obj, 'recipient'):
+            return obj.recipient.id == request.user.id
+
+        # 针对 ReminderNotification 的特殊检查
+        if hasattr(obj, 'reminder') and hasattr(obj.reminder, 'user'):
+            return obj.reminder.user.id == request.user.id
 
         # 默认不允许访问
         return False
@@ -42,8 +51,23 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
             return True
 
         # 检查对象是否有user属性
-        if hasattr(obj, 'user'):
-            return obj.user == request.user
+        if hasattr(obj, 'user') and hasattr(request, 'user') and request.user.is_authenticated:
+            obj_user = getattr(obj, 'user', None)
+            req_user = request.user
+            req_mongo_user = getattr(request, 'mongo_user', None)
+
+            # 优先：Mongo 用户直接比较
+            if obj_user is not None and req_mongo_user is not None:
+                if getattr(obj_user, 'id', None) == getattr(req_mongo_user, 'id', None):
+                    return True
+
+            # 其次：Mongo 用户记录了 django_user_id
+            obj_django_user_id = getattr(obj_user, 'django_user_id', None)
+            if obj_django_user_id and str(obj_django_user_id) == str(getattr(req_user, 'id', '')):
+                return True
+
+            # 回退：同类型对象直接比较 id
+            return getattr(obj_user, 'id', None) == getattr(req_user, 'id', None)
 
         # 检查对象是否有owner属性
         if hasattr(obj, 'owner'):
@@ -55,7 +79,15 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 
         # 检查对象是否有author属性
         if hasattr(obj, 'author'):
-            return obj.author == request.user
+            return obj.author.id == request.user.id
+
+        # 检查 recipient 属性（用于通知）
+        if hasattr(obj, 'recipient'):
+            return obj.recipient.id == request.user.id
+
+        # 针对 ReminderNotification 的特殊检查
+        if hasattr(obj, 'reminder') and hasattr(obj.reminder, 'user'):
+            return obj.reminder.user.id == request.user.id
 
         # 默认不允许访问
         return False

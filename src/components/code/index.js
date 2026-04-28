@@ -11,12 +11,12 @@ export {
   CodeEditor,
   CodeRunner,
   CodeSnippet,
-  LanguageSelector
+  LanguageSelector,
 };
 
 export default {
   CodeEditor,
   CodeRunner,
   CodeSnippet,
-  LanguageSelector
+  LanguageSelector,
 };

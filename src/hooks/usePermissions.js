@@ -45,7 +45,7 @@ function usePermissions(permissionType) {
   // 检查权限状态
   const checkPermission = useCallback(async () => {
     const permission = getPermission();
-    if (!permission) return;
+    if (!permission) {return;}
 
     try {
       const result = await check(permission);
@@ -59,7 +59,7 @@ function usePermissions(permissionType) {
   // 请求权限
   const requestPermission = useCallback(async () => {
     const permission = getPermission();
-    if (!permission) return;
+    if (!permission) {return;}
 
     try {
       const result = await request(permission);

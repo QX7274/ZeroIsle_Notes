@@ -1,35 +1,40 @@
 /**
  * 上传按钮组件
  * 提供数据上传功能的UI组件
+ * Refactored with Design Tokens
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  TouchableOpacity, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
   ActivityIndicator,
   Modal,
   FlatList,
-  Alert
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useTheme } from '@react-navigation/native';
+import { useTheme } from '../../context/ThemeContext'; // Use consistent ThemeContext
 import uploadService from '../../services/upload';
 import { networkService } from '../../services/network';
+import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
 
-const UploadButton = ({ 
-  collection, 
-  id, 
-  data, 
-  onSuccess, 
-  onError, 
-  style, 
+const UploadButton = ({
+  collection,
+  id,
+  data,
+  onSuccess,
+  onError,
+  style,
   buttonText = '上传',
-  showQueue = true
+  showQueue = true,
 }) => {
-  const { colors } = useTheme();
+  const { theme } = useTheme();
+  // Ensure correct color references
+  const colors = theme.colors || theme;
+
   const [uploading, setUploading] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -59,6 +64,28 @@ const UploadButton = ({
     }
   };
 
+  const getErrorMessage = (error, fallbackMessage = '操作失败') => {
+    const resolvedStatus = error?.status ?? error?.response?.status ?? null;
+
+    if (error?.name === 'FileNotFoundError') {
+      return error?.message || '文件不存在，请确认文件后重试';
+    }
+
+    if (error?.isNetworkError || (error?.request && !error?.response)) {
+      return '网络连接异常，请检查网络后重试';
+    }
+
+    if (resolvedStatus === 401 || resolvedStatus === 403) {
+      return '登录状态已失效，请重新登录后重试';
+    }
+
+    if (typeof resolvedStatus === 'number' && resolvedStatus >= 500) {
+      return '服务器暂时不可用，请稍后重试';
+    }
+
+    return error?.message || fallbackMessage;
+  };
+
   // 处理上传
   const handleUpload = async () => {
     if (!isOnline) {
@@ -67,25 +94,25 @@ const UploadButton = ({
         '当前处于离线状态，数据将添加到上传队列，在网络恢复后自动上传。',
         [
           { text: '取消', style: 'cancel' },
-          { 
-            text: '添加到队列', 
+          {
+            text: '添加到队列',
             onPress: async () => {
               try {
                 const result = await uploadService.uploadData(collection, id, data, false);
                 if (result.success) {
                   Alert.alert('成功', '数据已添加到上传队列');
                   await loadUploadQueue();
-                  if (onSuccess) onSuccess(result);
+                  if (onSuccess) {onSuccess(result);}
                 } else {
-                  Alert.alert('错误', result.message || '添加到上传队列失败');
-                  if (onError) onError(result);
+                  Alert.alert('错误', getErrorMessage(result, '添加到上传队列失败'));
+                  if (onError) {onError(result);}
                 }
               } catch (error) {
-                Alert.alert('错误', error.message || '添加到上传队列失败');
-                if (onError) onError({ success: false, error });
+                Alert.alert('错误', getErrorMessage(error, '添加到上传队列失败'));
+                if (onError) {onError({ success: false, error });}
               }
-            }
-          }
+            },
+          },
         ]
       );
       return;
@@ -97,14 +124,14 @@ const UploadButton = ({
       if (result.success) {
         Alert.alert('成功', '数据上传成功');
         await loadUploadQueue();
-        if (onSuccess) onSuccess(result);
+        if (onSuccess) {onSuccess(result);}
       } else {
-        Alert.alert('错误', result.message || '上传失败');
-        if (onError) onError(result);
+        Alert.alert('错误', getErrorMessage(result, '上传失败'));
+        if (onError) {onError(result);}
       }
     } catch (error) {
-      Alert.alert('错误', error.message || '上传失败');
-      if (onError) onError({ success: false, error });
+      Alert.alert('错误', getErrorMessage(error, '上传失败'));
+      if (onError) {onError({ success: false, error });}
     } finally {
       setUploading(false);
     }
@@ -124,10 +151,10 @@ const UploadButton = ({
         Alert.alert('成功', `成功处理 ${result.succeeded} 项，失败 ${result.failed} 项`);
         await loadUploadQueue();
       } else {
-        Alert.alert('错误', result.message || '处理上传队列失败');
+        Alert.alert('错误', getErrorMessage(result, '处理上传队列失败'));
       }
     } catch (error) {
-      Alert.alert('错误', error.message || '处理上传队列失败');
+      Alert.alert('错误', getErrorMessage(error, '处理上传队列失败'));
     } finally {
       setUploading(false);
     }
@@ -139,32 +166,32 @@ const UploadButton = ({
       await uploadService.removeFromUploadQueue(id);
       await loadUploadQueue();
     } catch (error) {
-      Alert.alert('错误', error.message || '移除队列项失败');
+      Alert.alert('错误', getErrorMessage(error, '移除队列项失败'));
     }
   };
 
   // 渲染队列项
   const renderQueueItem = ({ item }) => (
-    <View style={styles.queueItem}>
+    <View style={[styles.queueItem, { borderBottomColor: colors.border || '#eee' }]}>
       <View style={styles.queueItemInfo}>
-        <Text style={styles.queueItemTitle}>
+        <Text style={[styles.queueItemTitle, { color: colors.text }]}>
           {item.type === 'file' ? '文件上传' : `${item.collection}/${item.recordId}`}
         </Text>
-        <Text style={styles.queueItemSubtitle}>
+        <Text style={[styles.queueItemSubtitle, { color: colors.textSecondary }]}>
           {new Date(item.timestamp).toLocaleString()}
         </Text>
         <Text style={[
-          styles.queueItemStatus, 
-          { color: item.status === 'failed' ? colors.error : colors.text }
+          styles.queueItemStatus,
+          { color: item.status === 'failed' ? colors.error : colors.text },
         ]}>
           {item.status === 'failed' ? '失败' : '待处理'}
         </Text>
       </View>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.queueItemRemove}
         onPress={() => handleRemoveQueueItem(item.id)}
       >
-        <Icon name="close" size={20} color={colors.text} />
+        <Icon name="close" size={SIZE.icon.sm} color={colors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -175,7 +202,7 @@ const UploadButton = ({
         style={[
           styles.button,
           { backgroundColor: colors.primary },
-          uploading && styles.buttonDisabled
+          uploading && styles.buttonDisabled,
         ]}
         onPress={handleUpload}
         disabled={uploading}
@@ -184,7 +211,7 @@ const UploadButton = ({
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <>
-            <Icon name="cloud-upload" size={20} color="#fff" style={styles.icon} />
+            <Icon name="cloud-upload" size={SIZE.icon.sm} color="#fff" style={styles.icon} />
             <Text style={styles.buttonText}>{buttonText}</Text>
           </>
         )}
@@ -195,7 +222,7 @@ const UploadButton = ({
           style={styles.queueButton}
           onPress={() => setModalVisible(true)}
         >
-          <Text style={styles.queueButtonText}>
+          <Text style={[styles.queueButtonText, { color: colors.textSecondary || '#666' }]}>
             上传队列 ({uploadQueue.length})
           </Text>
         </TouchableOpacity>
@@ -208,13 +235,13 @@ const UploadButton = ({
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card || colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
                 上传队列
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Icon name="close" size={24} color={colors.text} />
+                <Icon name="close" size={SIZE.icon.md} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -236,7 +263,7 @@ const UploadButton = ({
                 style={[
                   styles.modalButton,
                   { backgroundColor: colors.primary },
-                  (!isOnline || uploading) && styles.buttonDisabled
+                  (!isOnline || uploading) && styles.buttonDisabled,
                 ]}
                 onPress={handleProcessQueue}
                 disabled={!isOnline || uploading}
@@ -263,26 +290,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    ...ELEVATION.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   icon: {
-    marginRight: 8,
+    marginRight: SPACING.sm,
   },
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
   },
   queueButton: {
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   queueButtonText: {
     fontSize: 12,
-    color: '#666',
   },
   modalContainer: {
     flex: 1,
@@ -291,16 +318,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    width: '80%',
+    width: '85%',
     maxHeight: '80%',
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    ...ELEVATION.lg,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   modalTitle: {
     fontSize: 18,
@@ -308,7 +336,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    marginVertical: 20,
+    marginVertical: SPACING.xl,
   },
   queueList: {
     maxHeight: 300,
@@ -317,9 +345,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: BORDER.width.thin,
   },
   queueItemInfo: {
     flex: 1,
@@ -329,22 +356,22 @@ const styles = StyleSheet.create({
   },
   queueItemSubtitle: {
     fontSize: 12,
-    color: '#666',
   },
   queueItemStatus: {
     fontSize: 12,
   },
   queueItemRemove: {
-    padding: 8,
+    padding: SPACING.sm,
   },
   modalFooter: {
-    marginTop: 16,
+    marginTop: SPACING.md,
     alignItems: 'center',
   },
   modalButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    ...ELEVATION.sm,
   },
   modalButtonText: {
     color: '#fff',

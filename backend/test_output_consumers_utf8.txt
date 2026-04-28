@@ -1,0 +1,105 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test no
+tes.tests.test_consum
+ers > test_o ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+E
+=====================
+=====================
+=====================
+=======
+ERROR: test_consumers
+ (unittest.loader._Fa
+iledTest.test_consume
+rs)
+---------------------
+---------------------
+---------------------
+-------
+ImportError: Failed t
+o import test module:
+ test_consumers
+Traceback (most recen
+t call last):
+  File "C:\Python313\
+Lib\unittest\loader.p
+y", line 137, in load
+TestsFromName
+    module = __import
+__(module_name)
+  File "D:\ZeroIsle_N
+otes\backend\notes\te
+sts\test_consumers.py
+", line 7, in <module
+>
+    from channels.tes
+ting import Websocket
+Communicator
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\channels\testing\
+__init__.py", line 3,
+ in <module>
+    from .live import
+ ChannelsLiveServerTe
+stCase  # noqa
+    ^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\channels\testing\
+live.py", line 3, in 
+<module>
+    from daphne.testi
+ng import DaphneProce
+ss
+ModuleNotFoundError: 
+No module named 'daph
+ne'
+
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+Found 1 test(s).
+System check identified no issues (0 silenced).

@@ -63,17 +63,17 @@ const SyncSettingsScreen = ({ navigation }) => {
         setLoading(false);
       } catch (error) {
         logService.error('加载同步设置失败', error);
-        
+
         // 使用网络错误服务处理错误
         if (networkErrorService.isNetworkError(error)) {
           networkErrorService.handleApiError(error, {
             context: '加载同步设置',
-            customMessage: '网络连接失败，无法加载同步设置'
+            customMessage: '网络连接失败，无法加载同步设置',
           });
         } else {
           Alert.alert('错误', '加载同步设置失败');
         }
-        
+
         setLoading(false);
       }
     };
@@ -157,7 +157,7 @@ const SyncSettingsScreen = ({ navigation }) => {
 
   // 格式化上次同步时间
   const formatLastSyncTime = () => {
-    if (!syncStatus.lastSyncTime) return '从未同步';
+    if (!syncStatus.lastSyncTime) {return '从未同步';}
 
     try {
       const date = new Date(syncStatus.lastSyncTime);

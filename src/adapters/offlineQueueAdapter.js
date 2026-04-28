@@ -13,8 +13,8 @@ import { logService } from '../utils/logService';
  * @returns {Object} 前端离线队列对象
  */
 export const toFrontendQueue = (queue) => {
-  if (!queue) return null;
-  
+  if (!queue) {return null;}
+
   try {
     return {
       id: queue._id,
@@ -42,8 +42,8 @@ export const toFrontendQueue = (queue) => {
  * @returns {Object} 后端离线队列模型
  */
 export const toBackendQueue = (queue) => {
-  if (!queue) return null;
-  
+  if (!queue) {return null;}
+
   try {
     return {
       _id: queue.id,
@@ -74,8 +74,8 @@ export const createQueueItem = async (queueData) => {
   try {
     // 准备队列数据
     const now = new Date();
-    const queueId = `queue_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const queueId = realmService.createObjectId();
+
     const backendQueue = {
       _id: queueId,
       entity_id: queueData.entityId,
@@ -90,14 +90,14 @@ export const createQueueItem = async (queueData) => {
       updated_at: now,
       synced_at: null,
     };
-    
+
     // 创建队列模型
     const realm = await realmService.getRealm();
     let queue;
     realm.write(() => {
       queue = realm.create('OfflineQueue', backendQueue);
     });
-    
+
     // 返回前端队列对象
     return toFrontendQueue(queue);
   } catch (error) {
@@ -117,27 +117,27 @@ export const updateQueueItem = async (queueId, queueData) => {
     // 查找队列项
     const realm = await realmService.getRealm();
     const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
-    
+
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
     }
-    
+
     // 更新队列项属性
-    if (queueData.status !== undefined) queue.status = queueData.status;
-    if (queueData.retryCount !== undefined) queue.retry_count = queueData.retryCount;
-    if (queueData.error !== undefined) queue.error = queueData.error;
-    
+    if (queueData.status !== undefined) {queue.status = queueData.status;}
+    if (queueData.retryCount !== undefined) {queue.retry_count = queueData.retryCount;}
+    if (queueData.error !== undefined) {queue.error = queueData.error;}
+
     // 如果状态为已同步，设置同步时间
     if (queueData.status === 'synced' && !queue.synced_at) {
       queue.synced_at = new Date();
     }
-    
+
     // 更新时间
     queue.updated_at = new Date();
-    
+
     // 保存队列项
     await queue.save();
-    
+
     // 返回前端队列对象
     return toFrontendQueue(queue);
   } catch (error) {
@@ -156,14 +156,14 @@ export const deleteQueueItem = async (queueId) => {
     // 查找队列项
     const realm = await realmService.getRealm();
     const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
-    
+
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
     }
-    
+
     // 删除队列项
     await queue.remove();
-    
+
     return true;
   } catch (error) {
     logService.error(`删除离线队列项失败: ${queueId}`, error);
@@ -181,11 +181,11 @@ export const getQueueItem = async (queueId) => {
     // 查找队列项
     const realm = await realmService.getRealm();
     const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
-    
+
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
     }
-    
+
     // 返回前端队列对象
     return toFrontendQueue(queue);
   } catch (error) {
@@ -205,17 +205,17 @@ export const getPendingQueueItems = async (userId, options = {}) => {
     // 查找待同步的队列项
     const realm = await realmService.getRealm();
     let queueItems = realm.objects('OfflineQueue').filtered(`user_id = "${userId}" AND status = "pending"`);
-    
+
     // 应用排序
     if (options.sortBy) {
       queueItems = queueItems.sorted(options.sortBy, options.sortOrder === 'desc');
     }
-    
+
     // 应用分页
     if (options.limit) {
       queueItems = queueItems.slice(0, options.limit);
     }
-    
+
     // 返回前端队列对象列表
     return queueItems.map(toFrontendQueue);
   } catch (error) {
@@ -252,17 +252,17 @@ export const markAsFailed = async (queueId, error) => {
     // 查找队列项
     const realm = await realmService.getRealm();
     const queue = realm.objectForPrimaryKey('OfflineQueue', queueId);
-    
+
     if (!queue) {
       throw new Error(`离线队列项不存在: ${queueId}`);
     }
-    
+
     // 增加重试次数
     const retryCount = queue.retry_count + 1;
-    
+
     // 如果重试次数超过最大值，标记为失败
     const status = retryCount >= 3 ? 'failed' : 'pending';
-    
+
     return updateQueueItem(queueId, {
       status,
       retryCount,
@@ -285,7 +285,7 @@ export const cleanupSyncedItems = async (userId, days = 7) => {
     // 计算截止日期
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    
+
     // 删除已同步的队列项
     const realm = await realmService.getRealm();
     let result = 0;
@@ -294,7 +294,7 @@ export const cleanupSyncedItems = async (userId, days = 7) => {
       result = itemsToDelete.length;
       realm.delete(itemsToDelete);
     });
-    
+
     return result.deletedCount;
   } catch (error) {
     logService.error(`清理已同步队列项失败: ${userId}`, error);

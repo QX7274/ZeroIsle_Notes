@@ -19,6 +19,11 @@ class AnalyticsReport(Document):
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
+    # 调度相关字段
+    is_scheduled = BooleanField(default=False, verbose_name='是否调度')
+    schedule_frequency = StringField(max_length=20, choices=(('daily', '每天'), ('weekly', '每周'), ('monthly', '每月')), verbose_name='调度频率')
+    next_run_at = DateTimeField(required=False, verbose_name='下次运行时间')
+
     meta = {
         'collection': 'analytics_reports',
         'ordering': ['-created_at'],
@@ -49,6 +54,7 @@ class DashboardWidget(Document):
     widget_type = StringField(max_length=20, choices=WIDGET_TYPES, required=True, verbose_name='小部件类型')
     data_source = StringField(max_length=100, required=True, verbose_name='数据源')
     parameters = DictField(default={}, verbose_name='小部件参数')
+    visualization_config = DictField(default={}, verbose_name='可视化配置')
     position = DictField(default={}, verbose_name='位置信息')
     created_by = StringField(max_length=50, required=True, verbose_name='创建者')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')

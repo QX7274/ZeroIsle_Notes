@@ -11,9 +11,9 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Switch,
+  Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -25,7 +25,10 @@ import {
   selectIsLoading,
   createNode,
   createEdge,
+  fetchKnowledgeGraph,
 } from '../../redux/slices/knowledgeGraphSlice';
+
+import * as knowledgeGraphApi from '../../services/api/knowledgeGraphApi';
 
 // 导入常量和工具函数
 import { dimensions } from '../../utils/constants/dimensions';
@@ -60,6 +63,10 @@ const NodeDetailScreen = ({ navigation, route }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedNode, setEditedNode] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmMessage, setConfirmMessage] = useState('');
   const [showAddRelation, setShowAddRelation] = useState(false);
   const [selectedRelationType, setSelectedRelationType] = useState('related');
   const [selectedTargetNode, setSelectedTargetNode] = useState(null);
@@ -98,26 +105,12 @@ const NodeDetailScreen = ({ navigation, route }) => {
   // 切换编辑模式
   const toggleEditMode = () => {
     if (isEditing) {
-      // 退出编辑模式，询问是否保存
-      Alert.alert(
-        '保存更改',
-        '是否保存对节点的修改？',
-        [
-          {
-            text: '取消',
-            style: 'cancel',
-            onPress: () => {
-              // 取消编辑，恢复原始数据
-              setEditedNode(node);
-              setIsEditing(false);
-            },
-          },
-          {
-            text: '保存',
-            onPress: saveNodeChanges,
-          },
-        ],
-      );
+      setConfirmTitle('保存更改');
+      setConfirmMessage('是否保存对节点的修改？');
+      setConfirmAction(() => async () => {
+        await saveNodeChanges();
+      });
+      setShowConfirmModal(true);
     } else {
       // 进入编辑模式
       setIsEditing(true);
@@ -127,13 +120,22 @@ const NodeDetailScreen = ({ navigation, route }) => {
   // 保存节点更改
   const saveNodeChanges = async () => {
     try {
-      // 这里应该调用API保存节点更改
-      // 临时模拟保存成功
+      if (!editedNode?.id) {
+        setToastMessage('保存失败: 节点ID不存在');
+        return;
+      }
+      const response = await knowledgeGraphApi.updateNode(editedNode.id, {
+        ...editedNode,
+      });
+      if (!response.success) {
+        throw new Error(response.message || '保存失败');
+      }
       setNode(editedNode);
       setIsEditing(false);
       setToastMessage('节点更新成功');
+      dispatch(fetchKnowledgeGraph()).catch(() => {});
     } catch (error) {
-      setToastMessage('保存失败: ' + error.message);
+      setToastMessage('保存失败: ' + (error.message || '请稍后重试'));
     }
   };
 
@@ -187,31 +189,31 @@ const NodeDetailScreen = ({ navigation, route }) => {
   };
 
   // 删除节点
+  const confirmDeleteNode = async () => {
+    try {
+      if (!node?.id) {
+        setToastMessage('删除失败: 节点ID不存在');
+        return;
+      }
+      const response = await knowledgeGraphApi.deleteNode(node.id);
+      if (!response.success) {
+        throw new Error(response.message || '删除失败');
+      }
+      setToastMessage('节点已删除');
+      dispatch(fetchKnowledgeGraph()).catch(() => {});
+      setTimeout(() => navigation.goBack(), 1000);
+    } catch (error) {
+      setToastMessage('删除失败: ' + (error.message || '请稍后重试'));
+    }
+  };
+
   const deleteNode = () => {
-    Alert.alert(
-      '删除节点',
-      '确定要删除此节点吗？此操作不可撤销，相关的连接也将被删除。',
-      [
-        {
-          text: '取消',
-          style: 'cancel',
-        },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // 这里应该调用API删除节点
-              // 临时模拟删除成功
-              setToastMessage('节点已删除');
-              setTimeout(() => navigation.goBack(), 1000);
-            } catch (error) {
-              setToastMessage('删除失败: ' + error.message);
-            }
-          },
-        },
-      ],
-    );
+    setConfirmTitle('删除节点');
+    setConfirmMessage('确定要删除此节点吗？此操作不可撤销，相关的连接也将被删除。');
+    setConfirmAction(() => async () => {
+      await confirmDeleteNode();
+    });
+    setShowConfirmModal(true);
   };
 
   // 渲染加载状态
@@ -267,14 +269,14 @@ const NodeDetailScreen = ({ navigation, route }) => {
                       key={type}
                       style={[
                         styles.typeOption,
-                        editedNode.type === type && styles.selectedTypeOption
+                        editedNode.type === type && styles.selectedTypeOption,
                       ]}
                       onPress={() => handleNodeChange('type', type)}
                     >
                       <Text
                         style={[
                           styles.typeOptionText,
-                          editedNode.type === type && styles.selectedTypeOptionText
+                          editedNode.type === type && styles.selectedTypeOptionText,
                         ]}
                       >
                         {type === 'note' ? '笔记' :
@@ -288,7 +290,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
                 <View
                   style={[
                     styles.typeTag,
-                    { backgroundColor: getNodeColorByType(node.type, colors) }
+                    { backgroundColor: getNodeColorByType(node.type, colors) },
                   ]}
                 >
                   <Text style={styles.typeTagText}>
@@ -378,14 +380,14 @@ const NodeDetailScreen = ({ navigation, route }) => {
                       key={type}
                       style={[
                         styles.relationTypeOption,
-                        selectedRelationType === type && styles.selectedRelationTypeOption
+                        selectedRelationType === type && styles.selectedRelationTypeOption,
                       ]}
                       onPress={() => setSelectedRelationType(type)}
                     >
                       <Text
                         style={[
                           styles.relationTypeOptionText,
-                          selectedRelationType === type && styles.selectedRelationTypeOptionText
+                          selectedRelationType === type && styles.selectedRelationTypeOptionText,
                         ]}
                       >
                         {getRelationLabel(type)}
@@ -404,14 +406,14 @@ const NodeDetailScreen = ({ navigation, route }) => {
                       key={targetNode.id}
                       style={[
                         styles.targetNodeItem,
-                        selectedTargetNode?.id === targetNode.id && styles.selectedTargetNodeItem
+                        selectedTargetNode?.id === targetNode.id && styles.selectedTargetNodeItem,
                       ]}
                       onPress={() => setSelectedTargetNode(targetNode)}
                     >
                       <View
                         style={[
                           styles.targetNodeTypeIndicator,
-                          { backgroundColor: getNodeColorByType(targetNode.type, colors) }
+                          { backgroundColor: getNodeColorByType(targetNode.type, colors) },
                         ]}
                       />
                       <Text style={styles.targetNodeTitle}>
@@ -453,7 +455,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
                       <View
                         style={[
                           styles.relatedNodeTypeIndicator,
-                          { backgroundColor: getNodeColorByType(relatedNode.type, colors) }
+                          { backgroundColor: getNodeColorByType(relatedNode.type, colors) },
                         ]}
                       />
                       <Text style={styles.relatedNodeTitle}>
@@ -485,6 +487,45 @@ const NodeDetailScreen = ({ navigation, route }) => {
           />
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.confirmModalOverlay}>
+          <View style={styles.confirmModalContent}>
+            <Text style={styles.confirmModalTitle}>{confirmTitle}</Text>
+            <Text style={styles.confirmModalMessage}>{confirmMessage}</Text>
+            <View style={styles.confirmModalActions}>
+              <Button
+                title="取消"
+                variant="outline"
+                onPress={() => {
+                  setShowConfirmModal(false);
+                  if (isEditing && confirmTitle === '保存更改') {
+                    setEditedNode(node);
+                    setIsEditing(false);
+                  }
+                }}
+                style={styles.confirmActionButton}
+              />
+              <Button
+                title={confirmTitle === '删除节点' ? '删除' : '保存'}
+                onPress={async () => {
+                  const action = confirmAction;
+                  setShowConfirmModal(false);
+                  if (action) {
+                    await action();
+                  }
+                }}
+                style={styles.confirmActionButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Toast消息 */}
       {toastMessage ? (
@@ -785,59 +826,41 @@ const getStyles = (colors) => ({
     textAlign: 'center',
     marginVertical: 20,
   },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  container: {},
-  scrollContainer: {},
-  section: {},
-  sectionHeader: {},
-  sectionTitle: {},
-  infoContainer: {},
-  infoRow: {},
-  infoLabel: {},
-  infoValue: {},
-  input: {},
-  textArea: {},
-  typeSelector: {},
-  typeOption: {},
-  selectedTypeOption: {},
-  typeOptionText: {},
-  selectedTypeOptionText: {},
-  typeTag: {},
-  typeTagText: {},
-  noteLink: {},
-  noteLinkText: {},
-  addRelationContainer: {},
-  addRelationTitle: {},
-  relationTypeSelector: {},
-  relationTypeLabel: {},
-  relationTypeOption: {},
-  selectedRelationTypeOption: {},
-  relationTypeOptionText: {},
-  selectedRelationTypeOptionText: {},
-  targetNodeLabel: {},
-  targetNodeList: {},
-  targetNodeItem: {},
-  selectedTargetNodeItem: {},
-  targetNodeTypeIndicator: {},
-  targetNodeTitle: {},
-  addRelationButton: {},
-  relatedNodesContainer: {},
-  relatedNodeItem: {},
-  relatedNodeHeader: {},
-  relatedNodeTypeIndicator: {},
-  relatedNodeTitle: {},
-  relationInfo: {},
-  relationLabel: {},
-  emptyRelationsText: {},
-  dangerSection: {},
-  dangerSectionTitle: {},
-  deleteButton: {},
-  deleteButtonText: {},
-  errorContainer: {},
-  errorText: {},
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmModalContent: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  confirmModalMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 16,
+  },
+  confirmModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  confirmActionButton: {
+    flex: 1,
+  },
 });
 
 export default NodeDetailScreen;

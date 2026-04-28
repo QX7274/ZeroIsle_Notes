@@ -11,7 +11,9 @@ import {
   loginToAtlas,
   loginAnonymously,
   logoutFromAtlas,
-  getCurrentUser
+  getCurrentUser,
+  SYNC_ENABLED,
+  getSyncRealmConfig,
 } from './realmConfig';
 
 class RealmService {
@@ -23,13 +25,24 @@ class RealmService {
     this.user = null;
     this.isLoggedIn = false;
     this.schemas = new Map();
+
+    // 失败保护：避免 Realm 初始化失败后反复刷屏
+    this.realmOpenFailed = false;
+    this.realmOpenFailureReason = null;
+    this.onceErrorKeys = new Set();
+  }
+
+  _logErrorOnce(key, ...args) {
+    if (this.onceErrorKeys.has(key)) {return;}
+    this.onceErrorKeys.add(key);
+    console.error(...args);
   }
 
   /**
    * 初始化Realm服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -37,11 +50,14 @@ class RealmService {
 
     this.initializationPromise = new Promise(async (resolve, reject) => {
       try {
-        // 初始化本地Realm数据库
+        // 初始化 Realm App 实例
         this.app = getRealmApp();
 
-        // 使用本地模式，不连接MongoDB Atlas
-        console.info('Realm将使用本地模式，不连接MongoDB Atlas');
+        // 检查是否有活跃的会话（Custom JWT 模式）
+        if (this.app?.currentUser) {
+          this.user = this.app.currentUser;
+          this.isLoggedIn = this.user.state === 'active';
+        }
 
         this.initialized = true;
         console.info('Realm服务初始化成功');
@@ -56,50 +72,31 @@ class RealmService {
   }
 
   /**
-   * 用户认证方法（模拟）
-   * 这些方法仅用于保持API兼容性，不实际连接MongoDB Atlas
-   * 实际的用户认证应该使用前后端已实现的系统
-   */
-
-  /**
-   * 使用邮箱和密码登录（模拟）
-   * @param {string} email 用户邮箱
-   * @param {string} password 用户密码
-   * @returns {Promise<Object>} 模拟的用户对象
+   * 使用 Custom JWT 登录 Realm
+   * 已废弃 loginToAtlas 的旧逻辑，统一通过 realmJwtAuthService 转发
    */
   async login(email, password) {
-    try {
-      // 确保已初始化
-      await this.initialize();
-
-      // 使用模拟登录
+    console.warn('RealmService.login 已废弃，请使用 AuthService.handleThirdPartyLoginSuccess');
+    // 这里仅做开发期兼容模拟，后续应彻底移除
+    if (__DEV__) {
       this.user = await loginToAtlas(email, password);
       this.isLoggedIn = true;
-
-      console.info('使用本地模式，不连接MongoDB Atlas进行登录');
-
       return this.user;
-    } catch (error) {
-      console.error('登录失败', error);
-      throw error;
     }
+    throw new Error('RealmService.login 已移除，必须使用 JWT 认证');
   }
 
   /**
-   * 匿名登录（模拟）
-   * @returns {Promise<Object>} 模拟的匿名用户对象
+   * 匿名登录（仅限开发调试）
    */
   async loginAnonymously() {
+    if (!__DEV__) {
+      throw new Error('生产环境禁用匿名登录');
+    }
     try {
-      // 确保已初始化
       await this.initialize();
-
-      // 使用模拟匿名登录
       this.user = await loginAnonymously();
       this.isLoggedIn = true;
-
-      console.info('使用本地模式，不连接MongoDB Atlas进行匿名登录');
-
       return this.user;
     } catch (error) {
       console.error('匿名登录失败', error);
@@ -108,19 +105,19 @@ class RealmService {
   }
 
   /**
-   * 登出（模拟）
-   * @returns {Promise<void>}
+   * 登出
    */
   async logout() {
     try {
-      // 关闭所有打开的Realm实例
-      this.closeRealm();
-
-      // 重置用户状态
+      await this.initialize();
+      if (this.app?.currentUser) {
+        await this.app.currentUser.logOut();
+      } else {
+        await logoutFromAtlas();
+      }
       this.user = null;
       this.isLoggedIn = false;
-
-      console.info('使用本地模式，不连接MongoDB Atlas进行登出');
+      console.info('Realm 用户已登出');
     } catch (error) {
       console.error('登出失败', error);
       throw error;
@@ -162,13 +159,20 @@ class RealmService {
    */
   async getRealm() {
     try {
+      if (this.realmOpenFailed) {
+        const err = new Error(this.realmOpenFailureReason || 'Realm 初始化失败，已短路后续数据库调用');
+        err.code = 'REALM_UNAVAILABLE';
+        this._logErrorOnce('realm-unavailable-getRealm', '[RealmService] Realm 不可用，后续调用已短路:', err.message);
+        throw err;
+      }
+
       if (this.realm && !this.realm.isClosed) {
         return this.realm;
       }
 
       return await this.openRealm();
     } catch (error) {
-      console.error('获取Realm实例失败:', error);
+      this._logErrorOnce('get-realm-failed', '获取Realm实例失败:', error);
       throw error;
     }
   }
@@ -183,16 +187,46 @@ class RealmService {
 
       // 只有在Realm实例不存在或已关闭时才重新打开
       if (!this.realm || this.realm.isClosed) {
-        // 使用realmConfig中的openRealm函数 - 不再需要同步选项
-        this.realm = await openRealm();
+        const currentUser = this.app?.currentUser;
+        const canUseSync = SYNC_ENABLED && currentUser && currentUser.state === 'active';
+
+        if (canUseSync) {
+          console.info('✅ [RealmService] Sync 模式：打开 Sync Realm');
+          const syncConfig = getSyncRealmConfig(currentUser);
+          this.realm = await Realm.open(syncConfig);
+
+          try {
+            const subs = this.realm.subscriptions;
+            console.info('✅ [RealmService] Subscriptions 状态', {
+              count: subs?.length,
+              state: subs?.state,
+              version: subs?.version,
+            });
+          } catch (subErr) {
+            console.warn('⚠️ [RealmService] 读取 subscriptions 状态失败', subErr?.message || subErr);
+          }
+        } else {
+          console.info('⚠️ [RealmService] Local 模式：打开本地 Realm');
+          // 使用realmConfig中的openRealm函数
+          this.realm = await openRealm();
+        }
+
+        this.realmOpenFailed = false;
+        this.realmOpenFailureReason = null;
         console.info('Realm数据库打开成功');
       }
 
       return this.realm;
     } catch (error) {
-      console.error('打开Realm数据库失败', error);
+      this.realmOpenFailed = true;
+      this.realmOpenFailureReason = error?.message || 'Realm 打开失败';
+      this._logErrorOnce('open-realm-failed', '打开Realm数据库失败（后续数据库调用将短路）', error);
       throw error;
     }
+  }
+
+  canUseRealmForWrites() {
+    return !this.realmOpenFailed && !!this.realm && !this.realm.isClosed;
   }
 
   /**
@@ -232,27 +266,51 @@ class RealmService {
           // 处理数据，确保所有字段类型正确
           const safeData = { ...data };
           safeData._id = objectId;
-          
+
           // 检查模式定义中的字段类型
           const schema = realm.schema.find(s => s.name === schemaName);
           if (schema && schema.properties) {
             Object.keys(schema.properties).forEach(propName => {
               const propType = schema.properties[propName];
-              // 处理数组类型字段
-              if (propType === 'string[]' && safeData[propName] && !Array.isArray(safeData[propName])) {
-                try {
-                  // 尝试解析JSON字符串为数组
-                  if (typeof safeData[propName] === 'string') {
-                    safeData[propName] = JSON.parse(safeData[propName]);
+              const propValue = safeData[propName];
+
+              const isLegacyStringList = propType === 'string[]';
+              const isLegacyIntList = propType === 'int[]';
+              const isListType = typeof propType === 'object' && propType?.type === 'list';
+              const isStringField = propType === 'string' || (typeof propType === 'object' && propType?.type === 'string');
+
+              // 处理数组类型字段（兼容旧写法 string[]/int[] 与新写法 list+objectType）
+              if ((isLegacyStringList || isLegacyIntList || isListType) && propValue !== undefined) {
+                if (Array.isArray(propValue)) {
+                  return;
+                }
+
+                if (typeof propValue === 'string') {
+                  try {
+                    const parsed = JSON.parse(propValue);
+                    safeData[propName] = Array.isArray(parsed) ? parsed : [];
+                  } catch (e) {
+                    console.warn(`无法解析字段 ${propName} 为数组，设置为空数组`);
+                    safeData[propName] = [];
                   }
-                } catch (e) {
-                  console.warn(`无法解析字段 ${propName} 为数组，设置为空数组`);
+                } else {
                   safeData[propName] = [];
+                }
+                return;
+              }
+
+              // 处理字符串类型字段，确保数组被转换为JSON字符串
+              if (isStringField && Array.isArray(propValue)) {
+                try {
+                  safeData[propName] = JSON.stringify(propValue);
+                } catch (e) {
+                  console.warn(`无法序列化字段 ${propName} 为JSON字符串，设置为空字符串`);
+                  safeData[propName] = '';
                 }
               }
             });
           }
-          
+
           // 首先尝试使用upsert模式（如果存在则更新，不存在则创建）
           createdObject = realm.create(schemaName, safeData, 'modified');
         } catch (createError) {
@@ -360,7 +418,7 @@ class RealmService {
 
       if (!object) {
         console.log(`${schemaName}对象(ID: ${id})不存在，尝试创建新对象`);
-        
+
         // 如果对象不存在，尝试创建新对象
         try {
           let newObject;
@@ -370,10 +428,10 @@ class RealmService {
             if (!createData._id) {
               createData._id = id;
             }
-            
+
             newObject = realm.create(schemaName, createData);
           });
-          
+
           // 返回新创建的对象
           return this.realmObjectToPlain(newObject);
         } catch (createError) {
@@ -390,8 +448,8 @@ class RealmService {
               object[key] = data[key];
             } catch (fieldError) {
               console.error(`更新字段 ${key} 失败:`, fieldError);
-              console.error(`字段值:`, data[key]);
-              console.error(`字段类型:`, typeof data[key]);
+              console.error('字段值:', data[key]);
+              console.error('字段类型:', typeof data[key]);
 
               // 如果是数组字段但传入了对象，尝试修复
               if (fieldError.message && fieldError.message.includes('Expected value to be iterable')) {
@@ -401,7 +459,7 @@ class RealmService {
                   } else if (data[key].results && Array.isArray(data[key].results)) {
                     object[key] = data[key].results.map(tag => String(tag));
                   } else {
-                    console.warn(`无法处理tags字段的对象值，设置为空数组`);
+                    console.warn('无法处理tags字段的对象值，设置为空数组');
                     object[key] = [];
                   }
                 } else {
@@ -439,7 +497,7 @@ class RealmService {
 
       if (!object) {
         console.log(`${schemaName}对象(ID: ${id})不存在，尝试创建新对象`);
-        
+
         // 如果对象不存在，尝试创建新对象
         try {
           let newObject;
@@ -449,10 +507,10 @@ class RealmService {
             if (!createData._id) {
               createData._id = id;
             }
-            
+
             newObject = realm.create(schemaName, createData);
           });
-          
+
           // 返回新创建的对象
           return this.realmObjectToPlain(newObject);
         } catch (createError) {
@@ -478,13 +536,8 @@ class RealmService {
    * @returns {string} 新的ObjectId
    */
   createObjectId() {
-    // 生成一个随机的24位十六进制字符串作为ObjectId
-    const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
-    const machineId = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
-    const processId = Math.floor(Math.random() * 65536).toString(16).padStart(4, '0');
-    const counter = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
-
-    return timestamp + machineId + processId + counter;
+    // 使用 Realm 原生 ObjectId 生成唯一标识，避免手写随机逻辑
+    return new Realm.BSON.ObjectId().toHexString();
   }
 
   /**
@@ -639,6 +692,7 @@ class RealmService {
       const data = objects.length > 0 ? objects[0] : null;
 
       if (!data) {
+        // 业务语义：查询未命中时返回 null（非错误）
         return null;
       }
 
@@ -647,6 +701,42 @@ class RealmService {
     } catch (error) {
       console.error(`查找${collectionName}失败`, error);
       throw error;
+    }
+  }
+
+  /**
+   * 强制刷新Realm数据到磁盘
+   * 确保所有写入操作都已持久化
+   * @returns {Promise<boolean>} 刷新是否成功
+   */
+  async forceFlush() {
+    try {
+      if (this.realmOpenFailed) {
+        this._logErrorOnce(
+          'forceflush-short-circuit',
+          '[RealmService] 跳过 forceFlush：Realm 初始化失败，后续保存流程已短路',
+          this.realmOpenFailureReason
+        );
+        return false;
+      }
+
+      if (!this.realm || this.realm.isClosed) {
+        this._logErrorOnce('forceflush-no-realm', '[RealmService] 跳过 forceFlush：Realm实例不存在或已关闭');
+        return false;
+      }
+
+      // Realm会自动将更改持久化到磁盘
+      // 这里我们等待任何待处理的写事务完成
+      if (this.realm.isInTransaction) {
+        console.warn('[RealmService] 检测到进行中的事务，等待完成...');
+        return false;
+      }
+
+      console.log('✅ [RealmService] 数据刷新完成');
+      return true;
+    } catch (error) {
+      this._logErrorOnce('[RealmService] 强制刷新失败', '[RealmService] 强制刷新失败:', error);
+      return false;
     }
   }
 
@@ -665,6 +755,7 @@ class RealmService {
       const realmObject = realm.objectForPrimaryKey(schemaName, id);
 
       if (!realmObject) {
+        // 业务语义：按主键未命中时返回 null（非错误）
         return null;
       }
 
@@ -782,7 +873,8 @@ class RealmService {
       const object = realm.objectForPrimaryKey(collectionName, id);
 
       if (!object) {
-        return false;
+        // 业务语义：目标不存在时视为幂等删除完成（非错误）
+        return true;
       }
 
       // 删除对象
@@ -801,19 +893,19 @@ class RealmService {
    * 对记录做后处理（解析JSON字段等）
    */
   _postProcessRecord(collectionName, record) {
-    if (!record) return record;
+    if (!record) {return record;}
 
     if (collectionName === 'canvases') {
       try {
         // 将字符串字段解析回对象/数组
-        if (typeof record.elements === 'string') record.elements = JSON.parse(record.elements || '[]');
-        if (typeof record.layers === 'string') record.layers = JSON.parse(record.layers || '[]');
-        if (typeof record.viewState === 'string') record.viewState = JSON.parse(record.viewState || '{}');
+        if (typeof record.elements === 'string') {record.elements = JSON.parse(record.elements || '[]');}
+        if (typeof record.layers === 'string') {record.layers = JSON.parse(record.layers || '[]');}
+        if (typeof record.viewState === 'string') {record.viewState = JSON.parse(record.viewState || '{}');}
       } catch (e) {
         console.warn('解析画布JSON字段失败，将使用默认值', e);
-        if (!Array.isArray(record.elements)) record.elements = [];
-        if (!Array.isArray(record.layers)) record.layers = [{ id: 'default', name: '默认图层', visible: true, locked: false }];
-        if (typeof record.viewState !== 'object' || record.viewState == null) record.viewState = {};
+        if (!Array.isArray(record.elements)) {record.elements = [];}
+        if (!Array.isArray(record.layers)) {record.layers = [{ id: 'default', name: '默认图层', visible: true, locked: false }];}
+        if (typeof record.viewState !== 'object' || record.viewState == null) {record.viewState = {};}
       }
     }
 
@@ -821,6 +913,11 @@ class RealmService {
   }
 }
 
-export const realmService = new RealmService();
+const realmService = new RealmService();
+
+module.exports = realmService;
+module.exports.default = realmService;
+module.exports.realmService = realmService;
+module.exports.RealmService = RealmService;
 export default realmService;
 

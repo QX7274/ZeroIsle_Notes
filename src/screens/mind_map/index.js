@@ -9,5 +9,5 @@ import MindMapTemplateScreen from './MindMapTemplateScreen';
 export {
   MindMapScreen,
   MindMapEditScreen,
-  MindMapTemplateScreen
+  MindMapTemplateScreen,
 };

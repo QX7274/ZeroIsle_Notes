@@ -11,9 +11,25 @@ from notes.serializers import WhisperModelSerializer, WhisperTrainingDataSeriali
 from common.permissions import IsOwnerOrReadOnly
 import logging
 import os
-import whisper
-import torch
 import uuid
+import mimetypes
+
+# 优先使用 OpenAI Whisper API（通过统一服务），本地whisper作为降级方案
+try:
+    from ai_assistant.services.whisper_service import WhisperService
+    _HAS_OPENAI_WHISPER = True
+except Exception:
+    WhisperService = None
+    _HAS_OPENAI_WHISPER = False
+
+try:
+    import whisper as _local_whisper
+    import torch as _torch
+    _HAS_LOCAL_WHISPER = True
+except Exception:
+    _local_whisper = None
+    _torch = None
+    _HAS_LOCAL_WHISPER = False
 
 logger = logging.getLogger(__name__)
 
@@ -82,58 +98,79 @@ class WhisperModelViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def transcribe(self, request):
-        """转录音频"""
+        """转录音频（优先使用OpenAI Whisper，降级到本地whisper）"""
         try:
             audio_file = request.FILES.get('audio')
             if not audio_file:
-                return Response(
-                    {'error': '未提供音频文件'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({'error': '未提供音频文件'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # 保存音频
-            os.makedirs('media/whisper', exist_ok=True)  # 确保目录存在
-            audio_path = f'media/whisper/{timezone.now().strftime("%Y%m%d_%H%M%S")}.wav'
+            # 基本类型校验
+            filename = getattr(audio_file, 'name', 'audio')
+            mime, _ = mimetypes.guess_type(filename)
+            allowed = {'audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/x-aac', 'audio/flac', 'audio/ogg'}
+            if mime and mime not in allowed:
+                return Response({'error': f'不支持的音频类型: {mime}'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 保存音频到本地
+            os.makedirs('media/whisper', exist_ok=True)
+            ext = os.path.splitext(filename)[1] or '.wav'
+            audio_path = f'media/whisper/{timezone.now().strftime("%Y%m%d_%H%M%S")}{ext}'
             with open(audio_path, 'wb') as f:
                 for chunk in audio_file.chunks():
                     f.write(chunk)
 
-            # 加载模型
-            model = whisper.load_model("base")
+            transcribed_text = ''
+            language = ''
 
-            # 转录
-            result = model.transcribe(audio_path)
-            text = result["text"]
+            # 优先尝试 OpenAI Whisper
+            used_backend = 'openai'
+            if _HAS_OPENAI_WHISPER:
+                try:
+                    svc = WhisperService()
+                    resp = svc.transcribe(file_path=audio_path)
+                    transcribed_text = resp.get('text', '')
+                    language = resp.get('language', '')
+                except Exception as e:
+                    logger.warning(f"OpenAI Whisper 转录失败，降级到本地whisper: {e}")
+                    used_backend = 'local'
+            else:
+                used_backend = 'local'
 
-            # 创建语音识别模型
+            # 降级到本地whisper
+            if used_backend == 'local':
+                if not _HAS_LOCAL_WHISPER:
+                    return Response({'error': '本地whisper不可用且OpenAI Whisper失败'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                model = _local_whisper.load_model("base")
+                result = model.transcribe(audio_path)
+                transcribed_text = result.get("text", '')
+                language = result.get('language', '')
+
+            # 创建语音识别模型记录
             whisper_model = WhisperModel(
                 id=uuid.uuid4(),
                 name=f"语音识别 - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                description="通过Whisper识别的文本",
+                description=(transcribed_text[:60] + '...') if transcribed_text else "通过Whisper识别的文本",
                 model_size='base',
-                language=result.get('language', ''),
+                language=language,
                 is_active=True,
                 created_at=timezone.now(),
                 updated_at=timezone.now()
             )
 
-            # 保存模型文件
             with open(audio_path, 'rb') as f:
-                whisper_model.model_file.put(f, content_type='audio/wav')
-
+                whisper_model.model_file.put(f, content_type=mime or 'audio/wav')
             whisper_model.save()
 
             return Response({
                 'message': '转录成功',
-                'transcribed_text': text,
+                'transcribed_text': transcribed_text,
+                'language': language,
+                'backend': used_backend,
                 'model_id': str(whisper_model.id)
             })
         except Exception as e:
-            logger.error(f"语音转录失败: {str(e)}")
-            return Response(
-                {'error': f'语音转录失败: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.error(f"语音转录失败: {str(e)}", exc_info=True)
+            return Response({'error': f'语音转录失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def correct(self, request, pk=None):

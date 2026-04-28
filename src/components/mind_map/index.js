@@ -9,5 +9,5 @@ import MindMap from './MindMap';
 export {
   MindMapToolbar,
   MindMapView,
-  MindMap
+  MindMap,
 };

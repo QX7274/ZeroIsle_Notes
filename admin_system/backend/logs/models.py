@@ -13,6 +13,9 @@ class AdminOperationLog(Document):
         ('other', '其他'),
     )
 
+    # 跨系统主键（主应用 _id 的字符串形式，用于对账与同步）
+    external_id = StringField(required=False, verbose_name='外部ID', unique=False)
+
     admin_username = StringField(max_length=150, required=True, verbose_name='管理员用户名')
     ip_address = StringField(required=True, verbose_name='IP地址')
     module = StringField(max_length=50, required=True, verbose_name='操作模块')
@@ -24,6 +27,13 @@ class AdminOperationLog(Document):
     meta = {
         'collection': 'admin_operation_logs',
         'ordering': ['-operation_time'],
+        'indexes': [
+            'external_id',
+            'admin_username',
+            'module',
+            'action',
+            'operation_time'
+        ],
         'verbose_name': '管理员操作日志',
         'verbose_name_plural': '管理员操作日志'
     }
@@ -41,6 +51,9 @@ class SystemLog(Document):
         ('critical', '严重'),
     )
 
+    # 跨系统主键（主应用 _id 的字符串形式）
+    external_id = StringField(required=False, verbose_name='外部ID', unique=False)
+
     level = StringField(max_length=20, choices=LEVEL_CHOICES, required=True, verbose_name='日志级别')
     source = StringField(max_length=50, required=True, verbose_name='来源')
     message = StringField(required=True, verbose_name='日志消息')
@@ -49,6 +62,12 @@ class SystemLog(Document):
     meta = {
         'collection': 'system_logs',
         'ordering': ['-timestamp'],
+        'indexes': [
+            'external_id',
+            'level',
+            'source',
+            'timestamp'
+        ],
         'verbose_name': '系统日志',
         'verbose_name_plural': '系统日志'
     }

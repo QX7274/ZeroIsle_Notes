@@ -6,12 +6,12 @@ import { logService } from '../../utils/logService';
 import RNFS from 'react-native-fs';
 import PDFLib from 'react-native-pdf';
 import XLSX from 'xlsx';
+import { chunkedUploadService } from './chunkedUploadService';
 import { firebaseStorage } from '../firebase/firebaseStorage';
 import Share from 'react-native-share';
 import { Platform } from 'react-native';
 
-// 模拟文件系统操作
-// 实际项目中应使用react-native-fs或类似库
+// 文件系统操作封装（基于 react-native-fs）
 class FileService {
   constructor() {
     this.initialized = false;
@@ -19,31 +19,60 @@ class FileService {
     this.baseDir = '';
   }
 
+  _normalizeServiceError(error, defaultMessage = '文件服务操作失败') {
+    const normalizedError = error instanceof Error
+      ? error
+      : new Error(typeof error === 'string' ? error : defaultMessage);
+
+    if (!normalizedError.name) {
+      normalizedError.name = 'FileServiceError';
+    }
+    if (typeof normalizedError.status === 'undefined') {
+      normalizedError.status = error?.response?.status ?? null;
+    }
+    if (typeof normalizedError.code === 'undefined') {
+      normalizedError.code = error?.code || error?.response?.data?.code || null;
+    }
+    if (typeof normalizedError.responseData === 'undefined') {
+      normalizedError.responseData = error?.response?.data ?? null;
+    }
+    if (typeof normalizedError.isNetworkError === 'undefined') {
+      normalizedError.isNetworkError = !error?.response && !!error?.request;
+    }
+    if (typeof normalizedError.originalError === 'undefined') {
+      normalizedError.originalError = error;
+    }
+
+    return normalizedError;
+  }
+
   /**
    * 初始化文件服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
-    
+    if (this.initialized) {
+      return;
+    }
+
     if (this.initializationPromise) {
       return this.initializationPromise;
     }
 
-    this.initializationPromise = new Promise(async (resolve, reject) => {
+    this.initializationPromise = (async () => {
       try {
-        // 获取应用文档目录
-        this.baseDir = Platform.OS === 'ios' 
-          ? RNFS.DocumentDirectoryPath 
-          : RNFS.ExternalDirectoryPath;
-        
+        // 获取应用可写目录（避免 Android 某些设备 ExternalDirectoryPath 只读导致 EROFS）
+        this.baseDir = RNFS.DocumentDirectoryPath;
+
         this.initialized = true;
-        logService.info('文件服务初始化成功');
-        resolve();
+        logService.info(`文件服务初始化成功，baseDir: ${this.baseDir}`);
       } catch (error) {
+        this.initializationPromise = null;
         logService.error('文件服务初始化失败', error);
-        reject(error);
+        const normalizedError = this._normalizeServiceError(error, '文件服务初始化失败');
+        normalizedError.name = 'FileServiceInitError';
+        throw normalizedError;
       }
-    });
+    })();
 
     return this.initializationPromise;
   }
@@ -56,12 +85,13 @@ class FileService {
   async readFile(path) {
     try {
       await this.initialize();
-      
+
       // 读取文件内容
       return await RNFS.readFile(path, 'utf8');
     } catch (error) {
       logService.error(`读取文件失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '读取文件失败');
+      throw normalizedError;
     }
   }
 
@@ -74,14 +104,28 @@ class FileService {
   async writeFile(path, content) {
     try {
       await this.initialize();
-      
+
+      const absPath = this._getAbsPath(path);
+      const parentDir = absPath.substring(0, absPath.lastIndexOf('/'));
+
+      if (parentDir) {
+        const parentExists = await RNFS.exists(parentDir);
+        if (!parentExists) {
+          await RNFS.mkdir(parentDir);
+        }
+      }
+
+      // RNFS.writeFile 要求 content 为 string
+      const safeContent = typeof content === 'string' ? content : JSON.stringify(content ?? '');
+
       // 写入文件内容
-      await RNFS.writeFile(path, content, 'utf8');
-      
+      await RNFS.writeFile(absPath, safeContent, 'utf8');
+
       return true;
     } catch (error) {
       logService.error(`写入文件失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '写入文件失败');
+      throw normalizedError;
     }
   }
 
@@ -93,14 +137,15 @@ class FileService {
   async deleteFile(path) {
     try {
       await this.initialize();
-      
+
       // 删除文件
       await RNFS.unlink(path);
-      
+
       return true;
     } catch (error) {
       logService.error(`删除文件失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '删除文件失败');
+      throw normalizedError;
     }
   }
 
@@ -112,12 +157,13 @@ class FileService {
   async exists(path) {
     try {
       await this.initialize();
-      
+
       // 检查文件是否存在
       return await RNFS.exists(path);
     } catch (error) {
       logService.error(`检查文件是否存在失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '检查文件是否存在失败');
+      throw normalizedError;
     }
   }
 
@@ -129,14 +175,15 @@ class FileService {
   async mkdir(path) {
     try {
       await this.initialize();
-      
+
       // 创建目录
       await RNFS.mkdir(path);
-      
+
       return true;
     } catch (error) {
       logService.error(`创建目录失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '创建目录失败');
+      throw normalizedError;
     }
   }
 
@@ -148,12 +195,13 @@ class FileService {
   async readDir(path) {
     try {
       await this.initialize();
-      
+
       // 读取目录内容
       return await RNFS.readDir(path);
     } catch (error) {
       logService.error(`读取目录失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '读取目录失败');
+      throw normalizedError;
     }
   }
 
@@ -178,15 +226,119 @@ class FileService {
             const progress = res.bytesWritten / res.contentLength;
             onProgress(progress);
           }
-        }
+        },
       };
 
       const downloadResult = await RNFS.downloadFile(downloadOptions).promise;
       return downloadResult.statusCode === 200;
     } catch (error) {
       logService.error(`从URL下载文件失败: ${url}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '从URL下载文件失败');
+      if (['Error', 'FileServiceError'].includes(normalizedError.name)) {
+        normalizedError.name = 'DownloadError';
+      }
+      throw normalizedError;
     }
+  }
+
+  /**
+   * 上传文件 - 核心方法（支持分片上传与断点续传）
+   * @param {Object} options 上传选项
+   * @param {string} options.uri 本地文件路径
+   * @param {string} options.name 文件名
+   * @param {string} options.type MIME类型
+   * @param {number} options.size 文件大小
+   * @param {Function} options.onProgress 进度回调
+   * @returns {Promise<Object>} 上传结果
+   */
+  async uploadFile({ uri, name, type, size, onProgress }) {
+    try {
+      await this.initialize();
+      const safeName = String(name || 'unnamed');
+      const safeType = String(type || 'application/octet-stream');
+      const safeSize = Number(size || 0);
+      logService.info(`开始上传文件: ${safeName} (${safeSize} bytes)`);
+
+      // 1. 对于大文件（> 5MB），启用分片上传（里程碑4）
+      if (safeSize > 5 * 1024 * 1024) {
+        logService.info('[FileService] 启用大文件分片上传');
+        const chunkedResult = await this._chunkedUpload({
+          uri,
+          name: safeName,
+          type: safeType,
+          size: safeSize,
+          onProgress,
+        });
+
+        if (!chunkedResult?.success) {
+          const uploadError = new Error(
+            chunkedResult?.cancelled
+              ? '上传已取消'
+              : (chunkedResult?.paused ? '上传已暂停' : (chunkedResult?.message || '分片上传失败'))
+          );
+          uploadError.name = 'UploadError';
+          uploadError.cancelled = !!chunkedResult?.cancelled;
+          uploadError.paused = !!chunkedResult?.paused;
+          uploadError.sessionId = chunkedResult?.sessionId || null;
+          uploadError.fileId = chunkedResult?.fileId || null;
+          uploadError.status = chunkedResult?.status ?? null;
+          uploadError.code = chunkedResult?.code || null;
+          uploadError.responseData = chunkedResult?.responseData ?? null;
+          uploadError.isNetworkError = !!chunkedResult?.isNetworkError;
+          uploadError.originalError = chunkedResult?.originalError || null;
+          uploadError.uploadResult = chunkedResult;
+          throw uploadError;
+        }
+
+        return {
+          success: true,
+          strategy: 'chunked',
+          fileName: safeName,
+          mimeType: safeType,
+          size: safeSize,
+          localPath: uri,
+          sessionId: chunkedResult?.sessionId || null,
+          fileId: chunkedResult?.fileId || null,
+          remoteUrl: chunkedResult?.remoteUrl || chunkedResult?.url || null,
+          raw: chunkedResult,
+        };
+      }
+
+      // 2. 对于小文件，使用单次上传并统一返回结构
+      const remotePath = `uploads/${Date.now()}_${safeName}`;
+      const singleResult = await this.uploadFileToFirebase(uri, remotePath, onProgress);
+
+      return {
+        success: true,
+        strategy: 'single',
+        fileName: safeName,
+        mimeType: safeType,
+        size: safeSize,
+        localPath: uri,
+        sessionId: null,
+        fileId: null,
+        remoteUrl: typeof singleResult === 'string'
+          ? singleResult
+          : (singleResult?.url || singleResult?.data?.url || null),
+        raw: singleResult,
+      };
+    } catch (error) {
+      logService.error(`上传文件失败: ${name}`, error);
+      const normalizedError = this._normalizeServiceError(error, '上传文件失败');
+      if (['Error', 'FileServiceError'].includes(normalizedError.name)) {
+        normalizedError.name = 'UploadError';
+      }
+      throw normalizedError;
+    }
+  }
+
+  /**
+   * 分片上传实现逻辑
+   * @private
+   */
+  async _chunkedUpload({ uri, name, type, size, onProgress }) {
+    logService.info(`[FileService] 启动分片上传任务: ${name}`);
+    return await chunkedUploadService.startUpload({ uri, size, name, type, onProgress });
   }
 
   /**
@@ -202,7 +354,11 @@ class FileService {
       return await firebaseStorage.uploadFile(localPath, remotePath, { onProgress });
     } catch (error) {
       logService.error(`上传文件到Firebase失败: ${localPath}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '上传文件到Firebase失败');
+      if (['Error', 'FileServiceError'].includes(normalizedError.name)) {
+        normalizedError.name = 'UploadError';
+      }
+      throw normalizedError;
     }
   }
 
@@ -219,7 +375,11 @@ class FileService {
       return await firebaseStorage.downloadFile(remotePath, localPath, { onProgress });
     } catch (error) {
       logService.error(`从Firebase下载文件失败: ${remotePath}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '从Firebase下载文件失败');
+      if (['Error', 'FileServiceError'].includes(normalizedError.name)) {
+        normalizedError.name = 'DownloadError';
+      }
+      throw normalizedError;
     }
   }
 
@@ -234,21 +394,24 @@ class FileService {
       await this.initialize();
 
       if (!await this.exists(filePath)) {
-        throw new Error(`文件不存在: ${filePath}`);
+        const notFoundError = new Error(`文件不存在: ${filePath}`);
+        notFoundError.name = 'FileNotFoundError';
+        throw notFoundError;
       }
 
       const shareOptions = {
         title: options.title || '分享文件',
         url: `file://${filePath}`,
         type: options.mimeType || 'application/octet-stream',
-        ...options
+        ...options,
       };
 
-      const result = await Share.open(shareOptions);
-      return result.success;
+      await Share.open(shareOptions);
+      return true;
     } catch (error) {
       logService.error(`分享文件失败: ${filePath}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '分享文件失败');
+      throw normalizedError;
     }
   }
 
@@ -263,7 +426,8 @@ class FileService {
       return await RNFS.stat(path);
     } catch (error) {
       logService.error(`获取文件元数据失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '获取文件元数据失败');
+      throw normalizedError;
     }
   }
 
@@ -280,7 +444,8 @@ class FileService {
       return true;
     } catch (error) {
       logService.error(`复制文件失败: ${source} -> ${destination}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '复制文件失败');
+      throw normalizedError;
     }
   }
 
@@ -297,7 +462,8 @@ class FileService {
       return true;
     } catch (error) {
       logService.error(`移动文件失败: ${source} -> ${destination}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '移动文件失败');
+      throw normalizedError;
     }
   }
 
@@ -312,7 +478,8 @@ class FileService {
       return stats.size;
     } catch (error) {
       logService.error(`获取文件大小失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '获取文件大小失败');
+      throw normalizedError;
     }
   }
 
@@ -327,7 +494,8 @@ class FileService {
       return new Date(stats.mtime);
     } catch (error) {
       logService.error(`获取文件修改时间失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '获取文件修改时间失败');
+      throw normalizedError;
     }
   }
 
@@ -371,22 +539,22 @@ class FileService {
       await this.initialize();
       const absPath = this._getAbsPath(path);
       logService.info(`从PDF提取文本: ${absPath}`);
-      
+
       // 处理Windows路径格式
       const winPath = absPath.replace(/\//g, '\\');
-      
+
       // 使用react-native-pdf提取文本
       const text = await new Promise((resolve, reject) => {
         PDFLib.getDocument({ uri: `file://${winPath}` }).then((pdf) => {
           const numPages = pdf.getNumPages();
           let textContent = '';
-          
+
           const extractPageText = async (pageNum) => {
             if (pageNum > numPages) {
               resolve(textContent);
               return;
             }
-            
+
             pdf.getPage(pageNum).then((page) => {
               page.getTextContent().then((content) => {
                 textContent += content.items.map(item => item.str).join(' ');
@@ -394,15 +562,16 @@ class FileService {
               }).catch(reject);
             }).catch(reject);
           };
-          
+
           extractPageText(1);
         }).catch(reject);
       });
-      
+
       return text;
     } catch (error) {
       logService.error(`从PDF提取文本失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '从PDF提取文本失败');
+      throw normalizedError;
     }
   }
 
@@ -413,7 +582,7 @@ class FileService {
    */
   getMimeType(path) {
     const extension = this.getFileExtension(path);
-    
+
     const mimeTypes = {
       'txt': 'text/plain',
       'html': 'text/html',
@@ -441,7 +610,7 @@ class FileService {
       'gz': 'application/gzip',
       'md': 'text/markdown',
     };
-    
+
     return mimeTypes[extension] || 'application/octet-stream';
   }
 
@@ -457,7 +626,9 @@ class FileService {
       logService.info(`打开文件: ${absPath}`);
 
       if (!await this.exists(absPath)) {
-        throw new Error(`文件不存在: ${path}`);
+        const notFoundError = new Error(`文件不存在: ${path}`);
+        notFoundError.name = 'FileNotFoundError';
+        throw notFoundError;
       }
 
       const metadata = await this.getFileMetadata(absPath);
@@ -482,11 +653,12 @@ class FileService {
         mimeType,
         size: metadata.size,
         modifiedTime: new Date(metadata.mtime),
-        content
+        content,
       };
     } catch (error) {
       logService.error(`打开文件失败: ${path}`, error);
-      throw error;
+      const normalizedError = this._normalizeServiceError(error, '打开文件失败');
+      throw normalizedError;
     }
   }
 
@@ -513,10 +685,10 @@ class FileService {
       await this.initialize();
       const absDests = this._getAbsPath(destinationPath);
       logService.info(`合并PDF文件: ${sourcePaths.length}个文件 -> ${absDests}`);
-      
+
       // 处理Windows路径格式
       const winDestPath = absDests.replace(/\//g, '\\');
-      
+
       // 加载所有源PDF文件
       const pdfDocs = [];
       for (const path of sourcePaths) {
@@ -525,26 +697,32 @@ class FileService {
         const pdfData = await RNFS.readFile(winPath, 'base64');
         pdfDocs.push(await PDFLib.PDFDocument.load(pdfData));
       }
-      
+
       // 创建新的PDF文档
       const mergedPdf = await PDFLib.PDFDocument.create();
-      
+
       // 将所有页面添加到新文档
       for (const pdfDoc of pdfDocs) {
         const pages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
         pages.forEach(page => mergedPdf.addPage(page));
       }
-      
+
       // 保存合并后的PDF
       const mergedPdfBytes = await mergedPdf.save();
       await RNFS.writeFile(winDestPath, mergedPdfBytes.toString('base64'), 'base64');
-      
+
       return true;
     } catch (error) {
-      logService.error(`合并PDF失败`, error);
-      throw error;
+      logService.error('合并PDF失败', error);
+      const normalizedError = this._normalizeServiceError(error, '合并PDF失败');
+      throw normalizedError;
     }
   }
 }
 
-export const fileService = new FileService();
+const fileService = new FileService();
+
+module.exports = fileService;
+module.exports.default = fileService;
+module.exports.fileService = fileService;
+module.exports.FileService = FileService;

@@ -1,0 +1,419 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.10.10, pytest-8.0.0, pluggy-1.5.0
+django: settings: backend.settings.testing (from ini)
+rootdir: D:\ZeroIsle_Notes
+configfile: pytest.ini
+plugins: anyio-4.9.0, Faker-19.13.0, asyncio-0.23.5, cov-4.1.0, django-4.5.2, typeguard-2.13.3
+asyncio: mode=strict
+collected 3 items
+
+notes\tests\test_consumers.py FFF                                        [100%]
+
+================================== FAILURES ===================================
+________________ test_collaboration_connection_authentication _________________
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (eb83dd4b-4052-4ba2-9f35-8d8f6710cb24)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_collaboration_connection_authentication(setup_users_and_notes):
+        """Test that only authenticated users with permission can connect."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+        other_user = setup_users_and_notes['other_user']
+    
+        # Test Case 1: Note owner can connect
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        connected_owner, _ = await communicator_owner.connect()
+>       assert connected_owner, "Owner should be able to connect"
+E       AssertionError: Owner should be able to connect
+E       assert False
+
+notes\tests\test_consumers.py:66: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\QX\AppData\Local\Temp\jieba.cache
+Loading model cost 0.423 seconds.
+Prefix dict has been built successfully.
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+DEBUG    jieba:__init__.py:113 Building prefix dict from the default dictionary ...
+DEBUG    jieba:__init__.py:132 Loading model from cache C:\Users\QX\AppData\Local\Temp\jieba.cache
+DEBUG    jieba:__init__.py:164 Loading model cost 0.423 seconds.
+DEBUG    jieba:__init__.py:166 Prefix dict has been built successfully.
+WARNING  ai_assistant.services.base_provider:base_provider.py:32 OPENAI_API_KEY 未配置，将在调用处抛出错误
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=eb83dd4b-4052-4ba2-9f35-8d8f6710cb24: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note eb83dd4b-4052-4ba2-9f35-8d8f6710cb24: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+__________________________ test_message_broadcasting __________________________
+
+self = <channels.testing.websocket.WebsocketCommunicator object at 0x0000022ECA805930>
+timeout = 1
+
+    async def receive_output(self, timeout=1):
+        """
+        Receives a single message from the application, with optional timeout.
+        """
+        # Make sure there's not an exception to raise from the task
+        if self.future.done():
+            self.future.result()
+        # Wait and receive the message
+        try:
+            async with async_timeout(timeout):
+>               return await self.output_queue.get()
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Queue at 0x22eca805000 maxsize=0 tasks=1>
+
+    async def get(self):
+        """Remove and return an item from the queue.
+    
+        If queue is empty, wait until an item is available.
+        """
+        while self.empty():
+            getter = self._get_loop().create_future()
+            self._getters.append(getter)
+            try:
+>               await getter
+E               asyncio.exceptions.CancelledError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\asyncio\queues.py:159: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (60e55779-9173-46d2-9ea6-604dd89c5b91)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_message_broadcasting(setup_users_and_notes):
+        """Test that messages are correctly broadcast to all clients except the sender."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+    
+        # Connect owner
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        await communicator_owner.connect()
+    
+        # Connect collaborator
+        communicator_collaborator = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_collaborator.scope['user'] = collaborator
+        await communicator_collaborator.connect()
+    
+        try:
+            # Owner sends a message
+            test_message = {"action": "update", "payload": "Hello, world!"}
+            await communicator_owner.send_to(text_data=json.dumps(test_message))
+    
+            # Collaborator should receive the message
+>           response = await communicator_collaborator.receive_from()
+
+notes\tests\test_consumers.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\testing\websocket.py:72: in receive_from
+    response = await self.receive_output(timeout)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:91: in receive_output
+    raise e
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:79: in receive_output
+    async with async_timeout(timeout):
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:71: in __aexit__
+    self._do_exit(exc_type)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <asgiref.timeout.timeout object at 0x0000022ECA804790>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+
+    def _do_exit(self, exc_type: Type[BaseException]) -> None:
+        if exc_type is asyncio.CancelledError and self._cancelled:
+            self._cancel_handler = None
+            self._task = None
+>           raise asyncio.TimeoutError
+E           asyncio.exceptions.TimeoutError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:108: TimeoutError
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=60e55779-9173-46d2-9ea6-604dd89c5b91: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note 60e55779-9173-46d2-9ea6-604dd89c5b91: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+_____________________ test_sync_status_and_user_tracking ______________________
+
+self = <channels.testing.websocket.WebsocketCommunicator object at 0x0000022EC35B7970>
+timeout = 1
+
+    async def receive_output(self, timeout=1):
+        """
+        Receives a single message from the application, with optional timeout.
+        """
+        # Make sure there's not an exception to raise from the task
+        if self.future.done():
+            self.future.result()
+        # Wait and receive the message
+        try:
+            async with async_timeout(timeout):
+>               return await self.output_queue.get()
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Queue at 0x22ec391d480 maxsize=0 tasks=1>
+
+    async def get(self):
+        """Remove and return an item from the queue.
+    
+        If queue is empty, wait until an item is available.
+        """
+        while self.empty():
+            getter = self._get_loop().create_future()
+            self._getters.append(getter)
+            try:
+>               await getter
+E               asyncio.exceptions.CancelledError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\asyncio\queues.py:159: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+setup_users_and_notes = {'collaborator': <User: collaborator>, 'note': <Note: Test Note (91707223-30ab-4564-8a51-eb745778853d)>, 'other_user': <User: other>, 'owner': <User: owner>}
+
+    @pytest.mark.asyncio
+    async def test_sync_status_and_user_tracking(setup_users_and_notes):
+        """Test user tracking (joined/left) and sync status (cursor/ack)."""
+        note = setup_users_and_notes['note']
+        owner = setup_users_and_notes['owner']
+        collaborator = setup_users_and_notes['collaborator']
+    
+        # Connect owner
+        communicator_owner = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_owner.scope['user'] = owner
+        await communicator_owner.connect()
+    
+        # Receive own join message (depending on implementation, may or may not receive)
+        # The implementation sends to group, so owner might receive it if they are in the group before send.
+        # But usually group_send excludes sender in receive, but here it's `user_joined` sent to group.
+        # NoteConsumer.connect: await self.accept() -> add_user -> group_send('type': 'user_joined')
+        # Since accept() happens before group_send, owner is in group.
+        # But receive() filters sender?
+        # NoteConsumer.note_update checks sender_channel.
+        # But user_joined is a different handler. Let's check NoteConsumer.user_joined.
+        # It sends to self. So everyone in group receives it.
+    
+        # Connect collaborator
+        communicator_collaborator = WebsocketCommunicator(application, f"/ws/notes/{note.id}/")
+        communicator_collaborator.scope['user'] = collaborator
+        await communicator_collaborator.connect()
+    
+        # Owner should receive 'user_joined' for collaborator
+>       response = await communicator_owner.receive_from()
+
+notes\tests\test_consumers.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\channels\testing\websocket.py:72: in receive_from
+    response = await self.receive_output(timeout)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:91: in receive_output
+    raise e
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\testing.py:79: in receive_output
+    async with async_timeout(timeout):
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:71: in __aexit__
+    self._do_exit(exc_type)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <asgiref.timeout.timeout object at 0x0000022EC391DA80>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+
+    def _do_exit(self, exc_type: Type[BaseException]) -> None:
+        if exc_type is asyncio.CancelledError and self._cancelled:
+            self._cancel_handler = None
+            self._task = None
+>           raise asyncio.TimeoutError
+E           asyncio.exceptions.TimeoutError
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\asgiref\timeout.py:108: TimeoutError
+----------------------------- Captured log setup ------------------------------
+WARNING  knowledge_graph.services.extraction_service:extraction_service.py:63 停用词文件未找到，使用默认停用词
+WARNING  knowledge_graph.services.auto_classification_service:auto_classification_service.py:39 加载停用词失败: [Errno 2] No such file or directory: 'knowledge_graph/data/stopwords.txt'
+ERROR    knowledge_graph.tasks:tasks.py:137 自动实体提取失败 note_id=91707223-30ab-4564-8a51-eb745778853d: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+ERROR    notes.signals:signals.py:27 Failed to trigger background tasks for Note 91707223-30ab-4564-8a51-eb745778853d: 'KnowledgeGraphBuilderService' object has no attribute 'build_graph_from_extraction'
+=========================== short test summary info ===========================
+FAILED notes\tests\test_consumers.py::test_collaboration_connection_authentication
+FAILED notes\tests\test_consumers.py::test_message_broadcasting - asyncio.exc...
+FAILED notes\tests\test_consumers.py::test_sync_status_and_user_tracking - as...
+======================== 3 failed in 67.59s (0:01:07) =========================
+pytest : Task was des
+troyed but it is pend
+ing!
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+est notes/tests/test_
+consumers.py > test_o
+utput_consum ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpeci
+fied: (T    ask was d
+estroyed but     it i
+s pending!:Strin    g
+) [], RemoteExceptio 
+   n
+    + FullyQualifiedE
+rror    Id : NativeCo
+mmandErr    or
+ 
+task: <Task pending n
+ame='Task-2' coro=<Pr
+otocolTypeRouter.__ca
+ll__() running at C:\
+Users\QX\AppData\Loca
+l\Programs\Python\Pyt
+hon310\lib\site-packa
+ges\channels\routing.
+py:62> wait_for=<Futu
+re cancelled>>
+Exception ignored in:
+ <coroutine object Pr
+otocolTypeRouter.__ca
+ll__ at 0x0000022ECA8
+20270>
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\routing.py", line 
+62, in __call__
+    return await appl
+ication(scope, receiv
+e, send)
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\security\websocket
+.py", line 41, in __c
+all__
+    return await deni
+er(scope, receive, se
+nd)
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\consumer.py", line
+ 58, in __call__
+    await await_many_
+dispatch(
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\utils.py", line 55
+, in await_many_dispa
+tch
+    task.cancel()
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 753, in cal
+l_soon
+    self._check_close
+d()
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 515, in _ch
+eck_closed
+    raise RuntimeErro
+r('Event loop is clos
+ed')
+RuntimeError: Event l
+oop is closed
+Task was destroyed bu
+t it is pending!
+task: <Task pending n
+ame='Task-5' coro=<Qu
+eue.get() running at 
+C:\Users\QX\AppData\L
+ocal\Programs\Python\
+Python310\lib\asyncio
+\queues.py:159> wait_
+for=<Future cancelled
+>>
+Task was destroyed bu
+t it is pending!
+task: <Task pending n
+ame='Task-21' coro=<P
+rotocolTypeRouter.__c
+all__() running at C:
+\Users\QX\AppData\Loc
+al\Programs\Python\Py
+thon310\lib\site-pack
+ages\channels\routing
+.py:62> wait_for=<Fut
+ure cancelled>>
+Exception ignored in:
+ <coroutine object Pr
+otocolTypeRouter.__ca
+ll__ at 0x0000022ECB9
+AFD10>
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\routing.py", line 
+62, in __call__
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\security\websocket
+.py", line 41, in __c
+all__
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\consumer.py", line
+ 58, in __call__
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\site-packages\channe
+ls\utils.py", line 55
+, in await_many_dispa
+tch
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 753, in cal
+l_soon
+  File "C:\Users\QX\A
+ppData\Local\Programs
+\Python\Python310\lib
+\asyncio\base_events.
+py", line 515, in _ch
+eck_closed
+RuntimeError: Event l
+oop is closed
+Task was destroyed bu
+t it is pending!
+task: <Task pending n
+ame='Task-24' coro=<Q
+ueue.get() running at
+ C:\Users\QX\AppData\
+Local\Programs\Python
+\Python310\lib\asynci
+o\queues.py:159> wait
+_for=<Future cancelle
+d>>

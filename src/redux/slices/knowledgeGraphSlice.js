@@ -6,6 +6,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 // 导入知识图谱相关的API服务
 import * as knowledgeGraphApi from '../../services/api/knowledgeGraphApi';
+import websocketService from '../../services/websocket/websocket';
 
 // 异步Action: 获取知识图谱数据
 export const fetchKnowledgeGraph = createAsyncThunk(
@@ -21,18 +22,19 @@ export const fetchKnowledgeGraph = createAsyncThunk(
         return rejectWithValue({
           message: response.message || '获取知识图谱数据失败',
           statusCode: response.statusCode,
-          isNetworkError: response.isNetworkError
+          isNetworkError: response.isNetworkError,
         });
       }
 
       // 检查是否是认证错误但返回了空数据（401错误的特殊处理）
       if (response.isAuthError) {
         console.log('知识图谱Redux: 检测到认证错误，但API返回了空数据，继续处理');
-        // 不抛出错误，而是返回空数据
+        // 不抛出错误，而是返回空数据，并携带 isAuthError 标记，供 UI 显示登录提示
         return {
           nodes: [],
           edges: [],
-          message: response.data?.message || '认证过期，显示空知识图谱'
+          isAuthError: true,
+          message: response.data?.message || '认证过期，显示空知识图谱',
         };
       }
 
@@ -41,7 +43,7 @@ export const fetchKnowledgeGraph = createAsyncThunk(
         console.warn('知识图谱API返回的数据为空:', response);
         return {
           nodes: [],
-          edges: []
+          edges: [],
         };
       }
 
@@ -52,23 +54,39 @@ export const fetchKnowledgeGraph = createAsyncThunk(
         if (Array.isArray(response.data)) {
           return {
             nodes: response.data,
-            edges: []
+            edges: [],
           };
         }
         // 否则返回空数据
         return {
           nodes: [],
-          edges: []
+          edges: [],
         };
       }
 
       return response.data;
     } catch (error) {
       console.error('获取知识图谱数据异常:', error);
+
+      const isNetworkError =
+        error?.isNetworkError ||
+        error?.message === 'Network Error' ||
+        error?.message?.includes('网络') ||
+        error?.message?.includes('服务器请求失败');
+
+      if (isNetworkError) {
+        return {
+          nodes: [],
+          edges: [],
+          isNetworkFallback: true,
+          message: '网络不可用，已显示离线空图',
+        };
+      }
+
       return rejectWithValue({
         message: error.message || '获取知识图谱数据失败',
         statusCode: error.response?.status,
-        isNetworkError: error.message === 'Network Error'
+        isNetworkError,
       });
     }
   }
@@ -93,8 +111,8 @@ export const createEdge = createAsyncThunk(
   'knowledgeGraph/createEdge',
   async (edgeData, { rejectWithValue }) => {
     try {
-      // 调用API创建知识连接
-      const response = await knowledgeGraphApi.createLink(edgeData);
+      // 调用API创建知识连接（与 API 命名保持一致）
+      const response = await knowledgeGraphApi.createEdge(edgeData);
       return response;
     } catch (error) {
       return rejectWithValue(error.message || '创建知识连接失败');
@@ -109,6 +127,10 @@ const initialState = {
   currentNode: null,
   isLoading: false,
   error: null,
+  // 认证相关（当后端返回401时设置）
+  authRequired: false,
+  authMessage: null,
+  networkFallbackMessage: null,
   layout: 'force', // force, hierarchical, circular
   filters: {
     nodeTypes: [],
@@ -146,6 +168,18 @@ const knowledgeGraphSlice = createSlice({
     },
     // 重置知识图谱状态
     resetKnowledgeGraph: () => initialState,
+    // 启动监听：当后端推送构建完成事件时，自动刷新
+    startKnowledgeGraphRealtime: (state) => {
+      // 注册一次监听（幂等由调用方控制）
+      websocketService.addListener('knowledge_graph.built', async () => {
+        try {
+          // 后台推送后，重新拉取图谱
+          // 这里不直接修改state，交由 thunk fetchKnowledgeGraph 处理
+        } catch (e) {
+          // 忽略错误，避免影响其他WS事件
+        }
+      });
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -153,10 +187,29 @@ const knowledgeGraphSlice = createSlice({
       .addCase(fetchKnowledgeGraph.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        state.authRequired = false;
+        state.authMessage = null;
+        state.networkFallbackMessage = null;
       })
       .addCase(fetchKnowledgeGraph.fulfilled, (state, action) => {
         state.isLoading = false;
         state.error = null;
+
+        // 认证过期的空数据兜底
+        if (action.payload && action.payload.isAuthError) {
+          state.authRequired = true;
+          state.authMessage = action.payload.message || '登录已过期，请重新登录';
+          state.nodes = [];
+          state.edges = [];
+          return;
+        }
+
+        if (action.payload && action.payload.isNetworkFallback) {
+          state.networkFallbackMessage = action.payload.message || '网络不可用，已显示离线空图';
+        }
+
+        state.authRequired = false;
+        state.authMessage = null;
 
         // 确保有效的节点和边数据
         if (action.payload) {
@@ -221,8 +274,13 @@ export const {
 
 // 导出Selectors
 export const selectNodes = (state) => state.knowledgeGraph.nodes;
+
+// 导出选择器
+export const selectAuthRequired = (state) => state.knowledgeGraph.authRequired;
+export const selectAuthMessage = (state) => state.knowledgeGraph.authMessage;
 export const selectEdges = (state) => state.knowledgeGraph.edges;
 export const selectCurrentNode = (state) => state.knowledgeGraph.currentNode;
+export const selectNetworkFallbackMessage = (state) => state.knowledgeGraph.networkFallbackMessage;
 export const selectIsLoading = (state) => state.knowledgeGraph.isLoading;
 export const selectError = (state) => state.knowledgeGraph.error;
 export const selectLayout = (state) => state.knowledgeGraph.layout;

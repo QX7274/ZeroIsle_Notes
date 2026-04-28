@@ -113,7 +113,7 @@ const FontSettings = ({ navigation }) => {
               level="h5"
               style={[
                 styles.previewHeading,
-                { fontSize: fontSize === 'small' ? 18 : fontSize === 'medium' ? 20 : 22 }
+                { fontSize: fontSize === 'small' ? 18 : fontSize === 'medium' ? 20 : 22 },
               ]}
             >
               零屿笔记
@@ -123,7 +123,7 @@ const FontSettings = ({ navigation }) => {
               variant="body"
               style={[
                 styles.previewBody,
-                { fontSize: fontSize === 'small' ? 14 : fontSize === 'medium' ? 16 : 18 }
+                { fontSize: fontSize === 'small' ? 14 : fontSize === 'medium' ? 16 : 18 },
               ]}
             >
               这是一段示例文本，用于展示不同字体大小的效果。您可以通过上面的选项来更改应用的字体大小设置。

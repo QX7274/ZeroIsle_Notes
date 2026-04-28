@@ -12,7 +12,7 @@ export const NOTE_TYPES = {
   CANVAS: 'canvas',
   PDF: 'pdf',
   WORD: 'word',
-  MARKDOWN: 'markdown'
+  MARKDOWN: 'markdown',
 };
 
 /**
@@ -23,20 +23,20 @@ const NOTE_TYPE_FEATURES = {
     requiredFields: ['pages'],
     optionalFields: ['noteStyle', 'currentPage', 'totalPages', 'scale'],
     contentPatterns: ['pageNumber', '分页', 'paged'],
-    metadataPatterns: ['pagination', 'drawing', 'scaling']
+    metadataPatterns: ['pagination', 'drawing', 'scaling'],
   },
   [NOTE_TYPES.CANVAS]: {
     requiredFields: ['paths'],
     optionalFields: ['images', 'scale', 'translateX', 'translateY'],
     contentPatterns: ['canvas', 'drawing', 'infinite'],
-    metadataPatterns: ['canvas', 'drawing', 'infinite']
+    metadataPatterns: ['canvas', 'drawing', 'infinite'],
   },
   [NOTE_TYPES.CARD]: {
     requiredFields: [],
     optionalFields: ['content', 'title'],
     contentPatterns: [],
-    metadataPatterns: []
-  }
+    metadataPatterns: [],
+  },
 };
 
 /**
@@ -55,7 +55,7 @@ class NoteTypeDetectionService {
   detectNoteType(note) {
     if (!note || typeof note !== 'object') {
       console.warn('NoteTypeDetectionService: 无效的笔记对象');
-      return NOTE_TYPES.CARD;
+      throw new Error('笔记类型识别失败：无效的笔记对象');
     }
 
     // 检查缓存
@@ -68,7 +68,7 @@ class NoteTypeDetectionService {
       id: noteId,
       type: note.type,
       file_type: note.file_type,
-      noteType: note.noteType
+      noteType: note.noteType,
     });
 
     // 1. 优先检查明确的类型字段
@@ -99,10 +99,9 @@ class NoteTypeDetectionService {
       return metadataType;
     }
 
-    // 5. 默认为卡片笔记
-    console.log('🔍 默认识别为卡片笔记');
-    this.cacheResult(noteId, NOTE_TYPES.CARD);
-    return NOTE_TYPES.CARD;
+    // 5. 无法识别类型，禁止默认返回
+    console.warn('NoteTypeDetectionService: 无法识别笔记类型');
+    throw new Error('笔记类型识别失败：无法从内容/元数据中识别类型');
   }
 
   /**
@@ -110,12 +109,12 @@ class NoteTypeDetectionService {
    */
   checkExplicitType(note) {
     const typeFields = ['type', 'file_type', 'noteType'];
-    
+
     for (const field of typeFields) {
       if (note[field]) {
         const type = note[field];
         console.log(`🔍 发现明确类型字段 ${field}: ${type}`);
-        
+
         // 标准化类型名称
         if (type === 'paged' || type === 'paged_note') {
           return NOTE_TYPES.PAGED;
@@ -132,7 +131,7 @@ class NoteTypeDetectionService {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -194,7 +193,7 @@ class NoteTypeDetectionService {
    */
   checkMetadataFeatures(note) {
     let metadata = note.metadata;
-    
+
     // 解析元数据
     if (typeof metadata === 'string') {
       try {
@@ -258,7 +257,7 @@ class NoteTypeDetectionService {
     }
     return {
       totalCached: this.detectionCache.size,
-      typeDistribution: stats
+      typeDistribution: stats,
     };
   }
 
@@ -273,7 +272,7 @@ class NoteTypeDetectionService {
 
     return notes.map(note => ({
       ...note,
-      detectedType: this.detectNoteType(note)
+      detectedType: this.detectNoteType(note),
     }));
   }
 
@@ -283,14 +282,14 @@ class NoteTypeDetectionService {
   validateNoteType(note, expectedType) {
     const detectedType = this.detectNoteType(note);
     const isValid = detectedType === expectedType;
-    
+
     console.log(`🔍 类型验证: 期望=${expectedType}, 检测=${detectedType}, 有效=${isValid}`);
-    
+
     return {
       isValid,
       detectedType,
       expectedType,
-      note: note
+      note: note,
     };
   }
 
@@ -299,16 +298,16 @@ class NoteTypeDetectionService {
    */
   fixNoteType(note) {
     const detectedType = this.detectNoteType(note);
-    
+
     const fixedNote = {
       ...note,
       type: detectedType,
       file_type: detectedType,
-      noteType: detectedType
+      noteType: detectedType,
     };
 
     console.log(`🔍 修复笔记类型: ${note._id || note.id} -> ${detectedType}`);
-    
+
     return fixedNote;
   }
 }
@@ -325,6 +324,6 @@ export const {
   validateNoteType,
   fixNoteType,
   clearCache,
-  getDetectionStats
+  getDetectionStats,
 } = noteTypeDetectionService;
 

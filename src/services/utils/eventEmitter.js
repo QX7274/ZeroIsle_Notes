@@ -13,13 +13,13 @@ import { logService } from '../../utils/logService';
 class AppEventEmitter extends EventEmitter {
   constructor() {
     super();
-    
+
     // 设置最大监听器数量
     this.setMaxListeners(100);
-    
+
     // 事件历史记录
     this.eventHistory = {};
-    
+
     // 是否启用调试
     this.debug = false;
   }
@@ -42,22 +42,22 @@ class AppEventEmitter extends EventEmitter {
     if (this.debug) {
       logService.debug(`事件发射: ${event}`, args);
     }
-    
+
     // 记录事件历史
     if (!this.eventHistory[event]) {
       this.eventHistory[event] = [];
     }
-    
+
     this.eventHistory[event].push({
       timestamp: Date.now(),
       args,
     });
-    
+
     // 限制历史记录长度
     if (this.eventHistory[event].length > 10) {
       this.eventHistory[event].shift();
     }
-    
+
     return super.emit(event, ...args);
   }
 
@@ -71,7 +71,7 @@ class AppEventEmitter extends EventEmitter {
     if (this.debug) {
       logService.debug(`添加事件监听器: ${event}`);
     }
-    
+
     return super.addListener(event, listener);
   }
 
@@ -85,7 +85,7 @@ class AppEventEmitter extends EventEmitter {
     if (this.debug) {
       logService.debug(`添加一次性事件监听器: ${event}`);
     }
-    
+
     return super.once(event, listener);
   }
 
@@ -99,7 +99,7 @@ class AppEventEmitter extends EventEmitter {
     if (this.debug) {
       logService.debug(`移除事件监听器: ${event}`);
     }
-    
+
     return super.removeListener(event, listener);
   }
 
@@ -112,7 +112,7 @@ class AppEventEmitter extends EventEmitter {
     if (this.debug) {
       logService.debug(`移除所有事件监听器: ${event || '所有事件'}`);
     }
-    
+
     return super.removeAllListeners(event);
   }
 

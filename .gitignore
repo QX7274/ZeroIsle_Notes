@@ -34,11 +34,24 @@ local.properties
 *.keystore
 !debug.keystore
 
+# Local Android/Gradle caches in this repo (do not commit)
+.gradle-run2/
+.gradle-user/
+
 # node.js
 #
 node_modules/
 npm-debug.log
 yarn-error.log
+
+# Local IDE / tooling
+.cursor/
+.qoder/
+.overclawck/
+.omx/
+.local/
+.pytest_cache/
+__pycache__/
 
 # fastlane
 #
@@ -72,3 +85,21 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# ---- ZeroIsle_Notes local artifacts (do not commit) ----
+/tmp/
+/output/
+*.realm
+*.realm.lock
+studio_java_status.txt
+where_*.txt
+window_dump*.xml
+retest_step*.txt
+run_android_*.txt
+schedule_dump_cmd.txt
+tmp_*.py
+tmp_*.txt
+old_*.js
+java_*.txt
+adb_*.txt
+.tmp_*.py

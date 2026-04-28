@@ -6,6 +6,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from django.http import Http404
 from mongoengine.queryset.visitor import Q
 import logging
 import uuid
@@ -20,38 +22,71 @@ from knowledge_graph.serializers.mongo_serializers import (
     MongoEntitySerializer,
     MongoRelationSerializer
 )
+from common.permissions import IsOwner
 
 logger = logging.getLogger(__name__)
 
-class MongoKnowledgeNodeViewSet(viewsets.ViewSet):
+class MongoUserViewSetBase(viewsets.ViewSet):
+    """
+    一个基础视图集，提供获取 MongoDB 用户和通用权限检查的功能。
+    """
+    permission_classes = [IsAuthenticated, IsOwner]
+
+    def _get_mongo_user(self, request):
+        """
+        从请求中获取对应的 MongoDB 用户对象
+        优先使用中间件注入的 request.mongo_user
+        """
+        # 优先使用中间件注入的 mongo_user
+        if hasattr(request, 'mongo_user') and request.mongo_user:
+            return request.mongo_user
+
+        # 降级方案：手动查找（兼容旧代码）
+        try:
+            from users.mongodb_models import User as MongoUser
+            django_user = request.user
+            if not django_user or not django_user.is_authenticated:
+                return None
+            mongo_user = MongoUser.objects(username=django_user.username).first()
+            if not mongo_user:
+                logger.warning(f"未找到对应的MongoDB用户: {django_user.username}")
+            return mongo_user
+        except Exception as e:
+            logger.error(f"获取 MongoDB 用户失败: {e}", exc_info=True)
+            return None
+
+class MongoKnowledgeNodeViewSet(MongoUserViewSetBase):
     """
     知识节点MongoDB视图集
     """
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """获取查询集"""
+        """获取当前用户的知识节点查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            return KnowledgeNode.objects.none()  # 返回空查询集
+        return KnowledgeNode.objects(user=mongo_user)
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供节点ID")
+
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的节点ID格式")
 
-            # 获取Django用户
-            django_user = self.request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
+        queryset = self.get_queryset()
+        try:
+            obj = queryset.get(id=pk)
+        except KnowledgeNode.DoesNotExist:
+            raise Http404("节点不存在或无权访问")
 
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                # 返回空查询集
-                return KnowledgeNode.objects(id=None)
-
-            logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
-            return KnowledgeNode.objects(user=mongo_user)
-        except Exception as e:
-            logger.error(f"获取知识节点查询集失败: {str(e)}", exc_info=True)
-            # 返回空查询集
-            return KnowledgeNode.objects(id=None)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
         """列出所有节点"""
@@ -66,182 +101,151 @@ class MongoKnowledgeNodeViewSet(viewsets.ViewSet):
         if search:
             queryset = queryset.filter(title__icontains=search)
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        start = (page - 1) * page_size
-        end = start + page_size
+        # 分页（DRF）
+        paginator = PageNumberPagination()
+        page_size = request.query_params.get('page_size')
+        if page_size:
+            try:
+                paginator.page_size = int(page_size)
+            except Exception:
+                pass
+        page_qs = paginator.paginate_queryset(queryset, request)
 
-        # 序列化
-        serializer = MongoKnowledgeNodeSerializer(queryset[start:end], many=True)
-
-        return Response({
-            'count': queryset.count(),
-            'results': serializer.data
-        })
+        serializer = MongoKnowledgeNodeSerializer(page_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个节点"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的节点ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            logger.debug(f"尝试获取节点, ID: {pk}, 用户: {mongo_user.username}")
-            node = KnowledgeNode.objects.get(id=pk, user=mongo_user)
+            node = self.get_object()
             serializer = MongoKnowledgeNodeSerializer(node)
-            logger.debug(f"成功获取节点: {node.title}")
             return Response(serializer.data)
-        except KnowledgeNode.DoesNotExist:
-            logger.warning(f"节点不存在, ID: {pk}")
-            return Response({'error': '节点不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取节点失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取节点详情失败: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "获取节点详情时发生内部错误"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def create(self, request):
         """创建节点"""
-        serializer = MongoKnowledgeNodeSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            try:
-                node = serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                logger.error(f"创建节点失败: {str(e)}")
-                return Response({'error': f'创建节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = MongoKnowledgeNodeSerializer(data=request.data, context={'request': request, 'user': mongo_user})
+        if not serializer.is_valid():
+            logger.warning(f"创建知识节点失败, 验证错误: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"创建知识节点时发生内部错误: {str(e)}", exc_info=True)
+            return Response({"detail": "创建知识节点时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, pk=None):
         """更新节点"""
         try:
-            node = KnowledgeNode.objects.get(id=pk, user=request.user)
+            node = self.get_object()
             serializer = MongoKnowledgeNodeSerializer(node, data=request.data, context={'request': request})
             if serializer.is_valid():
-                try:
-                    node = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新节点失败: {str(e)}")
-                    return Response({'error': f'更新节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取节点失败: {str(e)}")
-            return Response({'error': f'获取节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"更新节点时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "更新节点时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, pk=None):
         """部分更新节点"""
         try:
-            node = KnowledgeNode.objects.get(id=pk, user=request.user)
+            node = self.get_object()
             serializer = MongoKnowledgeNodeSerializer(node, data=request.data, partial=True, context={'request': request})
             if serializer.is_valid():
-                try:
-                    node = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新节点失败: {str(e)}")
-                    return Response({'error': f'更新节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取节点失败: {str(e)}")
-            return Response({'error': f'获取节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"部分更新节点时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "部分更新节点时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, pk=None):
         """删除节点"""
         try:
-            node = KnowledgeNode.objects.get(id=pk, user=request.user)
+            node = self.get_object()
 
             # 检查是否有关联的边
-            outgoing_edges = KnowledgeEdge.objects(source=node)
-            incoming_edges = KnowledgeEdge.objects(target=node)
-
-            if outgoing_edges or incoming_edges:
-                return Response({'error': '该节点有关联的边，无法删除'}, status=status.HTTP_400_BAD_REQUEST)
+            if KnowledgeEdge.objects(Q(source=node) | Q(target=node)).first():
+                return Response({'detail': '该节点存在关联的边，无法删除'}, status=status.HTTP_400_BAD_REQUEST)
 
             node.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except KnowledgeNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"删除节点失败: {str(e)}")
-            return Response({'error': f'删除节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"删除节点时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "删除节点时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def related_nodes(self, request, pk=None):
         """获取相关节点"""
         try:
-            node = KnowledgeNode.objects.get(id=pk, user=request.user)
-
-            # 获取所有与当前节点相关的边
-            outgoing_edges = KnowledgeEdge.objects(source=node)
-            incoming_edges = KnowledgeEdge.objects(target=node)
+            node = self.get_object()
 
             # 获取相关节点
             related_nodes = set()
-            for edge in outgoing_edges:
+            for edge in KnowledgeEdge.objects(source=node):
                 related_nodes.add(edge.target)
-            for edge in incoming_edges:
+            for edge in KnowledgeEdge.objects(target=node):
                 related_nodes.add(edge.source)
 
-            # 序列化
-            serializer = MongoKnowledgeNodeSerializer(related_nodes, many=True)
-
+            serializer = MongoKnowledgeNodeSerializer(list(related_nodes), many=True)
             return Response(serializer.data)
-        except KnowledgeNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取相关节点失败: {str(e)}")
-            return Response({'error': f'获取相关节点失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取相关节点失败: {e}", exc_info=True)
+            return Response({"detail": "获取相关节点时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class MongoKnowledgeEdgeViewSet(viewsets.ViewSet):
+class MongoKnowledgeEdgeViewSet(MongoUserViewSetBase):
     """
     知识边MongoDB视图集
     """
-    permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
-        """获取查询集"""
+        """获取当前用户的知识边查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            return KnowledgeEdge.objects.none()
+        return KnowledgeEdge.objects(user=mongo_user)
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供边ID")
+
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的边ID格式")
 
-            # 获取Django用户
-            django_user = self.request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
+        queryset = self.get_queryset()
+        try:
+            obj = queryset.get(id=pk)
+        except KnowledgeEdge.DoesNotExist:
+            raise Http404("边不存在或无权访问")
 
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                # 返回空查询集
-                return KnowledgeEdge.objects(id=None)
-
-            logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}")
-            return KnowledgeEdge.objects(user=mongo_user)
-        except Exception as e:
-            logger.error(f"获取知识边查询集失败: {str(e)}", exc_info=True)
-            # 返回空查询集
-            return KnowledgeEdge.objects(id=None)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
         """列出所有边"""
@@ -259,150 +263,128 @@ class MongoKnowledgeEdgeViewSet(viewsets.ViewSet):
         if target:
             queryset = queryset.filter(target=target)
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        start = (page - 1) * page_size
-        end = start + page_size
+        # 分页（DRF）
+        paginator = PageNumberPagination()
+        page_size = request.query_params.get('page_size')
+        if page_size:
+            try:
+                paginator.page_size = int(page_size)
+            except Exception:
+                pass
+        page_qs = paginator.paginate_queryset(queryset, request)
 
-        # 序列化
-        serializer = MongoKnowledgeEdgeSerializer(queryset[start:end], many=True)
-
-        return Response({
-            'count': queryset.count(),
-            'results': serializer.data
-        })
+        serializer = MongoKnowledgeEdgeSerializer(page_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个边"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的边ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            logger.debug(f"尝试获取边, ID: {pk}, 用户: {mongo_user.username}")
-            edge = KnowledgeEdge.objects.get(id=pk, user=mongo_user)
+            edge = self.get_object()
             serializer = MongoKnowledgeEdgeSerializer(edge)
-            logger.debug(f"成功获取边: {edge.type} - {edge.source.title} -> {edge.target.title}")
             return Response(serializer.data)
-        except KnowledgeEdge.DoesNotExist:
-            logger.warning(f"边不存在, ID: {pk}")
-            return Response({'error': '边不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取边失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取边详情失败: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "获取边详情时发生内部错误"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def create(self, request):
         """创建边"""
-        serializer = MongoKnowledgeEdgeSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            try:
-                edge = serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                logger.error(f"创建边失败: {str(e)}")
-                return Response({'error': f'创建边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = MongoKnowledgeEdgeSerializer(data=request.data, context={'request': request, 'user': mongo_user})
+        if not serializer.is_valid():
+            logger.warning(f"创建知识边失败, 验证错误: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"创建知识边时发生内部错误: {str(e)}", exc_info=True)
+            return Response({"detail": "创建知识边时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, pk=None):
         """更新边"""
         try:
-            edge = KnowledgeEdge.objects.get(id=pk, user=request.user)
+            edge = self.get_object()
             serializer = MongoKnowledgeEdgeSerializer(edge, data=request.data, context={'request': request})
             if serializer.is_valid():
-                try:
-                    edge = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新边失败: {str(e)}")
-                    return Response({'error': f'更新边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeEdge.DoesNotExist:
-            return Response({'error': '边不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取边失败: {str(e)}")
-            return Response({'error': f'获取边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"更新边时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "更新边时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, pk=None):
         """部分更新边"""
         try:
-            edge = KnowledgeEdge.objects.get(id=pk, user=request.user)
+            edge = self.get_object()
             serializer = MongoKnowledgeEdgeSerializer(edge, data=request.data, partial=True, context={'request': request})
             if serializer.is_valid():
-                try:
-                    edge = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新边失败: {str(e)}")
-                    return Response({'error': f'更新边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeEdge.DoesNotExist:
-            return Response({'error': '边不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取边失败: {str(e)}")
-            return Response({'error': f'获取边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"部分更新边时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "部分更新边时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, pk=None):
         """删除边"""
         try:
-            edge = KnowledgeEdge.objects.get(id=pk, user=request.user)
+            edge = self.get_object()
             edge.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except KnowledgeEdge.DoesNotExist:
-            return Response({'error': '边不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"删除边失败: {str(e)}")
-            return Response({'error': f'删除边失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"删除边时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "删除边时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class MongoKnowledgeGraphViewSet(viewsets.ViewSet):
+class MongoKnowledgeGraphViewSet(MongoUserViewSetBase):
     """
     知识图谱MongoDB视图集
     """
-    permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
-        """获取查询集"""
+        """获取当前用户的知识图谱查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            return KnowledgeGraph.objects.none()
+        return KnowledgeGraph.objects(user=mongo_user)
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供图谱ID")
+
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的图谱ID格式")
 
-            # 获取Django用户
-            django_user = self.request.user
-            logger.debug(f"Django用户ID: {django_user.id}, 类型: {type(django_user.id)}")
+        queryset = self.get_queryset()
+        try:
+            obj = queryset.get(id=pk)
+        except KnowledgeGraph.DoesNotExist:
+            raise Http404("图谱不存在或无权访问")
 
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                # 返回空查询集
-                return KnowledgeGraph.objects(id=None)
-
-            logger.debug(f"找到MongoDB用户: {mongo_user.username}, ID: {mongo_user.id}, 类型: {type(mongo_user.id)}")
-            return KnowledgeGraph.objects(user=mongo_user)
-        except Exception as e:
-            logger.error(f"获取知识图谱查询集失败: {str(e)}", exc_info=True)
-            # 返回空查询集
-            return KnowledgeGraph.objects(id=None)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
-        """列出所有图谱"""
+        # 列出所有图谱
         try:
             # 获取过滤参数
             search = request.query_params.get('search')
@@ -413,20 +395,19 @@ class MongoKnowledgeGraphViewSet(viewsets.ViewSet):
             if search:
                 queryset = queryset.filter(name__icontains=search)
 
-            # 分页
-            page = int(request.query_params.get('page', 1))
-            page_size = int(request.query_params.get('page_size', 10))
-            start = (page - 1) * page_size
-            end = start + page_size
+            # 分页（DRF）
+            paginator = PageNumberPagination()
+            page_size = request.query_params.get('page_size')
+            if page_size:
+                try:
+                    paginator.page_size = int(page_size)
+                except Exception:
+                    pass
+            page_qs = paginator.paginate_queryset(queryset, request)
 
-            # 序列化
-            serializer = MongoKnowledgeGraphSerializer(queryset[start:end], many=True)
-
-            logger.debug(f"成功获取知识图谱列表, 总数: {queryset.count()}")
-            return Response({
-                'count': queryset.count(),
-                'results': serializer.data
-            })
+            serializer = MongoKnowledgeGraphSerializer(page_qs, many=True)
+            logger.debug(f"成功获取知识图谱列表, 总数: {paginator.page.paginator.count}")
+            return paginator.get_paginated_response(serializer.data)
         except Exception as e:
             logger.error(f"列出知识图谱失败: {str(e)}", exc_info=True)
             return Response({
@@ -438,201 +419,87 @@ class MongoKnowledgeGraphViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """获取单个图谱"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的图谱ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            logger.debug(f"尝试获取图谱, ID: {pk}, 用户: {mongo_user.username}")
-            graph = KnowledgeGraph.objects.get(id=pk, user=mongo_user)
+            graph = self.get_object()
             serializer = MongoKnowledgeGraphSerializer(graph)
-            logger.debug(f"成功获取图谱: {graph.name}")
             return Response(serializer.data)
-        except KnowledgeGraph.DoesNotExist:
-            logger.warning(f"图谱不存在, ID: {pk}")
-            return Response({'error': '图谱不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取图谱失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取图谱详情失败: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "获取图谱详情时发生内部错误"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def create(self, request):
         """创建图谱"""
-        serializer = MongoKnowledgeGraphSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            try:
-                graph = serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                logger.error(f"创建图谱失败: {str(e)}")
-                return Response({'error': f'创建图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = MongoKnowledgeGraphSerializer(data=request.data, context={'request': request, 'user': mongo_user})
+        if not serializer.is_valid():
+            logger.warning(f"创建知识图谱失败, 验证错误: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"创建知识图谱时发生内部错误: {str(e)}", exc_info=True)
+            return Response({"detail": "创建知识图谱时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, pk=None):
         """更新图谱"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的图谱ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            graph = KnowledgeGraph.objects.get(id=pk, user=mongo_user)
+            graph = self.get_object()
             serializer = MongoKnowledgeGraphSerializer(graph, data=request.data, context={'request': request})
             if serializer.is_valid():
-                try:
-                    graph = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新图谱失败: {str(e)}")
-                    return Response({'error': f'更新图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeGraph.DoesNotExist:
-            return Response({'error': '图谱不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"更新图谱失败: {str(e)}", exc_info=True)
-            return Response({'error': f'更新图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"更新图谱时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "更新图谱时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, pk=None):
         """部分更新图谱"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的图谱ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            graph = KnowledgeGraph.objects.get(id=pk, user=mongo_user)
+            graph = self.get_object()
             serializer = MongoKnowledgeGraphSerializer(graph, data=request.data, partial=True, context={'request': request})
             if serializer.is_valid():
-                try:
-                    graph = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新图谱失败: {str(e)}")
-                    return Response({'error': f'更新图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except KnowledgeGraph.DoesNotExist:
-            return Response({'error': '图谱不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取图谱失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"部分更新图谱时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "部分更新图谱时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, pk=None):
         """删除图谱"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-                    pk = pk_uuid
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的图谱ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            graph = KnowledgeGraph.objects.get(id=pk, user=mongo_user)
+            graph = self.get_object()
             graph.delete()
-            logger.debug(f"成功删除图谱, ID: {pk}")
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except KnowledgeGraph.DoesNotExist:
-            logger.warning(f"图谱不存在, ID: {pk}")
-            return Response({'error': '图谱不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"删除图谱失败: {str(e)}", exc_info=True)
-            return Response({'error': f'删除图谱失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"删除图谱时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "删除图谱时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def full_graph(self, request, pk=None):
         """获取完整图谱数据"""
         try:
-            # 获取MongoDB用户模型
-            from users.mongodb_models import User as MongoUser
-
-            # 获取Django用户
-            django_user = request.user
-
-            # 查找对应的MongoDB用户
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.error(f"未找到对应的MongoDB用户: {django_user.username}")
-                return Response({'error': '未找到用户数据'}, status=status.HTTP_404_NOT_FOUND)
-
-            # 检查pk是否为有效的UUID
-            try:
-                if isinstance(pk, str):
-                    pk_uuid = uuid.UUID(pk)
-                    logger.debug(f"将字符串ID转换为UUID: {pk_uuid}")
-            except ValueError:
-                logger.warning(f"无效的UUID格式: {pk}")
-                return Response({'error': '无效的图谱ID格式'}, status=status.HTTP_400_BAD_REQUEST)
-
-            logger.debug(f"尝试获取完整图谱数据, ID: {pk}, 用户: {mongo_user.username}")
-            graph = KnowledgeGraph.objects.get(id=pk, user=mongo_user)
+            graph = self.get_object()
 
             # 获取节点和边
             nodes = graph.nodes
             edges = graph.edges
-
             logger.debug(f"图谱节点数: {len(nodes)}, 边数: {len(edges)}")
 
             # 序列化
@@ -650,9 +517,8 @@ class MongoKnowledgeGraphViewSet(viewsets.ViewSet):
                 'created_at': graph.created_at,
                 'updated_at': graph.updated_at
             })
-        except KnowledgeGraph.DoesNotExist:
-            logger.warning(f"图谱不存在, ID: {pk}")
-            return Response({'error': '图谱不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取完整图谱数据失败: {str(e)}", exc_info=True)
-            return Response({'error': f'获取完整图谱数据失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取完整图谱数据失败: {e}", exc_info=True)
+            return Response({"detail": "获取完整图谱数据时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -4,7 +4,6 @@
  */
 import { Platform, PermissionsAndroid, Alert } from 'react-native';
 import RNFS from 'react-native-fs';
-import Voice from '@react-native-voice/voice';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 
 class NativeAudioService {
@@ -16,31 +15,94 @@ class NativeAudioService {
     this.recordingDuration = 0;
     this.recordingTimer = null;
     this.listeners = new Map();
-    
-    // 直接使用原生AudioRecorderPlayer
-    this.audioRecorderPlayer = new AudioRecorderPlayer();
-    console.log('NativeAudioService: AudioRecorderPlayer 初始化成功');
-    
-    // 初始化语音识别
-    this.initializeVoice();
+
+    // 延迟初始化 AudioRecorderPlayer，避免构造函数调用错误
+    this.audioRecorderPlayer = null;
+
+    // 语音模块采用按需加载，避免模块初始化触发 NativeEventEmitter 警告
+    this.voiceModule = null;
+    this.voiceModuleAvailable = null;
+    this.voiceInitialized = false;
   }
 
   /**
-   * 初始化语音识别服务
+   * 初始化 AudioRecorderPlayer（延迟初始化）
+   */
+  _initAudioRecorderPlayer() {
+    if (this.audioRecorderPlayer) {
+      return; // 已初始化
+    }
+
+    try {
+      this.audioRecorderPlayer = new AudioRecorderPlayer();
+      console.log('NativeAudioService: AudioRecorderPlayer 初始化成功');
+    } catch (e) {
+      console.warn('NativeAudioService: AudioRecorderPlayer 初始化失败:', e.message);
+      this.audioRecorderPlayer = null;
+    }
+  }
+
+  /**
+   * 按需获取语音模块
+   */
+  getVoiceModule() {
+    if (this.voiceModuleAvailable === false) {
+      return null;
+    }
+
+    if (this.voiceModule) {
+      return this.voiceModule;
+    }
+
+    try {
+      // eslint-disable-next-line global-require
+      const importedVoice = require('@react-native-voice/voice');
+      const candidate = importedVoice?.default || importedVoice;
+
+      if (!candidate || typeof candidate !== 'object') {
+        this.voiceModuleAvailable = false;
+        console.warn('NativeAudioService: Voice 模块不可用');
+        return null;
+      }
+
+      this.voiceModule = candidate;
+      this.voiceModuleAvailable = true;
+      return this.voiceModule;
+    } catch (error) {
+      this.voiceModuleAvailable = false;
+      console.warn('NativeAudioService: Voice 模块加载失败，语音功能将不可用:', error?.message || error);
+      return null;
+    }
+  }
+
+  /**
+   * 初始化语音识别服务（安全模式）
    */
   initializeVoice() {
+    if (this.voiceInitialized) {
+      return true;
+    }
+
+    const voice = this.getVoiceModule();
+    if (!voice) {
+      return false;
+    }
+
     try {
-      Voice.onSpeechStart = this.onSpeechStart.bind(this);
-      Voice.onSpeechRecognized = this.onSpeechRecognized.bind(this);
-      Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
-      Voice.onSpeechError = this.onSpeechError.bind(this);
-      Voice.onSpeechResults = this.onSpeechResults.bind(this);
-      Voice.onSpeechPartialResults = this.onSpeechPartialResults.bind(this);
-      Voice.onSpeechVolumeChanged = this.onSpeechVolumeChanged.bind(this);
-      
+      voice.onSpeechStart = this.onSpeechStart.bind(this);
+      voice.onSpeechRecognized = this.onSpeechRecognized.bind(this);
+      voice.onSpeechEnd = this.onSpeechEnd.bind(this);
+      voice.onSpeechError = this.onSpeechError.bind(this);
+      voice.onSpeechResults = this.onSpeechResults.bind(this);
+      voice.onSpeechPartialResults = this.onSpeechPartialResults.bind(this);
+      voice.onSpeechVolumeChanged = this.onSpeechVolumeChanged.bind(this);
+
+      this.voiceInitialized = true;
       console.log('NativeAudioService: 语音识别服务初始化成功');
+      return true;
     } catch (error) {
-      console.warn('NativeAudioService: 语音识别初始化失败:', error);
+      console.warn('NativeAudioService: 语音识别初始化失败，语音功能将不可用:', error?.message || error);
+      return false;
     }
   }
 
@@ -75,7 +137,7 @@ class NativeAudioService {
         return hasPermission;
       } catch (err) {
         console.error('NativeAudioService: 权限请求失败:', err);
-        return false;
+        throw err;
       }
     }
     return true; // iOS权限通过Info.plist配置
@@ -100,7 +162,7 @@ class NativeAudioService {
     } catch (error) {
       console.warn('NativeAudioService: 获取音频常量失败，使用默认值:', error);
     }
-    
+
     // 降级到默认值
     return {
       AudioEncoderAndroid: 3, // AAC
@@ -126,6 +188,9 @@ class NativeAudioService {
         throw new Error('正在录音中');
       }
 
+      // 初始化 AudioRecorderPlayer
+      this._initAudioRecorderPlayer();
+
       // 检查AudioRecorderPlayer是否可用
       if (!this.audioRecorderPlayer) {
         throw new Error('音频录制器不可用');
@@ -135,7 +200,7 @@ class NativeAudioService {
       const timestamp = Date.now();
       const fileName = options.fileName || `recording_${timestamp}`;
       const extension = Platform.OS === 'ios' ? 'm4a' : 'mp3';
-      
+
       this.recordingPath = Platform.select({
         ios: `${RNFS.DocumentDirectoryPath}/${fileName}.${extension}`,
         android: `${RNFS.ExternalDirectoryPath}/${fileName}.${extension}`,
@@ -146,28 +211,31 @@ class NativeAudioService {
         ...this.getAudioConstants(),
         ...options,
       };
-      
+
       await this.audioRecorderPlayer.startRecorder(this.recordingPath, audioSet);
 
       // 可选：同时启动语音识别（保留原有逻辑）
-      try { await Voice.start('zh-CN'); } catch (e) { /* 某些设备可能无语音服务，忽略不致命 */ }
-      
+      const voice = this.initializeVoice() ? this.voiceModule : null;
+      if (voice?.start) {
+        try { await voice.start('zh-CN'); } catch (e) { /* 某些设备可能无语音服务，忽略不致命 */ }
+      }
+
       this.isRecording = true;
       this.recordingStartTime = Date.now();
       this.recordingDuration = 0;
-      
+
       // 启动计时器
       this.recordingTimer = setInterval(() => {
         this.recordingDuration = Date.now() - this.recordingStartTime;
         this.notifyListeners('recordingProgress', {
           duration: this.recordingDuration,
-          formattedTime: this.formatTime(this.recordingDuration)
+          formattedTime: this.formatTime(this.recordingDuration),
         });
       }, 100);
 
       this.notifyListeners('recordingStart', { path: this.recordingPath });
       console.log('NativeAudioService: 开始录音:', this.recordingPath);
-      
+
       return this.recordingPath;
     } catch (error) {
       console.error('NativeAudioService: 开始录音失败:', error);
@@ -186,25 +254,27 @@ class NativeAudioService {
       // 停止录音器
       try { await this.audioRecorderPlayer.stopRecorder(); } catch {}
       // 停止语音识别（若已启动）
-      try { await Voice.stop(); } catch {}
-      
+      if (this.voiceModule?.stop) {
+        try { await this.voiceModule.stop(); } catch {}
+      }
+
       this.isRecording = false;
-      
+
       if (this.recordingTimer) {
         clearInterval(this.recordingTimer);
         this.recordingTimer = null;
       }
 
       const finalDuration = Date.now() - this.recordingStartTime;
-      
+
       this.notifyListeners('recordingStop', {
         path: this.recordingPath,
         duration: finalDuration,
-        formattedTime: this.formatTime(finalDuration)
+        formattedTime: this.formatTime(finalDuration),
       });
 
       console.log('NativeAudioService: 录音结束:', this.recordingPath);
-      
+
       // 校验文件是否存在，若需则补加 file:// 前缀供播放器使用
       const exists = await RNFS.exists(this.recordingPath.replace('file://', ''));
       if (!exists) {
@@ -213,7 +283,7 @@ class NativeAudioService {
 
       return {
         path: this.recordingPath,
-        duration: finalDuration
+        duration: finalDuration,
       };
     } catch (error) {
       console.error('NativeAudioService: 停止录音失败:', error);
@@ -231,7 +301,12 @@ class NativeAudioService {
         throw new Error('录音权限被拒绝');
       }
 
-      await Voice.start(language);
+      const initialized = this.initializeVoice();
+      if (!initialized || !this.voiceModule?.start) {
+        throw new Error('语音识别模块不可用');
+      }
+
+      await this.voiceModule.start(language);
       console.log('NativeAudioService: 开始语音转文字');
     } catch (error) {
       console.error('NativeAudioService: 语音转文字启动失败:', error);
@@ -244,7 +319,9 @@ class NativeAudioService {
    */
   async stopSpeechToText() {
     try {
-      await Voice.stop();
+      if (this.voiceModule?.stop) {
+        await this.voiceModule.stop();
+      }
       console.log('NativeAudioService: 停止语音转文字');
     } catch (error) {
       console.error('NativeAudioService: 停止语音转文字失败:', error);
@@ -275,17 +352,11 @@ class NativeAudioService {
 
       // 尝试使用AudioRecorderPlayer播放
       try {
+        // 初始化 AudioRecorderPlayer
+        this._initAudioRecorderPlayer();
+
         if (!this.audioRecorderPlayer) {
-          if (AudioRecorderPlayer && typeof AudioRecorderPlayer === 'function') {
-            this.audioRecorderPlayer = new AudioRecorderPlayer();
-          } else if (
-            AudioRecorderPlayer &&
-            typeof AudioRecorderPlayer.default === 'function'
-          ) {
-            this.audioRecorderPlayer = new AudioRecorderPlayer.default();
-          } else {
-            throw new Error('AudioRecorderPlayer 不可用');
-          }
+          throw new Error('AudioRecorderPlayer 不可用');
         }
 
         const result = await this.audioRecorderPlayer.startPlayer(finalPath);
@@ -401,8 +472,18 @@ class NativeAudioService {
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer);
     }
-    
-    Voice.destroy().then(Voice.removeAllListeners);
+
+    if (this.voiceModule?.destroy) {
+      Promise.resolve(this.voiceModule.destroy())
+        .then(() => {
+          if (this.voiceModule?.removeAllListeners) {
+            this.voiceModule.removeAllListeners();
+          }
+        })
+        .catch(() => {});
+    }
+
+    this.voiceInitialized = false;
     this.listeners.clear();
   }
 }
@@ -410,4 +491,6 @@ class NativeAudioService {
 // 创建单例实例
 const nativeAudioService = new NativeAudioService();
 
-export default nativeAudioService;
+module.exports = nativeAudioService;
+module.exports.default = nativeAudioService;
+module.exports.NativeAudioService = NativeAudioService;

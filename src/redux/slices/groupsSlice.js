@@ -4,6 +4,16 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as groupApi from '../../services/api/groupApi';
 
+const isLikelyNetworkError = (error) => {
+  const message = error?.message || '';
+  return (
+    error?.isNetworkError ||
+    message.includes('Network Error') ||
+    message.includes('网络') ||
+    message.includes('服务器请求失败')
+  );
+};
+
 // 初始状态
 const initialState = {
   groups: [],
@@ -28,6 +38,9 @@ export const fetchGroups = createAsyncThunk(
       }
       return response.data;
     } catch (error) {
+      if (isLikelyNetworkError(error)) {
+        return [];
+      }
       return rejectWithValue(error.message || '获取群组列表失败');
     }
   }
@@ -188,6 +201,9 @@ export const fetchGroupInvitations = createAsyncThunk(
       }
       return response.data;
     } catch (error) {
+      if (isLikelyNetworkError(error)) {
+        return [];
+      }
       return rejectWithValue(error.message || '获取群组邀请失败');
     }
   }
@@ -269,6 +285,22 @@ export const endScreenShare = createAsyncThunk(
       return { shareId };
     } catch (error) {
       return rejectWithValue(error.message || '结束屏幕共享失败');
+    }
+  }
+);
+
+// 异步Action: 加入屏幕共享
+export const joinScreenShare = createAsyncThunk(
+  'groups/joinScreenShare',
+  async (shareId, { rejectWithValue }) => {
+    try {
+      const response = await groupApi.joinScreenShare(shareId);
+      if (!response.success) {
+        return rejectWithValue(response.message || '加入屏幕共享失败');
+      }
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.message || '加入屏幕共享失败');
     }
   }
 );
@@ -550,6 +582,19 @@ const groupsSlice = createSlice({
         }
       })
       .addCase(endScreenShare.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // 加入屏幕共享
+      .addCase(joinScreenShare.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(joinScreenShare.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(joinScreenShare.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });

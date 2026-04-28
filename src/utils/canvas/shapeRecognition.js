@@ -41,19 +41,19 @@ const getBoundingBox = (points) => {
  * Detect if points form a circle
  */
 const detectCircle = (points) => {
-  if (points.length < 10) return { isShape: false };
+  if (points.length < 10) {return { isShape: false };}
 
   const center = getCenterPoint(points);
   const distances = points.map(p => distance(p, center));
   const avgRadius = distances.reduce((a, b) => a + b, 0) / distances.length;
-  
+
   // Calculate variance
   const variance = distances.reduce((sum, d) => sum + Math.pow(d - avgRadius, 2), 0) / distances.length;
   const stdDev = Math.sqrt(variance);
   const tolerance = avgRadius * 0.15; // 15% tolerance
 
   const isCircle = stdDev < tolerance;
-  
+
   // Check if start and end points are close (closed shape)
   const closureDistance = distance(points[0], points[points.length - 1]);
   const isClosed = closureDistance < avgRadius * 0.3;
@@ -69,13 +69,13 @@ const detectCircle = (points) => {
  * Detect if points form a rectangle
  */
 const detectRectangle = (points) => {
-  if (points.length < 12) return { isShape: false };
+  if (points.length < 12) {return { isShape: false };}
 
   const box = getBoundingBox(points);
-  
+
   // Check if aspect ratio is reasonable (not too thin)
   const aspectRatio = Math.max(box.width, box.height) / Math.min(box.width, box.height);
-  if (aspectRatio > 10) return { isShape: false };
+  if (aspectRatio > 10) {return { isShape: false };}
 
   // Count points near corners and edges
   const cornerThreshold = Math.min(box.width, box.height) * 0.1;
@@ -102,7 +102,7 @@ const detectRectangle = (points) => {
     const nearRightEdge = Math.abs(p.x - box.maxX) < cornerThreshold;
     const nearTopEdge = Math.abs(p.y - box.minY) < cornerThreshold;
     const nearBottomEdge = Math.abs(p.y - box.maxY) < cornerThreshold;
-    
+
     if (nearLeftEdge || nearRightEdge || nearTopEdge || nearBottomEdge) {
       nearEdgeCount++;
     }
@@ -114,11 +114,11 @@ const detectRectangle = (points) => {
   return {
     isShape: isRectangle,
     confidence: isRectangle ? Math.min(edgeRatio, 1) : 0,
-    params: { 
-      x: box.minX, 
-      y: box.minY, 
-      width: box.width, 
-      height: box.height 
+    params: {
+      x: box.minX,
+      y: box.minY,
+      width: box.width,
+      height: box.height,
     },
   };
 };
@@ -127,13 +127,13 @@ const detectRectangle = (points) => {
  * Detect if points form a line
  */
 const detectLine = (points) => {
-  if (points.length < 3) return { isShape: false };
+  if (points.length < 3) {return { isShape: false };}
 
   const box = getBoundingBox(points);
   const aspectRatio = Math.max(box.width, box.height) / Math.min(box.width, box.height);
-  
+
   // Must be elongated
-  if (aspectRatio < 4) return { isShape: false };
+  if (aspectRatio < 4) {return { isShape: false };}
 
   // Linear regression
   const n = points.length;
@@ -170,7 +170,7 @@ const detectLine = (points) => {
  * Detect if points form a triangle
  */
 const detectTriangle = (points) => {
-  if (points.length < 9) return { isShape: false };
+  if (points.length < 9) {return { isShape: false };}
 
   // Find three corner points by detecting direction changes
   const corners = [];
@@ -213,7 +213,7 @@ const detectTriangle = (points) => {
  * Detect if points form an ellipse
  */
 const detectEllipse = (points) => {
-  if (points.length < 12) return { isShape: false };
+  if (points.length < 12) {return { isShape: false };}
 
   const box = getBoundingBox(points);
   const center = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
@@ -222,7 +222,7 @@ const detectEllipse = (points) => {
 
   // Check if aspect ratio suggests ellipse vs circle
   const aspectRatio = Math.max(radiusX, radiusY) / Math.min(radiusX, radiusY);
-  if (aspectRatio < 1.3) return { isShape: false }; // Too circular, should be detected as circle
+  if (aspectRatio < 1.3) {return { isShape: false };} // Too circular, should be detected as circle
 
   // Calculate how well points fit ellipse equation
   let errorSum = 0;
@@ -251,22 +251,22 @@ const detectEllipse = (points) => {
  * Detect if points form an arrow
  */
 const detectArrow = (points) => {
-  if (points.length < 8) return { isShape: false };
+  if (points.length < 8) {return { isShape: false };}
 
   // Check if main body is linear
   const mainPoints = points.slice(0, Math.floor(points.length * 0.7));
   const lineResult = detectLine(mainPoints);
-  
-  if (!lineResult.isShape) return { isShape: false };
+
+  if (!lineResult.isShape) {return { isShape: false };}
 
   // Check if end points form arrow head
   const endPoints = points.slice(Math.floor(points.length * 0.7));
   const box = getBoundingBox(endPoints);
-  
+
   // Arrow head should be relatively small compared to shaft
   const shaftLength = distance(points[0], points[Math.floor(points.length * 0.7)]);
   const headSize = Math.max(box.width, box.height);
-  
+
   const isArrow = headSize / shaftLength < 0.4 && headSize / shaftLength > 0.1;
 
   return {
@@ -378,7 +378,7 @@ export const generatePerfectShape = (shapeType, params, pointCount = 50) => {
     case 'triangle':
       const [v1, v2, v3] = params.vertices;
       const pointsPerSide = Math.floor(pointCount / 3);
-      
+
       // Side 1: v1 to v2
       for (let i = 0; i < pointsPerSide; i++) {
         const t = i / pointsPerSide;
@@ -387,7 +387,7 @@ export const generatePerfectShape = (shapeType, params, pointCount = 50) => {
           y: v1.y + t * (v2.y - v1.y),
         });
       }
-      
+
       // Side 2: v2 to v3
       for (let i = 0; i < pointsPerSide; i++) {
         const t = i / pointsPerSide;
@@ -396,7 +396,7 @@ export const generatePerfectShape = (shapeType, params, pointCount = 50) => {
           y: v2.y + t * (v3.y - v2.y),
         });
       }
-      
+
       // Side 3: v3 to v1
       for (let i = 0; i < pointsPerSide; i++) {
         const t = i / pointsPerSide;
@@ -427,19 +427,19 @@ export const generatePerfectShape = (shapeType, params, pointCount = 50) => {
           y: params.start.y + t * (params.end.y - params.start.y),
         });
       }
-      
+
       // Draw arrow head (simple V shape)
       const headLength = params.headSize || 20;
       const angle = Math.atan2(params.end.y - params.start.y, params.end.x - params.start.x);
       const headAngle = Math.PI / 6; // 30 degrees
-      
+
       // Left side of arrow head
       points.push({
         x: params.end.x - headLength * Math.cos(angle - headAngle),
         y: params.end.y - headLength * Math.sin(angle - headAngle),
       });
       points.push(params.end);
-      
+
       // Right side of arrow head
       points.push({
         x: params.end.x - headLength * Math.cos(angle + headAngle),

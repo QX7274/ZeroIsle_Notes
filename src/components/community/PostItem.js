@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MarkdownPreview } from '../common';
+import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
 
 /**
  * 社区帖子项组件
@@ -22,7 +23,7 @@ import { MarkdownPreview } from '../common';
  * @param {Function} onSharePress - 分享回调
  * @param {Function} onUserPress - 用户点击回调
  */
-const PostItem = ({
+const PostItem = React.memo(({
   post,
   onPress,
   onLikePress,
@@ -31,7 +32,7 @@ const PostItem = ({
   onUserPress,
 }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  const { colors } = theme;
 
   // 提取帖子信息
   const {
@@ -39,20 +40,18 @@ const PostItem = ({
     content,
     excerpt,
     created_at,
-    updated_at,
     user,
     like_count,
     comment_count,
     is_liked,
     category,
     tags = [],
-    has_images,
     is_featured,
   } = post || {};
 
   // 格式化日期
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) {return '';}
 
     const date = new Date(dateString);
     const now = new Date();
@@ -77,7 +76,7 @@ const PostItem = ({
 
   // 渲染标签
   const renderTags = () => {
-    if (!tags || tags.length === 0) return null;
+    if (!tags || tags.length === 0) {return null;}
 
     return (
       <View style={styles.tagsContainer}>
@@ -86,7 +85,7 @@ const PostItem = ({
             key={`tag-${index}`}
             style={[
               styles.tagChip,
-              { backgroundColor: colors.primary + '20' }
+              { backgroundColor: (colors.primary || '#007AFF') + '20' },
             ]}
           >
             <Text
@@ -116,7 +115,7 @@ const PostItem = ({
     <TouchableOpacity
       style={[
         styles.container,
-        { backgroundColor: colors.card }
+        { backgroundColor: colors.card || '#FFFFFF' },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -156,7 +155,7 @@ const PostItem = ({
           <View
             style={[
               styles.featuredBadge,
-              { backgroundColor: colors.warning }
+              { backgroundColor: colors.warning || '#FF9500' },
             ]}
           >
             <Icon name="star" size={12} color="#FFFFFF" />
@@ -209,7 +208,7 @@ const PostItem = ({
               <View
                 style={[
                   styles.categoryColor,
-                  { backgroundColor: category.color || colors.primary }
+                  { backgroundColor: category.color || colors.primary || '#007AFF' },
                 ]}
               />
               <Text
@@ -232,8 +231,8 @@ const PostItem = ({
           >
             <Icon
               name={is_liked ? 'favorite' : 'favorite-border'}
-              size={20}
-              color={is_liked ? colors.error : colors.text}
+              size={SIZE.icon.md}
+              color={is_liked ? (colors.error || '#FF3B30') : (colors.text || '#000000')}
             />
             <Text
               variant="caption"
@@ -250,8 +249,8 @@ const PostItem = ({
           >
             <Icon
               name="comment"
-              size={20}
-              color={colors.text}
+              size={SIZE.icon.md}
+              color={colors.text || '#000000'}
             />
             <Text
               variant="caption"
@@ -268,36 +267,34 @@ const PostItem = ({
           >
             <Icon
               name="share"
-              size={20}
-              color={colors.text}
+              size={SIZE.icon.md}
+              color={colors.text || '#000000'}
             />
           </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
-};
+});
+
+PostItem.displayName = 'PostItem';
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
+    borderRadius: RADIUS.lg,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.md,
     overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    borderWidth: 1,
+    ...ELEVATION.sm,
+    borderWidth: BORDER.width.thin,
     borderColor: 'rgba(0,0,0,0.03)',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
+    padding: SPACING.md,
+    borderBottomWidth: BORDER.width.thin,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   userContainer: {
@@ -305,42 +302,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: SIZE.avatar.md,
+    height: SIZE.avatar.md,
+    borderRadius: SIZE.avatar.md / 2,
     borderWidth: 2,
     borderColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    ...ELEVATION.xs,
   },
   userInfo: {
-    marginLeft: 14,
+    marginLeft: SPACING.sm,
   },
   featuredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    ...ELEVATION.xs,
   },
   featuredText: {
-    marginLeft: 6,
+    marginLeft: SPACING.xs,
     fontWeight: '600',
   },
   content: {
-    padding: 16,
-    paddingTop: 8,
+    padding: SPACING.md,
+    paddingTop: SPACING.sm,
   },
   title: {
-    marginBottom: 12,
+    marginBottom: SPACING.sm,
     fontSize: 18,
     fontWeight: '700',
     lineHeight: 26,
@@ -353,40 +342,36 @@ const styles = StyleSheet.create({
   markdownContainer: {
     maxHeight: 120,
     overflow: 'hidden',
-    marginTop: 4,
+    marginTop: SPACING.xs,
   },
   footer: {
-    padding: 16,
-    borderTopWidth: 1,
+    padding: SPACING.md,
+    borderTopWidth: BORDER.width.thin,
     borderTopColor: 'rgba(0,0,0,0.05)',
-    paddingTop: 12,
+    paddingTop: SPACING.ms,
   },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.ms,
     flexWrap: 'wrap',
   },
   categoryContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: SPACING.sm,
     backgroundColor: 'rgba(0,0,0,0.03)',
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
-    borderRadius: 14,
-    marginBottom: 6,
+    borderRadius: RADIUS.sm,
+    marginBottom: SPACING.xs,
   },
   categoryColor: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginRight: 6,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    marginRight: SPACING.xs,
+    ...ELEVATION.xs,
   },
   categoryText: {
     fontSize: 13,
@@ -398,45 +383,41 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tagChip: {
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
-    borderRadius: 14,
-    marginRight: 6,
-    marginBottom: 6,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.xs,
+    marginBottom: SPACING.xs,
+    ...ELEVATION.xs,
   },
   tagText: {
     fontSize: 12,
     fontWeight: '600',
   },
   moreTagsText: {
-    marginLeft: 6,
+    marginLeft: SPACING.xs,
     fontSize: 12,
     opacity: 0.7,
   },
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    borderTopWidth: 1,
+    borderTopWidth: BORDER.width.thin,
     borderTopColor: 'rgba(0,0,0,0.03)',
-    paddingTop: 12,
-    marginTop: 4,
+    paddingTop: SPACING.ms,
+    marginTop: SPACING.xs,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 20,
+    marginLeft: SPACING.lg,
     backgroundColor: 'rgba(0,0,0,0.03)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: SPACING.ms,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
   },
   actionText: {
-    marginLeft: 6,
+    marginLeft: SPACING.xs,
     fontWeight: '500',
   },
 });

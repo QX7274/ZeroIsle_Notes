@@ -5,9 +5,9 @@
 import UploadButton from './UploadButton';
 
 export {
-  UploadButton
+  UploadButton,
 };
 
 export default {
-  UploadButton
+  UploadButton,
 };

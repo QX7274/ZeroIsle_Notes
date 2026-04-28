@@ -22,7 +22,7 @@ class Reminder extends Realm.Object {
       repeat_type: { type: 'string', default: 'none' }, // 'none', 'daily', 'weekly', 'monthly', 'yearly', 'custom'
       repeat_interval: { type: 'int', default: 1 },
       repeat_end_date: { type: 'date', optional: true },
-      repeat_days: { type: 'int[]', default: [] }, // 0-6, 0 is Sunday
+      repeat_days: { type: 'list', objectType: 'int', default: [] }, // 0-6, 0 is Sunday
       notification_time: { type: 'date', optional: true },
       notification_id: { type: 'string', optional: true },
       note_id: { type: 'string', optional: true },
@@ -35,7 +35,7 @@ class Reminder extends Realm.Object {
       updated_at: 'date',
       deleted_at: { type: 'date', optional: true },
       location: { type: 'string', optional: true }, // 存储为JSON字符串
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
     },
   };
 
@@ -326,11 +326,11 @@ class Reminder extends Realm.Object {
     }
 
     if (start_date && end_date) {
-      query += ` AND (due_date >= $0 AND due_date <= $1)`;
+      query += ' AND (due_date >= $0 AND due_date <= $1)';
     } else if (start_date) {
-      query += ` AND due_date >= $0`;
+      query += ' AND due_date >= $0';
     } else if (end_date) {
-      query += ` AND due_date <= $0`;
+      query += ' AND due_date <= $0';
     }
 
     if (priority) {
@@ -460,7 +460,7 @@ class Reminder extends Realm.Object {
   static findForNotification(realm, before = new Date()) {
     const results = realm.objects('Reminder')
       .filtered(
-        `is_deleted = false AND is_completed = false AND notification_time <= $0 AND notification_id != null`,
+        'is_deleted = false AND is_completed = false AND notification_time <= $0 AND notification_id != null',
         before
       )
       .sorted('notification_time', false);

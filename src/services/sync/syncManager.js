@@ -4,8 +4,9 @@
  */
 
 import realmService from '../database/realmService';
+import { mongoDBService } from '../database/mongoDBAdapter';
 import { logService } from '../../utils/logService';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../network/networkService';
 
 /**
  * 同步管理器类
@@ -26,7 +27,7 @@ class SyncManager {
    * 初始化同步管理器
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -38,8 +39,8 @@ class SyncManager {
         await realmService.initialize();
 
         // 检查网络状态
-        const netInfo = await NetInfo.fetch();
-        this.isOnline = netInfo.isConnected;
+        const netInfo = await networkService.checkConnection();
+        this.isOnline = Boolean(netInfo);
 
         // 设置网络状态监听
         this.setupNetworkListener();
@@ -70,9 +71,9 @@ class SyncManager {
     }
 
     // 添加新监听器
-    this.networkListener = NetInfo.addEventListener(state => {
+    this.networkListener = networkService.addNetworkListener(state => {
       const wasOnline = this.isOnline;
-      this.isOnline = state.isConnected;
+      this.isOnline = Boolean(state?.isOnline);
 
       // 网络状态变化日志
       logService.info(`网络状态变化: ${wasOnline ? '在线' : '离线'} -> ${this.isOnline ? '在线' : '离线'}`);
@@ -116,13 +117,13 @@ class SyncManager {
       // 创建操作记录
       realm.write(() => {
         realm.create('SyncOperation', {
-          _id: new Realm.BSON.ObjectId(),
+          _id: `sync_${realmService.createObjectId()}`,
           type: operation.type,
           collection: operation.collection,
           documentId: operation.documentId,
           data: JSON.stringify(operation.data),
           timestamp: new Date(),
-          status: 'pending'
+          status: 'pending',
         });
       });
 
@@ -139,7 +140,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('添加待处理同步操作失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -157,13 +158,13 @@ class SyncManager {
       // 检查网络状态
       if (!this.isOnline) {
         logService.warn('无法同步数据：网络离线');
-        return false;
+        throw new Error('无网络连接，无法同步数据，请连接网络后重试');
       }
 
       // 检查是否已在同步
       if (this.isSyncing) {
         logService.warn('同步已在进行中');
-        return false;
+        throw new Error('同步已在进行中，请稍后重试');
       }
 
       const { force = false, collections = ['notes', 'tags', 'categories', 'settings'] } = options;
@@ -225,7 +226,7 @@ class SyncManager {
     } catch (error) {
       logService.error('同步所有数据失败', error);
       this.isSyncing = false;
-      return false;
+      throw error;
     }
   }
 
@@ -240,7 +241,7 @@ class SyncManager {
       // 检查网络状态
       if (!this.isOnline) {
         logService.warn('无法同步待处理操作：网络离线');
-        return false;
+        throw new Error('无网络连接，无法同步待处理操作，请连接网络后重试');
       }
 
       // 获取待处理操作
@@ -257,22 +258,12 @@ class SyncManager {
 
       for (const operation of operations) {
         try {
-          // 根据操作类型执行不同的同步逻辑
-          // 这里只是示例，实际实现需要根据具体需求调整
-          switch (operation.type) {
-            case 'create':
-              // 创建文档
-              break;
-            case 'update':
-              // 更新文档
-              break;
-            case 'delete':
-              // 删除文档
-              break;
-            default:
-              logService.warn(`未知的操作类型: ${operation.type}`);
-              break;
+          if (!['create', 'update', 'delete'].includes(operation.type)) {
+            logService.warn(`未知的操作类型: ${operation.type}`);
+            continue;
           }
+
+          await this._executePendingOperation(operation);
 
           // 标记操作为已完成
           realm.write(() => {
@@ -303,8 +294,92 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('同步待处理操作失败', error);
-      return false;
+      throw error;
     }
+  }
+
+  _normalizeOperation(operation) {
+    const collection = String(operation?.collection || '').trim();
+    const documentId = String(operation?.documentId || '').trim();
+    let data = {};
+
+    try {
+      data = typeof operation?.data === 'string'
+        ? JSON.parse(operation.data || '{}')
+        : (operation?.data || {});
+    } catch (e) {
+      data = {};
+    }
+
+    return {
+      collection,
+      documentId,
+      data,
+    };
+  }
+
+  async _executePendingOperation(operation) {
+    const { collection, documentId, data } = this._normalizeOperation(operation);
+
+    if (!collection) {
+      throw new Error('缺少 collection 字段');
+    }
+
+    if (operation.type === 'delete') {
+      if (!documentId) {
+        throw new Error('delete 操作缺少 documentId');
+      }
+      await mongoDBService.deleteOne(collection, { _id: documentId });
+      return;
+    }
+
+    if (!documentId && !data?._id) {
+      throw new Error(`${operation.type} 操作缺少 documentId/_id`);
+    }
+
+    const payload = {
+      ...(data || {}),
+      _id: documentId || data._id,
+      updated_at: new Date(),
+    };
+
+    await this._upsertCollectionItems(collection, [payload]);
+  }
+
+  async _upsertCollectionItems(collectionName, items = []) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return [];
+    }
+
+    const syncedIds = [];
+
+    for (const item of items) {
+      if (!item || !item._id) continue;
+
+      const existsRemote = await mongoDBService.findOne(collectionName, { _id: item._id });
+
+      if (existsRemote) {
+        await mongoDBService.updateOne(collectionName, { _id: item._id }, {
+          $set: {
+            ...item,
+            is_synced: true,
+            updated_at: new Date(),
+          },
+        });
+      } else {
+        await mongoDBService.insertOne(collectionName, {
+          ...item,
+          _id: item._id,
+          is_synced: true,
+          created_at: item.created_at || new Date(),
+          updated_at: new Date(),
+        });
+      }
+
+      syncedIds.push(item._id);
+    }
+
+    return syncedIds;
   }
 
   /**
@@ -329,13 +404,10 @@ class SyncManager {
       // 将笔记转换为普通对象
       const notesToSync = Array.from(localNotes).map(note => realmService.realmObjectToPlain(note));
 
-      // 这里应该调用API将笔记同步到服务器
-      // 例如: const result = await notesApi.syncNotes(notesToSync);
+      // 实际同步到远端存储（逐条 upsert）
+      const syncedIds = await this._upsertCollectionItems('notes', notesToSync);
 
-      // 模拟同步成功
-      const syncedIds = notesToSync.map(note => note._id);
-
-      // 更新同步状态
+      // 更新本地同步状态
       realm.write(() => {
         syncedIds.forEach(id => {
           const note = realm.objectForPrimaryKey('Note', id);
@@ -350,7 +422,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('同步笔记失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -376,11 +448,8 @@ class SyncManager {
       // 将标签转换为普通对象
       const tagsToSync = Array.from(localTags).map(tag => realmService.realmObjectToPlain(tag));
 
-      // 这里应该调用API将标签同步到服务器
-      // 例如: const result = await tagsApi.syncTags(tagsToSync);
-
-      // 模拟同步成功
-      const syncedIds = tagsToSync.map(tag => tag._id);
+      // 实际同步到远端存储（逐条 upsert）
+      const syncedIds = await this._upsertCollectionItems('tags', tagsToSync);
 
       // 更新同步状态
       realm.write(() => {
@@ -397,7 +466,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('同步标签失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -423,11 +492,8 @@ class SyncManager {
       // 将分类转换为普通对象
       const categoriesToSync = Array.from(localCategories).map(category => realmService.realmObjectToPlain(category));
 
-      // 这里应该调用API将分类同步到服务器
-      // 例如: const result = await categoriesApi.syncCategories(categoriesToSync);
-
-      // 模拟同步成功
-      const syncedIds = categoriesToSync.map(category => category._id);
+      // 实际同步到远端存储（逐条 upsert）
+      const syncedIds = await this._upsertCollectionItems('categories', categoriesToSync);
 
       // 更新同步状态
       realm.write(() => {
@@ -444,7 +510,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('同步分类失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -465,20 +531,20 @@ class SyncManager {
         return true;
       }
 
-      // 将设置转换为普通对象
       const settingsToSync = Array.from(settings).map(setting => ({
-        key: setting.key,
+        _id: String(setting.key),
+        key: String(setting.key),
         value: setting.value,
+        updated_at: new Date(),
       }));
 
-      // 这里应该调用API将设置同步到服务器
-      // 例如: const result = await settingsApi.syncSettings(settingsToSync);
+      await this._upsertCollectionItems('settings', settingsToSync);
 
       logService.info(`成功同步 ${settingsToSync.length} 个设置项`);
       return true;
     } catch (error) {
       logService.error('同步设置失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -497,19 +563,19 @@ class SyncManager {
       // 检查网络状态
       if (!this.isOnline) {
         logService.warn('无法从服务器拉取数据：网络离线');
-        return false;
+        throw new Error('无网络连接，无法从服务器拉取数据，请连接网络后重试');
       }
 
       // 检查是否已在同步
       if (this.isSyncing) {
         logService.warn('同步已在进行中，无法拉取数据');
-        return false;
+        throw new Error('同步已在进行中，请稍后重试');
       }
 
       const {
         force = false,
         collections = ['notes', 'tags', 'categories'],
-        batchSize = 100
+        batchSize = 100,
       } = options;
 
       // 如果不是强制拉取，检查上次同步时间
@@ -530,15 +596,29 @@ class SyncManager {
       try {
         // 获取上次同步时间
         const syncTimestamp = this.lastSyncTime ? this.lastSyncTime.toISOString() : null;
+        const incrementalFilter = !force && this.lastSyncTime
+          ? {
+              $or: [
+                { updated_at: { $gt: this.lastSyncTime } },
+                { updated_at: { $gt: syncTimestamp } },
+                { created_at: { $gt: this.lastSyncTime } },
+                { created_at: { $gt: syncTimestamp } },
+              ],
+            }
+          : {};
 
-        // 这里应该调用API从服务器获取数据
-        // 使用批量处理和增量同步减少网络请求
+        // 从远端存储拉取数据（普通模式按更新时间增量，强制模式全量）
+        const [notes, tags, categories] = await Promise.all([
+          collections.includes('notes') ? mongoDBService.find('notes', incrementalFilter) : Promise.resolve([]),
+          collections.includes('tags') ? mongoDBService.find('tags', incrementalFilter) : Promise.resolve([]),
+          collections.includes('categories') ? mongoDBService.find('categories', incrementalFilter) : Promise.resolve([]),
+        ]);
 
-        // 模拟从服务器获取的数据
         const serverData = {
-          notes: [],
-          tags: [],
-          categories: [],
+          notes: Array.isArray(notes) ? notes : [],
+          tags: Array.isArray(tags) ? tags : [],
+          categories: Array.isArray(categories) ? categories : [],
+          syncTimestamp,
         };
 
         // 并行处理各个集合的数据
@@ -583,7 +663,7 @@ class SyncManager {
     } catch (error) {
       logService.error('从服务器拉取数据失败', error);
       this.isSyncing = false;
-      return false;
+      throw error;
     }
   }
 
@@ -614,12 +694,12 @@ class SyncManager {
             localNote.is_synced = true;
             localNote.updated_at = new Date();
           } else {
-            // 创建新笔记
+            // 创建新笔记 - 使用'modified'模式以防并发问题
             realm.create('Note', {
               ...serverNote,
               is_synced: true,
               updated_at: new Date(),
-            });
+            }, 'modified');
           }
         });
       });
@@ -627,7 +707,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('更新本地笔记失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -671,7 +751,7 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('更新本地标签失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -715,17 +795,12 @@ class SyncManager {
       return true;
     } catch (error) {
       logService.error('更新本地分类失败', error);
-      return false;
+      throw error;
     }
   }
 }
 
-// 创建单例实例
+// 创建单例实例（延迟初始化，避免导入即注册网络监听导致双重同步入口）
 const syncManager = new SyncManager();
-
-// 初始化
-syncManager.initialize().catch(error => {
-  logService.error('初始化同步管理器失败', error);
-});
 
 export default syncManager;

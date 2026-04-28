@@ -10,7 +10,7 @@
  */
 export const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
   // 处理无效日期
-  if (!date) return '未知日期';
+  if (!date) {return '未知日期';}
 
   try {
     // 尝试创建日期对象
@@ -66,7 +66,7 @@ export const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
  * @returns {string} - 相对时间字符串
  */
 export const formatRelativeTime = (date) => {
-  if (!date) return '';
+  if (!date) {return '';}
 
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();

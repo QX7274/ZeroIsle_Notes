@@ -24,6 +24,13 @@ class Category(Document):
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
+    # MongoDB Realm相关字段
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_partition = StringField(max_length=100, sparse=True, verbose_name='Realm Partition')
+    realm_sync_status = StringField(max_length=20, choices=('pending', 'synced', 'error'), default='pending', verbose_name='Realm同步状态')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
+    realm_error_message = StringField(verbose_name='同步错误信息')
+
     meta = {
         'collection': 'categories',
         'indexes': [

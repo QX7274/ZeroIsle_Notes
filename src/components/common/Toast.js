@@ -6,7 +6,7 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectToast, hideToast } from '../../redux/slices/uiSlice';
-import { SPACING } from '../../utils/constants/dimensions';
+import token, { SPACING, RADIUS, ELEVATION, ANIMATION, COMPONENT, Z_INDEX, OPACITY } from '../../theme/tokens';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
@@ -26,8 +26,8 @@ const Toast = () => {
       // 显示Toast
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 300,
-        easing: Easing.ease,
+        duration: ANIMATION.duration.normal,
+        easing: Easing.bezier(0.4, 0, 0.2, 1), // Standard easing
         useNativeDriver: true,
       }).start();
 
@@ -35,8 +35,8 @@ const Toast = () => {
       const timer = setTimeout(() => {
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 300,
-          easing: Easing.ease,
+          duration: ANIMATION.duration.normal,
+          easing: Easing.bezier(0.4, 0, 0.2, 1),
           useNativeDriver: true,
         }).start(() => {
           dispatch(hideToast());
@@ -74,11 +74,16 @@ const Toast = () => {
       style={[
         dynamicStyles.container,
         { opacity: fadeAnim },
-        { transform: [{ translateY: fadeAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [20, 0]
-        })}] }
+        {
+          transform: [{
+            translateY: fadeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [SPACING.xl, 0],
+            }),
+          }],
+        },
       ]}
+      pointerEvents="none" // 防止点击穿透阻挡下方交互
     >
       <View style={toastStyle}>
         <Text style={dynamicStyles.text}>{toast.message}</Text>
@@ -91,29 +96,22 @@ const Toast = () => {
 const getStyles = (colors) => ({
   container: {
     position: 'absolute',
-    bottom: SPACING.XLARGE,
+    bottom: SPACING.xl, // 使用token
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 9999,
+    zIndex: Z_INDEX.toast, // 使用token
   },
   toast: {
-    paddingVertical: SPACING.MEDIUM,
-    paddingHorizontal: SPACING.LARGE,
-    borderRadius: 16, // 使用固定值
-    minWidth: 200,
-    maxWidth: '80%',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    ...COMPONENT.toast, // 使用组件特定token (padding, radius, etc)
+    ...ELEVATION.md,    // 使用阴影token
   },
   text: {
     color: '#FFFFFF',
     fontSize: 16,
     textAlign: 'center',
+    fontWeight: '500',
   },
   info: {
     backgroundColor: colors.info || '#5AC8FA',
@@ -127,17 +125,6 @@ const getStyles = (colors) => ({
   warning: {
     backgroundColor: colors.warning || '#FFCC00',
   },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  container: {},
-  toast: {},
-  text: {},
-  info: {},
-  success: {},
-  error: {},
-  warning: {},
 });
 
 export default Toast;

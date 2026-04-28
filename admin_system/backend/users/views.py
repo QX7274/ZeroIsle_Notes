@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 class UserProfileViewSet(viewsets.ModelViewSet):
     """用户资料视图集"""
-    queryset = UserProfile.objects.all()
+    # 避免导入阶段触发 MongoDB 连接
+    queryset = []
     permission_classes = [IsAuthenticated, IsAdminUser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'is_active', 'is_staff']
@@ -869,7 +870,8 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
 class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
     """用户活动视图集"""
-    queryset = UserActivity.objects.all().order_by('-created_at')
+    # 避免导入阶段触发 MongoDB 连接
+    queryset = []
     serializer_class = UserActivitySerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

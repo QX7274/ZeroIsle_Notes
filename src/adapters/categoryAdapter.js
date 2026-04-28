@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端分类对象
  */
 export const toFrontendCategory = (category) => {
-  if (!category) return null;
-  
+  if (!category) {return null;}
+
   try {
     return {
       id: category._id,
@@ -43,8 +43,8 @@ export const toFrontendCategory = (category) => {
  * @returns {Object} 后端分类模型
  */
 export const toBackendCategory = (category) => {
-  if (!category) return null;
-  
+  if (!category) {return null;}
+
   try {
     return {
       _id: category.id,
@@ -76,8 +76,8 @@ export const createCategory = async (categoryData, userId) => {
   try {
     // 准备分类数据
     const now = new Date();
-    const categoryId = `category_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const categoryId = realmService.createObjectId();
+
     const backendCategory = {
       _id: categoryId,
       name: categoryData.name || '',
@@ -93,14 +93,14 @@ export const createCategory = async (categoryData, userId) => {
       user_id: userId,
       order: categoryData.order || 0,
     };
-    
+
     // 使用 Realm 创建分类
     const realm = await realmService.getRealm();
     let category;
     realm.write(() => {
       category = realm.create('Category', backendCategory);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: category._id,
@@ -109,7 +109,7 @@ export const createCategory = async (categoryData, userId) => {
       data: category.toJSON ? category.toJSON() : { ...backendCategory },
       user_id: userId,
     });
-    
+
     // 返回前端分类对象
     return toFrontendCategory(category);
   } catch (error) {
@@ -129,27 +129,27 @@ export const updateCategory = async (categoryId, categoryData) => {
     // 使用 Realm 查找分类
     const realm = await realmService.getRealm();
     const category = realm.objectForPrimaryKey('Category', categoryId);
-    
+
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
     }
-    
+
     // 更新分类属性
     realm.write(() => {
-      if (categoryData.name !== undefined) category.name = categoryData.name;
-      if (categoryData.description !== undefined) category.description = categoryData.description;
-      if (categoryData.color !== undefined) category.color = categoryData.color;
-      if (categoryData.icon !== undefined) category.icon = categoryData.icon;
-      if (categoryData.parentId !== undefined) category.parent_id = categoryData.parentId;
-      if (categoryData.isDefault !== undefined) category.is_default = categoryData.isDefault;
-      if (categoryData.order !== undefined) category.order = categoryData.order;
-    
-      
+      if (categoryData.name !== undefined) {category.name = categoryData.name;}
+      if (categoryData.description !== undefined) {category.description = categoryData.description;}
+      if (categoryData.color !== undefined) {category.color = categoryData.color;}
+      if (categoryData.icon !== undefined) {category.icon = categoryData.icon;}
+      if (categoryData.parentId !== undefined) {category.parent_id = categoryData.parentId;}
+      if (categoryData.isDefault !== undefined) {category.is_default = categoryData.isDefault;}
+      if (categoryData.order !== undefined) {category.order = categoryData.order;}
+
+
       // 更新时间
       category.updated_at = new Date();
       category.is_synced = false;
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: category._id,
@@ -158,7 +158,7 @@ export const updateCategory = async (categoryId, categoryData) => {
       data: category.toJSON ? category.toJSON() : { ...category },
       user_id: category.user_id,
     });
-    
+
     // 返回前端分类对象
     return toFrontendCategory(category);
   } catch (error) {
@@ -178,16 +178,16 @@ export const deleteCategory = async (categoryId, permanent = false) => {
     // 使用 Realm 查找分类
     const realm = await realmService.getRealm();
     const category = realm.objectForPrimaryKey('Category', categoryId);
-    
+
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
     }
-    
+
     // 检查是否为默认分类
     if (category.is_default) {
       throw new Error('不能删除默认分类');
     }
-    
+
     if (permanent) {
       // 永久删除
       realm.write(() => {
@@ -200,7 +200,7 @@ export const deleteCategory = async (categoryId, permanent = false) => {
         category.updated_at = new Date();
         category.is_synced = false;
       });
-      
+
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: category._id,
@@ -210,7 +210,7 @@ export const deleteCategory = async (categoryId, permanent = false) => {
         user_id: category.user_id,
       });
     }
-    
+
     return true;
   } catch (error) {
     logService.error(`删除分类失败: ${categoryId}`, error);
@@ -229,16 +229,16 @@ export const getCategories = async (userId, options = {}) => {
     // 使用 Realm 查找分类
     const realm = await realmService.getRealm();
     let query = `user_id = "${userId}" AND is_deleted = false`;
-    
+
     if (options.parent_id !== undefined) {
-      query += options.parent_id ? ` AND parent_id = "${options.parent_id}"` : ` AND parent_id = nil`;
+      query += options.parent_id ? ` AND parent_id = "${options.parent_id}"` : ' AND parent_id = nil';
     }
-    
+
     let categories = realm.objects('Category').filtered(query);
-    
+
     // 排序
     categories = categories.sorted('order', false); // 按order升序
-    
+
     // 转换为前端分类对象
     return Array.from(categories).map(toFrontendCategory);
   } catch (error) {
@@ -257,11 +257,11 @@ export const getCategoryById = async (categoryId) => {
     // 使用 Realm 查找分类
     const realm = await realmService.getRealm();
     const category = realm.objectForPrimaryKey('Category', categoryId);
-    
+
     if (!category) {
       throw new Error(`分类不存在: ${categoryId}`);
     }
-    
+
     // 转换为前端分类对象
     return toFrontendCategory(category);
   } catch (error) {
@@ -281,12 +281,12 @@ export const getDefaultCategory = async (userId) => {
     const realm = await realmService.getRealm();
     const categories = realm.objects('Category').filtered(`user_id = "${userId}" AND is_default = true AND is_deleted = false`);
     let category = categories.length > 0 ? categories[0] : null;
-    
+
     // 如果没有默认分类，创建一个
     if (!category) {
       const now = new Date();
-      const categoryId = `category_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      
+      const categoryId = realmService.createObjectId();
+
       realm.write(() => {
         category = realm.create('Category', {
           _id: categoryId,
@@ -305,7 +305,7 @@ export const getDefaultCategory = async (userId) => {
         });
       });
     }
-    
+
     // 转换为前端分类对象
     return toFrontendCategory(category);
   } catch (error) {
@@ -330,11 +330,11 @@ export const createInitialCategories = async (userId) => {
       { name: '生活', description: '生活相关笔记', color: '#FF9800', icon: 'home', order: 3 },
       { name: '其他', description: '其他笔记', color: '#9E9E9E', icon: 'folder', order: 4 },
     ];
-    
+
     const categories = [];
     realm.write(() => {
       for (const categoryData of initialCategories) {
-        const categoryId = `category_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        const categoryId = realmService.createObjectId();
         const category = realm.create('Category', {
           _id: categoryId,
           name: categoryData.name,
@@ -353,7 +353,7 @@ export const createInitialCategories = async (userId) => {
         categories.push(category);
       }
     });
-    
+
     // 转换为前端分类对象
     return categories.map(toFrontendCategory);
   } catch (error) {
@@ -371,7 +371,7 @@ export const reorderCategories = async (categories) => {
   try {
     // 使用 Realm 重新排序分类
     const realm = await realmService.getRealm();
-    
+
     realm.write(() => {
       for (const categoryData of categories) {
         const category = realm.objectForPrimaryKey('Category', categoryData.id);
@@ -381,7 +381,7 @@ export const reorderCategories = async (categories) => {
         }
       }
     });
-    
+
     return true;
   } catch (error) {
     logService.error('重新排序分类失败', error);

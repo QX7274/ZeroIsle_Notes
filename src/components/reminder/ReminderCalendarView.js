@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
-  Platform
+  Platform,
 } from 'react-native';
 import { Calendar, CalendarList, Agenda } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,7 +18,7 @@ import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../../services/network/networkService';
 
 const ReminderCalendarView = ({ navigation }) => {
   const { theme } = useTheme();
@@ -35,7 +35,7 @@ const ReminderCalendarView = ({ navigation }) => {
   // 视图状态
   const [viewMode, setViewMode] = useState('month'); // 'month', 'week', 'agenda'
   const [weekDates, setWeekDates] = useState([]);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
   const [calendarHeight, setCalendarHeight] = useState(350); // 默认高度
 
   // 获取日历数据
@@ -45,14 +45,14 @@ const ReminderCalendarView = ({ navigation }) => {
       setError(null);
 
       // 检查网络连接
-      const networkState = await NetInfo.fetch();
-      setIsConnected(networkState.isConnected);
+      const online = await networkService.checkConnection();
+      setIsOnline(Boolean(online));
 
-      if (networkState.isConnected) {
+      if (online) {
         // 在线模式：从服务器获取数据
         try {
           const response = await api.get(API_ENDPOINTS.REMINDER.CALENDAR, {
-            params: { year, month }
+            params: { year, month },
           });
 
           // 处理标记日期
@@ -68,7 +68,7 @@ const ReminderCalendarView = ({ navigation }) => {
             // 标记日期
             marked[dateStr] = {
               dots,
-              marked: true
+              marked: true,
             };
           });
 
@@ -116,7 +116,7 @@ const ReminderCalendarView = ({ navigation }) => {
       const marked = {};
 
       allReminders.forEach(reminder => {
-        if (!reminder.dueDate && !reminder.due_date) return;
+        if (!reminder.dueDate && !reminder.due_date) {return;}
 
         const dueDate = new Date(reminder.dueDate || reminder.due_date);
         const reminderYear = dueDate.getFullYear();
@@ -124,7 +124,7 @@ const ReminderCalendarView = ({ navigation }) => {
         const reminderDay = dueDate.getDate();
 
         // 只处理指定月份的提醒
-        if (reminderYear !== year || reminderMonth !== month) return;
+        if (reminderYear !== year || reminderMonth !== month) {return;}
 
         // 添加到按日期组织的对象中
         if (!remindersByDate[reminderDay]) {
@@ -142,7 +142,7 @@ const ReminderCalendarView = ({ navigation }) => {
         if (!marked[dateStr]) {
           marked[dateStr] = {
             dots: [{ color }],
-            marked: true
+            marked: true,
           };
         } else if (marked[dateStr].dots.length < 3) {
           marked[dateStr].dots.push({ color });
@@ -172,8 +172,8 @@ const ReminderCalendarView = ({ navigation }) => {
   // 初始化
   useEffect(() => {
     // 监听网络状态变化
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected);
+    const unsubscribe = networkService.addNetworkListener(state => {
+      setIsOnline(Boolean(state?.isOnline));
     });
 
     // 初始化周视图日期
@@ -200,11 +200,11 @@ const ReminderCalendarView = ({ navigation }) => {
       const month = selectedDate.getMonth() + 1;
 
       // 如果是离线模式，使用本地数据
-      if (!isConnected) {
+      if (!isOnline) {
         processLocalReminders(year, month);
       }
     }
-  }, [allReminders, isConnected]);
+  }, [allReminders, isOnline]);
 
   // 更新周视图日期
   const updateWeekDates = useCallback((date) => {
@@ -234,7 +234,7 @@ const ReminderCalendarView = ({ navigation }) => {
       fetchCalendarData(currentYear, currentMonth);
     } else {
       // 使用已有数据
-      if (isConnected) {
+      if (isOnline) {
         // 在线模式：从服务器获取该日期的提醒
         fetchDayReminders(selected);
       } else {
@@ -264,7 +264,7 @@ const ReminderCalendarView = ({ navigation }) => {
       const day = date.getDate();
 
       const response = await api.get(API_ENDPOINTS.REMINDER.DAY, {
-        params: { year, month, day }
+        params: { year, month, day },
       });
 
       if (response.data) {
@@ -306,7 +306,7 @@ const ReminderCalendarView = ({ navigation }) => {
         {
           backgroundColor: theme.cardBackground,
           borderLeftColor: item.color || theme.primary,
-        }
+        },
       ]}
       onPress={() => navigation.navigate('ReminderDetail', { id: item.id })}
     >
@@ -317,7 +317,7 @@ const ReminderCalendarView = ({ navigation }) => {
             {
               color: theme.text,
               textDecorationLine: item.is_completed ? 'line-through' : 'none',
-            }
+            },
           ]}
         >
           {item.title}
@@ -412,7 +412,7 @@ const ReminderCalendarView = ({ navigation }) => {
                 style={[
                   styles.weekDay,
                   isSelected && { backgroundColor: theme.primary + '20' },
-                  isToday && { borderColor: theme.primary, borderWidth: 1 }
+                  isToday && { borderColor: theme.primary, borderWidth: 1 },
                 ]}
                 onPress={() => handleDayPress({ dateString: dateStr })}
               >
@@ -422,13 +422,13 @@ const ReminderCalendarView = ({ navigation }) => {
                 <View
                   style={[
                     styles.weekDayNumber,
-                    isSelected && { backgroundColor: theme.primary }
+                    isSelected && { backgroundColor: theme.primary },
                   ]}
                 >
                   <Text
                     style={[
                       styles.weekDayNumberText,
-                      { color: isSelected ? '#fff' : theme.text }
+                      { color: isSelected ? '#fff' : theme.text },
                     ]}
                   >
                     {format(date, 'd')}
@@ -540,7 +540,7 @@ const ReminderCalendarView = ({ navigation }) => {
           {viewMode === 'month' ? '月视图' : viewMode === 'week' ? '周视图' : '日程视图'}
         </Text>
         <View style={styles.calendarActions}>
-          {!isConnected && (
+          {!isOnline && (
             <View style={[styles.offlineIndicator, { backgroundColor: theme.warning + '20' }]}>
               <Icon name="cloud-off" size={16} color={theme.warning} />
               <Text style={[styles.offlineText, { color: theme.warning }]}>离线模式</Text>

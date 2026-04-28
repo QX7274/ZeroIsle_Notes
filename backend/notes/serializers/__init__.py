@@ -21,5 +21,4 @@ from .backup import NoteBackupSerializer
 from .reminder import NoteReminderSerializer
 from .notification import NotificationSerializer
 
-from .ocr import OCRModelSerializer, OCRTrainingDataSerializer
 from .whisper import WhisperModelSerializer, WhisperTrainingDataSerializer

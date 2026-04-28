@@ -42,7 +42,7 @@ const CategorySearchBar = ({ onSearch }) => {
           {
             backgroundColor: colors.card,
             borderColor: `${colors.border}80`,
-          }
+          },
         ]}
         onPress={() => setShowSearch(true)}
         activeOpacity={0.7}

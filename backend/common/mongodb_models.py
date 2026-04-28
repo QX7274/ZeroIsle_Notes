@@ -3,7 +3,7 @@ MongoDB文档模型基类
 使用MongoEngine ODM定义MongoDB文档模型
 """
 
-from mongoengine import Document, DateTimeField, StringField, BooleanField, UUIDField
+from mongoengine import Document, DateTimeField, StringField, BooleanField, UUIDField, IntField, DictField
 from django.utils import timezone
 import uuid
 
@@ -102,3 +102,65 @@ class UserDocument(BaseDocument, UserOwnedDocument):
     meta = {
         'abstract': True
     }
+
+class AuditLog(Document):
+    """
+    通用审计日志模型
+    """
+    id = UUIDField(primary_key=True, default=uuid.uuid4, verbose_name='日志ID')
+    user_id = StringField(required=True, verbose_name='用户ID')
+    action = StringField(required=True, verbose_name='操作') # e.g., 'reminder_completed', 'note_created'
+    target_model = StringField(required=True, verbose_name='目标模型') # e.g., 'Reminder', 'Note'
+    target_id = StringField(required=True, verbose_name='目标ID')
+    details = DictField(verbose_name='操作详情')
+    ip_address = StringField(verbose_name='IP地址')
+    user_agent = StringField(verbose_name='User-Agent')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+
+    meta = {
+        'collection': 'audit_logs',
+        'indexes': [
+            'user_id',
+            'action',
+            'target_model',
+            'target_id',
+            'created_at',
+        ],
+        'ordering': ['-created_at']
+    }
+
+
+
+class AsyncTask(Document):
+    """
+    通用异步任务模型
+    """
+    STATUS_CHOICES = ('pending', 'in_progress', 'completed', 'failed', 'cancelled')
+
+    id = UUIDField(primary_key=True, default=uuid.uuid4, verbose_name='任务UUID')
+    task_id = StringField(unique=True, required=True, verbose_name='Celery任务ID')
+    task_name = StringField(required=True, verbose_name='任务名称')
+    user_id = StringField(verbose_name='用户ID')
+    status = StringField(choices=STATUS_CHOICES, default='pending', verbose_name='状态')
+    progress = IntField(default=0, min_value=0, max_value=100, verbose_name='进度')
+    result = DictField(verbose_name='任务结果')
+    error_message = StringField(verbose_name='错误信息')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+    expires_at = DateTimeField(verbose_name='过期时间')
+
+    meta = {
+        'collection': 'async_tasks',
+        'indexes': [
+            'task_id',
+            'user_id',
+            'status',
+            'task_name',
+            {'fields': ['expires_at'], 'expireAfterSeconds': 0}
+        ],
+        'ordering': ['-created_at']
+    }
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
+        return super().save(*args, **kwargs)

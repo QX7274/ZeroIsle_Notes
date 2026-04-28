@@ -20,7 +20,7 @@ class InfiniteCanvas extends Realm.Object {
       settings: { type: 'string', default: '{}' }, // 存储为JSON字符串
       user_id: 'string',
       category_id: { type: 'string', optional: true },
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
       shared_with: { type: 'string', default: '[]' }, // 存储为JSON字符串
       is_favorite: { type: 'bool', default: false },
       is_deleted: { type: 'bool', default: false },
@@ -370,7 +370,7 @@ class InfiniteCanvas extends Realm.Object {
         const sharedWith = JSON.parse(canvas.shared_with || '[]');
         const share = sharedWith.find(s => s.user_id === userId);
 
-        if (!share) return false;
+        if (!share) {return false;}
 
         // 如果指定了权限，检查权限
         if (permission && share.permission !== permission) {

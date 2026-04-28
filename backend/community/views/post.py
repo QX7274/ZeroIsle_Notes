@@ -38,46 +38,29 @@ class PostViewSet(viewsets.ModelViewSet):
     ordering = ['-is_pinned', '-published_at', '-created_at']
 
     def get_queryset(self):
-        """获取查询集"""
+        """获取对当前用户可见的帖子查询集 (重构版)"""
+        from community.services.permission_service import CommunityPermissionService
+
         user = self.request.user
-
-        # 构建查询条件
-        if user.is_authenticated:
-            # 用户可以查看自己的所有帖子和他人的公开已发布帖子
-            queryset = Post.objects.filter(
-                is_deleted=False
-            ).filter(
-                (Q(user=user)) |
-                (Q(is_public=True) & Q(status='published'))
-            )
-        else:
-            # 未登录用户只能查看公开已发布帖子
-            queryset = Post.objects.filter(
-                is_deleted=False,
-                is_public=True,
-                status='published'
-            )
-
-        # 添加标签过滤
+        # 先应用其他过滤器，缩小范围
+        base_query = Post.objects.filter(is_deleted=False)
+        
         tag = self.request.query_params.get('tag')
         if tag:
-            queryset = queryset.filter(tags=tag)
+            base_query = base_query.filter(tags=tag)
 
-        # 添加用户过滤
-        user_id = self.request.query_params.get('user')
-        if user_id:
-            if user.is_authenticated and str(user.id) == user_id:
-                # 查看自己的帖子，可以看到所有状态
-                queryset = queryset.filter(user=user_id)
-            else:
-                # 查看他人的帖子，只能看到公开已发布的
-                queryset = queryset.filter(
-                    user=user_id,
-                    is_public=True,
-                    status='published'
-                )
-
-        return queryset
+        user_id_filter = self.request.query_params.get('user')
+        if user_id_filter:
+            base_query = base_query.filter(user=user_id_filter)
+        
+        # 然后在内存中过滤可见性
+        # 注意：这在数据量大时性能较差，但确保了逻辑的统一。
+        # 优化方向：将 can_view_post 的逻辑尽可能地转换为MongoDB查询。
+        visible_posts_ids = [
+            post.id for post in base_query if CommunityPermissionService.can_view_post(user, post)
+        ]
+        
+        return Post.objects.filter(id__in=visible_posts_ids)
 
     def get_serializer_class(self):
         """根据操作类型选择序列化器"""
@@ -100,8 +83,9 @@ class PostViewSet(viewsets.ModelViewSet):
         try:
             post = Post.objects.get(id=pk, is_deleted=False)
 
-            # 检查权限
-            if not post.is_public and post.user != request.user:
+            # 使用集中式权限服务检查权限
+            from community.services.permission_service import CommunityPermissionService
+            if not CommunityPermissionService.can_view_post(request.user, post):
                 return Response(
                     {"detail": "您没有权限查看此帖子"},
                     status=status.HTTP_403_FORBIDDEN
@@ -366,10 +350,24 @@ class PostViewSet(viewsets.ModelViewSet):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+            # 处理群组关联
+            group_id = serializer.validated_data.get('group')
+            group = None
+            if group_id:
+                from groups.mongodb_models import Group, GroupMember
+                try:
+                    group = Group.objects.get(id=group_id)
+                    # 验证用户是否为该群组成员
+                    if not GroupMember.objects.filter(group=group, user=request.user, is_active=True).first():
+                        return Response({'detail': '您不是该群组的成员，无法在此发帖'}, status=status.HTTP_403_FORBIDDEN)
+                except Group.DoesNotExist:
+                    return Response({'detail': '指定的群组不存在'}, status=status.HTTP_400_BAD_REQUEST)
+
             # 创建帖子
             post = Post(
                 id=uuid.uuid4(),
                 user=request.user,
+                group=group,
                 title=serializer.validated_data['title'],
                 content=serializer.validated_data['content'],
                 excerpt=serializer.validated_data.get('excerpt', ''),
@@ -406,6 +404,22 @@ class PostViewSet(viewsets.ModelViewSet):
                 for field in ['title', 'content', 'excerpt', 'status', 'category', 'tags', 'cover_image', 'allow_comments', 'is_public']:
                     if field in serializer.validated_data:
                         setattr(post, field, serializer.validated_data[field])
+
+                # 处理群组关联更新
+                if 'group' in serializer.validated_data:
+                    group_id = serializer.validated_data.get('group')
+                    if group_id:
+                        from groups.mongodb_models import Group, GroupMember
+                        try:
+                            group = Group.objects.get(id=group_id)
+                            if not GroupMember.objects.filter(group=group, user=request.user, is_active=True).first():
+                                return Response({'detail': '您不是该群组的成员，无法将帖子移入'}, status=status.HTTP_403_FORBIDDEN)
+                            post.group = group
+                        except Group.DoesNotExist:
+                            return Response({'detail': '指定的群组不存在'}, status=status.HTTP_400_BAD_REQUEST)
+                    else:
+                        # 如果传入的 group 为 null，则将帖子设为非群组帖子
+                        post.group = None
 
                 # 如果状态从草稿变为已发布，设置发布时间
                 if post.status == 'published' and not post.published_at:

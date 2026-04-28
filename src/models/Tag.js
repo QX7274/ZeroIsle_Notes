@@ -247,7 +247,7 @@ class Tag extends Realm.Object {
 
     realm.write(() => {
       for (const name of names) {
-        if (!name) continue;
+        if (!name) {continue;}
 
         let tag = this.findByName(realm, userId, name);
 

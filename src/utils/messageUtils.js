@@ -25,7 +25,7 @@ export const setMessageCallback = (callback) => {
  * @param {number} duration 显示时长(毫秒)
  */
 export const showMessage = (message, type = 'info', duration = 2000) => {
-  if (!message) return;
+  if (!message) {return;}
 
   // 如果有全局回调，使用全局回调
   if (globalMessageCallback) {

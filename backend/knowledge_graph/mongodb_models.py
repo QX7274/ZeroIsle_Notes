@@ -24,7 +24,7 @@ class KnowledgeNode(Document):
         ('answer', '答案'),
         ('custom', '自定义'),
     )
-    
+
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='节点ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
     title = StringField(max_length=255, required=True, verbose_name='标题')
@@ -38,9 +38,11 @@ class KnowledgeNode(Document):
     icon = StringField(max_length=50, verbose_name='图标')
     properties = DictField(verbose_name='属性')
     is_public = BooleanField(default=False, verbose_name='是否公开')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    deleted_at = DateTimeField(verbose_name='删除时间')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'knowledge_nodes',
         'indexes': [
@@ -48,15 +50,18 @@ class KnowledgeNode(Document):
             {'fields': ['type']},
             {'fields': ['title']},
             {'fields': ['is_public']},
+            {'fields': ['is_deleted']},
+            {'fields': ['user', 'is_deleted']},
+            {'fields': ['user', 'type', 'is_deleted']},
             {'fields': ['created_at']},
             {'fields': ['updated_at']}
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return self.title
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -76,7 +81,7 @@ class KnowledgeEdge(Document):
         ('opposite', '相反'),
         ('custom', '自定义'),
     )
-    
+
     id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='边ID')
     user = ReferenceField(User, required=True, verbose_name='用户')
     source = ReferenceField(KnowledgeNode, required=True, verbose_name='源节点')
@@ -88,9 +93,11 @@ class KnowledgeEdge(Document):
     color = StringField(max_length=20, verbose_name='颜色')
     properties = DictField(verbose_name='属性')
     is_public = BooleanField(default=False, verbose_name='是否公开')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    deleted_at = DateTimeField(verbose_name='删除时间')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'knowledge_edges',
         'indexes': [
@@ -99,15 +106,18 @@ class KnowledgeEdge(Document):
             {'fields': ['target']},
             {'fields': ['type']},
             {'fields': ['is_public']},
+            {'fields': ['is_deleted']},
+            {'fields': ['user', 'source', 'target', 'type']},
+            {'fields': ['user', 'is_deleted']},
             {'fields': ['created_at']},
             {'fields': ['updated_at']}
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return f"{self.source.title} -> {self.type} -> {self.target.title}"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         if self.source == self.target:
@@ -130,7 +140,7 @@ class KnowledgeGraph(Document):
     is_public = BooleanField(default=False, verbose_name='是否公开')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'knowledge_graphs',
         'indexes': [
@@ -142,20 +152,20 @@ class KnowledgeGraph(Document):
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
-    
+
     @property
     def node_count(self):
         """节点数量"""
         return len(self.nodes)
-    
+
     @property
     def edge_count(self):
         """边数量"""
@@ -171,7 +181,7 @@ class Concept(Document):
     parent = ReferenceField('self', verbose_name='父级概念')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'concepts',
         'indexes': [
@@ -181,10 +191,10 @@ class Concept(Document):
         ],
         'ordering': ['name']
     }
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -201,7 +211,7 @@ class Entity(Document):
     properties = DictField(verbose_name='扩展属性')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'entities',
         'indexes': [
@@ -211,10 +221,10 @@ class Entity(Document):
         ],
         'ordering': ['name']
     }
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
@@ -231,7 +241,7 @@ class Relation(Document):
     weight = FloatField(default=1.0, verbose_name='关系权重')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-    
+
     meta = {
         'collection': 'relations',
         'indexes': [
@@ -242,11 +252,76 @@ class Relation(Document):
         ],
         'ordering': ['-created_at']
     }
-    
+
     def __str__(self):
         return f"{self.source.name} → {self.target.name} ({self.relation_type})"
-    
+
     def save(self, *args, **kwargs):
         """保存前更新更新时间"""
+        self.updated_at = timezone.now()
+        return super().save(*args, **kwargs)
+
+class SuggestionRecord(Document):
+    """
+    候选边建议记录（用于审计与后续分析）
+    """
+    ACTIONS = (
+        ('suggested', '建议产生'),
+        ('accepted', '已采纳'),
+        ('ignored', '已忽略'),
+    )
+
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='记录ID')
+    user = ReferenceField(User, required=True, verbose_name='用户')
+    source = ReferenceField(KnowledgeNode, required=True, verbose_name='源节点')
+    target = ReferenceField(KnowledgeNode, required=True, verbose_name='目标节点')
+    action = StringField(max_length=20, choices=ACTIONS, default='suggested', verbose_name='动作')
+    type = StringField(max_length=20, verbose_name='建议类型')
+    confidence = FloatField(default=0.0, verbose_name='置信度')
+    evidence = ListField(DictField(), verbose_name='证据列表')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+
+    meta = {
+        'collection': 'kg_suggestion_records',
+        'indexes': [
+            {'fields': ['user']},
+            {'fields': ['source']},
+            {'fields': ['target']},
+            {'fields': ['action']},
+            {'fields': ['created_at']},
+        ],
+        'ordering': ['-created_at']
+    }
+
+
+
+class GraphSyncQueue(Document):
+    """
+    图谱同步队列，用于处理Neo4j写入失败时的补偿任务。
+    """
+    STATUS_CHOICES = ('pending', 'processing', 'completed', 'failed')
+    OPERATION_CHOICES = ('create_node', 'update_node', 'delete_node', 'create_edge', 'update_edge', 'delete_edge')
+
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='任务ID')
+    operation = StringField(max_length=50, required=True, choices=OPERATION_CHOICES, verbose_name='操作类型')
+    payload = DictField(required=True, verbose_name='数据负载')
+    status = StringField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
+    retries = IntField(default=0, verbose_name='重试次数')
+    last_error = StringField(verbose_name='最后错误信息')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
+
+    meta = {
+        'collection': 'graph_sync_queue',
+        'indexes': [
+            'status',
+            'operation',
+            'created_at',
+            'retries',
+        ],
+        'ordering': ['created_at']
+    }
+
+    def save(self, *args, **kwargs):
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)

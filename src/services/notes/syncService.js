@@ -51,11 +51,11 @@ class SyncService {
    */
   async syncNotes() {
     if (this.isSyncing) {
-      return { success: false, message: '同步已在进行中' };
+      throw new Error('同步已在进行中');
     }
 
     if (!networkService.isOnline()) {
-      return { success: false, message: '离线模式无法同步' };
+      throw new Error('离线模式无法同步');
     }
 
     try {
@@ -98,24 +98,24 @@ class SyncService {
             }
 
             // 更新本地笔记的同步状态
-            const realm = await realmService.getRealm();
-            realm.write(() => {
-              const noteObj = realm.objectForPrimaryKey('Note', note._id);
+            const localRealm = await realmService.getRealm();
+            localRealm.write(() => {
+              const noteObj = localRealm.objectForPrimaryKey('Note', note._id);
               if (noteObj) {
                 noteObj.is_synced = true;
               }
             });
 
-            return { success: true, noteId: note._id };
+            return { succeeded: true, noteId: note._id };
           } catch (error) {
             logService.error(`同步笔记(ID: ${note._id})失败`, error);
-            return { success: false, noteId: note._id, error };
+            return { succeeded: false, noteId: note._id, error };
           }
         })
       );
 
       // 计算同步结果
-      const successCount = syncResults.filter(result => result.success).length;
+      const successCount = syncResults.filter(result => result.succeeded).length;
       const failureCount = syncResults.length - successCount;
 
       this.isSyncing = false;
@@ -131,7 +131,7 @@ class SyncService {
     } catch (error) {
       this.isSyncing = false;
       logService.error('同步笔记失败', error);
-      return { success: false, message: '同步过程中发生错误', error };
+      throw error;
     }
   }
 
@@ -141,15 +141,15 @@ class SyncService {
    */
   async pullNotes() {
     if (!networkService.isOnline()) {
-      return { success: false, message: '离线模式无法拉取' };
+      throw new Error('离线模式无法拉取');
     }
 
     try {
       await this.initialize();
 
       // 获取本地最后更新时间
-      const realm = await realmService.getRealm();
-      const item = realm.objects('StorageItem').filtered('key = "last_update_time"');
+      const lastUpdateRealm = await realmService.getRealm();
+      const item = lastUpdateRealm.objects('StorageItem').filtered('key = "last_update_time"');
       const lastUpdateTime = item.length > 0 ? item[0].value : null;
 
       // 从MongoDB获取最新的笔记
@@ -163,10 +163,11 @@ class SyncService {
       }
 
       // 更新本地存储
-      const realm = await realmService.getRealm();
-      realm.write(() => {
+      const updateRealm = await realmService.getRealm();
+      updateRealm.write(() => {
         for (const note of latestNotes) {
-          realm.create('Note', note);
+          // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+          updateRealm.create('Note', note, 'modified');
         }
       });
 
@@ -177,7 +178,7 @@ class SyncService {
       };
     } catch (error) {
       logService.error('拉取笔记失败', error);
-      return { success: false, message: '拉取过程中发生错误', error };
+      throw error;
     }
   }
 
@@ -194,4 +195,9 @@ class SyncService {
   }
 }
 
-export const syncService = new SyncService();
+const syncService = new SyncService();
+
+module.exports = syncService;
+module.exports.default = syncService;
+module.exports.syncService = syncService;
+module.exports.SyncService = SyncService;

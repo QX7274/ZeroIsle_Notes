@@ -20,6 +20,7 @@ from .whisper_model import WhisperModel
 from .whisper_training_data import WhisperTrainingData
 
 from .annotation import Annotation
+from .drawing_path import DrawingPath
 
 # 创建别名
 Attachment = NoteAttachment
@@ -41,5 +42,6 @@ __all__ = [
     'WhisperModel',
     'WhisperTrainingData',
 
-    'Annotation'
+    'Annotation',
+    'DrawingPath'
 ]

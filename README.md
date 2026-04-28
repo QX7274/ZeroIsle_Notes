@@ -28,6 +28,19 @@
 
 有关项目的更多介绍在Info文件夹下。
 
+### 🚀 项目状态 (2026-01)
+
+- **当前版本**: v1.0 (Phase 4 UI Optimized)
+- **完成度**: 85% (核心功能完备/UI全面重构)
+- **最近更新**:
+  - 全面UI设计令牌系统 (Tokens)
+  - 离线同步与协作模块 (Logic Verified)
+  - 知识图谱自动化构建
+  - 生产环境安全加固 (JWT/GDPR)
+- **待办**: E2E测试自动化, 性能压力测试
+
+详见 [SOFTWARE_COMPLETENESS_ANALYSIS_2026-01.md](SOFTWARE_COMPLETENESS_ANALYSIS_2026-01.md) 和 [CHANGELOG.md](CHANGELOG.md)。
+
 ### 设计理念
 
 - **简约而不简单**：界面设计简洁直观，但功能丰富强大
@@ -345,10 +358,36 @@
 
    # 启动后端服务
    cd backend
+
    python manage.py runserver
    ```
 
    > **Neo4j浏览器**：启动后可以通过 http://localhost:7474 访问Neo4j浏览器，用于可视化查询和管理知识图谱
+### 同步模块（Sync）配置说明
+
+后端同步模块基于 MongoDB Atlas + 自定义增量同步协议，实现笔记/提醒/设置/用户基础数据的云端同步：
+
+- 环境变量（必需）
+  - `MONGO_URI`：MongoDB 连接字符串（必须通过环境变量配置，禁止硬编码）
+  - `MONGO_DB_NAME`：数据库名称，默认 `ZeroIsle_Notes`
+- 环境变量（可选，建议根据网络环境调整）
+  - `MONGO_SERVER_SELECTION_TIMEOUT_MS`（默认 5000）
+  - `MONGO_CONNECT_TIMEOUT_MS`（默认 5000）
+  - `MONGO_SOCKET_TIMEOUT_MS`（默认 10000）
+  - `MONGO_TLS`：是否开启 TLS，`true/false` 字符串
+  - `MONGO_TLS_CA_FILE`：CA 证书路径，开启 TLS 时建议配置
+- 同步接口
+  - `/api/v1/sync/data/`：批量同步 notes/reminders/settings/user 核心数据
+  - `/api/v1/sync/notes/`：仅同步笔记（支持 cursor 增量拉取）
+  - `/api/v1/sync/reminders/`：仅同步提醒（支持 cursor 增量拉取）
+  - `/api/v1/sync/settings/`：仅同步用户设置
+  - `/api/v1/sync/key-data/`：关键数据（用户信息 + 设置）的轻量同步
+- 设计要点
+  - 服务层：`backend/sync/services/sync_service.py`，封装所有同步逻辑
+  - 视图层：`backend/sync/views.py`，仅负责鉴权与请求编排
+  - Mongo 客户端：`backend/sync/services/mongodb_service.py`，单例 + 延迟初始化 + TLS 支持
+  - 冲突处理：支持 `server/client/latest` 策略，基于 `updated_at` 比较
+  - 游标拉取：使用 `updated_at + _id` 作为 cursor，保证顺序稳定、不重复/不遗漏
 
 5. **启动管理系统**
    ```bash

@@ -11,7 +11,8 @@ import { colors } from '../utils/constants/colors';
 
 // 导入知识图谱组件
 import { KnowledgeGraphScreen, NodeDetailScreen, KnowledgeAnalysisScreen } from '../screens/knowledge';
-import { NoteListScreen, NoteEditScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
+import { NoteListScreen, VoiceToTextScreen, NoteDetailScreen } from '../screens/notes';
+import NoteEditorScreen from '../screens/note/NoteEditorScreen';
 import { InfiniteCanvasListScreen } from '../screens/canvas';
 import FluidInfiniteCanvasScreenNative from '../screens/canvas/FluidInfiniteCanvasScreenNative';
 import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../screens/mind_map';
@@ -21,9 +22,12 @@ import { FileViewerScreen } from '../screens/common';
 import AIAssistantScreen from '../screens/ai/AIAssistantScreen';
 import CommunityScreen from '../screens/community/CommunityScreen';
 import CategoryScreen from '../screens/category/CategoryScreen';
+import TemplateManagerScreen from '../screens/templates/TemplateManagerScreen';
+import TemplateEditorScreen from '../screens/templates/TemplateEditorScreen';
 
 // 临时占位组件
 import { View, Text } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -40,7 +44,7 @@ const NotesNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
     <Stack.Screen name="NotesList" component={NoteListScreen} options={{ title: '我的笔记' }} />
     <Stack.Screen name="Category" component={CategoryScreen} options={{ title: '分类' }} />
-    <Stack.Screen name="NoteEdit" component={NoteEditScreen} options={{ title: '编辑笔记' }} />
+    <Stack.Screen name="NoteEditor" component={NoteEditorScreen} options={{ title: '编辑笔记' }} />
     <Stack.Screen name="NoteDetail" component={NoteDetailScreen} options={({ route }) => ({
       title: route.params?.title || '笔记详情',
       headerBackTitleVisible: false,
@@ -108,6 +112,8 @@ const ProfileNavigator = () => (
     <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
     <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
+    <Stack.Screen name="TemplateManager" component={TemplateManagerScreen} options={{ title: '模板管理' }} />
+    <Stack.Screen name="TemplateEditor" component={TemplateEditorScreen} options={{ title: '模板编辑器' }} />
   </Stack.Navigator>
 );
 
@@ -147,7 +153,7 @@ const MainNavigator = () => {
         options={{
           title: 'AI',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>🤖</Text>
+            <Icon name="smart-toy" size={size} color={color} />
           ),
         }}
       />
@@ -157,7 +163,7 @@ const MainNavigator = () => {
         options={{
           title: '社区',
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>👥</Text>
+            <Icon name="people" size={size} color={color} />
           ),
         }}
       />

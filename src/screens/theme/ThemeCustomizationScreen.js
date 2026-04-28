@@ -123,14 +123,14 @@ const ThemeCustomizationScreen = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.modeButton,
-            editMode === 'light' && { backgroundColor: colors.primary }
+            editMode === 'light' && { backgroundColor: colors.primary },
           ]}
           onPress={() => setEditMode('light')}
         >
           <Text
             style={[
               styles.modeButtonText,
-              { color: editMode === 'light' ? '#fff' : colors.text }
+              { color: editMode === 'light' ? '#fff' : colors.text },
             ]}
           >
             浅色主题
@@ -140,14 +140,14 @@ const ThemeCustomizationScreen = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.modeButton,
-            editMode === 'dark' && { backgroundColor: colors.primary }
+            editMode === 'dark' && { backgroundColor: colors.primary },
           ]}
           onPress={() => setEditMode('dark')}
         >
           <Text
             style={[
               styles.modeButtonText,
-              { color: editMode === 'dark' ? '#fff' : colors.text }
+              { color: editMode === 'dark' ? '#fff' : colors.text },
             ]}
           >
             深色主题

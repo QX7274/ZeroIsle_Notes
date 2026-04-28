@@ -3,7 +3,7 @@
 """
 
 import logging
-from django.db import transaction
+from django.db import transaction, models
 from canvas.models import Canvas
 
 logger = logging.getLogger('backend')

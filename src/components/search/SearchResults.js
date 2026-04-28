@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Card } from '../common';
+import AdvancedMarkdownPreview from '../common/AdvancedMarkdownPreview';
 import networkErrorService from '../../services/networkErrorService';
 
 /**
@@ -26,11 +27,12 @@ const SearchResults = ({
   navigation,
 }) => {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [activeFilter, setActiveFilter] = useState('all');
 
   // 过滤结果
   const filteredResults = results.filter((result) => {
-    if (activeFilter === 'all') return true;
+    if (activeFilter === 'all') {return true;}
     return result.type === activeFilter;
   });
 
@@ -195,88 +197,64 @@ const SearchResults = ({
   );
 
   // 渲染结果项
-  const renderResultItem = ({ item }) => (
-    <TouchableOpacity onPress={() => handleResultPress(item)}>
-      <Card style={styles.resultCard}>
-        <View style={styles.resultHeader}>
-          <View style={styles.resultTypeContainer}>
-            <Icon name={getResultIcon(item.type)} size={20} color={theme.primary} />
-            <Text style={[styles.resultType, { color: theme.textSecondary }]}>
-              {getResultTypeLabel(item.type)}
-            </Text>
-          </View>
+  const renderResultItem = ({ item }) => {
+    const handleWikiLinkPress = (title) => {
+      // 简单的实现：跳转到搜索页面以查找该笔记
+      navigation.push('Search', { query: title });
+    };
 
-          <Text style={[styles.resultDate, { color: theme.textSecondary }]}>
-            {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
-          </Text>
-        </View>
-
-        <Text style={[styles.resultTitle, { color: theme.text }]}>
-          {item.title}
-        </Text>
-
-        {item.preview && (
-          <Text
-            style={[styles.resultPreview, { color: theme.textSecondary }]}
-            numberOfLines={2}
-          >
-            {item.preview}
-          </Text>
-        )}
-
-        {item.matchedText && (
-          <View style={[styles.matchContainer, { backgroundColor: theme.primary + '10' }]}>
-            <Text style={[styles.matchLabel, { color: theme.primary }]}>
-              匹配内容:
-            </Text>
-            <Text style={[styles.matchText, { color: theme.text }]}>
-              {item.matchedText}
-            </Text>
-          </View>
-        )}
-
-        {item.tags && item.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {item.tags.slice(0, 3).map((tag, index) => (
-              <View
-                key={index}
-                style={[styles.tagBadge, { backgroundColor: theme.primary + '20' }]}
-              >
-                <Text style={[styles.tagText, { color: theme.primary }]}>
-                  {tag}
-                </Text>
-              </View>
-            ))}
-
-            {item.tags.length > 3 && (
-              <Text style={[styles.moreTagsText, { color: theme.textSecondary }]}>
-                +{item.tags.length - 3}
+    return (
+      <TouchableOpacity onPress={() => handleResultPress(item)}>
+        <Card style={styles.resultCard}>
+          <View style={styles.resultHeader}>
+            <View style={styles.resultTypeContainer}>
+              <Icon name={getResultIcon(item.type)} size={20} color={theme.primary} />
+              <Text style={[styles.resultType, { color: theme.textSecondary }]}>
+                {getResultTypeLabel(item.type)}
               </Text>
-            )}
-          </View>
-        )}
-
-        {item.relevance && (
-          <View style={styles.relevanceContainer}>
-            <Text style={[styles.relevanceLabel, { color: theme.textSecondary }]}>
-              相关度:
-            </Text>
-            <View style={styles.relevanceBar}>
-              <View
-                style={[
-                  styles.relevanceFill,
-                  {
-                    backgroundColor: theme.primary,
-                    width: `${item.relevance * 100}%`,
-                  },
-                ]}
-              />
             </View>
+
+            <Text style={[styles.resultDate, { color: theme.textSecondary }]}>
+              {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
+            </Text>
           </View>
-        )}
-      </Card>
-    </TouchableOpacity>
-  );
+
+          {item.matchDetails?.isRelated && (
+            <Text style={styles.relatedText}>
+              关联自: {item.matchDetails.relatedTo}
+            </Text>
+          )}
+
+          <Text style={[styles.resultTitle, { color: theme.text }]}>
+            {item.displayTitle}
+          </Text>
+
+          {item.displayContent && (
+            <AdvancedMarkdownPreview
+              content={item.displayContent}
+              onWikiLinkPress={handleWikiLinkPress}
+              style={{ height: 40 }} // 限制预览高度
+            />
+          )}
+
+          {item.tags && item.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {item.tags.slice(0, 3).map((tag, index) => (
+                <View
+                  key={index}
+                  style={[styles.tagBadge, { backgroundColor: theme.primary + '20' }]}
+                >
+                  <Text style={[styles.tagText, { color: theme.primary }]}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
   // 渲染加载状态
   if (isLoading) {
@@ -297,10 +275,10 @@ const SearchResults = ({
       // 使用网络错误服务处理网络错误
       networkErrorService.showNetworkError(new Error(error), {
         context: '搜索功能',
-        customMessage: '网络连接失败，无法完成搜索'
+        customMessage: '网络连接失败，无法完成搜索',
       });
     }
-    
+
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <Icon name="error" size={48} color={theme.error} />
@@ -350,7 +328,7 @@ const SearchResults = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -542,6 +520,12 @@ const styles = StyleSheet.create({
   relevanceFill: {
     height: '100%',
     borderRadius: 3,
+  },
+  relatedText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 8,
+    fontStyle: 'italic',
   },
 });
 

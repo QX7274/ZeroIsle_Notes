@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   TextInput,
   Platform,
+  ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
@@ -26,7 +26,7 @@ const AddReminderScreen = ({ route, navigation }) => {
   const themeContext = useTheme();
   const theme = themeContext.theme;
   const dispatch = useDispatch();
-  
+
      // 检查主题对象
    if (!theme || !theme.colors) {
      return (
@@ -36,8 +36,10 @@ const AddReminderScreen = ({ route, navigation }) => {
      );
    }
   const [saving, setSaving] = useState(false);
+  const [inlineHint, setInlineHint] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
+  const [showRepeatEndPicker, setShowRepeatEndPicker] = useState(false);
   const [reminder, setReminder] = useState({
     title: '',
     description: '',
@@ -49,6 +51,7 @@ const AddReminderScreen = ({ route, navigation }) => {
     tags: '',
     is_enabled: true,
     is_completed: false,
+    repeat_end_date: null,
   });
 
   // 请求通知权限
@@ -56,16 +59,24 @@ const AddReminderScreen = ({ route, navigation }) => {
     reminderNotificationService.requestPermissions();
   }, []);
 
+  const notifyNonBlocking = (message) => {
+    setInlineHint(message);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    }
+  };
+
   // 创建提醒
   const handleCreate = async () => {
     // 验证表单
     if (!reminder.title.trim()) {
-      Alert.alert('错误', '请输入提醒标题');
+      notifyNonBlocking('请输入提醒标题');
       return;
     }
 
     try {
       setSaving(true);
+      setInlineHint('');
 
       // 创建提醒
       const response = await api.post(API_ENDPOINTS.REMINDER.BASE, reminder);
@@ -76,13 +87,12 @@ const AddReminderScreen = ({ route, navigation }) => {
       // 安排本地通知
       await reminderNotificationService.scheduleReminderNotification(response.data);
 
-      // 显示成功消息
-      Alert.alert('成功', '提醒已创建', [
-        { text: '确定', onPress: () => navigation.goBack() }
-      ]);
+      // 非阻断成功提示
+      notifyNonBlocking('提醒已创建');
+      navigation.goBack();
     } catch (error) {
       console.error('创建提醒失败:', error);
-      Alert.alert('错误', '创建提醒失败');
+      notifyNonBlocking(error?.message || '创建提醒失败');
     } finally {
       setSaving(false);
     }
@@ -92,7 +102,7 @@ const AddReminderScreen = ({ route, navigation }) => {
   const handleDateChange = (event, selectedDate) => {
     try {
       // 如果没有选择日期，直接返回
-      if (!selectedDate) return;
+      if (!selectedDate) {return;}
 
       // 处理选择的日期或时间
       if (datePickerMode === 'date') {
@@ -144,6 +154,23 @@ const AddReminderScreen = ({ route, navigation }) => {
       setDatePickerMode('date');
       setShowDatePicker(true);
     }, 100);
+  };
+
+  // 处理重复结束日期选择
+  const handleRepeatEndChange = (event, selectedDate) => {
+    try {
+      if (!selectedDate) {return;}
+      const endDate = new Date(selectedDate);
+      endDate.setHours(0, 0, 0, 0);
+      setReminder({
+        ...reminder,
+        repeat_end_date: endDate,
+      });
+    } catch (error) {
+      console.error('处理重复结束日期选择错误:', error);
+    } finally {
+      setShowRepeatEndPicker(false);
+    }
   };
 
   // 获取优先级颜色
@@ -215,7 +242,24 @@ const AddReminderScreen = ({ route, navigation }) => {
   // 渲染主界面
     return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* 顶部导航栏（统一返回按钮样式） */}
+      <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: theme.colors.primary + '15' }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="arrow-back" size={22} color={theme.colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>添加提醒</Text>
+        <View style={styles.headerRight} />
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {inlineHint ? (
+          <View style={[styles.hintBanner, { backgroundColor: theme.colors.warning + '22' }]}>
+            <Text style={[styles.hintText, { color: theme.colors.warning }]}>{inlineHint}</Text>
+          </View>
+        ) : null}
         {/* 标题和描述 */}
         <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标题</Text>
@@ -269,7 +313,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                       ? getPriorityColor(priority)
                       : theme.colors.background,
                     borderColor: getPriorityColor(priority),
-                  }
+                  },
                 ]}
                 onPress={() => setReminder({ ...reminder, priority })}
               >
@@ -280,7 +324,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                         color: reminder.priority === priority && priority !== 'medium'
                           ? '#fff'
                           : getPriorityColor(priority),
-                      }
+                      },
                     ]}
                   >
                     {getPriorityLabel(priority)}
@@ -304,7 +348,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                       ? theme.colors.primary
                       : theme.colors.background,
                     borderColor: theme.colors.primary,
-                  }
+                  },
                 ]}
                 onPress={() => setReminder({ ...reminder, category })}
               >
@@ -315,7 +359,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                       color: reminder.category === category
                         ? '#fff'
                         : theme.colors.primary,
-                      }
+                      },
                     ]
                   }>
                   {getCategoryLabel(category)}
@@ -339,7 +383,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                       ? theme.colors.primary
                       : theme.colors.background,
                     borderColor: theme.colors.primary,
-                  }
+                  },
                 ]}
                 onPress={() => setReminder({ ...reminder, frequency })}
               >
@@ -350,7 +394,7 @@ const AddReminderScreen = ({ route, navigation }) => {
                       color: reminder.frequency === frequency
                         ? '#fff'
                         : theme.colors.primary,
-                      }
+                      },
                   ]}
                 >
                   {getFrequencyLabel(frequency)}
@@ -366,9 +410,7 @@ const AddReminderScreen = ({ route, navigation }) => {
               </Text>
               <TouchableOpacity
                 style={styles.repeatEndButton}
-                onPress={() => {
-                  // TODO: 添加重复结束日期选择器
-                }}
+                onPress={() => setShowRepeatEndPicker(true)}
               >
                 <Text style={[styles.repeatEndText, { color: theme.colors.text }]}>
                   {reminder.repeat_end_date
@@ -430,6 +472,20 @@ const AddReminderScreen = ({ route, navigation }) => {
         onError={(error) => console.log('DateTimePicker error:', error)}
         testID="dateTimePicker"
       />
+
+      {/* 重复结束日期选择器（仅日期） */}
+      <SafeDateTimePicker
+        value={reminder.repeat_end_date ? new Date(reminder.repeat_end_date) : new Date()}
+        mode="date"
+        is24Hour={true}
+        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+        onChange={handleRepeatEndChange}
+        minimumDate={new Date(reminder.due_date)}
+        visible={showRepeatEndPicker}
+        onClose={() => setShowRepeatEndPicker(false)}
+        onError={(error) => console.log('RepeatEndPicker error:', error)}
+        testID="repeatEndPicker"
+      />
     </View>
   );
 };
@@ -438,10 +494,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 24,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: -4,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 18,
+  },
+  headerRight: {
+    width: 40,
+  },
 
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
+  },
+  hintBanner: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  hintText: {
+    fontSize: 13,
   },
   section: {
     borderRadius: 8,

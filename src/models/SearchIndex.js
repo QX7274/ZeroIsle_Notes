@@ -18,8 +18,9 @@ class SearchIndex extends Realm.Object {
       user_id: 'string',
       title: 'string',
       content: { type: 'string', default: '' },
-      keywords: { type: 'string[]', default: [] },
-      tags: { type: 'string[]', default: [] },
+      // Realm JS 新版中，属性对象声明列表需使用 { type: 'list', objectType: 'xxx' }
+      keywords: { type: 'list', objectType: 'string', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
       category: { type: 'string', optional: true },
       created_at: 'date',
       updated_at: 'date',
@@ -69,11 +70,11 @@ class SearchIndex extends Realm.Object {
     const { title, content, keywords, tags, category, metadata, relevance_score, language } = data;
 
     realm.write(() => {
-      if (title !== undefined) this.title = title;
-      if (content !== undefined) this.content = content;
-      if (keywords !== undefined) this.keywords = keywords;
-      if (tags !== undefined) this.tags = tags;
-      if (category !== undefined) this.category = category;
+      if (title !== undefined) {this.title = title;}
+      if (content !== undefined) {this.content = content;}
+      if (keywords !== undefined) {this.keywords = keywords;}
+      if (tags !== undefined) {this.tags = tags;}
+      if (category !== undefined) {this.category = category;}
 
       if (metadata !== undefined) {
         // 解析当前元数据
@@ -89,8 +90,8 @@ class SearchIndex extends Realm.Object {
         this.metadata = JSON.stringify(newMetadata);
       }
 
-      if (relevance_score !== undefined) this.relevance_score = relevance_score;
-      if (language !== undefined) this.language = language;
+      if (relevance_score !== undefined) {this.relevance_score = relevance_score;}
+      if (language !== undefined) {this.language = language;}
 
       this.updated_at = new Date();
     });
@@ -273,11 +274,11 @@ class SearchIndex extends Realm.Object {
       results = results.sorted('updated_at', true);
     }
 
-    // 分页
-    if (options.skip !== undefined && options.limit !== undefined) {
+    // 分页 (性能优化：先 slice 再 materialize)
+    if (options.skip !== undefined || options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = results.slice(skip, skip + limit);
     }
 
     return results;
@@ -394,11 +395,11 @@ class SearchIndex extends Realm.Object {
     if (date_range) {
       const { start, end } = date_range;
       if (start && end) {
-        queryStr += ` AND (updated_at >= $0 AND updated_at <= $1)`;
+        queryStr += ' AND (updated_at >= $0 AND updated_at <= $1)';
       } else if (start) {
-        queryStr += ` AND updated_at >= $0`;
+        queryStr += ' AND updated_at >= $0';
       } else if (end) {
-        queryStr += ` AND updated_at <= $0`;
+        queryStr += ' AND updated_at <= $0';
       }
     }
 
@@ -420,8 +421,8 @@ class SearchIndex extends Realm.Object {
     // 排序 - 由于Realm不支持文本搜索评分，我们使用相关性分数和更新时间排序
     results = results.sorted([['relevance_score', true], ['updated_at', true]]);
 
-    // 分页
-    results = Array.from(results).slice(skip, skip + limit);
+    // 分页 (性能优化：先 slice 再 materialize)
+    results = results.slice(skip, skip + limit);
 
     return results;
   }
@@ -459,8 +460,8 @@ class SearchIndex extends Realm.Object {
     // 执行查询
     const results = realm.objects('SearchIndex').filtered(queryStr);
 
-    // 计算余弦相似度并过滤
-    const resultsWithSimilarity = Array.from(results).map(index => {
+    // 计算余弦相似度并过滤 (注意：此操作为 CPU 密集型，仅用于小规模 embedding)
+    const resultsWithSimilarity = Array.from(results.slice(0, 500)).map(index => {
       // 解析嵌入向量
       const indexEmbedding = JSON.parse(index.embedding);
 

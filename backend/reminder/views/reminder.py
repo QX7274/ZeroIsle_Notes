@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from mongoengine.queryset.visitor import Q
 import uuid
 
 from reminder.mongodb_models import Reminder
@@ -22,7 +23,7 @@ from reminder.services import ReminderService
 from common.permissions import IsOwner
 from common.pagination import StandardResultsSetPagination
 
-class ReminderViewSet(viewsets.ViewSet):
+class ReminderViewSet(viewsets.GenericViewSet):
     """提醒视图集"""
     serializer_class = ReminderSerializer
     permission_classes = [IsAuthenticated, IsOwner]
@@ -32,6 +33,10 @@ class ReminderViewSet(viewsets.ViewSet):
     search_fields = ['title', 'description']
     ordering_fields = ['due_date', 'priority', 'created_at']
     ordering = ['due_date']
+
+    # Ordering whitelist for security
+    ORDERING_WHITELIST = ['due_date', '-due_date', 'priority', '-priority',
+                          'created_at', '-created_at', 'updated_at', '-updated_at']
 
     def list(self, request):
         """获取提醒列表"""
@@ -43,25 +48,27 @@ class ReminderViewSet(viewsets.ViewSet):
         search = request.query_params.get('search')
         ordering = request.query_params.get('ordering', 'due_date')
 
-        # 构建查询条件
-        query = {'user': request.user}
+        # Validate and sanitize ordering parameter
+        if ordering not in self.ORDERING_WHITELIST:
+            ordering = 'due_date'
+
+        # 构建查询条件 - 使用 MongoEngine 的 Q 对象
+        query = Q(user=request.user)
 
         if priority:
-            query['priority'] = priority
+            query &= Q(priority=priority)
         if frequency:
-            query['frequency'] = frequency
+            query &= Q(frequency=frequency)
         if is_completed:
-            query['is_completed'] = is_completed.lower() == 'true'
+            query &= Q(is_completed=(is_completed.lower() == 'true'))
         if is_enabled:
-            query['is_enabled'] = is_enabled.lower() == 'true'
+            query &= Q(is_enabled=(is_enabled.lower() == 'true'))
         if search:
-            query['$or'] = [
-                {'title': {'$regex': search, '$options': 'i'}},
-                {'description': {'$regex': search, '$options': 'i'}}
-            ]
+            # 使用 Q 对象进行搜索
+            query &= (Q(title__icontains=search) | Q(description__icontains=search))
 
         # 执行查询
-        reminders = Reminder.objects.filter(**query).order_by(ordering)
+        reminders = Reminder.objects.filter(query).order_by(ordering)
 
         # 分页
         page = self.paginate_queryset(reminders)
@@ -94,27 +101,19 @@ class ReminderViewSet(viewsets.ViewSet):
         """创建提醒"""
         serializer = ReminderCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            # 创建提醒
-            reminder = Reminder(
-                id=uuid.uuid4(),
-                user=request.user,
-                title=serializer.validated_data['title'],
-                description=serializer.validated_data.get('description', ''),
-                due_date=serializer.validated_data['due_date'],
-                priority=serializer.validated_data.get('priority', 'medium'),
-                frequency=serializer.validated_data.get('frequency', 'once'),
-                is_enabled=serializer.validated_data.get('is_enabled', True),
-                note=serializer.validated_data.get('note'),
-                created_at=timezone.now(),
-                updated_at=timezone.now()
-            )
-            reminder.save()
-
-            # 创建提醒通知
-            ReminderService.schedule_notifications(reminder)
-
-            serializer = ReminderDetailSerializer(reminder)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # 使用 ReminderService 创建提醒
+            try:
+                reminder = ReminderService.create_reminder(
+                    user=request.user,
+                    data=serializer.validated_data
+                )
+                serializer = ReminderDetailSerializer(reminder)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response(
+                    {"detail": f"创建提醒失败: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, pk=None):
@@ -130,17 +129,19 @@ class ReminderViewSet(viewsets.ViewSet):
 
             serializer = ReminderUpdateSerializer(reminder, data=request.data, context={'request': request})
             if serializer.is_valid():
-                # 更新提醒
-                for key, value in serializer.validated_data.items():
-                    setattr(reminder, key, value)
-                reminder.updated_at = timezone.now()
-                reminder.save()
-
-                # 更新提醒通知
-                ReminderService.update_notifications(reminder)
-
-                serializer = ReminderDetailSerializer(reminder)
-                return Response(serializer.data)
+                # 使用 ReminderService 更新提醒
+                try:
+                    reminder = ReminderService.update_reminder(
+                        reminder=reminder,
+                        data=serializer.validated_data
+                    )
+                    serializer = ReminderDetailSerializer(reminder)
+                    return Response(serializer.data)
+                except Exception as e:
+                    return Response(
+                        {"detail": f"更新提醒失败: {str(e)}"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Reminder.DoesNotExist:
             return Response(
@@ -159,13 +160,15 @@ class ReminderViewSet(viewsets.ViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # 删除提醒通知
-            ReminderService.delete_notifications(reminder)
-
-            # 删除提醒
-            reminder.delete()
-
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            # 使用 ReminderService 删除提醒
+            try:
+                ReminderService.delete_reminder(reminder)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except Exception as e:
+                return Response(
+                    {"detail": f"删除提醒失败: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         except Reminder.DoesNotExist:
             return Response(
                 {"detail": "提醒不存在"},
@@ -270,22 +273,19 @@ class ReminderViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def today(self, request):
         """获取今天的提醒"""
-        # 获取今天的提醒
-        today = timezone.now().date()
+        # 获取今天的提醒 - 使用 timezone-aware datetime
+        today = timezone.localdate()
 
-        # 构建查询条件
+        # 构建查询条件 - 使用 timezone-aware datetime
         from datetime import datetime, time
-        start_of_day = datetime.combine(today, time.min)
-        end_of_day = datetime.combine(today, time.max)
+        start_of_day = timezone.make_aware(datetime.combine(today, time.min))
+        end_of_day = timezone.make_aware(datetime.combine(today, time.max))
 
-        query = {
-            'user': request.user,
-            'due_date__gte': start_of_day,
-            'due_date__lte': end_of_day
-        }
+        # 使用 Q 对象构建查询
+        query = Q(user=request.user) & Q(due_date__gte=start_of_day) & Q(due_date__lte=end_of_day)
 
         # 执行查询
-        reminders = Reminder.objects.filter(**query).order_by('due_date')
+        reminders = Reminder.objects.filter(query).order_by('due_date')
 
         serializer = ReminderListSerializer(reminders, many=True)
         return Response(serializer.data)

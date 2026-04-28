@@ -12,6 +12,8 @@ from asgiref.sync import async_to_sync
 
 from django.conf import settings
 from django.http import JsonResponse, StreamingHttpResponse
+from django.core.cache import cache
+import hashlib
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -401,6 +403,16 @@ def summarize_text(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # 生成缓存键 (task + text hash)
+    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+    cache_key = f"ai_cache:summarize:{text_hash}"
+    
+    # 尝试并从缓存获取
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        logger.info(f"AI Cache Hit: summarize")
+        return Response(cached_result)
+
     # 初始化文本处理服务
     text_service = TextProcessingService()
 
@@ -410,6 +422,9 @@ def summarize_text(request):
             text=text,
             task='summarize'
         )
+        
+        # 存入缓存 (有效期 24 小时)
+        cache.set(cache_key, result, timeout=86400)
 
         # 记录使用情况
         UsageRecord.objects.create(
@@ -452,6 +467,16 @@ def translate_text(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # 生成缓存键 (task + target_lang + text hash)
+    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+    cache_key = f"ai_cache:translate:{target_lang}:{text_hash}"
+    
+    # 尝试并从缓存获取
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        logger.info(f"AI Cache Hit: translate to {target_lang}")
+        return Response(cached_result)
+
     # 初始化文本处理服务
     text_service = TextProcessingService()
 
@@ -462,6 +487,9 @@ def translate_text(request):
             source_lang=source_lang,
             target_lang=target_lang
         )
+        
+        # 存入缓存 (有效期 24 小时)
+        cache.set(cache_key, result, timeout=86400)
 
         # 记录使用情况
         UsageRecord.objects.create(

@@ -26,25 +26,36 @@ public class ZeroIsleNotesPackage implements ReactPackage {
         viewManagers.add(new NativePDFViewManager()); // 原生 PDF 视图
         viewManagers.add(new NativePagedNoteViewManager()); // 原生分页笔记视图
         viewManagers.add(new NativeInfiniteCanvasViewManager()); // 原生无限画布视图
+        viewManagers.add(new CodeEditorModule(reactContext)); // 代码编辑器视图
         return viewManagers;
     }
 
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        // 添加原生模块
-        modules.add(new ZeroIsleUtilsModule(reactContext));
-        modules.add(new FileSystemModule(reactContext));
-        modules.add(new NotificationModule(reactContext));
-        modules.add(new NotificationChannelModule(reactContext)); // 添加通知渠道模块
-        modules.add(new AIAssistantModule(reactContext));
-        modules.add(new BaiduAIAssistantModule(reactContext));
-        modules.add(new XunfeiAIAssistantModule(reactContext));
-        modules.add(new ZhipuAIAssistantModule(reactContext));
-        // 添加原生视图模块
-        modules.add(new NativePDFModule(reactContext));
-        modules.add(new NativePagedNoteModule(reactContext));
-        modules.add(new NativeInfiniteCanvasModule(reactContext));
+        try {
+            // 添加原生模块
+            modules.add(new ZeroIsleUtilsModule(reactContext));
+            modules.add(new FileSystemModule(reactContext));
+            modules.add(new NotificationModule(reactContext));
+            modules.add(new NotificationChannelModule(reactContext)); // 添加通知渠道模块
+            modules.add(new AIAssistantModule(reactContext));
+            modules.add(new BaiduAIAssistantModule(reactContext));
+            modules.add(new XunfeiAIAssistantModule(reactContext));
+            modules.add(new ZhipuAIAssistantModule(reactContext));
+            modules.add(new VoiceRecognitionModule(reactContext)); // 语音识别模块
+            modules.add(new TranslationModule(reactContext)); // 翻译模块
+            modules.add(new ReminderModule(reactContext)); // 提醒模块
+            modules.add(new CameraModule(reactContext)); // 相机模块
+            // 永久存储模块（用于原生侧实际落盘）
+            modules.add(new PermanentStorageModule(reactContext));
+            // 添加原生视图模块
+            modules.add(new NativePDFModule(reactContext));
+            modules.add(new NativePagedNoteModule(reactContext));
+            modules.add(new NativeInfiniteCanvasModule(reactContext));
+        } catch (Exception e) {
+            android.util.Log.e("ZeroIsleNotesPackage", "Error creating native modules", e);
+        }
         return modules;
     }
 }

@@ -42,7 +42,7 @@ class PreloadService {
       uri,
       type,
       priority,
-      addedAt: Date.now()
+      addedAt: Date.now(),
     });
 
     // 按优先级排序
@@ -69,11 +69,11 @@ class PreloadService {
 
     try {
       console.log(`PreloadService: 开始预加载 ${nextItem.type} 文档:`, nextItem.uri);
-      
+
       // 检查是否已缓存
       const cached = await documentCacheService.getCachedDocument(nextItem.uri, nextItem.type);
       if (cached && cached.data) {
-        console.log(`PreloadService: 文档已缓存，跳过预加载:`, nextItem.uri);
+        console.log('PreloadService: 文档已缓存，跳过预加载:', nextItem.uri);
         this.preloadHistory.add(nextItem.uri);
         return;
       }
@@ -81,17 +81,17 @@ class PreloadService {
       // 执行预加载
       await this.preloadDocument(nextItem.uri, nextItem.type);
       this.preloadHistory.add(nextItem.uri);
-      
-      console.log(`PreloadService: 预加载完成:`, nextItem.uri);
+
+      console.log('PreloadService: 预加载完成:', nextItem.uri);
     } catch (error) {
       logService.error('PreloadService: 预加载失败', {
         uri: nextItem.uri,
         type: nextItem.type,
-        error: error.message
+        error: error.message,
       });
     } finally {
       this.currentPreloads--;
-      
+
       // 继续处理队列中的下一个项目
       if (this.preloadQueue.length > 0) {
         setTimeout(() => this.startPreloading(), 100);
@@ -116,7 +116,7 @@ class PreloadService {
         const realm = await realmService.getRealm();
         const notes = realm.objects('Note').filtered('is_deleted = false');
         const relatedNote = notes.find(note => {
-          if (!note.metadata) return false;
+          if (!note.metadata) {return false;}
 
           let metadata;
           try {
@@ -240,7 +240,7 @@ class PreloadService {
     return {
       queueLength: this.preloadQueue.length,
       currentPreloads: this.currentPreloads,
-      preloadedCount: this.preloadHistory.size
+      preloadedCount: this.preloadHistory.size,
     };
   }
 

@@ -33,19 +33,19 @@ class NetworkErrorService {
       error: error?.message || error,
       options,
       listenerCount: this.globalErrorListeners.size,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
+
     // 为error对象添加必要的属性，以便NetworkErrorAlert组件能正确显示
     const enhancedError = {
       ...error,
       errorType: this.getNetworkErrorType(error),
-      userMessage: options.customMessage || this.getUserFriendlyMessage(this.getNetworkErrorType(error))
+      userMessage: options.customMessage || this.getUserFriendlyMessage(this.getNetworkErrorType(error)),
     };
-    
+
     this.currentError = enhancedError;
     this.currentErrorOptions = options;
-    
+
     this.globalErrorListeners.forEach((listener, index) => {
       try {
         console.log(`NetworkErrorService: 正在通知监听器 ${index + 1}/${this.globalErrorListeners.size}`);
@@ -55,7 +55,7 @@ class NetworkErrorService {
         console.error(`NetworkErrorService: 监听器 ${index + 1} 执行失败:`, err);
       }
     });
-    
+
     console.log('NetworkErrorService: 全局错误监听器通知完成');
   }
 
@@ -73,7 +73,11 @@ class NetworkErrorService {
 
   // 判断是否为网络错误
   isNetworkError(error) {
-    if (!error) return false;
+    if (!error) {return false;}
+
+    if (error?.isNetworkError === true) {return true;}
+
+    if (error?.request && !error?.response) {return true;}
 
     // 检查错误代码
     if (error.code) {
@@ -84,9 +88,9 @@ class NetworkErrorService {
         'ENOTFOUND',
         'ETIMEDOUT',
         'ERR_NETWORK',
-        'ERR_INTERNET_DISCONNECTED'
+        'ERR_INTERNET_DISCONNECTED',
       ];
-      if (networkCodes.includes(error.code)) return true;
+      if (networkCodes.includes(error.code)) {return true;}
     }
 
     // 检查错误消息关键词
@@ -100,7 +104,7 @@ class NetworkErrorService {
       'aborted',
       'disconnected',
       'offline',
-      'no internet'
+      'no internet',
     ];
 
     const errorMessage = (error.message || '').toLowerCase();
@@ -109,7 +113,7 @@ class NetworkErrorService {
 
   // 获取网络错误类型
   getNetworkErrorType(error) {
-    if (!this.isNetworkError(error)) return 'unknown_error';
+    if (!this.isNetworkError(error)) {return 'unknown_error';}
 
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       return 'timeout_error';
@@ -132,13 +136,13 @@ class NetworkErrorService {
 
   // 获取用户友好的错误消息
   getUserFriendlyMessage(errorType, customMessage = null) {
-    if (customMessage) return customMessage;
+    if (customMessage) {return customMessage;}
 
     const messages = {
       timeout_error: '请求超时，请检查网络连接后重试',
       network_error: '网络连接失败，请检查网络设置后重试',
       not_found_error: '服务器地址无法访问，请检查网络设置',
-      unknown_error: '网络连接出现问题，请检查网络设置后重试'
+      unknown_error: '网络连接出现问题，请检查网络设置后重试',
     };
 
     return messages[errorType] || messages.unknown_error;
@@ -150,7 +154,7 @@ class NetworkErrorService {
     console.log('网络错误（通过GlobalNetworkErrorHandler显示）:', {
       error: error?.message || error,
       options,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -160,32 +164,38 @@ class NetworkErrorService {
       error: error?.message || error,
       options,
       isNetworkError: this.isNetworkError(error),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     if (this.isNetworkError(error)) {
       // 为网络错误添加默认重试功能
       const enhancedOptions = {
         ...options,
-        onRetry: options.onRetry || this.createDefaultRetryFunction(error, options)
+        onRetry: options.onRetry || this.createDefaultRetryFunction(error, options),
       };
 
       // 通知全局错误监听器，由GlobalNetworkErrorHandler显示
       console.log('NetworkErrorService: 检测到网络错误，准备通知全局监听器');
       this.notifyGlobalErrorListeners(error, enhancedOptions);
-      
+
+      // 开发模式或未挂载全局监听器时，回退为原生提示，避免“无提示静默失败”
+      if (this.globalErrorListeners.size === 0) {
+        const fallbackMessage = enhancedOptions.customMessage || this.getUserFriendlyMessage(this.getNetworkErrorType(error));
+        Alert.alert('网络提示', fallbackMessage);
+      }
+
       // 记录错误日志
       console.error('API网络错误:', {
         context: options.context || 'API调用',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
-      // 非网络错误，记录到控制台
-      console.error('API错误:', {
+      // 非网络错误：仅记录日志，避免开发环境告警弹层打断联调流程
+      console.log('API错误:', {
         context: options.context || 'API调用',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -193,19 +203,20 @@ class NetworkErrorService {
   // 处理文档转换错误
   handleDocumentConversionError(error, options = {}) {
     if (this.isNetworkError(error)) {
+      const resolvedContext = options.context || '文档转换';
       const enhancedOptions = {
         ...options,
-        context: '文档转换',
-        customMessage: '文档转换服务连接失败，请检查网络连接后重试',
-        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: '文档转换' })
+        context: resolvedContext,
+        customMessage: options.customMessage || '文档转换服务连接失败，请检查网络连接后重试',
+        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: resolvedContext }),
       };
-      
+
       this.notifyGlobalErrorListeners(error, enhancedOptions);
     } else {
       console.error('文档转换错误:', {
         context: options.context || '文档转换',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -213,19 +224,20 @@ class NetworkErrorService {
   // 处理文件上传错误
   handleFileUploadError(error, options = {}) {
     if (this.isNetworkError(error)) {
+      const resolvedContext = options.context || '文件上传';
       const enhancedOptions = {
         ...options,
-        context: '文件上传',
-        customMessage: '文件上传失败，请检查网络连接后重试',
-        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: '文件上传' })
+        context: resolvedContext,
+        customMessage: options.customMessage || '文件上传失败，请检查网络连接后重试',
+        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: resolvedContext }),
       };
-      
+
       this.notifyGlobalErrorListeners(error, enhancedOptions);
     } else {
       console.error('文件上传错误:', {
         context: options.context || '文件上传',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -233,19 +245,20 @@ class NetworkErrorService {
   // 处理同步错误
   handleSyncError(error, options = {}) {
     if (this.isNetworkError(error)) {
+      const resolvedContext = options.context || '数据同步';
       const enhancedOptions = {
         ...options,
-        context: '数据同步',
-        customMessage: '数据同步失败，请检查网络连接后重试',
-        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: '数据同步' })
+        context: resolvedContext,
+        customMessage: options.customMessage || '数据同步失败，请检查网络连接后重试',
+        onRetry: options.onRetry || this.createDefaultRetryFunction(error, { context: resolvedContext }),
       };
-      
+
       this.notifyGlobalErrorListeners(error, enhancedOptions);
     } else {
       console.error('同步错误:', {
         context: options.context || '数据同步',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -256,7 +269,7 @@ class NetworkErrorService {
       console.log('NetworkErrorService: 执行默认重试功能:', {
         context: options.context || 'API调用',
         error: error?.message || error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       // 根据错误类型提供不同的重试建议
@@ -280,7 +293,7 @@ class NetworkErrorService {
       // 显示重试提示
       if (typeof Alert !== 'undefined') {
         Alert.alert('重试提示', retryMessage, [
-          { text: '确定', style: 'default' }
+          { text: '确定', style: 'default' },
         ]);
       } else {
         console.log('重试提示:', retryMessage);

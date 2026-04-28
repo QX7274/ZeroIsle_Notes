@@ -1,0 +1,240 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+WARNING Bad Request: 
+/api/v1/auth/bind/pho
+ne/
+F密码登录失败: 密码错误, 用户: te
+stuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=test
+@example.com, ip=127.
+0.0.1, reason={'non_f
+ield_errors': [ErrorD
+etail(string='密码错误', 
+code='invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F密码登录失败: 密码错误, 用户: ph
+oneuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=1380
+0138000, ip=127.0.0.1
+, reason={'non_field_
+errors': [ErrorDetail
+(string='密码错误', code=
+'invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F密码登录失败: 密码错误, 用户: te
+stuser
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='密码错误', code='
+invalid')]}
+登录失败记录: username=test
+user, ip=127.0.0.1, r
+eason={'non_field_err
+ors': [ErrorDetail(st
+ring='密码错误', code='in
+valid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F..
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_bindi
+ng_methods (users.tes
+ts.test_auth.UserAuth
+Test.test_user_bindin
+g_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 228, in test_user_
+binding_methods
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_email (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_email)
+测试邮箱登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 108, in test_user_
+login_with_email
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_phone (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_phone)
+测试手机号登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 151, in test_user_
+login_with_phone
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_username (users
+.tests.test_auth.User
+AuthTest.test_user_lo
+gin_with_username)
+测试用户名登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 94, in test_user_l
+ogin_with_username
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 61.408
+s
+
+FAILED (failures=4)
+Destroying test datab
+ase for alias 'defaul
+t'...
+
+Found 6 test(s).
+System check identified no issues (0 silenced).
+DEBUG: Mongo Password Hash: md5$JDdiZmEMPQHg6VOQL6OiLG$ee3aac43b4fc10ecd136bf3b10362d91
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$JDdiZmEMPQHg6VOQL6OiLG$ee3aac43b4fc10ecd136bf3b10362d91
+DEBUG: Mongo Password Hash: md5$xkOFM7R2vZwIH8JYuOHbdI$978df83be2f050c3895404d0cdaf90a4
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$xkOFM7R2vZwIH8JYuOHbdI$978df83be2f050c3895404d0cdaf90a4
+DEBUG: Mongo Password Hash: md5$RZjJ76GReobum1SBczMER7$ea54f0090d59644bf190bdc52d3d30dd
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$RZjJ76GReobum1SBczMER7$ea54f0090d59644bf190bdc52d3d30dd
+DEBUG: Mongo Password Hash: md5$7fbkVqg8PQvX5SqlFIL1hy$fcb1eef4d284e157254f06981a83464d
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$7fbkVqg8PQvX5SqlFIL1hy$fcb1eef4d284e157254f06981a83464d
+DEBUG: Mongo Password Hash: md5$d98rXdXJoLjy11TxweYutm$670e9b3e3bcdc22ee8a13e08b4ef1a6b
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$d98rXdXJoLjy11TxweYutm$670e9b3e3bcdc22ee8a13e08b4ef1a6b
+DEBUG: Mongo Password Hash: md5$7Gga5tYX8JsfB2x0BVERJR$6636ec6f2bee3738a0b13ba73f3d33cc
+DEBUG: Check 'TestPassword123!': False
+DEBUG: Django User Password: md5$7Gga5tYX8JsfB2x0BVERJR$6636ec6f2bee3738a0b13ba73f3d33cc

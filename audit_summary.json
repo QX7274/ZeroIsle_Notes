@@ -1,0 +1,1473 @@
+{
+  "scanned_file_count": 1264,
+  "issue_count": 4691,
+  "risk_counter": {
+    "中": 2508,
+    "低": 1489,
+    "高": 694
+  },
+  "type_counter": {
+    "模拟/假数据": 84,
+    "伪流程/仅日志": 1962,
+    "占位实现-直接返回": 1842,
+    "临时兜底/占位": 588,
+    "未实现逻辑-空函数/占位": 170,
+    "未实现逻辑-TODO/FIXME/TBD": 39,
+    "未实现逻辑-NotImplemented": 6
+  },
+  "top_files": [
+    [
+      "src/screens/common/HomeScreen.js",
+      160
+    ],
+    [
+      "src/components/common/AllInOneToolbar.js",
+      104
+    ],
+    [
+      "src/services/api/notesApi.js",
+      78
+    ],
+    [
+      "src/services/api/authApi.js",
+      76
+    ],
+    [
+      "src/screens/viewers/PDFViewerNative.js",
+      74
+    ],
+    [
+      "backend/tests/test_user_api.py",
+      62
+    ],
+    [
+      "backend/setup_document_converter.py",
+      60
+    ],
+    [
+      "src/screens/canvas/FluidInfiniteCanvasScreenNative.js",
+      57
+    ],
+    [
+      "src/screens/note/SkiaPagedCanvasScreenNative.js",
+      54
+    ],
+    [
+      "src/tests/auth_api_test.js",
+      49
+    ],
+    [
+      "backend/mongodb_init.py",
+      48
+    ],
+    [
+      "src/services/reminder/reminderNotificationService.js",
+      47
+    ],
+    [
+      "src/services/api/apiClient.js",
+      45
+    ],
+    [
+      "backend/reminder/services/notification_service.py",
+      44
+    ],
+    [
+      "backend/test_mongodb_realm.py",
+      40
+    ],
+    [
+      "src/redux/slices/authSlice.js",
+      40
+    ],
+    [
+      "src/services/auth/tokenService.js",
+      39
+    ],
+    [
+      "src/redux/slices/notesSlice.js",
+      36
+    ],
+    [
+      "src/screens/note/CardNoteScreen.js",
+      36
+    ],
+    [
+      "ios/NativePDFView/NativePDFView.m",
+      35
+    ],
+    [
+      "src/services/sync/syncManager.js",
+      35
+    ],
+    [
+      "src/screens/auth/LoginScreen.js",
+      34
+    ],
+    [
+      "src/services/fileHistoryService.js",
+      34
+    ],
+    [
+      "src/services/document/documentConversionService.js",
+      33
+    ],
+    [
+      "src/services/auth/devModeService.js",
+      32
+    ],
+    [
+      "android/app/src/main/java/com/zeroisle_notes/nativepdf/NativePDFView.java",
+      31
+    ],
+    [
+      "src/tests/test_knowledge_graph_api.js",
+      31
+    ],
+    [
+      "ios/NativePagedNoteView/NativePagedNoteView.m",
+      30
+    ],
+    [
+      "backend/test_simple.py",
+      29
+    ],
+    [
+      "src/screens/viewers/MarkdownViewer.js",
+      28
+    ],
+    [
+      "android/app/src/main/java/com/zeroisle_notes/nativeinfinite/NativeInfiniteCanvasView.java",
+      27
+    ],
+    [
+      "src/tests/test_reminder_api.js",
+      27
+    ],
+    [
+      "test_mongodb_connection.py",
+      27
+    ],
+    [
+      "android/app/src/main/java/com/zeroisle_notes/nativepaged/NativePagedNoteView.java",
+      26
+    ],
+    [
+      "src/App.js",
+      26
+    ],
+    [
+      "src/hooks/useDrawing.js",
+      26
+    ],
+    [
+      "src/components/note/EnhancedCheckboxTextInput.js",
+      25
+    ],
+    [
+      "backend/mongodb_service.py",
+      24
+    ],
+    [
+      "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasView.m",
+      24
+    ],
+    [
+      "src/services/document/nonBlockingPPTProcessor.js",
+      24
+    ]
+  ],
+  "top_modules": [
+    [
+      "src",
+      3292
+    ],
+    [
+      "backend",
+      837
+    ],
+    [
+      "admin_system",
+      289
+    ],
+    [
+      "android",
+      123
+    ],
+    [
+      "ios",
+      112
+    ],
+    [
+      "(root)",
+      38
+    ]
+  ],
+  "focus_issue_count": 887,
+  "focus_top_files": [
+    [
+      "src/components/common/AllInOneToolbar.js",
+      50
+    ],
+    [
+      "src/components/note/EnhancedCheckboxTextInput.js",
+      24
+    ],
+    [
+      "src/services/notes/noteToolbarService.js",
+      18
+    ],
+    [
+      "src/components/common/SafeDateTimePicker.js",
+      17
+    ],
+    [
+      "admin_system/backend/settings_api/services.py",
+      16
+    ],
+    [
+      "android/app/src/main/java/com/zeroisle_notes/nativepdf/NativePDFView.java",
+      14
+    ],
+    [
+      "src/components/code/CodeRunner.js",
+      14
+    ],
+    [
+      "src/components/common/OptimizedImage.js",
+      13
+    ],
+    [
+      "src/screens/common/HomeScreen.js",
+      13
+    ],
+    [
+      "src/services/notes/noteService.js",
+      12
+    ],
+    [
+      "src/components/note/CheckboxTextInput.js",
+      11
+    ],
+    [
+      "admin_system/frontend/src/pages/Analytics/ReportTemplates.js",
+      10
+    ],
+    [
+      "admin_system/frontend/src/pages/SystemSettings/SystemConfig.js",
+      10
+    ],
+    [
+      "admin_system/frontend/src/services/settingsService.js",
+      10
+    ],
+    [
+      "admin_system/frontend/src/services/noteService.js",
+      9
+    ],
+    [
+      "src/components/voice/RealtimeTranscription.js",
+      9
+    ],
+    [
+      "src/screens/auth/LoginScreen.js",
+      9
+    ],
+    [
+      "src/services/api/notesApi.js",
+      9
+    ],
+    [
+      "admin_system/frontend/src/pages/UserManagement/UserCreate.js",
+      8
+    ],
+    [
+      "admin_system/frontend/src/services/syncService.js",
+      8
+    ],
+    [
+      "src/components/knowledge/NodeEditor.js",
+      8
+    ],
+    [
+      "src/screens/auth/ForgotPasswordScreen.js",
+      8
+    ],
+    [
+      "src/screens/note/CardNoteScreen.js",
+      8
+    ],
+    [
+      "admin_system/frontend/src/pages/SystemSettings/AdminManagement.js",
+      7
+    ],
+    [
+      "admin_system/frontend/src/pages/SystemSettings/AnnouncementList.js",
+      7
+    ],
+    [
+      "admin_system/frontend/src/pages/SystemSettings/GeneralSettings.js",
+      7
+    ],
+    [
+      "admin_system/frontend/src/pages/UserManagement/UserEdit.js",
+      7
+    ],
+    [
+      "src/components/knowledge/EdgeEditor.js",
+      7
+    ],
+    [
+      "src/components/search/UnifiedSearchBar.js",
+      7
+    ],
+    [
+      "src/screens/community/PostDetailScreen.js",
+      7
+    ],
+    [
+      "src/screens/reminder/ReminderDetailScreen.js",
+      7
+    ],
+    [
+      "src/services/startup/memoryStartupGuard.js",
+      7
+    ],
+    [
+      "admin_system/frontend/src/pages/Analytics/ReportList.js",
+      6
+    ],
+    [
+      "admin_system/frontend/src/pages/Dashboard.js",
+      6
+    ],
+    [
+      "admin_system/frontend/src/pages/LogManagement/LogExport.js",
+      6
+    ],
+    [
+      "admin_system/frontend/src/pages/ReportGenerator/index.js",
+      6
+    ],
+    [
+      "admin_system/frontend/src/pages/SystemSettings/BackupManagement.js",
+      6
+    ],
+    [
+      "backend/ai_assistant/legacy_views.py",
+      6
+    ],
+    [
+      "backend/ai_assistant/views.py",
+      6
+    ],
+    [
+      "backend/voice_recognition/services/diarization_service.py",
+      6
+    ],
+    [
+      "patch-bcrypt.js",
+      6
+    ],
+    [
+      "src/components/FileUploader.js",
+      6
+    ],
+    [
+      "src/components/common/ApiTestComponent.js",
+      6
+    ],
+    [
+      "src/components/common/EnhancedRichTextEditor.js",
+      6
+    ],
+    [
+      "src/components/common/Input.js",
+      6
+    ],
+    [
+      "src/screens/auth/RegisterScreen.js",
+      6
+    ],
+    [
+      "src/screens/community/CreatePostScreen.js",
+      6
+    ],
+    [
+      "src/screens/mind_map/MindMapEditScreen.js",
+      6
+    ],
+    [
+      "src/screens/reminder/AddReminderScreen.js",
+      6
+    ],
+    [
+      "src/services/ai/mindMapService.js",
+      6
+    ],
+    [
+      "admin_system/frontend/src/pages/NoteManagement/NoteList.js",
+      5
+    ],
+    [
+      "admin_system/frontend/src/services/userService.js",
+      5
+    ],
+    [
+      "src/components/category/CategoryEditor.js",
+      5
+    ],
+    [
+      "src/components/search/MultiModalSearch.js",
+      5
+    ],
+    [
+      "src/screens/knowledge/NodeDetailScreen.js",
+      5
+    ],
+    [
+      "src/screens/viewers/MarkdownViewer.js",
+      5
+    ],
+    [
+      "src/screens/voice/VoiceReminderScreen.js",
+      5
+    ],
+    [
+      "src/services/api/authApi.js",
+      5
+    ],
+    [
+      "src/services/document/preloadService.js",
+      5
+    ],
+    [
+      "src/utils/bcryptInit.js",
+      5
+    ]
+  ],
+  "examples_by_type": {
+    "模拟/假数据": [
+      {
+        "file": "admin_system/backend/admin_backend/settings.py",
+        "line_start": 94,
+        "line_end": 94,
+        "type": "模拟/假数据",
+        "evidence": "'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/admin_system/settings.py",
+        "line_start": 69,
+        "line_end": 69,
+        "type": "模拟/假数据",
+        "evidence": "'ENGINE': 'django.db.backends.dummy',  # 使用dummy引擎，因为我们使用mongoengine",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/pages/DataAnalytics/index.js",
+        "line_start": 55,
+        "line_end": 55,
+        "type": "模拟/假数据",
+        "evidence": "const mockData = {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/pages/DataAnalytics/index.js",
+        "line_start": 88,
+        "line_end": 88,
+        "type": "模拟/假数据",
+        "evidence": "setStats(mockData);",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/categoryService.js",
+        "line_start": 11,
+        "line_end": 11,
+        "type": "模拟/假数据",
+        "evidence": "return mockCategories(params);",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/categoryService.js",
+        "line_start": 70,
+        "line_end": 70,
+        "type": "模拟/假数据",
+        "evidence": "return mockCategoryStats();",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/categoryService.js",
+        "line_start": 78,
+        "line_end": 78,
+        "type": "模拟/假数据",
+        "evidence": "const mockCategories = (params) => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/categoryService.js",
+        "line_start": 132,
+        "line_end": 132,
+        "type": "模拟/假数据",
+        "evidence": "const mockCategoryStats = () => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 11,
+        "line_end": 11,
+        "type": "模拟/假数据",
+        "evidence": "return mockNotes(params);",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 26,
+        "line_end": 26,
+        "type": "模拟/假数据",
+        "evidence": "return mockNoteDetail(id);",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 107,
+        "line_end": 107,
+        "type": "模拟/假数据",
+        "evidence": "return mockNoteStats();",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 115,
+        "line_end": 115,
+        "type": "模拟/假数据",
+        "evidence": "const mockNotes = (params) => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 117,
+        "line_end": 117,
+        "type": "模拟/假数据",
+        "evidence": "const generateMockNotes = (count) => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 157,
+        "line_end": 157,
+        "type": "模拟/假数据",
+        "evidence": "const allNotes = generateMockNotes(50);",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 228,
+        "line_end": 228,
+        "type": "模拟/假数据",
+        "evidence": "const mockNoteDetail = (id) => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 273,
+        "line_end": 273,
+        "type": "模拟/假数据",
+        "evidence": "const mockNoteVersions = (id) => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/noteService.js",
+        "line_start": 293,
+        "line_end": 293,
+        "type": "模拟/假数据",
+        "evidence": "const mockNoteStats = () => {",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/settingsService.js",
+        "line_start": 35,
+        "line_end": 35,
+        "type": "模拟/假数据",
+        "evidence": "return mockSystemConfig();",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/services/settingsService.js",
+        "line_start": 87,
+        "line_end": 87,
+        "type": "模拟/假数据",
+        "evidence": "return mockSecurityConfig();",
+        "risk": "高"
+      },
+      {
+        "file": "admin_system/frontend/src/services/settingsService.js",
+        "line_start": 131,
+        "line_end": 131,
+        "type": "模拟/假数据",
+        "evidence": "return mockAdmins(params);",
+        "risk": "中"
+      }
+    ],
+    "伪流程/仅日志": [
+      {
+        "file": "admin_system/backend/analytics/services.py",
+        "line_start": 62,
+        "line_end": 62,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(\"从缓存中获取仪表盘数据\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/analytics/services.py",
+        "line_start": 67,
+        "line_end": 67,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(\"从数据库中获取仪表盘数据\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/analytics/services.py",
+        "line_start": 159,
+        "line_end": 159,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(\"仪表盘数据已存入缓存\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 42,
+        "line_end": 42,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 更新了分类: {category.name}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 188,
+        "line_end": 188,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 更新了举报: {report.id}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 402,
+        "line_end": 402,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 创建了笔记: {note.title}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 407,
+        "line_end": 407,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 更新了笔记: {note.title}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 420,
+        "line_end": 420,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 删除了笔记: {title}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 658,
+        "line_end": 658,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {request.user} 将笔记 {note.title} 的状态从 {old_status} 更新为 {new_status}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 705,
+        "line_end": 705,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {request.user} 批量删除了笔记: {title}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 842,
+        "line_end": 842,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 创建了评论: {comment.id}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 847,
+        "line_end": 847,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 更新了评论: {comment.id}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 860,
+        "line_end": 860,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 删除了评论: {comment_id}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 896,
+        "line_end": 896,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {request.user} 批量删除了评论: {comment_id}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 1014,
+        "line_end": 1014,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 创建了附件: {attachment.filename}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 1019,
+        "line_end": 1019,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 更新了附件: {attachment.filename}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 1031,
+        "line_end": 1031,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 删除了附件: {filename}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/content/views.py",
+        "line_start": 1068,
+        "line_end": 1068,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {request.user} 批量删除了附件: {filename}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/models.py",
+        "line_start": 118,
+        "line_end": 118,
+        "type": "伪流程/仅日志",
+        "evidence": "print(f\"删除备份文件失败: {str(e)}\")",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/views.py",
+        "line_start": 35,
+        "line_end": 35,
+        "type": "伪流程/仅日志",
+        "evidence": "logger.info(f\"管理员 {self.request.user} 创建了设置: {setting.key}\")",
+        "risk": "中"
+      }
+    ],
+    "占位实现-直接返回": [
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 224,
+        "line_end": 224,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 331,
+        "line_end": 331,
+        "type": "占位实现-直接返回",
+        "evidence": "return None",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 349,
+        "line_end": 349,
+        "type": "占位实现-直接返回",
+        "evidence": "return None",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 392,
+        "line_end": 392,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 435,
+        "line_end": 435,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 579,
+        "line_end": 579,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 589,
+        "line_end": 589,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 650,
+        "line_end": 650,
+        "type": "占位实现-直接返回",
+        "evidence": "return None",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 719,
+        "line_end": 719,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 729,
+        "line_end": 729,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 806,
+        "line_end": 806,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/content/services.py",
+        "line_start": 816,
+        "line_end": 816,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/logs/services.py",
+        "line_start": 306,
+        "line_end": 306,
+        "type": "占位实现-直接返回",
+        "evidence": "return []",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/logs/services.py",
+        "line_start": 323,
+        "line_end": 323,
+        "type": "占位实现-直接返回",
+        "evidence": "return []",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 185,
+        "line_end": 185,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 203,
+        "line_end": 203,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 223,
+        "line_end": 223,
+        "type": "占位实现-直接返回",
+        "evidence": "return []",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 244,
+        "line_end": 244,
+        "type": "占位实现-直接返回",
+        "evidence": "return []",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 334,
+        "line_end": 334,
+        "type": "占位实现-直接返回",
+        "evidence": "return False",
+        "risk": "低"
+      },
+      {
+        "file": "admin_system/backend/sync/services.py",
+        "line_start": 84,
+        "line_end": 84,
+        "type": "占位实现-直接返回",
+        "evidence": "return None",
+        "risk": "中"
+      }
+    ],
+    "临时兜底/占位": [
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 456,
+        "line_end": 456,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 521,
+        "line_end": 521,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 526,
+        "line_end": 526,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 595,
+        "line_end": 595,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 600,
+        "line_end": 600,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 669,
+        "line_end": 669,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 674,
+        "line_end": 674,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 743,
+        "line_end": 743,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 748,
+        "line_end": 748,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 817,
+        "line_end": 817,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 845,
+        "line_end": 845,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 883,
+        "line_end": 883,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 974,
+        "line_end": 974,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 993,
+        "line_end": 993,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 1006,
+        "line_end": 1006,
+        "type": "临时兜底/占位",
+        "evidence": "# 创建临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/backend/settings_api/services.py",
+        "line_start": 1072,
+        "line_end": 1072,
+        "type": "临时兜底/占位",
+        "evidence": "# 清理临时目录",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/components/users/PasswordResetModal.js",
+        "line_start": 285,
+        "line_end": 285,
+        "type": "临时兜底/占位",
+        "evidence": "placeholder=\"请输入6位验证码\"",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/components/users/PasswordResetModal.js",
+        "line_start": 328,
+        "line_end": 328,
+        "type": "临时兜底/占位",
+        "evidence": "placeholder=\"请输入新密码\"",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/components/users/PasswordResetModal.js",
+        "line_start": 351,
+        "line_end": 351,
+        "type": "临时兜底/占位",
+        "evidence": "placeholder=\"请确认新密码\"",
+        "risk": "中"
+      },
+      {
+        "file": "admin_system/frontend/src/pages/Analytics/ReportList.js",
+        "line_start": 321,
+        "line_end": 321,
+        "type": "临时兜底/占位",
+        "evidence": "placeholder=\"搜索报表标题或描述\"",
+        "risk": "中"
+      }
+    ],
+    "未实现逻辑-空函数/占位": [
+      {
+        "file": "admin_system/frontend/src/services/syncService.js",
+        "line_start": 183,
+        "line_end": 184,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "filteredHistory.sort((a, b) => new Date(b.startTime) - new Date(a.startTime)); | }",
+        "risk": "高"
+      },
+      {
+        "file": "src/adapters/knowledgeGraphAdapter.js",
+        "line_start": 535,
+        "line_end": 536,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "params.node_types.forEach((t) => query.append('node_types', t)); | }",
+        "risk": "高"
+      },
+      {
+        "file": "src/adapters/syncInfoAdapter.js",
+        "line_start": 188,
+        "line_end": 189,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (!syncInfo) { | return null;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/FileUploader.js",
+        "line_start": 96,
+        "line_end": 97,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (DocumentPicker.isCancel(err)) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/category/CategoryEditor.js",
+        "line_start": 118,
+        "line_end": 119,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (!validateForm()) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/category/CategoryList.js",
+        "line_start": 54,
+        "line_end": 55,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isLoading) { | return null;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 905,
+        "line_end": 906,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isImageActionLocked) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 923,
+        "line_end": 924,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (response?.didCancel) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1012,
+        "line_end": 1013,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isAIHistoryLoading) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1032,
+        "line_end": 1033,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarksLoading) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1054,
+        "line_end": 1055,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkActionLocked) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1064,
+        "line_end": 1065,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkActionLocked) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1071,
+        "line_end": 1072,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkActionLocked) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1080,
+        "line_end": 1081,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkSubmitting) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1089,
+        "line_end": 1090,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkSubmitting) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1129,
+        "line_end": 1130,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (deletingBookmarkId || isBookmarkSubmitting) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1165,
+        "line_end": 1166,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isBookmarkActionLocked || deletingBookmarkId) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1179,
+        "line_end": 1180,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isTextAndShapeLocked) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1189,
+        "line_end": 1190,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isTextSubmitting) { | return;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/AllInOneToolbar.js",
+        "line_start": 1196,
+        "line_end": 1197,
+        "type": "未实现逻辑-空函数/占位",
+        "evidence": "if (isTextSubmitting) { | return;",
+        "risk": "高"
+      }
+    ],
+    "未实现逻辑-TODO/FIXME/TBD": [
+      {
+        "file": "android/app/src/main/java/com/zeroisle_notes/nativeinfinite/NativeInfiniteCanvasView.java",
+        "line_start": 1092,
+        "line_end": 1092,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 实现手写识别",
+        "risk": "高"
+      },
+      {
+        "file": "backend/common/tasks.py",
+        "line_start": 195,
+        "line_end": 195,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "# TODO: 可在此处集成 WebSocket 推送，向用户频道广播新通知",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasView.m",
+        "line_start": 268,
+        "line_end": 268,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 实现笔迹渲染",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasView.m",
+        "line_start": 326,
+        "line_end": 326,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 将patternImage转换为Metal纹理并渲染",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasView.m",
+        "line_start": 1124,
+        "line_end": 1124,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 实现基于视口的清除",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePDFView/NativePDFView.m",
+        "line_start": 186,
+        "line_end": 186,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "@\"latencyMs\": @(0), // TODO: 实现延迟测量",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePDFView/NativePDFView.m",
+        "line_start": 294,
+        "line_end": 294,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 支持网络 URL",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePagedNoteView/NativePagedNoteView.m",
+        "line_start": 281,
+        "line_end": 281,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: Metal 绘制实现",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePagedNoteView/NativePagedNoteView.m",
+        "line_start": 676,
+        "line_end": 676,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 转换为 Metal 纹理并渲染",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/CardTypeModal.js",
+        "line_start": 41,
+        "line_end": 41,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "id: 'todo',",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/common/RichTextEditor.js",
+        "line_start": 286,
+        "line_end": 286,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "// TODO: 集成图片压缩功能",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 24,
+        "line_end": 24,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "cardType = 'note', // 'todo', 'note', 'reminder', 'important'",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 55,
+        "line_end": 55,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "const todoMatch = line.match(/^(\\s*)(- \\[[ x]\\])\\s*(.*)$/);",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 56,
+        "line_end": 56,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "if (todoMatch && cardType === 'todo') {",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 57,
+        "line_end": 57,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "const [, indent, checkbox, content] = todoMatch;",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 60,
+        "line_end": 60,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "type: 'todo',",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/CheckboxTextInput.js",
+        "line_start": 101,
+        "line_end": 101,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "const toggleTodo = (lineIndex) => {",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/EnhancedCheckboxTextInput.js",
+        "line_start": 24,
+        "line_end": 24,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "cardType = 'note', // 'todo', 'note', 'reminder', 'important'",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/EnhancedCheckboxTextInput.js",
+        "line_start": 55,
+        "line_end": 55,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "const todoMatch = line.match(/^(\\s*)(- \\[[ x]\\])\\s*(.*)$/);",
+        "risk": "高"
+      },
+      {
+        "file": "src/components/note/EnhancedCheckboxTextInput.js",
+        "line_start": 56,
+        "line_end": 56,
+        "type": "未实现逻辑-TODO/FIXME/TBD",
+        "evidence": "if (todoMatch && cardType === 'todo') {",
+        "risk": "高"
+      }
+    ],
+    "未实现逻辑-NotImplemented": [
+      {
+        "file": "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasViewManager.m",
+        "line_start": 83,
+        "line_end": 83,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeTextInRect not implemented\", nil);",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativeInfiniteCanvasView/NativeInfiniteCanvasViewManager.m",
+        "line_start": 109,
+        "line_end": 109,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeHandwritingInStrokes not implemented\", nil);",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePDFView/NativePDFViewManager.m",
+        "line_start": 89,
+        "line_end": 89,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeTextInRect not implemented on NativePDFView\", nil);",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePDFView/NativePDFViewManager.m",
+        "line_start": 105,
+        "line_end": 105,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeTextInRect not implemented\", nil);",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePagedNoteView/NativePagedNoteViewManager.m",
+        "line_start": 100,
+        "line_end": 100,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeHandwritingWithCount not implemented\", nil);",
+        "risk": "高"
+      },
+      {
+        "file": "ios/NativePagedNoteView/NativePagedNoteViewManager.m",
+        "line_start": 248,
+        "line_end": 248,
+        "type": "未实现逻辑-NotImplemented",
+        "evidence": "reject(@\"E_NOT_IMPLEMENTED\", @\"recognizeTextInRect not implemented\", nil);",
+        "risk": "高"
+      }
+    ]
+  }
+}

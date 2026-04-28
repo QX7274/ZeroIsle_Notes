@@ -29,15 +29,15 @@ const EmptyState = ({
           style={styles.icon}
         />
       )}
-      
+
       {title && (
         <Text style={styles.title}>{title}</Text>
       )}
-      
+
       {message && (
         <Text style={styles.message}>{message}</Text>
       )}
-      
+
       {buttonTitle && onButtonPress && (
         <TouchableOpacity
           style={styles.button}
@@ -46,7 +46,7 @@ const EmptyState = ({
           <Text style={styles.buttonText}>{buttonTitle}</Text>
         </TouchableOpacity>
       )}
-      
+
       {secondaryButtonTitle && onSecondaryButtonPress && (
         <TouchableOpacity
           style={styles.secondaryButton}

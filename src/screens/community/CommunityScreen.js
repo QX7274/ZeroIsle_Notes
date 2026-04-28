@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Button, Card } from '../../components/common';
+import { Button, Card, Skeleton } from '../../components/common';
 import { SPACING } from '../../utils/constants/dimensions';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import { UnifiedSearchBar } from '../../components/search';
+import communityApi from '../../services/api/communityApi';
 import networkErrorService from '../../services/networkErrorService';
+import networkService from '../../services/network/networkService';
 
 /**
  * 社区屏幕组件
@@ -76,104 +78,39 @@ const CommunityScreen = ({ navigation }) => {
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector(state => state.community);
   const hasMore = pagination.page < pagination.totalPages;
 
-  // 模拟数据
-  const mockPosts = [
-    {
-      id: '1',
-      title: '高效笔记方法分享',
-      author: '学习达人',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-      preview: '分享我使用零屿笔记提高学习效率的几个小技巧...',
-      likes: 128,
-      comments: 32,
-      downloads: 56,
-      timestamp: '2025-04-20T10:30:00Z',
-      tags: ['学习方法', '效率提升', '笔记技巧'],
-    },
-    {
-      id: '2',
-      title: '知识图谱构建案例',
-      author: '知识管理专家',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/44.jpg',
-      preview: '如何利用零屿笔记的知识图谱功能构建个人知识体系...',
-      likes: 256,
-      comments: 48,
-      downloads: 112,
-      timestamp: '2025-04-19T14:20:00Z',
-      tags: ['知识图谱', '知识管理', '案例分享'],
-    },
-    {
-      id: '3',
-      title: '手写识别功能使用技巧',
-      author: '科技爱好者',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/67.jpg',
-      preview: '零屿笔记手写识别功能的几个隐藏用法，提高识别准确率...',
-      likes: 89,
-      comments: 15,
-      downloads: 34,
-      timestamp: '2025-04-18T09:15:00Z',
-      tags: ['手写识别', '使用技巧', '功能介绍'],
-    },
-    {
-      id: '4',
-      title: '语音转文本实用场景',
-      author: '效率专家',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/28.jpg',
-      preview: '在会议记录、采访整理等场景下如何高效使用语音转文本功能...',
-      likes: 76,
-      comments: 23,
-      downloads: 41,
-      timestamp: '2025-04-17T16:40:00Z',
-      tags: ['语音转文本', '会议记录', '效率工具'],
-    },
-    {
-      id: '5',
-      title: '零屿笔记模板分享',
-      author: '模板设计师',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/15.jpg',
-      preview: '分享几个我设计的高效笔记模板，适用于学习、工作和项目管理...',
-      likes: 312,
-      comments: 67,
-      downloads: 245,
-      timestamp: '2025-04-16T11:25:00Z',
-      tags: ['笔记模板', '资源分享', '效率工具'],
-    },
-  ];
-
   // 加载数据
   useEffect(() => {
     loadPosts();
   }, []);
 
   const loadPosts = async () => {
-    if (isLoading) return;
+    if (isLoading) {return;}
+
+    const isOnline = await networkService.checkConnection();
+    if (!isOnline) {
+      networkErrorService.handleApiError({
+        message: 'Network Error',
+        code: 'ERR_NETWORK',
+        isNetworkError: true,
+      }, {
+        context: '加载社区帖子',
+        customMessage: '当前无网络连接，无法加载社区内容',
+      });
+      return;
+    }
 
     try {
       // 尝试从API加载帖子
       await dispatch(fetchPosts({ page, pageSize: 10 })).unwrap();
     } catch (error) {
-      console.error('加载帖子失败:', error);
-
-      // 使用网络错误服务处理错误
+      console.log('加载帖子失败:', error?.message || error);
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '加载社区帖子',
-          customMessage: '网络连接失败，无法加载社区内容'
+          customMessage: '网络连接失败，无法加载社区内容',
         });
       }
-
-      // 如果API加载失败，使用模拟数据
-      dispatch({
-        type: 'community/fetchPostsSuccess',
-        payload: {
-          posts: mockPosts,
-          pagination: {
-            page: 1,
-            totalPages: 1,
-            totalItems: mockPosts.length
-          }
-        }
-      });
+      // API加载失败时不使用模拟数据，保持错误状态由Redux处理
     }
   };
 
@@ -184,11 +121,11 @@ const CommunityScreen = ({ navigation }) => {
 
     dispatch(fetchPosts({ page: 1, pageSize: 10 }))
       .catch(error => {
-        console.error('刷新帖子失败:', error);
+        console.warn('刷新帖子失败:', error?.message || error);
         if (networkErrorService.isNetworkError(error)) {
           networkErrorService.handleApiError(error, {
             context: '刷新社区帖子',
-            customMessage: '网络连接失败，无法刷新社区内容'
+            customMessage: '网络连接失败，无法刷新社区内容',
           });
         }
       })
@@ -197,34 +134,34 @@ const CommunityScreen = ({ navigation }) => {
 
   // 加载更多
   const handleLoadMore = () => {
-    if (isLoading || !hasMore) return;
+    if (isLoading || !hasMore) {return;}
 
     const nextPage = page + 1;
     setPage(nextPage);
     dispatch(fetchPosts({ page: nextPage, pageSize: 10 }))
       .catch(error => {
-        console.error('加载更多帖子失败:', error);
+        console.warn('加载更多帖子失败:', error?.message || error);
         if (networkErrorService.isNetworkError(error)) {
           networkErrorService.handleApiError(error, {
             context: '加载更多社区帖子',
-            customMessage: '网络连接失败，无法加载更多内容'
+            customMessage: '网络连接失败，无法加载更多内容',
           });
         }
       });
   };
 
-  // 处理点赞
-  const handleLike = (postId) => {
+  // 处理点赞 (优化: useCallback)
+  const handleLike = useCallback((postId) => {
     dispatch(likePost({ postId, liked: !likedPosts[postId] }));
-  };
+  }, [dispatch, likedPosts]);
 
-  // 处理收藏
-  const handleBookmark = (postId) => {
+  // 处理收藏 (优化: useCallback)
+  const handleBookmark = useCallback((postId) => {
     dispatch(toggleBookmark(postId));
-  };
+  }, [dispatch]);
 
-  // 渲染帖子项
-  const renderPostItem = ({ item }) => (
+  // 渲染帖子项 (优化: useCallback)
+  const renderPostItem = useCallback(({ item }) => (
     <Card style={styles.postCard}>
       <TouchableOpacity
         onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
@@ -256,13 +193,13 @@ const CommunityScreen = ({ navigation }) => {
             onPress={() => handleLike(item.id)}
           >
             <Icon
-              name={likedPosts[item.id] ? "thumb-up" : "thumb-up-off-alt"}
+              name={likedPosts[item.id] ? 'thumb-up' : 'thumb-up-off-alt'}
               size={16}
               color={likedPosts[item.id] ? theme.primary : theme.textSecondary}
             />
             <Text
               style={[styles.statText, {
-                color: likedPosts[item.id] ? theme.primary : theme.textSecondary
+                color: likedPosts[item.id] ? theme.primary : theme.textSecondary,
               }]}
             >
               {item.likes}
@@ -281,7 +218,7 @@ const CommunityScreen = ({ navigation }) => {
             onPress={() => handleBookmark(item.id)}
           >
             <Icon
-              name={bookmarkedPosts[item.id] ? "bookmark" : "bookmark-border"}
+              name={bookmarkedPosts[item.id] ? 'bookmark' : 'bookmark-border'}
               size={16}
               color={bookmarkedPosts[item.id] ? theme.primary : theme.textSecondary}
             />
@@ -289,11 +226,35 @@ const CommunityScreen = ({ navigation }) => {
         </View>
       </TouchableOpacity>
     </Card>
+  ), [theme, likedPosts, bookmarkedPosts, navigation, handleLike, handleBookmark]);
+
+  // 渲染加载中的骨架屏
+  const renderLoadingSkeleton = () => (
+    <View style={{ padding: 15 }}>
+      {[1, 2, 3].map(i => (
+        <View key={i} style={[styles.postCard, { padding: 15 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <Skeleton circle width={40} height={40} />
+            <View style={{ marginLeft: 10 }}>
+              <Skeleton width={120} height={15} style={{ marginBottom: 5 }} />
+              <Skeleton width={80} height={10} />
+            </View>
+          </View>
+          <Skeleton width="100%" height={20} style={{ marginBottom: 10 }} />
+          <Skeleton width="80%" height={15} style={{ marginBottom: 15 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Skeleton width={60} height={20} />
+            <Skeleton width={60} height={20} />
+            <Skeleton width={60} height={20} />
+          </View>
+        </View>
+      ))}
+    </View>
   );
 
   // 渲染列表底部
   const renderFooter = () => {
-    if (!isLoading) return null;
+    if (!isLoading || posts.length === 0) {return null;}
 
     return (
       <View style={styles.footerLoader}>
@@ -306,6 +267,12 @@ const CommunityScreen = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+          <Icon name="notifications" size={22} color={theme.text} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Activity')}>
+          <Icon name="dynamic-feed" size={22} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
@@ -340,40 +307,46 @@ const CommunityScreen = ({ navigation }) => {
           </TouchableOpacity>
         </ScrollView>
       </View>
-
-      <FlatList
-        data={posts}
-        renderItem={renderPostItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[theme.primary]}
-            tintColor={theme.primary}
-          />
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          isLoading ? null : (
-            <View style={styles.emptyContainer}>
-              <Icon name="forum" size={64} color={theme.textSecondary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                暂无社区内容
-              </Text>
-              <Button
-                title="刷新"
-                onPress={handleRefresh}
-                type="primary"
-                style={styles.refreshButton}
-              />
-            </View>
-          )
-        }
-      />
+      {isLoading && posts.length === 0 ? (
+        renderLoadingSkeleton()
+      ) : (
+        <FlatList
+          data={posts}
+          renderItem={renderPostItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          initialNumToRender={5}
+          windowSize={5}
+          removeClippedSubviews={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.primary]}
+              tintColor={theme.primary}
+            />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            !isLoading ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="forum" size={64} color={theme.textSecondary} />
+                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                  暂无社区内容
+                </Text>
+                <Button
+                  title="刷新"
+                  onPress={handleRefresh}
+                  type="primary"
+                  style={styles.refreshButton}
+                />
+              </View>
+            ) : null
+          }
+        />
+      )}
 
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: '#2196F3' }]}

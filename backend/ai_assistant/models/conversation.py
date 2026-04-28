@@ -2,24 +2,48 @@
 对话模型
 """
 
-from mongoengine import Document, StringField, DateTimeField, BooleanField, FloatField
-from mongoengine import IntField, ReferenceField, CASCADE
+from django.db import models
+from django.conf import settings
 from django.utils import timezone
-from users.mongodb_models import User
 
-class Conversation(UserOwnedModel, SoftDeleteModel):
+
+class Conversation(models.Model):
     """
     对话模型
     存储用户与AI助手的对话
     """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='conversations',
+        verbose_name='用户'
+    )
     title = models.CharField(max_length=255, verbose_name='标题')
     description = models.TextField(blank=True, null=True, verbose_name='描述')
-    model = models.CharField(max_length=50, default='gpt-3.5-turbo', verbose_name='模型')
-    system_prompt = models.TextField(blank=True, null=True, verbose_name='系统提示词')
+    model = models.CharField(
+        max_length=50, default='gpt-3.5-turbo', verbose_name='模型'
+    )
+    system_prompt = models.TextField(
+        blank=True, null=True, verbose_name='系统提示词'
+    )
     temperature = models.FloatField(default=0.7, verbose_name='温度')
-    max_tokens = models.IntegerField(default=2000, verbose_name='最大令牌数')
+    max_tokens = models.IntegerField(
+        default=2000, verbose_name='最大令牌数'
+    )
     is_pinned = models.BooleanField(default=False, verbose_name='是否置顶')
-    last_message_at = models.DateTimeField(auto_now=True, verbose_name='最后消息时间')
+    is_deleted = models.BooleanField(default=False, verbose_name='是否删除')
+    last_message_at = models.DateTimeField(
+        auto_now=True, verbose_name='最后消息时间'
+    )
+    last_activity = models.DateTimeField(
+        default=timezone.now, verbose_name='最后活动时间'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True, verbose_name='创建时间'
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True, verbose_name='更新时间'
+    )
 
     class Meta:
         verbose_name = '对话'
@@ -42,26 +66,21 @@ class Conversation(UserOwnedModel, SoftDeleteModel):
     @property
     def total_tokens(self):
         """总令牌数"""
-        return self.messages.aggregate(total=models.Sum('tokens'))['total'] or 0
+        result = self.messages.aggregate(total=models.Sum('tokens'))
+        return result['total'] or 0
 
     def add_message(self, role, content, tokens=None):
         """
         添加消息
-
-        Args:
-            role: 角色 (user/assistant/system)
-            content: 内容
-            tokens: 令牌数
-
-        Returns:
-            Message: 创建的消息
         """
         return Message.objects.create(
             conversation=self,
             role=role,
             content=content,
-            tokens=tokens
+            tokens=tokens or 0,
+            user=self.user
         )
+
 
 class Message(models.Model):
     """
@@ -80,10 +99,20 @@ class Message(models.Model):
         related_name='messages',
         verbose_name='对话'
     )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, verbose_name='角色')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='ai_messages',
+        verbose_name='用户'
+    )
+    role = models.CharField(
+        max_length=10, choices=ROLE_CHOICES, verbose_name='角色'
+    )
     content = models.TextField(verbose_name='内容')
     tokens = models.IntegerField(default=0, verbose_name='令牌数')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    created_at = models.DateTimeField(
+        auto_now_add=True, verbose_name='创建时间'
+    )
 
     class Meta:
         verbose_name = '消息'

@@ -12,8 +12,8 @@ class FileValidationService {
   }
 
   async initialize() {
-    if (this.initialized) return;
-    
+    if (this.initialized) {return;}
+
     try {
       // 确保必要的目录存在
       const docsDir = RNFS.DocumentDirectoryPath;
@@ -21,7 +21,7 @@ class FileValidationService {
       if (!exists) {
         await RNFS.mkdir(docsDir);
       }
-      
+
       this.initialized = true;
       console.log('FileValidationService: 初始化完成');
     } catch (error) {
@@ -37,17 +37,17 @@ class FileValidationService {
    */
   async validatePDF(filePath) {
     await this.initialize();
-    
+
     try {
       console.log('FileValidationService: 开始验证PDF文件:', filePath);
-      
+
       // 检查文件是否存在
       const exists = await RNFS.exists(filePath);
       if (!exists) {
         return {
           valid: false,
           error: 'FILE_NOT_FOUND',
-          message: '文件不存在'
+          message: '文件不存在',
         };
       }
 
@@ -57,7 +57,7 @@ class FileValidationService {
         return {
           valid: false,
           error: 'EMPTY_FILE',
-          message: '文件为空'
+          message: '文件为空',
         };
       }
 
@@ -67,7 +67,7 @@ class FileValidationService {
         return {
           valid: false,
           error: 'INVALID_PDF_FORMAT',
-          message: '不是有效的PDF文件格式'
+          message: '不是有效的PDF文件格式',
         };
       }
 
@@ -79,14 +79,14 @@ class FileValidationService {
           return {
             valid: false,
             error: 'CORRUPTED_PDF',
-            message: 'PDF文件可能已损坏'
+            message: 'PDF文件可能已损坏',
           };
         }
       } catch (readError) {
         return {
           valid: false,
           error: 'READ_ERROR',
-          message: '无法读取文件内容'
+          message: '无法读取文件内容',
         };
       }
 
@@ -94,7 +94,7 @@ class FileValidationService {
         valid: true,
         message: 'PDF文件验证通过',
         fileSize: stats.size,
-        lastModified: stats.mtime
+        lastModified: stats.mtime,
       };
 
     } catch (error) {
@@ -102,7 +102,7 @@ class FileValidationService {
       return {
         valid: false,
         error: 'VALIDATION_ERROR',
-        message: `验证失败: ${error.message}`
+        message: `验证失败: ${error.message}`,
       };
     }
   }
@@ -114,17 +114,17 @@ class FileValidationService {
    */
   async validateWord(filePath) {
     await this.initialize();
-    
+
     try {
       console.log('FileValidationService: 开始验证Word文件:', filePath);
-      
+
       // 检查文件是否存在
       const exists = await RNFS.exists(filePath);
       if (!exists) {
         return {
           valid: false,
           error: 'FILE_NOT_FOUND',
-          message: '文件不存在'
+          message: '文件不存在',
         };
       }
 
@@ -134,19 +134,19 @@ class FileValidationService {
         return {
           valid: false,
           error: 'EMPTY_FILE',
-          message: '文件为空'
+          message: '文件为空',
         };
       }
 
       // 检查Word文档的ZIP文件头（docx格式）
       const header = await this.readFileHeader(filePath, 4);
       const isZipFormat = header.startsWith('PK\x03\x04') || header.startsWith('PK\x05\x06') || header.startsWith('PK\x07\x08');
-      
+
       if (!isZipFormat) {
         return {
           valid: false,
           error: 'INVALID_WORD_FORMAT',
-          message: '不是有效的Word文档格式'
+          message: '不是有效的Word文档格式',
         };
       }
 
@@ -154,7 +154,7 @@ class FileValidationService {
         valid: true,
         message: 'Word文档验证通过',
         fileSize: stats.size,
-        lastModified: stats.mtime
+        lastModified: stats.mtime,
       };
 
     } catch (error) {
@@ -162,7 +162,7 @@ class FileValidationService {
       return {
         valid: false,
         error: 'VALIDATION_ERROR',
-        message: `验证失败: ${error.message}`
+        message: `验证失败: ${error.message}`,
       };
     }
   }
@@ -174,17 +174,17 @@ class FileValidationService {
    */
   async validatePPT(filePath) {
     await this.initialize();
-    
+
     try {
       console.log('FileValidationService: 开始验证PPT文件:', filePath);
-      
+
       // 检查文件是否存在
       const exists = await RNFS.exists(filePath);
       if (!exists) {
         return {
           valid: false,
           error: 'FILE_NOT_FOUND',
-          message: '文件不存在'
+          message: '文件不存在',
         };
       }
 
@@ -194,19 +194,19 @@ class FileValidationService {
         return {
           valid: false,
           error: 'EMPTY_FILE',
-          message: '文件为空'
+          message: '文件为空',
         };
       }
 
       // 检查PPT文档的ZIP文件头（pptx格式）
       const header = await this.readFileHeader(filePath, 4);
       const isZipFormat = header.startsWith('PK\x03\x04') || header.startsWith('PK\x05\x06') || header.startsWith('PK\x07\x08');
-      
+
       if (!isZipFormat) {
         return {
           valid: false,
           error: 'INVALID_PPT_FORMAT',
-          message: '不是有效的PPT文档格式'
+          message: '不是有效的PPT文档格式',
         };
       }
 
@@ -214,7 +214,7 @@ class FileValidationService {
         valid: true,
         message: 'PPT文档验证通过',
         fileSize: stats.size,
-        lastModified: stats.mtime
+        lastModified: stats.mtime,
       };
 
     } catch (error) {
@@ -222,7 +222,7 @@ class FileValidationService {
       return {
         valid: false,
         error: 'VALIDATION_ERROR',
-        message: `验证失败: ${error.message}`
+        message: `验证失败: ${error.message}`,
       };
     }
   }
@@ -247,7 +247,7 @@ class FileValidationService {
         return {
           valid: false,
           error: 'UNSUPPORTED_TYPE',
-          message: `不支持的文件类型: ${fileType}`
+          message: `不支持的文件类型: ${fileType}`,
         };
     }
   }

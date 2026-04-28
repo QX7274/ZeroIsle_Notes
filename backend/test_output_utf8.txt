@@ -1,0 +1,79 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test ba
+ckend/users/tests/tes
+t_auth.py >  ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+E
+=====================
+=====================
+=====================
+=======
+ERROR: backend/users/
+tests/test_auth (unit
+test.loader._FailedTe
+st.backend/users/test
+s/test_auth)
+---------------------
+---------------------
+---------------------
+-------
+ImportError: Failed t
+o import test module:
+ backend/users/tests/
+test_auth
+Traceback (most recen
+t call last):
+  File "C:\Python313\
+Lib\unittest\loader.p
+y", line 137, in load
+TestsFromName
+    module = __import
+__(module_name)
+ModuleNotFoundError: 
+No module named 'back
+end/users/tests/test_
+auth'
+
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+Found 1 test(s).
+System check identified no issues (0 silenced).

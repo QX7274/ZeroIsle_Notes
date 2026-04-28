@@ -1,5 +1,6 @@
 import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
+import networkService from '../network/networkService';
 
 /**
  * 用户相关API服务
@@ -14,14 +15,10 @@ const userApi = {
       const response = await instance.get(API_ENDPOINTS.AUTH.PROFILE);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '获取用户信息失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -35,14 +32,10 @@ const userApi = {
       const response = await instance.put(API_ENDPOINTS.AUTH.PROFILE, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '更新用户信息失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -60,14 +53,10 @@ const userApi = {
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '上传头像失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -80,18 +69,14 @@ const userApi = {
     try {
       const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
         phone,
-        type: 'bind'
+        type: 'bind',
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '发送验证码失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -105,14 +90,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.BIND_PHONE, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '绑定手机号失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -125,18 +106,14 @@ const userApi = {
     try {
       const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
         email,
-        type: 'bind'
+        type: 'bind',
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '发送验证码失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -150,14 +127,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.BIND_EMAIL, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '绑定邮箱失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -171,14 +144,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '修改密码失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -192,18 +161,14 @@ const userApi = {
     try {
       const response = await instance.post('/auth/wechat/login/', {
         code,
-        user_info: userInfo
+        user_info: userInfo,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '微信登录失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -217,18 +182,14 @@ const userApi = {
     try {
       const response = await instance.post('/auth/qq/login/', {
         code,
-        user_info: userInfo
+        user_info: userInfo,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'QQ登录失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -241,34 +202,23 @@ const userApi = {
   registerWithUsername: async (username, password) => {
     try {
       // 检查网络连接
-      const NetInfo = require('@react-native-community/netinfo').default;
-      const networkState = await NetInfo.fetch();
+      const networkState = await networkService.checkConnection();
 
-      if (!networkState.isConnected) {
+      if (!networkState?.isOnline) {
         console.log('网络未连接，无法注册');
-
-        // 返回错误信息，不允许在离线状态下注册
-        return {
-          success: false,
-          message: '注册失败：请连接网络后再尝试注册',
-          offline: true
-        };
+        throw new Error('注册失败：请连接网络后再尝试注册');
       }
 
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_USERNAME, {
         username,
-        password
+        password,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '用户名注册失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -281,34 +231,23 @@ const userApi = {
   registerWithPhone: async (phone, password) => {
     try {
       // 检查网络连接
-      const NetInfo = require('@react-native-community/netinfo').default;
-      const networkState = await NetInfo.fetch();
+      const networkState = await networkService.checkConnection();
 
-      if (!networkState.isConnected) {
+      if (!networkState?.isOnline) {
         console.log('网络未连接，无法注册');
-
-        // 返回错误信息，不允许在离线状态下注册
-        return {
-          success: false,
-          message: '注册失败：请连接网络后再尝试注册',
-          offline: true
-        };
+        throw new Error('注册失败：请连接网络后再尝试注册');
       }
 
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
         phone,
-        password
+        password,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '手机号注册失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -322,35 +261,24 @@ const userApi = {
   registerWithPhoneCode: async (phone, code, password) => {
     try {
       // 检查网络连接
-      const NetInfo = require('@react-native-community/netinfo').default;
-      const networkState = await NetInfo.fetch();
+      const networkState = await networkService.checkConnection();
 
-      if (!networkState.isConnected) {
+      if (!networkState?.isOnline) {
         console.log('网络未连接，无法注册');
-
-        // 返回错误信息，不允许在离线状态下注册
-        return {
-          success: false,
-          message: '注册失败：请连接网络后再尝试注册',
-          offline: true
-        };
+        throw new Error('注册失败：请连接网络后再尝试注册');
       }
 
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, {
         phone,
         code,
-        password
+        password,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '手机号验证码注册失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -363,34 +291,23 @@ const userApi = {
   registerWithEmail: async (email, password) => {
     try {
       // 检查网络连接
-      const NetInfo = require('@react-native-community/netinfo').default;
-      const networkState = await NetInfo.fetch();
+      const networkState = await networkService.checkConnection();
 
-      if (!networkState.isConnected) {
+      if (!networkState?.isOnline) {
         console.log('网络未连接，无法注册');
-
-        // 返回错误信息，不允许在离线状态下注册
-        return {
-          success: false,
-          message: '注册失败：请连接网络后再尝试注册',
-          offline: true
-        };
+        throw new Error('注册失败：请连接网络后再尝试注册');
       }
 
       const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, {
         email,
-        password
+        password,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '邮箱注册失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -404,14 +321,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.BIND_WECHAT, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '绑定微信失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -424,14 +337,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_WECHAT);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '解绑微信失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -445,14 +354,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.BIND_QQ, data);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '绑定QQ失败',
-        error
-      };
+      throw error;
     }
   },
 
@@ -465,14 +370,10 @@ const userApi = {
       const response = await instance.post(API_ENDPOINTS.AUTH.UNBIND_QQ);
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || '解绑QQ失败',
-        error
-      };
+      throw error;
     }
   },
 };

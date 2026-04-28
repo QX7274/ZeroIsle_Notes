@@ -6,8 +6,10 @@ import { API_ENDPOINTS } from '../../config/api';
 import { API_URL } from '../../config';
 import realmService from '../database/realmService';
 import tokenService from '../auth/tokenService';
-import { saveAuthInfo } from '../auth/authUtils';
+import authStorage from '../auth/authStorage';
+import { saveAuthInfo, clearAuthInfo } from '../auth/authUtils';
 import networkErrorService from '../networkErrorService';
+import networkService from '../network/networkService';
 
 /**
  * 用户登录
@@ -18,13 +20,10 @@ export const login = async (loginData) => {
   try {
     // 验证loginData是否有效
     if (!loginData || typeof loginData !== 'object') {
-      return {
-        success: false,
-        message: '登录信息不完整，请重试'
-      };
+      throw new Error('登录信息不完整，请重试');
     }
 
-    console.log('登录请求数据:', loginData);
+    // console.log('登录请求数据:', loginData); // 移除敏感日志
 
     // 确保请求数据格式正确
     const requestData = { ...loginData };
@@ -40,13 +39,12 @@ export const login = async (loginData) => {
       }
     }
 
-    console.log('处理后的登录请求数据:', requestData);
+    // console.log('处理后的登录请求数据:', requestData); // 移除敏感日志
 
     // 检查网络连接
-    const NetInfo = require('@react-native-community/netinfo').default;
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
 
-    if (!networkState.isConnected) {
+    if (!networkState?.isOnline) {
       console.log('网络未连接，尝试离线登录');
 
       // 检查是否有离线用户
@@ -62,16 +60,9 @@ export const login = async (loginData) => {
           (requestData.username && requestData.username === offlineUser.username) ||
           (requestData.identifier && requestData.identifier === offlineUser.username)
         ) {
-          console.log('离线模式：使用本地用户登录', offlineUser.username);
+          console.log('离线模式：检测到本地用户记录，但禁止生成/保存伪造token');
 
-          // 创建模拟响应
-          const mockResponse = {
-            user: offlineUser,
-            access: `mock_token_${Date.now()}`,
-            refresh: `mock_refresh_${Date.now()}`
-          };
-
-          // 设置离线模式
+          // 标记离线模式（仅用于UI/流程判断，不代表已完成认证）
           const realm = await realmService.getRealm();
           realm.write(() => {
             const existingItem = realm.objects('StorageItem').filtered('key = "is_offline_mode"');
@@ -88,29 +79,12 @@ export const login = async (loginData) => {
             }
           });
 
-          // 保存令牌和用户信息
-          await setToken(mockResponse.access);
-          await setRefreshToken(mockResponse.refresh);
-          await setUser(offlineUser);
-
-          return {
-            success: true,
-            data: mockResponse,
-            offline: true
-          };
+          throw new Error('当前离线：无法完成登录认证，请联网后重试');
         } else {
-          return {
-            success: false,
-            message: '用户名或密码错误',
-            offline: true
-          };
+          throw new Error('用户名或密码错误');
         }
       } else {
-        return {
-          success: false,
-          message: '离线模式下未找到用户，请先在有网络连接时注册',
-          offline: true
-        };
+        throw new Error('离线模式下未找到用户，请先在有网络连接时注册');
       }
     }
 
@@ -122,10 +96,7 @@ export const login = async (loginData) => {
     // 检查响应是否为undefined
     if (!response) {
       console.error('登录响应为undefined');
-      return {
-        success: false,
-        message: '服务器无响应，请稍后重试'
-      };
+      throw new Error('服务器无响应，请稍后重试');
     }
 
     // 检查响应数据
@@ -135,20 +106,13 @@ export const login = async (loginData) => {
     // 检查是否是离线模式的错误响应
     if (responseData.offline && responseData.error === 'NETWORK_ERROR') {
       console.log('离线模式下的登录请求，返回网络错误');
-      return {
-        success: false,
-        message: '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error('网络连接失败，请检查网络设置后重试');
     }
 
     // 验证响应数据是否包含必要的字段
     if (!responseData || !responseData.access || !responseData.refresh || !responseData.user) {
       console.error('登录响应数据格式错误:', responseData);
-      return {
-        success: false,
-        message: '服务器返回数据格式错误，请联系管理员'
-      };
+      throw new Error('服务器返回数据格式错误，请联系管理员');
     }
 
     // 保存令牌和用户信息
@@ -156,124 +120,66 @@ export const login = async (loginData) => {
     try {
       // 使用统一的认证信息保存函数
       await saveAuthInfo(access, refresh, user);
-
-      // 同时保持兼容旧的存储方式
-      if (typeof setToken === 'function') {
-        await setToken(access);
-      }
-
-      if (typeof setRefreshToken === 'function') {
-        await setRefreshToken(refresh);
-      }
-
-      if (typeof setUser === 'function') {
-        await setUser(user);
-      }
     } catch (storageError) {
       console.error('保存认证信息时出错:', storageError);
-      // 继续执行，不要因为存储错误而中断登录流程
+      throw storageError;
     }
 
     return {
       success: true,
-      data: responseData
+      data: responseData,
     };
   } catch (error) {
     console.error('登录API错误:', error);
     console.error('错误详情:', error.response?.data || error.message);
 
-    // 检查是否是网络错误
     if (error.message === 'Network Error' || error.isNetworkError) {
       console.log('登录时发生网络错误');
-      return {
-        success: false,
-        message: '网络连接失败，请检查网络设置后重试',
-        offline: true,
-        error
-      };
+      throw new Error('网络连接失败，请检查网络设置后重试');
     }
 
-    // 根据错误类型返回不同的错误消息
     if (error.response) {
       const { status, data } = error.response;
 
-      // 详细记录错误信息
       console.error('服务器错误响应:', {
         status: error.response.status,
         data: error.response.data,
-        headers: error.response.headers
+        headers: error.response.headers,
       });
 
       if (status === 401) {
-        return {
-          success: false,
-          message: '用户名或密码错误',
-          error
-        };
-      } else if (status === 404) {
-        return {
-          success: false,
-          message: '登录服务不可用，请联系管理员',
-          error
-        };
-      } else if (status === 400) {
-        // 处理400错误，通常包含具体的错误信息
-        if (data && data.error) {
-          return {
-            success: false,
-            message: data.error,
-            error: data,
-            status
-          };
-        }
-      } else if (data && data.error) {
-        return {
-          success: false,
-          message: data.error,
-          error
-        };
+        throw new Error('用户名或密码错误');
+      }
+      if (status === 404) {
+        throw new Error('登录服务不可用，请联系管理员');
+      }
+      if (status === 400 && data && data.error) {
+        throw new Error(data.error);
+      }
+      if (data && data.error) {
+        throw new Error(data.error);
       }
 
-      // 默认错误处理
-      return {
-        success: false,
-        message: data?.detail || data?.error || `服务器错误 (${status})`,
-        error: data,
-        status
-      };
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
+      throw new Error(data?.detail || data?.error || `服务器错误 (${status})`);
+    }
+
+    if (error.request) {
       console.error('未收到服务器响应:', error.request);
-      
-      // 使用网络错误服务处理
       networkErrorService.handleApiError(error, {
         context: '用户登录',
-        customMessage: '服务器无响应，请检查网络连接或服务器状态'
+        customMessage: '服务器无响应，请检查网络连接或服务器状态',
       });
-      
-      return {
-        success: false,
-        message: '服务器无响应，请检查网络连接或服务器状态',
-        error: error.request
-      };
-    } else {
-      // 请求设置时出错
-      console.error('请求设置错误:', error.message);
-      
-      // 检查是否是网络错误
-      if (networkErrorService.isNetworkError(error)) {
-        networkErrorService.handleApiError(error, {
-          context: '用户登录',
-          customMessage: '网络连接失败，请检查网络设置'
-        });
-      }
-      
-      return {
-        success: false,
-        message: `请求错误: ${error.message}`,
-        error
-      };
+      throw new Error('服务器无响应，请检查网络连接或服务器状态');
     }
+
+    console.error('请求设置错误:', error.message);
+    if (networkErrorService.isNetworkError(error)) {
+      networkErrorService.handleApiError(error, {
+        context: '用户登录',
+        customMessage: '网络连接失败，请检查网络设置',
+      });
+    }
+    throw new Error(`请求错误: ${error.message}`);
   }
 };
 
@@ -285,18 +191,11 @@ export const login = async (loginData) => {
 export const register = async (userData) => {
   try {
     // 检查网络连接
-    const NetInfo = require('@react-native-community/netinfo').default;
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
 
-    if (!networkState.isConnected) {
+    if (!networkState?.isOnline) {
       console.log('网络未连接，无法注册');
-
-      // 返回错误信息，不允许在离线状态下注册
-      return {
-        success: false,
-        message: '注册失败：请连接网络后再尝试注册',
-        offline: true
-      };
+      throw new Error('注册失败：请连接网络后再尝试注册');
     }
 
     // 添加必要的参数
@@ -326,81 +225,51 @@ export const register = async (userData) => {
     }
 
     // 保存令牌和用户信息
-    await setToken(accessToken);
-    await setRefreshToken(refreshToken);
-    await setUser(response.data.user);
+    await saveAuthInfo(accessToken, refreshToken, response.data.user);
 
     return {
       success: true,
       data: {
         token: accessToken,
         refreshToken: refreshToken,
-        user: response.data.user
-      }
+        user: response.data.user,
+      },
     };
   } catch (error) {
     console.error('注册错误:', error);
     console.error('错误详情:', error.response?.data || error.message);
 
-    // 详细记录错误信息
     if (error.response) {
-      // 服务器响应了，但状态码不在2xx范围内
       console.error('服务器错误响应:', {
         status: error.response.status,
         data: error.response.data,
-        headers: error.response.headers
+        headers: error.response.headers,
       });
 
-      // 处理特定的错误情况
       if (error.response.status === 400) {
-        // 处理400错误，通常包含具体的错误信息
         const errorData = error.response.data;
-
-        // 检查是否包含用户名已存在的错误
-        if (errorData && errorData.error === "用户名已存在") {
-          return {
-            success: false,
-            message: "用户名已存在",
-            error: errorData,
-            status: error.response.status
-          };
+        if (errorData && errorData.error === '用户名已存在') {
+          throw new Error('用户名已存在');
         }
-
-        // 检查其他常见错误
         if (errorData && errorData.error) {
-          return {
-            success: false,
-            message: errorData.error,
-            error: errorData,
-            status: error.response.status
-          };
+          throw new Error(errorData.error);
         }
       }
 
-      // 默认错误处理
-      return {
-        success: false,
-        message: error.response.data?.detail || error.response.data?.error || `服务器错误 (${error.response.status})`,
-        error: error.response.data,
-        status: error.response.status
-      };
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
-      console.error('未收到服务器响应:', error.request);
-      return {
-        success: false,
-        message: '服务器无响应，请检查网络连接或服务器状态',
-        error: error.request
-      };
-    } else {
-      // 请求设置时出错
-      console.error('请求设置错误:', error.message);
-      return {
-        success: false,
-        message: `请求错误: ${error.message}`,
-        error: error
-      };
+      throw new Error(
+        error.response.data?.detail ||
+          error.response.data?.error ||
+          `服务器错误 (${error.response.status})`
+      );
     }
+
+    if (error.request) {
+      console.error('未收到服务器响应:', error.request);
+      throw new Error('服务器无响应，请检查网络连接或服务器状态');
+    }
+
+    console.error('请求设置错误:', error.message);
+    throw new Error(`请求错误: ${error.message}`);
   }
 };
 
@@ -418,18 +287,11 @@ export const registerWithUsername = async (userData) => {
     console.log('完整API URL:', `${API_URL}/api/v1${API_ENDPOINTS.AUTH.REGISTER_USERNAME}`);
 
     // 检查网络连接
-    const NetInfo = require('@react-native-community/netinfo').default;
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
 
-    if (!networkState.isConnected) {
+    if (!networkState?.isOnline) {
       console.log('网络未连接，无法注册');
-
-      // 返回错误信息，不允许在离线状态下注册
-      return {
-        success: false,
-        message: '注册失败：请连接网络后再尝试注册',
-        offline: true
-      };
+      throw new Error('注册失败：请连接网络后再尝试注册');
     }
 
     // 如果网络已连接，尝试正常注册
@@ -456,10 +318,7 @@ export const registerWithUsername = async (userData) => {
     // 检查响应是否有效
     if (!response) {
       console.error('注册响应为undefined');
-      return {
-        success: false,
-        message: '服务器无响应，请稍后重试'
-      };
+      throw new Error('服务器无响应，请稍后重试');
     }
 
     // 检查响应数据
@@ -476,204 +335,78 @@ export const registerWithUsername = async (userData) => {
       console.log('尝试直接使用response作为响应数据');
       return {
         success: true,
-        data: response
+        data: response,
       };
     }
 
     // 如果响应数据无效，返回错误
     if (!responseData) {
       console.error('注册响应数据为undefined');
-      return {
-        success: false,
-        message: '服务器返回数据无效，请联系管理员'
-      };
+      throw new Error('服务器返回数据无效，请联系管理员');
     }
 
     // 检查响应中是否包含离线标记
     if (response && response.offline === true) {
       console.log('响应中包含离线标记');
-      return {
-        success: false,
-        message: response.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(response.message || '网络连接失败，请检查网络设置后重试');
     }
 
     // 检查响应数据中是否包含离线标记
     if (responseData && responseData.offline === true) {
       console.log('响应数据中包含离线标记');
-      return {
-        success: false,
-        message: responseData.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(responseData.message || '网络连接失败，请检查网络设置后重试');
     }
 
     // 保存令牌和用户信息
     if (responseData.access && responseData.refresh && responseData.user) {
       try {
-        // 尝试使用导入的函数
-        if (typeof setToken === 'function') {
-          await setToken(responseData.access);
-        } else if (storageService && typeof storageService.setToken === 'function') {
-          await storageService.setToken(responseData.access);
-        } else {
-          console.warn('setToken 函数不可用，使用 realmService 作为备选');
-          const realm = await realmService.getRealm();
-          const now = new Date();
-          realm.write(() => {
-            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_auth_token"');
-            if (existingItem.length > 0) {
-              existingItem[0].value = JSON.stringify({
-                token: responseData.access,
-                expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
-              });
-              existingItem[0].updated_at = new Date();
-            } else {
-              realm.create('StorageItem', {
-                key: 'zeroisle_auth_token',
-                value: JSON.stringify({
-                  token: responseData.access,
-                  expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24小时后过期
-                }),
-                createdAt: new Date(),
-                updated_at: new Date(),
-              });
-            }
-          });
-        }
-
-        if (typeof setRefreshToken === 'function') {
-          await setRefreshToken(responseData.refresh);
-        } else if (storageService && typeof storageService.setRefreshToken === 'function') {
-          await storageService.setRefreshToken(responseData.refresh);
-        } else {
-          console.warn('setRefreshToken 函数不可用，使用 realmService 作为备选');
-          const realm = await realmService.getRealm();
-          const now = new Date();
-          realm.write(() => {
-            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_refresh_token"');
-            if (existingItem.length > 0) {
-              existingItem[0].value = JSON.stringify({
-                token: responseData.refresh,
-                expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
-              });
-              existingItem[0].updated_at = new Date();
-            } else {
-              realm.create('StorageItem', {
-                key: 'zeroisle_refresh_token',
-                value: JSON.stringify({
-                  token: responseData.refresh,
-                  expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7天后过期
-                }),
-                createdAt: new Date(),
-                updated_at: new Date(),
-              });
-            }
-          });
-        }
-
-        if (typeof setUser === 'function') {
-          await setUser(responseData.user);
-        } else if (storageService && typeof storageService.setUser === 'function') {
-          await storageService.setUser(responseData.user);
-        } else {
-          console.warn('setUser 函数不可用，使用 realmService 作为备选');
-          const realm = await realmService.getRealm();
-          const now = new Date();
-          realm.write(() => {
-            const existingItem = realm.objects('StorageItem').filtered('key = "zeroisle_user_info"');
-            if (existingItem.length > 0) {
-              existingItem[0].value = JSON.stringify({
-                user: responseData.user
-              });
-              existingItem[0].updated_at = new Date();
-            } else {
-              realm.create('StorageItem', {
-                key: 'zeroisle_user_info',
-                value: JSON.stringify({
-                  user: responseData.user
-                }),
-                createdAt: new Date(),
-                updated_at: new Date(),
-              });
-            }
-          });
-        }
+        await saveAuthInfo(responseData.access, responseData.refresh, responseData.user);
       } catch (storageError) {
         console.error('保存认证信息时出错:', storageError);
-        // 继续执行，不要因为存储错误而中断注册流程
+        throw storageError;
       }
     } else {
-      console.warn('注册响应数据缺少必要字段:', responseData);
+      console.warn('注册响应数据缺少必要字段');
     }
 
     return {
       success: true,
-      data: responseData
+      data: responseData,
     };
   } catch (error) {
     console.error('用户名注册失败:', error);
 
-    // 详细记录错误信息
     if (error.response) {
-      // 服务器响应了，但状态码不在2xx范围内
       console.error('服务器错误响应:', {
         status: error.response.status,
         data: error.response.data,
-        headers: error.response.headers
+        headers: error.response.headers,
       });
 
-      // 处理特定的错误情况
       if (error.response.status === 400) {
-        // 处理400错误，通常包含具体的错误信息
         const errorData = error.response.data;
-
-        // 检查是否包含用户名已存在的错误
-        if (errorData && errorData.error === "用户名已存在") {
-          return {
-            success: false,
-            message: "用户名已存在",
-            error: errorData,
-            status: error.response.status
-          };
+        if (errorData && errorData.error === '用户名已存在') {
+          throw new Error('用户名已存在');
         }
-
-        // 检查其他常见错误
         if (errorData && errorData.error) {
-          return {
-            success: false,
-            message: errorData.error,
-            error: errorData,
-            status: error.response.status
-          };
+          throw new Error(errorData.error);
         }
       }
 
-      // 默认错误处理
-      return {
-        success: false,
-        message: error.response.data?.detail || error.response.data?.error || `服务器错误 (${error.response.status})`,
-        error: error.response.data,
-        status: error.response.status
-      };
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
-      console.error('未收到服务器响应:', error.request);
-      return {
-        success: false,
-        message: '服务器无响应，请检查网络连接或服务器状态',
-        error: error.request
-      };
-    } else {
-      // 请求设置时出错
-      console.error('请求设置错误:', error.message);
-      return {
-        success: false,
-        message: `请求错误: ${error.message}`,
-        error: error
-      };
+      throw new Error(
+        error.response.data?.detail ||
+          error.response.data?.error ||
+          `服务器错误 (${error.response.status})`
+      );
     }
+
+    if (error.request) {
+      console.error('未收到服务器响应:', error.request);
+      throw new Error('服务器无响应，请检查网络连接或服务器状态');
+    }
+
+    console.error('请求设置错误:', error.message);
+    throw new Error(`请求错误: ${error.message}`);
   }
 };
 
@@ -687,7 +420,7 @@ export const refreshToken = async (refreshToken) => {
     console.log('刷新令牌请求数据:', refreshToken);
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
-      refresh: refreshToken
+      refresh: refreshToken,
     });
 
     console.log('刷新令牌响应数据:', response.data);
@@ -695,12 +428,12 @@ export const refreshToken = async (refreshToken) => {
     // 保存新的访问令牌
     try {
       await tokenService.saveAccessToken(response.data.access);
-      
+
       // 如果响应中包含新的刷新令牌，也保存它
       if (response.data.refresh) {
         await tokenService.saveRefreshToken(response.data.refresh);
       }
-      
+
       console.log('访问令牌刷新成功');
     } catch (storageError) {
       console.error('保存刷新后的令牌失败:', storageError);
@@ -709,15 +442,11 @@ export const refreshToken = async (refreshToken) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('刷新令牌失败:', error);
-    return {
-      success: false,
-      message: error.message || '刷新令牌失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -735,15 +464,11 @@ export const getProfile = async () => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取用户资料失败:', error);
-    return {
-      success: false,
-      message: error.message || '获取用户资料失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -761,19 +486,15 @@ export const updateProfile = async (profileData) => {
     console.log('更新用户资料响应数据:', response.data);
 
     // 更新本地存储的用户信息
-    await setUser(response.data);
+    await authStorage.saveUser(response.data);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('更新用户资料失败:', error);
-    return {
-      success: false,
-      message: error.message || '更新用户资料失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -789,22 +510,18 @@ export const changePassword = async (oldPassword, newPassword) => {
 
     const response = await instance.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
       old_password: oldPassword,
-      new_password: newPassword
+      new_password: newPassword,
     });
 
     console.log('修改密码响应数据:', response.data);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('修改密码失败:', error);
-    return {
-      success: false,
-      message: error.message || '修改密码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -819,22 +536,18 @@ export const sendResetCode = async (data) => {
 
     const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, {
       ...data,
-      type: 'reset_password'
+      type: 'reset_password',
     });
 
     console.log('发送密码重置验证码响应数据:', response.data);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('发送密码重置验证码失败:', error);
-    return {
-      success: false,
-      message: error.message || '发送密码重置验证码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -849,22 +562,18 @@ export const verifyResetCode = async (data) => {
 
     const response = await instance.post(API_ENDPOINTS.AUTH.VERIFY_RESET_CODE, {
       ...data,
-      type: 'reset_password'
+      type: 'reset_password',
     });
 
     console.log('验证密码重置验证码响应数据:', response.data);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('验证密码重置验证码失败:', error);
-    return {
-      success: false,
-      message: error.message || '验证密码重置验证码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -883,15 +592,11 @@ export const resetPassword = async (data) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('重置密码失败:', error);
-    return {
-      success: false,
-      message: error.message || '重置密码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -913,15 +618,11 @@ export const sendVerificationCode = async (data) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('发送验证码失败:', error);
-    return {
-      success: false,
-      message: error.message || '发送验证码失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -940,21 +641,15 @@ export const loginWithCode = async (loginData) => {
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
-    await setToken(access);
-    await setRefreshToken(refresh);
-    await setUser(user);
+    await saveAuthInfo(access, refresh, user);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('验证码登录失败:', error);
-    return {
-      success: false,
-      message: error.message || '登录失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -968,18 +663,11 @@ export const registerWithPhone = async (userData) => {
     console.log('手机号注册请求数据:', userData);
 
     // 检查网络连接
-    const NetInfo = require('@react-native-community/netinfo').default;
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
 
-    if (!networkState.isConnected) {
+    if (!networkState?.isOnline) {
       console.log('网络未连接，无法注册');
-
-      // 返回错误信息，不允许在离线状态下注册
-      return {
-        success: false,
-        message: '注册失败：请连接网络后再尝试注册',
-        offline: true
-      };
+      throw new Error('注册失败：请连接网络后再尝试注册');
     }
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_PHONE, userData);
@@ -988,43 +676,29 @@ export const registerWithPhone = async (userData) => {
     // 检查是否是离线模式的响应
     if (response.offline === true) {
       console.log('检测到离线模式响应');
-      return {
-        success: false,
-        message: response.data?.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(response.data?.message || '网络连接失败，请检查网络设置后重试');
     }
 
     // 检查响应数据中是否包含离线标记
     if (response.data && response.data.offline === true) {
       console.log('响应数据中包含离线标记');
-      return {
-        success: false,
-        message: response.data.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(response.data.message || '网络连接失败，请检查网络设置后重试');
     }
 
     console.log('手机号注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data && response.data.access && response.data.refresh && response.data.user) {
-      await setToken(response.data.access);
-      await setRefreshToken(response.data.refresh);
-      await setUser(response.data.user);
+      await saveAuthInfo(response.data.access, response.data.refresh, response.data.user);
     }
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('手机号注册失败:', error);
-    return {
-      success: false,
-      message: error.message || '注册失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1038,18 +712,11 @@ export const registerWithEmail = async (userData) => {
     console.log('邮箱注册请求数据:', userData);
 
     // 检查网络连接
-    const NetInfo = require('@react-native-community/netinfo').default;
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
 
-    if (!networkState.isConnected) {
+    if (!networkState?.isOnline) {
       console.log('网络未连接，无法注册');
-
-      // 返回错误信息，不允许在离线状态下注册
-      return {
-        success: false,
-        message: '注册失败：请连接网络后再尝试注册',
-        offline: true
-      };
+      throw new Error('注册失败：请连接网络后再尝试注册');
     }
 
     const response = await instance.post(API_ENDPOINTS.AUTH.REGISTER_EMAIL, userData);
@@ -1058,43 +725,29 @@ export const registerWithEmail = async (userData) => {
     // 检查是否是离线模式的响应
     if (response.offline === true) {
       console.log('检测到离线模式响应');
-      return {
-        success: false,
-        message: response.data?.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(response.data?.message || '网络连接失败，请检查网络设置后重试');
     }
 
     // 检查响应数据中是否包含离线标记
     if (response.data && response.data.offline === true) {
       console.log('响应数据中包含离线标记');
-      return {
-        success: false,
-        message: response.data.message || '网络连接失败，请检查网络设置后重试',
-        offline: true
-      };
+      throw new Error(response.data.message || '网络连接失败，请检查网络设置后重试');
     }
 
     console.log('邮箱注册响应数据:', response.data);
 
     // 保存令牌和用户信息
     if (response.data && response.data.access && response.data.refresh && response.data.user) {
-      await setToken(response.data.access);
-      await setRefreshToken(response.data.refresh);
-      await setUser(response.data.user);
+      await saveAuthInfo(response.data.access, response.data.refresh, response.data.user);
     }
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('邮箱注册失败:', error);
-    return {
-      success: false,
-      message: error.message || '注册失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1108,28 +761,22 @@ export const wechatLogin = async (code) => {
     console.log('微信登录请求数据:', code);
 
     const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_WECHAT, {
-      code
+      code,
     });
 
     console.log('微信登录响应数据:', response.data);
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
-    await setToken(access);
-    await setRefreshToken(refresh);
-    await setUser(user);
+    await saveAuthInfo(access, refresh, user);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('微信登录失败:', error);
-    return {
-      success: false,
-      message: error.message || '微信登录失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1143,28 +790,22 @@ export const qqLogin = async (code) => {
     console.log('QQ登录请求数据:', code);
 
     const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_QQ, {
-      code
+      code,
     });
 
     console.log('QQ登录响应数据:', response.data);
 
     // 保存令牌和用户信息
     const { access, refresh, user } = response.data;
-    await setToken(access);
-    await setRefreshToken(refresh);
-    await setUser(user);
+    await saveAuthInfo(access, refresh, user);
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('QQ登录失败:', error);
-    return {
-      success: false,
-      message: error.message || 'QQ登录失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1182,7 +823,7 @@ export const bindEmail = async (bindData, token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1193,15 +834,11 @@ export const bindEmail = async (bindData, token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('绑定邮箱失败:', error);
-    return {
-      success: false,
-      message: error.message || '绑定邮箱失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1219,7 +856,7 @@ export const bindPhone = async (bindData, token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1230,15 +867,11 @@ export const bindPhone = async (bindData, token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('绑定手机号失败:', error);
-    return {
-      success: false,
-      message: error.message || '绑定手机号失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1256,7 +889,7 @@ export const bindWechat = async (code, token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1267,15 +900,11 @@ export const bindWechat = async (code, token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('绑定微信失败:', error);
-    return {
-      success: false,
-      message: error.message || '绑定微信失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1293,7 +922,7 @@ export const bindQQ = async (code, token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1304,15 +933,11 @@ export const bindQQ = async (code, token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('绑定QQ失败:', error);
-    return {
-      success: false,
-      message: error.message || '绑定QQ失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1329,7 +954,7 @@ export const unbindWechat = async (token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1340,15 +965,11 @@ export const unbindWechat = async (token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('解绑微信失败:', error);
-    return {
-      success: false,
-      message: error.message || '解绑微信失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1365,7 +986,7 @@ export const unbindQQ = async (token = null) => {
     const config = {};
     if (token) {
       config.headers = {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
     }
 
@@ -1376,15 +997,11 @@ export const unbindQQ = async (token = null) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('解绑QQ失败:', error);
-    return {
-      success: false,
-      message: error.message || '解绑QQ失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1395,17 +1012,13 @@ export const unbindQQ = async (token = null) => {
 export const logout = async () => {
   try {
     // 清除本地存储的认证信息
-    await clearAuth();
+    await clearAuthInfo();
 
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '登出失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -1430,7 +1043,7 @@ const authApi = {
   bindQQ,
   unbindWechat,
   unbindQQ,
-  logout
+  logout,
 };
 
 export default authApi;

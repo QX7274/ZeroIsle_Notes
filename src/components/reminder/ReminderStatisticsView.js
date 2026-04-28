@@ -5,15 +5,19 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity
+  TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
+import { SPACING, RADIUS, ELEVATION, SIZE, BORDER, OPACITY } from '../../theme/tokens';
 
 const ReminderStatisticsView = ({ navigation }) => {
   const { theme } = useTheme();
+  // Ensure we have correct color references
+  const colors = theme.colors || theme;
+
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -42,48 +46,48 @@ const ReminderStatisticsView = ({ navigation }) => {
   // 渲染统计卡片
   const renderStatCard = (title, value, icon, color, onPress) => (
     <TouchableOpacity
-      style={[styles.statCard, { backgroundColor: theme.cardBackground }]}
+      style={[styles.statCard, { backgroundColor: colors.card || colors.surface }]}
       onPress={onPress}
     >
       <View style={[styles.iconContainer, { backgroundColor: color }]}>
-        <Icon name={icon} size={24} color="#ffffff" />
+        <Icon name={icon} size={SIZE.icon.lg} color="#ffffff" />
       </View>
       <View style={styles.statContent}>
-        <Text style={[styles.statValue, { color: theme.text }]}>{value}</Text>
-        <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{title}</Text>
+        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+        <Text style={[styles.statTitle, { color: colors.textSecondary }]}>{title}</Text>
       </View>
     </TouchableOpacity>
   );
 
   // 渲染分类统计
   const renderCategoryStats = () => {
-    if (!statistics || !statistics.categories) return null;
+    if (!statistics || !statistics.categories) {return null;}
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>分类统计</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>分类统计</Text>
         <View style={styles.categoryContainer}>
           {Object.entries(statistics.categories).map(([id, data]) => (
             <TouchableOpacity
               key={id}
               style={[
                 styles.categoryItem,
-                { backgroundColor: theme.cardBackground }
+                { backgroundColor: colors.card || colors.surface },
               ]}
               onPress={() => navigation.navigate('ReminderList', { category: id })}
             >
               <View style={styles.categoryHeader}>
-                <Text style={[styles.categoryName, { color: theme.text }]}>{data.name}</Text>
-                <Text style={[styles.categoryCount, { color: theme.primary }]}>{data.count}</Text>
+                <Text style={[styles.categoryName, { color: colors.text }]}>{data.name}</Text>
+                <Text style={[styles.categoryCount, { color: colors.primary }]}>{data.count}</Text>
               </View>
               <View style={styles.progressContainer}>
                 <View
                   style={[
                     styles.progressBar,
                     {
-                      backgroundColor: theme.primary,
+                      backgroundColor: colors.primary,
                       width: `${(data.count / statistics.active) * 100}%`,
-                    }
+                    },
                   ]}
                 />
               </View>
@@ -96,27 +100,27 @@ const ReminderStatisticsView = ({ navigation }) => {
 
   // 渲染优先级统计
   const renderPriorityStats = () => {
-    if (!statistics || !statistics.priorities) return null;
+    if (!statistics || !statistics.priorities) {return null;}
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>优先级统计</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>优先级统计</Text>
         <View style={styles.priorityContainer}>
           {Object.entries(statistics.priorities).map(([id, data]) => {
             // 获取优先级颜色
             let color;
             switch (id) {
               case 'high':
-                color = theme.error;
+                color = colors.error;
                 break;
               case 'medium':
-                color = theme.warning;
+                color = colors.warning;
                 break;
               case 'low':
-                color = theme.success;
+                color = colors.success;
                 break;
               default:
-                color = theme.primary;
+                color = colors.primary;
             }
 
             return (
@@ -124,12 +128,12 @@ const ReminderStatisticsView = ({ navigation }) => {
                 key={id}
                 style={[
                   styles.priorityItem,
-                  { backgroundColor: theme.cardBackground }
+                  { backgroundColor: colors.card || colors.surface },
                 ]}
                 onPress={() => navigation.navigate('ReminderList', { priority: id })}
               >
                 <View style={[styles.priorityDot, { backgroundColor: color }]} />
-                <Text style={[styles.priorityName, { color: theme.text }]}>{data.name}</Text>
+                <Text style={[styles.priorityName, { color: colors.text }]}>{data.name}</Text>
                 <Text style={[styles.priorityCount, { color }]}>{data.count}</Text>
               </TouchableOpacity>
             );
@@ -141,23 +145,23 @@ const ReminderStatisticsView = ({ navigation }) => {
 
   // 渲染频率统计
   const renderFrequencyStats = () => {
-    if (!statistics || !statistics.frequencies) return null;
+    if (!statistics || !statistics.frequencies) {return null;}
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>重复频率统计</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>重复频率统计</Text>
         <View style={styles.frequencyContainer}>
           {Object.entries(statistics.frequencies).map(([id, data]) => (
             <TouchableOpacity
               key={id}
               style={[
                 styles.frequencyItem,
-                { backgroundColor: theme.cardBackground }
+                { backgroundColor: colors.card || colors.surface },
               ]}
               onPress={() => navigation.navigate('ReminderList', { frequency: id })}
             >
-              <Text style={[styles.frequencyName, { color: theme.text }]}>{data.name}</Text>
-              <Text style={[styles.frequencyCount, { color: theme.primary }]}>{data.count}</Text>
+              <Text style={[styles.frequencyName, { color: colors.text }]}>{data.name}</Text>
+              <Text style={[styles.frequencyCount, { color: colors.primary }]}>{data.count}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -167,13 +171,13 @@ const ReminderStatisticsView = ({ navigation }) => {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
     >
       {loading ? (
-        <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
+        <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
       ) : error ? (
-        <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       ) : statistics ? (
         <>
           <View style={styles.statsGrid}>
@@ -181,47 +185,47 @@ const ReminderStatisticsView = ({ navigation }) => {
               '总提醒',
               statistics.total,
               'event-note',
-              theme.primary,
+              colors.primary,
               () => navigation.navigate('ReminderList')
             )}
             {renderStatCard(
               '活跃提醒',
               statistics.active,
               'notifications-active',
-              theme.success,
+              colors.success,
               () => navigation.navigate('ReminderList', { is_completed: false })
             )}
             {renderStatCard(
               '已完成',
               statistics.completed,
               'check-circle',
-              theme.info,
+              colors.info,
               () => navigation.navigate('ReminderList', { is_completed: true })
             )}
             {renderStatCard(
               '已过期',
               statistics.overdue,
               'timer-off',
-              theme.error,
+              colors.error,
               () => navigation.navigate('ReminderList', { overdue: true })
             )}
           </View>
 
-          <View style={[styles.completionCard, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.completionTitle, { color: theme.text }]}>完成率</Text>
+          <View style={[styles.completionCard, { backgroundColor: colors.card || colors.surface }]}>
+            <Text style={[styles.completionTitle, { color: colors.text }]}>完成率</Text>
             <View style={styles.completionContent}>
               <View style={styles.completionProgressContainer}>
                 <View
                   style={[
                     styles.completionProgressBar,
                     {
-                      backgroundColor: theme.primary,
+                      backgroundColor: colors.primary,
                       width: `${statistics.completion_rate}%`,
-                    }
+                    },
                   ]}
                 />
               </View>
-              <Text style={[styles.completionRate, { color: theme.primary }]}>
+              <Text style={[styles.completionRate, { color: colors.primary }]}>
                 {statistics.completion_rate}%
               </Text>
             </View>
@@ -232,10 +236,10 @@ const ReminderStatisticsView = ({ navigation }) => {
           {renderFrequencyStats()}
 
           <TouchableOpacity
-            style={[styles.exportButton, { backgroundColor: theme.primary }]}
+            style={[styles.exportButton, { backgroundColor: colors.primary }]}
             onPress={() => navigation.navigate('ReminderExport')}
           >
-            <Icon name="import-export" size={20} color="#ffffff" />
+            <Icon name="import-export" size={SIZE.icon.md} color="#ffffff" />
             <Text style={styles.exportButtonText}>导入/导出提醒数据</Text>
           </TouchableOpacity>
         </>
@@ -249,26 +253,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: SPACING.md,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   statCard: {
     width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    marginBottom: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.md,
+    ...ELEVATION.sm,
   },
   iconContainer: {
     width: 48,
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: SPACING.ms,
   },
   statContent: {
     flex: 1,
@@ -284,25 +284,21 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
   },
   statTitle: {
     fontSize: 14,
   },
   completionCard: {
-    padding: 16,
-    marginBottom: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.md,
+    ...ELEVATION.sm,
   },
   completionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: SPACING.sm,
   },
   completionContent: {
     flexDirection: 'row',
@@ -311,44 +307,40 @@ const styles = StyleSheet.create({
   completionProgressContainer: {
     flex: 1,
     height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    marginRight: 12,
+    backgroundColor: '#e0e0e0', // Could use token if available
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.ms,
   },
   completionProgressBar: {
     height: 8,
-    borderRadius: 4,
+    borderRadius: RADIUS.sm,
   },
   completionRate: {
     fontSize: 16,
     fontWeight: 'bold',
   },
   sectionContainer: {
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: SPACING.ms,
   },
   categoryContainer: {
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   categoryItem: {
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    padding: SPACING.ms,
+    marginBottom: SPACING.sm,
+    borderRadius: RADIUS.md,
+    ...ELEVATION.xs,
   },
   categoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   categoryName: {
     fontSize: 14,
@@ -361,11 +353,11 @@ const styles = StyleSheet.create({
   progressContainer: {
     height: 4,
     backgroundColor: '#e0e0e0',
-    borderRadius: 2,
+    borderRadius: RADIUS.xs,
   },
   progressBar: {
     height: 4,
-    borderRadius: 2,
+    borderRadius: RADIUS.xs,
   },
   priorityContainer: {
     flexDirection: 'row',
@@ -375,24 +367,20 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
-    padding: 12,
-    marginHorizontal: 4,
-    borderRadius: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    padding: SPACING.ms,
+    marginHorizontal: SPACING.xs,
+    borderRadius: RADIUS.md,
+    ...ELEVATION.xs,
   },
   priorityDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   priorityName: {
     fontSize: 14,
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
   },
   priorityCount: {
     fontSize: 16,
@@ -408,14 +396,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    padding: SPACING.ms,
+    marginBottom: SPACING.sm,
+    borderRadius: RADIUS.md,
+    ...ELEVATION.xs,
   },
   frequencyName: {
     fontSize: 14,
@@ -428,24 +412,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    marginBottom: 24,
+    padding: SPACING.ms,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   exportButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '500',
-    marginLeft: 8,
+    marginLeft: SPACING.sm,
   },
   loader: {
-    marginTop: 20,
+    marginTop: SPACING.xl,
   },
   errorText: {
     textAlign: 'center',
-    marginTop: 20,
-    padding: 16,
+    marginTop: SPACING.xl,
+    padding: SPACING.md,
   },
 });
 

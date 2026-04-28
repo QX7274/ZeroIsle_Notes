@@ -141,12 +141,12 @@ import merge from 'lodash/merge';
 const DEFAULT_THEMES = {
   classic: {
     light: lightTheme,
-    dark: darkTheme
+    dark: darkTheme,
   },
   modern: {
     light: modernLightTheme,
-    dark: modernDarkTheme
-  }
+    dark: modernDarkTheme,
+  },
 };
 
 // 创建主题上下文
@@ -184,7 +184,7 @@ export const ThemeProvider = ({ children }) => {
   // 自定义主题颜色
   const [customTheme, setCustomTheme] = useState({
     light: {},
-    dark: {}
+    dark: {},
   });
 
   // 当前主题状态
@@ -265,10 +265,10 @@ export const ThemeProvider = ({ children }) => {
         // 检查 themeStyle 和 currentThemeMode 是否有效
         if (!DEFAULT_THEMES[themeStyle]) {
           console.warn(`无效的主题风格: ${themeStyle}，使用 classic 风格`);
-          baseTheme = DEFAULT_THEMES['classic'][currentThemeMode] || lightTheme;
+          baseTheme = DEFAULT_THEMES.classic[currentThemeMode] || lightTheme;
         } else if (!DEFAULT_THEMES[themeStyle][currentThemeMode]) {
           console.warn(`无效的主题模式: ${currentThemeMode}，使用 light 模式`);
-          baseTheme = DEFAULT_THEMES[themeStyle]['light'] || lightTheme;
+          baseTheme = DEFAULT_THEMES[themeStyle].light || lightTheme;
         } else {
           baseTheme = DEFAULT_THEMES[themeStyle][currentThemeMode];
         }
@@ -282,7 +282,7 @@ export const ThemeProvider = ({ children }) => {
       try {
         const customColors = customTheme[currentThemeMode]?.colors || {};
         mergedTheme = merge({}, baseTheme, {
-          colors: customColors
+          colors: customColors,
         });
       } catch (error) {
         console.error('合并自定义主题失败:', error.message);
@@ -352,7 +352,7 @@ export const ThemeProvider = ({ children }) => {
    * @returns {string} - 对应的颜色值
    */
   const getColor = useCallback((colorKey, fallback) => {
-    if (!colorKey) return fallback || theme.colors.text;
+    if (!colorKey) {return fallback || theme.colors.text;}
     return theme.colors[colorKey] || fallback || theme.colors.text;
   }, [theme.colors]);
 
@@ -363,7 +363,7 @@ export const ThemeProvider = ({ children }) => {
    * @param {string} mode - 主题模式：light, dark, both
    */
   const updateThemeColor = useCallback(async (colorKey, value, mode = 'both') => {
-    if (!colorKey || !value) return;
+    if (!colorKey || !value) {return;}
 
     const newCustomTheme = { ...customTheme };
 
@@ -372,8 +372,8 @@ export const ThemeProvider = ({ children }) => {
         ...newCustomTheme.light,
         colors: {
           ...(newCustomTheme.light?.colors || {}),
-          [colorKey]: value
-        }
+          [colorKey]: value,
+        },
       };
     }
 
@@ -382,8 +382,8 @@ export const ThemeProvider = ({ children }) => {
         ...newCustomTheme.dark,
         colors: {
           ...(newCustomTheme.dark?.colors || {}),
-          [colorKey]: value
-        }
+          [colorKey]: value,
+        },
       };
     }
 
@@ -406,14 +406,14 @@ export const ThemeProvider = ({ children }) => {
     if (mode === 'both' || mode === 'light') {
       newCustomTheme.light = {
         ...newCustomTheme.light,
-        colors: {}
+        colors: {},
       };
     }
 
     if (mode === 'both' || mode === 'dark') {
       newCustomTheme.dark = {
         ...newCustomTheme.dark,
-        colors: {}
+        colors: {},
       };
     }
 
@@ -433,7 +433,7 @@ export const ThemeProvider = ({ children }) => {
    * @returns {any} - 对应的主题值
    */
   const getThemeValue = useCallback((path, defaultValue) => {
-    if (!path) return defaultValue;
+    if (!path) {return defaultValue;}
 
     try {
       const parts = path.split('.');
@@ -441,7 +441,7 @@ export const ThemeProvider = ({ children }) => {
 
       for (const part of parts) {
         value = value[part];
-        if (value === undefined) return defaultValue;
+        if (value === undefined) {return defaultValue;}
       }
 
       return value;
@@ -482,7 +482,7 @@ export const ThemeProvider = ({ children }) => {
     getColor,
     updateThemeColor,
     resetThemeColors,
-    getThemeValue
+    getThemeValue,
   ]);
 
   return (
@@ -499,12 +499,15 @@ export const ThemeProvider = ({ children }) => {
 export const useTheme = () => {
   try {
     const context = useContext(ThemeContext);
-    
+
     if (!context) {
       console.warn('useTheme: 主题上下文不存在，使用默认主题');
       // 返回默认主题，而不是抛出错误
       return {
         theme: lightTheme,
+        colors: lightTheme.colors,
+        dimensions: lightTheme.dimensions,
+        typography: lightTheme.typography,
         isDarkMode: false,
         themeType: 'light',
         themeStyle: 'classic',
@@ -517,11 +520,14 @@ export const useTheme = () => {
         getThemeValue: () => {},
       };
     }
-    
+
     if (!context.theme || !context.theme.colors) {
       console.warn('useTheme: 主题对象无效，使用默认主题');
       return {
         theme: lightTheme,
+        colors: lightTheme.colors,
+        dimensions: lightTheme.dimensions,
+        typography: lightTheme.typography,
         isDarkMode: false,
         themeType: 'light',
         themeStyle: 'classic',
@@ -534,7 +540,7 @@ export const useTheme = () => {
         getThemeValue: () => {},
       };
     }
-    
+
     return context;
   } catch (error) {
     console.error('useTheme: 获取主题上下文失败:', error.message);

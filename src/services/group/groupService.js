@@ -1,4 +1,4 @@
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../network/networkService';
 import realmService from '../database/realmService';
 import { analyticsService } from '../analytics/analyticsService';
 import { apiService } from './api';
@@ -15,7 +15,7 @@ class GroupService {
    * 初始化群组服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -59,7 +59,7 @@ class GroupService {
         is_synced: { type: 'bool', default: false },
         deleted_at: 'date?',
         user_id: 'string?',
-      }
+      },
     });
 
     // 群组成员模型
@@ -74,7 +74,7 @@ class GroupService {
         joined_at: 'date',
         is_deleted: { type: 'bool', default: false },
         is_synced: { type: 'bool', default: false },
-      }
+      },
     });
 
     // 分享笔记模型
@@ -89,15 +89,15 @@ class GroupService {
         shared_at: 'date',
         is_deleted: { type: 'bool', default: false },
         is_synced: { type: 'bool', default: false },
-      }
+      },
     });
   }
 
   async createGroup(name, description) {
     try {
       // 检查网络连接
-      const networkState = await NetInfo.fetch();
-      if (!networkState.isConnected) {
+      const networkState = await networkService.checkConnection();
+      if (!networkState?.isOnline) {
         throw new Error('网络连接失败，无法创建群组');
       }
 
@@ -220,8 +220,8 @@ class GroupService {
   async getGroups() {
     try {
       // 检查网络连接
-      const networkState = await NetInfo.fetch();
-      if (!networkState.isConnected) {
+      const networkState = await networkService.checkConnection();
+      if (!networkState?.isOnline) {
         console.log('群组服务: 网络未连接，返回空群组列表');
         return [];
       }
@@ -287,7 +287,7 @@ class GroupService {
 
       const groups = await this.getGroups();
       const group = groups.find(g => g.id === groupId);
-      if (!group) throw new Error('群组不存在');
+      if (!group) {throw new Error('群组不存在');}
 
       const members = await this.getMembers(groupId);
       if (members.some(m => m.userId === userId)) {
@@ -430,4 +430,9 @@ class GroupService {
   }
 }
 
-export const groupService = new GroupService();
+const groupService = new GroupService();
+
+module.exports = groupService;
+module.exports.default = groupService;
+module.exports.groupService = groupService;
+module.exports.GroupService = GroupService;

@@ -6,28 +6,84 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.utils import timezone
 from django.http import HttpResponse
 import logging
 import json
 import csv
 import io
+import uuid
 from datetime import datetime
+from django.http import Http404
 
 from reminder.mongodb_models import Reminder, ReminderNotification
 from reminder.serializers.mongo_serializers import MongoReminderSerializer, MongoReminderNotificationSerializer
+from common.permissions import IsOwner
 
 logger = logging.getLogger(__name__)
 
-class MongoReminderViewSet(viewsets.ViewSet):
+class MongoUserViewSetBase(viewsets.ViewSet):
+    """
+    一个基础视图集，提供获取 MongoDB 用户和通用权限检查的功能。
+    """
+    permission_classes = [IsAuthenticated, IsOwner]
+
+    def _get_mongo_user(self, request):
+        """
+        从请求中获取对应的 MongoDB 用户对象
+        优先使用中间件注入的 request.mongo_user
+        """
+        # 优先使用中间件注入的 mongo_user
+        if hasattr(request, 'mongo_user') and request.mongo_user:
+            return request.mongo_user
+
+        # 降级方案：手动查找（兼容旧代码）
+        try:
+            from users.mongodb_models import User as MongoUser
+            django_user = request.user
+            if not django_user or not django_user.is_authenticated:
+                return None
+            mongo_user = MongoUser.objects(username=django_user.username).first()
+            if not mongo_user:
+                logger.warning(f"未找到对应的MongoDB用户: {django_user.username}")
+            return mongo_user
+        except Exception as e:
+            logger.error(f"获取 MongoDB 用户失败: {e}", exc_info=True)
+            return None
+
+class MongoReminderViewSet(MongoUserViewSetBase):
     """
     提醒MongoDB视图集
     """
-    permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
-        """获取查询集"""
-        return Reminder.objects(user=self.request.user)
+        """获取当前用户的提醒查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            return Reminder.objects.none()
+        return Reminder.objects(user=mongo_user)
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供提醒ID")
+
+        try:
+            # 提醒模型使用 UUIDField 作为主键
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的提醒ID格式")
+
+        queryset = self.get_queryset()
+        try:
+            obj = queryset.get(id=pk)
+        except Reminder.DoesNotExist:
+            raise Http404("提醒不存在或无权访问")
+
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
         """列出所有提醒"""
@@ -90,355 +146,345 @@ class MongoReminderViewSet(viewsets.ViewSet):
         else:
             queryset = queryset.order_by(f'{sort_prefix}due_date')
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        start = (page - 1) * page_size
-        end = start + page_size
+        # 分页 (DRF)
+        paginator = PageNumberPagination()
+        page_size = request.query_params.get('page_size')
+        if page_size:
+            try:
+                paginator.page_size = int(page_size)
+            except Exception:
+                pass
+        page_qs = paginator.paginate_queryset(queryset, request)
 
-        # 序列化
-        serializer = MongoReminderSerializer(queryset[start:end], many=True)
-
-        return Response({
-            'count': queryset.count(),
-            'results': serializer.data
-        })
+        serializer = MongoReminderSerializer(page_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
             serializer = MongoReminderSerializer(reminder)
             return Response(serializer.data)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取提醒失败: {str(e)}")
-            return Response({'error': f'获取提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取提醒详情失败: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "获取提醒详情时发生内部错误"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def create(self, request):
         """创建提醒"""
-        serializer = MongoReminderSerializer(data=request.data, context={'request': request})
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = MongoReminderSerializer(data=request.data, context={'request': request, 'user': mongo_user})
         if serializer.is_valid():
             try:
-                reminder = serializer.save()
+                serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
-                logger.error(f"创建提醒失败: {str(e)}")
-                return Response({'error': f'创建提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                logger.error(f"创建提醒时发生内部错误: {str(e)}", exc_info=True)
+                return Response({"detail": "创建提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        logger.warning(f"创建提醒失败, 验证错误: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, pk=None):
         """更新提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
             serializer = MongoReminderSerializer(reminder, data=request.data, context={'request': request})
             if serializer.is_valid():
-                try:
-                    reminder = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新提醒失败: {str(e)}")
-                    return Response({'error': f'更新提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取提醒失败: {str(e)}")
-            return Response({'error': f'获取提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"更新提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "更新提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, pk=None):
         """部分更新提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
             serializer = MongoReminderSerializer(reminder, data=request.data, partial=True, context={'request': request})
             if serializer.is_valid():
-                try:
-                    reminder = serializer.save()
-                    return Response(serializer.data)
-                except Exception as e:
-                    logger.error(f"更新提醒失败: {str(e)}")
-                    return Response({'error': f'更新提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                serializer.save()
+                return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取提醒失败: {str(e)}")
-            return Response({'error': f'获取提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"部分更新提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "部分更新提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, pk=None):
         """删除提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
 
             # 删除相关通知
             ReminderNotification.objects(reminder=reminder).delete()
 
             reminder.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"删除提醒失败: {str(e)}")
-            return Response({'error': f'删除提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"删除提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "删除提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
-        """完成提醒"""
+        """
+        完成提醒。
+        对于重复提醒，可以传入 occurrence_date 来完成单个实例。
+        否则，将完成整个系列（主要用于非重复提醒）。
+        """
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
-            reminder.complete()
+            reminder = self.get_object()
+            occurrence_date_str = request.data.get('occurrence_date')
+
+            if reminder.frequency != 'once' and occurrence_date_str:
+                # 完成单个实例
+                from reminder.services.reminder_service import ReminderService
+                try:
+                    occurrence_date = datetime.fromisoformat(occurrence_date_str.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    return Response({'detail': '无效的 occurrence_date 格式'}, status=status.HTTP_400_BAD_REQUEST)
+
+                reminder = ReminderService.complete_occurrence(reminder, occurrence_date)
+            else:
+                # 完成整个系列（旧逻辑）
+                reminder.complete()
+
             serializer = MongoReminderSerializer(reminder)
             return Response(serializer.data)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"完成提醒失败: {str(e)}")
-            return Response({'error': f'完成提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"完成提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "完成提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def enable(self, request, pk=None):
         """启用提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
             reminder.is_enabled = True
             reminder.save()
             serializer = MongoReminderSerializer(reminder)
             return Response(serializer.data)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"启用提醒失败: {str(e)}")
-            return Response({'error': f'启用提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"启用提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "启用提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def disable(self, request, pk=None):
         """禁用提醒"""
         try:
-            reminder = Reminder.objects.get(id=pk, user=request.user)
+            reminder = self.get_object()
             reminder.is_enabled = False
             reminder.save()
             serializer = MongoReminderSerializer(reminder)
             return Response(serializer.data)
-        except Reminder.DoesNotExist:
-            return Response({'error': '提醒不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"禁用提醒失败: {str(e)}")
-            return Response({'error': f'禁用提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"禁用提醒时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "禁用提醒时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='cancel-occurrence')
+    def cancel_occurrence(self, request, pk=None):
+        """取消重复提醒的单个实例。"""
+        try:
+            reminder = self.get_object()
+            occurrence_date_str = request.data.get('occurrence_date')
+            if not occurrence_date_str:
+                return Response({'detail': '必须提供 occurrence_date'}, status=status.HTTP_400_BAD_REQUEST)
+
+            from reminder.services.reminder_service import ReminderService
+            try:
+                occurrence_date = datetime.fromisoformat(occurrence_date_str.replace('Z', '+00:00'))
+            except (ValueError, TypeError):
+                return Response({'detail': '无效的 occurrence_date 格式'}, status=status.HTTP_400_BAD_REQUEST)
+
+            reminder = ReminderService.cancel_occurrence(reminder, occurrence_date)
+            serializer = MongoReminderSerializer(reminder)
+            return Response(serializer.data)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"取消提醒实例时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "取消提醒实例时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='reschedule-occurrence')
+    def reschedule_occurrence(self, request, pk=None):
+        """延期重复提醒的单个实例。"""
+        try:
+            reminder = self.get_object()
+            occurrence_date_str = request.data.get('occurrence_date')
+            new_due_date_str = request.data.get('new_due_date')
+
+            if not all([occurrence_date_str, new_due_date_str]):
+                return Response({'detail': '必须提供 occurrence_date 和 new_due_date'}, status=status.HTTP_400_BAD_REQUEST)
+
+            from reminder.services.reminder_service import ReminderService
+            try:
+                occurrence_date = datetime.fromisoformat(occurrence_date_str.replace('Z', '+00:00'))
+                new_due_date = datetime.fromisoformat(new_due_date_str.replace('Z', '+00:00'))
+            except (ValueError, TypeError):
+                return Response({'detail': '无效的日期格式'}, status=status.HTTP_400_BAD_REQUEST)
+
+            reminder = ReminderService.reschedule_occurrence(reminder, occurrence_date, new_due_date)
+            serializer = MongoReminderSerializer(reminder)
+            return Response(serializer.data)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"延期提醒实例时发生内部错误: {e}", exc_info=True)
+            return Response({"detail": "延期提醒实例时发生内部错误"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def today(self, request):
         """获取今日提醒"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取今天的开始和结束时间
             today = timezone.now().date()
-            start_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
-            end_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
-
-            # 查询今日提醒
-            reminders = Reminder.objects(
-                user=request.user,
+            start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+            reminders = self.get_queryset().filter(
                 due_date__gte=start_of_day,
                 due_date__lte=end_of_day,
                 is_completed=False,
                 is_enabled=True
             )
-
             serializer = MongoReminderSerializer(reminders, many=True)
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"获取今日提醒失败: {str(e)}")
-            return Response({'error': f'获取今日提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取今日提醒失败: {e}", exc_info=True)
+            return Response({'detail': '获取今日提醒时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
         """获取即将到来的提醒"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取当前时间
             now = timezone.now()
-
-            # 查询即将到来的提醒
-            reminders = Reminder.objects(
-                user=request.user,
+            reminders = self.get_queryset().filter(
                 due_date__gte=now,
                 is_completed=False,
                 is_enabled=True
             ).order_by('due_date')[:10]
-
             serializer = MongoReminderSerializer(reminders, many=True)
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"获取即将到来的提醒失败: {str(e)}")
-            return Response({'error': f'获取即将到来的提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取即将到来的提醒失败: {e}", exc_info=True)
+            return Response({'detail': '获取即将到来的提醒时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def overdue(self, request):
         """获取过期提醒"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取当前时间
             now = timezone.now()
-
-            # 查询过期提醒
-            reminders = Reminder.objects(
-                user=request.user,
+            reminders = self.get_queryset().filter(
                 due_date__lt=now,
                 is_completed=False,
                 is_enabled=True
             ).order_by('-due_date')
-
             serializer = MongoReminderSerializer(reminders, many=True)
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"获取过期提醒失败: {str(e)}")
-            return Response({'error': f'获取过期提醒失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取过期提醒失败: {e}", exc_info=True)
+            return Response({'detail': '获取过期提醒时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def categories(self, request):
         """获取所有分类"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取用户的所有提醒
-            user_reminders = Reminder.objects(user=request.user)
-
-            # 获取所有分类
+            user_reminders = self.get_queryset()
             categories = user_reminders.distinct('category')
-
-            # 构建分类列表
             category_list = []
             for category in categories:
                 if not category:
                     continue
-
-                # 获取该分类的提醒数量
-                count = Reminder.objects(user=request.user, category=category).count()
-
-                # 获取分类显示名称
+                count = user_reminders.filter(category=category).count()
                 category_display = dict(Reminder.CATEGORY_CHOICES).get(category, category)
+                category_list.append({'id': category, 'name': category_display, 'count': count})
 
-                category_list.append({
-                    'id': category,
-                    'name': category_display,
-                    'count': count
-                })
-
-            # 添加默认分类
+            existing_categories = {c['id'] for c in category_list}
             for category_id, category_name in Reminder.CATEGORY_CHOICES:
-                if category_id not in categories:
-                    category_list.append({
-                        'id': category_id,
-                        'name': category_name,
-                        'count': 0
-                    })
+                if category_id not in existing_categories:
+                    category_list.append({'id': category_id, 'name': category_name, 'count': 0})
 
             return Response(category_list)
         except Exception as e:
-            logger.error(f"获取分类失败: {str(e)}")
-            return Response({'error': f'获取分类失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取分类失败: {e}", exc_info=True)
+            return Response({'detail': '获取分类时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def tags(self, request):
         """获取所有标签"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取用户的所有提醒
-            user_reminders = Reminder.objects(user=request.user)
-
-            # 获取所有标签
+            user_reminders = self.get_queryset()
             all_tags = []
             for reminder in user_reminders:
                 if hasattr(reminder, 'tags') and reminder.tags:
                     tags = [tag.strip() for tag in reminder.tags.split(',') if tag.strip()]
                     all_tags.extend(tags)
 
-            # 统计标签出现次数
             from collections import Counter
             tag_counter = Counter(all_tags)
-
-            # 构建标签列表
-            tag_list = [
-                {
-                    'name': tag,
-                    'count': count
-                }
-                for tag, count in tag_counter.most_common()
-            ]
-
+            tag_list = [{'name': tag, 'count': count} for tag, count in tag_counter.most_common()]
             return Response(tag_list)
         except Exception as e:
-            logger.error(f"获取标签失败: {str(e)}")
-            return Response({'error': f'获取标签失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取标签失败: {e}", exc_info=True)
+            return Response({'detail': '获取标签时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """获取提醒统计信息"""
+        mongo_user = self._get_mongo_user(request)
+        if not mongo_user:
+            return Response({"detail": "用户未认证或未找到"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            # 获取用户的所有提醒
-            user_reminders = Reminder.objects(user=request.user)
-
-            # 获取当前时间
+            user_reminders = self.get_queryset()
             now = timezone.now()
 
-            # 统计信息
             total_count = user_reminders.count()
             completed_count = user_reminders.filter(is_completed=True).count()
-            active_count = user_reminders.filter(is_completed=False, is_enabled=True).count()
-            overdue_count = user_reminders.filter(
-                due_date__lt=now,
-                is_completed=False,
-                is_enabled=True
-            ).count()
+            active_reminders = user_reminders.filter(is_completed=False, is_enabled=True)
+            active_count = active_reminders.count()
+            overdue_count = active_reminders.filter(due_date__lt=now).count()
 
-            # 获取今天的开始和结束时间
             today = now.date()
-            start_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
-            end_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
+            start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+            today_count = active_reminders.filter(due_date__gte=start_of_day, due_date__lte=end_of_day).count()
 
-            # 今日提醒数量
-            today_count = user_reminders.filter(
-                due_date__gte=start_of_day,
-                due_date__lte=end_of_day,
-                is_completed=False,
-                is_enabled=True
-            ).count()
+            priority_stats = {pid: {'name': name, 'count': active_reminders.filter(priority=pid).count()} for pid, name in Reminder.PRIORITY_CHOICES}
+            category_stats = {cid: {'name': name, 'count': active_reminders.filter(category=cid).count()} for cid, name in Reminder.CATEGORY_CHOICES}
+            frequency_stats = {fid: {'name': name, 'count': active_reminders.filter(frequency=fid).count()} for fid, name in Reminder.FREQUENCY_CHOICES}
 
-            # 按优先级统计
-            priority_stats = {}
-            for priority_id, priority_name in Reminder.PRIORITY_CHOICES:
-                count = user_reminders.filter(
-                    priority=priority_id,
-                    is_completed=False,
-                    is_enabled=True
-                ).count()
-                priority_stats[priority_id] = {
-                    'name': priority_name,
-                    'count': count
-                }
-
-            # 按分类统计
-            category_stats = {}
-            for category_id, category_name in Reminder.CATEGORY_CHOICES:
-                count = user_reminders.filter(
-                    category=category_id,
-                    is_completed=False,
-                    is_enabled=True
-                ).count()
-                category_stats[category_id] = {
-                    'name': category_name,
-                    'count': count
-                }
-
-            # 按频率统计
-            frequency_stats = {}
-            for frequency_id, frequency_name in Reminder.FREQUENCY_CHOICES:
-                count = user_reminders.filter(
-                    frequency=frequency_id,
-                    is_completed=False,
-                    is_enabled=True
-                ).count()
-                frequency_stats[frequency_id] = {
-                    'name': frequency_name,
-                    'count': count
-                }
-
-            # 构建统计信息
             statistics = {
                 'total': total_count,
                 'completed': completed_count,
@@ -450,11 +496,10 @@ class MongoReminderViewSet(viewsets.ViewSet):
                 'categories': category_stats,
                 'frequencies': frequency_stats
             }
-
             return Response(statistics)
         except Exception as e:
-            logger.error(f"获取统计信息失败: {str(e)}")
-            return Response({'error': f'获取统计信息失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取统计信息失败: {e}", exc_info=True)
+            return Response({'detail': '获取统计信息时发生内部错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def calendar(self, request):
@@ -710,19 +755,41 @@ class MongoReminderViewSet(viewsets.ViewSet):
             logger.error(f"导入提醒数据失败: {str(e)}")
             return Response({'error': f'导入提醒数据失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class MongoReminderNotificationViewSet(viewsets.ViewSet):
+class MongoReminderNotificationViewSet(MongoUserViewSetBase):
     """
     提醒通知MongoDB视图集
     """
-    permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
-        """获取查询集"""
-        # 获取用户的所有提醒
-        user_reminders = Reminder.objects(user=self.request.user)
+        """获取当前用户的提醒通知查询集"""
+        mongo_user = self._get_mongo_user(self.request)
+        if not mongo_user:
+            return ReminderNotification.objects.none()
 
-        # 获取这些提醒的所有通知
+        # 首先找到用户的所有提醒，然后获取与这些提醒关联的通知
+        user_reminders = Reminder.objects(user=mongo_user)
         return ReminderNotification.objects(reminder__in=user_reminders)
+
+    def get_object(self):
+        """获取单个对象并自动检查权限"""
+        pk = self.kwargs.get('pk')
+        if not pk:
+            raise Http404("需要提供通知ID")
+
+        try:
+            if isinstance(pk, str):
+                pk = uuid.UUID(pk)
+        except ValueError:
+            raise Http404("无效的通知ID格式")
+
+        # 注意：这里的查询不直接使用 get_queryset()，因为它已经很复杂了。
+        # 我们直接获取对象，然后依赖 check_object_permissions 来验证所有权。
+        try:
+            obj = ReminderNotification.objects.get(id=pk)
+        except ReminderNotification.DoesNotExist:
+            raise Http404("通知不存在")
+
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def list(self, request):
         """列出所有通知"""
@@ -734,80 +801,65 @@ class MongoReminderNotificationViewSet(viewsets.ViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        start = (page - 1) * page_size
-        end = start + page_size
+        # 分页 (DRF)
+        paginator = PageNumberPagination()
+        page_size = request.query_params.get('page_size')
+        if page_size:
+            try:
+                paginator.page_size = int(page_size)
+            except Exception:
+                pass
+        page_qs = paginator.paginate_queryset(queryset, request)
 
-        # 序列化
-        serializer = MongoReminderNotificationSerializer(queryset[start:end], many=True)
-
-        return Response({
-            'count': queryset.count(),
-            'results': serializer.data
-        })
+        serializer = MongoReminderNotificationSerializer(page_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个通知"""
         try:
-            notification = ReminderNotification.objects.get(id=pk)
-
-            # 验证用户是否有权限访问该通知
-            if notification.reminder.user != request.user:
-                return Response({'error': '无权访问该通知'}, status=status.HTTP_403_FORBIDDEN)
-
+            notification = self.get_object()
             serializer = MongoReminderNotificationSerializer(notification)
             return Response(serializer.data)
-        except ReminderNotification.DoesNotExist:
-            return Response({'error': '通知不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"获取通知失败: {str(e)}")
-            return Response({'error': f'获取通知失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"获取通知详情失败: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "获取通知详情时发生内部错误"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def mark_as_sent(self, request, pk=None):
         """标记为已发送"""
         try:
-            notification = ReminderNotification.objects.get(id=pk)
-
-            # 验证用户是否有权限访问该通知
-            if notification.reminder.user != request.user:
-                return Response({'error': '无权访问该通知'}, status=status.HTTP_403_FORBIDDEN)
-
+            notification = self.get_object()
             notification.status = 'sent'
             notification.sent_time = timezone.now()
             notification.save()
-
             serializer = MongoReminderNotificationSerializer(notification)
             return Response(serializer.data)
-        except ReminderNotification.DoesNotExist:
-            return Response({'error': '通知不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"标记通知为已发送失败: {str(e)}")
-            return Response({'error': f'标记通知为已发送失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"标记通知为已发送失败: {e}", exc_info=True)
+            return Response({"detail": "标记通知为已发送失败"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def mark_as_failed(self, request, pk=None):
         """标记为发送失败"""
         try:
-            notification = ReminderNotification.objects.get(id=pk)
-
-            # 验证用户是否有权限访问该通知
-            if notification.reminder.user != request.user:
-                return Response({'error': '无权访问该通知'}, status=status.HTTP_403_FORBIDDEN)
-
+            notification = self.get_object()
             notification.status = 'failed'
             notification.error_message = request.data.get('error_message', '')
             notification.save()
-
             serializer = MongoReminderNotificationSerializer(notification)
             return Response(serializer.data)
-        except ReminderNotification.DoesNotExist:
-            return Response({'error': '通知不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Http404 as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"标记通知为发送失败失败: {str(e)}")
-            return Response({'error': f'标记通知为发送失败失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"标记通知为发送失败失败: {e}", exc_info=True)
+            return Response({"detail": "标记通知为发送失败失败"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def pending(self, request):

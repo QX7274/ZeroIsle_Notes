@@ -36,20 +36,20 @@ const NodeEditor = ({
   const { colors, dimensions } = theme;
   const dispatch = useDispatch();
   const { isLoading } = useSelector(state => state.knowledgeGraph);
-  
+
   // 节点状态
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('concept');
   const [properties, setProperties] = useState([]);
-  
+
   // 初始化状态
   useEffect(() => {
     if (node) {
       setTitle(node.title || '');
       setDescription(node.description || '');
       setType(node.type || 'concept');
-      
+
       // 转换属性对象为数组
       if (node.properties) {
         const propsArray = Object.entries(node.properties).map(([key, value]) => ({
@@ -68,33 +68,33 @@ const NodeEditor = ({
       setProperties([]);
     }
   }, [node, visible]);
-  
+
   // 添加属性
   const addProperty = () => {
     setProperties([...properties, { key: '', value: '' }]);
   };
-  
+
   // 更新属性
   const updateProperty = (index, field, value) => {
     const updatedProperties = [...properties];
     updatedProperties[index][field] = value;
     setProperties(updatedProperties);
   };
-  
+
   // 删除属性
   const removeProperty = (index) => {
     const updatedProperties = [...properties];
     updatedProperties.splice(index, 1);
     setProperties(updatedProperties);
   };
-  
+
   // 处理保存
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('提示', '请输入节点标题');
       return;
     }
-    
+
     try {
       // 将属性数组转换为对象
       const propertiesObject = {};
@@ -103,14 +103,14 @@ const NodeEditor = ({
           propertiesObject[prop.key.trim()] = prop.value.trim();
         }
       });
-      
+
       const nodeData = {
         title: title.trim(),
         description: description.trim(),
         type,
         properties: propertiesObject,
       };
-      
+
       let result;
       if (node?.id) {
         // 更新节点
@@ -122,13 +122,13 @@ const NodeEditor = ({
         // 创建节点
         result = await dispatch(createNode(nodeData)).unwrap();
       }
-      
+
       onSave && onSave(result);
     } catch (error) {
       Alert.alert('错误', error.message || '保存节点失败');
     }
   };
-  
+
   // 节点类型选项
   const nodeTypes = [
     { value: 'concept', label: '概念' },
@@ -140,7 +140,7 @@ const NodeEditor = ({
     { value: 'answer', label: '答案' },
     { value: 'custom', label: '自定义' },
   ];
-  
+
   // 获取节点类型颜色
   const getNodeTypeColor = (nodeType) => {
     switch (nodeType) {
@@ -155,7 +155,7 @@ const NodeEditor = ({
       default: return colors.primary;
     }
   };
-  
+
   return (
     <Modal
       visible={visible}
@@ -173,7 +173,7 @@ const NodeEditor = ({
             >
               {node?.id ? '编辑节点' : '创建节点'}
             </Text>
-            
+
             <TouchableOpacity
               style={styles.closeButton}
               onPress={onCancel}
@@ -181,7 +181,7 @@ const NodeEditor = ({
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.content}>
             <View style={styles.formGroup}>
               <Text
@@ -195,7 +195,7 @@ const NodeEditor = ({
               <TextInput
                 style={[
                   styles.input,
-                  { color: colors.text, borderColor: colors.border }
+                  { color: colors.text, borderColor: colors.border },
                 ]}
                 value={title}
                 onChangeText={setTitle}
@@ -203,7 +203,7 @@ const NodeEditor = ({
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -216,7 +216,7 @@ const NodeEditor = ({
               <TextInput
                 style={[
                   styles.textArea,
-                  { color: colors.text, borderColor: colors.border }
+                  { color: colors.text, borderColor: colors.border },
                 ]}
                 value={description}
                 onChangeText={setDescription}
@@ -227,7 +227,7 @@ const NodeEditor = ({
                 textAlignVertical="top"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text
                 variant="body"
@@ -244,14 +244,14 @@ const NodeEditor = ({
                     style={[
                       styles.nodeTypeButton,
                       type === nodeType.value && styles.selectedNodeType,
-                      type === nodeType.value && { borderColor: getNodeTypeColor(nodeType.value) }
+                      type === nodeType.value && { borderColor: getNodeTypeColor(nodeType.value) },
                     ]}
                     onPress={() => setType(nodeType.value)}
                   >
                     <View
                       style={[
                         styles.nodeTypeColor,
-                        { backgroundColor: getNodeTypeColor(nodeType.value) }
+                        { backgroundColor: getNodeTypeColor(nodeType.value) },
                       ]}
                     />
                     <Text
@@ -265,7 +265,7 @@ const NodeEditor = ({
                 ))}
               </View>
             </View>
-            
+
             <View style={styles.formGroup}>
               <View style={styles.propertiesHeader}>
                 <Text
@@ -283,7 +283,7 @@ const NodeEditor = ({
                   <Icon name="add" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-              
+
               {properties.length === 0 ? (
                 <Text
                   variant="body"
@@ -299,7 +299,7 @@ const NodeEditor = ({
                     <TextInput
                       style={[
                         styles.propertyKey,
-                        { color: colors.text, borderColor: colors.border }
+                        { color: colors.text, borderColor: colors.border },
                       ]}
                       value={property.key}
                       onChangeText={(value) => updateProperty(index, 'key', value)}
@@ -309,7 +309,7 @@ const NodeEditor = ({
                     <TextInput
                       style={[
                         styles.propertyValue,
-                        { color: colors.text, borderColor: colors.border }
+                        { color: colors.text, borderColor: colors.border },
                       ]}
                       value={property.value}
                       onChangeText={(value) => updateProperty(index, 'value', value)}
@@ -327,7 +327,7 @@ const NodeEditor = ({
               )}
             </View>
           </ScrollView>
-          
+
           <View style={styles.footer}>
             <Button
               title="取消"

@@ -1,262 +1,276 @@
 """
-笔记版本视图
+笔记版本视图（优化版）
+- 使用VersionService封装业务逻辑
+- 修复模型与视图不一致的问题
+- 实现软删除、分页和版本恢复
 """
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils import timezone
+from rest_framework.permissions import IsAuthenticated
+from common.pagination import StandardResultsSetPagination
 from notes.mongodb_models import NoteVersion, Note
 from notes.serializers import NoteVersionSerializer
-from common.permissions import IsOwnerOrReadOnly
+from notes.services.version_service import VersionService
 import logging
-from datetime import timedelta
-import uuid
+import difflib
 
 logger = logging.getLogger(__name__)
 
 class NoteVersionViewSet(viewsets.ViewSet):
     """
-    笔记版本视图集
+    笔记版本视图集（优化版）
     """
     serializer_class = NoteVersionSerializer
-    permission_classes = [IsOwnerOrReadOnly]
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    # Manual paginator setup for ViewSet
+    @property
+    def paginator(self):
+        if not hasattr(self, '_paginator'):
+            if self.pagination_class is None:
+                self._paginator = None
+            else:
+                self._paginator = self.pagination_class()
+        return self._paginator
+
+    def paginate_queryset(self, queryset):
+        if self.paginator is None:
+            return None
+        return self.paginator.paginate_queryset(queryset, self.request, view=self)
+
+    def get_paginated_response(self, data):
+        assert self.paginator is not None
+        return self.paginator.get_paginated_response(data)
+
+    def get_serializer(self, *args, **kwargs):
+        serializer_class = self.serializer_class
+        kwargs.setdefault('context', {'request': self.request, 'view': self})
+        return serializer_class(*args, **kwargs)
 
     def list(self, request):
-        """获取版本列表"""
-        user = request.user
+        """获取版本列表（使用VersionService，支持分页）"""
         note_id = request.query_params.get('note_id')
+        if not note_id:
+            return Response(
+                {"detail": "缺少note_id参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        if note_id:
-            versions = NoteVersion.objects.filter(note__user=user, note=note_id, is_deleted=False)
-        else:
-            versions = NoteVersion.objects.filter(user=user, is_deleted=False)
+        try:
+            note = Note.objects.get(id=note_id)
+            versions = VersionService.get_versions_for_note(note, request.user)
 
-        serializer = NoteVersionSerializer(versions, many=True)
-        return Response(serializer.data)
+            # 分页
+            page = self.paginate_queryset(versions)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(versions, many=True)
+            return Response(serializer.data)
+        except Note.DoesNotExist:
+            return Response({"detail": "笔记不存在"}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
     def retrieve(self, request, pk=None):
-        """获取单个版本详情"""
+        """获取单个版本详情（使用VersionService）"""
         try:
-            version = NoteVersion.objects.get(id=pk, user=request.user, is_deleted=False)
-            serializer = NoteVersionSerializer(version)
+            version = NoteVersion.objects.get(id=pk, is_deleted=False)
+            if not VersionService.can_manage_versions(request.user, version.note):
+                raise PermissionError("您没有权限查看此版本")
+
+            serializer = self.get_serializer(version)
             return Response(serializer.data)
         except NoteVersion.DoesNotExist:
             return Response(
                 {"detail": "版本不存在或已删除"},
                 status=status.HTTP_404_NOT_FOUND
             )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
     def create(self, request):
-        """创建版本"""
-        serializer = NoteVersionSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            # 获取笔记
-            note_id = request.data.get('note')
-            try:
-                note = Note.objects.get(id=note_id, user=request.user)
-            except Note.DoesNotExist:
-                return Response(
-                    {"detail": "笔记不存在"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+        """创建版本（使用VersionService）"""
+        note_id = request.data.get('note')
+        description = request.data.get('description')
 
-            # 获取最新版本号
-            latest_version = NoteVersion.objects.filter(note=note).order_by('-version_number').first()
-            version_number = 1
-            if latest_version:
-                version_number = latest_version.version_number + 1
+        if not note_id:
+            return Response(
+                {"detail": "缺少note_id参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            # 创建版本
-            version = NoteVersion(
-                id=uuid.uuid4(),
+        try:
+            note = Note.objects.get(id=note_id)
+
+            version = VersionService.create_version(
                 note=note,
                 user=request.user,
-                title=request.data.get('title', note.title),
-                content=request.data.get('content', ''),
-                version_number=version_number,
-                description=request.data.get('description', ''),
-                is_current=request.data.get('is_current', False),
-                created_at=timezone.now(),
-                updated_at=timezone.now()
+                description=description or "手动保存"
             )
-            version.save()
 
-            serializer = NoteVersionSerializer(version)
+            serializer = self.get_serializer(version)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def update(self, request, pk=None):
-        """更新版本"""
-        try:
-            version = NoteVersion.objects.get(id=pk, user=request.user, is_deleted=False)
-            serializer = NoteVersionSerializer(version, data=request.data, context={'request': request})
-            if serializer.is_valid():
-                # 更新描述
-                version.description = request.data.get('description', version.description)
-                version.is_current = request.data.get('is_current', version.is_current)
-
-                # 如果设置为当前版本，则更新笔记内容
-                if version.is_current:
-                    version.note.title = version.title
-                    version.note.content = version.content
-                    version.note.save()
-
-                    # 将其他版本设置为非当前版本
-                    NoteVersion.objects.filter(note=version.note, is_current=True).update(is_current=False)
-                    version.is_current = True
-
-                version.updated_at = timezone.now()
-                version.save()
-
-                serializer = NoteVersionSerializer(version)
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except NoteVersion.DoesNotExist:
+        except Note.DoesNotExist:
+            return Response({"detail": "笔记不存在"}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"创建版本失败: {str(e)}")
             return Response(
-                {"detail": "版本不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
+                {'error': '创建版本失败'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def destroy(self, request, pk=None):
-        """删除版本"""
+        """删除版本（软删除，使用VersionService）"""
         try:
-            version = NoteVersion.objects.get(id=pk, user=request.user, is_deleted=False)
-            version.delete()  # 软删除
+            version = NoteVersion.objects.get(id=pk, is_deleted=False)
+            VersionService.delete_version(version, request.user)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except NoteVersion.DoesNotExist:
             return Response(
                 {"detail": "版本不存在或已删除"},
                 status=status.HTTP_404_NOT_FOUND
             )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"删除版本失败: {str(e)}")
+            return Response({'error': '删除版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        """恢复版本"""
+        """恢复版本（使用VersionService）"""
         try:
-            version = NoteVersion.objects.get(id=pk, user=request.user, is_deleted=False)
+            version_to_restore = NoteVersion.objects.get(id=pk, is_deleted=False)
 
-            # 创建新版本保存当前内容
-            new_version = NoteVersion(
-                id=uuid.uuid4(),
-                note=version.note,
-                user=request.user,
-                title=version.note.title,
-                content=version.note.content,
-                version_number=version.version_number + 1,
-                description=f"恢复前的自动备份 - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                created_at=timezone.now(),
-                updated_at=timezone.now()
-            )
-            new_version.save()
+            new_version = VersionService.restore_version(version_to_restore, request.user)
 
-            # 恢复内容
-            version.note.title = version.title
-            version.note.content = version.content
-            version.note.updated_at = timezone.now()
-            version.note.save()
-
-            # 将当前版本设置为当前版本
-            NoteVersion.objects.filter(note=version.note, is_current=True).update(is_current=False)
-            version.is_current = True
-            version.save()
-
+            serializer = self.get_serializer(new_version)
             return Response({
                 'message': '版本恢复成功',
-                'new_version_id': str(new_version.id)
+                'restored_to_version': serializer.data
             })
+
         except NoteVersion.DoesNotExist:
-            return Response(
-                {"detail": "版本不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"detail": "版本不存在或已删除"}, status=status.HTTP_404_NOT_FOUND)
+        except (ValueError, PermissionError) as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"恢复版本失败: {str(e)}")
-            return Response(
-                {'error': '恢复版本失败'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': '恢复版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def auto_save(self, request):
-        """获取自动保存的版本"""
+        """获取自动保存的版本（使用VersionService）"""
         note_id = request.query_params.get('note_id')
         if not note_id:
-            return Response(
-                {'error': '缺少note_id参数'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '缺少note_id参数'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 获取最近30分钟内的自动保存版本
-            thirty_minutes_ago = timezone.now() - timedelta(minutes=30)
-            version = NoteVersion.objects.filter(
-                note=note_id,
-                user=request.user,
-                description__contains='自动保存',
-                created_at__gte=thirty_minutes_ago,
-                is_deleted=False
-            ).order_by('-created_at').first()
+            note = Note.objects.get(id=note_id)
+            version = VersionService.get_latest_auto_save(note, request.user)
 
             if version:
-                serializer = NoteVersionSerializer(version)
+                serializer = self.get_serializer(version)
                 return Response(serializer.data)
-            return Response({'message': '没有找到自动保存的版本'})
+            return Response({'detail': '没有找到最近的自动保存版本'}, status=status.HTTP_404_NOT_FOUND)
+        except Note.DoesNotExist:
+            return Response({"detail": "笔记不存在"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"获取自动保存版本失败: {str(e)}")
-            return Response(
-                {'error': '获取自动保存版本失败'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': '获取自动保存版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
     def create_auto_save(self, request):
-        """创建自动保存版本"""
+        """创建自动保存版本（使用VersionService）"""
         note_id = request.data.get('note')
-        content = request.data.get('content')
-        title = request.data.get('title')
-
-        if not note_id or not content:
-            return Response(
-                {'error': '缺少必要参数'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if not note_id:
+            return Response({'error': '缺少note_id参数'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 获取笔记
-            try:
-                note = Note.objects.get(id=note_id, user=request.user)
-            except Note.DoesNotExist:
-                return Response(
-                    {"detail": "笔记不存在"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            note = Note.objects.get(id=note_id)
 
-            # 获取最新版本号
-            latest_version = NoteVersion.objects.filter(note=note).order_by('-version_number').first()
-            version_number = 1
-            if latest_version:
-                version_number = latest_version.version_number + 1
+            # 更新笔记的临时内容以用于创建版本，但不保存笔记本身
+            note.title = request.data.get('title', note.title)
+            note.content = request.data.get('content', note.content)
 
-            # 创建自动保存版本
-            version = NoteVersion(
-                id=uuid.uuid4(),
+            version = VersionService.create_version(
                 note=note,
                 user=request.user,
-                title=title or note.title,
-                content=content,
-                version_number=version_number,
-                description=f"自动保存 - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                created_at=timezone.now(),
-                updated_at=timezone.now()
+                description="自动保存",
+                is_auto_save=True
             )
-            version.save()
 
-            serializer = NoteVersionSerializer(version)
+            serializer = self.get_serializer(version)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Note.DoesNotExist:
+            return Response({"detail": "笔记不存在"}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             logger.error(f"创建自动保存版本失败: {str(e)}")
-            return Response(
-                {'error': '创建自动保存版本失败'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': '创建自动保存版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def compare(self, request):
+        """
+        比较两个版本差异
+        Query params:
+        - from_id: 源版本ID
+        - to_id: 目标版本ID
+        返回 unified diff（逐行），便于前端高亮
+        """
+        from_id = request.query_params.get('from_id') or request.query_params.get('from')
+        to_id = request.query_params.get('to_id') or request.query_params.get('to')
+        if not from_id or not to_id:
+            return Response({'detail': '缺少 from_id/to_id 参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            v_from = NoteVersion.objects.get(id=from_id, is_deleted=False)
+            v_to = NoteVersion.objects.get(id=to_id, is_deleted=False)
+
+            # 权限校验：同一笔记，用户可管理版本
+            if v_from.note != v_to.note:
+                return Response({'detail': '不可比较不同笔记的版本'}, status=status.HTTP_400_BAD_REQUEST)
+            if not VersionService.can_manage_versions(request.user, v_from.note):
+                return Response({'detail': '无权限比较该笔记版本'}, status=status.HTTP_403_FORBIDDEN)
+
+            # 生成标题与内容的统一 diff
+            title_diff = list(difflib.unified_diff(
+                (v_from.title or '').splitlines(),
+                (v_to.title or '').splitlines(),
+                fromfile=f"v{v_from.version_number}:title",
+                tofile=f"v{v_to.version_number}:title",
+                lineterm=''
+            ))
+            content_diff = list(difflib.unified_diff(
+                (v_from.content or '').splitlines(),
+                (v_to.content or '').splitlines(),
+                fromfile=f"v{v_from.version_number}:content",
+                tofile=f"v{v_to.version_number}:content",
+                lineterm=''
+            ))
+
+            return Response({
+                'note_id': str(v_from.note.id),
+                'from_version': v_from.version_number,
+                'to_version': v_to.version_number,
+                'title_diff': title_diff,
+                'content_diff': content_diff
+            })
+        except NoteVersion.DoesNotExist:
+            return Response({'detail': '版本不存在或已删除'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"比较版本失败: {str(e)}")
+            return Response({'error': '比较版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({'error': '创建自动保存版本失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

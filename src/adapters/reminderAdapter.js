@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端提醒对象
  */
 export const toFrontendReminder = (reminder) => {
-  if (!reminder) return null;
-  
+  if (!reminder) {return null;}
+
   try {
     return {
       id: reminder._id,
@@ -52,8 +52,8 @@ export const toFrontendReminder = (reminder) => {
  * @returns {Object} 后端提醒模型
  */
 export const toBackendReminder = (reminder) => {
-  if (!reminder) return null;
-  
+  if (!reminder) {return null;}
+
   try {
     return {
       _id: reminder.id,
@@ -94,8 +94,8 @@ export const createReminder = async (reminderData, userId) => {
   try {
     // 准备提醒数据
     const now = new Date();
-    const reminderId = `reminder_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const reminderId = realmService.createObjectId();
+
     const backendReminder = {
       _id: reminderId,
       title: reminderData.title || '',
@@ -119,14 +119,14 @@ export const createReminder = async (reminderData, userId) => {
       notification_sent: reminderData.notificationSent || false,
       notification_time: reminderData.notificationTime,
     };
-    
+
     // 创建提醒模型
     const realm = await realmService.getRealm();
     let reminder;
     realm.write(() => {
       reminder = realm.create('Reminder', backendReminder);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: reminder._id,
@@ -135,7 +135,7 @@ export const createReminder = async (reminderData, userId) => {
       data: reminder.toJSON(),
       user_id: userId,
     });
-    
+
     // 返回前端提醒对象
     return toFrontendReminder(reminder);
   } catch (error) {
@@ -155,36 +155,36 @@ export const updateReminder = async (reminderId, reminderData) => {
     // 查找提醒
     const realm = await realmService.getRealm();
     const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
-    
+
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
     }
-    
+
     // 更新提醒属性
-    if (reminderData.title !== undefined) reminder.title = reminderData.title;
-    if (reminderData.description !== undefined) reminder.description = reminderData.description;
-    if (reminderData.noteId !== undefined) reminder.note_id = reminderData.noteId;
-    if (reminderData.date !== undefined) reminder.date = reminderData.date;
-    if (reminderData.time !== undefined) reminder.time = reminderData.time;
+    if (reminderData.title !== undefined) {reminder.title = reminderData.title;}
+    if (reminderData.description !== undefined) {reminder.description = reminderData.description;}
+    if (reminderData.noteId !== undefined) {reminder.note_id = reminderData.noteId;}
+    if (reminderData.date !== undefined) {reminder.date = reminderData.date;}
+    if (reminderData.time !== undefined) {reminder.time = reminderData.time;}
     if (reminderData.isCompleted !== undefined) {
       reminder.is_completed = reminderData.isCompleted;
       reminder.completed_at = reminderData.isCompleted ? new Date() : null;
     }
-    if (reminderData.isRecurring !== undefined) reminder.is_recurring = reminderData.isRecurring;
-    if (reminderData.recurringPattern !== undefined) reminder.recurring_pattern = reminderData.recurringPattern;
-    if (reminderData.priority !== undefined) reminder.priority = reminderData.priority;
-    if (reminderData.color !== undefined) reminder.color = reminderData.color;
-    if (reminderData.notificationId !== undefined) reminder.notification_id = reminderData.notificationId;
-    if (reminderData.notificationSent !== undefined) reminder.notification_sent = reminderData.notificationSent;
-    if (reminderData.notificationTime !== undefined) reminder.notification_time = reminderData.notificationTime;
-    
+    if (reminderData.isRecurring !== undefined) {reminder.is_recurring = reminderData.isRecurring;}
+    if (reminderData.recurringPattern !== undefined) {reminder.recurring_pattern = reminderData.recurringPattern;}
+    if (reminderData.priority !== undefined) {reminder.priority = reminderData.priority;}
+    if (reminderData.color !== undefined) {reminder.color = reminderData.color;}
+    if (reminderData.notificationId !== undefined) {reminder.notification_id = reminderData.notificationId;}
+    if (reminderData.notificationSent !== undefined) {reminder.notification_sent = reminderData.notificationSent;}
+    if (reminderData.notificationTime !== undefined) {reminder.notification_time = reminderData.notificationTime;}
+
     // 更新时间
     reminder.updated_at = new Date();
     reminder.is_synced = false;
-    
+
     // 保存提醒
     await reminder.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: reminder._id,
@@ -193,7 +193,7 @@ export const updateReminder = async (reminderId, reminderData) => {
       data: reminder.toJSON(),
       user_id: reminder.user_id,
     });
-    
+
     // 返回前端提醒对象
     return toFrontendReminder(reminder);
   } catch (error) {
@@ -213,11 +213,11 @@ export const deleteReminder = async (reminderId, permanent = false) => {
     // 查找提醒
     const realm = await realmService.getRealm();
     const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
-    
+
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
     }
-    
+
     if (permanent) {
       // 永久删除
       await reminder.remove({ soft: false });
@@ -227,7 +227,7 @@ export const deleteReminder = async (reminderId, permanent = false) => {
       reminder.deleted_at = new Date();
       reminder.is_synced = false;
       await reminder.save();
-      
+
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: reminder._id,
@@ -237,7 +237,7 @@ export const deleteReminder = async (reminderId, permanent = false) => {
         user_id: reminder.user_id,
       });
     }
-    
+
     return true;
   } catch (error) {
     logService.error(`删除提醒失败: ${reminderId}`, error);
@@ -256,17 +256,17 @@ export const getReminders = async (userId, options = {}) => {
     // 查找提醒
     const realm = await realmService.getRealm();
     let reminders = realm.objects('Reminder').filtered(`user_id = "${userId}"`);
-    
+
     // 应用排序
     if (options.sortBy) {
       reminders = reminders.sorted(options.sortBy, options.sortOrder === 'desc');
     }
-    
+
     // 应用分页
     if (options.limit) {
       reminders = reminders.slice(0, options.limit);
     }
-    
+
     // 转换为前端提醒对象
     return reminders.map(toFrontendReminder);
   } catch (error) {
@@ -285,11 +285,11 @@ export const getReminderById = async (reminderId) => {
     // 查找提醒
     const realm = await realmService.getRealm();
     const reminder = realm.objectForPrimaryKey('Reminder', reminderId);
-    
+
     if (!reminder) {
       throw new Error(`提醒不存在: ${reminderId}`);
     }
-    
+
     // 转换为前端提醒对象
     return toFrontendReminder(reminder);
   } catch (error) {
@@ -308,7 +308,7 @@ export const getNoteReminders = async (noteId) => {
     // 查找提醒
     const realm = await realmService.getRealm();
     const reminders = realm.objects('Reminder').filtered(`note_id = "${noteId}"`);
-    
+
     // 转换为前端提醒对象
     return reminders.map(toFrontendReminder);
   } catch (error) {

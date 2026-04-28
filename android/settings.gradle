@@ -24,4 +24,7 @@ project(':react-native-linear-gradient').projectDir = new File(rootProject.proje
 include ':react-native-permissions'
 project(':react-native-permissions').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-permissions/android')
 
+include ':react-native-get-random-values'
+project(':react-native-get-random-values').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-get-random-values/android')
+
 // SQLite 已移除，因为项目已迁移到 MongoDB

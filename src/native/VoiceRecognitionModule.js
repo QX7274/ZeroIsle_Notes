@@ -1,9 +1,12 @@
-import { NativeModules } from 'react-native';
+const { NativeModules } = require('react-native');
 
-const { VoiceRecognitionModule } = NativeModules;
+const VoiceRecognitionModule = NativeModules.VoiceRecognitionModule || null;
 
-export default {
+const voiceRecognitionWrapper = {
     startListening: () => {
+        if (!VoiceRecognitionModule) {
+            return Promise.reject(new Error('VoiceRecognitionModule not available'));
+        }
         return new Promise((resolve, reject) => {
             VoiceRecognitionModule.startListening()
                 .then(result => resolve(result))
@@ -12,10 +15,17 @@ export default {
     },
 
     stopListening: () => {
-        VoiceRecognitionModule.stopListening();
+        if (VoiceRecognitionModule) {
+            VoiceRecognitionModule.stopListening();
+        }
     },
 
     destroy: () => {
-        VoiceRecognitionModule.destroy();
+        if (VoiceRecognitionModule) {
+            VoiceRecognitionModule.destroy();
+        }
     },
-}; 
+};
+
+module.exports = voiceRecognitionWrapper;
+module.exports.default = voiceRecognitionWrapper;

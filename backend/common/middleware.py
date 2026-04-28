@@ -78,6 +78,14 @@ class RateLimitMiddleware(MiddlewareMixin):
     """
     请求频率限制中间件
     """
+
+    def _get_client_ip(self, request):
+        """提取客户端IP，优先使用代理头。"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', 'unknown')
+
     def process_request(self, request):
         # 获取客户端IP
         ip = self._get_client_ip(request)

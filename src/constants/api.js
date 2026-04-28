@@ -2,10 +2,12 @@
  * API端点常量
  */
 
+import { API_URL } from '../config';
+
 export const API_ENDPOINTS = {
   // 基础URL
-  BASE_URL: 'http://localhost:8000',
-  
+  BASE_URL: `${API_URL}`,
+
   // 认证相关
   AUTH: {
     LOGIN: '/api/v1/auth/login',
@@ -16,14 +18,14 @@ export const API_ENDPOINTS = {
     RESET_PASSWORD: '/api/v1/auth/reset-password',
     CHANGE_PASSWORD: '/api/v1/auth/change-password',
   },
-  
+
   // 用户相关
   USER: {
     PROFILE: '/api/v1/users/profile',
     SETTINGS: '/api/v1/users/settings',
     AVATAR: '/api/v1/users/avatar',
   },
-  
+
   // 笔记相关
   NOTES: {
     BASE: '/api/v1/notes',
@@ -36,7 +38,7 @@ export const API_ENDPOINTS = {
     IMPORT: '/api/v1/notes/import',
     SHARE: '/api/v1/notes/share',
   },
-  
+
   // 知识图谱相关
   KNOWLEDGE_GRAPH: {
     BASE: '/api/v1/knowledge-graph',
@@ -46,7 +48,7 @@ export const API_ENDPOINTS = {
     EXPORT: '/api/v1/knowledge-graph/export',
     IMPORT: '/api/v1/knowledge-graph/import',
   },
-  
+
   // 思维导图相关
   MIND_MAP: {
     BASE: '/api/v1/mind-map',
@@ -55,7 +57,7 @@ export const API_ENDPOINTS = {
     EXPORT: '/api/v1/mind-map/export',
     IMPORT: '/api/v1/mind-map/import',
   },
-  
+
   // AI助手相关
   AI_ASSISTANT: {
     BASE: '/api/v1/ai-assistant',
@@ -63,14 +65,14 @@ export const API_ENDPOINTS = {
     HISTORY: '/api/v1/ai-assistant/history',
     MODELS: '/api/v1/ai-assistant/models',
   },
-  
+
   // 提醒相关
   REMINDERS: {
     BASE: '/api/v1/reminders',
     UPCOMING: '/api/v1/reminders/upcoming',
     COMPLETED: '/api/v1/reminders/completed',
   },
-  
+
   // 社区相关
   COMMUNITY: {
     BASE: '/api/v1/community',
@@ -79,7 +81,7 @@ export const API_ENDPOINTS = {
     CATEGORIES: '/api/v1/community/categories',
     TAGS: '/api/v1/community/tags',
   },
-  
+
   // 数据库相关
   DATABASE: {
     BASE: '/api/v1/database',
@@ -87,7 +89,7 @@ export const API_ENDPOINTS = {
     BACKUP: '/api/v1/database/backup',
     RESTORE: '/api/v1/database/restore',
   },
-  
+
   // 文件相关
   FILES: {
     UPLOAD: '/api/v1/files/upload',
@@ -95,7 +97,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/files/list',
     DELETE: '/api/v1/files/delete',
   },
-  
+
   // 设置相关
   SETTINGS: {
     BASE: '/api/v1/settings',

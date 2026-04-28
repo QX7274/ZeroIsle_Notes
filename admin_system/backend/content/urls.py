@@ -11,9 +11,9 @@ from .views import (
 
 # 创建路由器并注册视图集
 router = DefaultRouter()
-router.register(r'categories', NoteCategoryViewSet)
-router.register(r'tags', TagViewSet)
-router.register(r'reports', ContentReportViewSet)
+router.register(r'categories', NoteCategoryViewSet, basename='note-category')
+router.register(r'tags', TagViewSet, basename='tag')
+router.register(r'reports', ContentReportViewSet, basename='content-report')
 router.register(r'notes', NoteViewSet, basename='note')
 router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'attachments', AttachmentViewSet, basename='attachment')

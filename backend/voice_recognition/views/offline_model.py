@@ -13,6 +13,16 @@ from voice_recognition.services import WhisperService
 logger = logging.getLogger('backend')
 
 
+def is_network_available():
+    """Check if network is available by pinging a known host."""
+    import socket
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        return True
+    except OSError:
+        return False
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_service_status(request):

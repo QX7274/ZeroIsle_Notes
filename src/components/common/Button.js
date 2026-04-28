@@ -304,7 +304,7 @@ const Button = ({
   const animatedStyle = {
     opacity: fadeAnim,
     transform: [
-      { scale: animation === 'none' ? pressAnim : scaleAnim }
+      { scale: animation === 'none' ? pressAnim : scaleAnim },
     ],
   };
 
@@ -336,7 +336,7 @@ const Button = ({
       if (icon && React.isValidElement(icon)) {
         return React.cloneElement(icon, {
           size: icon.props.size || iconSize,
-          color: icon.props.color || (disabled ? colors.textDisabled : iconColor)
+          color: icon.props.color || (disabled ? colors.textDisabled : iconColor),
         });
       }
 

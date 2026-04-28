@@ -18,7 +18,8 @@ class UserDeviceViewSet(viewsets.ModelViewSet):
     用户设备视图集
     提供用户设备的CRUD操作
     """
-    queryset = UserDevice.objects.all()
+    # 避免在模块导入阶段触发 MongoDB 连接（例如 manage.py check）
+    queryset = None
     serializer_class = UserDeviceSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 

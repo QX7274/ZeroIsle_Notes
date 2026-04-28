@@ -138,4 +138,9 @@ class TranslationService {
   }
 }
 
-export const translationService = new TranslationService();
+const translationService = new TranslationService();
+
+module.exports = translationService;
+module.exports.default = translationService;
+module.exports.translationService = translationService;
+module.exports.TranslationService = TranslationService;

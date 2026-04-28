@@ -37,7 +37,7 @@ class MemoryGuard {
           reason: 'file_too_large',
           fileSize,
           shouldDefer: true,
-          message: `文件过大 (${Math.round(fileSize / 1024 / 1024)}MB)，超过500MB限制，将在需要时加载`
+          message: `文件过大 (${Math.round(fileSize / 1024 / 1024)}MB)，超过500MB限制，将在需要时加载`,
         };
       }
 
@@ -51,14 +51,14 @@ class MemoryGuard {
           currentUsage: this.currentMemoryUsage,
           requestedSize: fileSize,
           shouldDefer: true,
-          message: '内存使用过高，将在需要时加载'
+          message: '内存使用过高，将在需要时加载',
         };
       }
 
       return {
         canLoad: true,
         fileSize,
-        message: '文件可以安全加载'
+        message: '文件可以安全加载',
       };
     } catch (error) {
       console.error('MemoryGuard: 检查文件失败:', error);
@@ -66,7 +66,7 @@ class MemoryGuard {
         canLoad: false,
         reason: 'check_failed',
         error: error.message,
-        shouldDefer: true
+        shouldDefer: true,
       };
     }
   }
@@ -79,7 +79,7 @@ class MemoryGuard {
   markFileLoaded(filePath, fileSize) {
     this.loadedFiles.set(filePath, {
       size: fileSize,
-      loadedAt: Date.now()
+      loadedAt: Date.now(),
     });
     this.currentMemoryUsage += fileSize;
     console.log(`MemoryGuard: 文件已加载，当前内存使用: ${Math.round(this.currentMemoryUsage / 1024 / 1024)}MB`);
@@ -104,18 +104,18 @@ class MemoryGuard {
    */
   async cleanupMemory(targetSize = 100 * 1024 * 1024) { // 默认清理100MB
     console.log('MemoryGuard: 开始清理内存...');
-    
+
     // 按加载时间排序，最旧的先卸载
     const sortedFiles = Array.from(this.loadedFiles.entries())
       .sort((a, b) => a[1].loadedAt - b[1].loadedAt);
 
     let freedSize = 0;
     for (const [filePath, fileInfo] of sortedFiles) {
-      if (freedSize >= targetSize) break;
-      
+      if (freedSize >= targetSize) {break;}
+
       this.markFileUnloaded(filePath);
       freedSize += fileInfo.size;
-      
+
       console.log(`MemoryGuard: 已卸载文件: ${filePath} (${Math.round(fileInfo.size / 1024 / 1024)}MB)`);
     }
 
@@ -129,26 +129,26 @@ class MemoryGuard {
    * @returns {Object} 安全的笔记对象
    */
   createSafeNote(note) {
-    if (!note) return note;
+    if (!note) {return note;}
 
     const safeNote = { ...note };
-    
+
     // 检查是否是大文件类型
     const isLargeFileType = ['ppt', 'pptx', 'pdf', 'docx', 'word'].includes(note.type || note.file_type);
-    
+
     if (isLargeFileType && note.file_uri) {
       // 标记为延迟加载
       safeNote._isDeferred = true;
       safeNote._originalFileUri = note.file_uri;
-      
+
       // 移除可能导致内存问题的字段
       delete safeNote.content_base64;
       delete safeNote.file_content;
       delete safeNote.preview_data;
-      
+
       // 添加占位符内容
       safeNote.content = safeNote.content || `${note.type || 'document'}文件: ${note.file_name || '未命名'}`;
-      
+
       console.log(`MemoryGuard: 创建安全笔记对象: ${note.title || note.file_name}`);
     }
 
@@ -161,18 +161,18 @@ class MemoryGuard {
    * @returns {Array} 安全的笔记数组
    */
   createSafeNotesList(notes) {
-    if (!Array.isArray(notes)) return notes;
-    
+    if (!Array.isArray(notes)) {return notes;}
+
     console.log(`MemoryGuard: 处理 ${notes.length} 条笔记，创建安全列表`);
-    
+
     const safeNotes = notes.map(note => this.createSafeNote(note));
-    
+
     // 统计延迟加载的文件数量
     const deferredCount = safeNotes.filter(note => note._isDeferred).length;
     if (deferredCount > 0) {
       console.log(`MemoryGuard: ${deferredCount} 个大文件将延迟加载`);
     }
-    
+
     return safeNotes;
   }
 
@@ -184,7 +184,7 @@ class MemoryGuard {
   async loadDeferredFile(filePath) {
     try {
       console.log('MemoryGuard: 按需加载延迟文件:', filePath);
-      
+
       // 检查文件是否存在
       const exists = await RNFS.exists(filePath);
       if (!exists) {
@@ -193,12 +193,12 @@ class MemoryGuard {
 
       // 检查是否可以安全加载
       const checkResult = await this.canLoadFile(filePath);
-      
+
       if (!checkResult.canLoad) {
         // 如果内存不足，先清理
         if (checkResult.reason === 'memory_limit') {
           await this.cleanupMemory(checkResult.requestedSize);
-          
+
           // 重新检查
           const recheckResult = await this.canLoadFile(filePath);
           if (!recheckResult.canLoad) {
@@ -217,7 +217,7 @@ class MemoryGuard {
         success: true,
         filePath,
         fileSize: checkResult.fileSize,
-        message: '文件加载成功'
+        message: '文件加载成功',
       };
 
     } catch (error) {
@@ -225,7 +225,7 @@ class MemoryGuard {
       return {
         success: false,
         error: error.message,
-        filePath
+        filePath,
       };
     }
   }
@@ -242,7 +242,7 @@ class MemoryGuard {
       maxMemoryMB: Math.round(this.maxTotalMemory / 1024 / 1024),
       loadedFilesCount: this.loadedFiles.size,
       deferredFilesCount: this.deferredFiles.size,
-      usagePercentage: Math.round((this.currentMemoryUsage / this.maxTotalMemory) * 100)
+      usagePercentage: Math.round((this.currentMemoryUsage / this.maxTotalMemory) * 100),
     };
   }
 

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from './Typography';
+import ColorPicker from './ColorPicker';
 
 /**
  * 主题颜色选择器组件
@@ -14,56 +15,48 @@ import { Text } from './Typography';
  * @param {function} onColorChange - 颜色变更回调
  * @param {string} mode - 主题模式：light, dark, both
  */
-const ThemeColorPicker = ({ 
-  colorKey, 
-  label, 
+const ThemeColorPicker = ({
+  colorKey,
+  label,
   onColorChange,
-  mode = 'both'
+  mode = 'both',
 }) => {
   const { colors, getColor, updateThemeColor } = useTheme();
-  
+  const [showPicker, setShowPicker] = useState(false);
+
   // 当前颜色值
   const [colorValue, setColorValue] = useState(getColor(colorKey, ''));
-  
-  // 预设颜色
-  const presetColors = [
-    '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688',
-    '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107',
-    '#FF9800', '#FF5722', '#F44336', '#E91E63', '#9C27B0',
-    '#673AB7', '#000000', '#FFFFFF', '#9E9E9E', '#607D8B'
-  ];
-  
+
   // 处理颜色变更
   const handleColorChange = (color) => {
     setColorValue(color);
-    
     if (onColorChange) {
       onColorChange(color);
     }
   };
-  
+
   // 应用颜色
   const applyColor = () => {
     if (colorValue && colorKey) {
       updateThemeColor(colorKey, colorValue, mode);
     }
   };
-  
+
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.text }]}>
         {label || colorKey}
       </Text>
-      
+
       <View style={styles.colorInputContainer}>
         <TextInput
           style={[
             styles.colorInput,
-            { 
+            {
               color: colors.text,
               borderColor: colors.border,
-              backgroundColor: colors.card
-            }
+              backgroundColor: colors.card,
+            },
           ]}
           value={colorValue}
           onChangeText={handleColorChange}
@@ -72,34 +65,29 @@ const ThemeColorPicker = ({
           autoCapitalize="characters"
           maxLength={9}
         />
-        
+
         <TouchableOpacity
           style={[
             styles.colorPreview,
-            { backgroundColor: colorValue || colors.background }
+            { backgroundColor: colorValue || colors.background },
           ]}
-          onPress={applyColor}
+          onPress={() => setShowPicker(true)}
         />
+
+        <TouchableOpacity
+          style={[styles.applyButton, { backgroundColor: colors.primary }]}
+          onPress={applyColor}
+        >
+          <Text style={{ color: '#fff', fontSize: 12 }}>应用</Text>
+        </TouchableOpacity>
       </View>
-      
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.presetContainer}
-        contentContainerStyle={styles.presetContent}
-      >
-        {presetColors.map((color, index) => (
-          <TouchableOpacity
-            key={`color-${index}`}
-            style={[
-              styles.presetColor,
-              { backgroundColor: color },
-              colorValue === color && styles.selectedPreset
-            ]}
-            onPress={() => handleColorChange(color)}
-          />
-        ))}
-      </ScrollView>
+
+      <ColorPicker
+        visible={showPicker}
+        initialColor={colorValue}
+        onClose={() => setShowPicker(false)}
+        onColorChange={handleColorChange}
+      />
     </View>
   );
 };

@@ -22,7 +22,7 @@ export const addScreenReaderListener = (listener) => {
     'screenReaderChanged',
     listener
   );
-  
+
   return () => {
     subscription.remove();
   };
@@ -46,7 +46,7 @@ export const addReduceMotionListener = (listener) => {
     'reduceMotionChanged',
     listener
   );
-  
+
   return () => {
     subscription.remove();
   };
@@ -74,12 +74,12 @@ export const addHighContrastListener = (listener) => {
       'highContrastChanged',
       listener
     );
-    
+
     return () => {
       subscription.remove();
     };
   }
-  
+
   return () => {};
 };
 
@@ -105,12 +105,12 @@ export const addBoldTextListener = (listener) => {
       'boldTextChanged',
       listener
     );
-    
+
     return () => {
       subscription.remove();
     };
   }
-  
+
   return () => {};
 };
 
@@ -136,12 +136,12 @@ export const addGrayscaleListener = (listener) => {
       'grayscaleChanged',
       listener
     );
-    
+
     return () => {
       subscription.remove();
     };
   }
-  
+
   return () => {};
 };
 
@@ -167,12 +167,12 @@ export const addInvertColorsListener = (listener) => {
       'invertColorsChanged',
       listener
     );
-    
+
     return () => {
       subscription.remove();
     };
   }
-  
+
   return () => {};
 };
 
@@ -204,7 +204,7 @@ export const getAccessibilityProps = (
       },
     };
   }
-  
+
   return {
     accessible: true,
     accessibilityLabel: label,

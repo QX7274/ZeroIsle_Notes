@@ -51,11 +51,23 @@ export const SPACING = {
 // 为了兼容现有代码，添加小写版本的spacing
 export const spacing = {
   tiny: 4,
+  extraSmall: 4,
   small: 8,
   medium: 16,
   large: 24,
   extraLarge: 32, // 对应XLARGE
   xxlarge: 48,
+};
+
+// 字体大小（小写版本，用于新组件）
+export const FONT_SIZES = {
+  extraSmall: 11,
+  small: 13,
+  medium: 15,
+  large: 17,
+  xlarge: 20,
+  xxlarge: 24,
+  xxxlarge: 28,
 };
 
 // 为了兼容现有代码，添加小写版本的borderRadius

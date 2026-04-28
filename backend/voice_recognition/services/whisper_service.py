@@ -10,7 +10,11 @@ import os
 import threading
 from django.conf import settings
 from django.utils import timezone
-import whisper
+
+try:
+    import whisper
+except Exception:
+    whisper = None
 
 from ..utils.netcheck import is_network_available
 from .offline_whisper_service import OfflineWhisperService
@@ -78,7 +82,7 @@ class WhisperService:
             'current_offline_model': self.offline_service.model_name if hasattr(self, 'offline_service') else None,
         }
 
-    def transcribe(self, audio_file_path, language=None, model="whisper-1", force_mode=None):
+    def transcribe(self, audio_file_path, language=None, model="whisper-1", force_mode=None, field_name='audio'):
         """
         转录音频
 
@@ -87,6 +91,7 @@ class WhisperService:
             language: 语言代码
             model: 模型名称
             force_mode: 强制使用指定模式，可选值：'online', 'offline'
+            field_name: 音频文件字段名，默认为'audio'
 
         Returns:
             dict: 转录结果
@@ -113,7 +118,7 @@ class WhisperService:
             if use_online:
                 try:
                     logger.info(f"使用在线模式转录音频: {audio_file_path}")
-                    result = self._transcribe_api(audio_file_path, language, model)
+                    result = self._transcribe_api(audio_file_path, language, model, field_name=field_name)
 
                     # 计算处理时长
                     duration = time.time() - start_time
@@ -161,7 +166,7 @@ class WhisperService:
                 'mode': 'auto'
             }
 
-    def _transcribe_api(self, audio_file_path, language=None, model="whisper-1"):
+    def _transcribe_api(self, audio_file_path, language=None, model="whisper-1", field_name='audio'):
         """
         使用API转录音频
 
@@ -169,6 +174,7 @@ class WhisperService:
             audio_file_path: 音频文件路径
             language: 语言代码
             model: 模型名称
+            field_name: 音频文件字段名
 
         Returns:
             dict: 转录结果
@@ -194,7 +200,7 @@ class WhisperService:
             # 发送请求
             with open(audio_file_path, "rb") as audio_file:
                 files = {
-                    "file": (os.path.basename(audio_file_path), audio_file, "audio/mpeg")
+                    field_name: (os.path.basename(audio_file_path), audio_file, "audio/mpeg")
                 }
 
                 response = requests.post(

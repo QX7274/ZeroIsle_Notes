@@ -86,7 +86,7 @@ export const storage = {
       console.error(`删除错误 [${safeKey}]:`, e);
       return false;
     }
-  }
+  },
 };
 
 // 日期工具
@@ -107,7 +107,7 @@ export const permissionUtils = {
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     }
     return true;
-  }
+  },
 };
 
 // 验证工具

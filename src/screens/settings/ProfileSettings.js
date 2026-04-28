@@ -10,7 +10,9 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+
 } from 'react-native';
+
 import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,6 +23,7 @@ import * as Haptics from '../../utils/haptics';
 import userApi from '../../services/api/userApi';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { setUserInfo } from '../../redux/slices/authSlice';
+import ParticleBackground from '../../components/common/ParticleBackground';
 
 const ProfileSettings = ({ navigation }) => {
   const { colors } = useTheme();
@@ -33,6 +36,9 @@ const ProfileSettings = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+
+
+
 
   useEffect(() => {
     if (user) {
@@ -54,7 +60,7 @@ const ProfileSettings = ({ navigation }) => {
         maxHeight: 500,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         setError('选择图片失败: ' + result.errorMessage);
@@ -161,6 +167,7 @@ const ProfileSettings = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ParticleBackground />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -183,8 +190,11 @@ const ProfileSettings = ({ navigation }) => {
 
         <View style={styles.content}>
           <View style={styles.avatarContainer}>
+            {/* 头像包装器 */}
+            <View style={[styles.avatarWrapper, { backgroundColor: colors.card }]}>
+
             <TouchableOpacity
-              style={[styles.avatarWrapper, { backgroundColor: colors.card }]}
+              style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
               onPress={handleSelectAvatar}
               disabled={isUploading}
             >
@@ -209,13 +219,7 @@ const ProfileSettings = ({ navigation }) => {
                 </>
               )}
             </TouchableOpacity>
-            <Text
-              variant="body"
-              size="medium"
-              style={styles.avatarHint}
-            >
-              点击更换头像
-            </Text>
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -261,7 +265,7 @@ const ProfileSettings = ({ navigation }) => {
               <View style={styles.functionsGrid}>
                 {/* 日程 */}
                 <TouchableOpacity
-                  style={[styles.functionButton, { 
+                  style={[styles.functionButton, {
                     backgroundColor: colors.card,
                     borderColor: colors.primary + '30',
                   }]}
@@ -271,15 +275,15 @@ const ProfileSettings = ({ navigation }) => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.functionIconContainer, { backgroundColor: '#FFF3E0' }]}>
-                    <Icon name="schedule" size={18} color="#FF9800" />
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#E0F7FA' }]}>
+                    <Icon name="schedule" size={18} color="#0097A7" />
                   </View>
-                  <Text style={[styles.functionButtonText, { color: '#FF9800', fontWeight: 'normal' }]}>日程</Text>
+                  <Text style={[styles.functionButtonText, { color: '#0097A7', fontWeight: 'normal' }]}>日程</Text>
                 </TouchableOpacity>
 
                 {/* 群组 */}
                 <TouchableOpacity
-                  style={[styles.functionButton, { 
+                  style={[styles.functionButton, {
                     backgroundColor: colors.card,
                     borderColor: colors.primary + '30',
                   }]}
@@ -289,15 +293,15 @@ const ProfileSettings = ({ navigation }) => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.functionIconContainer, { backgroundColor: '#FFEBEE' }]}>
-                    <Icon name="group" size={18} color="#F44336" />
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#E8EAF6' }]}>
+                    <Icon name="group" size={18} color="#3F51B5" />
                   </View>
-                  <Text style={[styles.functionButtonText, { color: '#F44336', fontWeight: 'normal' }]}>群组</Text>
+                  <Text style={[styles.functionButtonText, { color: '#3F51B5', fontWeight: 'normal' }]}>群组</Text>
                 </TouchableOpacity>
 
                 {/* 思维导图 */}
                 <TouchableOpacity
-                  style={[styles.functionButton, { 
+                  style={[styles.functionButton, {
                     backgroundColor: colors.card,
                     borderColor: colors.primary + '30',
                   }]}
@@ -307,15 +311,15 @@ const ProfileSettings = ({ navigation }) => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.functionIconContainer, { backgroundColor: '#F3E5F5' }]}>
-                    <Icon name="account-tree" size={18} color="#9C27B0" />
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#FCE4EC' }]}>
+                    <Icon name="account-tree" size={18} color="#E91E63" />
                   </View>
-                  <Text style={[styles.functionButtonText, { color: '#9C27B0', fontWeight: 'normal' }]}>思维导图</Text>
+                  <Text style={[styles.functionButtonText, { color: '#E91E63', fontWeight: 'normal' }]}>思维导图</Text>
                 </TouchableOpacity>
 
                 {/* 知识图谱 */}
                 <TouchableOpacity
-                  style={[styles.functionButton, { 
+                  style={[styles.functionButton, {
                     backgroundColor: colors.card,
                     borderColor: colors.primary + '30',
                   }]}
@@ -325,17 +329,53 @@ const ProfileSettings = ({ navigation }) => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.functionIconContainer, { backgroundColor: '#E8F5E9' }]}>
-                    <Icon name="hub" size={18} color="#4CAF50" />
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#FFE8CC' }]}>
+                    <Icon name="hub" size={18} color="#FF9500" />
                   </View>
-                  <Text style={[styles.functionButtonText, { color: '#4CAF50', fontWeight: 'normal' }]}>知识图谱</Text>
+                  <Text style={[styles.functionButtonText, { color: '#FF9500', fontWeight: 'normal' }]}>知识图谱</Text>
+                </TouchableOpacity>
+
+                {/* 零屿空间 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, {
+                    backgroundColor: colors.card,
+                    borderColor: '#3b82f6' + '40',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('PersonalActivity');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#DBEAFE' }]}>
+                    <Icon name="auto-awesome" size={18} color="#3b82f6" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#3b82f6', fontWeight: 'normal' }]}>零屿空间</Text>
+                </TouchableOpacity>
+
+                {/* 知识库 */}
+                <TouchableOpacity
+                  style={[styles.functionButton, {
+                    backgroundColor: colors.card,
+                    borderColor: '#4CAF50' + '30',
+                  }]}
+                  onPress={() => {
+                    Haptics.lightFeedback();
+                    navigation.navigate('KnowledgeBase');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.functionIconContainer, { backgroundColor: '#C8E6C9' }]}>
+                    <Icon name="auto-stories" size={18} color="#4CAF50" />
+                  </View>
+                  <Text style={[styles.functionButtonText, { color: '#4CAF50', fontWeight: 'normal' }]}>知识库</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.buttonsRow}>
               <TouchableOpacity
-                style={[styles.actionButton, { 
+                style={[styles.actionButton, {
                   backgroundColor: colors.card,
                   borderColor: colors.primary + '30',
                 }]}
@@ -356,7 +396,7 @@ const ProfileSettings = ({ navigation }) => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.actionButton, { 
+                style={[styles.actionButton, {
                   backgroundColor: colors.card,
                   borderColor: colors.primary + '30',
                 }]}
@@ -382,6 +422,13 @@ const ProfileSettings = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
+  },
+  animatedBg: {
+    position: 'absolute',
+    width: '200%',
+    height: '200%',
+    opacity: 0.3,
   },
   scrollContent: {
     flexGrow: 1,
@@ -407,6 +454,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
+  avatarAnimatedBg: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    justifyContent: 'center',
+    alignItems: 'center',
+    top: -20,
+  },
+
+  avatarGlowGradient: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+  },
   avatarWrapper: {
     width: 120,
     height: 120,
@@ -430,9 +492,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  avatarHint: {
-    marginTop: 8,
   },
   form: {
     marginBottom: 24,

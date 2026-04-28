@@ -140,7 +140,7 @@ const HelpScreen = () => {
         style={[
           styles.faqItem,
           { backgroundColor: colors.card },
-          isExpanded && styles.faqItemExpanded
+          isExpanded && styles.faqItemExpanded,
         ]}
         onPress={() => toggleFaq(id)}
         activeOpacity={0.7}
@@ -275,8 +275,8 @@ const HelpScreen = () => {
                     {
                       backgroundColor: feedbackType === type.value
                         ? colors.primary
-                        : colors.background
-                    }
+                        : colors.background,
+                    },
                   ]}
                   onPress={() => setFeedbackType(type.value)}
                 >
@@ -312,8 +312,8 @@ const HelpScreen = () => {
                 {
                   color: colors.text,
                   backgroundColor: colors.background,
-                  borderColor: colors.border
-                }
+                  borderColor: colors.border,
+                },
               ]}
               placeholder="请详细描述您的问题或建议..."
               placeholderTextColor={colors.textSecondary}
@@ -340,8 +340,8 @@ const HelpScreen = () => {
                 {
                   color: colors.text,
                   backgroundColor: colors.background,
-                  borderColor: colors.border
-                }
+                  borderColor: colors.border,
+                },
               ]}
               placeholder="邮箱或其他联系方式"
               placeholderTextColor={colors.textSecondary}

@@ -12,10 +12,12 @@ import {
   Platform,
   Vibration,
   TextInput,
+  KeyboardAvoidingView,
   PanResponder,
-  Dimensions
+  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import ColorPicker from './ColorPicker'; // 企业级颜色选择器组件
 import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
@@ -25,6 +27,14 @@ import { noteAIService } from '../../services/notes/noteAIService';
 import { chatHistoryService as aiHistoryService } from '../../services/ai/chatHistoryService';
 import { bookmarkService } from '../../services/notes/bookmarkService';
 import { launchImageLibrary } from 'react-native-image-picker';
+import screenUtils from '../../native/screenUtilsBridge';
+import Clipboard from '@react-native-clipboard/clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 集成增强组件
+import PenSelector from '../toolbar/PenSelector';
+import ShapeToolSelector, { ShapeTypes, generateShapePath } from '../toolbar/ShapeToolSelector';
+import { PenTypes, handwritingService } from '../../services/handwritingService';
 
 // 常用预设颜色
 const PRESET_COLORS = [
@@ -54,7 +64,7 @@ const getToolbarConfig = () => {
   const isSmallScreen = SCREEN_WIDTH < 360;
   const isMediumScreen = SCREEN_WIDTH < 480;
   const isLargeScreen = SCREEN_WIDTH >= 768;
-  
+
   return {
     buttonSize: isSmallScreen ? 32 : isMediumScreen ? 36 : 40,
     fontSize: isSmallScreen ? 8 : isMediumScreen ? 9 : 10,
@@ -73,7 +83,7 @@ const STROKE_WIDTH_PRESETS = [
   { value: 2, label: '细' },
   { value: 5, label: '中' },
   { value: 10, label: '粗' },
-  { value: 20, label: '特粗' }
+  { value: 20, label: '特粗' },
 ];
 
 // 绘图工具类型
@@ -89,7 +99,7 @@ const DRAWING_TOOLS = Object.freeze({
   LASSO: 'lasso',  // 套索选择工具（包含选择和移动功能）
   UNDO: 'undo',
   REDO: 'redo',
-  CLEAR: 'clear'
+  CLEAR: 'clear',
 });
 
 // 激光笔配置
@@ -98,10 +108,41 @@ const LASER_CONFIG = {
   animationSteps: 60, // 动画帧数
 };
 
-// 荧光笔配置  
+// 荧光笔配置
 const HIGHLIGHTER_CONFIG = {
   opacity: 0.4, // 半透明
   blendMode: 'multiply', // 混合模式
+};
+
+const PEN_PROFILE_TO_TYPE = Object.freeze({
+  fountain: PenTypes.FOUNTAIN,
+  pencil: PenTypes.PENCIL,
+  brush: PenTypes.BRUSH,
+  marker: PenTypes.MARKER,
+});
+
+const resolvePenTypeFromConfig = (toolConfig) => {
+  if (!toolConfig) {
+    return PenTypes.FOUNTAIN;
+  }
+
+  if (toolConfig.penProfile && PEN_PROFILE_TO_TYPE[toolConfig.penProfile]) {
+    return PEN_PROFILE_TO_TYPE[toolConfig.penProfile];
+  }
+
+  if (toolConfig.tool === DRAWING_TOOLS.PENCIL) {
+    return PenTypes.PENCIL;
+  }
+
+  if (toolConfig.tool === DRAWING_TOOLS.BRUSH) {
+    return PenTypes.BRUSH;
+  }
+
+  if (toolConfig.tool === DRAWING_TOOLS.HIGHLIGHTER) {
+    return PenTypes.MARKER;
+  }
+
+  return PenTypes.FOUNTAIN;
 };
 
 // 形状类型
@@ -117,7 +158,7 @@ const SHAPES = Object.freeze({
   ARC: 'arc', // 弧形
   STAR: 'star',
   POLYGON: 'polygon',
-  CURVE: 'curve'
+  CURVE: 'curve',
 });
 
 // AI工具类型
@@ -125,6 +166,7 @@ const AI_TOOLS = [
   { id: 'translate', label: '翻译', icon: 'translate', description: '翻译选中的文本' },
   { id: 'code_recognition', label: '代码识别', icon: 'code-braces', description: '识别并格式化代码' },
   { id: 'math_formula', label: '数学公式', icon: 'function-variant', description: '识别数学公式并转换为LaTeX' },
+  { id: 'handwriting', label: '手写识别', icon: 'draw', description: '识别手写内容并转换为文本' },
   { id: 'summarize', label: '摘要', icon: 'text-box', description: '生成文本摘要' },
   { id: 'extract_keywords', label: '提取关键词', icon: 'key', description: '从文本中提取关键词' },
   { id: 'explain', label: '解释', icon: 'help', description: '解释选中的内容' },
@@ -133,7 +175,100 @@ const AI_TOOLS = [
   { id: 'simplify', label: '简化', icon: 'text-short', description: '简化复杂的文本' },
 ];
 
+// ============ 企业级功能配置 ============
+
+// 快捷键映射
+const KEYBOARD_SHORTCUTS = Object.freeze({
+  // 工具快捷键
+  'P': DRAWING_TOOLS.PEN,
+  'N': DRAWING_TOOLS.PENCIL,
+  'B': DRAWING_TOOLS.BRUSH,
+  'H': DRAWING_TOOLS.HIGHLIGHTER,
+  'L': DRAWING_TOOLS.LASER,
+  'E': DRAWING_TOOLS.ERASER,
+  'S': DRAWING_TOOLS.LASSO,
+  'U': DRAWING_TOOLS.SHAPE,
+  'T': DRAWING_TOOLS.TEXT,
+});
+
+// 功能快捷键（需要Ctrl/Cmd）
+const FUNCTION_SHORTCUTS = Object.freeze({
+  'Z': 'undo',           // Ctrl+Z
+  'Y': 'redo',           // Ctrl+Y
+  'Shift+Z': 'redo',     // Ctrl+Shift+Z
+  'A': 'selectAll',
+  'D': 'duplicate',
+});
+
+// 工具预设 - 快速切换场景
+const TOOL_PRESETS = Object.freeze({
+  writing: {
+    id: 'writing',
+    name: '书写模式',
+    icon: 'pencil',
+    tool: DRAWING_TOOLS.PEN,
+    color: 'THEME_TEXT', // 动态跟随主题
+    strokeWidth: 2,
+    opacity: 1,
+  },
+  annotation: {
+    id: 'annotation',
+    name: '标注模式',
+    icon: 'highlighter',
+    tool: DRAWING_TOOLS.HIGHLIGHTER,
+    color: '#FFFF00',
+    strokeWidth: 12,
+    opacity: 0.4,
+  },
+  drawing: {
+    id: 'drawing',
+    name: '绘画模式',
+    icon: 'brush',
+    tool: DRAWING_TOOLS.BRUSH,
+    color: '#333333',
+    strokeWidth: 5,
+    opacity: 0.9,
+  },
+  sketch: {
+    id: 'sketch',
+    name: '草图模式',
+    icon: 'pencil-outline',
+    tool: DRAWING_TOOLS.PENCIL,
+    color: '#808080',
+    strokeWidth: 1,
+    opacity: 0.8,
+  },
+  technical: {
+    id: 'technical',
+    name: '制图模式',
+    icon: 'ruler-square',
+    tool: DRAWING_TOOLS.SHAPE,
+    color: '#0000FF',
+    strokeWidth: 2,
+    opacity: 1,
+    showGrid: true,
+    showRuler: true,
+  },
+  presentation: {
+    id: 'presentation',
+    name: '演示模式',
+    icon: 'laser-pointer',
+    tool: DRAWING_TOOLS.LASER,
+    color: '#FF0000',
+    strokeWidth: 4,
+    opacity: 1,
+  },
+});
+
+// 持久化存储键
+const STORAGE_KEYS = Object.freeze({
+  TOOLBAR_PREFERENCES: '@zeroislenotes:toolbar_preferences',
+  RECENT_COLORS: '@zeroislenotes:recent_colors',
+  CURRENT_PRESET: '@zeroislenotes:current_preset',
+});
+
 // Eraser sizes removed - now using unified stroke width
+
 
 // Modern SVG Icons
 const PenIcon = ({ color = '#000', size = 20 }) => (
@@ -470,11 +605,59 @@ const EyedropperIcon = ({ color = '#000', size = 20 }) => (
   </Svg>
 );
 
+// Tool visibility configuration based on mode
+const TOOL_CONFIG = {
+  canvas: {
+    drawing: true,
+    editing: true,
+    styling: true,
+    ai: true,
+    shapes: true,
+    text: true,
+    image: true,
+    bookmarks: false, // Bookmarks are handled per-page, not on infinite canvas
+  },
+  pdf: {
+    drawing: true,
+    editing: true,
+    styling: true,
+    ai: true,
+    shapes: true,
+    text: true,
+    image: true,
+    bookmarks: true,
+  },
+  markdown: {
+    drawing: false, // No drawing on markdown editor
+    editing: true, // Undo/redo for text
+    styling: false,
+    ai: true, // AI can process text
+    shapes: false,
+    text: true, // Text formatting tools could be here
+    image: true,
+    bookmarks: true,
+  },
+  'file-viewer': { // Default for file viewer, very limited
+    drawing: false,
+    editing: false,
+    styling: false,
+    ai: false,
+    shapes: false,
+    text: false,
+    image: false,
+    bookmarks: false,
+  },
+};
+
 const AllInOneToolbar = ({
+  // 模式设置
+  mode = 'canvas', // 'canvas', 'pdf', 'markdown', 'file-viewer'
+
   // 绘图工具相关props
   onToolChange,
   onColorChange,
   onStrokeWidthChange,
+  onToolConfigChange,
   onUndo,
   onRedo,
   canUndo = false,
@@ -483,12 +666,16 @@ const AllInOneToolbar = ({
   initialTool = DRAWING_TOOLS.PEN,
   initialColor = '#000000',
   initialStrokeWidth = 2,
+  currentToolConfig,
 
   // AI工具相关props
   onAIToolSelect,
   selectedText,
   onAIProcessResult,
   onImageUpload,
+  // 本地OCR/手写识别回调（由容器实现）
+  onRequestRegionOCR,
+  onRequestStrokeRecognition,
 
   // 书签相关
   onBookmarkAdd,
@@ -505,10 +692,10 @@ const AllInOneToolbar = ({
   onLassoComplete,    // 套索完成回调
 }) => {
   const { colors } = useTheme();
-  
+
   // 获取响应式配置
   const toolbarConfig = useMemo(() => getToolbarConfig(), []);
-  
+
   // 动态生成样式
   const styles = useMemo(() => createStyles(toolbarConfig), [toolbarConfig]);
   const [activeTool, setActiveTool] = useState(initialTool);
@@ -517,19 +704,16 @@ const AllInOneToolbar = ({
   const [activeShape, setActiveShape] = useState(SHAPES.LINE);
 
   // HSV颜色选择器状态
-  const [customColorHue, setCustomColorHue] = useState(0);
-  const [customColorSaturation, setCustomColorSaturation] = useState(100);
-  const [customColorValue, setCustomColorValue] = useState(100);
-  const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
-  const [tempColor, setTempColor] = useState(null); // 临时颜色，用于预览
-  const [isPickingColor, setIsPickingColor] = useState(false); // 取色器模式
+  // 颜色选择器状态
+  // 移除：由ColorPicker组件内部管理
+  // const [showCustomColorPicker, setShowCustomColorPicker] = useState(false); -> 使用 showColorPicker 代替
 
   // 触觉反馈支持（始终启用）
   const hapticFeedbackEnabled = true;
 
   // 触觉反馈函数
   const triggerHapticFeedback = useCallback((type = 'light') => {
-    if (!hapticFeedbackEnabled) return;
+    if (!hapticFeedbackEnabled) {return;}
 
     if (Platform.OS === 'ios') {
       switch (type) {
@@ -579,28 +763,277 @@ const AllInOneToolbar = ({
   const [showAIHistoryModal, setShowAIHistoryModal] = useState(false);
   const [selectedAITool, setSelectedAITool] = useState(null);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [isImagePicking, setIsImagePicking] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isAIHistoryLoading, setIsAIHistoryLoading] = useState(false);
+  const [isAIHistoryApplying, setIsAIHistoryApplying] = useState(false);
   const [aiHistory, setAIHistory] = useState([]);
+  const [isStreamingModalVisible, setIsStreamingModalVisible] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+
+  // 无
 
   // 选择器状态
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showStrokeWidthPopover, setShowStrokeWidthPopover] = useState(false);
   const [showShapePicker, setShowShapePicker] = useState(false);
-  
+
   // 文本工具状态
   const [showTextInputModal, setShowTextInputModal] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [textFontSize, setTextFontSize] = useState(16);
   const [textStyle, setTextStyle] = useState({ bold: false, italic: false, underline: false });
   const [textAlignment, setTextAlignment] = useState('left');
+  const [isTextSubmitting, setIsTextSubmitting] = useState(false);
 
   // 书签相关状态
   const [showBookmarkModal, setShowBookmarkModal] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
   const [bookmarkTitle, setBookmarkTitle] = useState('');
   const [showAddBookmarkDialog, setShowAddBookmarkDialog] = useState(false);
+  const [isBookmarksLoading, setIsBookmarksLoading] = useState(false);
+  const [isBookmarkSubmitting, setIsBookmarkSubmitting] = useState(false);
+  const [deletingBookmarkId, setDeletingBookmarkId] = useState(null);
+
+  // 增强笔触选择器状态
+  const [showPenSelector, setShowPenSelector] = useState(false);
+  const [selectedPenType, setSelectedPenType] = useState(PenTypes.FOUNTAIN);
+  const [strokeOpacity, setStrokeOpacity] = useState(1);
+
+  // 增强形状选择器状态
+  const [showEnhancedShapeSelector, setShowEnhancedShapeSelector] = useState(false);
+  const [selectedEnhancedShape, setSelectedEnhancedShape] = useState(ShapeTypes.RECTANGLE);
+  const [shapeFillEnabled, setShapeFillEnabled] = useState(false);
+
+  // 标尺和网格状态
+  const [showRuler, setShowRuler] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
+
+  // ============ 企业级功能状态 ============
+
+  // 当前预设
+  const [currentPreset, setCurrentPreset] = useState(null);
+  const [showPresetSelector, setShowPresetSelector] = useState(false);
+
+  // 最近使用的颜色
+  const [recentColors, setRecentColors] = useState([]);
+
+  // 前一个工具（用于快速切换回）
+  const [previousTool, setPreviousTool] = useState(null);
+
+  // 加载持久化配置
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const savedPrefs = await AsyncStorage.getItem(STORAGE_KEYS.TOOLBAR_PREFERENCES);
+        if (savedPrefs) {
+          const prefs = JSON.parse(savedPrefs);
+          if (prefs.lastColor) {setActiveColor(prefs.lastColor);}
+          if (prefs.lastStrokeWidth) {setActiveStrokeWidth(prefs.lastStrokeWidth);}
+          if (prefs.lastTool) {setActiveTool(prefs.lastTool);}
+          if (prefs.showRuler !== undefined) {setShowRuler(prefs.showRuler);}
+          if (prefs.showGrid !== undefined) {setShowGrid(prefs.showGrid);}
+        }
+
+        const savedColors = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_COLORS);
+        if (savedColors) {
+          setRecentColors(JSON.parse(savedColors));
+        }
+
+        const savedPreset = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PRESET);
+        if (savedPreset) {
+          setCurrentPreset(savedPreset);
+        }
+      } catch (error) {
+        console.log('加载工具栏配置失败:', error);
+      }
+    };
+
+    loadPreferences();
+  }, []);
+
+  useEffect(() => {
+    setActiveTool(initialTool);
+  }, [initialTool]);
+
+  useEffect(() => {
+    setActiveColor(initialColor);
+  }, [initialColor]);
+
+  useEffect(() => {
+    setActiveStrokeWidth(initialStrokeWidth);
+  }, [initialStrokeWidth]);
+
+  useEffect(() => {
+    if (!currentToolConfig) {
+      return;
+    }
+
+    setSelectedPenType(resolvePenTypeFromConfig(currentToolConfig));
+    if (typeof currentToolConfig.opacity === 'number') {
+      setStrokeOpacity(currentToolConfig.opacity);
+    }
+  }, [currentToolConfig]);
+
+  const buildCurrentToolPayload = useCallback((overrides = {}) => {
+    const nextTool = overrides.type || overrides.tool || activeTool;
+    const nextColor = overrides.color || activeColor;
+    const nextStrokeWidth = overrides.size || overrides.strokeWidth || activeStrokeWidth;
+    const nextOpacity = overrides.opacity ?? (
+      nextTool === DRAWING_TOOLS.HIGHLIGHTER
+        ? HIGHLIGHTER_CONFIG.opacity
+        : strokeOpacity
+    );
+    const nextPen = overrides.penProfile
+      ? (PEN_PROFILE_TO_TYPE[overrides.penProfile] || selectedPenType)
+      : selectedPenType;
+
+    return {
+      tool: nextTool,
+      type: nextTool,
+      color: nextColor,
+      size: nextStrokeWidth,
+      strokeWidth: nextStrokeWidth,
+      opacity: nextOpacity,
+      penProfile: overrides.penProfile || nextPen?.id || currentToolConfig?.penProfile || 'fountain',
+      pressureSensitivity: overrides.pressureSensitivity ?? (nextPen?.pressureSensitivity ?? currentToolConfig?.pressureSensitivity),
+      velocitySensitivity: overrides.velocitySensitivity ?? (nextPen?.velocitySensitivity ?? currentToolConfig?.velocitySensitivity),
+      taperIn: overrides.taperIn ?? (nextPen?.taper?.start ?? currentToolConfig?.taperIn),
+      taperOut: overrides.taperOut ?? (nextPen?.taper?.end ?? currentToolConfig?.taperOut),
+      smoothing: overrides.smoothing ?? (nextPen?.smoothing ?? currentToolConfig?.smoothing),
+      shape: overrides.shape || (nextTool === DRAWING_TOOLS.SHAPE ? activeShape : 'freehand'),
+      recognitionEnabled: overrides.recognitionEnabled ?? currentToolConfig?.recognitionEnabled ?? true,
+      recognitionDebounceMs: overrides.recognitionDebounceMs ?? currentToolConfig?.recognitionDebounceMs ?? 180,
+      palmRejectionEnabled: overrides.palmRejectionEnabled ?? currentToolConfig?.palmRejectionEnabled ?? true,
+      fingerMode: overrides.fingerMode || currentToolConfig?.fingerMode || 'gesture_only',
+      ...overrides,
+    };
+  }, [
+    activeColor,
+    activeShape,
+    activeStrokeWidth,
+    activeTool,
+    currentToolConfig,
+    selectedPenType,
+    strokeOpacity,
+  ]);
+
+  const isSameToolConfig = useCallback((nextConfig, prevConfig) => {
+    if (!prevConfig) {
+      return false;
+    }
+
+    const keysToCompare = [
+      'tool', 'type', 'color', 'size', 'strokeWidth', 'opacity',
+      'penProfile', 'pressureSensitivity', 'velocitySensitivity',
+      'taperIn', 'taperOut', 'smoothing', 'shape',
+      'recognitionEnabled', 'recognitionDebounceMs',
+      'palmRejectionEnabled', 'fingerMode', 'mode', 'blendMode',
+      'fadeOutDuration', 'animationSteps',
+    ];
+
+    return keysToCompare.every((key) => nextConfig?.[key] === prevConfig?.[key]);
+  }, []);
+
+  const notifyToolPayloadChange = useCallback((overrides = {}) => {
+    const payload = buildCurrentToolPayload(overrides);
+
+    // 防止与父组件双向同步时出现无意义的循环更新
+    if (isSameToolConfig(payload, currentToolConfig)) {
+      return;
+    }
+
+    if (onToolConfigChange) {
+      onToolConfigChange(payload);
+      return;
+    }
+
+    onToolChange?.(payload);
+  }, [buildCurrentToolPayload, currentToolConfig, isSameToolConfig, onToolChange, onToolConfigChange]);
+
+  // 保存配置
+  const savePreferences = useCallback(async () => {
+    try {
+      const prefs = {
+        lastColor: activeColor,
+        lastStrokeWidth: activeStrokeWidth,
+        lastTool: activeTool,
+        showRuler,
+        showGrid,
+      };
+      await AsyncStorage.setItem(STORAGE_KEYS.TOOLBAR_PREFERENCES, JSON.stringify(prefs));
+    } catch (error) {
+      console.log('保存工具栏配置失败:', error);
+    }
+  }, [activeColor, activeStrokeWidth, activeTool, showRuler, showGrid]);
+
+  // 工具/颜色变化时保存
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      savePreferences();
+    }, 1000); // 防抖1秒
+    return () => clearTimeout(timer);
+  }, [savePreferences]);
+
+  // 添加最近使用颜色
+  const addRecentColor = useCallback(async (color) => {
+    setRecentColors(prev => {
+      const filtered = prev.filter(c => c !== color);
+      const updated = [color, ...filtered].slice(0, 10); // 最多保存10个
+      AsyncStorage.setItem(STORAGE_KEYS.RECENT_COLORS, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // 应用预设
+  const applyPreset = useCallback((presetId) => {
+    const preset = TOOL_PRESETS[presetId];
+    if (!preset) {return;}
+
+    // 保存当前工具
+    setPreviousTool(activeTool);
+
+    // 处理动态主题颜色
+    const effectiveColor = preset.color === 'THEME_TEXT' ? colors.text : preset.color;
+
+    // 应用预设配置
+    setActiveTool(preset.tool);
+    setActiveColor(effectiveColor);
+    setActiveStrokeWidth(preset.strokeWidth);
+    setStrokeOpacity(preset.opacity);
+
+    if (preset.showGrid !== undefined) {setShowGrid(preset.showGrid);}
+    if (preset.showRuler !== undefined) {setShowRuler(preset.showRuler);}
+
+    setCurrentPreset(presetId);
+
+    // 保存当前预设
+    AsyncStorage.setItem(STORAGE_KEYS.CURRENT_PRESET, presetId);
+
+    triggerHapticFeedback('success');
+  }, [activeTool, triggerHapticFeedback, colors.text]);
+
+  // 切换到前一个工具
+  const switchToPreviousTool = useCallback(() => {
+    if (previousTool) {
+      const temp = activeTool;
+      setActiveTool(previousTool);
+      setPreviousTool(temp);
+      triggerHapticFeedback('light');
+    }
+  }, [previousTool, activeTool, triggerHapticFeedback]);
+
+  const isImageActionLocked = isImagePicking || isAIProcessing || isClearing;
+  const TOOL_BUTTON_ACTIVE_OPACITY = 0.72;
 
   // 处理图片上传
-  const handleImageUpload = () => {
+  const handleImageUpload = async () => {
+    if (isImageActionLocked) {
+      return;
+    }
+
+    setIsImagePicking(true);
+
     const options = {
       mediaType: 'photo',
       includeBase64: false,
@@ -609,37 +1042,43 @@ const AllInOneToolbar = ({
       quality: 0.8,
     };
 
-    launchImageLibrary(options, (response) => {
+    try {
+      const response = await launchImageLibrary(options);
       console.log('图片选择响应:', response);
 
-      if (response.didCancel) {
-        console.log('用户取消了图片选择');
+      if (response?.didCancel) {
         return;
       }
 
-      if (response.errorMessage) {
-        console.error('图片选择错误:', response.errorMessage);
-        Alert.alert('错误', '选择图片失败: ' + response.errorMessage);
+      if (response?.errorCode || response?.errorMessage) {
+        const errorText = response?.errorMessage || response?.errorCode || '未知错误';
+        console.error('图片选择错误:', errorText);
+        Alert.alert('错误', '选择图片失败: ' + errorText);
         return;
       }
 
-      if (response.assets && response.assets.length > 0) {
-        const asset = response.assets[0];
-        console.log('选择的图片:', asset);
-
-        // 调用回调函数，传递图片信息
-        if (onImageUpload) {
-          onImageUpload({
-            uri: asset.uri,
-            width: asset.width,
-            height: asset.height,
-            fileName: asset.fileName,
-            fileSize: asset.fileSize,
-            type: asset.type
-          });
-        }
+      const asset = response?.assets?.[0];
+      if (!asset?.uri) {
+        Alert.alert('错误', '未获取到有效图片，请重试。');
+        return;
       }
-    });
+
+      await Promise.resolve(onImageUpload?.({
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        fileName: asset.fileName,
+        fileSize: asset.fileSize,
+        type: asset.type,
+      }));
+
+      triggerHapticFeedback('success');
+    } catch (error) {
+      console.error('图片上传处理失败:', error);
+      Alert.alert('错误', error?.message || '处理图片时发生错误，请稍后重试。');
+    } finally {
+      setIsImagePicking(false);
+    }
   };
 
   // 加载AI历史记录
@@ -647,97 +1086,45 @@ const AllInOneToolbar = ({
     loadAIHistory();
   }, []);
 
-  // HSV转RGB辅助函数
-  const hsvToRgb = useCallback((h, s, v) => {
-    s = s / 100;
-    v = v / 100;
-    const c = v * s;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = v - c;
-    let r = 0, g = 0, b = 0;
-    
-    if (h >= 0 && h < 60) {
-      r = c; g = x; b = 0;
-    } else if (h >= 60 && h < 120) {
-      r = x; g = c; b = 0;
-    } else if (h >= 120 && h < 180) {
-      r = 0; g = c; b = x;
-    } else if (h >= 180 && h < 240) {
-      r = 0; g = x; b = c;
-    } else if (h >= 240 && h < 300) {
-      r = x; g = 0; b = c;
-    } else if (h >= 300 && h < 360) {
-      r = c; g = 0; b = x;
-    }
-    
-    r = Math.round((r + m) * 255);
-    g = Math.round((g + m) * 255);
-    b = Math.round((b + m) * 255);
-    
-    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
-  }, []);
-
-  // RGB转HSV辅助函数
-  const rgbToHsv = useCallback((hexColor) => {
-    const r = parseInt(hexColor.slice(1, 3), 16) / 255;
-    const g = parseInt(hexColor.slice(3, 5), 16) / 255;
-    const b = parseInt(hexColor.slice(5, 7), 16) / 255;
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const diff = max - min;
-    
-    let h = 0;
-    let s = max === 0 ? 0 : (diff / max) * 100;
-    let v = max * 100;
-
-    if (diff !== 0) {
-      if (max === r) {
-        h = 60 * (((g - b) / diff) % 6);
-      } else if (max === g) {
-        h = 60 * ((b - r) / diff + 2);
-      } else {
-        h = 60 * ((r - g) / diff + 4);
-      }
-    }
-
-    if (h < 0) h += 360;
-
-    return { h, s, v };
-  }, []);
-
   // 当工具改变时通知父组件
   useEffect(() => {
-    if (onToolChange) {
-      if (activeTool === DRAWING_TOOLS.SHAPE) {
-        onToolChange({ type: activeTool, shape: activeShape });
-      } else if (activeTool === DRAWING_TOOLS.ERASER) {
-        onToolChange({ type: activeTool, mode: 'erase' });
-      } else if (activeTool === DRAWING_TOOLS.HIGHLIGHTER) {
-        onToolChange({ 
-          type: activeTool, 
-          opacity: HIGHLIGHTER_CONFIG.opacity,
-          blendMode: HIGHLIGHTER_CONFIG.blendMode
-        });
-      } else if (activeTool === DRAWING_TOOLS.LASER) {
-        onToolChange({ 
-          type: activeTool, 
-          fadeOutDuration: LASER_CONFIG.fadeOutDuration,
-          animationSteps: LASER_CONFIG.animationSteps
-        });
-      } else if (activeTool === DRAWING_TOOLS.LASSO) {
-        onToolChange({ 
-          type: activeTool, 
-          mode: 'select',
-          allowMove: true,  // 套索包含移动功能
-          allowCopy: true,  // 套索包含复制功能
-          allowDelete: true // 套索包含删除功能
-        });
-      } else {
-        onToolChange({ type: activeTool });
-      }
+    if (activeTool === DRAWING_TOOLS.SHAPE) {
+      notifyToolPayloadChange({ type: activeTool, shape: activeShape });
+    } else if (activeTool === DRAWING_TOOLS.ERASER) {
+      notifyToolPayloadChange({ type: activeTool, mode: 'erase' });
+    } else if (activeTool === DRAWING_TOOLS.HIGHLIGHTER) {
+      notifyToolPayloadChange({
+        type: activeTool,
+        opacity: HIGHLIGHTER_CONFIG.opacity,
+        blendMode: HIGHLIGHTER_CONFIG.blendMode,
+        penProfile: 'marker',
+      });
+    } else if (activeTool === DRAWING_TOOLS.LASER) {
+      notifyToolPayloadChange({
+        type: activeTool,
+        fadeOutDuration: LASER_CONFIG.fadeOutDuration,
+        animationSteps: LASER_CONFIG.animationSteps,
+      });
+    } else if (activeTool === DRAWING_TOOLS.LASSO) {
+      notifyToolPayloadChange({
+        type: activeTool,
+        mode: 'select',
+        allowMove: true,
+        allowCopy: true,
+        allowDelete: true,
+      });
+    } else {
+      notifyToolPayloadChange();
     }
-  }, [activeTool, activeShape, onToolChange]);
+  }, [
+    activeColor,
+    activeShape,
+    activeStrokeWidth,
+    activeTool,
+    notifyToolPayloadChange,
+    selectedPenType,
+    strokeOpacity,
+  ]);
 
   // 当颜色改变时通知父组件
   useEffect(() => {
@@ -755,16 +1142,31 @@ const AllInOneToolbar = ({
 
   // 加载AI历史记录
   const loadAIHistory = async () => {
+    if (isAIHistoryLoading) {
+      return;
+    }
+
+    setIsAIHistoryLoading(true);
     try {
       const historyItems = await aiHistoryService.getHistory({ limit: 10 });
       setAIHistory(historyItems);
     } catch (error) {
       console.error('加载AI历史记录失败:', error);
+      Alert.alert('加载失败', '无法加载AI历史记录，请稍后重试。');
+    } finally {
+      setIsAIHistoryLoading(false);
     }
   };
 
+  const isBookmarkActionLocked = isBookmarksLoading || isBookmarkSubmitting || !!deletingBookmarkId;
+
   // 加载书签列表
   const loadBookmarks = async () => {
+    if (isBookmarksLoading) {
+      return;
+    }
+
+    setIsBookmarksLoading(true);
     try {
       if (currentNoteId) {
         const noteBookmarks = await bookmarkService.getBookmarks(currentNoteId);
@@ -775,37 +1177,73 @@ const AllInOneToolbar = ({
       }
     } catch (error) {
       console.error('加载书签失败:', error);
+      Alert.alert('加载失败', error?.message || '无法加载书签，请稍后重试。');
+    } finally {
+      setIsBookmarksLoading(false);
     }
+  };
+
+  const handleOpenBookmarkModal = async () => {
+    if (isBookmarkActionLocked) {
+      return;
+    }
+
+    setShowBookmarkModal(true);
+    await loadBookmarks();
+    triggerHapticFeedback('light');
+  };
+
+  const handleCloseBookmarkModal = () => {
+    if (isBookmarkActionLocked) {
+      return;
+    }
+    setShowBookmarkModal(false);
+  };
+
+  const handleOpenAddBookmarkDialog = () => {
+    if (isBookmarkActionLocked) {
+      return;
+    }
+
+    setShowAddBookmarkDialog(true);
+    triggerHapticFeedback('light');
+  };
+
+  const handleCloseAddBookmarkDialog = () => {
+    if (isBookmarkSubmitting) {
+      return;
+    }
+    setShowAddBookmarkDialog(false);
+    setBookmarkTitle('');
   };
 
   // 处理添加书签
   const handleAddBookmark = async () => {
+    if (isBookmarkSubmitting) {
+      return;
+    }
+
+    setIsBookmarkSubmitting(true);
     try {
       if (!currentNoteId) {
         Alert.alert('提示', '无法添加书签：未指定笔记');
         return;
       }
 
-      // 生成默认标题
       const defaultTitle = bookmarkTitle.trim() || `书签 - 第${currentPage}页`;
 
       const newBookmark = await bookmarkService.addBookmark(
         currentNoteId,
         currentPage,
-        null, // position 由父组件处理
+        null,
         defaultTitle,
         activeColor
       );
 
-      // 调用父组件回调
-      if (onBookmarkAdd) {
-        onBookmarkAdd(newBookmark);
-      }
+      onBookmarkAdd?.(newBookmark);
 
-      // 刷新书签列表
       await loadBookmarks();
 
-      // 重置输入
       setBookmarkTitle('');
       setShowAddBookmarkDialog(false);
 
@@ -813,22 +1251,29 @@ const AllInOneToolbar = ({
       triggerHapticFeedback('success');
     } catch (error) {
       console.error('添加书签失败:', error);
-      Alert.alert('错误', '添加书签失败: ' + error.message);
+      Alert.alert('错误', error?.message || '添加书签失败，请稍后重试。');
+    } finally {
+      setIsBookmarkSubmitting(false);
     }
   };
 
   // 处理删除书签
   const handleDeleteBookmark = async (bookmarkId) => {
-    try {
-      Alert.alert(
-        '确认删除',
-        '确定要删除这个书签吗？',
-        [
-          { text: '取消', style: 'cancel' },
-          {
-            text: '删除',
-            style: 'destructive',
-            onPress: async () => {
+    if (deletingBookmarkId || isBookmarkSubmitting) {
+      return;
+    }
+
+    Alert.alert(
+      '确认删除',
+      '确定要删除这个书签吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingBookmarkId(bookmarkId);
+            try {
               const success = await bookmarkService.deleteBookmark(bookmarkId);
               if (success) {
                 await loadBookmarks();
@@ -836,56 +1281,94 @@ const AllInOneToolbar = ({
               } else {
                 Alert.alert('错误', '删除书签失败');
               }
+            } catch (error) {
+              console.error('删除书签失败:', error);
+              Alert.alert('错误', error?.message || '删除书签失败，请稍后重试。');
+            } finally {
+              setDeletingBookmarkId(null);
             }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('删除书签失败:', error);
-      Alert.alert('错误', '删除书签失败: ' + error.message);
-    }
+          },
+        },
+      ]
+    );
   };
 
   // 处理导航到书签
   const handleNavigateToBookmark = (bookmark) => {
+    if (isBookmarkActionLocked || deletingBookmarkId) {
+      return;
+    }
+
     if (onBookmarkNavigate) {
       onBookmarkNavigate(bookmark);
       setShowBookmarkModal(false);
     }
   };
 
+  const isTextAndShapeLocked = isAIProcessing || isClearing;
+
   // 处理文本工具选择
   const handleTextToolSelect = () => {
+    if (isTextAndShapeLocked) {
+      return;
+    }
+
     setActiveTool(DRAWING_TOOLS.TEXT);
     setShowTextInputModal(true);
     triggerHapticFeedback('light');
   };
 
+  const handleCloseTextInputModal = () => {
+    if (isTextSubmitting) {
+      return;
+    }
+    setShowTextInputModal(false);
+  };
+
+  const handleOpenTextColorPicker = () => {
+    if (isTextSubmitting) {
+      return;
+    }
+    setShowTextInputModal(false);
+    setShowColorPicker(true);
+    triggerHapticFeedback('light');
+  };
+
   // 处理文本提交
-  const handleTextSubmit = () => {
+  const handleTextSubmit = async () => {
+    if (isTextSubmitting) {
+      return;
+    }
+
     if (!textInput.trim()) {
       Alert.alert('提示', '请输入文本内容');
       return;
     }
 
-    if (onTextAdd) {
-      onTextAdd({
+    setIsTextSubmitting(true);
+    try {
+      await Promise.resolve(onTextAdd?.({
         text: textInput,
         fontSize: textFontSize,
         color: activeColor,
         style: textStyle,
         alignment: textAlignment,
-      });
+      }));
+
+      // 重置文本输入
+      setShowTextInputModal(false);
+      setTextInput('');
+      setTextFontSize(16);
+      setTextStyle({ bold: false, italic: false, underline: false });
+      setTextAlignment('left');
+
+      triggerHapticFeedback('success');
+    } catch (error) {
+      console.error('添加文本失败:', error);
+      Alert.alert('错误', error?.message || '添加文本失败，请稍后重试。');
+    } finally {
+      setIsTextSubmitting(false);
     }
-
-    // 重置文本输入
-    setShowTextInputModal(false);
-    setTextInput('');
-    setTextFontSize(16);
-    setTextStyle({ bold: false, italic: false, underline: false });
-    setTextAlignment('left');
-
-    triggerHapticFeedback('success');
   };
 
   // 处理绘图工具选择
@@ -897,57 +1380,224 @@ const AllInOneToolbar = ({
     }
   };
 
-  // 处理形状选择
-  const handleShapeSelect = (shape) => {
-    setActiveShape(shape);
-    setShowShapePicker(false);
+  const isDrawingToolsLocked = isAIProcessing || isClearing;
+  const isPageDocActionLocked = isClearing || isAIProcessing || isImagePicking || isAIHistoryLoading || isAIHistoryApplying;
+
+  const handleDrawingToolPress = (tool) => {
+    if (isDrawingToolsLocked) {
+      return;
+    }
+    handleToolSelect(tool);
   };
 
-  // 处理AI工具选择
-  const handleAIToolSelect = async (tool) => {
-    setSelectedAITool(tool);
-    setShowAIToolModal(false);
+  const handleUndoPress = () => {
+    if (!canUndo) {
+      return;
+    }
+    onUndo?.();
+    triggerHapticFeedback('light');
+  };
 
-    if (!selectedText) {
-      Alert.alert('提示', '请先选择文本');
+  const handleRedoPress = () => {
+    if (!canRedo) {
+      return;
+    }
+    onRedo?.();
+    triggerHapticFeedback('light');
+  };
+
+  // 处理形状选择
+  const handleShapeSelect = (shape) => {
+    if (isTextAndShapeLocked) {
+      return;
+    }
+    setActiveShape(shape);
+    setShowShapePicker(false);
+    triggerHapticFeedback('light');
+  };
+
+  const executeClearAction = async (clearType) => {
+    try {
+      await Promise.resolve(onClear?.(clearType));
+      triggerHapticFeedback('success');
+    } catch (error) {
+      console.error('清除操作失败:', error);
+      Alert.alert('错误', error?.message || '清除失败，请稍后重试。');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const showClearConfirm = (clearType, title, message) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+          onPress: () => setIsClearing(false),
+        },
+        {
+          text: '确定',
+          style: 'destructive',
+          onPress: () => executeClearAction(clearType),
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => setIsClearing(false),
+      }
+    );
+  };
+
+  const handleClearPress = () => {
+    if (isPageDocActionLocked) {
       return;
     }
 
-    try {
-      setIsAIProcessing(true);
-
-      // 调用AI处理API
-      const result = await processWithAI(tool.id, selectedText);
-
-      // 处理结果
-      if (result) {
-        const outputText = result.result || result.translated_text || result.data;
-
-        // 添加到历史记录
-        await aiHistoryService.addHistory({
-          tool: tool.id,
-          input: selectedText,
-          output: outputText,
-          timestamp: new Date()
-        });
-
-        // 刷新历史记录
-        loadAIHistory();
-
-        // 调用结果处理函数
-        if (onAIProcessResult) {
-          onAIProcessResult(outputText, tool.id);
-        }
-      } else {
-        throw new Error('AI处理失败，未返回结果');
+    setIsClearing(true);
+    Alert.alert(
+      '清除',
+      '选择清除范围：',
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+          onPress: () => setIsClearing(false),
+        },
+        {
+          text: '选中内容',
+          onPress: () => executeClearAction('selected'),
+        },
+        {
+          text: '当前视图',
+          onPress: () => executeClearAction('current_view'),
+        },
+        {
+          text: '当前页面',
+          onPress: () => showClearConfirm('current_page', '确认', '确定要清除当前页面吗？此操作无法撤销。'),
+        },
+        {
+          text: '整个文档',
+          style: 'destructive',
+          onPress: () => showClearConfirm('entire_document', '确认', '确定要清除整个文档吗？此操作无法撤销。'),
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => setIsClearing(false),
       }
+    );
+  };
+
+  // 处理流式AI工具选择
+  const handleStreamingAIToolSelect = async (tool) => {
+    setSelectedAITool(tool);
+    setShowAIToolModal(false);
+    let inputText = selectedText && String(selectedText).trim() ? String(selectedText).trim() : '';
+
+    try {
+      // 如果没有选中文本，则尝试OCR或手写识别
+      if (!inputText) {
+        if (typeof onRequestRegionOCR === 'function') {
+          const regionText = await onRequestRegionOCR();
+          if (regionText && String(regionText).trim()) {inputText = String(regionText).trim();}
+        }
+        if (!inputText && typeof onRequestStrokeRecognition === 'function') {
+          const strokeText = await onRequestStrokeRecognition();
+          if (strokeText && String(strokeText).trim()) {inputText = String(strokeText).trim();}
+        }
+      }
+
+      if (!inputText) {
+        Alert.alert('提示', '请先选中文本，或通过拖拽/手写输入内容。');
+        return;
+      }
+
+      setIsAIProcessing(true);
+      setIsStreamingModalVisible(true);
+      setStreamingText('');
+
+      const streamController = noteAIService.processTextStream(inputText, tool.id, {});
+
+      streamController
+        .onMessage((chunk, fullText) => {
+          setStreamingText(fullText);
+        })
+        .onComplete(async (fullText) => {
+          setIsAIProcessing(false);
+          await aiHistoryService.addHistory({
+            tool: tool.id,
+            input: inputText,
+            output: fullText,
+            timestamp: new Date(),
+          });
+          loadAIHistory();
+          // The modal will be closed by the user
+        })
+        .onError((error) => {
+          setIsAIProcessing(false);
+          setIsStreamingModalVisible(false);
+          Alert.alert('AI处理失败', error.message || '发生未知错误');
+        })
+        .start();
+
     } catch (error) {
-      console.error(`AI处理失败 (${tool.id}):`, error);
-      Alert.alert('处理失败', error.message || '无法处理选中的文本，请稍后重试');
-    } finally {
       setIsAIProcessing(false);
+      Alert.alert('错误', error.message || '处理AI请求时出错');
     }
   };
+
+  // 处理AI工具选择 (现在调用流式处理)
+  const handleAIToolSelect = (tool) => {
+    if (isAIProcessing) {
+      return;
+    }
+    handleStreamingAIToolSelect(tool);
+  };
+
+  const handleOpenAIHistory = () => {
+    if (isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) {
+      return;
+    }
+    setShowAIHistoryModal(true);
+    loadAIHistory();
+  };
+
+  const handleCloseAIHistory = () => {
+    if (isAIHistoryLoading || isAIHistoryApplying) {
+      return;
+    }
+    setShowAIHistoryModal(false);
+  };
+
+  const handleCloseStreamingAIResultModal = () => {
+    if (isAIProcessing) {
+      return;
+    }
+    setIsStreamingModalVisible(false);
+  };
+
+  const handleUseAIHistoryResult = async (item) => {
+    if (isAIHistoryApplying) {
+      return;
+    }
+
+    setIsAIHistoryApplying(true);
+    try {
+      await Promise.resolve(onAIProcessResult?.(item.output, item.tool));
+      setShowAIHistoryModal(false);
+      triggerHapticFeedback('success');
+    } catch (error) {
+      console.error('应用AI历史结果失败:', error);
+      Alert.alert('错误', error?.message || '应用历史结果失败，请稍后重试。');
+    } finally {
+      setIsAIHistoryApplying(false);
+    }
+  };
+
+  // 无
 
   // 使用AI处理文本
   const processWithAI = async (toolId, text) => {
@@ -993,263 +1643,59 @@ const AllInOneToolbar = ({
   };
 
   // 2D颜色选择器 - 色板交互处理
-  const handleColorBoardTouch = useCallback((event, boardSize = 280) => {
-    const { locationX, locationY } = event.nativeEvent;
-    const saturation = Math.max(0, Math.min(100, (locationX / boardSize) * 100));
-    const value = Math.max(0, Math.min(100, 100 - (locationY / boardSize) * 100));
-    setCustomColorSaturation(saturation);
-    setCustomColorValue(value);
-    triggerHapticFeedback('light');
-  }, [triggerHapticFeedback]);
-
-  // 处理取色器
-  const handleEyedropperPress = () => {
-    setIsPickingColor(true);
-    Alert.alert(
-      '取色器',
-      '取色器功能需要屏幕截图权限。是否继续？',
-      [
-        { text: '取消', style: 'cancel', onPress: () => setIsPickingColor(false) },
-        { 
-          text: '继续',
-          onPress: () => {
-            // 简化版：直接允许用户输入颜色值
-            Alert.prompt(
-              '输入颜色',
-              '请输入十六进制颜色值（例如：#FF0000）',
-              [
-                { text: '取消', style: 'cancel', onPress: () => setIsPickingColor(false) },
-                {
-                  text: '确定',
-                  onPress: (colorValue) => {
-                    if (colorValue && /^#[0-9A-Fa-f]{6}$/.test(colorValue)) {
-                      const hsv = rgbToHsv(colorValue);
-                      setCustomColorHue(hsv.h);
-                      setCustomColorSaturation(hsv.s);
-                      setCustomColorValue(hsv.v);
-                      setTempColor(colorValue);
-                    }
-                    setIsPickingColor(false);
-                  }
-                }
-              ]
-            );
-          }
-        }
-      ]
-    );
-  };
-
-  // 处理确定按钮
-  const handleColorConfirm = () => {
-    const customColor = hsvToRgb(customColorHue, customColorSaturation, customColorValue);
-    setActiveColor(customColor);
-    onColorChange?.(customColor);
-    triggerHapticFeedback('success');
-    setShowColorPicker(false);
-    setTempColor(null);
-  };
-
-  // 处理取消按钮
-  const handleColorCancel = () => {
-    setShowColorPicker(false);
-    setTempColor(null);
-    setIsPickingColor(false);
-  };
-
-  // 渲染颜色选择器 - 2D色板版本
-  const renderColorPicker = () => {
-    const customColor = tempColor || hsvToRgb(customColorHue, customColorSaturation, customColorValue);
-    const boardSize = 260;
-    const cursorX = (customColorSaturation / 100) * boardSize;
-    const cursorY = (1 - customColorValue / 100) * boardSize;
-    const hueColor = hsvToRgb(customColorHue, 100, 100);
-    
-    return (
-      <Modal
-        transparent={true}
-        visible={showColorPicker}
-        animationType="fade"
-        onRequestClose={handleColorCancel}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={handleColorCancel}
-        >
-          <View
-            style={[styles.colorPickerContainer, { backgroundColor: colors.card }]}
-            onStartShouldSetResponder={() => true}
-            onResponderRelease={(e) => e.stopPropagation()}
-          >
-            {/* 预设颜色 */}
-            <View style={styles.colorGrid}>
-              {PRESET_COLORS.map((color) => (
-                <TouchableOpacity
-                  key={color}
-                  style={[
-                    styles.colorItem,
-                    { backgroundColor: color },
-                    activeColor === color && styles.activeColorItem,
-                  ]}
-                  onPress={() => {
-                    const hsv = rgbToHsv(color);
-                    setCustomColorHue(hsv.h);
-                    setCustomColorSaturation(hsv.s);
-                    setCustomColorValue(hsv.v);
-                    triggerHapticFeedback('light');
-                  }}
-                />
-              ))}
-            </View>
-
-            {/* 色相滑块 - 可点击选择 */}
-            <View style={styles.hueSliderContainer}>
-              <View style={styles.hueSliderWrapper}>
-                <Svg width="100%" height={40} style={styles.hueSliderBackground}>
-                  <Defs>
-                    <LinearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <Stop offset="0%" stopColor="#FF0000" />
-                      <Stop offset="16.67%" stopColor="#FFFF00" />
-                      <Stop offset="33.33%" stopColor="#00FF00" />
-                      <Stop offset="50%" stopColor="#00FFFF" />
-                      <Stop offset="66.67%" stopColor="#0000FF" />
-                      <Stop offset="83.33%" stopColor="#FF00FF" />
-                      <Stop offset="100%" stopColor="#FF0000" />
-                    </LinearGradient>
-                  </Defs>
-                  <Rect width="100%" height={40} fill="url(#rainbow)" rx={6} />
-                </Svg>
-                <Slider
-                  style={styles.hueSlider}
-                  minimumValue={0}
-                  maximumValue={360}
-                  step={1}
-                  value={customColorHue}
-                  onValueChange={setCustomColorHue}
-                  minimumTrackTintColor="transparent"
-                  maximumTrackTintColor="transparent"
-                  thumbTintColor={hueColor}
-                />
-                {/* 可点击的色相条 */}
-                <TouchableOpacity
-                  style={styles.hueSliderClickable}
-                  onPress={(event) => {
-                    const { locationX } = event.nativeEvent;
-                    const hue = (locationX / 280) * 360; // 280是色相条宽度
-                    setCustomColorHue(Math.max(0, Math.min(360, hue)));
-                    triggerHapticFeedback('light');
-                  }}
-                  activeOpacity={1}
-                />
-              </View>
-            </View>
-
-            {/* 2D颜色板 - 饱和度和明度 */}
-            <View 
-              style={[styles.colorBoard, { width: boardSize, height: boardSize }]}
-              onStartShouldSetResponder={() => true}
-              onResponderGrant={(e) => handleColorBoardTouch(e, boardSize)}
-              onResponderMove={(e) => handleColorBoardTouch(e, boardSize)}
-            >
-              {/* 基础色相背景 */}
-              <View style={[styles.colorBoardBase, { backgroundColor: hueColor }]} />
-              
-              {/* 白色到透明的渐变（饱和度） */}
-              <Svg width={boardSize} height={boardSize} style={styles.colorBoardOverlay}>
-                <Defs>
-                  <LinearGradient id="saturation" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                    <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-                  </LinearGradient>
-                </Defs>
-                <Rect width={boardSize} height={boardSize} fill="url(#saturation)" />
-              </Svg>
-
-              {/* 透明到黑色的渐变（明度） */}
-              <Svg width={boardSize} height={boardSize} style={styles.colorBoardOverlay}>
-                <Defs>
-                  <LinearGradient id="brightness" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <Stop offset="0%" stopColor="#000000" stopOpacity="0" />
-                    <Stop offset="100%" stopColor="#000000" stopOpacity="1" />
-                  </LinearGradient>
-                </Defs>
-                <Rect width={boardSize} height={boardSize} fill="url(#brightness)" />
-              </Svg>
-
-              {/* 光标指示器 */}
-              <View 
-                style={[
-                  styles.colorBoardCursor, 
-                  { 
-                    left: cursorX - 10, 
-                    top: cursorY - 10,
-                    backgroundColor: customColor,
-                    borderColor: customColorValue > 50 ? '#000' : '#FFF'
-                  }
-                ]} 
-              />
-            </View>
-
-            {/* 操作按钮区域 */}
-            <View style={styles.colorPickerActions}>
-              {/* 取色器按钮 - 放在色相条后方 */}
-              <TouchableOpacity
-                style={[styles.colorPickerEyedropperButton, { borderColor: colors.border }]}
-                onPress={handleEyedropperPress}
-              >
-                <EyedropperIcon color={colors.text} size={18} />
-              </TouchableOpacity>
-
-              <View style={styles.colorPickerButtonsRight}>
-                <TouchableOpacity
-                  style={[styles.colorPickerActionButton, { borderColor: colors.border }]}
-                  onPress={handleColorCancel}
-                >
-                  <Icon name="close" size={20} color={colors.text} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.colorPickerActionButton, styles.colorPickerConfirmButton, { backgroundColor: colors.primary }]}
-                  onPress={handleColorConfirm}
-                >
-                  <Icon name="checkmark" size={20} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-    );
-  };
+  // 渲染颜色选择器 - 使用企业级组件
+  const renderColorPicker = () => (
+    <ColorPicker
+      visible={showColorPicker}
+      onClose={() => setShowColorPicker(false)}
+      onColorChange={(color) => {
+        setActiveColor(color);
+        addRecentColor(color);
+        onColorChange?.(color);
+      }}
+      initialColor={activeColor}
+      showEyedropper={true}
+    />
+  );
 
 
   // 渲染笔触粗细弹出式面板 - 改进版设计
   const renderStrokeWidthPopover = () => {
-    if (!showStrokeWidthPopover) return null;
+    if (!showStrokeWidthPopover) {return null;}
 
     return (
       <Modal
         visible={showStrokeWidthPopover}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowStrokeWidthPopover(false)}
+        onRequestClose={() => {
+          if (isDrawingToolsLocked) {
+            return;
+          }
+          setShowStrokeWidthPopover(false);
+        }}
       >
         <Pressable
           style={styles.popoverOverlay}
-          onPress={() => setShowStrokeWidthPopover(false)}
+          onPress={() => {
+            if (isDrawingToolsLocked) {
+              return;
+            }
+            setShowStrokeWidthPopover(false);
+          }}
         >
           {/* 弹出面板 - 完全阻止事件穿透 */}
           <Pressable
             style={[
-              styles.strokeWidthPopover, 
-              { 
-                backgroundColor: colors.card, 
+              styles.strokeWidthPopover,
+              {
+                backgroundColor: colors.card,
                 borderColor: colors.border,
                 // 动态定位：工具栏正下方居中显示，增加更多间距
                 top: toolbarConfig.height + 70,
                 left: '50%',
                 marginLeft: -140, // 280宽度的一半
-              }
+              },
             ]}
             onPress={(e) => {
               e.stopPropagation();
@@ -1304,11 +1750,11 @@ const AllInOneToolbar = ({
                       left: 10 + ((activeStrokeWidth - STROKE_WIDTH_RANGE.min) / (STROKE_WIDTH_RANGE.max - STROKE_WIDTH_RANGE.min)) * 260 - 8,
                       backgroundColor: colors.primary,
                       borderColor: '#fff',
-                    }
+                    },
                   ]}
                 />
               </View>
-              
+
               {/* 滑块 */}
               <Slider
                 style={styles.strokeWidthSliderCompact}
@@ -1344,19 +1790,130 @@ const AllInOneToolbar = ({
     );
   };
 
+  // 渲染预设选择器
+  const renderPresetSelector = () => {
+    if (!showPresetSelector) {return null;}
+
+    return (
+      <Modal
+        visible={showPresetSelector}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          if (isPageDocActionLocked) {
+            return;
+          }
+          setShowPresetSelector(false);
+        }}
+      >
+        <Pressable
+          style={styles.popoverOverlay}
+          onPress={() => {
+            if (isPageDocActionLocked) {
+              return;
+            }
+            setShowPresetSelector(false);
+          }}
+        >
+          <View style={[styles.presetSelectorPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.presetSelectorTitle, { color: colors.text }]}>场景预设</Text>
+            <View style={styles.presetGrid}>
+              {Object.values(TOOL_PRESETS).map((preset) => (
+                <TouchableOpacity
+                  key={preset.id}
+                  style={[
+                    styles.presetItem,
+                    currentPreset === preset.id && { backgroundColor: colors.primary + '20', borderColor: colors.primary },
+                    isPageDocActionLocked && styles.disabledToolButton,
+                  ]}
+                  onPress={() => {
+                    if (isPageDocActionLocked) {
+                      return;
+                    }
+                    applyPreset(preset.id);
+                    setShowPresetSelector(false);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isPageDocActionLocked}
+                  accessibilityRole="button"
+                  accessibilityLabel={`应用${preset.name}预设`}
+                  accessibilityHint="一键应用该场景工具和样式配置"
+                  accessibilityState={{ disabled: isPageDocActionLocked, busy: isPageDocActionLocked, selected: currentPreset === preset.id }}
+                >
+                  <MaterialIcon
+                    name={preset.icon}
+                    size={24}
+                    color={preset.color === 'THEME_TEXT' ? colors.text : preset.color}
+                  />
+                  <Text style={[
+                    styles.presetName,
+                    { color: currentPreset === preset.id ? colors.primary : colors.text },
+                  ]}>
+                    {preset.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  };
+
+  // 键盘快捷键监听
+  useEffect(() => {
+    // 监听键盘事件 (Web/Desktop)
+    if (Platform.OS === 'web' || Platform.OS === 'windows' || Platform.OS === 'macos') {
+      const handleKeyDown = (e) => {
+        const key = e.key.toUpperCase();
+        // 工具快捷键
+        if (KEYBOARD_SHORTCUTS[key]) {
+          handleToolSelect(KEYBOARD_SHORTCUTS[key]);
+        }
+        // 功能快捷键
+        if (e.ctrlKey || e.metaKey) {
+          if (key === 'Z') {
+            if (e.shiftKey) {
+              if (canRedo) {
+                onRedo?.();
+              }
+            } else if (canUndo) {
+              onUndo?.();
+            }
+          } else if (key === 'Y' && canRedo) {
+            onRedo?.();
+          }
+        }
+      };
+
+      if (Platform.OS === 'web') {
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }
+    }
+  }, [handleToolSelect, onUndo, onRedo, canUndo, canRedo]);
+
   // 渲染形状选择器
   const renderShapePicker = () => (
-    <View style={[styles.shapePickerContainer, {
-      backgroundColor: colors.card,
-      borderColor: colors.border,
-      display: showShapePicker ? 'flex' : 'none'
-    }]}>
+    <View
+      style={[styles.shapePickerContainer, {
+        backgroundColor: colors.card,
+        borderColor: colors.border,
+        display: showShapePicker ? 'flex' : 'none',
+      }, isTextAndShapeLocked && { opacity: 0.6 }]}
+      pointerEvents={isTextAndShapeLocked ? 'none' : 'auto'}
+      accessibilityState={{ disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
+    >
       <TouchableOpacity
         style={[
           styles.shapeItem,
           activeShape === SHAPES.LINE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.LINE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择线条形状"
+        accessibilityState={{ selected: activeShape === SHAPES.LINE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 2, backgroundColor: activeShape === SHAPES.LINE ? colors.primary : colors.text }]} />
       </TouchableOpacity>
@@ -1366,6 +1923,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.RECTANGLE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.RECTANGLE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择矩形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.RECTANGLE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 24, borderWidth: 2, borderColor: activeShape === SHAPES.RECTANGLE ? colors.primary : colors.text }]} />
       </TouchableOpacity>
@@ -1375,6 +1936,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.CIRCLE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.CIRCLE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择圆形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.CIRCLE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: activeShape === SHAPES.CIRCLE ? colors.primary : colors.text }]} />
       </TouchableOpacity>
@@ -1384,6 +1949,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.TRIANGLE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.TRIANGLE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择三角形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.TRIANGLE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1402,6 +1971,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.DIAMOND && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.DIAMOND)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择菱形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.DIAMOND, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1420,6 +1993,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.PARALLELOGRAM && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.PARALLELOGRAM)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择平行四边形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.PARALLELOGRAM, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1438,6 +2015,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.ELLIPSE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.ELLIPSE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择椭圆形状"
+        accessibilityState={{ selected: activeShape === SHAPES.ELLIPSE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1455,6 +2036,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.ARROW && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.ARROW)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择箭头形状"
+        accessibilityState={{ selected: activeShape === SHAPES.ARROW, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1473,12 +2058,16 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.STAR && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.STAR)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择星形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.STAR, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 24, position: 'relative' }]}>
-        <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '35deg' }] }} />
-        <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '-35deg' }] }} />
-        <View style={{ position: 'absolute', top: 5, left: 0, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '90deg' }] }} />
-      </View>
+          <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '35deg' }] }} />
+          <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '-35deg' }] }} />
+          <View style={{ position: 'absolute', top: 5, left: 0, width: 4, height: 12, backgroundColor: activeShape === SHAPES.STAR ? colors.primary : colors.text, transform: [{ rotate: '90deg' }] }} />
+        </View>
       </TouchableOpacity>
       <TouchableOpacity
         style={[
@@ -1486,12 +2075,16 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.POLYGON && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.POLYGON)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择多边形形状"
+        accessibilityState={{ selected: activeShape === SHAPES.POLYGON, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 24, position: 'relative' }]}>
-        <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text }} />
-        <View style={{ position: 'absolute', top: 4, left: 2, width: 4, height: 16, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text, transform: [{ rotate: '60deg' }] }} />
-        <View style={{ position: 'absolute', top: 4, left: 18, width: 4, height: 16, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text, transform: [{ rotate: '-60deg' }] }} />
-      </View>
+          <View style={{ position: 'absolute', top: 0, left: 10, width: 4, height: 12, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text }} />
+          <View style={{ position: 'absolute', top: 4, left: 2, width: 4, height: 16, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text, transform: [{ rotate: '60deg' }] }} />
+          <View style={{ position: 'absolute', top: 4, left: 18, width: 4, height: 16, backgroundColor: activeShape === SHAPES.POLYGON ? colors.primary : colors.text, transform: [{ rotate: '-60deg' }] }} />
+        </View>
       </TouchableOpacity>
       <TouchableOpacity
         style={[
@@ -1499,12 +2092,16 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.CURVE && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.CURVE)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择曲线形状"
+        accessibilityState={{ selected: activeShape === SHAPES.CURVE, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <View style={[styles.shapeIcon, { width: 24, height: 24 }]}>
-        <Svg width="24" height="24" viewBox="0 0 24 24">
-          <Path d="M4,12 Q10,4 20,12" stroke={activeShape === SHAPES.CURVE ? colors.primary : colors.text} strokeWidth="2" fill="none" />
-        </Svg>
-      </View>
+          <Svg width="24" height="24" viewBox="0 0 24 24">
+            <Path d="M4,12 Q10,4 20,12" stroke={activeShape === SHAPES.CURVE ? colors.primary : colors.text} strokeWidth="2" fill="none" />
+          </Svg>
+        </View>
       </TouchableOpacity>
 
       {/* 弧形 */}
@@ -1514,6 +2111,10 @@ const AllInOneToolbar = ({
           activeShape === SHAPES.ARC && styles.activeShapeItem,
         ]}
         onPress={() => handleShapeSelect(SHAPES.ARC)}
+        disabled={isTextAndShapeLocked}
+        accessibilityRole="button"
+        accessibilityLabel="选择弧线形状"
+        accessibilityState={{ selected: activeShape === SHAPES.ARC, disabled: isTextAndShapeLocked, busy: isTextAndShapeLocked }}
       >
         <Svg width="24" height="24" viewBox="0 0 24 24">
           <Path
@@ -1533,12 +2134,22 @@ const AllInOneToolbar = ({
       visible={showAIToolModal}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setShowAIToolModal(false)}
+      onRequestClose={() => {
+        if (isAIProcessing) {
+          return;
+        }
+        setShowAIToolModal(false);
+      }}
     >
       <TouchableOpacity
         style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
         activeOpacity={1}
-        onPress={() => setShowAIToolModal(false)}
+        onPress={() => {
+          if (isAIProcessing) {
+            return;
+          }
+          setShowAIToolModal(false);
+        }}
       >
         <TouchableOpacity
           style={[styles.modalContent, { backgroundColor: colors.card }]}
@@ -1547,8 +2158,20 @@ const AllInOneToolbar = ({
         >
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">AI工具</Text>
-            <TouchableOpacity onPress={() => setShowAIToolModal(false)}>
-              <Icon name="close" size={24} color={colors.text} />
+            <TouchableOpacity
+              onPress={() => {
+                if (isAIProcessing) {
+                  return;
+                }
+                setShowAIToolModal(false);
+              }}
+              disabled={isAIProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="关闭AI工具弹窗"
+              accessibilityHint="关闭AI工具选择面板"
+              accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
+            >
+              <Icon name="close" size={24} color={isAIProcessing ? colors.textDisabled : colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -1558,11 +2181,17 @@ const AllInOneToolbar = ({
                 key={tool.id}
                 style={[
                   styles.gridToolButton,
-                  { backgroundColor: colors.background, borderColor: colors.border }
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  isAIProcessing && styles.disabledToolButton,
                 ]}
                 onPress={() => handleAIToolSelect(tool)}
+                disabled={isAIProcessing}
+                accessibilityRole="button"
+                accessibilityLabel={`${tool.label}工具`}
+                accessibilityHint={tool.description}
+                accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
               >
-                <MaterialIcon name={tool.icon} size={24} color={colors.primary} />
+                <MaterialIcon name={tool.icon} size={24} color={isAIProcessing ? colors.textDisabled : colors.primary} />
                 <Text
                   variant="body"
                   size="medium"
@@ -1584,7 +2213,7 @@ const AllInOneToolbar = ({
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
-  ), [showAIToolModal, colors, handleAIToolSelect]);
+  ), [showAIToolModal, colors, handleAIToolSelect, isAIProcessing]);
 
   // 渲染AI历史记录模态框
   const renderAIHistoryModal = () => (
@@ -1592,12 +2221,12 @@ const AllInOneToolbar = ({
       visible={showAIHistoryModal}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setShowAIHistoryModal(false)}
+      onRequestClose={handleCloseAIHistory}
     >
       <TouchableOpacity
         style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
         activeOpacity={1}
-        onPress={() => setShowAIHistoryModal(false)}
+        onPress={handleCloseAIHistory}
       >
         <TouchableOpacity
           style={[styles.modalContent, { backgroundColor: colors.card }]}
@@ -1606,12 +2235,33 @@ const AllInOneToolbar = ({
         >
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">AI历史记录</Text>
-            <TouchableOpacity onPress={() => setShowAIHistoryModal(false)}>
-              <Icon name="close" size={24} color={colors.text} />
+            <TouchableOpacity
+              onPress={handleCloseAIHistory}
+              disabled={isAIHistoryLoading || isAIHistoryApplying}
+              accessibilityRole="button"
+              accessibilityLabel="关闭AI历史弹窗"
+              accessibilityHint="关闭AI历史记录面板"
+              accessibilityState={{
+                disabled: isAIHistoryLoading || isAIHistoryApplying,
+                busy: isAIHistoryLoading || isAIHistoryApplying,
+              }}
+            >
+              <Icon
+                name="close"
+                size={24}
+                color={(isAIHistoryLoading || isAIHistoryApplying) ? colors.textDisabled : colors.text}
+              />
             </TouchableOpacity>
           </View>
 
-          {aiHistory.length === 0 ? (
+          {isAIHistoryLoading ? (
+            <View style={styles.emptyHistory}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text variant="body" color="textSecondary" style={styles.emptyHistoryText}>
+                正在加载历史记录...
+              </Text>
+            </View>
+          ) : aiHistory.length === 0 ? (
             <View style={styles.emptyHistory}>
               <Icon name="time-outline" size={48} color={colors.textSecondary} />
               <Text variant="body" color="textSecondary" style={styles.emptyHistoryText}>
@@ -1622,6 +2272,10 @@ const AllInOneToolbar = ({
             <FlatList
               data={aiHistory}
               keyExtractor={(item, index) => `history-${index}`}
+              removeClippedSubviews={Platform.OS === 'android'}
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              windowSize={7}
               renderItem={({ item }) => (
                 <View style={[styles.historyItem, { borderBottomColor: colors.border }]}>
                   <View style={styles.historyItemHeader}>
@@ -1639,15 +2293,19 @@ const AllInOneToolbar = ({
                     输出: {item.output}
                   </Text>
                   <TouchableOpacity
-                    style={styles.historyItemButton}
-                    onPress={() => {
-                      if (onAIProcessResult) {
-                        onAIProcessResult(item.output, item.tool);
-                      }
-                      setShowAIHistoryModal(false);
-                    }}
+                    style={[styles.historyItemButton, isAIHistoryApplying && styles.disabledToolButton]}
+                    onPress={() => handleUseAIHistoryResult(item)}
+                    disabled={isAIHistoryApplying}
+                    accessibilityRole="button"
+                    accessibilityLabel="使用AI历史结果"
+                    accessibilityHint="将该历史结果应用到当前页面"
+                    accessibilityState={{ disabled: isAIHistoryApplying, busy: isAIHistoryApplying }}
                   >
-                    <Text variant="button" color="primary">使用此结果</Text>
+                    {isAIHistoryApplying ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text variant="button" color="primary">使用此结果</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               )}
@@ -1678,12 +2336,12 @@ const AllInOneToolbar = ({
       visible={showBookmarkModal}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setShowBookmarkModal(false)}
+      onRequestClose={handleCloseBookmarkModal}
     >
       <TouchableOpacity
         style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
         activeOpacity={1}
-        onPress={() => setShowBookmarkModal(false)}
+        onPress={handleCloseBookmarkModal}
       >
         <TouchableOpacity
           style={[styles.modalContent, { backgroundColor: colors.card }]}
@@ -1692,12 +2350,26 @@ const AllInOneToolbar = ({
         >
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">书签列表</Text>
-            <TouchableOpacity onPress={() => setShowBookmarkModal(false)}>
-              <Icon name="close" size={24} color={colors.text} />
+            <TouchableOpacity
+              onPress={handleCloseBookmarkModal}
+              disabled={isBookmarkActionLocked}
+              accessibilityRole="button"
+              accessibilityLabel="关闭书签列表"
+              accessibilityHint="关闭书签管理面板"
+              accessibilityState={{ disabled: isBookmarkActionLocked, busy: isBookmarkActionLocked }}
+            >
+              <Icon name="close" size={24} color={isBookmarkActionLocked ? colors.textDisabled : colors.text} />
             </TouchableOpacity>
           </View>
 
-          {bookmarks.length === 0 ? (
+          {isBookmarksLoading ? (
+            <View style={styles.emptyHistory}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text variant="body" color="textSecondary" style={styles.emptyHistoryText}>
+                正在加载书签...
+              </Text>
+            </View>
+          ) : bookmarks.length === 0 ? (
             <View style={styles.emptyHistory}>
               <Icon name="bookmark-outline" size={48} color={colors.textSecondary} />
               <Text variant="body" color="textSecondary" style={styles.emptyHistoryText}>
@@ -1708,11 +2380,23 @@ const AllInOneToolbar = ({
             <FlatList
               data={bookmarks}
               keyExtractor={(item) => item.id}
+              removeClippedSubviews={Platform.OS === 'android'}
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              windowSize={7}
               renderItem={({ item }) => (
                 <View style={[styles.bookmarkItem, { borderBottomColor: colors.border }]}>
                   <TouchableOpacity
                     style={styles.bookmarkContent}
                     onPress={() => handleNavigateToBookmark(item)}
+                    disabled={isBookmarkActionLocked || deletingBookmarkId === item.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`跳转到书签 ${item.title}`}
+                    accessibilityHint={`前往第 ${item.pageNumber} 页`}
+                    accessibilityState={{
+                      disabled: isBookmarkActionLocked || deletingBookmarkId === item.id,
+                      busy: deletingBookmarkId === item.id,
+                    }}
                   >
                     <View style={[styles.bookmarkColorIndicator, { backgroundColor: item.color }]} />
                     <View style={styles.bookmarkInfo}>
@@ -1723,10 +2407,22 @@ const AllInOneToolbar = ({
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.bookmarkDeleteButton}
+                    style={[styles.bookmarkDeleteButton, deletingBookmarkId === item.id && styles.disabledToolButton]}
                     onPress={() => handleDeleteBookmark(item.id)}
+                    disabled={isBookmarkActionLocked || deletingBookmarkId === item.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`删除书签 ${item.title}`}
+                    accessibilityHint="删除当前书签"
+                    accessibilityState={{
+                      disabled: isBookmarkActionLocked || deletingBookmarkId === item.id,
+                      busy: deletingBookmarkId === item.id,
+                    }}
                   >
-                    <Icon name="trash-outline" size={20} color={colors.error} />
+                    {deletingBookmarkId === item.id ? (
+                      <ActivityIndicator size="small" color={colors.error} />
+                    ) : (
+                      <Icon name="trash-outline" size={20} color={colors.error} />
+                    )}
                   </TouchableOpacity>
                 </View>
               )}
@@ -1743,11 +2439,11 @@ const AllInOneToolbar = ({
       visible={showAddBookmarkDialog}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setShowAddBookmarkDialog(false)}
+      onRequestClose={handleCloseAddBookmarkDialog}
     >
       <Pressable
         style={styles.modalOverlay}
-        onPress={() => setShowAddBookmarkDialog(false)}
+        onPress={handleCloseAddBookmarkDialog}
       >
         <View
           style={[styles.dialogContainer, { backgroundColor: colors.card }]}
@@ -1755,31 +2451,43 @@ const AllInOneToolbar = ({
           onResponderRelease={(e) => e.stopPropagation()}
         >
           <Text style={[styles.dialogTitle, { color: colors.text }]}>添加书签</Text>
-          
+
           <TextInput
             style={[styles.dialogInput, { color: colors.text, borderColor: colors.border }]}
             placeholder={`书签 - 第${currentPage}页`}
             placeholderTextColor={colors.textSecondary}
             value={bookmarkTitle}
             onChangeText={setBookmarkTitle}
+            editable={!isBookmarkSubmitting}
             autoFocus
           />
 
           <View style={styles.dialogButtons}>
             <TouchableOpacity
-              style={[styles.dialogButton, { backgroundColor: colors.background }]}
-              onPress={() => {
-                setShowAddBookmarkDialog(false);
-                setBookmarkTitle('');
-              }}
+              style={[styles.dialogButton, { backgroundColor: colors.background }, isBookmarkSubmitting && styles.disabledToolButton]}
+              onPress={handleCloseAddBookmarkDialog}
+              disabled={isBookmarkSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="取消添加书签"
+              accessibilityHint="关闭添加书签弹窗"
+              accessibilityState={{ disabled: isBookmarkSubmitting, busy: isBookmarkSubmitting }}
             >
               <Text style={{ color: colors.text }}>取消</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.dialogButton, { backgroundColor: colors.primary }]}
+              style={[styles.dialogButton, { backgroundColor: colors.primary }, isBookmarkSubmitting && styles.disabledToolButton]}
               onPress={handleAddBookmark}
+              disabled={isBookmarkSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="确认添加书签"
+              accessibilityHint="保存当前页面书签"
+              accessibilityState={{ disabled: isBookmarkSubmitting, busy: isBookmarkSubmitting }}
             >
-              <Text style={{ color: '#fff' }}>确定</Text>
+              {isBookmarkSubmitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={{ color: '#fff' }}>确定</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1787,35 +2495,106 @@ const AllInOneToolbar = ({
     </Modal>
   );
 
+  // 渲染流式AI结果模态框
+  const renderStreamingAIResultModal = () => (
+    <Modal
+      visible={isStreamingModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleCloseStreamingAIResultModal}
+    >
+      <View style={styles.modalContainer}>
+        <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+          <View style={styles.modalHeader}>
+            <Text variant="heading" level="h6">{selectedAITool?.label || 'AI处理中'}</Text>
+            <TouchableOpacity
+              onPress={handleCloseStreamingAIResultModal}
+              disabled={isAIProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="关闭AI结果弹窗"
+              accessibilityHint="关闭AI流式结果面板"
+              accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
+            >
+              <Icon name="close" size={24} color={isAIProcessing ? colors.textDisabled : colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1, paddingVertical: 10 }}>
+            <Text style={{ color: colors.text }}>{streamingText}</Text>
+            {isAIProcessing && <ActivityIndicator style={{ marginTop: 10 }} color={colors.primary} />}
+          </ScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={[styles.modalButton, isAIProcessing && styles.disabledToolButton]}
+              onPress={() => {
+                Clipboard.setString(streamingText);
+                Alert.alert('已复制', '结果已复制到剪贴板');
+              }}
+              disabled={isAIProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="复制AI结果"
+              accessibilityHint="复制当前AI处理结果到剪贴板"
+              accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
+            >
+              <Text style={{ color: isAIProcessing ? colors.textDisabled : colors.primary }}>复制</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.primary }, isAIProcessing && styles.disabledToolButton]}
+              onPress={handleCloseStreamingAIResultModal}
+              disabled={isAIProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="关闭AI结果弹窗"
+              accessibilityHint="关闭当前AI结果视图"
+              accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
+            >
+              <Text style={{ color: '#FFF' }}>关闭</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+
   // 渲染文本输入模态框
   const renderTextInputModal = () => (
     <Modal
       visible={showTextInputModal}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setShowTextInputModal(false)}
+      onRequestClose={handleCloseTextInputModal}
     >
-      <TouchableOpacity
-        style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
-        activeOpacity={1}
-        onPress={() => setShowTextInputModal(false)}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
         <TouchableOpacity
-          style={[styles.textModalContent, { backgroundColor: colors.card }]}
+          style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
           activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
+          onPress={handleCloseTextInputModal}
         >
+          <TouchableOpacity
+            style={[styles.textModalContent, { backgroundColor: colors.card }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">添加文本</Text>
-            <TouchableOpacity onPress={() => setShowTextInputModal(false)}>
-              <Icon name="close" size={24} color={colors.text} />
+            <TouchableOpacity
+              onPress={handleCloseTextInputModal}
+              disabled={isTextSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="关闭文本输入"
+              accessibilityHint="关闭文本输入弹窗"
+              accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting }}
+            >
+              <Icon name="close" size={24} color={isTextSubmitting ? colors.textDisabled : colors.text} />
             </TouchableOpacity>
           </View>
 
           {/* 文本输入框 */}
           <TextInput
-            style={[styles.textInput, { 
-              color: colors.text, 
+            style={[styles.textInput, {
+              color: colors.text,
               borderColor: colors.border,
               fontWeight: textStyle.bold ? 'bold' : 'normal',
               fontStyle: textStyle.italic ? 'italic' : 'normal',
@@ -1826,6 +2605,7 @@ const AllInOneToolbar = ({
             placeholderTextColor={colors.textSecondary}
             value={textInput}
             onChangeText={setTextInput}
+            editable={!isTextSubmitting}
             multiline
             numberOfLines={4}
             autoFocus
@@ -1844,6 +2624,7 @@ const AllInOneToolbar = ({
               minimumTrackTintColor={colors.primary}
               maximumTrackTintColor={colors.border}
               thumbTintColor={colors.primary}
+              disabled={isTextSubmitting}
             />
           </View>
 
@@ -1855,9 +2636,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textStyle.bold && { backgroundColor: colors.primary + '20' }
+                  textStyle.bold && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextStyle({ ...textStyle, bold: !textStyle.bold })}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="切换粗体"
+                accessibilityHint="将文本样式切换为粗体"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textStyle.bold }}
               >
                 <Text style={[styles.textStyleButtonText, { color: colors.text, fontWeight: 'bold' }]}>B</Text>
               </TouchableOpacity>
@@ -1865,9 +2652,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textStyle.italic && { backgroundColor: colors.primary + '20' }
+                  textStyle.italic && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextStyle({ ...textStyle, italic: !textStyle.italic })}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="切换斜体"
+                accessibilityHint="将文本样式切换为斜体"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textStyle.italic }}
               >
                 <Text style={[styles.textStyleButtonText, { color: colors.text, fontStyle: 'italic' }]}>I</Text>
               </TouchableOpacity>
@@ -1875,9 +2668,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textStyle.underline && { backgroundColor: colors.primary + '20' }
+                  textStyle.underline && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextStyle({ ...textStyle, underline: !textStyle.underline })}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="切换下划线"
+                accessibilityHint="将文本样式切换为下划线"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textStyle.underline }}
               >
                 <Text style={[styles.textStyleButtonText, { color: colors.text, textDecorationLine: 'underline' }]}>U</Text>
               </TouchableOpacity>
@@ -1892,9 +2691,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textAlignment === 'left' && { backgroundColor: colors.primary + '20' }
+                  textAlignment === 'left' && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextAlignment('left')}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="左对齐"
+                accessibilityHint="将文本对齐方式设置为左对齐"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textAlignment === 'left' }}
               >
                 <Text style={[styles.textAlignmentButtonText, { color: colors.text }]}>左</Text>
               </TouchableOpacity>
@@ -1902,9 +2707,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textAlignment === 'center' && { backgroundColor: colors.primary + '20' }
+                  textAlignment === 'center' && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextAlignment('center')}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="居中对齐"
+                accessibilityHint="将文本对齐方式设置为居中"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textAlignment === 'center' }}
               >
                 <Text style={[styles.textAlignmentButtonText, { color: colors.text }]}>中</Text>
               </TouchableOpacity>
@@ -1912,9 +2723,15 @@ const AllInOneToolbar = ({
                 style={[
                   styles.textStyleButton,
                   { borderColor: colors.border },
-                  textAlignment === 'right' && { backgroundColor: colors.primary + '20' }
+                  textAlignment === 'right' && { backgroundColor: colors.primary + '20' },
+                  isTextSubmitting && styles.disabledToolButton,
                 ]}
                 onPress={() => setTextAlignment('right')}
+                disabled={isTextSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="右对齐"
+                accessibilityHint="将文本对齐方式设置为右对齐"
+                accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting, selected: textAlignment === 'right' }}
               >
                 <Text style={[styles.textAlignmentButtonText, { color: colors.text }]}>右</Text>
               </TouchableOpacity>
@@ -1925,11 +2742,13 @@ const AllInOneToolbar = ({
           <View style={styles.textToolSection}>
             <Text style={[styles.textToolLabel, { color: colors.text }]}>文本颜色</Text>
             <TouchableOpacity
-              style={[styles.colorSelectButton, { borderColor: colors.border }]}
-              onPress={() => {
-                setShowTextInputModal(false);
-                setShowColorPicker(true);
-              }}
+              style={[styles.colorSelectButton, { borderColor: colors.border }, isTextSubmitting && styles.disabledToolButton]}
+              onPress={handleOpenTextColorPicker}
+              disabled={isTextSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="选择文本颜色"
+              accessibilityHint="打开颜色选择器以设置文本颜色"
+              accessibilityState={{ disabled: isTextSubmitting, busy: isTextSubmitting }}
             >
               <View style={[styles.colorPreviewSmall, { backgroundColor: activeColor }]} />
               <Text style={{ color: colors.text, marginLeft: 8 }}>{activeColor}</Text>
@@ -1938,476 +2757,731 @@ const AllInOneToolbar = ({
 
           {/* 确认按钮 */}
           <TouchableOpacity
-            style={[styles.textSubmitButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.textSubmitButton,
+              { backgroundColor: colors.primary },
+              (isTextSubmitting || !textInput.trim()) && styles.disabledToolButton,
+            ]}
             onPress={handleTextSubmit}
+            disabled={isTextSubmitting || !textInput.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="提交文本"
+            accessibilityHint="将输入的文本添加到页面"
+            accessibilityState={{ disabled: isTextSubmitting || !textInput.trim(), busy: isTextSubmitting }}
           >
-            <Text style={styles.textSubmitButtonText}>添加文本</Text>
+            {isTextSubmitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.textSubmitButtonText}>添加文本</Text>
+            )}
           </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
     </Modal>
   );
 
   // 主工具栏渲染
+  const toolConfigForMode = TOOL_CONFIG[mode] || TOOL_CONFIG['file-viewer'];
+
   return (
     <View>
+      {renderStreamingAIResultModal()}
+      {renderPresetSelector()}
+
       {/* 主工具栏 */}
       <View style={[styles.container, { backgroundColor: colors.card }]}>
 
-      {/* 绘图工具 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarSection} contentContainerStyle={styles.toolbarContentContainer}>
-        {/* 书签按钮 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity 
-            style={styles.toolButton} 
-            onPress={() => {
-              setShowAddBookmarkDialog(true);
-              triggerHapticFeedback('light');
-            }}
-            accessibilityLabel="添加书签"
-            accessibilityHint="在当前页面添加书签"
-            accessibilityRole="button"
-          >
-            <AddBookmarkIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.toolButton} 
-            onPress={() => {
-              loadBookmarks();
-              setShowBookmarkModal(true);
-              triggerHapticFeedback('light');
-            }}
-            accessibilityLabel="书签列表"
-            accessibilityHint="查看和管理书签"
-            accessibilityRole="button"
-          >
-            <BookmarkIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
+        {/* 绘图工具 */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarSection} contentContainerStyle={styles.toolbarContentContainer}>
+          {/* 书签按钮 */}
+          {toolConfigForMode.bookmarks && (
+            <>
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[styles.toolButton, isBookmarkActionLocked && styles.disabledToolButton]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleOpenAddBookmarkDialog}
+                  disabled={isBookmarkActionLocked}
+                  accessibilityLabel="添加书签"
+                  accessibilityHint="在当前页面添加书签"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isBookmarkActionLocked, busy: isBookmarkActionLocked }}
+                >
+                  <AddBookmarkIcon
+                    color={isBookmarkActionLocked ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toolButton, isBookmarkActionLocked && styles.disabledToolButton]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleOpenBookmarkModal}
+                  disabled={isBookmarkActionLocked}
+                  accessibilityLabel="书签列表"
+                  accessibilityHint="查看和管理书签"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isBookmarkActionLocked, busy: isBookmarkActionLocked }}
+                >
+                  <BookmarkIcon
+                    color={isBookmarkActionLocked ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            </>
+          )}
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          {toolConfigForMode.editing && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {/* 编辑工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              !canUndo && styles.disabledToolButton
-            ]}
-            onPress={() => {
-              onUndo?.();
-              triggerHapticFeedback('light');
-            }}
-            disabled={!canUndo}
-            accessibilityLabel="撤销"
-            accessibilityHint="撤销上一步操作"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canUndo }}
-          >
-            <UndoIcon 
-              color={!canUndo ? colors.textDisabled : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              !canRedo && styles.disabledToolButton
-            ]}
-            onPress={() => {
-              onRedo?.();
-              triggerHapticFeedback('light');
-            }}
-            disabled={!canRedo}
-            accessibilityLabel="重做"
-            accessibilityHint="重做撤销的操作"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canRedo }}
-          >
-            <RedoIcon 
-              color={!canRedo ? colors.textDisabled : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => {
-              // 第一级菜单：选择清除类型
-              Alert.alert(
-                '清除',
-                '选择清除类型：',
-                [
-                  { text: '取消', style: 'cancel' },
-                  {
-                    text: '按范围清除',
-                    onPress: () => {
-                      // 第二级菜单：范围选择
-                      Alert.alert(
-                        '清除范围',
-                        '选择范围：',
-                        [
-                          { text: '返回', style: 'cancel' },
-                          {
-                            text: '当前视图',
-                            onPress: () => onClear && onClear('current_view')
-                          },
-                          {
-                            text: '当前页面',
-                            onPress: () => {
-                              // 第三级：确认
-                              Alert.alert(
-                                '确认',
-                                '确定要清除当前页面吗？此操作无法撤销。',
-                                [
-                                  { text: '取消', style: 'cancel' },
-                                  {
-                                    text: '确定',
-                                    style: 'destructive',
-                                    onPress: () => onClear && onClear('current_page')
-                                  }
-                                ]
-                              );
-                            }
-                          },
-                          {
-                            text: '整个文档',
-                            onPress: () => {
-                              // 第三级：确认
-                              Alert.alert(
-                                '确认',
-                                '确定要清除整个文档吗？此操作无法撤销。',
-                                [
-                                  { text: '取消', style: 'cancel' },
-                                  {
-                                    text: '确定',
-                                    style: 'destructive',
-                                    onPress: () => onClear && onClear('entire_document')
-                                  }
-                                ]
-                              );
-                            },
-                            style: 'destructive'
-                          }
-                        ]
-                      );
+              {/* 预设工具组 - 企业级功能 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    showPresetSelector && { backgroundColor: colors.primary + '20' },
+                    isPageDocActionLocked && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isPageDocActionLocked) {
+                      return;
                     }
-                  },
-                  {
-                    text: '清除选中内容',
-                    onPress: () => onClear && onClear('selected')
+                    setShowPresetSelector(true);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isPageDocActionLocked}
+                  accessibilityLabel="场景预设"
+                  accessibilityHint="快速切换工具和样式预设"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isPageDocActionLocked, busy: isPageDocActionLocked, selected: showPresetSelector }}
+                >
+                  <MaterialIcon
+                    name={currentPreset ? TOOL_PRESETS[currentPreset].icon : 'view-grid-plus'}
+                    color={currentPreset ? colors.primary : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 编辑工具组 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    !canUndo && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleUndoPress}
+                  disabled={!canUndo}
+                  accessibilityLabel="撤销"
+                  accessibilityHint="撤销上一步操作"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canUndo, busy: false }}
+                >
+                  <UndoIcon
+                    color={!canUndo ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    !canRedo && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleRedoPress}
+                  disabled={!canRedo}
+                  accessibilityLabel="重做"
+                  accessibilityHint="重做撤销的操作"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canRedo, busy: false }}
+                >
+                  <RedoIcon
+                    color={!canRedo ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isPageDocActionLocked && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleClearPress}
+                  disabled={isPageDocActionLocked}
+                  accessibilityLabel="清除"
+                  accessibilityHint="清除画布内容"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isPageDocActionLocked, busy: isPageDocActionLocked }}
+                >
+                  <ClearIcon
+                    color={isPageDocActionLocked ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {toolConfigForMode.drawing && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 绘图工具组 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.PEN && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.PEN && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.PEN)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="画笔工具"
+                  accessibilityHint="选择画笔进行绘图"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.PEN, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <PenIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.PEN ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.PENCIL && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.PENCIL && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.PENCIL)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="铅笔工具"
+                  accessibilityHint="选择铅笔进行绘图"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.PENCIL, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <PencilIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.PENCIL ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.BRUSH && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.BRUSH && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.BRUSH)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="刷子工具"
+                  accessibilityHint="选择刷子进行绘图"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.BRUSH, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <BrushIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.BRUSH ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.HIGHLIGHTER && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.HIGHLIGHTER && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.HIGHLIGHTER)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="荧光笔工具"
+                  accessibilityHint="选择荧光笔进行高亮标记"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.HIGHLIGHTER, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <HighlighterIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.HIGHLIGHTER ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.LASER && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.LASER && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.LASER)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="激光笔工具"
+                  accessibilityHint="选择激光笔进行临时标记"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.LASER, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <LaserIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.LASER ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 橡皮擦和套索工具组 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.ERASER && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.ERASER && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.ERASER)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="橡皮擦工具"
+                  accessibilityHint="选择橡皮擦删除内容"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.ERASER, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <EraserIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.ERASER ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.LASSO && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.LASSO && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => handleDrawingToolPress(DRAWING_TOOLS.LASSO)}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="套索工具"
+                  accessibilityHint="自由绘制选区，选择和移动内容"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === DRAWING_TOOLS.LASSO, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <LassoIcon
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.LASSO ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {toolConfigForMode.styling && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 样式工具组 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    setShowColorPicker(true);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="颜色选择"
+                  accessibilityHint="打开颜色选择器"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked }}
+                >
+                  <View
+                    style={[
+                      styles.colorIndicator,
+                      { backgroundColor: activeColor, width: 24, height: 24, borderRadius: 12 },
+                    ]}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    setShowStrokeWidthPopover(!showStrokeWidthPopover);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="笔触粗细"
+                  accessibilityHint="调整画笔粗细"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked }}
+                >
+                  <StrokeWidthIcon
+                    color={colors.text}
+                    size={toolbarConfig.iconSize}
+                    strokeWidth={Math.min(activeStrokeWidth / 5, 4)}
+                  />
+                </TouchableOpacity>
+
+                {/* 增强笔触选择器入口 */}
+                <TouchableOpacity
+                  style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    setShowPenSelector(true);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="笔触类型"
+                  accessibilityHint="选择不同笔触类型"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked }}
+                >
+                  <MaterialIcon
+                    name="fountain-pen-tip"
+                    color={colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 形状和辅助工具组 */}
+              <View style={styles.toolGroup}>
+                {/* 增强形状选择器入口 */}
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isTextAndShapeLocked && styles.disabledToolButton,
+                    activeTool === DRAWING_TOOLS.SHAPE && styles.activeToolButton,
+                    activeTool === DRAWING_TOOLS.SHAPE && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isTextAndShapeLocked) {
+                      return;
+                    }
+                    setShowEnhancedShapeSelector(true);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isTextAndShapeLocked}
+                  accessibilityLabel="形状工具"
+                  accessibilityHint="选择形状进行绘制"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    selected: activeTool === DRAWING_TOOLS.SHAPE,
+                    disabled: isTextAndShapeLocked,
+                    busy: false,
+                  }}
+                >
+                  <ShapeIcon
+                    color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.SHAPE ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                {/* 标尺切换 */}
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    showRuler && { backgroundColor: colors.primary + '20' },
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    setShowRuler(!showRuler);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="标尺"
+                  accessibilityHint="显示或隐藏标尺"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked, selected: showRuler }}
+                >
+                  <RulerIcon
+                    color={showRuler ? colors.primary : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                {/* 网格切换 */}
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    showGrid && { backgroundColor: colors.primary + '20' },
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    setShowGrid(!showGrid);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="网格"
+                  accessibilityHint="显示或隐藏网格"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked, selected: showGrid }}
+                >
+                  <GridIcon
+                    color={showGrid ? colors.primary : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {toolConfigForMode.ai && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* AI工具组 */}
+              <View style={styles.toolGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isAIProcessing && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={() => {
+                    if (isAIProcessing) {
+                      return;
+                    }
+                    setShowAIToolModal(true);
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isAIProcessing}
+                  accessibilityLabel="AI工具"
+                  accessibilityHint="打开AI工具选择面板"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isAIProcessing, busy: isAIProcessing }}
+                >
+                  <AIIcon
+                    color={isAIProcessing ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    (isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handleOpenAIHistory}
+                  disabled={isAIProcessing || isAIHistoryLoading || isAIHistoryApplying}
+                  accessibilityLabel="AI历史"
+                  accessibilityHint="查看AI工具使用历史"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: isAIProcessing || isAIHistoryLoading || isAIHistoryApplying,
+                    busy: isAIHistoryLoading || isAIHistoryApplying,
+                  }}
+                >
+                  <HistoryIcon
+                    color={(isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {(toolConfigForMode.shapes || toolConfigForMode.text || toolConfigForMode.image) && (
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          )}
+
+          {/* 形状、文本、图片工具组 */}
+          <View style={styles.toolGroup}>
+            {toolConfigForMode.shapes && (
+              <TouchableOpacity
+                style={[
+                  styles.toolButton,
+                  isTextAndShapeLocked && styles.disabledToolButton,
+                  activeTool === DRAWING_TOOLS.SHAPE && styles.activeToolButton,
+                  activeTool === DRAWING_TOOLS.SHAPE && { backgroundColor: colors.primary + '30' },
+                ]}
+                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                onPress={() => {
+                  if (isTextAndShapeLocked) {
+                    return;
                   }
-                ]
-              );
-            }}
-            accessibilityLabel="清除"
-            accessibilityHint="清除画布内容"
-            accessibilityRole="button"
-          >
-            <ClearIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
+                  handleToolSelect(DRAWING_TOOLS.SHAPE);
+                  setShowShapePicker(!showShapePicker);
+                  triggerHapticFeedback('light');
+                }}
+                disabled={isTextAndShapeLocked}
+                accessibilityLabel="形状工具"
+                accessibilityHint="选择形状进行绘制"
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: activeTool === DRAWING_TOOLS.SHAPE,
+                  disabled: isTextAndShapeLocked,
+                  busy: false,
+                }}
+              >
+                <ShapeIcon
+                  color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.SHAPE ? colors.primary : colors.text)}
+                  size={toolbarConfig.iconSize}
+                />
+              </TouchableOpacity>
+            )}
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            {toolConfigForMode.text && (
+              <TouchableOpacity
+                style={[
+                  styles.toolButton,
+                  isTextAndShapeLocked && styles.disabledToolButton,
+                  activeTool === DRAWING_TOOLS.TEXT && styles.activeToolButton,
+                  activeTool === DRAWING_TOOLS.TEXT && { backgroundColor: colors.primary + '30' },
+                ]}
+                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                onPress={handleTextToolSelect}
+                disabled={isTextAndShapeLocked}
+                accessibilityLabel="文本工具"
+                accessibilityHint="添加文本内容"
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: activeTool === DRAWING_TOOLS.TEXT,
+                  disabled: isTextAndShapeLocked,
+                  busy: false,
+                }}
+              >
+                <TextIcon
+                  color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.TEXT ? colors.primary : colors.text)}
+                  size={toolbarConfig.iconSize}
+                />
+              </TouchableOpacity>
+            )}
 
-        {/* 绘图工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.PEN && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.PEN && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.PEN)}
-            accessibilityLabel="画笔工具"
-            accessibilityHint="选择画笔进行绘图"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.PEN }}
-          >
-            <PenIcon 
-              color={activeTool === DRAWING_TOOLS.PEN ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
+            {toolConfigForMode.image && (
+              <TouchableOpacity
+                style={[
+                  styles.toolButton,
+                  isImageActionLocked && styles.disabledToolButton,
+                ]}
+                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                onPress={handleImageUpload}
+                disabled={isImageActionLocked}
+                accessibilityLabel="图片工具"
+                accessibilityHint="添加图片到画布"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isImageActionLocked, busy: isImagePicking }}
+              >
+                <ImageIcon
+                  color={isImageActionLocked ? colors.textDisabled : colors.text}
+                  size={toolbarConfig.iconSize}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
 
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.PENCIL && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.PENCIL && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.PENCIL)}
-            accessibilityLabel="铅笔工具"
-            accessibilityHint="选择铅笔进行绘图"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.PENCIL }}
-          >
-            <PencilIcon 
-              color={activeTool === DRAWING_TOOLS.PENCIL ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
+        {/* 形状选择器 */}
+        {showShapePicker && renderShapePicker()}
 
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.BRUSH && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.BRUSH && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.BRUSH)}
-            accessibilityLabel="刷子工具"
-            accessibilityHint="选择刷子进行绘图"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.BRUSH }}
-          >
-            <BrushIcon 
-              color={activeTool === DRAWING_TOOLS.BRUSH ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
+        {/* 颜色选择器 */}
+        {showColorPicker && renderColorPicker()}
 
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.HIGHLIGHTER && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.HIGHLIGHTER && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.HIGHLIGHTER)}
-            accessibilityLabel="荧光笔工具"
-            accessibilityHint="选择荧光笔进行高亮标记"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.HIGHLIGHTER }}
-          >
-            <HighlighterIcon 
-              color={activeTool === DRAWING_TOOLS.HIGHLIGHTER ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
+        {/* 笔触粗细弹出面板 */}
+        {showStrokeWidthPopover && renderStrokeWidthPopover()}
 
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.LASER && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.LASER && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.LASER)}
-            accessibilityLabel="激光笔工具"
-            accessibilityHint="选择激光笔进行临时标记"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.LASER }}
-          >
-            <LaserIcon 
-              color={activeTool === DRAWING_TOOLS.LASER ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
+        {/* AI工具模态框 */}
+        {showAIToolModal && renderAIToolModal()}
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        {/* AI历史记录模态框 */}
+        {showAIHistoryModal && renderAIHistoryModal()}
 
-        {/* 橡皮擦和套索工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.ERASER && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.ERASER && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => {
-              handleToolSelect(DRAWING_TOOLS.ERASER);
-            }}
-            accessibilityLabel="橡皮擦工具"
-            accessibilityHint="选择橡皮擦删除内容"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.ERASER }}
-          >
-            <EraserIcon 
-              color={activeTool === DRAWING_TOOLS.ERASER ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
+        {/* AI处理加载指示器 */}
+        {isAIProcessing && renderAIProcessingIndicator()}
 
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.LASSO && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.LASSO && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => handleToolSelect(DRAWING_TOOLS.LASSO)}
-            accessibilityLabel="套索工具"
-            accessibilityHint="自由绘制选区，选择和移动内容"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.LASSO }}
-          >
-            <LassoIcon 
-              color={activeTool === DRAWING_TOOLS.LASSO ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
+        {/* 书签列表模态框 */}
+        {showBookmarkModal && renderBookmarkModal()}
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        {/* 添加书签对话框 */}
+        {showAddBookmarkDialog && renderAddBookmarkDialog()}
 
-        {/* 样式工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => setShowColorPicker(true)}
-          >
-            <View
-              style={[
-                styles.colorIndicator,
-                { backgroundColor: activeColor, width: 24, height: 24, borderRadius: 12 }
-              ]}
-            />
-          </TouchableOpacity>
+        {/* 文本输入模态框 */}
+        {showTextInputModal && renderTextInputModal()}
 
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => {
-              setShowStrokeWidthPopover(!showStrokeWidthPopover);
-              triggerHapticFeedback('light');
-            }}
-            accessibilityLabel="笔触粗细"
-            accessibilityHint="调整画笔粗细"
-            accessibilityRole="button"
-          >
-            <StrokeWidthIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-              strokeWidth={Math.min(activeStrokeWidth / 5, 4)}
-            />
-          </TouchableOpacity>
-        </View>
+        {/* 增强笔触选择器 */}
+        <PenSelector
+          visible={showPenSelector}
+          onClose={() => setShowPenSelector(false)}
+          selectedPen={selectedPenType}
+          onSelectPen={(pen) => {
+            setSelectedPenType(pen);
+            handwritingService.setPenType(pen.id);
+            // 更新粗细范围
+            if (pen.minWidth && pen.maxWidth) {
+              const midWidth = (pen.minWidth + pen.maxWidth) / 2;
+              setActiveStrokeWidth(midWidth);
+              onStrokeWidthChange?.(midWidth);
+            }
+          }}
+          strokeWidth={activeStrokeWidth}
+          onStrokeWidthChange={(width) => {
+            setActiveStrokeWidth(width);
+            onStrokeWidthChange?.(width);
+          }}
+          opacity={strokeOpacity}
+          onOpacityChange={(opacity) => {
+            setStrokeOpacity(opacity);
+          }}
+          color={activeColor}
+        />
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        {/* AI工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => setShowAIToolModal(true)}
-            accessibilityLabel="AI工具"
-            accessibilityHint="打开AI工具选择面板"
-            accessibilityRole="button"
-          >
-            <AIIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => setShowAIHistoryModal(true)}
-            accessibilityLabel="AI历史"
-            accessibilityHint="查看AI工具使用历史"
-            accessibilityRole="button"
-          >
-            <HistoryIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        {/* 形状和文本工具组 */}
-        <View style={styles.toolGroup}>
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.SHAPE && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.SHAPE && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={() => {
-              handleToolSelect(DRAWING_TOOLS.SHAPE);
-              setShowShapePicker(!showShapePicker);
-            }}
-            accessibilityLabel="形状工具"
-            accessibilityHint="选择形状进行绘制"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.SHAPE }}
-          >
-            <ShapeIcon 
-              color={activeTool === DRAWING_TOOLS.SHAPE ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.toolButton,
-              activeTool === DRAWING_TOOLS.TEXT && styles.activeToolButton,
-              activeTool === DRAWING_TOOLS.TEXT && { backgroundColor: colors.primary + '30' }
-            ]}
-            onPress={handleTextToolSelect}
-            accessibilityLabel="文本工具"
-            accessibilityHint="添加文本内容"
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTool === DRAWING_TOOLS.TEXT }}
-          >
-            <TextIcon 
-              color={activeTool === DRAWING_TOOLS.TEXT ? colors.primary : colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.toolButton}
-            onPress={() => {
-              console.log('图片按钮被点击');
-              handleImageUpload();
-            }}
-            accessibilityLabel="图片工具"
-            accessibilityHint="添加图片到画布"
-            accessibilityRole="button"
-          >
-            <ImageIcon 
-              color={colors.text} 
-              size={toolbarConfig.iconSize}
-            />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* 形状选择器 */}
-      {showShapePicker && renderShapePicker()}
-
-      {/* 颜色选择器 */}
-      {showColorPicker && renderColorPicker()}
-
-      {/* 笔触粗细弹出面板 */}
-      {showStrokeWidthPopover && renderStrokeWidthPopover()}
-
-      {/* AI工具模态框 */}
-      {showAIToolModal && renderAIToolModal()}
-
-      {/* AI历史记录模态框 */}
-      {showAIHistoryModal && renderAIHistoryModal()}
-
-      {/* AI处理加载指示器 */}
-      {isAIProcessing && renderAIProcessingIndicator()}
-
-      {/* 书签列表模态框 */}
-      {showBookmarkModal && renderBookmarkModal()}
-
-      {/* 添加书签对话框 */}
-      {showAddBookmarkDialog && renderAddBookmarkDialog()}
-
-      {/* 文本输入模态框 */}
-      {showTextInputModal && renderTextInputModal()}
+        {/* 增强形状选择器 */}
+        <ShapeToolSelector
+          visible={showEnhancedShapeSelector}
+          onClose={() => setShowEnhancedShapeSelector(false)}
+          selectedShape={selectedEnhancedShape}
+          onSelectShape={(shape) => {
+            setSelectedEnhancedShape(shape);
+            setActiveShape(shape.id);
+            onToolChange?.({ type: DRAWING_TOOLS.SHAPE, shape: shape.id, fill: shapeFillEnabled });
+          }}
+          strokeWidth={activeStrokeWidth}
+          onStrokeWidthChange={(width) => {
+            setActiveStrokeWidth(width);
+            onStrokeWidthChange?.(width);
+          }}
+          fillEnabled={shapeFillEnabled}
+          onFillToggle={() => setShapeFillEnabled(!shapeFillEnabled)}
+          color={activeColor}
+        />
       </View>
 
     </View>
@@ -2448,7 +3522,7 @@ const createStyles = (config) => StyleSheet.create({
   toolButton: {
     paddingHorizontal: config.padding,
     paddingVertical: config.padding - 2,
-    borderRadius: 6,
+    borderRadius: 10,
     margin: config.spacing,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2459,7 +3533,7 @@ const createStyles = (config) => StyleSheet.create({
     // 移除所有阴影和elevation效果，避免Android白色背景问题
   },
   disabledToolButton: {
-    opacity: 0.5,
+    opacity: 0.42,
   },
   toolLabel: {
     fontSize: config.fontSize,
@@ -2528,7 +3602,7 @@ const createStyles = (config) => StyleSheet.create({
     width: '31%',
     margin: 4,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
   },
@@ -2553,10 +3627,10 @@ const createStyles = (config) => StyleSheet.create({
   },
   historyItemButton: {
     marginTop: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    backgroundColor: '#2563eb10',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#2563eb12',
     alignSelf: 'flex-start',
   },
   emptyHistory: {
@@ -2595,7 +3669,7 @@ const createStyles = (config) => StyleSheet.create({
     borderColor: 'transparent',
   },
   activeColorItem: {
-    borderWidth: 3,    
+    borderWidth: 3,
     borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -2823,11 +3897,13 @@ const createStyles = (config) => StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+
   },
   popoverQuickButtonText: {
     fontSize: 12,
     fontWeight: '600',
   },
+
   processingOverlay: {
     position: 'absolute',
     top: 0,
@@ -2875,7 +3951,7 @@ const createStyles = (config) => StyleSheet.create({
   // 对话框样式
   dialogContainer: {
     width: '80%',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
     alignSelf: 'center',
   },
@@ -2899,14 +3975,14 @@ const createStyles = (config) => StyleSheet.create({
   dialogButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     minWidth: 80,
     alignItems: 'center',
   },
   // 文本输入模态框样式
   textModalContent: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 16,
     maxHeight: '80%',
   },
@@ -2968,7 +4044,7 @@ const createStyles = (config) => StyleSheet.create({
   textSubmitButton: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     marginTop: 8,
   },

@@ -14,14 +14,14 @@ class BackgroundLoadManager {
     this.isProcessing = false;
     this.maxConcurrentTasks = 3;
     this.currentTasks = 0;
-    
+
     // 存储键
     this.STORAGE_KEYS = {
       LOADING_STATES: 'bg_loading_states',
       TASK_QUEUE: 'bg_task_queue',
-      LOAD_PROGRESS: 'bg_load_progress_'
+      LOAD_PROGRESS: 'bg_load_progress_',
     };
-    
+
     this.init();
   }
 
@@ -31,19 +31,19 @@ class BackgroundLoadManager {
   async init() {
     try {
       console.log('BackgroundLoadManager: 初始化后台加载管理器');
-      
+
       // 恢复加载状态
       await this.restoreLoadingStates();
-      
+
       // 恢复任务队列
       await this.restoreTaskQueue();
-      
+
       // 监听应用状态变化
       this.setupAppStateListener();
-      
+
       // 开始处理队列
       this.processQueue();
-      
+
       console.log('BackgroundLoadManager: 初始化完成');
     } catch (error) {
       console.error('BackgroundLoadManager: 初始化失败:', error);
@@ -56,7 +56,7 @@ class BackgroundLoadManager {
   setupAppStateListener() {
     AppState.addEventListener('change', (nextAppState) => {
       console.log('BackgroundLoadManager: 应用状态变化:', nextAppState);
-      
+
       if (nextAppState === 'background') {
         // 应用进入后台，保存状态
         this.saveLoadingStates();
@@ -74,7 +74,7 @@ class BackgroundLoadManager {
   async addBackgroundTask(taskId, taskConfig) {
     try {
       console.log(`BackgroundLoadManager: 添加后台任务 ${taskId}`);
-      
+
       const task = {
         id: taskId,
         type: taskConfig.type || 'document',
@@ -86,20 +86,20 @@ class BackgroundLoadManager {
         progress: 0,
         retryCount: 0,
         maxRetries: taskConfig.maxRetries || 3,
-        ...taskConfig
+        ...taskConfig,
       };
 
       // 添加到任务队列
       this.taskQueue.push(task);
       this.loadingTasks.set(taskId, task);
-      
+
       // 保存状态
       await this.saveTaskQueue();
       await this.saveLoadingStates();
-      
+
       // 开始处理
       this.processQueue();
-      
+
       return task;
     } catch (error) {
       console.error(`BackgroundLoadManager: 添加任务 ${taskId} 失败:`, error);
@@ -113,10 +113,10 @@ class BackgroundLoadManager {
   async updateTaskProgress(taskId, progress, status = null) {
     try {
       const task = this.loadingTasks.get(taskId);
-      if (!task) return;
+      if (!task) {return;}
 
       task.progress = Math.max(0, Math.min(100, progress));
-      if (status) task.status = status;
+      if (status) {task.status = status;}
       task.updatedAt = Date.now();
 
       // 保存进度
@@ -125,7 +125,7 @@ class BackgroundLoadManager {
         JSON.stringify({
           progress: task.progress,
           status: task.status,
-          updatedAt: task.updatedAt
+          updatedAt: task.updatedAt,
         })
       );
 
@@ -141,7 +141,7 @@ class BackgroundLoadManager {
   async completeTask(taskId, result = null) {
     try {
       const task = this.loadingTasks.get(taskId);
-      if (!task) return;
+      if (!task) {return;}
 
       task.status = 'completed';
       task.progress = 100;
@@ -149,24 +149,24 @@ class BackgroundLoadManager {
       task.result = result;
 
       console.log(`BackgroundLoadManager: 任务 ${taskId} 完成`);
-      
+
       // 如果有结果，缓存它
       if (result) {
         await documentCacheService.cacheDocument(taskId, result, {
           type: task.type,
           uri: task.uri,
           title: task.title,
-          completedAt: task.completedAt
+          completedAt: task.completedAt,
         });
       }
 
       // 从队列中移除
       this.removeTaskFromQueue(taskId);
       this.currentTasks--;
-      
+
       // 清理进度存储
       await AsyncStorage.removeItem(this.STORAGE_KEYS.LOAD_PROGRESS + taskId);
-      
+
       // 继续处理队列
       this.processQueue();
     } catch (error) {
@@ -180,7 +180,7 @@ class BackgroundLoadManager {
   async failTask(taskId, error) {
     try {
       const task = this.loadingTasks.get(taskId);
-      if (!task) return;
+      if (!task) {return;}
 
       task.retryCount++;
       task.lastError = error.message || String(error);
@@ -190,7 +190,7 @@ class BackgroundLoadManager {
         // 重试任务
         task.status = 'retrying';
         console.log(`BackgroundLoadManager: 任务 ${taskId} 重试 (${task.retryCount}/${task.maxRetries})`);
-        
+
         // 延迟重试
         setTimeout(() => {
           this.processQueue();
@@ -199,10 +199,10 @@ class BackgroundLoadManager {
         // 任务彻底失败
         task.status = 'failed';
         console.error(`BackgroundLoadManager: 任务 ${taskId} 失败:`, error);
-        
+
         this.removeTaskFromQueue(taskId);
         this.currentTasks--;
-        
+
         // 清理进度存储
         await AsyncStorage.removeItem(this.STORAGE_KEYS.LOAD_PROGRESS + taskId);
       }
@@ -233,7 +233,7 @@ class BackgroundLoadManager {
         });
 
       for (const task of pendingTasks) {
-        if (this.currentTasks >= this.maxConcurrentTasks) break;
+        if (this.currentTasks >= this.maxConcurrentTasks) {break;}
 
         this.currentTasks++;
         task.status = 'loading';
@@ -257,11 +257,11 @@ class BackgroundLoadManager {
   async processTask(task) {
     try {
       console.log(`BackgroundLoadManager: 开始处理任务 ${task.id}`);
-      
+
       await this.updateTaskProgress(task.id, 10, 'loading');
 
       let result;
-      
+
       switch (task.type) {
         case 'document':
           result = await this.loadDocument(task);
@@ -293,19 +293,19 @@ class BackgroundLoadManager {
    */
   async loadDocument(task) {
     const RNFS = require('react-native-fs');
-    
+
     await this.updateTaskProgress(task.id, 30);
-    
+
     // 读取文件
     const content = await RNFS.readFile(task.uri, 'utf8');
-    
+
     await this.updateTaskProgress(task.id, 80);
-    
+
     return {
       type: 'text',
       content,
       uri: task.uri,
-      title: task.title
+      title: task.title,
     };
   }
 
@@ -314,19 +314,19 @@ class BackgroundLoadManager {
    */
   async loadWord(task) {
     const RNFS = require('react-native-fs');
-    
+
     await this.updateTaskProgress(task.id, 20);
-    
+
     // 读取为base64
     const base64Data = await RNFS.readFile(task.uri, 'base64');
-    
+
     await this.updateTaskProgress(task.id, 60);
-    
+
     return {
       type: 'word',
       base64: base64Data,
       uri: task.uri,
-      title: task.title
+      title: task.title,
     };
   }
 
@@ -339,7 +339,7 @@ class BackgroundLoadManager {
       id: task.id,
       status: task.status,
       progress: task.progress,
-      error: task.lastError
+      error: task.lastError,
     } : null;
   }
 
@@ -349,19 +349,19 @@ class BackgroundLoadManager {
   async cancelTask(taskId) {
     try {
       const task = this.loadingTasks.get(taskId);
-      if (!task) return;
+      if (!task) {return;}
 
       task.status = 'cancelled';
       this.removeTaskFromQueue(taskId);
       this.loadingTasks.delete(taskId);
-      
+
       if (task.status === 'loading') {
         this.currentTasks--;
       }
 
       await AsyncStorage.removeItem(this.STORAGE_KEYS.LOAD_PROGRESS + taskId);
       await this.saveLoadingStates();
-      
+
       console.log(`BackgroundLoadManager: 任务 ${taskId} 已取消`);
     } catch (error) {
       console.error(`BackgroundLoadManager: 取消任务 ${taskId} 失败:`, error);
@@ -388,9 +388,9 @@ class BackgroundLoadManager {
         status: task.status,
         progress: task.progress,
         createdAt: task.createdAt,
-        updatedAt: task.updatedAt
+        updatedAt: task.updatedAt,
       }]);
-      
+
       await AsyncStorage.setItem(this.STORAGE_KEYS.LOADING_STATES, JSON.stringify(states));
     } catch (error) {
       console.warn('BackgroundLoadManager: 保存加载状态失败:', error);

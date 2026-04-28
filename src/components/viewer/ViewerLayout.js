@@ -79,7 +79,7 @@ const ViewerLayout = ({
     {/* 内容区域 - 使用flex布局自动填充剩余空间 */}
     <View style={[
       styles.contentContainer,
-      contentStyle
+      contentStyle,
     ]}>
       {children}
     </View>

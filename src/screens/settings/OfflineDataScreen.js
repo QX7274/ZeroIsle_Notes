@@ -14,8 +14,9 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import networkService from '../../services/network/networkService';
 import { Button } from '../../components/common';
+import { rebuildSearchIndex } from '../../services/search/searchIndexRebuildService';
 
 const OfflineDataScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -33,8 +34,8 @@ const OfflineDataScreen = ({ navigation }) => {
     storageUsage: {
       current: 0,
       limit: 1024 * 1024 * 1024, // 1024MB (1GB)
-      percentage: 0
-    }
+      percentage: 0,
+    },
   });
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -44,17 +45,17 @@ const OfflineDataScreen = ({ navigation }) => {
     // 初始化时获取状态
     const fetchStatus = async () => {
       try {
-        const currentStatus = await notesApi.checkNetwork();
-        currentStatus.isOfflineMode = false;
+        const currentStatus = await networkService.checkConnection();
         setStatus(prevStatus => ({
           ...prevStatus,
-          ...currentStatus
+          ...currentStatus,
+          isOfflineMode: false,
         }));
       } catch (error) {
         console.warn('获取离线存储状态失败:', error);
       }
     };
-    
+
     fetchStatus();
 
     // 添加事件监听
@@ -66,7 +67,7 @@ const OfflineDataScreen = ({ navigation }) => {
             ...prevStatus,
             isOffline: event.isOffline,
             offlineMode: event.isOfflineMode || prevStatus.offlineMode,
-            isOnline: !event.isOffline
+            isOnline: !event.isOffline,
           }));
         }
       } catch (error) {
@@ -127,7 +128,7 @@ const OfflineDataScreen = ({ navigation }) => {
         // 更新状态以显示同步中
         setStatus(prevStatus => ({
           ...prevStatus,
-          syncStatus: 'syncing'
+          syncStatus: 'syncing',
         }));
 
         // 模拟同步延迟
@@ -138,7 +139,7 @@ const OfflineDataScreen = ({ navigation }) => {
           ...prevStatus,
           syncStatus: 'idle',
           lastSyncTime: new Date().toISOString(),
-          pendingOperationsCount: 0
+          pendingOperationsCount: 0,
         }));
 
         Alert.alert('同步成功', '数据已成功同步到云端');
@@ -151,11 +152,40 @@ const OfflineDataScreen = ({ navigation }) => {
       setStatus(prevStatus => ({
         ...prevStatus,
         syncStatus: 'error',
-        syncError: error.message || '未知错误'
+        syncError: error.message || '未知错误',
       }));
     } finally {
       setIsLoading(false);
     }
+  }; 
+
+  // 重建搜索索引（SearchIndex）
+  const handleRebuildSearchIndex = () => {
+    Alert.alert(
+      '重建搜索索引',
+      '该操作会重新扫描本地数据并重建搜索索引。数据量较大时可能需要较长时间，建议在充电与网络稳定时执行。是否继续？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '开始',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await rebuildSearchIndex({
+                includeNotes: true,
+                includeKnowledge: true,
+                batchSize: 200,
+              });
+              Alert.alert('完成', '搜索索引重建完成');
+            } catch (e) {
+              Alert.alert('失败', e?.message || '搜索索引重建失败');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // 处理清除离线数据
@@ -197,8 +227,8 @@ const OfflineDataScreen = ({ navigation }) => {
                   storageUsage: {
                     ...prevStatus.storageUsage,
                     current: 0,
-                    percentage: 0
-                  }
+                    percentage: 0,
+                  },
                 }));
 
                 Alert.alert('清除成功', '所有离线数据已清除');
@@ -219,7 +249,7 @@ const OfflineDataScreen = ({ navigation }) => {
 
   // 格式化最后同步时间
   const formatLastSyncTime = () => {
-    if (!status.lastSyncTime) return '从未同步';
+    if (!status.lastSyncTime) {return '从未同步';}
 
     const lastSync = new Date(status.lastSyncTime);
     return lastSync.toLocaleString();
@@ -302,7 +332,7 @@ const OfflineDataScreen = ({ navigation }) => {
               <View
                 style={[
                   styles.statusIndicator,
-                  { backgroundColor: status.isOnline ? colors.success : colors.error }
+                  { backgroundColor: status.isOnline ? colors.success : colors.error },
                 ]}
               />
               <Text
@@ -406,7 +436,7 @@ const OfflineDataScreen = ({ navigation }) => {
           <View
             style={[
               styles.storageBar,
-              { backgroundColor: colors.border }
+              { backgroundColor: colors.border },
             ]}
           >
             <View
@@ -416,11 +446,21 @@ const OfflineDataScreen = ({ navigation }) => {
                   width: `${Math.min(status.storageUsage.percentage, 100)}%`,
                   backgroundColor: status.storageUsage.percentage > 90 ? colors.error :
                                   status.storageUsage.percentage > 70 ? colors.warning :
-                                  colors.success
-                }
+                                  colors.success,
+                },
               ]}
             />
           </View>
+
+          {/* 【修复2】添加重建搜索索引按钮（原代码遗漏，补充后功能完整） */}
+          <Button
+            title="重建搜索索引"
+            onPress={handleRebuildSearchIndex}
+            type="outline"
+            style={styles.rebuildIndexButton}
+            icon="search"
+            disabled={isLoading}
+          />
 
           <Button
             title="清除离线数据"
@@ -507,6 +547,12 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     margin: 16,
+  },
+  // 重建搜索索引按钮
+  rebuildIndexButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
   },
 });
 

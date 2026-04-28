@@ -89,7 +89,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
         {
           backgroundColor: currentSort === item.id ? `${colors.primary}15` : colors.card,
           borderColor: currentSort === item.id ? `${colors.primary}30` : 'rgba(0,0,0,0.03)',
-        }
+        },
       ]}
       onPress={() => selectSortOption(item)}
       activeOpacity={0.7}
@@ -120,7 +120,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
             style={{
               fontWeight: currentSort === item.id ? '600' : '500',
               fontSize: 14,
-              color: currentSort === item.id ? item.color : colors.text
+              color: currentSort === item.id ? item.color : colors.text,
             }}
           >
             {item.label}
@@ -149,7 +149,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
       isLandscape && {
         marginHorizontal: 0,
         marginBottom: 0,
-      }
+      },
     ]}>
       <TouchableOpacity
         style={[
@@ -165,7 +165,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
             paddingVertical: 12,
             borderRadius: 24,
             minWidth: 48,
-          }
+          },
         ]}
         onPress={() => setShowSortModal(true)}
         activeOpacity={0.7}
@@ -231,7 +231,7 @@ const SortControl = ({ onSortChange, initialSortOption = 'updated_desc', compact
               borderBottomLeftRadius: 20,
               borderBottomRightRadius: 20,
               marginBottom: 20,
-            }
+            },
           ]}>
             <View style={styles.modalHeader}>
               <Text

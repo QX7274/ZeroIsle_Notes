@@ -36,8 +36,9 @@ export const REALM_SYNC_CONFIG = {
   },
 };
 
-// MongoDB Atlas连接信息
+// MongoDB Atlas连接信息 - 生产环境严禁在此硬编码，应通过环境变量注入
 export const MONGODB_ATLAS_CONFIG = {
-  uri: 'mongodb+srv://qianxin7274:zxcvbnm@@081325@cluster0.lo5ybvq.mongodb.net/',
+  // 建议通过环境变量配置：process.env.MONGODB_ATLAS_URI
+  uri: '',
   dbName: 'ZeroIsle_Notes',
 };

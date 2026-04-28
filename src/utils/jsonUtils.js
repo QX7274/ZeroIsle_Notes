@@ -41,7 +41,7 @@ export const safeParseJSON = (jsonString, defaultValue = null) => {
   }
 
   // 处理空字符串
-  if (jsonString === '') return defaultValue;
+  if (jsonString === '') {return defaultValue;}
 
   try {
     // 尝试直接解析
@@ -50,7 +50,7 @@ export const safeParseJSON = (jsonString, defaultValue = null) => {
     try {
       // 处理特殊字符
       const cleanedString = cleanJSONString(jsonString);
-      if (!cleanedString) return defaultValue;
+      if (!cleanedString) {return defaultValue;}
 
       return JSON.parse(cleanedString);
     } catch (innerError) {
@@ -85,7 +85,7 @@ export const cleanJSONString = (jsonString) => {
   }
 
   // 处理空字符串
-  if (!jsonString) return '';
+  if (!jsonString) {return '';}
 
   try {
     // 移除BOM标记
@@ -133,5 +133,5 @@ export const safeStringifyJSON = (data, defaultValue = '{}') => {
 export default {
   safeParseJSON,
   cleanJSONString,
-  safeStringifyJSON
+  safeStringifyJSON,
 };

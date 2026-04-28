@@ -3,21 +3,23 @@
  * 处理与服务器的通信，包括文档上传、下载、删除等操作
  */
 import axios from 'axios';
-import NetInfo from '@react-native-community/netinfo';
+
 import { Alert } from 'react-native';
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
 import { authService } from './auth';
 import realmService from './database/realmService';
 import * as apiService from './api/apiClient';
+import networkService from './network/networkService';
 import networkErrorService from './networkErrorService';
+import { API_URL, API_VERSION } from '../config';
 
 // 创建axios实例
 const apiInstance = axios.create({
-  baseURL: 'https://api.zeroislenotes.com',
+  baseURL: `${API_URL}/api/${API_VERSION}`,
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // 请求拦截器 - 添加认证信息
@@ -48,18 +50,18 @@ apiInstance.interceptors.response.use(
         return apiInstance(originalRequest);
       } else {
         // 令牌刷新失败，需要重新登录
-        authService.logout();
+        authService.forceLogout(); // 强制登出并触发导航
         networkErrorService.handleApiError(new Error('认证失败'), {
           context: '认证失败',
-          customMessage: '您的登录已过期，请重新登录'
+          customMessage: '您的登录已过期，请重新登录',
         });
       }
     }
 
     // 处理网络错误
     if (!response) {
-      const networkState = await NetInfo.fetch();
-      if (!networkState.isConnected) {
+      const networkState = await networkService.checkConnection();
+      if (!networkState?.isOnline) {
         return Promise.reject(new Error('网络连接已断开，请检查您的网络设置'));
       }
     }
@@ -76,7 +78,37 @@ const apiWrapper = {
   post: (url, data = {}) => apiInstance.post(url, data),
   put: (url, data = {}) => apiInstance.put(url, data),
   patch: (url, data = {}) => apiInstance.patch(url, data),
-  delete: (url) => apiInstance.delete(url)
+  delete: (url) => apiInstance.delete(url),
+};
+
+// 统一构建离线队列对象，避免 Realm 字段类型不匹配
+const buildOfflineQueueItem = (operation, url, payload = {}) => {
+  const now = new Date();
+  const safeData = (() => {
+    if (payload === undefined || payload === null) return '{}';
+    if (typeof FormData !== 'undefined' && payload instanceof FormData) {
+      // FormData 无法可靠序列化到离线队列
+      return '{}';
+    }
+    try {
+      return JSON.stringify(payload);
+    } catch (e) {
+      return '{}';
+    }
+  })();
+
+  return {
+    _id: `offline_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`,
+    entity_id: '',
+    entity_type: 'api_request',
+    operation,
+    data: safeData,
+    status: 'pending',
+    retry_count: 0,
+    created_at: now,
+    updated_at: now,
+    _partition: 'offline_queue',
+  };
 };
 
 const notesApi = {
@@ -87,10 +119,11 @@ const notesApi = {
    * @returns {Promise<Object>} 网络状态对象
    */
   checkNetwork: async () => {
-    const networkState = await NetInfo.fetch();
+    const networkState = await networkService.checkConnection();
     return {
-      isConnected: networkState.isConnected,
-      isInternetReachable: networkState.isInternetReachable
+      isConnected: Boolean(networkState?.isOnline),
+      isInternetReachable: networkState?.details?.isInternetReachable,
+      isOnline: Boolean(networkState?.isOnline),
     };
   },
 
@@ -104,7 +137,7 @@ const notesApi = {
     try {
       // 检查网络连接
       const networkState = await notesApi.checkNetwork();
-      if (!networkState.isConnected) {
+      if (!networkState.isOnline) {
         // 尝试从本地获取缓存数据
         const realm = await realmService.getRealm();
         const item = realm.objects('StorageItem').filtered(`key = "api_cache_${url}"`);
@@ -152,16 +185,15 @@ const notesApi = {
   post: async (url, data = {}, config = {}) => {
     try {
       const networkState = await notesApi.checkNetwork();
-      if (!networkState.isConnected) {
+      if (!networkState.isOnline) {
         // 离线状态下，将请求加入待同步队列
         const realm = await realmService.getRealm();
         realm.write(() => {
-          realm.create('OfflineQueue', {
-            method: 'post',
+          realm.create('OfflineQueue', buildOfflineQueueItem('post', url, {
             url,
             data,
-            config
-          });
+            config,
+          }));
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
       }
@@ -182,14 +214,14 @@ const notesApi = {
   put: async (url, data = {}) => {
     try {
       const networkState = await notesApi.checkNetwork();
-      if (!networkState.isConnected) {
+      if (!networkState.isOnline) {
         // 离线状态下，将请求加入待同步队列
         const realm = await realmService.getRealm();
         realm.write(() => {
           realm.create('OfflineQueue', {
             method: 'put',
             url,
-            data
+            data,
           });
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
@@ -210,13 +242,13 @@ const notesApi = {
   delete: async (url) => {
     try {
       const networkState = await notesApi.checkNetwork();
-      if (!networkState.isConnected) {
+      if (!networkState.isOnline) {
         // 离线状态下，将请求加入待同步队列
         const realm = await realmService.getRealm();
         realm.write(() => {
           realm.create('OfflineQueue', {
             method: 'delete',
-            url
+            url,
           });
         });
         throw new Error('网络连接已断开，操作将在网络恢复后自动同步');
@@ -236,7 +268,7 @@ const notesApi = {
   syncPendingRequests: async () => {
     try {
       const networkState = await notesApi.checkNetwork();
-      if (!networkState.isConnected) {
+      if (!networkState.isOnline) {
         throw new Error('无网络连接，无法同步数据');
       }
 
@@ -265,13 +297,13 @@ const notesApi = {
           const realm = await realmService.getRealm();
           realm.write(() => {
             const item = realm.objects('OfflineQueue').filtered(`entity_id = "${request.id}"`);
-            if (item.length > 0) realm.delete(item[0]);
+            if (item.length > 0) {realm.delete(item[0]);}
           });
           syncResults.push({
             id: request.id,
             url: request.url,
             method: request.method,
-            status: 'success'
+            status: 'success',
           });
         } catch (error) {
           syncResults.push({
@@ -279,7 +311,7 @@ const notesApi = {
             url: request.url,
             method: request.method,
             status: 'failed',
-            error: error.message
+            error: error.message,
           });
         }
       }
@@ -321,8 +353,8 @@ const notesApi = {
     uploadDocument: async (formData) => {
       return apiWrapper.post('/documents/upload', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+        },
       });
     },
 
@@ -352,16 +384,16 @@ const notesApi = {
      */
     downloadDocument: async (id) => {
       return apiWrapper.get(`/documents/${id}/download`, {
-        responseType: 'blob'
+        responseType: 'blob',
       });
-    }
-  }
+    },
+  },
 };
 
 
 // 监听网络状态变化，自动同步数据
-NetInfo.addEventListener(state => {
-  if (state.isConnected && state.isInternetReachable) {
+networkService.addNetworkListener(state => {
+  if (state?.isOnline) {
     console.log('网络已连接，开始同步数据...');
     // 延迟执行，避免网络刚恢复时连接不稳定
     setTimeout(() => {

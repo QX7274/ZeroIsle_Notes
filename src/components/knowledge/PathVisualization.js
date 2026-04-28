@@ -130,7 +130,7 @@ const PathVisualization = ({
           <G>
             {/* 渲染连接线和标签 */}
             {path.map((item, index) => {
-              if (index === 0 || !item.edge) return null;
+              if (index === 0 || !item.edge) {return null;}
 
               const prevItem = path[index - 1];
               const startX = svgDimensions.paddingX + (index - 1) * 200;

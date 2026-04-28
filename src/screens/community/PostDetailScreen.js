@@ -22,7 +22,9 @@ import {
   fetchComments,
   likePost,
   toggleBookmark,
-  postComment
+  postComment,
+  toggleUserFollow,
+  toggleCommentLike,
 } from '../../redux/slices/communitySlice';
 import networkErrorService from '../../services/networkErrorService';
 
@@ -43,78 +45,14 @@ const PostDetailScreen = ({ route, navigation }) => {
     isLoading,
     error,
     likedPosts,
-    bookmarkedPosts
+    bookmarkedPosts,
+    likedComments,
+    followedUsers,
   } = useSelector(state => state.community);
 
   const liked = post ? likedPosts[post.id] : false;
   const bookmarked = post ? bookmarkedPosts[post.id] : false;
-
-  // 模拟帖子数据
-  const mockPost = {
-    id: '1',
-    title: '高效笔记方法分享',
-    author: '学习达人',
-    authorAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-    content: `在使用零屿笔记的过程中，我总结了一些提高效率的方法，希望对大家有所帮助。
-
-1. **结构化笔记法**
-   使用标题、子标题和列表来组织笔记内容，让信息层次分明。零屿笔记的富文本编辑器支持多级标题和各种列表格式，非常适合这种方法。
-
-2. **关键词标记**
-   在笔记中使用标签功能标记关键词，方便日后通过关键词快速检索相关笔记。
-
-3. **知识图谱关联**
-   对于相关联的知识点，使用知识图谱功能建立连接，形成知识网络，帮助理解复杂概念之间的关系。
-
-4. **定期复习提醒**
-   对重要的笔记设置复习提醒，按照艾宾浩斯遗忘曲线的时间间隔进行复习，提高记忆效果。
-
-5. **语音笔记转文本**
-   在灵感突发或没有时间打字的情况下，使用语音转文本功能快速记录想法，后续再整理完善。
-
-希望这些方法对大家有所帮助，欢迎在评论区分享你的笔记方法！`,
-    likes: 128,
-    comments: 32,
-    downloads: 56,
-    timestamp: '2025-04-20T10:30:00Z',
-    tags: ['学习方法', '效率提升', '笔记技巧'],
-    attachments: [
-      {
-        id: '1',
-        name: '高效笔记模板.pdf',
-        size: '2.5MB',
-        type: 'pdf',
-      },
-    ],
-  };
-
-  // 模拟评论数据
-  const mockComments = [
-    {
-      id: '1',
-      author: '知识探索者',
-      authorAvatar: 'https://randomuser.me/api/portraits/women/22.jpg',
-      content: '非常实用的方法，特别是知识图谱关联这一点，帮我理清了很多复杂概念之间的关系！',
-      timestamp: '2025-04-20T14:25:00Z',
-      likes: 15,
-    },
-    {
-      id: '2',
-      author: '效率控',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/45.jpg',
-      content: '语音转文本功能确实很方便，我经常在通勤路上用它记录想法。',
-      timestamp: '2025-04-20T16:10:00Z',
-      likes: 8,
-    },
-    {
-      id: '3',
-      author: '学习达人',
-      authorAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-      content: '谢谢大家的支持！我后续会分享更多使用技巧。',
-      timestamp: '2025-04-20T18:30:00Z',
-      likes: 20,
-    },
-  ];
+  const followed = post && post.authorId ? (followedUsers[post.authorId] ?? post.followed) : false;
 
   // 加载数据
   useEffect(() => {
@@ -133,41 +71,25 @@ const PostDetailScreen = ({ route, navigation }) => {
       await dispatch(fetchComments({ postId, page: 1 })).unwrap();
     } catch (error) {
       console.error('加载帖子详情失败:', error);
-      
+
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, {
           context: '加载帖子详情',
-          customMessage: '网络连接失败，无法加载帖子详情'
+          customMessage: '网络连接失败，无法加载帖子详情',
         });
       }
 
-      // 如果API加载失败，使用模拟数据
-      dispatch({
-        type: 'community/fetchPostDetailSuccess',
-        payload: mockPost
-      });
-
-      dispatch({
-        type: 'community/fetchCommentsSuccess',
-        payload: {
-          comments: mockComments,
-          pagination: {
-            page: 1,
-            totalPages: 1,
-            totalItems: mockComments.length
-          }
-        }
-      });
+      // API加载失败时不使用模拟数据，保持错误状态由Redux处理
     }
   };
 
   // 提交评论
   const handleSubmitComment = () => {
-    if (!commentText.trim() || !post) return;
+    if (!commentText.trim() || !post) {return;}
 
     dispatch(postComment({
       postId: post.id,
-      content: commentText
+      content: commentText,
     }));
 
     setCommentText('');
@@ -175,19 +97,25 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   // 点赞
   const handleLike = () => {
-    if (!post) return;
+    if (!post) {return;}
     dispatch(likePost({ postId: post.id, liked: !liked }));
   };
 
   // 收藏
   const handleBookmark = () => {
-    if (!post) return;
+    if (!post) {return;}
     dispatch(toggleBookmark(post.id));
+  };
+
+  // 关注作者
+  const handleFollow = () => {
+    if (!post || !post.authorId) {return;}
+    dispatch(toggleUserFollow(post.authorId));
   };
 
   // 分享
   const handleShare = async () => {
-    if (!post) return;
+    if (!post) {return;}
 
     try {
       await Share.share({
@@ -321,6 +249,16 @@ const PostDetailScreen = ({ route, navigation }) => {
               {post.likes}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.statButton} onPress={handleFollow}>
+            <Icon
+              name={followed ? 'person-remove' : 'person-add'}
+              size={20}
+              color={followed ? theme.primary : theme.textSecondary}
+            />
+            <Text style={[styles.statText, { color: followed ? theme.primary : theme.textSecondary }]}>
+              {followed ? '已关注' : '关注'}
+            </Text>
+          </TouchableOpacity>
           <View style={styles.statItem}>
             <Icon name="comment" size={20} color={theme.textSecondary} />
             <Text style={[styles.statText, { color: theme.textSecondary }]}>
@@ -360,9 +298,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                 {comment.content}
               </Text>
               <View style={styles.commentFooter}>
-                <TouchableOpacity style={styles.commentLike}>
-                  <Icon name="thumb-up-off-alt" size={16} color={theme.textSecondary} />
-                  <Text style={[styles.commentLikeCount, { color: theme.textSecondary }]}>
+                <TouchableOpacity style={styles.commentLike} onPress={() => dispatch(toggleCommentLike(comment.id))}>
+                  <Icon name={(likedComments?.[comment.id] ? 'thumb-up' : 'thumb-up-off-alt')} size={16} color={(likedComments?.[comment.id] ? theme.primary : theme.textSecondary)} />
+                  <Text style={[styles.commentLikeCount, { color: (likedComments?.[comment.id] ? theme.primary : theme.textSecondary) }]}>
                     {comment.likes}
                   </Text>
                 </TouchableOpacity>

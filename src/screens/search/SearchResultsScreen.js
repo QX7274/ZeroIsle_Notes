@@ -19,7 +19,17 @@ import SearchFilters from '../../components/search/SearchFilters';
 import SearchHistory from '../../components/search/SearchHistory';
 
 const SearchResultsScreen = ({ navigation, route }) => {
-  const { colors } = useTheme();
+  const themeContext = useTheme();
+  const colors = (themeContext && themeContext.colors) ? themeContext.colors : {
+    primary: '#007AFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    card: '#FFFFFF',
+    background: '#F2F2F2',
+    border: '#E5E5EA',
+    error: '#FF3B30',
+    primaryLight: '#E3F2FD',
+  };
   const dispatch = useDispatch();
 
   // 从路由参数获取搜索结果和查询
@@ -58,8 +68,8 @@ const SearchResultsScreen = ({ navigation, route }) => {
         payload: {
           query,
           mode: initialSearchMode,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   }, [dispatch, initialSearchMode, currentQuery]);
@@ -72,7 +82,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
         // 重新执行搜索
         const newResults = await dispatch({
           type: 'search/search',
-          payload: { query: currentQuery, mode: initialSearchMode }
+          payload: { query: currentQuery, mode: initialSearchMode },
         }).unwrap();
 
         setResults(newResults);
@@ -97,7 +107,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
     // 按标签过滤
     if (currentFilters.tags && currentFilters.tags.length > 0) {
       filtered = filtered.filter(item => {
-        if (!item.tags) return false;
+        if (!item.tags) {return false;}
         return currentFilters.tags.some(tagId =>
           item.tags.some(tag => tag.id === tagId || tag === tagId)
         );
@@ -182,7 +192,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
     // 执行搜索
     dispatch({
       type: 'search/search',
-      payload: { query: history.query, mode: history.mode || 'text' }
+      payload: { query: history.query, mode: history.mode || 'text' },
     })
       .then(action => {
         if (action.payload) {
@@ -208,56 +218,56 @@ const SearchResultsScreen = ({ navigation, route }) => {
           // 优先使用新的流畅笔记界面
           navigation.navigate('FluidPagedNote', {
             noteId: result.id || result._id,
-            title: result.title || result.name
+            title: result.title || result.name,
           });
           break;
 
         case 'card':
           navigation.navigate('CardNote', {
             noteId: result.id || result._id,
-            title: result.title || result.name
+            title: result.title || result.name,
           });
           break;
 
         case 'canvas':
           navigation.navigate('InfiniteCanvas', {
             noteId: result.id,
-            title: result.title || '无限草稿'
+            title: result.title || '无限草稿',
           });
           break;
 
         case 'pdf':
           navigation.navigate('PDFViewer', {
             uri: result.path || result.uri || result.filePath,
-            title: result.title || result.name || result.fileName
+            title: result.title || result.name || result.fileName,
           });
           break;
 
         case 'ppt':
           navigation.navigate('PPTViewer', {
             uri: result.path || result.uri || result.filePath,
-            title: result.title || result.name || result.fileName
+            title: result.title || result.name || result.fileName,
           });
           break;
 
         case 'doc':
           navigation.navigate('DocViewer', {
             uri: result.path || result.uri || result.filePath,
-            title: result.title || result.name || result.fileName
+            title: result.title || result.name || result.fileName,
           });
           break;
 
         case 'md':
           navigation.navigate('MarkdownViewer', {
             uri: result.path || result.uri || result.filePath,
-            title: result.title || result.name || result.fileName
+            title: result.title || result.name || result.fileName,
           });
           break;
 
         case 'tag':
           navigation.navigate('TagNotes', {
             tagId: result.id,
-            tagName: result.title
+            tagName: result.title,
           });
           break;
 
@@ -269,7 +279,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
           // 默认跳转到流畅笔记界面
           navigation.navigate('FluidPagedNote', {
             noteId: result.id || result._id,
-            title: result.title || result.name || '未命名文件'
+            title: result.title || result.name || '未命名文件',
           });
           break;
       }
@@ -283,8 +293,8 @@ const SearchResultsScreen = ({ navigation, route }) => {
   const renderResultItem = ({ item }) => {
     // 根据结果类型选择图标
     let iconName = 'description';
-    if (item.type === 'tag') iconName = 'local-offer';
-    else if (item.type === 'knowledge') iconName = 'bubble-chart';
+    if (item.type === 'tag') {iconName = 'local-offer';}
+    else if (item.type === 'knowledge') {iconName = 'bubble-chart';}
 
     return (
       <TouchableOpacity

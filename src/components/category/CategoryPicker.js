@@ -78,7 +78,7 @@ const CategoryPicker = ({
 
   // 渲染"无"选项
   const renderNoneOption = () => {
-    if (!allowNone) return null;
+    if (!allowNone) {return null;}
 
     const isSelected = selectedId === null;
 

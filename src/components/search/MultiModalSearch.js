@@ -49,7 +49,7 @@ const MultiModalSearch = ({
   onSearch,
   onCancel,
   initialQuery = '',
-  searchScope = 'home'
+  searchScope = 'home',
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
@@ -115,7 +115,7 @@ const MultiModalSearch = ({
       // 添加新的搜索记录到开头
       history.unshift({
         query,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       // 限制历史记录数量
@@ -254,7 +254,7 @@ const MultiModalSearch = ({
 
   // 播放录音
   const playRecording = async () => {
-    if (!recordingUri) return;
+    if (!recordingUri) {return;}
 
     try {
       setIsPlaying(true);
@@ -276,7 +276,7 @@ const MultiModalSearch = ({
 
   // 处理搜索
   const handleSearch = async () => {
-    if (isLoading) return;
+    if (isLoading) {return;}
 
     setLocalError(null);
     setShowSuggestions(false);
@@ -289,17 +289,17 @@ const MultiModalSearch = ({
 
       switch (reduxSearchMode) {
         case 'text':
-          if (!searchQuery.trim()) throw new Error('请输入搜索内容');
+          if (!searchQuery.trim()) {throw new Error('请输入搜索内容');}
           searchData.query = searchQuery.trim();
           break;
 
         case 'voice':
-          if (!searchQuery.trim()) throw new Error('没有识别到语音内容');
+          if (!searchQuery.trim()) {throw new Error('没有识别到语音内容');}
           searchData.query = searchQuery.trim();
           break;
 
         case 'image':
-          if (!selectedImage) throw new Error('没有选择图片');
+          if (!selectedImage) {throw new Error('没有选择图片');}
           const imageData = await RNFS.readFile(selectedImage.uri, 'base64');
           searchData.imageBase64 = imageData;
           break;
@@ -326,7 +326,7 @@ const MultiModalSearch = ({
           searchMode: reduxSearchMode,
           searchScope: searchScope,
           hasResults,
-          onNavigateToFile: handleNavigateToFile
+          onNavigateToFile: handleNavigateToFile,
         });
 
         // 如果有结果，导航到搜索结果页面
@@ -339,7 +339,7 @@ const MultiModalSearch = ({
               results,
               query: searchQuery,
               searchMode: reduxSearchMode,
-              onNavigateToFile: handleNavigateToFile
+              onNavigateToFile: handleNavigateToFile,
             });
           } else {
             console.error('Navigation对象不可用，无法跳转到搜索结果页面');
@@ -349,7 +349,7 @@ const MultiModalSearch = ({
               searchMode: reduxSearchMode,
               searchScope: searchScope,
               hasResults,
-              onNavigateToFile: handleNavigateToFile
+              onNavigateToFile: handleNavigateToFile,
             });
           }
         } else {
@@ -361,7 +361,7 @@ const MultiModalSearch = ({
         dispatch(addToSearchHistory({
           query: searchQuery,
           mode: reduxSearchMode,
-          scope: searchScope
+          scope: searchScope,
         }));
       }
     } catch (err) {
@@ -400,67 +400,67 @@ const MultiModalSearch = ({
       if (file.sourceType === 'note' || file.type === 'note' || file.noteType === 'paged') {
         navigation.navigate('FluidPagedNote', {
           noteId: fileId,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.sourceType === 'canvas' || file.type === 'canvas' || file.noteType === 'canvas') {
         navigation.navigate('InfiniteCanvas', {
           noteId: fileId,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.type === 'card' || file.noteType === 'card') {
         navigation.navigate('CardNote', {
           noteId: fileId,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.type === 'pdf' || file.file_type === 'pdf' ||
                  (fileTitle && fileTitle.toLowerCase().includes('.pdf'))) {
         navigation.navigate('PDFViewer', {
           uri: file.path || file.uri || file.filePath,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.type === 'ppt' || file.file_type === 'ppt' ||
                  (fileTitle && (fileTitle.toLowerCase().includes('.ppt') ||
                                 fileTitle.toLowerCase().includes('.pptx')))) {
         navigation.navigate('PPTViewer', {
           uri: file.path || file.uri || file.filePath,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.type === 'doc' || file.file_type === 'doc' ||
                  (fileTitle && (fileTitle.toLowerCase().includes('.doc') ||
                                 fileTitle.toLowerCase().includes('.docx')))) {
         navigation.navigate('DocViewer', {
           uri: file.path || file.uri || file.filePath,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (file.type === 'md' || file.file_type === 'markdown' ||
                  (fileTitle && fileTitle.toLowerCase().includes('.md'))) {
         navigation.navigate('MarkdownViewer', {
           uri: file.path || file.uri || file.filePath,
-          title: fileTitle
+          title: fileTitle,
         });
       } else if (fileId) {
         // 有ID的默认当作笔记处理
         if (fileId.includes('canvas')) {
           navigation.navigate('InfiniteCanvas', {
             noteId: fileId,
-            title: fileTitle
+            title: fileTitle,
           });
         } else if (fileId.includes('card')) {
           navigation.navigate('CardNote', {
             noteId: fileId,
-            title: fileTitle
+            title: fileTitle,
           });
         } else {
           navigation.navigate('FluidPagedNote', {
             noteId: fileId,
-            title: fileTitle
+            title: fileTitle,
           });
         }
       } else {
         // 最后的兜底：创建新笔记
         navigation.navigate('FluidPagedNote', {
           title: fileTitle,
-          createNew: true // 明确标记为新建
+          createNew: true, // 明确标记为新建
         });
       }
 
@@ -482,7 +482,7 @@ const MultiModalSearch = ({
 
   // 切换搜索模式
   const switchSearchMode = (mode) => {
-    if (mode === reduxSearchMode) return;
+    if (mode === reduxSearchMode) {return;}
 
     if (reduxSearchMode === 'voice' && isListening) {
       stopVoiceRecognition();
@@ -548,8 +548,8 @@ const MultiModalSearch = ({
         ? await launchCamera(options)
         : await launchImageLibrary(options);
 
-      if (result.didCancel) return;
-      if (result.errorCode) throw new Error(result.errorMessage);
+      if (result.didCancel) {return;}
+      if (result.errorCode) {throw new Error(result.errorMessage);}
 
       if (result.assets?.[0]) {
         setSelectedImage(result.assets[0]);
@@ -592,7 +592,7 @@ const MultiModalSearch = ({
             color: colors.text,
             borderColor: colors.border,
             backgroundColor: colors.card,
-          }
+          },
         ]}
         placeholder={getPlaceholderText()}
         placeholderTextColor={colors.textSecondary}
@@ -754,7 +754,7 @@ const MultiModalSearch = ({
                 position: 'absolute',
                 bottom: 16,
                 right: 16,
-              }
+              },
             ]}
             onPress={handleSearch}
             disabled={isLoading}
@@ -822,7 +822,7 @@ const MultiModalSearch = ({
                 styles.searchModeButton,
                 {
                   backgroundColor: reduxSearchMode === mode ? `${colors.primary}20` : '#ffffff',
-                  borderColor: colors.primary
+                  borderColor: colors.primary,
                 },
                 reduxSearchMode === mode && [
                   styles.activeSearchModeButton,
@@ -866,7 +866,7 @@ const MultiModalSearch = ({
                   key={`quick-${item.query}-${index}`}
                   style={[styles.quickHistoryChip, {
                     backgroundColor: colors.primary + '15',
-                    borderColor: colors.primary + '30'
+                    borderColor: colors.primary + '30',
                   }]}
                   onPress={() => handleHistoryItemPress(item)}
                   activeOpacity={0.7}

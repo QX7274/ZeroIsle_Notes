@@ -1,0 +1,10 @@
+Name: python-dotenv
+Version: 1.0.0
+Summary: Read key-value pairs from a .env file and set them as environment variables
+Home-page: https://github.com/theskumar/python-dotenv
+Author: Saurabh Kumar
+Author-email: me+github@saurabh-kumar.com
+License: BSD-3-Clause
+Location: d:\ZeroIsle_Notes\backend\.venv\Lib\site-packages
+Requires: 
+Required-by: 

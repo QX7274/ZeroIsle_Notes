@@ -7,7 +7,7 @@ import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
 import { networkService } from '../network/networkService';
 import STORAGE_KEYS from '../../constants/storageKeys';
-import { API_ENDPOINTS } from '../../config/api';
+import { API_BASE_URL } from '../../config/api';
 import axios from 'axios';
 import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
@@ -25,7 +25,7 @@ class UploadService {
    * 初始化上传服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -35,7 +35,7 @@ class UploadService {
       try {
         // 创建API客户端
         this.apiClient = axios.create({
-          baseURL: API_ENDPOINTS.BASE_URL,
+          baseURL: API_BASE_URL,
           timeout: 30000, // 上传可能需要更长时间
         });
 
@@ -97,6 +97,27 @@ class UploadService {
     }
   }
 
+  _normalizeUploadErrorPayload(error, fallbackMessage = '上传失败') {
+    const status = error?.status ?? error?.response?.status ?? null;
+    const code = error?.code ?? error?.response?.data?.code ?? null;
+    const responseData = error?.responseData ?? error?.response?.data ?? null;
+    const isNetworkError = Boolean(
+      error?.isNetworkError ||
+      (error?.request && !error?.response) ||
+      ['ECONNABORTED', 'ERR_NETWORK', 'NETWORK_ERROR'].includes(error?.code)
+    );
+
+    return {
+      name: error?.name || 'UploadServiceError',
+      message: error?.message || fallbackMessage,
+      status,
+      code,
+      responseData,
+      isNetworkError,
+      originalError: error || null,
+    };
+  }
+
   /**
    * 上传数据
    * @param {string} collection 集合名称
@@ -116,7 +137,7 @@ class UploadService {
       data,
       timestamp: new Date().toISOString(),
       retryCount: 0,
-      status: 'pending'
+      status: 'pending',
     };
 
     // 添加到上传队列
@@ -128,10 +149,10 @@ class UploadService {
       return this.processUploadQueue();
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: '数据已添加到上传队列',
-      queueId: uploadItem.id
+      queueId: uploadItem.id,
     };
   }
 
@@ -158,16 +179,16 @@ class UploadService {
         metadata,
         timestamp: new Date().toISOString(),
         retryCount: 0,
-        status: 'pending'
+        status: 'pending',
       };
 
       this.uploadQueue.push(uploadItem);
       await this.saveUploadQueue();
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: '文件已添加到上传队列',
-        queueId: uploadItem.id
+        queueId: uploadItem.id,
       };
     }
 
@@ -176,56 +197,70 @@ class UploadService {
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
       const token = item.length > 0 ? item[0].value : null;
-      
+
       if (!token) {
-        return { success: false, message: '未登录，无法上传文件' };
+        return {
+          success: false,
+          message: '未登录，无法上传文件',
+          error: this._normalizeUploadErrorPayload(
+            { status: 401, message: '未登录，无法上传文件', name: 'UploadAuthError' },
+            '未登录，无法上传文件'
+          ),
+        };
       }
 
       // 检查文件是否存在
       const fileExists = await RNFS.exists(filePath);
       if (!fileExists) {
-        return { success: false, message: '文件不存在' };
+        return {
+          success: false,
+          message: '文件不存在',
+          error: this._normalizeUploadErrorPayload(
+            { name: 'FileNotFoundError', message: '文件不存在' },
+            '文件不存在'
+          ),
+        };
       }
 
       // 创建FormData
       const formData = new FormData();
-      
+
       // 添加文件
       const fileStats = await RNFS.stat(filePath);
       const fileName = filePath.split('/').pop();
-      
+
       formData.append('file', {
         uri: Platform.OS === 'android' ? filePath : `file://${filePath}`,
         name: fileName,
         type: metadata.mimeType || 'application/octet-stream',
-        size: fileStats.size
+        size: fileStats.size,
       });
-      
+
       // 添加元数据
       Object.keys(metadata).forEach(key => {
         formData.append(key, metadata[key]);
       });
-      
+
       // 添加集合和ID
       formData.append('collection', collection);
       formData.append('recordId', id);
 
       // 上传文件
-      const response = await this.apiClient.post(`/upload`, formData, {
+      const response = await this.apiClient.post('/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
         },
         onUploadProgress: onProgress ? (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           onProgress(percentCompleted);
-        } : undefined
+        } : undefined,
       });
 
       return { success: true, data: response.data };
     } catch (error) {
       logService.error(`上传文件失败: ${filePath}`, error);
-      
+
       // 添加到上传队列
       const uploadItem = {
         id: `file_${collection}_${id}_${Date.now()}`,
@@ -237,17 +272,23 @@ class UploadService {
         timestamp: new Date().toISOString(),
         retryCount: 0,
         status: 'failed',
-        error: error.message
+        error: error.message,
       };
 
       this.uploadQueue.push(uploadItem);
       await this.saveUploadQueue();
-      
-      return { 
-        success: false, 
-        message: error.response?.data?.message || '上传文件失败',
-        error,
-        queueId: uploadItem.id
+
+      const normalizedError = this._normalizeUploadErrorPayload(error, '上传文件失败');
+
+      return {
+        success: false,
+        message: normalizedError.message,
+        status: normalizedError.status,
+        code: normalizedError.code,
+        responseData: normalizedError.responseData,
+        isNetworkError: normalizedError.isNetworkError,
+        error: normalizedError,
+        queueId: uploadItem.id,
       };
     }
   }
@@ -258,10 +299,10 @@ class UploadService {
    */
   async processUploadQueue() {
     if (!networkService.isOnline() || this.isUploading || this.uploadQueue.length === 0) {
-      return { 
-        success: false, 
-        message: !networkService.isOnline() ? '离线状态无法上传' : 
-                 this.isUploading ? '上传已在进行中' : '上传队列为空'
+      return {
+        success: false,
+        message: !networkService.isOnline() ? '离线状态无法上传' :
+                 this.isUploading ? '上传已在进行中' : '上传队列为空',
       };
     }
 
@@ -274,22 +315,35 @@ class UploadService {
         total: this.uploadQueue.length,
         succeeded: 0,
         failed: 0,
-        items: []
+        items: [],
       };
 
       // 获取认证令牌
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
       const token = item.length > 0 ? item[0].value : null;
-      
+
       if (!token) {
         this.isUploading = false;
-        return { success: false, message: '未登录，无法上传数据' };
+        const authError = this._normalizeUploadErrorPayload(
+          { status: 401, message: '未登录，无法上传数据', name: 'UploadAuthError' },
+          '未登录，无法上传数据'
+        );
+
+        return {
+          success: false,
+          message: authError.message,
+          status: authError.status,
+          code: authError.code,
+          responseData: authError.responseData,
+          isNetworkError: authError.isNetworkError,
+          error: authError,
+        };
       }
 
       // 处理队列中的每一项
       const newQueue = [];
-      
+
       for (const item of this.uploadQueue) {
         try {
           if (item.type === 'file') {
@@ -297,51 +351,60 @@ class UploadService {
             const fileExists = await RNFS.exists(item.filePath);
             if (!fileExists) {
               results.failed++;
+              const notFoundError = this._normalizeUploadErrorPayload(
+                { name: 'FileNotFoundError', message: '文件不存在' },
+                '文件不存在'
+              );
               results.items.push({
                 id: item.id,
                 success: false,
-                message: '文件不存在'
+                message: notFoundError.message,
+                status: notFoundError.status,
+                code: notFoundError.code,
+                responseData: notFoundError.responseData,
+                isNetworkError: notFoundError.isNetworkError,
+                error: notFoundError,
               });
               continue;
             }
 
             // 创建FormData
             const formData = new FormData();
-            
+
             // 添加文件
             const fileStats = await RNFS.stat(item.filePath);
             const fileName = item.filePath.split('/').pop();
-            
+
             formData.append('file', {
               uri: Platform.OS === 'android' ? item.filePath : `file://${item.filePath}`,
               name: fileName,
               type: item.metadata.mimeType || 'application/octet-stream',
-              size: fileStats.size
+              size: fileStats.size,
             });
-            
+
             // 添加元数据
             Object.keys(item.metadata || {}).forEach(key => {
               formData.append(key, item.metadata[key]);
             });
-            
+
             // 添加集合和ID
             formData.append('collection', item.collection);
             formData.append('recordId', item.recordId);
 
             // 上传文件
-            await this.apiClient.post(`/upload`, formData, {
+            await this.apiClient.post('/upload', formData, {
               headers: {
                 'Content-Type': 'multipart/form-data',
-                'Authorization': `Bearer ${token}`
-              }
+                'Authorization': `Bearer ${token}`,
+              },
             });
           } else {
             // 处理数据上传
             await this.apiClient.post(`/${item.collection}/${item.recordId}/upload`, item.data, {
               headers: {
                 'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
+                'Content-Type': 'application/json',
+              },
             });
           }
 
@@ -349,27 +412,32 @@ class UploadService {
           results.succeeded++;
           results.items.push({
             id: item.id,
-            success: true
+            success: true,
           });
         } catch (error) {
           // 上传失败，增加重试次数
           item.retryCount = (item.retryCount || 0) + 1;
           item.status = 'failed';
           item.error = error.message;
-          
+
           // 如果重试次数小于3，保留在队列中
           if (item.retryCount < 3) {
             newQueue.push(item);
           }
-          
+
           results.failed++;
+          const normalizedError = this._normalizeUploadErrorPayload(error, '上传失败');
           results.items.push({
             id: item.id,
             success: false,
-            message: error.response?.data?.message || '上传失败',
-            error: error.message
+            message: normalizedError.message,
+            status: normalizedError.status,
+            code: normalizedError.code,
+            responseData: normalizedError.responseData,
+            isNetworkError: normalizedError.isNetworkError,
+            error: normalizedError,
           });
-          
+
           logService.error(`上传项 ${item.id} 失败`, error);
         }
       }
@@ -383,10 +451,16 @@ class UploadService {
     } catch (error) {
       logService.error('处理上传队列失败', error);
       this.isUploading = false;
-      return { 
-        success: false, 
-        message: '处理上传队列失败',
-        error: error.message
+      const normalizedError = this._normalizeUploadErrorPayload(error, '处理上传队列失败');
+
+      return {
+        success: false,
+        message: normalizedError.message,
+        status: normalizedError.status,
+        code: normalizedError.code,
+        responseData: normalizedError.responseData,
+        isNetworkError: normalizedError.isNetworkError,
+        error: normalizedError,
       };
     }
   }

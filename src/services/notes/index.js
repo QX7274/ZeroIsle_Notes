@@ -11,5 +11,5 @@ export {
   syncService,
   noteUtils,
   NOTE_TYPES,
-  NOTE_TYPE_COLORS
+  NOTE_TYPE_COLORS,
 };

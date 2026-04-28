@@ -278,7 +278,7 @@ class SearchHistory extends Realm.Object {
     let query = `user_id = "${userId}"`;
 
     if (keepFavorites) {
-      query += ` AND is_favorite = false`;
+      query += ' AND is_favorite = false';
     }
 
     if (context) {

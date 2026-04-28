@@ -8,9 +8,11 @@ import {
   BulbOutlined,
   LogoutOutlined,
   MenuUnfoldOutlined,
-  MenuFoldOutlined
+  MenuFoldOutlined,
 } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import authStorage from '../../services/auth/authStorage';
+import { clearAuthInfo } from '../../services/auth/authUtils';
 import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -21,14 +23,21 @@ const MainLayout = ({ children, toggleTheme, isDarkMode }) => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
 
-  // 从localStorage获取用户信息
-  const userString = localStorage.getItem('user');
-  const user = userString ? JSON.parse(userString) : null;
+  // 用户信息状态
+  const [user, setUser] = React.useState(null);
+
+  // 加载用户信息
+  React.useEffect(() => {
+    const loadUser = async () => {
+      const userData = await authStorage.getUser();
+      setUser(userData);
+    };
+    loadUser();
+  }, []);
 
   // 处理登出
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await clearAuthInfo();
     navigate('/login');
   };
 

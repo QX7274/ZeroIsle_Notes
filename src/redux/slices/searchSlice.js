@@ -4,16 +4,17 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import searchApi from '../../services/api/searchApi';
+import { parseSearchQuery } from '../../utils/searchUtils';
 
 // 本地搜索工具函数
 const fuzzySearch = (text, query) => {
-  if (!text || !query) return false;
+  if (!text || !query) {return false;}
 
   const textLower = text.toLowerCase();
   const queryLower = query.toLowerCase();
 
   // 精确匹配
-  if (textLower.includes(queryLower)) return true;
+  if (textLower.includes(queryLower)) {return true;}
 
   // 模糊匹配 - 检查查询词的字符是否按顺序出现在文本中
   let queryIndex = 0;
@@ -27,7 +28,7 @@ const fuzzySearch = (text, query) => {
 };
 
 const searchInContent = (content, query) => {
-  if (!content || !query) return { found: false, matches: [] };
+  if (!content || !query) {return { found: false, matches: [] };}
 
   const queryLower = query.toLowerCase();
   const contentLower = content.toLowerCase();
@@ -44,7 +45,7 @@ const searchInContent = (content, query) => {
     matches.push({
       index,
       context,
-      highlight: query
+      highlight: query,
     });
 
     index = contentLower.indexOf(queryLower, index + 1);
@@ -54,27 +55,51 @@ const searchInContent = (content, query) => {
 };
 
 // 本地搜索函数 - 支持多种数据类型
-const performLocalSearch = (allData, query, scope = 'all') => {
-  if (!query || !query.trim()) return [];
+const performLocalSearch = (allData, query, scope = 'all', operators = {}) => {
+  if (!query || !query.trim()) {return [];}
   if (!allData || !Array.isArray(allData)) {
     console.warn('SearchSlice: 搜索数据无效:', allData);
     return [];
   }
 
   const searchQuery = query.trim();
-  const results = [];
+  let results = [];
 
-  allData.forEach(item => {
-    if (!item) return;
+  // --- Operator Filtering ---
+  let filteredData = allData;
+
+  // 'is:' operator
+  if (operators.is) {
+    filteredData = filteredData.filter(item => detectItemType(item) === operators.is);
+  }
+
+  // 'tag:' operator
+  if (operators.tag) {
+    filteredData = filteredData.filter(item =>
+      item.tags && item.tags.some(tag => tag.toLowerCase() === operators.tag.toLowerCase())
+    );
+  }
+
+  // 'linked-to:' operator
+  if (operators.linkedTo) {
+    const targetTitle = operators.linkedTo;
+    filteredData = filteredData.filter(item =>
+      item.content && item.content.includes(`[[${targetTitle}]]`)
+    );
+  }
+
+
+  filteredData.forEach(item => {
+    if (!item) {return;}
 
     // 根据scope过滤
-    if (scope !== 'all' && item.sourceType !== scope && item.type !== scope) return;
+    if (scope !== 'all' && item.sourceType !== scope && item.type !== scope) {return;}
 
     let relevanceScore = 0;
     let matchDetails = {
       titleMatch: false,
       contentMatch: false,
-      matches: []
+      matches: [],
     };
 
     // 获取标题（支持多种字段名）
@@ -126,21 +151,51 @@ const performLocalSearch = (allData, query, scope = 'all') => {
         searchQuery,
         type: detectedType,
         displayTitle: title || '未命名',
-        displayContent: content ? content.substring(0, 100) + '...' : ''
+        displayContent: content ? content.substring(0, 100) + '...' : '',
       });
     }
   });
 
+  // --- 查找关联笔记 ---
+  const finalResults = [...results];
+  const allNotes = allData.filter(item => detectItemType(item) === 'note');
+  const noteTitleMap = new Map(allNotes.map(note => [note.title || note.name || note.fileName || '', note]));
+
+  results.forEach(result => {
+    if (detectItemType(result) === 'note' && result.content) {
+      const linkRegex = /\[\[([^\]]+)\]\]/g;
+      let match;
+      while ((match = linkRegex.exec(result.content)) !== null) {
+        const linkedTitle = match[1];
+        const linkedNote = noteTitleMap.get(linkedTitle);
+
+        if (linkedNote && !finalResults.some(r => r._id === linkedNote._id)) {
+          finalResults.push({
+            ...linkedNote,
+            relevanceScore: 1, // 给关联笔记一个较低的基础分
+            matchDetails: {
+              isRelated: true,
+              relatedTo: result.displayTitle,
+            },
+            type: 'note',
+            displayTitle: linkedNote.title || linkedNote.name || linkedNote.fileName || '未命名',
+            displayContent: linkedNote.content ? linkedNote.content.substring(0, 100) + '...' : '',
+          });
+        }
+      }
+    }
+  });
+
   // 按相关性排序
-  return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  return finalResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
 };
 
 // 智能文件类型检测
 const detectItemType = (item) => {
   // 优先使用已有的类型信息
-  if (item.type) return item.type;
-  if (item.sourceType) return item.sourceType;
-  if (item.noteType) return item.noteType;
+  if (item.type) {return item.type;}
+  if (item.sourceType) {return item.sourceType;}
+  if (item.noteType) {return item.noteType;}
 
   // 根据文件扩展名检测
   const fileName = item.fileName || item.name || item.title || '';
@@ -218,7 +273,7 @@ export const localSearch = createAsyncThunk(
         ...notes.map(note => ({ ...note, sourceType: 'note' })),
         ...canvases.map(canvas => ({ ...canvas, sourceType: 'canvas' })),
         ...files.map(file => ({ ...file, sourceType: 'file' })),
-        ...reminders.map(reminder => ({ ...reminder, sourceType: 'reminder' }))
+        ...reminders.map(reminder => ({ ...reminder, sourceType: 'reminder' })),
       ];
 
       console.log('SearchSlice: 搜索数据源统计:', {
@@ -226,11 +281,14 @@ export const localSearch = createAsyncThunk(
         canvases: canvases.length,
         files: files.length,
         reminders: reminders.length,
-        total: allData.length
+        total: allData.length,
       });
 
+      // 解析高级搜索查询
+      const { mainQuery, operators } = parseSearchQuery(query);
+
       // 执行本地搜索
-      const results = performLocalSearch(allData, query, scope);
+      const results = performLocalSearch(allData, mainQuery, scope, operators);
 
       console.log('SearchSlice: 本地搜索完成，结果数量:', results.length);
       return {
@@ -240,7 +298,7 @@ export const localSearch = createAsyncThunk(
         results,
         timestamp: Date.now(),
         hasResults: results.length > 0,
-        isLocal: true
+        isLocal: true,
       };
     } catch (error) {
       console.error('SearchSlice: 本地搜索失败:', error);
@@ -258,7 +316,7 @@ export const search = createAsyncThunk(
       // 确保 options 包含 scope 参数
       const options = {
         ...searchData.options,
-        scope: searchData.scope || 'home'
+        scope: searchData.scope || 'home',
       };
 
       if (searchData.mode === 'text') {
@@ -286,7 +344,7 @@ export const knowledgeGraphSearch = createAsyncThunk(
       // 确保 options 包含 scope 参数
       const options = {
         ...searchData.options,
-        scope: searchData.scope || 'home'
+        scope: searchData.scope || 'home',
       };
 
       const response = await searchApi.knowledgeGraphSearch(
@@ -318,7 +376,7 @@ export const fetchSearchHistory = createAsyncThunk(
 
         return {
           history: filteredHistory,
-          isLocalData: true
+          isLocalData: true,
         };
       }
 
@@ -338,7 +396,7 @@ export const fetchSearchHistory = createAsyncThunk(
         return {
           history: currentHistory.slice(0, limit),
           isLocalData: true,
-          error: error.message
+          error: error.message,
         };
       } catch (fallbackError) {
         return rejectWithValue(error.message || '获取搜索历史失败');
@@ -535,7 +593,7 @@ const searchSlice = createSlice({
               mode: action.payload.mode || 'text',
               scope: action.payload.scope || 'all',
               timestamp: action.payload.timestamp,
-              resultCount: action.payload.results.length
+              resultCount: action.payload.results.length,
             },
           });
 

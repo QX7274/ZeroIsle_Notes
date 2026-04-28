@@ -13,7 +13,7 @@ export const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-  }
+  },
 });
 
 // 请求拦截器
@@ -71,5 +71,5 @@ axiosInstance.interceptors.response.use(
 
 export default {
   axiosInstance,
-  API_BASE_URL
+  API_BASE_URL,
 };

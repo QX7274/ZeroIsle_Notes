@@ -9,7 +9,7 @@ import { COLORS } from '../utils/constants/colors';
 
 // 导出间距常量
 export const SPACING = {
-  ...DimensionsSpacing
+  ...DimensionsSpacing,
 };
 
 // 导出排版常量
@@ -20,12 +20,12 @@ export const TYPOGRAPHY = {
   FONT_SIZE_LARGE: FONT_SIZE.TITLE_SMALL,
   FONT_SIZE_XLARGE: FONT_SIZE.TITLE,
   FONT_SIZE_XXLARGE: FONT_SIZE.TITLE_LARGE,
-  
+
   FONT_WEIGHT_LIGHT: '300',
   FONT_WEIGHT_REGULAR: '400',
   FONT_WEIGHT_MEDIUM: '500',
   FONT_WEIGHT_BOLD: '700',
-  
+
   LINE_HEIGHT_TIGHT: 1.2,
   LINE_HEIGHT_NORMAL: 1.5,
   LINE_HEIGHT_LOOSE: 1.8,
@@ -41,7 +41,7 @@ export const BORDERS = {
   RADIUS_LARGE: 16,
   RADIUS_XLARGE: 24,
   RADIUS_ROUND: 999,
-  
+
   WIDTH_THIN: 0.5,
   WIDTH_NORMAL: 1,
   WIDTH_THICK: 2,

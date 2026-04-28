@@ -8,7 +8,7 @@ import {
   Modal,
   Animated,
   Pressable,
-  Easing
+  Easing,
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -28,7 +28,7 @@ const SpeakerLabel = ({
   editable = false,
   onRename = null,
   similarity = null,
-  color = null // 允许外部传入颜色
+  color = null, // 允许外部传入颜色
 }) => {
   const { colors } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
@@ -45,21 +45,21 @@ const SpeakerLabel = ({
           toValue: 1.1,
           duration: 200,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic)
+          easing: Easing.out(Easing.cubic),
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
           duration: 200,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic)
-        })
+          easing: Easing.out(Easing.cubic),
+        }),
       ]).start();
     } else {
       // 重置动画
       Animated.timing(scaleAnim, {
         toValue: 1,
         duration: 200,
-        useNativeDriver: true
+        useNativeDriver: true,
       }).start();
     }
   }, [isActive]);
@@ -67,7 +67,7 @@ const SpeakerLabel = ({
   // 根据说话人ID生成颜色
   const getSpeakerColor = (id) => {
     // 如果外部传入了颜色，优先使用
-    if (color) return color;
+    if (color) {return color;}
 
     const colorPalette = [
       '#4285F4', // 蓝色
@@ -79,7 +79,7 @@ const SpeakerLabel = ({
       '#16A085', // 青色
       '#E74C3C', // 深红色
       '#3498DB', // 浅蓝色
-      '#2C3E50'  // 深蓝色
+      '#2C3E50',  // 深蓝色
     ];
 
     // 确保ID是数字
@@ -99,7 +99,7 @@ const SpeakerLabel = ({
       'account-supervisor',
       'account-circle',
       'account-box',
-      'account-network'
+      'account-network',
     ];
 
     // 确保ID是数字
@@ -114,20 +114,20 @@ const SpeakerLabel = ({
         return {
           container: { height: 26, paddingHorizontal: 8 },
           text: { fontSize: 12 },
-          icon: 14
+          icon: 14,
         };
       case 'large':
         return {
           container: { height: 40, paddingHorizontal: 14 },
           text: { fontSize: 16 },
-          icon: 20
+          icon: 20,
         };
       case 'medium':
       default:
         return {
           container: { height: 32, paddingHorizontal: 12 },
           text: { fontSize: 14 },
-          icon: 16
+          icon: 16,
         };
     }
   };
@@ -140,13 +140,13 @@ const SpeakerLabel = ({
         Animated.timing(scaleAnim, {
           toValue: 0.9,
           duration: 100,
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
           duration: 100,
-          useNativeDriver: true
-        })
+          useNativeDriver: true,
+        }),
       ]).start();
 
       setEditName(displayName);
@@ -177,20 +177,20 @@ const SpeakerLabel = ({
 
   // 显示相似度指示器
   const renderSimilarityIndicator = () => {
-    if (similarity === null || size === 'small') return null;
+    if (similarity === null || size === 'small') {return null;}
 
     // 相似度颜色
     let indicatorColor = '#ccc';
-    if (similarity > 0.9) indicatorColor = '#4CAF50';
-    else if (similarity > 0.7) indicatorColor = '#FFC107';
-    else if (similarity > 0.5) indicatorColor = '#FF9800';
-    else indicatorColor = '#F44336';
+    if (similarity > 0.9) {indicatorColor = '#4CAF50';}
+    else if (similarity > 0.7) {indicatorColor = '#FFC107';}
+    else if (similarity > 0.5) {indicatorColor = '#FF9800';}
+    else {indicatorColor = '#F44336';}
 
     return (
       <View
         style={[
           styles.similarityIndicator,
-          { backgroundColor: indicatorColor }
+          { backgroundColor: indicatorColor },
         ]}
       />
     );
@@ -201,12 +201,12 @@ const SpeakerLabel = ({
     if (isActive) {
       return [
         speakerColor,
-        speakerColor + 'EE'
+        speakerColor + 'EE',
       ];
     } else {
       return [
         speakerColor + '20',
-        speakerColor + '30'
+        speakerColor + '30',
       ];
     }
   };
@@ -216,7 +216,7 @@ const SpeakerLabel = ({
       <Animated.View
         style={{
           transform: [{ scale: scaleAnim }],
-          opacity: fadeAnim
+          opacity: fadeAnim,
         }}
       >
         <TouchableOpacity
@@ -234,9 +234,9 @@ const SpeakerLabel = ({
               {
                 borderColor: isActive ? 'transparent' : speakerColor,
                 shadowColor: isActive ? speakerColor : 'transparent',
-                elevation: isActive ? 3 : 0
+                elevation: isActive ? 3 : 0,
               },
-              style
+              style,
             ]}
           >
             <Icon
@@ -249,7 +249,7 @@ const SpeakerLabel = ({
               style={[
                 styles.text,
                 sizeStyles.text,
-                { color: isActive ? '#fff' : speakerColor }
+                { color: isActive ? '#fff' : speakerColor },
               ]}
               numberOfLines={1}
             >
@@ -293,8 +293,8 @@ const SpeakerLabel = ({
               {
                 backgroundColor: colors.card,
                 borderLeftWidth: 4,
-                borderLeftColor: speakerColor
-              }
+                borderLeftColor: speakerColor,
+              },
             ]}
           >
             <View style={styles.modalHeader}>
@@ -310,8 +310,8 @@ const SpeakerLabel = ({
                 {
                   color: colors.text,
                   borderColor: colors.border,
-                  backgroundColor: colors.background
-                }
+                  backgroundColor: colors.background,
+                },
               ]}
               value={editName}
               onChangeText={setEditName}
@@ -327,7 +327,7 @@ const SpeakerLabel = ({
                 style={[
                   styles.button,
                   styles.cancelButton,
-                  { backgroundColor: colors.border }
+                  { backgroundColor: colors.border },
                 ]}
                 onPress={() => setIsEditing(false)}
               >
@@ -338,7 +338,7 @@ const SpeakerLabel = ({
                 style={[
                   styles.button,
                   styles.saveButton,
-                  { backgroundColor: speakerColor }
+                  { backgroundColor: speakerColor },
                 ]}
                 onPress={handleRename}
               >
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 15,
-  }
+  },
 });
 
 export default SpeakerLabel;

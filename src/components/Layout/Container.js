@@ -48,18 +48,18 @@ const Container = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 确定背景颜色
   const bgColor = backgroundColor || colors.background;
-  
+
   // 确定状态栏样式
   const barStyle = statusBarStyle || (theme.dark ? 'light-content' : 'dark-content');
-  
+
   // 渲染内容
   const renderContent = () => {
     // 基本内容
     let content = children;
-    
+
     // 如果需要可滚动
     if (scrollable) {
       content = (
@@ -79,7 +79,7 @@ const Container = ({
         </ScrollView>
       );
     }
-    
+
     // 如果需要避免键盘遮挡
     if (keyboardAvoiding) {
       content = (
@@ -92,7 +92,7 @@ const Container = ({
         </KeyboardAvoidingView>
       );
     }
-    
+
     // 如果需要点击空白处关闭键盘
     if (dismissKeyboard) {
       content = (
@@ -101,10 +101,10 @@ const Container = ({
         </TouchableWithoutFeedback>
       );
     }
-    
+
     return content;
   };
-  
+
   // 渲染容器
   const renderContainer = () => {
     const containerStyle = [
@@ -112,7 +112,7 @@ const Container = ({
       { backgroundColor: bgColor },
       style,
     ];
-    
+
     if (useSafeArea) {
       return (
         <SafeAreaView style={containerStyle}>
@@ -120,10 +120,10 @@ const Container = ({
         </SafeAreaView>
       );
     }
-    
+
     return <View style={containerStyle}>{renderContent()}</View>;
   };
-  
+
   return (
     <>
       <StatusBar

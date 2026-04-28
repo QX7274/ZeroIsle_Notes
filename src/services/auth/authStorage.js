@@ -3,8 +3,16 @@
  * 提供认证相关的存储功能
  */
 
-import realmService from '../database/realmService';
+import { Platform } from 'react-native';
+// 这里的 import 可能会导致 Web 平台报错，我们采用条件加载或在方法内动态获取
+// import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
+import tokenService from './tokenService';
+
+const getRealmService = () => {
+  if (Platform.OS === 'web') {return null;}
+  return require('../database/realmService').default || require('../database/realmService');
+};
 
 /**
  * 认证存储服务
@@ -19,7 +27,7 @@ class AuthStorage {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -27,8 +35,12 @@ class AuthStorage {
 
     this.initializationPromise = new Promise(async (resolve, reject) => {
       try {
-        // 初始化Realm存储服务
-        // realmService 不需要手动初始化
+        await tokenService.initialize();
+
+        const realmService = getRealmService();
+        if (realmService && typeof realmService.initialize === 'function') {
+          await realmService.initialize();
+        }
 
         this.initialized = true;
         logService.info('认证存储服务初始化成功');
@@ -50,6 +62,12 @@ class AuthStorage {
   async getItem(key) {
     try {
       await this.initialize();
+
+      if (Platform.OS === 'web') {
+        return localStorage.getItem(key);
+      }
+
+      const realmService = getRealmService();
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
       return item.length > 0 ? item[0].value : null;
@@ -68,6 +86,13 @@ class AuthStorage {
   async setItem(key, value) {
     try {
       await this.initialize();
+
+      if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+        return true;
+      }
+
+      const realmService = getRealmService();
       const realm = await realmService.getRealm();
       realm.write(() => {
         const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
@@ -98,10 +123,17 @@ class AuthStorage {
   async removeItem(key) {
     try {
       await this.initialize();
+
+      if (Platform.OS === 'web') {
+        localStorage.removeItem(key);
+        return true;
+      }
+
+      const realmService = getRealmService();
       const realm = await realmService.getRealm();
       realm.write(() => {
         const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-        if (item.length > 0) realm.delete(item[0]);
+        if (item.length > 0) {realm.delete(item[0]);}
       });
       return true;
     } catch (error) {
@@ -142,16 +174,42 @@ class AuthStorage {
 
   /**
    * 保存认证令牌
-   * @param {string} token 认证令牌
+   * 兼容历史 string token，同时支持保存包含 realm_jwt 的 token 对象
+   * @param {string|object} token 认证令牌
    * @returns {Promise<boolean>} 是否成功
    */
   async saveToken(token) {
     try {
       await this.initialize();
-      // 保存到多个位置，确保兼容性
-      await this.setItem('token', token);
-      await this.setItem('auth_token', token);
-      return true;
+
+      // 兼容：历史逻辑只保存 access token 字符串
+      if (typeof token === 'string') {
+        return await tokenService.saveAccessToken(token);
+      }
+
+      // 新逻辑：保存 token 对象（包含 access_token/refresh_token/realm_jwt 等）
+      if (token && typeof token === 'object') {
+        if (token.access_token) {
+          await tokenService.saveAccessToken(token.access_token);
+        } else if (token.access) {
+          await tokenService.saveAccessToken(token.access);
+        }
+
+        if (token.refresh_token) {
+          await tokenService.saveRefreshToken(token.refresh_token);
+        } else if (token.refresh) {
+          await tokenService.saveRefreshToken(token.refresh);
+        }
+
+        // realm_jwt 通过 AuthStorage 的 item 存储（web/localStorage 或 realm StorageItem）
+        if (token.realm_jwt) {
+          await this.setItem('realm_jwt', token.realm_jwt);
+        }
+
+        return true;
+      }
+
+      return false;
     } catch (error) {
       logService.error('保存认证令牌失败', error);
       return false;
@@ -160,19 +218,29 @@ class AuthStorage {
 
   /**
    * 获取认证令牌
-   * @returns {Promise<string|null>} 认证令牌
+   * @returns {Promise<string|null>} access token
    */
   async getToken() {
     try {
       await this.initialize();
-      // 尝试从多个位置获取
-      let token = await this.getItem('auth_token');
-      if (!token) {
-        token = await this.getItem('token');
-      }
-      return token;
+      const tokenData = await tokenService.getAccessToken();
+      return tokenData ? tokenData.token : null;
     } catch (error) {
       logService.error('获取认证令牌失败', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取 Realm JWT
+   * @returns {Promise<string|null>} realm_jwt
+   */
+  async getRealmJwt() {
+    try {
+      await this.initialize();
+      return await this.getItem('realm_jwt');
+    } catch (error) {
+      logService.error('获取 realm_jwt 失败', error);
       return null;
     }
   }
@@ -184,11 +252,18 @@ class AuthStorage {
   async clearAuth() {
     try {
       await this.initialize();
-      await this.removeItem('token');
-      await this.removeItem('auth_token');
+      // 清除安全存储中的令牌
+      await tokenService.clearTokens();
+
+      // 清除Realm中的其他信息
       await this.removeItem('user');
       await this.removeItem('user_info');
+
+      // 兼容旧数据的清除
+      await this.removeItem('token');
+      await this.removeItem('auth_token');
       await this.removeItem('refresh_token');
+
       return true;
     } catch (error) {
       logService.error('清除认证信息失败', error);

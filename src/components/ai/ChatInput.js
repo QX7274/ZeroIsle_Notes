@@ -67,7 +67,7 @@ const ChatInput = ({
 
   // 发送消息
   const handleSend = () => {
-    if (message.trim() === '') return;
+    if (message.trim() === '') {return;}
 
     onSend && onSend(message.trim());
     setMessage('');
@@ -94,7 +94,7 @@ const ChatInput = ({
         <TouchableOpacity
           style={[
             styles.actionButton,
-            { backgroundColor: colors.error }
+            { backgroundColor: colors.error },
           ]}
           onPress={handleCancel}
         >
@@ -115,7 +115,7 @@ const ChatInput = ({
 
   // 渲染语音按钮
   const renderVoiceButton = () => {
-    if (isLoading || !voiceEnabled) return null;
+    if (isLoading || !voiceEnabled) {return null;}
 
     return (
       <TouchableOpacity
@@ -131,7 +131,7 @@ const ChatInput = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.3,
             shadowRadius: 3,
-          }
+          },
         ]}
         onPress={handleVoiceButton}
         activeOpacity={0.7}
@@ -192,7 +192,7 @@ const ChatInput = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.3,
             shadowRadius: 3,
-          }
+          },
         ]}
         onPress={handleSend}
         disabled={isDisabled}
@@ -216,17 +216,17 @@ const ChatInput = ({
   return (
     <View style={[
       styles.container,
-      { backgroundColor: colors.card }
+      { backgroundColor: colors.card },
     ]}>
       <View style={[
         styles.inputContainer,
-        { backgroundColor: colors.background }
+        { backgroundColor: colors.background },
       ]}>
         <TextInput
           ref={inputRef}
           style={[
             styles.input,
-            { color: colors.text }
+            { color: colors.text },
           ]}
           value={message}
           onChangeText={setMessage}

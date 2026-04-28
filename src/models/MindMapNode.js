@@ -317,7 +317,7 @@ class MindMapNode extends Realm.Object {
 
     if (parent_id !== undefined) {
       if (parent_id === null) {
-        query += ` AND parent_id = null`;
+        query += ' AND parent_id = null';
       } else {
         query += ` AND parent_id = "${parent_id}"`;
       }

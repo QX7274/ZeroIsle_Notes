@@ -83,7 +83,7 @@ class RealmInitializer {
       return isOnline;
     } catch (error) {
       console.error('检查网络连接失败', error);
-      return false;
+      throw error;
     }
   }
 

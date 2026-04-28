@@ -47,7 +47,7 @@ const VoiceTranscription = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 状态
   const [audioPath, setAudioPath] = useState(initialAudioPath || '');
   const [transcription, setTranscription] = useState(initialTranscription || '');
@@ -55,17 +55,17 @@ const VoiceTranscription = ({
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
-  
+
   // 引用
   const scrollViewRef = useRef(null);
   const realtimeSession = useRef(null);
-  
+
   // 组件挂载时检查初始音频
   useEffect(() => {
     if (initialAudioPath && autoTranscribe && !initialTranscription) {
       transcribeAudio(initialAudioPath);
     }
-    
+
     // 组件卸载时清理
     return () => {
       if (realtimeSession.current) {
@@ -73,7 +73,7 @@ const VoiceTranscription = ({
       }
     };
   }, []);
-  
+
   // 当转写文本变化时，滚动到底部
   useEffect(() => {
     if (scrollViewRef.current) {
@@ -82,56 +82,56 @@ const VoiceTranscription = ({
       }, 100);
     }
   }, [transcription]);
-  
+
   // 处理录音完成
   const handleRecordingComplete = (filePath) => {
     setAudioPath(filePath);
     setIsRecording(false);
-    
+
     // 自动转写
     if (autoTranscribe) {
       transcribeAudio(filePath);
     }
   };
-  
+
   // 处理录音开始
   const handleRecordingStart = () => {
     setIsRecording(true);
     setTranscription('');
     setError(null);
-    
+
     // 实时转写
     if (realtime) {
       startRealtimeTranscription();
     }
   };
-  
+
   // 处理录音取消
   const handleRecordingCancel = () => {
     setIsRecording(false);
-    
+
     // 停止实时转写
     if (realtime && realtimeSession.current) {
       stopRealtimeTranscription();
     }
-    
+
     // 调用取消回调
     if (onTranscriptionCancel) {
       onTranscriptionCancel();
     }
   };
-  
+
   // 开始实时转写
   const startRealtimeTranscription = async () => {
     try {
       setIsTranscribing(true);
       setError(null);
-      
+
       // 调用开始回调
       if (onTranscriptionStart) {
         onTranscriptionStart();
       }
-      
+
       // 创建实时转写会话
       realtimeSession.current = await voiceService.startRealtimeTranscription({
         onPartialResult: (result) => {
@@ -150,7 +150,7 @@ const VoiceTranscription = ({
           setIsTranscribing(false);
         },
       });
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('start_realtime_transcription');
     } catch (error) {
@@ -159,28 +159,28 @@ const VoiceTranscription = ({
       setIsTranscribing(false);
     }
   };
-  
+
   // 停止实时转写
   const stopRealtimeTranscription = async () => {
-    if (!realtimeSession.current) return;
-    
+    if (!realtimeSession.current) {return;}
+
     try {
       // 停止实时转写会话
       const finalResult = await voiceService.stopRealtimeTranscription(realtimeSession.current);
       realtimeSession.current = null;
-      
+
       // 更新最终转写结果
       if (finalResult && finalResult.text) {
         setTranscription(finalResult.text);
-        
+
         // 调用完成回调
         if (onTranscriptionComplete) {
           onTranscriptionComplete(finalResult.text);
         }
       }
-      
+
       setIsTranscribing(false);
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('stop_realtime_transcription', {
         transcriptionLength: finalResult?.text?.length || 0,
@@ -191,33 +191,33 @@ const VoiceTranscription = ({
       setIsTranscribing(false);
     }
   };
-  
+
   // 转写音频文件
   const transcribeAudio = async (filePath) => {
     if (!filePath) {
       setError('没有可用的音频文件');
       return;
     }
-    
+
     try {
       setIsTranscribing(true);
       setError(null);
       setProgress(0);
-      
+
       // 调用开始回调
       if (onTranscriptionStart) {
         onTranscriptionStart();
       }
-      
+
       // 转写音频文件
       const result = await voiceService.transcribeAudio(filePath, {
         onProgress: (p) => setProgress(p),
       });
-      
+
       // 更新转写结果
       if (result && result.text) {
         setTranscription(result.text);
-        
+
         // 调用完成回调
         if (onTranscriptionComplete) {
           onTranscriptionComplete(result.text);
@@ -225,7 +225,7 @@ const VoiceTranscription = ({
       } else {
         setError('转写结果为空');
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('complete_transcription', {
         transcriptionLength: result?.text?.length || 0,
@@ -239,15 +239,15 @@ const VoiceTranscription = ({
       setProgress(0);
     }
   };
-  
+
   // 复制转写文本
   const copyTranscription = () => {
-    if (!transcription) return;
-    
+    if (!transcription) {return;}
+
     try {
       Clipboard.setString(transcription);
       Alert.alert('成功', '转写文本已复制到剪贴板');
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('copy_transcription', {
         transcriptionLength: transcription.length,
@@ -257,16 +257,16 @@ const VoiceTranscription = ({
       Alert.alert('错误', '复制转写文本失败');
     }
   };
-  
+
   // 清除转写文本
   const clearTranscription = () => {
     setTranscription('');
     setError(null);
-    
+
     // 记录分析事件
     analyticsService.trackVoiceAction('clear_transcription');
   };
-  
+
   return (
     <View style={[styles.container, style]}>
       {/* 录音器 */}
@@ -278,7 +278,7 @@ const VoiceTranscription = ({
           style={styles.recorder}
         />
       )}
-      
+
       {/* 播放器 */}
       {showPlayer && audioPath && (
         <VoicePlayer
@@ -286,7 +286,7 @@ const VoiceTranscription = ({
           style={styles.player}
         />
       )}
-      
+
       {/* 转写控制 */}
       {!realtime && audioPath && !isRecording && (
         <View style={styles.transcribeControls}>
@@ -323,7 +323,7 @@ const VoiceTranscription = ({
               </>
             )}
           </TouchableOpacity>
-          
+
           {isTranscribing && progress > 0 && (
             <Text
               variant="caption"
@@ -337,7 +337,7 @@ const VoiceTranscription = ({
           )}
         </View>
       )}
-      
+
       {/* 转写结果 */}
       <View
         style={[
@@ -359,7 +359,7 @@ const VoiceTranscription = ({
           >
             转写结果
           </Text>
-          
+
           <View style={styles.transcriptionActions}>
             {transcription && (
               <>
@@ -369,7 +369,7 @@ const VoiceTranscription = ({
                 >
                   <Icon name="content-copy" size={20} color={colors.primary} />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={styles.actionButton}
                   onPress={clearTranscription}
@@ -380,7 +380,7 @@ const VoiceTranscription = ({
             )}
           </View>
         </View>
-        
+
         <ScrollView
           ref={scrollViewRef}
           style={styles.transcriptionScroll}

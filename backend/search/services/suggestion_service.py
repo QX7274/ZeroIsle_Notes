@@ -14,6 +14,29 @@ class SuggestionService:
     处理搜索建议的业务逻辑
     """
 
+    def _normalize_text(self, text: str) -> str:
+        """规范化建议文本并进行基本校验。
+        - 去除首尾空白、折叠连续空白
+        - 转为小写（英文场景去重）
+        - 长度限制：<= 100
+        - 必须包含至少一个中英文或数字字符
+        返回规范化后的文本；无效则返回空字符串。
+        """
+        import re
+        if text is None:
+            return ""
+        # 去首尾空白并折叠空白
+        norm = re.sub(r"\s+", " ", str(text).strip())
+        # 转小写（不影响中文）
+        norm = norm.lower()
+        # 基本有效性：至少包含一个可读字符（中/英/数字）
+        if not re.search(r"[A-Za-z0-9\u4e00-\u9fa5]", norm):
+            return ""
+        # 长度限制
+        if len(norm) > 100:
+            return ""
+        return norm
+
     def add_suggestion(self, text, user=None, is_global=False):
         """
         添加搜索建议
@@ -24,18 +47,20 @@ class SuggestionService:
             is_global: 是否全局建议
 
         Returns:
-            SearchSuggestion: 创建的建议对象
+            tuple[SearchSuggestion, bool] | None: (建议对象, 是否新建)。无效文本返回 None。
         """
         try:
-            if not text:
+            # 规范化与校验
+            normalized = self._normalize_text(text)
+            if not normalized:
                 return None
 
-            # 如果是全局建议，用户必须为None
+            # 全局建议必须无用户维度
             if is_global:
                 user = None
 
-            # 查找现有建议
-            suggestion = SearchSuggestion.objects(user=user, text=text).first()
+            # 查找现有建议（按规范化后的文本）
+            suggestion = SearchSuggestion.objects(user=user, text=normalized).first()
 
             if suggestion:
                 # 更新现有建议
@@ -47,14 +72,14 @@ class SuggestionService:
                 # 创建新建议
                 suggestion = SearchSuggestion(
                     user=user,
-                    text=text,
+                    text=normalized,
                     is_global=is_global,
                     frequency=1
                 )
                 suggestion.save()
                 created = True
 
-            return suggestion
+            return suggestion, created
         except Exception as e:
             logger.error(f"添加搜索建议失败: {e}")
             raise

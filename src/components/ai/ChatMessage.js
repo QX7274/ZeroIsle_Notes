@@ -188,14 +188,14 @@ const ChatMessage = ({
           {
             backgroundColor: colors.primary,
             borderWidth: 0,
-          }
+          },
         ] : [
           styles.assistantMessage,
           {
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: `${colors.border}80`,
-          }
+          },
         ],
       ]}>
         {renderContent()}
@@ -227,7 +227,7 @@ const ChatMessage = ({
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { backgroundColor: `${colors.primary}10` }
+              { backgroundColor: `${colors.primary}10` },
             ]}
             onPress={handleCopy}
             activeOpacity={0.7}
@@ -239,7 +239,7 @@ const ChatMessage = ({
             <TouchableOpacity
               style={[
                 styles.actionButton,
-                { backgroundColor: `${colors.error}10` }
+                { backgroundColor: `${colors.error}10` },
               ]}
               onPress={handleRetry}
               activeOpacity={0.7}

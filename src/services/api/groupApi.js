@@ -13,7 +13,7 @@ export const getUserGroups = async () => {
     const response = await instance.get(API_ENDPOINTS.GROUPS.BASE);
     return {
       success: true,
-      data: response.data || []
+      data: response.data || [],
     };
   } catch (error) {
     console.error('获取群组列表失败:', error);
@@ -21,18 +21,10 @@ export const getUserGroups = async () => {
     // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
     if (error.response?.status === 401 && error.isIgnorableAuthError) {
       console.log('群组API: 忽略401认证错误');
-      return {
-        success: false,
-        message: '暂时无法访问群组功能，请稍后重试',
-        data: []
-      };
+      throw new Error('暂时无法访问群组功能，请稍后重试');
     }
 
-    return {
-      success: false,
-      message: error.response?.data?.detail || '获取群组列表失败',
-      data: [] // 确保即使在错误情况下也返回空数组
-    };
+    throw error;
   }
 };
 
@@ -46,7 +38,7 @@ export const getGroupDetail = async (groupId) => {
     const response = await instance.get(`${API_ENDPOINTS.GROUPS.DETAIL(groupId)}`);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取群组详情失败:', error);
@@ -54,16 +46,10 @@ export const getGroupDetail = async (groupId) => {
     // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
     if (error.response?.status === 401 && error.isIgnorableAuthError) {
       console.log('群组API: 忽略401认证错误');
-      return {
-        success: false,
-        message: '暂时无法访问群组功能，请稍后重试'
-      };
+      throw new Error('暂时无法访问群组功能，请稍后重试');
     }
 
-    return {
-      success: false,
-      message: error.response?.data?.detail || '获取群组详情失败'
-    };
+    throw error;
   }
 };
 
@@ -77,14 +63,11 @@ export const createGroup = async (groupData) => {
     const response = await instance.post(API_ENDPOINTS.GROUPS.BASE, groupData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('创建群组失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '创建群组失败'
-    };
+    throw error;
   }
 };
 
@@ -102,14 +85,11 @@ export const updateGroup = async (groupId, groupData) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('更新群组失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '更新群组失败'
-    };
+    throw error;
   }
 };
 
@@ -122,14 +102,11 @@ export const deleteGroup = async (groupId) => {
   try {
     await instance.delete(API_ENDPOINTS.GROUPS.DETAIL(groupId));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
     console.error('删除群组失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '删除群组失败'
-    };
+    throw error;
   }
 };
 
@@ -147,14 +124,11 @@ export const generateJoinCode = async (groupId, expiresIn = 30) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('生成加入码失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '生成加入码失败'
-    };
+    throw error;
   }
 };
 
@@ -171,14 +145,11 @@ export const joinGroupByCode = async (joinCode) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('加入群组失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '加入码无效或已过期'
-    };
+    throw error;
   }
 };
 
@@ -196,14 +167,11 @@ export const inviteUserToGroup = async (groupId, userId) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('邀请用户失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '邀请用户失败'
-    };
+    throw error;
   }
 };
 
@@ -217,14 +185,11 @@ export const getGroupMembers = async (groupId) => {
     const response = await instance.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取群组成员失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '获取群组成员失败'
-    };
+    throw error;
   }
 };
 
@@ -238,14 +203,11 @@ export const leaveGroup = async (groupId) => {
     const response = await instance.post(API_ENDPOINTS.GROUPS.LEAVE(groupId));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('离开群组失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '离开群组失败'
-    };
+    throw error;
   }
 };
 
@@ -258,14 +220,11 @@ export const getGroupInvitations = async () => {
     const response = await instance.get(API_ENDPOINTS.GROUPS.INVITATIONS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取群组邀请失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '获取群组邀请失败'
-    };
+    throw error;
   }
 };
 
@@ -281,14 +240,11 @@ export const acceptGroupInvitation = async (invitationId) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('接受邀请失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '接受邀请失败'
-    };
+    throw error;
   }
 };
 
@@ -304,14 +260,11 @@ export const rejectGroupInvitation = async (invitationId) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('拒绝邀请失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '拒绝邀请失败'
-    };
+    throw error;
   }
 };
 
@@ -329,14 +282,11 @@ export const createScreenShare = async (groupId, title) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('创建屏幕共享失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '创建屏幕共享失败'
-    };
+    throw error;
   }
 };
 
@@ -349,14 +299,11 @@ export const getScreenShares = async () => {
     const response = await instance.get(API_ENDPOINTS.GROUPS.SHARED_SCREENS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('获取屏幕共享列表失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '获取屏幕共享列表失败'
-    };
+    throw error;
   }
 };
 
@@ -372,14 +319,11 @@ export const joinScreenShare = async (shareId) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('加入屏幕共享失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '加入屏幕共享失败'
-    };
+    throw error;
   }
 };
 
@@ -395,13 +339,10 @@ export const endScreenShare = async (shareId) => {
     );
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('结束屏幕共享失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.detail || '结束屏幕共享失败'
-    };
+    throw error;
   }
 };

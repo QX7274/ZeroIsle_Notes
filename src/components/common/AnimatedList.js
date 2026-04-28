@@ -37,12 +37,12 @@ const AnimatedList = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 创建动画值数组
   const animatedValues = useRef(
     data.map(() => Animations.createAnimatedValue(0))
   ).current;
-  
+
   // 当数据变化时更新动画值数组
   useEffect(() => {
     if (animatedValues.length !== data.length) {
@@ -52,16 +52,16 @@ const AnimatedList = ({
         animatedValues.push(Animations.createAnimatedValue(0));
       });
     }
-    
+
     // 启动动画
     startAnimation();
   }, [data]);
-  
+
   // 启动动画
   const startAnimation = () => {
     // 重置所有动画值
     animatedValues.forEach(value => value.setValue(0));
-    
+
     // 延迟启动动画
     setTimeout(() => {
       // 根据动画类型启动不同的动画
@@ -82,11 +82,11 @@ const AnimatedList = ({
       }
     }, delay);
   };
-  
+
   // 获取动画样式
   const getAnimationStyle = (index) => {
     const animatedValue = animatedValues[index] || new Animated.Value(1);
-    
+
     switch (animation) {
       case 'slide':
         // 滑动动画
@@ -94,7 +94,7 @@ const AnimatedList = ({
           inputRange: [0, 1],
           outputRange: getSlideOutputRange(),
         });
-        
+
         return {
           opacity: animatedValue,
           transform: [
@@ -103,7 +103,7 @@ const AnimatedList = ({
               : { translateY: translateValue },
           ],
         };
-      
+
       case 'scale':
         // 缩放动画
         return {
@@ -115,14 +115,14 @@ const AnimatedList = ({
             })},
           ],
         };
-      
+
       case 'stagger':
         // 交错动画（结合淡入和滑动）
         const translateStaggerValue = animatedValue.interpolate({
           inputRange: [0, 1],
           outputRange: getSlideOutputRange(0.3), // 减小滑动距离
         });
-        
+
         return {
           opacity: animatedValue,
           transform: [
@@ -131,7 +131,7 @@ const AnimatedList = ({
               : { translateY: translateStaggerValue },
           ],
         };
-      
+
       case 'fade':
       default:
         // 淡入动画
@@ -140,11 +140,11 @@ const AnimatedList = ({
         };
     }
   };
-  
+
   // 获取滑动输出范围
   const getSlideOutputRange = (multiplier = 1) => {
     const distance = 100 * multiplier;
-    
+
     switch (direction) {
       case 'up':
         return [distance, 0];
@@ -158,7 +158,7 @@ const AnimatedList = ({
         return [distance, 0];
     }
   };
-  
+
   // 自定义渲染项
   const renderAnimatedItem = ({ item, index, ...rest }) => {
     return (
@@ -167,7 +167,7 @@ const AnimatedList = ({
       </Animated.View>
     );
   };
-  
+
   return (
     <FlatList
       data={data}

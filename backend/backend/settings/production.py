@@ -3,16 +3,26 @@
 """
 
 from .base import *
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
+# Sentry Configuration
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.1,  # Sample 10% of transactions for performance monitoring
+        send_default_pii=True,
+    )
 
 # 调试模式
 DEBUG = False
 
 # 允许的主机
-ALLOWED_HOSTS = [
-    'api.zeroislenotes.com',
-    'www.zeroislenotes.com',
-    # 添加其他生产环境域名
-]
+# 允许的主机
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'api.zeroislenotes.com,www.zeroislenotes.com').split(',')
+
 
 # 安全设置
 SECURE_SSL_REDIRECT = True
@@ -24,6 +34,13 @@ X_FRAME_OPTIONS = 'DENY'
 
 # 从环境变量获取密钥
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', SECRET_KEY)
+# 生产环境必须提供安全的 SECRET_KEY
+if not SECRET_KEY or SECRET_KEY == 'django-insecure-zeroislenotes-secret-key-for-development':
+    raise ValueError('DJANGO_SECRET_KEY 未在生产环境中配置，应用已停止启动。')
+
+# CORS 凭证（如需要 Cookie）
+CORS_ALLOW_CREDENTIALS = True
+
 
 # 日志配置
 LOGGING = {

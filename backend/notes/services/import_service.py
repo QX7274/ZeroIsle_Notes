@@ -20,7 +20,7 @@ class ImportService:
         :param user: 笔记所属用户
         :param category_id: 可选，笔记分类ID
         :return: 创建的笔记对象
-        ""
+        """
         file_ext = get_file_extension(file.name).lower()
         if file_ext not in ImportService.SUPPORTED_FORMATS:
             raise ValueError(f"不支持的文件格式: {file_ext}，仅支持{', '.join(ImportService.SUPPORTED_FORMATS)}")
@@ -54,7 +54,7 @@ class ImportService:
         从PDF文件提取文本内容
         :param file: PDF文件对象
         :return: (标题, 内容)元组
-        ""
+        """
         # 读取PDF内容
         pdf_reader = PyPDF2.PdfReader(file)
         content = []
@@ -81,7 +81,7 @@ class ImportService:
         从Word文档提取文本内容
         :param file: Word文件对象
         :return: (标题, 内容)元组
-        ""
+        """
         # 读取Word内容
         doc = docx.Document(file)
         content = []
@@ -113,7 +113,7 @@ class ImportService:
         :param user: 笔记所属用户
         :param category_id: 可选，笔记分类ID
         :return: 创建的笔记对象列表
-        ""
+        """
         notes = []
         for file in files:
             try:

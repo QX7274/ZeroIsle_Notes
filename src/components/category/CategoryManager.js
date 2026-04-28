@@ -8,7 +8,7 @@ import { View, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
-import { Loading, Toast } from '../common';
+import { Loading } from '../common';
 import { useTheme } from '../../context/ThemeContext';
 
 // 导入分类相关组件
@@ -37,6 +37,7 @@ import {
   clearError,
   clearSuccessMessage,
 } from '../../redux/slices/categorySlice';
+import { showToast } from '../../redux/slices/uiSlice';
 
 /**
  * 分类管理组件
@@ -81,17 +82,17 @@ const CategoryManager = ({ onCategorySelect, viewMode: initialViewMode = 'list' 
   // 显示错误和成功消息
   useEffect(() => {
     if (error) {
-      Toast.show(error, 'error');
+      dispatch(showToast({ message: error, type: 'error' }));
       dispatch(clearError());
     }
-  }, [error]);
+  }, [error, dispatch]);
 
   useEffect(() => {
     if (successMessage) {
-      Toast.show(successMessage, 'success');
+      dispatch(showToast({ message: successMessage, type: 'success' }));
       dispatch(clearSuccessMessage());
     }
-  }, [successMessage]);
+  }, [successMessage, dispatch]);
 
   // 加载分类列表
   const loadCategories = () => {
@@ -186,7 +187,7 @@ const CategoryManager = ({ onCategorySelect, viewMode: initialViewMode = 'list' 
   const calculateStatistics = () => {
     // 确保 categories 是数组
     const validCategories = Array.isArray(categories) ? categories : [];
-    
+
     if (validCategories.length === 0) {
       setStatistics({
         totalCategories: 0,

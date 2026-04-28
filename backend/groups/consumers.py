@@ -7,7 +7,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from .models import Group, GroupMember, SharedScreen
+from .mongodb_models import Group, GroupMember, SharedScreen
 
 logger = logging.getLogger(__name__)
 
@@ -204,11 +204,11 @@ class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
                 # 检查用户是否为群组成员
                 return (
                     shared_screen.user == self.user or
-                    GroupMember.objects.filter(
+                    (GroupMember.objects.filter(
                         group=shared_screen.group,
                         user=self.user,
                         is_active=True
-                    ).exists()
+                    ).first() is not None)
                 )
             except SharedScreen.DoesNotExist:
                 return False
@@ -229,11 +229,13 @@ class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
                     status__in=['active', 'paused']
                 )
                 
-                # 获取群组成员
+                # 获取群组成员 (优化: 使用 select_related 避免 N+1 查询)
+                # 之前: 100 个成员 = 101 次查询 (1 次 members + 100 次 user)
+                # 现在: 100 个成员 = 2 次查询 (1 次 members with users + 1 次 shared_screen)
                 members = GroupMember.objects.filter(
                     group=shared_screen.group,
                     is_active=True
-                )
+                ).select_related(depth=1)  # 预加载用户数据 (MongoEngine Syntax)
                 
                 return [
                     {

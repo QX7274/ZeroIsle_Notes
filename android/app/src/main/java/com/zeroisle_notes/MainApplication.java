@@ -2,6 +2,8 @@ package com.zeroisle_notes;
 
 import android.content.res.Configuration;
 import android.app.Application;
+import android.content.Context;
+import androidx.multidex.MultiDex;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
@@ -10,6 +12,9 @@ import com.facebook.soloader.SoLoader;
 import com.facebook.react.PackageList;
 import java.util.Arrays;
 import java.util.List;
+
+// 额外包：手写识别（位于不同包名）
+import com.zeroislenotes.HandwritingRecognitionPackage;
 
 // 使用原生模块
 // 注释掉 ReactNativePushNotificationPackage 的导入，因为它已经通过 PackageList 自动添加
@@ -45,26 +50,11 @@ public class MainApplication extends Application implements ReactApplication {
         @Override
         protected List<ReactPackage> getPackages() {
             List<ReactPackage> packages = new PackageList(this).getPackages();
+            // 注册项目自有打包器（包含 PDF/分页/画布 等视图与模块）
             packages.add(new ZeroIsleNotesPackage());
-            // 移除手动添加的 ReactNativePushNotificationPackage，因为它已经通过 PackageList 自动添加
-            // packages.add(new ReactNativePushNotificationPackage());
-            // 移除手动添加的 ImagePickerPackage，因为它已经通过 PackageList 自动添加
-            // packages.add(new ImagePickerPackage());
-            // 移除手动添加的 RNFSPackage，因为它已经通过 PackageList 自动添加
-            // packages.add(new RNFSPackage());
-            // 注释掉有问题的包引用，这些包将由 PackageList 自动添加
-            // packages.add(new RNSharePackage());
-            // packages.add(new RNCDocumentPickerPackage());
-            // 移除手动添加的 RNSoundPackage，因为它已经通过 PackageList 自动添加
-            // packages.add(new RNSoundPackage());
-            // 移除手动添加的 RNAudioRecorderPlayerPackage，因为它已经通过 PackageList 自动添加
-            // packages.add(new RNAudioRecorderPlayerPackage());
-            // 移除手动添加的 TextToSpeechPackage，因为它可能已经通过 PackageList 自动添加
-            // packages.add(new TextToSpeechPackage());
-            // 移除手动添加的 VectorIconsPackage，因为它可能已经通过 PackageList 自动添加
-            // packages.add(new VectorIconsPackage());
-            // packages.add(new RNCameraPackage());
-            // packages.add(new RNPermissionsPackage());
+            // 注册手写识别模块包（com.zeroislenotes）
+            packages.add(new HandwritingRecognitionPackage());
+            // 其他包均由 PackageList 自动管理
             return packages;
         }
 
@@ -83,6 +73,12 @@ public class MainApplication extends Application implements ReactApplication {
     public void onCreate() {
         super.onCreate();
         SoLoader.init(this, /* native exopackage */ false);
+    }
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        MultiDex.install(this);
     }
 
   @Override

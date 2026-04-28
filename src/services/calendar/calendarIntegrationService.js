@@ -4,7 +4,7 @@
  */
 import RNCalendarEvents from 'react-native-calendar-events';
 import { Platform } from 'react-native';
-import { isNetworkConnected } from './networkService';
+import { isNetworkConnected } from '../network/networkService';
 import analyticsService from '../analytics/analyticsService';
 
 // 定义频率常量
@@ -12,12 +12,12 @@ const Frequency = {
   DAILY: 'daily',
   WEEKLY: 'weekly',
   MONTHLY: 'monthly',
-  YEARLY: 'yearly'
+  YEARLY: 'yearly',
 };
 
 // 定义实体类型常量
 const EntityTypes = {
-  EVENT: 'event'
+  EVENT: 'event',
 };
 
 /**
@@ -33,7 +33,7 @@ class CalendarIntegrationService {
    * 初始化日历服务
    */
   async init() {
-    if (this.initialized) return;
+    if (this.initialized) {return;}
 
     try {
       // 请求日历权限
@@ -182,7 +182,7 @@ class CalendarIntegrationService {
       // 更新事件
       await RNCalendarEvents.saveEvent(reminder.title, {
         ...eventDetails,
-        id: eventId
+        id: eventId,
       });
 
       // 记录分析数据
@@ -370,7 +370,7 @@ class CalendarIntegrationService {
    * @private
    */
   _mapCalendarFrequency(frequency) {
-    if (!frequency) return 'once';
+    if (!frequency) {return 'once';}
 
     switch (frequency) {
       case 'daily':

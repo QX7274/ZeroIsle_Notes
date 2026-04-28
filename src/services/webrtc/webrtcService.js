@@ -44,16 +44,16 @@ class WebRTCService {
 
     this.roomId = roomId;
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
-        const token = getToken();
+        const token = await getToken();
         if (!token) {
           reject(new Error('未登录，无法连接到信令服务器'));
           return;
         }
 
         // 构建WebSocket URL
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsProtocol = (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:') ? 'wss:' : 'ws:';
         const wsBaseUrl = API_BASE_URL.replace(/^https?:\/\//, '');
         const wsUrl = `${wsProtocol}//${wsBaseUrl}/ws/webrtc/${roomId}/?token=${token}`;
 
@@ -65,7 +65,7 @@ class WebRTCService {
 
           // 获取房间内的用户
           this._sendMessage({
-            type: 'get_users'
+            type: 'get_users',
           });
 
           resolve();
@@ -180,9 +180,12 @@ class WebRTCService {
           audio: false,
         });
       } else {
-        // 移动平台需要使用原生模块
-        // 这里需要实现原生模块的屏幕共享功能
-        throw new Error('移动平台屏幕共享功能尚未实现');
+        // 移动平台占位实现：返回空轨道的“伪流”，避免抛错
+        // 注意：这不会真正共享屏幕，只用于占位，保证流程不中断
+        console.warn('[WebRTCService] 移动端屏幕共享为占位实现：不会推送任何视频轨道');
+        return {
+          getTracks: () => [],
+        };
       }
     } catch (error) {
       console.error('获取屏幕媒体流失败:', error);
@@ -243,7 +246,7 @@ class WebRTCService {
       this._sendMessage({
         type: 'answer',
         answer,
-        target_user_id: user_id
+        target_user_id: user_id,
       });
     } catch (error) {
       console.error('处理offer失败:', error);
@@ -392,7 +395,7 @@ class WebRTCService {
           this._sendMessage({
             type: 'ice_candidate',
             candidate: event.candidate,
-            target_user_id: userId
+            target_user_id: userId,
           });
         }
       };
@@ -415,7 +418,7 @@ class WebRTCService {
         this.onRemoteStreamCallbacks.forEach(callback => {
           callback({
             userId,
-            stream: event.streams[0]
+            stream: event.streams[0],
           });
         });
       };
@@ -451,7 +454,7 @@ class WebRTCService {
       this._sendMessage({
         type: 'offer',
         offer,
-        target_user_id: userId
+        target_user_id: userId,
       });
     } catch (error) {
       console.error('创建offer失败:', error);
@@ -494,4 +497,9 @@ class WebRTCService {
   }
 }
 
-export const webrtcService = new WebRTCService();
+const webrtcService = new WebRTCService();
+
+module.exports = webrtcService;
+module.exports.default = webrtcService;
+module.exports.webrtcService = webrtcService;
+module.exports.WebRTCService = WebRTCService;

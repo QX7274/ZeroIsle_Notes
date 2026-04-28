@@ -47,7 +47,7 @@ const ThemeSettingsScreen = ({ navigation }) => {
         style={[
           styles.themeOption,
           { backgroundColor: colors.card },
-          isSelected && { borderColor: colors.primary, borderWidth: 2 }
+          isSelected && { borderColor: colors.primary, borderWidth: 2 },
         ]}
         onPress={() => updateTheme(value)}
       >
@@ -57,8 +57,8 @@ const ThemeSettingsScreen = ({ navigation }) => {
             {
               backgroundColor: value === 'light' ? '#FFFFFF' :
                              value === 'dark' ? '#121212' :
-                             '#F5F5F5'
-            }
+                             '#F5F5F5',
+            },
           ]}
         >
           <View style={styles.previewHeader}>
@@ -68,8 +68,8 @@ const ThemeSettingsScreen = ({ navigation }) => {
                 {
                   backgroundColor: value === 'light' ? '#F5F5F5' :
                                  value === 'dark' ? '#1E1E1E' :
-                                 '#E0E0E0'
-                }
+                                 '#E0E0E0',
+                },
               ]}
             />
           </View>
@@ -81,8 +81,8 @@ const ThemeSettingsScreen = ({ navigation }) => {
                 {
                   backgroundColor: value === 'light' ? '#E0E0E0' :
                                  value === 'dark' ? '#333333' :
-                                 '#CCCCCC'
-                }
+                                 '#CCCCCC',
+                },
               ]}
             />
             <View
@@ -92,8 +92,8 @@ const ThemeSettingsScreen = ({ navigation }) => {
                   width: '70%',
                   backgroundColor: value === 'light' ? '#E0E0E0' :
                                  value === 'dark' ? '#333333' :
-                                 '#CCCCCC'
-                }
+                                 '#CCCCCC',
+                },
               ]}
             />
           </View>

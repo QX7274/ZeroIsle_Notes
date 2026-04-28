@@ -170,6 +170,7 @@ class PostCreateSerializer(serializers.Serializer):
     """帖子创建序列化器"""
     title = serializers.CharField(max_length=255)
     content = serializers.CharField()
+    group = serializers.CharField(required=False, allow_null=True) # 新增 group 字段
     excerpt = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, default='published')
     category_id = serializers.CharField(required=False, allow_null=True)
@@ -185,6 +186,7 @@ class PostUpdateSerializer(serializers.Serializer):
     """帖子更新序列化器"""
     title = serializers.CharField(max_length=255, required=False)
     content = serializers.CharField(required=False)
+    group = serializers.CharField(required=False, allow_null=True) # 新增 group 字段
     excerpt = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=Post.STATUS_CHOICES, required=False)
     category_id = serializers.CharField(required=False, allow_null=True)

@@ -23,9 +23,9 @@ class AIChat extends Realm.Object {
       model: { type: 'string', default: 'gpt-4' },
       system_prompt: {
         type: 'string',
-        default: '你是一个智能助手，可以帮助用户回答问题、提供建议和完成各种任务。'
+        default: '你是一个智能助手，可以帮助用户回答问题、提供建议和完成各种任务。',
       },
-      tags: { type: 'string[]', default: [] },
+      tags: { type: 'list', objectType: 'string', default: [] },
       is_favorite: { type: 'bool', default: false },
       category: { type: 'string', default: '默认' },
     },

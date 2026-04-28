@@ -24,29 +24,19 @@ export const handleApiResponse = (response) => {
 export const handleApiError = (error) => {
   // 网络错误
   if (error.message === 'Network Error') {
-    return {
-      success: false,
-      message: '网络错误，请检查网络连接',
-      error,
-    };
+    throw new Error('网络错误，请检查网络连接');
   }
 
   // 超时错误
   if (error.message && error.message.includes('timeout')) {
-    return {
-      success: false,
-      message: '请求超时，请稍后重试',
-      error,
-    };
+    throw new Error('请求超时，请稍后重试');
   }
 
   // 服务器响应错误
   if (error.response) {
     const { status, data } = error.response;
-    
-    // 获取错误消息
+
     let message = '未知错误';
-    
     if (data) {
       if (typeof data === 'string') {
         message = data;
@@ -60,22 +50,16 @@ export const handleApiError = (error) => {
         message = data.errors[0].message || data.errors[0];
       }
     }
-    
-    return {
-      success: false,
-      message,
-      status,
-      data,
-      error,
-    };
+
+    const apiError = new Error(message);
+    apiError.status = status;
+    apiError.data = data;
+    apiError.originalError = error;
+    throw apiError;
   }
 
   // 其他错误
-  return {
-    success: false,
-    message: error.message || '未知错误',
-    error,
-  };
+  throw new Error(error.message || '未知错误');
 };
 
 /**
@@ -108,17 +92,17 @@ export const buildQueryParams = (params) => {
  * @returns {string} - 格式化后的日期字符串
  */
 export const formatDate = (date, format = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!date) return '';
-  
+  if (!date) {return '';}
+
   const d = typeof date === 'string' ? new Date(date) : date;
-  
+
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   const seconds = String(d.getSeconds()).padStart(2, '0');
-  
+
   return format
     .replace('YYYY', year)
     .replace('MM', month)

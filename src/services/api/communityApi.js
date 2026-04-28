@@ -3,8 +3,10 @@
  * 提供社区相关的API调用，包括帖子、评论、点赞、关注等功能
  */
 import instance from './apiClient';
-import { API_ENDPOINTS } from '../../constants/api';
+// 统一改为使用 src/config/api.js 提供的端点（baseURL 已包含 /api/v1 前缀）
+import { API_ENDPOINTS } from '../../config/api';
 import realmService from '../database/realmService';
+import networkService from '../network/networkService';
 
 /**
  * 获取社区帖子列表
@@ -14,16 +16,13 @@ import realmService from '../database/realmService';
 export const getPosts = async (params = {}) => {
   try {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.POSTS, { params });
+    // apiClient 响应拦截器已返回 response.data，这里直接用 response
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取社区帖子失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -37,14 +36,10 @@ export const togglePostLike = async (id) => {
     const response = await instance.post(API_ENDPOINTS.COMMUNITY.LIKE_POST(id));
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '点赞操作失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -56,17 +51,17 @@ export const togglePostLike = async (id) => {
  */
 export const getPostComments = async (id, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.COMMUNITY.COMMENTS(id), { params });
+    // 使用后端提供的 by_post 动作，保证与后端 CommentViewSet 对齐
+    const response = await instance.get(
+      API_ENDPOINTS.COMMUNITY.COMMENTS_BY_POST(id),
+      { params }
+    );
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取评论失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -78,17 +73,15 @@ export const getPostComments = async (id, params = {}) => {
  */
 export const addComment = async (id, commentData) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.COMMENTS(id), commentData);
+    // 后端创建评论接口为 /community/comments/ ，字段为 { post_id, parent_id?, content }
+    const payload = { post_id: id, ...commentData };
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.COMMENTS, payload);
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '添加评论失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -101,14 +94,10 @@ export const deleteComment = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.COMMUNITY.COMMENT_DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除评论失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -122,14 +111,10 @@ export const toggleCommentLike = async (id) => {
     const response = await instance.post(API_ENDPOINTS.COMMUNITY.LIKE_COMMENT(id));
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '点赞评论失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -142,18 +127,14 @@ export const toggleFollow = async (userId) => {
   try {
     const response = await instance.post(API_ENDPOINTS.COMMUNITY.FOLLOW, {
       content_type: 'User',
-      object_id: userId
+      object_id: userId,
     });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '关注操作失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -169,19 +150,15 @@ export const getUserFollowers = async (userId, params = {}) => {
       params: {
         ...params,
         content_type: 'User',
-        object_id: userId
-      }
+        object_id: userId,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取关注者失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -196,19 +173,15 @@ export const getUserFollowing = async (userId, params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWING, {
       params: {
         ...params,
-        user_id: userId
-      }
+        user_id: userId,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取关注列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -222,14 +195,10 @@ export const getActivityStream = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.ACTIVITY, { params });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取活动流失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -244,14 +213,10 @@ export const shareNoteToCommuity = async (id, shareData) => {
     const response = await instance.post(`/notes/${id}/share/`, shareData);
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '分享笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -265,14 +230,10 @@ export const getPopularTags = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.POPULAR_TAGS, { params });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取热门标签失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -286,14 +247,10 @@ export const getTags = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.TAGS, { params });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取标签失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -307,14 +264,10 @@ export const getCategories = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.CATEGORIES, { params });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取分类失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -328,14 +281,10 @@ export const getRecommendedUsers = async (params = {}) => {
     const response = await instance.get('/community/users/recommended/', { params });
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取推荐用户失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -347,10 +296,9 @@ export const getRecommendedUsers = async (params = {}) => {
 export const getPostDetail = async (id) => {
   try {
     // 检查网络状态
-    // offlineStorageService 已删除，暂时使用简化的在线检查
-    const status = await notesApi.checkNetwork();
+    const isOnline = await networkService.checkConnection();
 
-    if (!status.isConnected) {
+    if (!isOnline) {
       // 离线模式：从缓存获取
       // 使用 realmService 替代 offlineStorageService
       const realm = await realmService.getRealm();
@@ -362,14 +310,10 @@ export const getPostDetail = async (id) => {
         return {
           success: true,
           data: post,
-          fromCache: true
+          fromCache: true,
         };
       } else {
-        return {
-          success: false,
-          message: '离线模式下无法获取未缓存的帖子',
-          error: new Error('Offline mode')
-        };
+        throw new Error('离线模式下无法获取未缓存的帖子');
       }
     }
 
@@ -384,9 +328,9 @@ export const getPostDetail = async (id) => {
     const postIndex = cachedPosts.findIndex(p => p.id === id);
 
     if (postIndex >= 0) {
-      cachedPosts[postIndex] = response.data;
+      cachedPosts[postIndex] = response;
     } else {
-      cachedPosts.push(response.data);
+      cachedPosts.push(response);
     }
 
     // 使用 realmService 缓存数据
@@ -408,14 +352,10 @@ export const getPostDetail = async (id) => {
 
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取帖子详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -427,84 +367,10 @@ export const getPostDetail = async (id) => {
 export const createPost = async (postData) => {
   try {
     // 检查网络状态
-    // offlineStorageService 已删除，暂时使用简化的在线检查
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      const tempId = `temp_${Date.now()}`;
-
-      // 如果是FormData，需要转换为普通对象进行缓存
-      let dataToCache = postData;
-      if (postData instanceof FormData) {
-        dataToCache = {};
-        for (let [key, value] of postData.entries()) {
-          dataToCache[key] = value;
-        }
-      }
-
-      const tempPost = {
-        ...dataToCache,
-        id: tempId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_synced: false
-      };
-
-      // 添加到离线存储
-      // 使用 realmService 添加待处理操作
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        realm.create('OfflineQueue', {
-          entity_id: `post_${Date.now()}`,
-          entity_type: 'community_post',
-          operation: 'create',
-          data: JSON.stringify(postData),
-          user_id: postData.user_id || 'anonymous',
-          created_at: new Date(),
-          is_synced: false,
-        });
-      });
-      
-      // 记录操作到缓存
-      await realm.write(() => {
-        realm.create('StorageItem', {
-          key: 'community_posts',
-          value: JSON.stringify([tempPost]),
-          type: 'create_post',
-          data: dataToCache,
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 更新缓存
-      // 使用 realmService 替代 offlineStorageService
-      const cachedRealm = await realmService.getRealm();
-      const cachedData = cachedRealm.objects('StorageItem').filtered('key = "community_posts"');
-      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
-      cachedPosts.unshift(tempPost);
-      // 使用 realmService 缓存数据
-      const updateRealm = await realmService.getRealm();
-      updateRealm.write(() => {
-        const existingItem = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(cachedPosts);
-          existingItem[0].updated_at = new Date();
-        } else {
-          updateRealm.create('StorageItem', {
-            key: 'community_posts',
-            value: JSON.stringify(cachedPosts),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-
-      return {
-        success: true,
-        data: tempPost,
-        fromCache: true
-      };
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法创建帖子，请连接网络后重试');
     }
 
     // 在线模式：发送到服务器
@@ -526,7 +392,7 @@ export const createPost = async (postData) => {
     const realm = await realmService.getRealm();
     const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
     const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
-    cachedPosts.unshift(response.data);
+    cachedPosts.unshift(response);
     // 使用 realmService 缓存数据
     const cacheRealm = await realmService.getRealm();
     cacheRealm.write(() => {
@@ -546,15 +412,11 @@ export const createPost = async (postData) => {
 
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
     console.error('创建帖子失败:', error);
-    return {
-      success: false,
-      message: error.message || '创建帖子失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -567,73 +429,10 @@ export const createPost = async (postData) => {
 export const updatePost = async (id, postData) => {
   try {
     // 检查网络状态
-    // offlineStorageService 已删除，暂时使用简化的在线检查
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      // 使用 realmService 添加待处理操作
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        realm.create('OfflineQueue', {
-          entity_id: `post_${Date.now()}`,
-          entity_type: 'community_post',
-          operation: 'create',
-          data: JSON.stringify(postData),
-          user_id: postData.user_id || 'anonymous',
-          created_at: new Date(),
-          is_synced: false,
-        });
-      });
-      
-      // 记录操作到缓存
-      await realm.write(() => {
-        realm.create('StorageItem', {
-          key: 'community_posts',
-          value: JSON.stringify([{ id, ...postData }]),
-          type: 'update_post',
-          data: { id, ...postData },
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 更新缓存
-      // 使用 realmService 替代 offlineStorageService
-      const updateRealm = await realmService.getRealm();
-      const cachedData = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
-      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
-      const postIndex = cachedPosts.findIndex(p => p.id === id);
-
-      if (postIndex >= 0) {
-        cachedPosts[postIndex] = {
-          ...cachedPosts[postIndex],
-          ...postData,
-          updated_at: new Date().toISOString(),
-          is_synced: false
-        };
-        // 使用 realmService 缓存数据
-        const cacheRealm = await realmService.getRealm();
-        cacheRealm.write(() => {
-          const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
-          if (existingItem.length > 0) {
-            existingItem[0].value = JSON.stringify(cachedPosts);
-            existingItem[0].updated_at = new Date();
-          } else {
-            cacheRealm.create('StorageItem', {
-              key: 'community_posts',
-              value: JSON.stringify(cachedPosts),
-              createdAt: new Date(),
-              updated_at: new Date(),
-            });
-          }
-        });
-      }
-
-      return {
-        success: true,
-        data: cachedPosts[postIndex],
-        fromCache: true
-      };
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法更新帖子，请连接网络后重试');
     }
 
     // 在线模式：发送到服务器
@@ -647,7 +446,7 @@ export const updatePost = async (id, postData) => {
     const postIndex = cachedPosts.findIndex(p => p.id === id);
 
     if (postIndex >= 0) {
-      cachedPosts[postIndex] = response.data;
+      cachedPosts[postIndex] = response;
       // 使用 realmService 缓存数据
       const cacheRealm = await realmService.getRealm();
       cacheRealm.write(() => {
@@ -668,14 +467,10 @@ export const updatePost = async (id, postData) => {
 
     return {
       success: true,
-      data: response.data
+      data: response,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新帖子失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -687,62 +482,10 @@ export const updatePost = async (id, postData) => {
 export const deletePost = async (id) => {
   try {
     // 检查网络状态
-    // offlineStorageService 已删除，暂时使用简化的在线检查
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      // 使用 realmService 添加待处理操作
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        realm.create('OfflineQueue', {
-          entity_id: `post_${Date.now()}`,
-          entity_type: 'community_post',
-          operation: 'create',
-          data: JSON.stringify(postData),
-          user_id: postData.user_id || 'anonymous',
-          created_at: new Date(),
-          is_synced: false,
-        });
-      });
-      
-      // 记录操作到缓存
-      await realm.write(() => {
-        realm.create('StorageItem', {
-          key: 'community_posts',
-          value: JSON.stringify([{ id }]),
-          type: 'delete_post',
-          data: { id },
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 更新缓存
-      // 使用 realmService 替代 offlineStorageService
-      const updateRealm = await realmService.getRealm();
-      const cachedData = updateRealm.objects('StorageItem').filtered('key = "community_posts"');
-      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value) : [];
-      const updatedPosts = cachedPosts.filter(p => p.id !== id);
-      const cacheRealm = await realmService.getRealm();
-      cacheRealm.write(() => {
-        const existingItem = cacheRealm.objects('StorageItem').filtered('key = "community_posts"');
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(updatedPosts);
-          existingItem[0].updated_at = new Date();
-        } else {
-          cacheRealm.create('StorageItem', {
-            key: 'community_posts',
-            value: JSON.stringify(updatedPosts),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-
-      return {
-        success: true,
-        fromCache: true
-      };
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法删除帖子，请连接网络后重试');
     }
 
     // 在线模式：发送到服务器
@@ -771,14 +514,10 @@ export const deletePost = async (id) => {
     });
 
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除帖子失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -793,14 +532,10 @@ export const getUserPosts = async (userId, params = {}) => {
     const response = await instance.get(`/community/users/${userId}/posts/`, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取用户帖子失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -814,14 +549,10 @@ export const getUserNotifications = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.NOTIFICATIONS, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取通知失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -835,14 +566,10 @@ export const markNotificationAsRead = async (id) => {
     const response = await instance.post(API_ENDPOINTS.COMMUNITY.MARK_NOTIFICATION_READ(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '标记通知失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -855,14 +582,10 @@ export const markAllNotificationsAsRead = async () => {
     const response = await instance.post(`${API_ENDPOINTS.COMMUNITY.NOTIFICATIONS}mark_all_as_read/`);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '标记所有通知失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -905,7 +628,7 @@ const communityApi = {
   // 兼容旧版API
   getCommunityNotes: getPosts,
   toggleLike: togglePostLike,
-  getNoteComments: getPostComments
+  getNoteComments: getPostComments,
 };
 
 export default communityApi;

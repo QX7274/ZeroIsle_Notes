@@ -15,6 +15,10 @@
 @property (nonatomic, copy) RCTBubblingEventBlock onStrokeCommitted;
 @property (nonatomic, copy) RCTBubblingEventBlock onPageChange;
 @property (nonatomic, copy) RCTBubblingEventBlock onMetrics;
+@property (nonatomic, copy) RCTBubblingEventBlock onExportComplete;
+@property (nonatomic, copy) RCTBubblingEventBlock onReady;
+@property (nonatomic, copy) RCTBubblingEventBlock onHandwritingRecognized;
+@property (nonatomic, copy) RCTBubblingEventBlock onZoomChange;
 
 - (void)setNoteId:(NSString *)noteId;
 - (void)setStyleConfig:(NSDictionary *)config;
@@ -24,6 +28,18 @@
 - (void)setCurrentPage:(NSInteger)page;
 - (void)addNewPage;
 - (void)undo;
+- (void)setToolConfig:(NSString *)configJson;
+
+// 导入/导出分页笔记数据
+- (void)importNote:(NSString *)jsonData;
+- (void)exportNote:(NSString *)noteId;
+
+// 手写识别方法
+- (void)recognizeHandwritingWithCount:(NSInteger)count completion:(void (^)(NSString *text, NSError *error))completion;
+
+
+// 区域文本识别
+- (void)recognizeTextInRect:(CGRect)rect completion:(void (^)(NSString *text, NSError *error))completion;
 
 @end
 

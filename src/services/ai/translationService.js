@@ -23,7 +23,7 @@ export const SUPPORTED_LANGUAGES = {
   'ar': '阿拉伯语',
   'hi': '印地语',
   'th': '泰语',
-  'vi': '越南语'
+  'vi': '越南语',
 };
 
 /**
@@ -42,13 +42,13 @@ class TranslationService {
       const response = await apiClient.post('/ai/translate', {
         text,
         target_lang: targetLang,
-        source_lang: sourceLang
+        source_lang: sourceLang,
       });
 
       analyticsService.trackEvent('translate_text', {
         textLength: text.length,
         sourceLang,
-        targetLang
+        targetLang,
       });
 
       return response.data.translated_text;
@@ -67,11 +67,11 @@ class TranslationService {
   async detectLanguage(text) {
     try {
       const response = await apiClient.post('/ai/detect-language', {
-        text
+        text,
       });
 
       analyticsService.trackEvent('detect_language', {
-        textLength: text.length
+        textLength: text.length,
       });
 
       return response.data.language;

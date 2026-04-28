@@ -67,41 +67,41 @@ const LanguageSelector = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 状态
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredLanguages, setFilteredLanguages] = useState(LANGUAGES);
-  
+
   // 当搜索查询变化时，过滤语言列表
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredLanguages(LANGUAGES);
       return;
     }
-    
+
     const query = searchQuery.toLowerCase();
     const filtered = LANGUAGES.filter(
       (lang) =>
         lang.name.toLowerCase().includes(query) ||
         lang.id.toLowerCase().includes(query)
     );
-    
+
     setFilteredLanguages(filtered);
   }, [searchQuery]);
-  
+
   // 获取当前选中的语言
   const getSelectedLanguage = () => {
     return LANGUAGES.find((lang) => lang.id === value) || LANGUAGES[0];
   };
-  
+
   // 处理语言选择
   const handleSelectLanguage = (language) => {
     setModalVisible(false);
-    
+
     if (onChange && language.id !== value) {
       onChange(language.id);
-      
+
       // 记录分析事件
       analyticsService.trackCodeAction('change_language', {
         from: value,
@@ -109,11 +109,11 @@ const LanguageSelector = ({
       });
     }
   };
-  
+
   // 渲染语言项
   const renderLanguageItem = ({ item }) => {
     const isSelected = item.id === value;
-    
+
     return (
       <TouchableOpacity
         style={[
@@ -134,7 +134,7 @@ const LanguageSelector = ({
             {item.name.charAt(0)}
           </Text>
         </View>
-        
+
         <View style={styles.languageInfo}>
           <Text
             variant="body"
@@ -147,18 +147,18 @@ const LanguageSelector = ({
             {item.name}
           </Text>
         </View>
-        
+
         {isSelected && (
           <Icon name="check" size={20} color={colors.primary} />
         )}
       </TouchableOpacity>
     );
   };
-  
+
   // 渲染选择器按钮
   const renderSelectorButton = () => {
     const selectedLanguage = getSelectedLanguage();
-    
+
     return (
       <TouchableOpacity
         style={[
@@ -186,7 +186,7 @@ const LanguageSelector = ({
             {selectedLanguage.name.charAt(0)}
           </Text>
         </View>
-        
+
         {!compact && (
           <Text
             variant="body"
@@ -200,7 +200,7 @@ const LanguageSelector = ({
             {selectedLanguage.name}
           </Text>
         )}
-        
+
         <Icon
           name="arrow-drop-down"
           size={compact ? 18 : 20}
@@ -209,11 +209,11 @@ const LanguageSelector = ({
       </TouchableOpacity>
     );
   };
-  
+
   return (
     <View style={styles.container}>
       {renderSelectorButton()}
-      
+
       <Modal
         visible={modalVisible}
         transparent
@@ -244,7 +244,7 @@ const LanguageSelector = ({
                     <Icon name="close" size={24} color={colors.text} />
                   </TouchableOpacity>
                 </View>
-                
+
                 <View
                   style={[
                     styles.searchContainer,
@@ -282,7 +282,7 @@ const LanguageSelector = ({
                     </TouchableOpacity>
                   )}
                 </View>
-                
+
                 <FlatList
                   data={filteredLanguages}
                   renderItem={renderLanguageItem}

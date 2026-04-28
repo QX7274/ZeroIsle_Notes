@@ -15,18 +15,14 @@ export const getCategories = async (params = {}) => {
     console.log('分类API: 开始获取分类列表');
     const response = await instance.get(API_ENDPOINTS.NOTES.CATEGORIES, { params });
     console.log('分类API: 获取分类列表成功', response.data);
-    
+
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('分类API: 获取分类列表失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '获取分类列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -39,18 +35,14 @@ export const getCategoryTree = async () => {
     console.log('分类API: 开始获取分类树');
     const response = await instance.get(`${API_ENDPOINTS.NOTES.CATEGORIES}tree/`);
     console.log('分类API: 获取分类树成功', response.data);
-    
+
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('分类API: 获取分类树失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '获取分类树失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -64,18 +56,14 @@ export const getCategoryDetail = async (id) => {
     console.log('分类API: 开始获取分类详情', id);
     const response = await instance.get(`${API_ENDPOINTS.NOTES.CATEGORIES}${id}/`);
     console.log('分类API: 获取分类详情成功', response.data);
-    
+
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('分类API: 获取分类详情失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '获取分类详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -94,19 +82,15 @@ export const createCategory = async (data) => {
     console.log('分类API: 开始创建分类', data);
     const response = await instance.post(API_ENDPOINTS.NOTES.CATEGORIES, data);
     console.log('分类API: 创建分类成功', response.data);
-    
+
     return {
       success: true,
       data: response.data,
-      message: '分类创建成功'
+      message: '分类创建成功',
     };
   } catch (error) {
     console.error('分类API: 创建分类失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '创建分类失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -121,19 +105,15 @@ export const updateCategory = async (id, data) => {
     console.log('分类API: 开始更新分类', id, data);
     const response = await instance.put(`${API_ENDPOINTS.NOTES.CATEGORIES}${id}/`, data);
     console.log('分类API: 更新分类成功', response.data);
-    
+
     return {
       success: true,
       data: response.data,
-      message: '分类更新成功'
+      message: '分类更新成功',
     };
   } catch (error) {
     console.error('分类API: 更新分类失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '更新分类失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -147,19 +127,15 @@ export const deleteCategory = async (id) => {
     console.log('分类API: 开始删除分类', id);
     const response = await instance.delete(`${API_ENDPOINTS.NOTES.CATEGORIES}${id}/`);
     console.log('分类API: 删除分类成功');
-    
+
     return {
       success: true,
       data: response.data,
-      message: '分类删除成功'
+      message: '分类删除成功',
     };
   } catch (error) {
     console.error('分类API: 删除分类失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '删除分类失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -174,18 +150,14 @@ export const getCategoryNotes = async (id, params = {}) => {
     console.log('分类API: 开始获取分类下的笔记', id);
     const response = await instance.get(`${API_ENDPOINTS.NOTES.CATEGORIES}${id}/notes/`, { params });
     console.log('分类API: 获取分类下的笔记成功', response.data);
-    
+
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('分类API: 获取分类下的笔记失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '获取分类笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -199,29 +171,17 @@ export const getCategoryStatistics = async (id) => {
     console.log('分类API: 开始获取分类统计', id);
     const response = await instance.get(`${API_ENDPOINTS.NOTES.CATEGORIES}${id}/statistics/`);
     console.log('分类API: 获取分类统计成功', response.data);
-    
+
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error('分类API: 获取分类统计失败:', error);
-    // 如果统计端点不存在，返回默认值
     if (error.response?.status === 404) {
-      return {
-        success: true,
-        data: {
-          note_count: 0,
-          total_words: 0,
-          total_chars: 0
-        }
-      };
+      throw new Error('分类统计接口不存在（404），请先实现后端 statistics 端点');
     }
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '获取分类统计失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -235,19 +195,15 @@ export const batchDeleteCategories = async (ids) => {
     console.log('分类API: 开始批量删除分类', ids);
     const response = await instance.post(`${API_ENDPOINTS.NOTES.CATEGORIES}batch_delete/`, { ids });
     console.log('分类API: 批量删除分类成功');
-    
+
     return {
       success: true,
       data: response.data,
-      message: '批量删除成功'
+      message: '批量删除成功',
     };
   } catch (error) {
     console.error('分类API: 批量删除分类失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '批量删除失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -265,19 +221,15 @@ export const moveNotesToCategory = async (categoryId, noteIds) => {
       { note_ids: noteIds }
     );
     console.log('分类API: 移动笔记成功');
-    
+
     return {
       success: true,
       data: response.data,
-      message: '笔记移动成功'
+      message: '笔记移动成功',
     };
   } catch (error) {
     console.error('分类API: 移动笔记失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '移动笔记失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -295,19 +247,15 @@ export const mergeCategories = async (sourceId, targetId) => {
       { source_id: sourceId, target_id: targetId }
     );
     console.log('分类API: 合并分类成功');
-    
+
     return {
       success: true,
       data: response.data,
-      message: '分类合并成功'
+      message: '分类合并成功',
     };
   } catch (error) {
     console.error('分类API: 合并分类失败:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || '合并分类失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -322,5 +270,5 @@ export default {
   getCategoryStatistics,
   batchDeleteCategories,
   moveNotesToCategory,
-  mergeCategories
+  mergeCategories,
 };

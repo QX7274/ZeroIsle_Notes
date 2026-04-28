@@ -5,8 +5,8 @@ from .views import PasswordResetView, VerifyResetCodeView, CompletePasswordReset
 
 # 创建路由器并注册视图集
 router = DefaultRouter()
-router.register(r'profiles', UserProfileViewSet)
-router.register(r'activities', UserActivityViewSet)
+router.register(r'profiles', UserProfileViewSet, basename='user-profile')
+router.register(r'activities', UserActivityViewSet, basename='user-activity')
 
 urlpatterns = [
     path('', include(router.urls)),

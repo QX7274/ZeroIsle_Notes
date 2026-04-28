@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from notes.mongodb_models import NoteBackup, Note
+from knowledge_graph.tasks import build_graph_for_note_task
 from notes.serializers import NoteBackupSerializer
 from common.permissions import IsOwnerOrReadOnly
 import logging
@@ -275,6 +276,19 @@ class NoteBackupViewSet(viewsets.ViewSet):
                 # 保存备份文件
                 backup.backup_file.put(file, content_type=file.content_type)
                 backup.save()
+
+                # 用导入内容更新笔记（若提供）
+                if 'title' in backup_data or 'content' in backup_data:
+                    note.title = backup_data.get('title', note.title)
+                    note.content = backup_data.get('content', note.content)
+                    note.updated_at = timezone.now()
+                    note.save()
+
+                    # 异步触发构建
+                    try:
+                        build_graph_for_note_task.delay(str(note.id), str(note.user.id), True)
+                    except Exception as e:
+                        logger.warning(f"提交构建知识图谱任务失败: {e}")
 
                 return Response({
                     'message': '备份导入成功',

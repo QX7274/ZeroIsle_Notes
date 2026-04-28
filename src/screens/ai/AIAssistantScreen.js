@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 // 使用MongoDB替代AsyncStorage
 import realmService from '../../services/database/realmService';
+import tokenService from '../../services/auth/tokenService';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -42,6 +43,7 @@ import AIAssistantModule from '../../native/AIAssistantModule';
 import nativeAudioService from '../../services/audio/nativeAudioService';
 import RNFS from 'react-native-fs';
 import networkErrorService from '../../services/networkErrorService';
+import networkService from '../../services/network/networkService';
 
 // 存储键
 const STORAGE_KEYS = {
@@ -145,8 +147,21 @@ const AIAssistantScreen = ({ navigation }) => {
   }, [messages]);
 
   // 处理发送消息
-  const handleSendMessage = (text) => {
-    if (!text.trim()) return;
+  const handleSendMessage = async (text) => {
+    if (!text.trim()) {return;}
+
+    const isOnline = await networkService.checkConnection();
+    if (!isOnline) {
+      networkErrorService.handleApiError({
+        message: 'Network Error',
+        code: 'ERR_NETWORK',
+        isNetworkError: true,
+      }, {
+        context: 'AI消息发送',
+        customMessage: '当前无网络连接，无法发送消息',
+      });
+      return;
+    }
 
     // 保存输入文本，以便在发送后清空
     const messageText = text.trim();
@@ -172,7 +187,7 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 处理重试
   const handleRetry = (message) => {
-    if (message.sender !== 'assistant' || !message.isError) return;
+    if (message.sender !== 'assistant' || !message.isError) {return;}
 
     // 找到用户的上一条消息
     const userMessageIndex = messages.findIndex(msg =>
@@ -250,8 +265,8 @@ const AIAssistantScreen = ({ navigation }) => {
                 onPress: () => {
                   // 可以添加跳转到设置的逻辑
                   Alert.alert('提示', '请在应用设置中开启麦克风权限');
-                }
-              }
+                },
+              },
             ]
           );
           return false;
@@ -268,7 +283,7 @@ const AIAssistantScreen = ({ navigation }) => {
   // 开始语音输入
   const startVoiceInput = async () => {
     const hasPermission = await requestRecordPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) {return;}
 
     try {
       setIsRecording(true);
@@ -288,7 +303,7 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 停止语音识别
   const stopVoiceInput = async () => {
-    if (!isRecording) return;
+    if (!isRecording) {return;}
 
     try {
       await nativeAudioService.stopSpeechToText();
@@ -318,16 +333,20 @@ const AIAssistantScreen = ({ navigation }) => {
 
       // 准备表单数据
       const formData = new FormData();
-      formData.append('audio', {
+      formData.append('file', {
         uri: Platform.OS === 'android' ? `file://${audioFilePath}` : audioFilePath,
         type: Platform.OS === 'android' ? 'audio/mp3' : 'audio/m4a',
         name: Platform.OS === 'android' ? 'audio.mp3' : 'audio.m4a',
       });
 
       try {
-        // 从MongoDB获取认证令牌
-        const authData = await realmService.findOne('auth', { type: 'token' });
-        const authToken = authData ? authData.token : null;
+        // 从 TokenService 获取认证令牌
+        const tokenData = await tokenService.getAccessToken();
+        const authToken = tokenData ? tokenData.token : null;
+
+        if (!authToken) {
+          console.warn('转写音频: 未能获取到有效的认证令牌');
+        }
 
         // 调用后端API进行转写
         const response = await fetch(`${AIAssistantModule.getApiUrl('ai-assistant/transcribe/')}`, {
@@ -357,7 +376,7 @@ const AIAssistantScreen = ({ navigation }) => {
         if (networkErrorService.isNetworkError(apiError)) {
           networkErrorService.handleApiError(apiError, {
             context: '语音转文字',
-            customMessage: '网络连接失败，无法进行语音转文字'
+            customMessage: '网络连接失败，无法进行语音转文字',
           });
         }
 
@@ -366,8 +385,12 @@ const AIAssistantScreen = ({ navigation }) => {
           const result = await AIAssistantModule.transcribeAudio(audioFilePath);
           setInputText(result.text);
         } else {
-          // 如果本地模块也不可用，使用模拟数据
-          setInputText('这是一段语音转文字的内容。由于无法连接到转写服务，这是模拟的结果。');
+          const errorMessage = '语音转写服务不可用，请稍后重试';
+          if (Platform.OS === 'android') {
+            ToastAndroid.show(errorMessage, ToastAndroid.SHORT);
+          } else {
+            Alert.alert('提示', errorMessage);
+          }
         }
       }
     } catch (error) {
@@ -425,7 +448,7 @@ const AIAssistantScreen = ({ navigation }) => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 20
+              marginBottom: 20,
             }}>
               <Icon name="smart-toy" size={24} color={colors.primary} style={{ marginRight: 10 }} />
               <Text
@@ -451,7 +474,7 @@ const AIAssistantScreen = ({ navigation }) => {
                       borderLeftColor: colors.primary,
                       borderWidth: 1,
                       borderColor: item.id === aiEngine ? colors.primary : `${colors.primary}30`,
-                    }
+                    },
                   ]}
                   onPress={() => handleSelectEngine(item.id)}
                 >
@@ -521,7 +544,7 @@ const AIAssistantScreen = ({ navigation }) => {
             alignItems: 'center',
             marginRight: 12,
           }}>
-            <Icon name="smart-toy" size={20} color={colors.primary} />
+            <Icon name="psychology" size={20} color={colors.primary} />
           </View>
           <Text
             variant="heading"
@@ -552,7 +575,7 @@ const AIAssistantScreen = ({ navigation }) => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 paddingBottom: 2, // 向上微调文字位置
-              }
+              },
             ]}
             onPress={() => setShowHistorySidebar(!showHistorySidebar)}
             activeOpacity={0.7}
@@ -560,7 +583,7 @@ const AIAssistantScreen = ({ navigation }) => {
             <Text
               variant="body"
               size="small"
-              color={showHistorySidebar ? "card" : "primary"}
+              color={showHistorySidebar ? 'card' : 'primary'}
               style={{
                 fontWeight: '600',
                 lineHeight: 18, // 调整行高
@@ -583,7 +606,7 @@ const AIAssistantScreen = ({ navigation }) => {
           backgroundColor: colors.background,
           paddingHorizontal: 20,
           paddingVertical: 8, // 减少垂直内边距
-        }
+        },
       ]}>
 
         <TouchableOpacity
@@ -600,7 +623,7 @@ const AIAssistantScreen = ({ navigation }) => {
               shadowOpacity: 0.15,
               shadowRadius: 4,
               borderRadius: 24,
-            }
+            },
           ]}
           onPress={() => setShowAISelector(true)}
           activeOpacity={0.7}

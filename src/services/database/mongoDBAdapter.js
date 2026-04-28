@@ -21,7 +21,7 @@ class MongoDBAdapter {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -105,7 +105,7 @@ class MongoDBAdapter {
       const document = await realmService.findOne(collectionName, filter);
 
       if (!document) {
-        return false;
+        throw new Error(`更新失败，文档不存在: ${collectionName}`);
       }
 
       // 更新文档
@@ -174,7 +174,7 @@ class MongoDBAdapter {
       const document = await realmService.findOne(collectionName, filter);
 
       if (!document) {
-        return false;
+        throw new Error(`删除失败，文档不存在: ${collectionName}`);
       }
 
       // 删除文档
@@ -294,18 +294,22 @@ class MongoDBAdapter {
         console.warn(`从StorageItem获取${key}失败:`, storageError);
       }
 
-      // 如果都没有找到，返回null
+      // 业务语义：存储键未命中时返回 null（非错误）
       return null;
     } catch (error) {
       console.error(`获取存储项目失败: ${key}`, error);
-      // 对于新用户，不抛出错误，而是返回null
-      return null;
+      throw error;
     }
   }
 }
 
 // 创建单例实例
-export const mongoDBService = new MongoDBAdapter();
+const mongoDBService = new MongoDBAdapter();
+
+module.exports = mongoDBService;
+module.exports.default = mongoDBService;
+module.exports.mongoDBService = mongoDBService;
+module.exports.MongoDBAdapter = MongoDBAdapter;
 
 // 初始化MongoDB适配器
 mongoDBService.initialize().catch(error => {

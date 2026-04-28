@@ -47,8 +47,8 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
 
   // 解析不同类型的内容
   const parseContent = (text) => {
-    if (!text) return [];
-    
+    if (!text) {return [];}
+
     const lines = text.split('\n');
     return lines.map((line, index) => {
       // 待办事项格式：- [ ] 或 - [x]
@@ -62,7 +62,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
           isChecked,
           content: content.trim(),
           originalLine: line,
-          lineIndex: index
+          lineIndex: index,
         };
       }
 
@@ -73,7 +73,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
           type: 'important',
           content: importantMatch[3].trim(),
           originalLine: line,
-          lineIndex: index
+          lineIndex: index,
         };
       }
 
@@ -84,7 +84,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
           type: 'reminder',
           content: reminderMatch[3].trim(),
           originalLine: line,
-          lineIndex: index
+          lineIndex: index,
         };
       }
 
@@ -93,7 +93,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
         type: 'text',
         content: line,
         originalLine: line,
-        lineIndex: index
+        lineIndex: index,
       };
     });
   };
@@ -102,13 +102,13 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
   const toggleTodo = (lineIndex) => {
     const lines = localValue.split('\n');
     const line = lines[lineIndex];
-    
+
     if (line.includes('- [ ]')) {
       lines[lineIndex] = line.replace('- [ ]', '- [x]');
     } else if (line.includes('- [x]')) {
       lines[lineIndex] = line.replace('- [x]', '- [ ]');
     }
-    
+
     const newValue = lines.join('\n');
     handleTextChange(newValue);
   };
@@ -129,10 +129,10 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
       default:
         newItem = '\n';
     }
-    
+
     const newValue = localValue + newItem;
     handleTextChange(newValue);
-    
+
     // 聚焦到文本输入框末尾
     setTimeout(() => {
       if (textInputRef.current) {
@@ -159,7 +159,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
           {
             backgroundColor: cardType === 'todo' ? '#4CAF50' + '20' : colors.surface,
             borderColor: cardType === 'todo' ? '#4CAF50' : colors.outline,
-          }
+          },
         ]}
         onPress={() => {
           const newType = cardType === 'todo' ? 'note' : 'todo';
@@ -178,8 +178,8 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
             styles.todoToggleLabel,
             {
               color: cardType === 'todo' ? '#4CAF50' : colors.onSurfaceVariant,
-              fontWeight: cardType === 'todo' ? '600' : '400'
-            }
+              fontWeight: cardType === 'todo' ? '600' : '400',
+            },
           ]}
         >
           {cardType === 'todo' ? '待办模式' : '普通模式'}
@@ -192,7 +192,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
     <View style={[styles.container, style]}>
       {/* 待办事项切换按钮 */}
       {renderTodoToggle()}
-      
+
       {/* 文本输入区域 */}
       <View style={styles.inputContainer}>
         <TextInput
@@ -212,7 +212,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
               color: colors.onSurface,
               backgroundColor: colors.surface,
               borderColor: colors.outline,
-            }
+            },
           ]}
           value={localValue}
           onChangeText={handleTextChange}
@@ -223,7 +223,7 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
           textAlignVertical="top"
           {...props}
         />
-        
+
         {/* 快捷操作按钮 */}
         {cardType !== 'note' && (
           <TouchableOpacity

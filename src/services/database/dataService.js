@@ -30,7 +30,7 @@ class DataService {
    * 初始化数据服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -80,7 +80,7 @@ class DataService {
 
       // 准备数据
       const now = new Date();
-      const documentId = data._id || `${collectionName}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      const documentId = data._id || realmService.createObjectId();
 
       const document = {
         _id: documentId,
@@ -269,7 +269,8 @@ class DataService {
       const document = await realmService.findById(collectionName, id);
 
       if (!document) {
-        return false;
+        // 业务语义：目标文档不存在时视为幂等删除完成（非错误）
+        return true;
       }
 
       // 如果是软删除
@@ -473,7 +474,7 @@ class DataService {
       // 从本地查询
       const document = await realmService.findById(collectionName, id);
 
-      // 如果文档已删除且不包含已删除的文档
+      // 业务语义：软删除文档在默认查询中不可见，返回 null（非错误）
       if (document && document.is_deleted && !options.includeDeleted) {
         return null;
       }
@@ -497,7 +498,7 @@ class DataService {
 
       // 检查网络连接
       if (!networkService.isOnline()) {
-        return { success: false, message: '网络离线，无法同步' };
+        throw new Error('无网络连接，无法同步，请连接网络后重试');
       }
 
       // 同步队列
@@ -538,7 +539,7 @@ class DataService {
       return { success: true, message: '同步成功' };
     } catch (error) {
       console.error(`同步数据失败: ${collectionName}`, error);
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
@@ -554,7 +555,7 @@ class DataService {
       return syncInfo ? new Date(syncInfo.synced_at) : null;
     } catch (error) {
       console.error(`获取最后同步时间失败 ${collectionName}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -581,7 +582,7 @@ class DataService {
       return true;
     } catch (error) {
       console.error(`设置最后同步时间失败 ${collectionName}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -661,7 +662,7 @@ class DataService {
       const options = {
         sort: params.sort || { updated_at: -1 },
         limit: params.limit || 100,
-        skip: params.skip || 0
+        skip: params.skip || 0,
       };
 
       // 从本地数据库查询笔记 - 使用正确的模型名称 'Note'
@@ -683,14 +684,13 @@ class DataService {
         console.log(`查询到${notes.length}条笔记`);
       } catch (queryError) {
         console.error('执行笔记查询失败:', queryError);
-        // 出错时返回空数组
-        notes = [];
+        throw queryError;
       }
 
       return notes;
     } catch (error) {
       console.error('获取笔记列表失败:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -706,7 +706,7 @@ class DataService {
       // 从本地数据库查询笔记 - 使用正确的模型名称 'Note'
       const note = await realmService.findById('Note', id);
 
-      // 如果笔记已删除，返回null
+      // 业务语义：已软删除笔记默认不可见，返回 null（非错误）
       if (note && note.is_deleted) {
         return null;
       }
@@ -714,7 +714,7 @@ class DataService {
       return note;
     } catch (error) {
       console.error(`获取笔记失败: ${id}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -768,14 +768,14 @@ class DataService {
               ...serverNote,
               _id: serverNote.id,
               user_id: userId,
-              is_synced: true
+              is_synced: true,
             });
             console.log(`创建新笔记: ${serverNote.id}`);
           } else if (new Date(serverNote.updated_at) > new Date(localNote.updated_at)) {
             // 如果服务器版本更新，更新本地笔记 - 使用正确的模型名称 'Note'
             await realmService.update('Note', serverNote.id, {
               ...serverNote,
-              is_synced: true
+              is_synced: true,
             });
             console.log(`更新笔记: ${serverNote.id}`);
           }
@@ -789,12 +789,17 @@ class DataService {
       return true;
     } catch (error) {
       console.error('同步笔记失败:', error);
-      return false;
+      throw error;
     }
   }
 }
 
-export const dataService = new DataService();
+const dataService = new DataService();
+
+module.exports = dataService;
+module.exports.default = dataService;
+module.exports.dataService = dataService;
+module.exports.DataService = DataService;
 
 export default dataService;
 

@@ -45,7 +45,7 @@ const VoicePlayer = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 状态
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -55,7 +55,7 @@ const VoicePlayer = ({
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [fileName, setFileName] = useState('');
   const [fileExists, setFileExists] = useState(false);
-  
+
   // 引用
   const audioPlayer = useRef(null);
 
@@ -68,11 +68,11 @@ const VoicePlayer = ({
       console.warn('VoicePlayer: AudioRecorderPlayer初始化失败:', error);
     }
   }, []);
-  
+
   // 组件挂载时检查文件
   useEffect(() => {
     checkFile();
-    
+
     // 组件卸载时清理
     return () => {
       if (isPlaying) {
@@ -80,30 +80,30 @@ const VoicePlayer = ({
       }
     };
   }, [source]);
-  
+
   // 自动播放
   useEffect(() => {
     if (autoPlay && fileExists && !isPlaying) {
       startPlayer();
     }
   }, [fileExists, autoPlay]);
-  
+
   // 检查文件是否存在
   const checkFile = async () => {
     if (!source) {
       setFileExists(false);
       return;
     }
-    
+
     try {
       const exists = await RNFS.exists(source);
       setFileExists(exists);
-      
+
       if (exists) {
         // 获取文件名
         const fileName = source.split('/').pop();
         setFileName(fileName);
-        
+
         // 获取音频时长
         const info = await audioPlayer.current.getInfo(source);
         if (info && info.duration) {
@@ -116,40 +116,40 @@ const VoicePlayer = ({
       setFileExists(false);
     }
   };
-  
+
   // 开始播放
   const startPlayer = async () => {
-    if (!fileExists) return;
-    
+    if (!fileExists) {return;}
+
     try {
       // 开始播放
       await audioPlayer.current.startPlayer(source);
-      
+
       // 设置播放状态
       setIsPlaying(true);
       setIsPaused(false);
-      
+
       // 监听播放进度
       audioPlayer.current.addPlayBackListener((e) => {
         setPlaySeconds(e.currentPosition / 1000);
         setPlayTime(audioPlayer.current.mmssss(e.currentPosition));
-        
+
         // 播放完成
         if (e.currentPosition >= e.duration) {
           stopPlayer();
-          
+
           // 调用完成回调
           if (onPlayComplete) {
             onPlayComplete();
           }
         }
       });
-      
+
       // 调用回调
       if (onPlayStart) {
         onPlayStart();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('start_playback', {
         duration: durationSeconds,
@@ -158,91 +158,91 @@ const VoicePlayer = ({
       console.error('开始播放失败:', error);
     }
   };
-  
+
   // 暂停播放
   const pausePlayer = async () => {
-    if (!isPlaying || isPaused) return;
-    
+    if (!isPlaying || isPaused) {return;}
+
     try {
       await audioPlayer.current.pausePlayer();
       setIsPaused(true);
-      
+
       // 调用回调
       if (onPlayPause) {
         onPlayPause();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('pause_playback');
     } catch (error) {
       console.error('暂停播放失败:', error);
     }
   };
-  
+
   // 继续播放
   const resumePlayer = async () => {
-    if (!isPlaying || !isPaused) return;
-    
+    if (!isPlaying || !isPaused) {return;}
+
     try {
       await audioPlayer.current.resumePlayer();
       setIsPaused(false);
-      
+
       // 调用回调
       if (onPlayResume) {
         onPlayResume();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('resume_playback');
     } catch (error) {
       console.error('继续播放失败:', error);
     }
   };
-  
+
   // 停止播放
   const stopPlayer = async () => {
-    if (!isPlaying) return;
-    
+    if (!isPlaying) {return;}
+
     try {
       await audioPlayer.current.stopPlayer();
       audioPlayer.current.removePlayBackListener();
-      
+
       // 重置状态
       setIsPlaying(false);
       setIsPaused(false);
       setPlayTime('00:00');
       setPlaySeconds(0);
-      
+
       // 调用回调
       if (onPlayStop) {
         onPlayStop();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('stop_playback');
     } catch (error) {
       console.error('停止播放失败:', error);
     }
   };
-  
+
   // 跳转到指定位置
   const seekToPosition = async (seconds) => {
-    if (!isPlaying) return;
-    
+    if (!isPlaying) {return;}
+
     try {
       await audioPlayer.current.seekToPlayer(seconds * 1000);
     } catch (error) {
       console.error('跳转播放位置失败:', error);
     }
   };
-  
+
   // 格式化时间显示
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
+
   // 渲染紧凑模式
   if (compact) {
     return (
@@ -295,7 +295,7 @@ const VoicePlayer = ({
             }
           />
         </TouchableOpacity>
-        
+
         {/* 进度条 */}
         <View style={styles.compactProgressContainer}>
           <Slider
@@ -309,7 +309,7 @@ const VoicePlayer = ({
             onSlidingComplete={seekToPosition}
             disabled={!isPlaying}
           />
-          
+
           <View style={styles.compactTimeContainer}>
             <Text
               variant="caption"
@@ -328,7 +328,7 @@ const VoicePlayer = ({
       </View>
     );
   }
-  
+
   // 渲染完整模式
   return (
     <View
@@ -354,7 +354,7 @@ const VoicePlayer = ({
           {fileName}
         </Text>
       )}
-      
+
       {/* 播放控制 */}
       <View style={styles.controlsContainer}>
         {/* 播放/暂停按钮 */}
@@ -401,7 +401,7 @@ const VoicePlayer = ({
             }
           />
         </TouchableOpacity>
-        
+
         {/* 停止按钮 */}
         {isPlaying && (
           <TouchableOpacity
@@ -417,7 +417,7 @@ const VoicePlayer = ({
             <Icon name="stop" size={20} color={colors.error} />
           </TouchableOpacity>
         )}
-        
+
         {/* 进度和时间 */}
         <View style={styles.progressContainer}>
           <Slider
@@ -431,7 +431,7 @@ const VoicePlayer = ({
             onSlidingComplete={seekToPosition}
             disabled={!isPlaying}
           />
-          
+
           <View style={styles.timeContainer}>
             <Text
               variant="caption"

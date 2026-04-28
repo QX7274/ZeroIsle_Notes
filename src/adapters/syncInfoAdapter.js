@@ -13,8 +13,8 @@ import { logService } from '../utils/logService';
  * @returns {Object} 前端同步信息对象
  */
 export const toFrontendSyncInfo = (syncInfo) => {
-  if (!syncInfo) return null;
-  
+  if (!syncInfo) {return null;}
+
   try {
     return {
       id: syncInfo._id,
@@ -43,8 +43,8 @@ export const toFrontendSyncInfo = (syncInfo) => {
  * @returns {Object} 后端同步信息模型
  */
 export const toBackendSyncInfo = (syncInfo) => {
-  if (!syncInfo) return null;
-  
+  if (!syncInfo) {return null;}
+
   try {
     return {
       _id: syncInfo.id,
@@ -76,8 +76,8 @@ export const createSyncInfo = async (syncInfoData) => {
   try {
     // 准备同步信息数据
     const now = new Date();
-    const syncInfoId = `syncinfo_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const syncInfoId = realmService.createObjectId();
+
     const backendSyncInfo = {
       _id: syncInfoId,
       entity_id: syncInfoData.entityId,
@@ -93,14 +93,14 @@ export const createSyncInfo = async (syncInfoData) => {
       updated_at: now,
       synced_at: null,
     };
-    
+
     // 创建同步信息模型
     const realm = await realmService.getRealm();
     let syncInfo;
     realm.write(() => {
       syncInfo = realm.create('SyncInfo', backendSyncInfo);
     });
-    
+
     // 返回前端同步信息对象
     return toFrontendSyncInfo(syncInfo);
   } catch (error) {
@@ -120,28 +120,28 @@ export const updateSyncInfo = async (syncInfoId, syncInfoData) => {
     // 查找同步信息
     const realm = await realmService.getRealm();
     const syncInfo = realm.objectForPrimaryKey('SyncInfo', syncInfoId);
-    
+
     if (!syncInfo) {
       throw new Error(`同步信息不存在: ${syncInfoId}`);
     }
-    
+
     // 更新同步信息属性
-    if (syncInfoData.status !== undefined) syncInfo.status = syncInfoData.status;
-    if (syncInfoData.retryCount !== undefined) syncInfo.retry_count = syncInfoData.retryCount;
-    if (syncInfoData.error !== undefined) syncInfo.error = syncInfoData.error;
-    if (syncInfoData.priority !== undefined) syncInfo.priority = syncInfoData.priority;
-    
+    if (syncInfoData.status !== undefined) {syncInfo.status = syncInfoData.status;}
+    if (syncInfoData.retryCount !== undefined) {syncInfo.retry_count = syncInfoData.retryCount;}
+    if (syncInfoData.error !== undefined) {syncInfo.error = syncInfoData.error;}
+    if (syncInfoData.priority !== undefined) {syncInfo.priority = syncInfoData.priority;}
+
     // 如果状态为已同步，设置同步时间
     if (syncInfoData.status === 'synced' && !syncInfo.synced_at) {
       syncInfo.synced_at = new Date();
     }
-    
+
     // 更新时间
     syncInfo.updated_at = new Date();
-    
+
     // 保存同步信息
     await syncInfo.save();
-    
+
     // 返回前端同步信息对象
     return toFrontendSyncInfo(syncInfo);
   } catch (error) {
@@ -160,11 +160,11 @@ export const getSyncInfo = async (syncInfoId) => {
     // 查找同步信息
     const realm = await realmService.getRealm();
     const syncInfo = realm.objectForPrimaryKey('SyncInfo', syncInfoId);
-    
+
     if (!syncInfo) {
       throw new Error(`同步信息不存在: ${syncInfoId}`);
     }
-    
+
     // 返回前端同步信息对象
     return toFrontendSyncInfo(syncInfo);
   } catch (error) {
@@ -184,11 +184,11 @@ export const getEntitySyncInfo = async (entityId, entityType) => {
     // 查找同步信息
     const realm = await realmService.getRealm();
     const syncInfo = realm.objects('SyncInfo').filtered(`entity_id = "${entityId}" AND entity_type = "${entityType}"`)[0];
-    
+
     if (!syncInfo) {
       return null;
     }
-    
+
     // 返回前端同步信息对象
     return toFrontendSyncInfo(syncInfo);
   } catch (error) {
@@ -208,17 +208,17 @@ export const getPendingSyncInfo = async (userId, options = {}) => {
     // 查找待同步的信息
     const realm = await realmService.getRealm();
     let syncInfoList = realm.objects('SyncInfo').filtered(`user_id = "${userId}" AND status = "pending"`);
-    
+
     // 应用排序
     if (options.sortBy) {
       syncInfoList = syncInfoList.sorted(options.sortBy, options.sortOrder === 'desc');
     }
-    
+
     // 应用分页
     if (options.limit) {
       syncInfoList = syncInfoList.slice(0, options.limit);
     }
-    
+
     // 返回前端同步信息对象列表
     return syncInfoList.map(toFrontendSyncInfo);
   } catch (error) {
@@ -255,17 +255,17 @@ export const markAsFailed = async (syncInfoId, error) => {
     // 查找同步信息
     const realm = await realmService.getRealm();
     const syncInfo = realm.objectForPrimaryKey('SyncInfo', syncInfoId);
-    
+
     if (!syncInfo) {
       throw new Error(`同步信息不存在: ${syncInfoId}`);
     }
-    
+
     // 增加重试次数
     const retryCount = syncInfo.retry_count + 1;
-    
+
     // 如果重试次数超过最大值，标记为失败
     const status = retryCount >= 3 ? 'failed' : 'pending';
-    
+
     return updateSyncInfo(syncInfoId, {
       status,
       retryCount,
@@ -288,7 +288,7 @@ export const cleanupSyncedInfo = async (userId, days = 7) => {
     // 计算截止日期
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    
+
     // 删除已同步的信息
     const realm = await realmService.getRealm();
     let result = 0;
@@ -297,7 +297,7 @@ export const cleanupSyncedInfo = async (userId, days = 7) => {
       result = itemsToDelete.length;
       realm.delete(itemsToDelete);
     });
-    
+
     return result.deletedCount;
   } catch (error) {
     logService.error(`清理已同步信息失败: ${userId}`, error);

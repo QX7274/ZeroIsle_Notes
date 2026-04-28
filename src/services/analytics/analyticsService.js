@@ -51,7 +51,7 @@ initDeviceInfo();
  * @param {Object} params 事件参数
  */
 export const trackEvent = (eventName, params = {}) => {
-  if (!ANALYTICS_ENABLED) return;
+  if (!ANALYTICS_ENABLED) {return;}
 
   try {
     const event = {
@@ -81,7 +81,7 @@ export const trackEvent = (eventName, params = {}) => {
  * @param {Object} context 错误上下文
  */
 export const trackError = (error, context = {}) => {
-  if (!ANALYTICS_ENABLED) return;
+  if (!ANALYTICS_ENABLED) {return;}
 
   try {
     // 防御性检查，确保 error 不为 undefined 或 null
@@ -146,7 +146,7 @@ export const trackUserAction = (action, params = {}) => {
  * 发送事件数据到服务器
  */
 const sendEvents = async () => {
-  if (eventQueue.length === 0) return;
+  if (eventQueue.length === 0) {return;}
 
   try {
     // 复制队列并清空
@@ -175,7 +175,7 @@ const sendEvents = async () => {
  * @param {Object} userProperties 用户属性
  */
 export const setUserId = (userId, userProperties = {}) => {
-  if (!ANALYTICS_ENABLED) return;
+  if (!ANALYTICS_ENABLED) {return;}
 
   try {
     trackEvent('set_user_id', {
@@ -193,7 +193,7 @@ export const setUserId = (userId, userProperties = {}) => {
  * 清除用户标识
  */
 export const clearUserId = () => {
-  if (!ANALYTICS_ENABLED) return;
+  if (!ANALYTICS_ENABLED) {return;}
 
   try {
     trackEvent('clear_user_id');

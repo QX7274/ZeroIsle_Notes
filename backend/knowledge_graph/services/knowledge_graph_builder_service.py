@@ -23,7 +23,7 @@ class KnowledgeGraphBuilderService:
     """
     
     def __init__(self):
-        """初始化服务"""
+        # 初始化服务
         self.auto_classification_service = AutoClassificationService()
         self.text_processing_service = TextProcessingService()
     

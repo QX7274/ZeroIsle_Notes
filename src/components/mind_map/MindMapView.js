@@ -130,7 +130,7 @@ const {
   MINIMAP_WIDTH,
   MINIMAP_HEIGHT,
   SHOW_MINIMAP,
-  SHOW_GRID
+  SHOW_GRID,
 } = getResponsiveNodeSize();
 
 // 思维导图视图组件
@@ -168,7 +168,7 @@ const MindMapView = forwardRef(({
     },
     zoomOut: () => {
       zoomOut();
-    }
+    },
   }));
 
   // 手势状态 - 增强版
@@ -274,7 +274,7 @@ const MindMapView = forwardRef(({
               toValue: newScale,
               friction: 7,
               tension: 40,
-              useNativeDriver: false
+              useNativeDriver: false,
             }).start();
             setLastScale(newScale);
             return;
@@ -283,7 +283,7 @@ const MindMapView = forwardRef(({
           // 单点触控 - 平移或拖拽节点
           pan.setOffset({
             x: pan.x._value,
-            y: pan.y._value
+            y: pan.y._value,
           });
           pan.setValue({ x: 0, y: 0 });
 
@@ -342,7 +342,7 @@ const MindMapView = forwardRef(({
           // 应用平移补偿，使缩放围绕手指中心点
           pan.setValue({
             x: lastPan.x + focusShiftX * (1 - scaleChange),
-            y: lastPan.y + focusShiftY * (1 - scaleChange)
+            y: lastPan.y + focusShiftY * (1 - scaleChange),
           });
 
           // 更新状态
@@ -393,13 +393,13 @@ const MindMapView = forwardRef(({
             Animated.decay(pan, {
               velocity: { x: velocityX, y: velocityY },
               deceleration: 0.997,
-              useNativeDriver: false
+              useNativeDriver: false,
             }).start(() => {
               // 惯性滑动结束后更新最终位置
               pan.flattenOffset();
               setLastPan({
                 x: pan.x._value,
-                y: pan.y._value
+                y: pan.y._value,
               });
             });
           } else {
@@ -407,7 +407,7 @@ const MindMapView = forwardRef(({
             pan.flattenOffset();
             setLastPan({
               x: pan.x._value,
-              y: pan.y._value
+              y: pan.y._value,
             });
           }
         } else if (gestureState.current.isPinching) {
@@ -415,7 +415,7 @@ const MindMapView = forwardRef(({
           setLastScale(scale._value);
           setLastPan({
             x: pan.x._value,
-            y: pan.y._value
+            y: pan.y._value,
           });
           gestureState.current.isPinching = false;
         } else if (gestureState.current.draggedNodeId) {
@@ -426,7 +426,7 @@ const MindMapView = forwardRef(({
           pan.flattenOffset();
           setLastPan({
             x: pan.x._value,
-            y: pan.y._value
+            y: pan.y._value,
           });
         }
 
@@ -440,13 +440,13 @@ const MindMapView = forwardRef(({
         pan.flattenOffset();
         setLastPan({
           x: pan.x._value,
-          y: pan.y._value
+          y: pan.y._value,
         });
         gestureState.current.isPinching = false;
         gestureState.current.draggedNodeId = null;
         gestureState.current.isDragging = false;
         gestureState.current.isDoubleTap = false;
-      }
+      },
     })
   ).current;
 
@@ -474,12 +474,12 @@ const MindMapView = forwardRef(({
 
   // 计算节点位置
   const calculateNodePositions = (currentLayoutType = layoutType) => {
-    if (!nodes.length) return;
+    if (!nodes.length) {return;}
 
     // 使用布局工具构建节点树
     const { nodeMap, rootNode } = mindMapLayoutUtils.buildNodeTree(nodes);
 
-    if (!rootNode) return;
+    if (!rootNode) {return;}
 
     // 布局选项
     const layoutOptions = {
@@ -532,14 +532,14 @@ const MindMapView = forwardRef(({
         toValue: { x: 0, y: 0 },
         friction: 7,
         tension: 40,
-        useNativeDriver: false
+        useNativeDriver: false,
       }),
       Animated.spring(scale, {
         toValue: 1,
         friction: 7,
         tension: 40,
-        useNativeDriver: false
-      })
+        useNativeDriver: false,
+      }),
     ]).start();
 
     // 更新状态
@@ -562,7 +562,7 @@ const MindMapView = forwardRef(({
       toValue: newScale,
       friction: 7,
       tension: 40,
-      useNativeDriver: false
+      useNativeDriver: false,
     }).start();
 
     // 更新最后缩放值
@@ -579,7 +579,7 @@ const MindMapView = forwardRef(({
       toValue: newScale,
       friction: 7,
       tension: 40,
-      useNativeDriver: false
+      useNativeDriver: false,
     }).start();
 
     // 更新最后缩放值
@@ -594,7 +594,7 @@ const MindMapView = forwardRef(({
   // 渲染节点
   const renderNode = (node) => {
     const position = nodePositions[node.id];
-    if (!position) return null;
+    if (!position) {return null;}
 
     // 根据主题获取节点样式
     const nodeStyle = getNodeStyle(node, theme);
@@ -721,7 +721,7 @@ const MindMapView = forwardRef(({
     const sourcePosition = nodePositions[edge.source];
     const targetPosition = nodePositions[edge.target];
 
-    if (!sourcePosition || !targetPosition) return null;
+    if (!sourcePosition || !targetPosition) {return null;}
 
     // 根据主题获取边样式
     const edgeStyle = getEdgeStyle(edge, theme);
@@ -812,8 +812,8 @@ const MindMapView = forwardRef(({
     if (controlX && controlY) {
       // 贝塞尔曲线的箭头方向
       const t = 0.95; // 靠近终点的位置
-      const x = (1-t)*(1-t)*source.x + 2*(1-t)*t*controlX + t*t*target.x;
-      const y = (1-t)*(1-t)*source.y + 2*(1-t)*t*controlY + t*t*target.y;
+      const x = (1 - t) * (1 - t) * source.x + 2 * (1 - t) * t * controlX + t * t * target.x;
+      const y = (1 - t) * (1 - t) * source.y + 2 * (1 - t) * t * controlY + t * t * target.y;
 
       endX = target.x;
       endY = target.y;
@@ -834,12 +834,12 @@ const MindMapView = forwardRef(({
     // 箭头两侧的点
     const arrowLeft = {
       x: endX - arrowSize * Math.cos(angle - Math.PI / 6),
-      y: endY - arrowSize * Math.sin(angle - Math.PI / 6)
+      y: endY - arrowSize * Math.sin(angle - Math.PI / 6),
     };
 
     const arrowRight = {
       x: endX - arrowSize * Math.cos(angle + Math.PI / 6),
-      y: endY - arrowSize * Math.sin(angle + Math.PI / 6)
+      y: endY - arrowSize * Math.sin(angle + Math.PI / 6),
     };
 
     // 绘制箭头
@@ -864,7 +864,7 @@ const MindMapView = forwardRef(({
       stroke: colors.primary,
       textColor: '#fff',
       fontSize: 14,
-      fontWeight: 'normal'
+      fontWeight: 'normal',
     };
 
     // 根据节点属性和主题调整样式
@@ -936,10 +936,10 @@ const MindMapView = forwardRef(({
     }
 
     // 应用节点自定义样式（覆盖主题样式）
-    if (node.shape) style.shape = node.shape;
-    if (node.color) style.fill = node.color;
-    if (node.font_size) style.fontSize = node.font_size;
-    if (node.font_weight) style.fontWeight = node.font_weight;
+    if (node.shape) {style.shape = node.shape;}
+    if (node.color) {style.fill = node.color;}
+    if (node.font_size) {style.fontSize = node.font_size;}
+    if (node.font_weight) {style.fontWeight = node.font_weight;}
 
     // 根据节点类型调整样式
     if (node.type === 'important') {
@@ -958,11 +958,11 @@ const MindMapView = forwardRef(({
   const calculateNodeLevel = (node) => {
     // 简单实现：根据parent_id判断层级
     // 实际应用中可能需要更复杂的逻辑
-    if (!node.parent_id) return 0;
+    if (!node.parent_id) {return 0;}
 
     // 查找父节点
     const parentNode = nodes.find(n => n.id === node.parent_id);
-    if (!parentNode) return 1;
+    if (!parentNode) {return 1;}
 
     // 递归计算父节点层级
     return calculateNodeLevel(parentNode) + 1;
@@ -974,7 +974,7 @@ const MindMapView = forwardRef(({
     const defaultStyle = {
       stroke: colors.border,
       strokeWidth: 2,
-      strokeDasharray: edge.style === 'dashed' ? '5,5' : ''
+      strokeDasharray: edge.style === 'dashed' ? '5,5' : '',
     };
 
     // 根据边属性和主题调整样式
@@ -1020,8 +1020,8 @@ const MindMapView = forwardRef(({
     }
 
     // 应用边自定义样式（覆盖主题样式）
-    if (edge.color) style.stroke = edge.color;
-    if (edge.width) style.strokeWidth = edge.width;
+    if (edge.color) {style.stroke = edge.color;}
+    if (edge.width) {style.strokeWidth = edge.width;}
 
     // 根据边类型调整样式
     if (edge.type === 'important') {
@@ -1040,8 +1040,8 @@ const MindMapView = forwardRef(({
     transform: [
       { translateX: pan.x },
       { translateY: pan.y },
-      { scale: scale }
-    ]
+      { scale: scale },
+    ],
   };
 
   // 确保转换值是有效的数字
@@ -1066,7 +1066,7 @@ const MindMapView = forwardRef(({
   // 添加迷你地图 - 增强版
   const renderMinimap = () => {
     // 如果配置为不显示迷你地图，则返回null
-    if (!SHOW_MINIMAP) return null;
+    if (!SHOW_MINIMAP) {return null;}
 
     // 计算视口在整个画布中的位置
     const viewportWidth = width / scale._value;
@@ -1108,7 +1108,7 @@ const MindMapView = forwardRef(({
         toValue: { x: newPanX, y: newPanY },
         useNativeDriver: false,
         friction: 7,
-        tension: 40
+        tension: 40,
       }).start();
 
       // 更新最后平移位置
@@ -1127,7 +1127,7 @@ const MindMapView = forwardRef(({
     return (
       <View style={[
         styles.minimapContainer,
-        isMinimapExpanded && styles.minimapContainerExpanded
+        isMinimapExpanded && styles.minimapContainerExpanded,
       ]}>
         {/* 迷你地图标题栏 */}
         <View style={styles.minimapHeader}>
@@ -1161,7 +1161,7 @@ const MindMapView = forwardRef(({
               {edges.map(edge => {
                 const sourcePosition = nodePositions[edge.source];
                 const targetPosition = nodePositions[edge.target];
-                if (!sourcePosition || !targetPosition) return null;
+                if (!sourcePosition || !targetPosition) {return null;}
 
                 return (
                   <Line
@@ -1180,7 +1180,7 @@ const MindMapView = forwardRef(({
               {/* 渲染简化的节点 */}
               {nodes.map(node => {
                 const position = nodePositions[node.id];
-                if (!position) return null;
+                if (!position) {return null;}
 
                 // 根节点使用不同颜色和大小
                 const isRoot = !node.parent_id;
@@ -1231,7 +1231,7 @@ const MindMapView = forwardRef(({
       return () => clearTimeout(timer);
     }, []);
 
-    if (!showHints) return null;
+    if (!showHints) {return null;}
 
     return (
       <View style={styles.hintsContainer}>
@@ -1253,7 +1253,7 @@ const MindMapView = forwardRef(({
 
   // 渲染网格背景
   const renderGridBackground = () => {
-    if (!SHOW_GRID) return null;
+    if (!SHOW_GRID) {return null;}
 
     // 根据缩放级别调整网格大小
     const scaleValue = scale._value || 1;
@@ -1266,7 +1266,7 @@ const MindMapView = forwardRef(({
           <Path
             d={`M ${validGridSize} 0 L 0 0 0 ${validGridSize}`}
             fill="none"
-            stroke={colors.mode === 'dark' ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
+            stroke={colors.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
             strokeWidth="1"
           />
         </Pattern>

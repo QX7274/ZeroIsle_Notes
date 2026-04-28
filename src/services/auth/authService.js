@@ -4,8 +4,9 @@
  */
 
 import realmService from '../database/realmService';
+import realmJwtAuthService from './realmJwtAuthService';
 import authStorage from './authStorage';
-import { STORAGE_KEYS } from '../../utils/constants/config';
+import { DeviceEventEmitter } from 'react-native';
 import { logService } from '../../utils/logService';
 
 class AuthService {
@@ -13,6 +14,7 @@ class AuthService {
     this.initialized = false;
     this.initializationPromise = null;
     this.currentUser = null;
+    this.isRealmAuthenticated = false;
   }
 
   async getAuthToken() {
@@ -27,7 +29,7 @@ class AuthService {
    * @returns {Promise<void>}
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -42,6 +44,17 @@ class AuthService {
         const user = await authStorage.getUser();
         if (user) {
           this.currentUser = user;
+
+          // 尝试自动恢复 Realm 会话（如果本地有 realm_jwt）
+          const realmJwt = await authStorage.getRealmJwt();
+          if (realmJwt) {
+            try {
+              await realmJwtAuthService.loginWithJwt(realmJwt);
+              this.isRealmAuthenticated = true;
+            } catch (realmErr) {
+              logService.warn('初始化时自动恢复 Realm 会话失败', realmErr);
+            }
+          }
         }
 
         this.initialized = true;
@@ -57,66 +70,45 @@ class AuthService {
   }
 
   /**
-   * 使用邮箱和密码注册
-   * @param {string} email 邮箱
-   * @param {string} password 密码
-   * @param {object} userData 用户数据
-   * @returns {Promise<object>} 用户对象
+   * 使用邮箱注册（已废弃：仅保留接口兼容，内部返回错误）
    */
-  async registerWithEmail(email, password, userData = {}) {
-    try {
-      await this.initialize();
-
-      // 使用Realm注册
-      const app = realmService.app;
-      
-      // 创建邮箱密码用户
-      await app.emailPasswordAuth.registerUser({ email, password });
-      
-      // 登录
-      const credentials = Realm.Credentials.emailPassword(email, password);
-      const user = await app.logIn(credentials);
-      
-      // 保存用户信息
-      const userProfile = {
-        id: user.id,
-        email,
-        ...userData,
-        createdAt: new Date().toISOString(),
-      };
-      
-      // 保存到本地存储
-      await this.saveUserData(user, userProfile);
-      
-      return userProfile;
-    } catch (error) {
-      logService.error('邮箱注册失败', error);
-      throw error;
-    }
+  async registerWithEmail() {
+    throw new Error('邮箱注册功能已停用，请使用手机号、微信或 QQ 登录');
   }
 
   /**
-   * 使用邮箱和密码登录
-   * @param {string} email 邮箱
-   * @param {string} password 密码
-   * @returns {Promise<object>} 用户对象
+   * 使用邮箱登录（已废弃：仅保留接口兼容，内部返回错误）
    */
-  async loginWithEmail(email, password) {
+  async loginWithEmail() {
+    throw new Error('邮箱登录功能已停用，请使用手机号、微信或 QQ 登录');
+  }
+
+  /**
+   * 第三方登录（手机号/微信/QQ）成功后的回调
+   * 需包含后端签发的业务 token 与 realm_jwt
+   * @param {string} provider - 'phone' | 'weChat' | 'qq'
+   * @param {object} loginResponse - 后端返回的完整响应
+   */
+  async handleThirdPartyLoginSuccess(provider, loginResponse) {
     try {
       await this.initialize();
+      const { user, tokens } = loginResponse.data; // 约定结构：{ user, tokens: { access, refresh, realm_jwt } }
 
-      // 使用realmService登录
-      const user = await realmService.login(email, password);
-      
-      // 获取用户信息
-      const userProfile = await this.fetchUserProfile(user);
-      
-      // 保存到本地存储
-      await this.saveUserData(user, userProfile);
-      
-      return userProfile;
+      if (!tokens?.realm_jwt) {
+        throw new Error(`后端响应缺失 realm_jwt，登录渠道: ${provider}`);
+      }
+
+      // 1. 保存业务数据
+      await this.saveUserData(tokens.access, user, tokens.realm_jwt);
+
+      // 2. 同步登录 Realm
+      await realmJwtAuthService.loginWithJwt(tokens.realm_jwt);
+      this.isRealmAuthenticated = true;
+
+      logService.info(`第三方登录成功 [${provider}], 用户 ID: ${user.id}`);
+      return user;
     } catch (error) {
-      logService.error('邮箱登录失败', error);
+      logService.error(`第三方登录落地失败 [${provider}]`, error);
       throw error;
     }
   }
@@ -189,19 +181,37 @@ class AuthService {
     try {
       await this.initialize();
 
-      // 使用realmService登出
-      await realmService.logout();
-      
-      // 清除本地存储
+      // 1. 登出 Realm 会话
+      await realmJwtAuthService.logout();
+
+      // 2. 清除本地存储
       await authStorage.clearAuth();
-      
-      // 重置当前用户
+
+      // 3. 重置当前用户
       this.currentUser = null;
-      
+      this.isRealmAuthenticated = false;
+
       return true;
     } catch (error) {
       logService.error('登出失败', error);
       throw error;
+    }
+  }
+
+  /**
+   * 强制登出
+   * 清理会话并触发全局事件以导航到登录页
+   * @returns {Promise<void>}
+   */
+  async forceLogout() {
+    try {
+      await this.logout(); // 调用现有的清理逻辑
+      DeviceEventEmitter.emit('FORCE_LOGOUT'); // 发出全局事件
+      logService.info('强制登出事件已触发');
+    } catch (error) {
+      logService.error('强制登出失败', error);
+      // 即使登出有异常，也尝试触发UI重置
+      DeviceEventEmitter.emit('FORCE_LOGOUT');
     }
   }
 
@@ -240,23 +250,6 @@ class AuthService {
     try {
       await this.initialize();
 
-      // 开发模式下跳过登录检查
-      const { DEV_CONFIG } = require('../../config');
-      if (DEV_CONFIG.SKIP_LOGIN) {
-        console.log('开发模式：跳过登录检查，自动设置为已登录状态');
-
-        // 如果没有当前用户，设置默认开发用户
-        if (!this.currentUser) {
-          this.currentUser = DEV_CONFIG.DEFAULT_USER;
-          // 保存到本地存储
-          await authStorage.saveUser(this.currentUser);
-          await authStorage.saveToken(DEV_CONFIG.DEFAULT_TOKEN);
-          console.log('开发模式：已设置默认用户和令牌');
-        }
-
-        return true;
-      }
-
       // 首先检查本地存储的用户信息
       if (!this.currentUser) {
         const user = await authStorage.getUser();
@@ -265,148 +258,39 @@ class AuthService {
         }
       }
 
-      // 如果有本地用户信息，认为用户已登录（支持离线模式）
-      if (this.currentUser) {
-        console.log('用户已登录（基于本地存储）:', this.currentUser.id || this.currentUser.email);
-        return true;
-      }
+      // 如果有本地用户信息，认为基础登录有效（支持离线）
+      const hasBaseUser = !!this.currentUser;
 
-      // 检查realmService是否已登录（在线模式）
-      try {
-        const isLoggedIn = realmService.isUserLoggedIn();
-        if (isLoggedIn) {
-          console.log('用户已登录（基于Realm服务）');
-          return true;
-        }
-      } catch (realmError) {
-        // Realm服务可能在离线模式下不可用，但不影响登录状态检查
-        console.log('Realm服务检查失败，可能处于离线模式:', realmError.message);
-      }
+      // 检查 Realm 会话是否真正可用
+      const isRealmValid = realmJwtAuthService.app?.currentUser?.state === 'active';
+      this.isRealmAuthenticated = isRealmValid;
 
-      return false;
+      return hasBaseUser && isRealmValid;
     } catch (error) {
       logService.error('检查登录状态失败', error);
-
-      // 即使检查失败，如果有本地用户信息，仍然认为已登录
-      if (this.currentUser) {
-        console.log('检查登录状态失败，但基于本地用户信息认为已登录');
-        return true;
-      }
-
-      return false;
-    }
-  }
-
-  /**
-   * 获取用户信息
-   * @param {object} user Realm用户对象
-   * @returns {Promise<object>} 用户信息
-   * @private
-   */
-  async fetchUserProfile(user) {
-    try {
-      // 这里可以从MongoDB获取用户信息
-      // 或者从用户自定义数据获取
-      const customData = user.customData || {};
-      
-      return {
-        id: user.id,
-        email: user.profile.email,
-        ...customData,
-      };
-    } catch (error) {
-      logService.error('获取用户信息失败', error);
-      
-      // 返回基本信息
-      return {
-        id: user.id,
-        email: user.profile?.email,
-      };
-    }
-  }
-
-  /**
-   * 处理网络恢复时的认证状态同步
-   * @returns {Promise<boolean>} 是否同步成功
-   */
-  async syncAuthStateOnNetworkRestore() {
-    try {
-      await this.initialize();
-
-      // 如果没有本地用户信息，无需同步
-      if (!this.currentUser) {
-        console.log('没有本地用户信息，无需同步认证状态');
-        return false;
-      }
-
-      console.log('网络恢复，开始同步认证状态');
-
-      // 尝试验证当前令牌是否仍然有效
-      try {
-        const token = await authStorage.getToken();
-        if (token) {
-          // 这里可以添加令牌验证逻辑
-          console.log('令牌存在，认证状态同步完成');
-          return true;
-        }
-      } catch (tokenError) {
-        console.log('令牌验证失败:', tokenError.message);
-      }
-
-      // 如果令牌无效或不存在，但用户信息存在，保持离线登录状态
-      console.log('保持离线登录状态，等待用户主动重新认证');
-      return true;
-    } catch (error) {
-      logService.error('同步认证状态失败', error);
-      return false;
-    }
-  }
-
-  /**
-   * 强制刷新认证令牌
-   * @returns {Promise<boolean>} 是否刷新成功
-   */
-  async refreshToken() {
-    try {
-      await this.initialize();
-
-      // 尝试使用Realm服务刷新令牌
-      if (realmService.isUserLoggedIn()) {
-        const user = realmService.getCurrentUser();
-        if (user && user.accessToken) {
-          await authStorage.saveToken(user.accessToken);
-          console.log('令牌刷新成功');
-          return true;
-        }
-      }
-
-      console.log('无法刷新令牌，可能需要重新登录');
-      return false;
-    } catch (error) {
-      logService.error('刷新令牌失败', error);
       return false;
     }
   }
 
   /**
    * 保存用户数据
-   * @param {object} user Realm用户对象
-   * @param {object} userProfile 用户信息
-   * @returns {Promise<void>}
-   * @private
+   * @param {string} accessToken - 业务接口 Token
+   * @param {object} userProfile - 用户详细信息
+   * @param {string} realmJwt - Realm 专用的 JWT
    */
-  async saveUserData(user, userProfile) {
+  async saveUserData(accessToken, userProfile, realmJwt) {
     try {
-      // 保存用户信息
+      // 1. 保存用户信息
       await authStorage.saveUser(userProfile);
-
-      // 保存当前用户
       this.currentUser = userProfile;
 
-      // 保存令牌（如果有）
-      if (user.accessToken) {
-        await authStorage.saveToken(user.accessToken);
-      }
+      // 2. 保存 Token 集
+      const tokenData = {
+        access_token: accessToken,
+        realm_jwt: realmJwt,
+        updated_at: new Date().toISOString()
+      };
+      await authStorage.saveToken(tokenData);
     } catch (error) {
       logService.error('保存用户数据失败', error);
       throw error;

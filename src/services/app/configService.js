@@ -4,12 +4,13 @@
 
 import realmService from '../database/realmService';
 import { Platform } from 'react-native';
+import { API_URL, API_VERSION } from '../../config';
 
 // 默认配置
 const DEFAULT_CONFIG = {
   // API配置
   api: {
-    baseUrl: 'http://localhost:8000/api/v1',
+    baseUrl: '',
     timeout: 10000,
     retryCount: 3,
   },
@@ -98,7 +99,7 @@ class ConfigService {
    * @returns {Promise<void>}
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -108,6 +109,9 @@ class ConfigService {
       try {
         // 加载配置
         await this.load();
+
+        // 将基地址与版本统一到全局配置
+        this.config.api.baseUrl = `${API_URL}/api/${API_VERSION}`;
 
         this.initialized = true;
         console.info('配置服务初始化成功');

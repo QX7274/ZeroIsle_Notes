@@ -14,12 +14,12 @@ async function testUsernameRegister() {
     const userData = {
       username: `test_user_${Date.now()}`,
       password: 'Test@123456',
-      confirm_password: 'Test@123456'
+      confirm_password: 'Test@123456',
     };
-    
+
     console.log('注册数据:', userData);
     const result = await authApi.register(userData);
-    
+
     if (result.success) {
       console.log('注册成功:', result.data.user);
       return result.data;
@@ -42,12 +42,12 @@ async function testEmailRegister() {
     const userData = {
       email: `test_${Date.now()}@example.com`,
       password: 'Test@123456',
-      confirm_password: 'Test@123456'
+      confirm_password: 'Test@123456',
     };
-    
+
     console.log('注册数据:', userData);
     const result = await authApi.registerWithEmail(userData);
-    
+
     if (result.success) {
       console.log('注册成功:', result.data.user);
       return result.data;
@@ -68,22 +68,23 @@ async function testPhoneRegister() {
   console.log('===== 测试手机号注册 =====');
   try {
     // 获取验证码
-    const phone = `1380013${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    const phoneSuffix = String(Date.now()).slice(-4).padStart(4, '0');
+    const phone = `1380013${phoneSuffix}`;
     console.log('发送验证码到手机:', phone);
-    
+
     await authApi.sendVerificationCode(phone, 'register');
-    
+
     // 在开发环境中，验证码固定为1234
     const userData = {
       phone,
       code: '1234',
       password: 'Test@123456',
-      confirm_password: 'Test@123456'
+      confirm_password: 'Test@123456',
     };
-    
+
     console.log('注册数据:', userData);
     const result = await authApi.registerWithPhone(userData);
-    
+
     if (result.success) {
       console.log('注册成功:', result.data.user);
       return result.data;
@@ -105,12 +106,12 @@ async function testUsernameLogin(username, password = 'Test@123456') {
   try {
     const loginData = {
       username,
-      password
+      password,
     };
-    
+
     console.log('登录数据:', loginData);
     const result = await authApi.login(loginData);
-    
+
     if (result.success) {
       console.log('登录成功:', result.data.user);
       return result.data;
@@ -132,12 +133,12 @@ async function testEmailLogin(email, password = 'Test@123456') {
   try {
     const loginData = {
       email,
-      password
+      password,
     };
-    
+
     console.log('登录数据:', loginData);
     const result = await authApi.login(loginData);
-    
+
     if (result.success) {
       console.log('登录成功:', result.data.user);
       return result.data;
@@ -159,12 +160,12 @@ async function testPhoneLogin(phone, password = 'Test@123456') {
   try {
     const loginData = {
       phone,
-      password
+      password,
     };
-    
+
     console.log('登录数据:', loginData);
     const result = await authApi.login(loginData);
-    
+
     if (result.success) {
       console.log('登录成功:', result.data.user);
       return result.data;
@@ -187,16 +188,16 @@ async function testCodeLogin(phone) {
     // 获取验证码
     console.log('发送验证码到手机:', phone);
     await authApi.sendVerificationCode(phone, 'login');
-    
+
     // 在开发环境中，验证码固定为1234
     const loginData = {
       phone,
-      code: '1234'
+      code: '1234',
     };
-    
+
     console.log('登录数据:', loginData);
     const result = await authApi.loginWithCode(loginData);
-    
+
     if (result.success) {
       console.log('登录成功:', result.data.user);
       return result.data;
@@ -218,12 +219,12 @@ async function testBindEmail(token, email) {
   try {
     const bindData = {
       email,
-      password: 'Test@123456'
+      password: 'Test@123456',
     };
-    
+
     console.log('绑定数据:', bindData);
     const result = await authApi.bindEmail(bindData, token);
-    
+
     if (result.success) {
       console.log('绑定成功:', result.data.user);
       return result.data;
@@ -246,17 +247,17 @@ async function testBindPhone(token, phone) {
     // 获取验证码
     console.log('发送验证码到手机:', phone);
     await authApi.sendVerificationCode(phone, 'bind');
-    
+
     // 在开发环境中，验证码固定为1234
     const bindData = {
       phone,
       code: '1234',
-      password: 'Test@123456'
+      password: 'Test@123456',
     };
-    
+
     console.log('绑定数据:', bindData);
     const result = await authApi.bindPhone(bindData, token);
-    
+
     if (result.success) {
       console.log('绑定成功:', result.data.user);
       return result.data;
@@ -279,42 +280,43 @@ async function runAllTests() {
     const usernameUser = await testUsernameRegister();
     const emailUser = await testEmailRegister();
     const phoneUser = await testPhoneRegister();
-    
+
     if (usernameUser) {
       // 测试用户名登录
       await testUsernameLogin(usernameUser.user.username);
-      
+
       // 测试绑定邮箱
       const email = `bind_${Date.now()}@example.com`;
       await testBindEmail(usernameUser.access, email);
-      
+
       // 测试邮箱登录
       await testEmailLogin(email);
-      
+
       // 测试绑定手机号
-      const phone = `1380013${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      const phoneSuffix = String(Date.now()).slice(-4).padStart(4, '0');
+      const phone = `1380013${phoneSuffix}`;
       await testBindPhone(usernameUser.access, phone);
-      
+
       // 测试手机号登录
       await testPhoneLogin(phone);
-      
+
       // 测试验证码登录
       await testCodeLogin(phone);
     }
-    
+
     if (emailUser) {
       // 测试邮箱登录
       await testEmailLogin(emailUser.user.email);
     }
-    
+
     if (phoneUser) {
       // 测试手机号登录
       await testPhoneLogin(phoneUser.user.phone);
-      
+
       // 测试验证码登录
       await testCodeLogin(phoneUser.user.phone);
     }
-    
+
     console.log('===== 所有测试完成 =====');
   } catch (error) {
     console.error('测试异常:', error);
@@ -332,5 +334,5 @@ export {
   testCodeLogin,
   testBindEmail,
   testBindPhone,
-  runAllTests
+  runAllTests,
 };

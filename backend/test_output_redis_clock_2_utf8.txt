@@ -1,0 +1,41 @@
+﻿python : Traceback (m
+ost recent call last)
+:
+所在位置 行:1 字符: 49
++ ... ='testing'; pyt
+hon notes/services/te
+st_redis_vector_clock
+.py > test_o ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Traceba   
+ ck (most recent     
+call last)::Stri    n
+g) [], RemoteEx    ce
+ption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  File "D:\ZeroIsle_N
+otes\backend\notes\se
+rvices\test_redis_vec
+tor_clock.py", line 5
+, in <module>
+    from notes.servic
+es.redis_service impo
+rt RedisService
+  File "D:\ZeroIsle_N
+otes\backend\notes\se
+rvices\__init__.py", 
+line 7, in <module>
+    from .sync_servic
+e import SyncService
+ModuleNotFoundError: 
+No module named 'note
+s.services.sync_servi
+ce'

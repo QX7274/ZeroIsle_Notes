@@ -86,7 +86,7 @@ class CanvasService {
 
     analyticsService.trackCanvasAction('add_element', {
       canvasId: this.canvasData.id,
-      elementType: element.type
+      elementType: element.type,
     });
   }
 
@@ -108,7 +108,7 @@ class CanvasService {
 
     analyticsService.trackCanvasAction('update_element', {
       canvasId: this.canvasData.id,
-      elementId
+      elementId,
     });
   }
 
@@ -124,7 +124,7 @@ class CanvasService {
 
     analyticsService.trackCanvasAction('delete_element', {
       canvasId: this.canvasData.id,
-      elementId
+      elementId,
     });
   }
 
@@ -161,7 +161,7 @@ class CanvasService {
 
       analyticsService.trackCanvasAction('export', {
         canvasId: this.canvasData.id,
-        format: 'image'
+        format: 'image',
       });
 
       return imageData;
@@ -173,10 +173,33 @@ class CanvasService {
   }
 
   async _renderCanvasToImage() {
-    // 实现画布渲染为图片的逻辑
-    // 这里需要根据实际使用的画布库来实现
-    throw new Error('未实现的画布渲染逻辑');
+    // 使用 react-native-view-shot: 由调用方提供一个可捕获的 ref
+    // 若当前服务没有 ref，则抛出更明确的错误
+    if (!this.captureRef) {
+      throw new Error('未提供可捕获的视图引用 (captureRef)。请在渲染容器处将其通过 canvasService.captureRef = ref 进行注入');
+    }
+    try {
+      const viewShot = require('react-native-view-shot');
+      const { captureRef } = viewShot;
+      const uri = await captureRef(this.captureRef, {
+        format: 'png',
+        quality: 0.9,
+      });
+      return { uri, format: 'png' };
+    } catch (e) {
+      // 降级方案：直接返回当前内存结构快照（供调试）
+      console.warn('captureRef 失败，返回内存结构快照:', e);
+      return {
+        dataUrl: `data:application/json;base64,${Buffer.from(JSON.stringify(this.canvasData || {})).toString('base64')}`,
+        format: 'json',
+      };
+    }
   }
 }
 
-export const canvasService = new CanvasService();
+const canvasService = new CanvasService();
+
+module.exports = canvasService;
+module.exports.default = canvasService;
+module.exports.canvasService = canvasService;
+module.exports.CanvasService = CanvasService;

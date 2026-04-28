@@ -1,0 +1,353 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.10.10, pytest-8.0.0, pluggy-1.5.0
+django: settings: backend.settings.testing (from ini)
+rootdir: D:\ZeroIsle_Notes
+configfile: pytest.ini
+plugins: anyio-4.9.0, Faker-19.13.0, asyncio-0.23.5, cov-4.1.0, django-4.5.2, typeguard-2.13.3
+asyncio: mode=strict
+collected 3 items
+
+notes\tests\test_consumers.py EEE                                        [100%]
+
+=================================== ERRORS ====================================
+_______ ERROR at setup of test_collaboration_connection_authentication ________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>
+sql = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+ignored_wrapper_args = (False, {'connection': <django.db.backends.sqlite3.base.DatabaseWrapper object at 0x000001C19DB46800>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       sqlite3.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+request = <SubRequest 'django_db_setup' for <Coroutine test_collaboration_connection_authentication>>
+django_test_environment = None
+django_db_blocker = <pytest_django.plugin._DatabaseBlocker object at 0x000001C19A372080>
+django_db_use_migrations = True, django_db_keepdb = False
+django_db_createdb = False, django_db_modify_db_settings = None
+
+    @pytest.fixture(scope="session")
+    def django_db_setup(
+        request,
+        django_test_environment: None,
+        django_db_blocker,
+        django_db_use_migrations: bool,
+        django_db_keepdb: bool,
+        django_db_createdb: bool,
+        django_db_modify_db_settings: None,
+    ) -> None:
+        """Top level fixture to ensure test databases are available"""
+        from django.test.utils import setup_databases, teardown_databases
+    
+        setup_databases_args = {}
+    
+        if not django_db_use_migrations:
+            _disable_migrations()
+    
+        if django_db_keepdb and not django_db_createdb:
+            setup_databases_args["keepdb"] = True
+    
+        with django_db_blocker.unblock():
+>           db_cfg = setup_databases(
+                verbosity=request.config.option.verbose,
+                interactive=False,
+                **setup_databases_args
+            )
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\pytest_django\fixtures.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\test\utils.py:179: in setup_databases
+    connection.creation.create_test_db(
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:90: in create_test_db
+    self.connection._test_serialized_contents = self.serialize_db_to_string()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:136: in serialize_db_to_string
+    serializers.serialize("json", get_objects(), indent=None, stream=out)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\__init__.py:129: in serialize
+    s.serialize(queryset, **options)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\base.py:90: in serialize
+    for count, obj in enumerate(queryset, start=1):
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:133: in get_objects
+    yield from queryset.iterator()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:353: in _iterator
+    yield from self._iterable_class(self, chunked_fetch=use_chunked_fetch, chunk_size=chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:51: in __iter__
+    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\sql\compiler.py:1175: in execute_sql
+    cursor.execute(sql, params)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:66: in execute
+    return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:75: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:79: in _execute
+    with self.db.wrap_database_errors:
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\utils.py:90: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       django.db.utils.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+_________________ ERROR at setup of test_message_broadcasting _________________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>
+sql = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+ignored_wrapper_args = (False, {'connection': <django.db.backends.sqlite3.base.DatabaseWrapper object at 0x000001C19DB46800>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       sqlite3.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+request = <SubRequest 'django_db_setup' for <Coroutine test_collaboration_connection_authentication>>
+django_test_environment = None
+django_db_blocker = <pytest_django.plugin._DatabaseBlocker object at 0x000001C19A372080>
+django_db_use_migrations = True, django_db_keepdb = False
+django_db_createdb = False, django_db_modify_db_settings = None
+
+    @pytest.fixture(scope="session")
+    def django_db_setup(
+        request,
+        django_test_environment: None,
+        django_db_blocker,
+        django_db_use_migrations: bool,
+        django_db_keepdb: bool,
+        django_db_createdb: bool,
+        django_db_modify_db_settings: None,
+    ) -> None:
+        """Top level fixture to ensure test databases are available"""
+        from django.test.utils import setup_databases, teardown_databases
+    
+        setup_databases_args = {}
+    
+        if not django_db_use_migrations:
+            _disable_migrations()
+    
+        if django_db_keepdb and not django_db_createdb:
+            setup_databases_args["keepdb"] = True
+    
+        with django_db_blocker.unblock():
+>           db_cfg = setup_databases(
+                verbosity=request.config.option.verbose,
+                interactive=False,
+                **setup_databases_args
+            )
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\pytest_django\fixtures.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\test\utils.py:179: in setup_databases
+    connection.creation.create_test_db(
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:90: in create_test_db
+    self.connection._test_serialized_contents = self.serialize_db_to_string()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:136: in serialize_db_to_string
+    serializers.serialize("json", get_objects(), indent=None, stream=out)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\__init__.py:129: in serialize
+    s.serialize(queryset, **options)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\base.py:90: in serialize
+    for count, obj in enumerate(queryset, start=1):
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:133: in get_objects
+    yield from queryset.iterator()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:353: in _iterator
+    yield from self._iterable_class(self, chunked_fetch=use_chunked_fetch, chunk_size=chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:51: in __iter__
+    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\sql\compiler.py:1175: in execute_sql
+    cursor.execute(sql, params)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:66: in execute
+    return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:75: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:79: in _execute
+    with self.db.wrap_database_errors:
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\utils.py:90: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       django.db.utils.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+____________ ERROR at setup of test_sync_status_and_user_tracking _____________
+
+self = <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>
+sql = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+ignored_wrapper_args = (False, {'connection': <django.db.backends.sqlite3.base.DatabaseWrapper object at 0x000001C19DB46800>, 'cursor': <django.db.backends.utils.CursorWrapper object at 0x000001C1E262F580>})
+
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       sqlite3.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+request = <SubRequest 'django_db_setup' for <Coroutine test_collaboration_connection_authentication>>
+django_test_environment = None
+django_db_blocker = <pytest_django.plugin._DatabaseBlocker object at 0x000001C19A372080>
+django_db_use_migrations = True, django_db_keepdb = False
+django_db_createdb = False, django_db_modify_db_settings = None
+
+    @pytest.fixture(scope="session")
+    def django_db_setup(
+        request,
+        django_test_environment: None,
+        django_db_blocker,
+        django_db_use_migrations: bool,
+        django_db_keepdb: bool,
+        django_db_createdb: bool,
+        django_db_modify_db_settings: None,
+    ) -> None:
+        """Top level fixture to ensure test databases are available"""
+        from django.test.utils import setup_databases, teardown_databases
+    
+        setup_databases_args = {}
+    
+        if not django_db_use_migrations:
+            _disable_migrations()
+    
+        if django_db_keepdb and not django_db_createdb:
+            setup_databases_args["keepdb"] = True
+    
+        with django_db_blocker.unblock():
+>           db_cfg = setup_databases(
+                verbosity=request.config.option.verbose,
+                interactive=False,
+                **setup_databases_args
+            )
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\pytest_django\fixtures.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\test\utils.py:179: in setup_databases
+    connection.creation.create_test_db(
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:90: in create_test_db
+    self.connection._test_serialized_contents = self.serialize_db_to_string()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:136: in serialize_db_to_string
+    serializers.serialize("json", get_objects(), indent=None, stream=out)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\__init__.py:129: in serialize
+    s.serialize(queryset, **options)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\core\serializers\base.py:90: in serialize
+    for count, obj in enumerate(queryset, start=1):
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\base\creation.py:133: in get_objects
+    yield from queryset.iterator()
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:353: in _iterator
+    yield from self._iterable_class(self, chunked_fetch=use_chunked_fetch, chunk_size=chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\query.py:51: in __iter__
+    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\models\sql\compiler.py:1175: in execute_sql
+    cursor.execute(sql, params)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:66: in execute
+    return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:75: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:79: in _execute
+    with self.db.wrap_database_errors:
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\utils.py:90: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\utils.py:84: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.backends.sqlite3.base.SQLiteCursorWrapper object at 0x000001C1E27AFBE0>
+query = 'SELECT "users_socialaccount"."id", "users_socialaccount"."user_id", "users_socialaccount"."provider", "users_socialac...t"."created_at", "users_socialaccount"."updated_at" FROM "users_socialaccount" ORDER BY "users_socialaccount"."id" ASC'
+params = ()
+
+    def execute(self, query, params=None):
+        if params is None:
+            return Database.Cursor.execute(self, query)
+        query = self.convert_query(query)
+>       return Database.Cursor.execute(self, query, params)
+E       django.db.utils.OperationalError: no such table: users_socialaccount
+
+C:\Users\QX\AppData\Local\Programs\Python\Python310\lib\site-packages\django\db\backends\sqlite3\base.py:423: OperationalError
+=========================== short test summary info ===========================
+ERROR notes\tests\test_consumers.py::test_collaboration_connection_authentication
+ERROR notes\tests\test_consumers.py::test_message_broadcasting - django.db.ut...
+ERROR notes\tests\test_consumers.py::test_sync_status_and_user_tracking - dja...
+============================== 3 errors in 4.31s ==============================

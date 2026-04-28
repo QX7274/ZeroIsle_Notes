@@ -5,6 +5,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import timedelta
+from mongoengine.queryset.visitor import Q
 from .models import AdminLoginLog
 from .serializers import (
     UserSerializer,
@@ -12,6 +15,10 @@ from .serializers import (
     AdminLoginLogSerializer,
     ChangePasswordSerializer
 )
+
+# 登录节流设置
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_ATTEMPT_TIMEFRAME_MINUTES = 15
 
 class LoginView(APIView):
     """管理员登录视图"""
@@ -22,6 +29,31 @@ class LoginView(APIView):
         if serializer.is_valid():
             username = serializer.validated_data['username']
             password = serializer.validated_data['password']
+            ip_address = self.get_client_ip(request)
+
+            # --- 暴力破解防护 ---
+            time_threshold = timezone.now() - timedelta(minutes=LOGIN_ATTEMPT_TIMEFRAME_MINUTES)
+            recent_failures = AdminLoginLog.objects.filter(
+                (Q(ip_address=ip_address) | Q(username=username)),
+                login_time__gte=time_threshold,
+                status=False
+            ).count()
+
+            if recent_failures >= LOGIN_ATTEMPT_LIMIT:
+                # 记录被阻止的尝试
+                log_data = {
+                    'username': username,
+                    'ip_address': ip_address,
+                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                    'status': False,
+                    'message': '登录尝试过于频繁，暂时锁定'
+                }
+                AdminLoginLog.objects.create(**log_data)
+                return Response({
+                    'status': 'error',
+                    'message': '登录尝试过于频繁，请稍后再试'
+                }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            # --- 防护结束 ---
 
             user = authenticate(username=username, password=password)
 
@@ -31,7 +63,7 @@ class LoginView(APIView):
                 # 记录登录日志
                 log_data = {
                     'username': username,
-                    'ip_address': self.get_client_ip(request),
+                    'ip_address': ip_address,
                     'user_agent': request.META.get('HTTP_USER_AGENT', ''),
                     'status': True,
                     'message': '登录成功'
@@ -51,7 +83,7 @@ class LoginView(APIView):
                 # 记录失败的登录尝试
                 log_data = {
                     'username': username,
-                    'ip_address': self.get_client_ip(request),
+                    'ip_address': ip_address,
                     'user_agent': request.META.get('HTTP_USER_AGENT', ''),
                     'status': False,
                     'message': '用户名或密码错误'
@@ -146,7 +178,8 @@ class ChangePasswordView(APIView):
 
 class AdminLoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     """管理员登录日志视图集"""
-    queryset = AdminLoginLog.objects.all()
+    # 避免在模块导入阶段触发 MongoDB 连接
+    queryset = []
     serializer_class = AdminLoginLogSerializer
     permission_classes = [IsAuthenticated]
 

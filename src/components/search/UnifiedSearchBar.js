@@ -48,7 +48,7 @@ const UnifiedSearchBar = ({
 
   // 根据搜索范围获取占位文本
   const getPlaceholder = () => {
-    if (placeholder) return placeholder;
+    if (placeholder) {return placeholder;}
 
     switch (searchScope) {
       case 'home':
@@ -68,7 +68,7 @@ const UnifiedSearchBar = ({
 
   // 根据搜索范围获取结果页面名称
   const getResultScreenName = () => {
-    if (resultScreenName) return resultScreenName;
+    if (resultScreenName) {return resultScreenName;}
 
     switch (searchScope) {
       case 'home':
@@ -98,7 +98,7 @@ const UnifiedSearchBar = ({
         query,
         searchMode: options.searchMode || 'text',
         isOfflineSearch: options.isOfflineSearch || false,
-        source: searchScope
+        source: searchScope,
       });
     }
   };
@@ -118,7 +118,7 @@ const UnifiedSearchBar = ({
             paddingVertical: 12,
             borderRadius: 24,
           },
-          style
+          style,
         ]}
         onPress={() => {
           setShowSearch(true);

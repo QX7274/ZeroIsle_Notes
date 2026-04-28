@@ -12,22 +12,46 @@ import { Text } from './Typography';
  * @param {object} style - 自定义样式
  */
 const ThemeToggle = ({ type = 'switch', style }) => {
-  const { isDarkMode, toggleTheme, themeType, setThemeType } = useTheme();
+  const { isDarkMode, toggleTheme, themeType, setThemeType, theme } = useTheme();
+  const { colors } = theme;
+
+  const dynamicStyles = {
+    container: {
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderWidth: 1,
+    },
+    button: {
+      // default transparent
+    },
+    activeButton: {
+      backgroundColor: colors.primary + '20', // 20% opacity
+    },
+    switch: {
+      backgroundColor: isDarkMode ? colors.primary : colors.border,
+    },
+    switchThumb: {
+      backgroundColor: colors.card,
+    },
+    iconButton: {
+      backgroundColor: colors.background,
+    },
+  };
 
   // 切换按钮
   if (type === 'button') {
     return (
-      <View style={[styles.container, style]}>
+      <View style={[styles.container, dynamicStyles.container, style]}>
         <TouchableOpacity
           style={[
             styles.button,
-            themeType === 'light' && styles.activeButton,
+            themeType === 'light' && dynamicStyles.activeButton,
           ]}
           onPress={() => setThemeType('light')}
         >
           <Text
             size="small"
-            color={themeType === 'light' ? 'primary' : undefined}
+            color={themeType === 'light' ? 'primary' : 'text'}
             bold={themeType === 'light'}
           >
             浅色
@@ -36,13 +60,13 @@ const ThemeToggle = ({ type = 'switch', style }) => {
         <TouchableOpacity
           style={[
             styles.button,
-            themeType === 'system' && styles.activeButton,
+            themeType === 'system' && dynamicStyles.activeButton,
           ]}
           onPress={() => setThemeType('system')}
         >
           <Text
             size="small"
-            color={themeType === 'system' ? 'primary' : undefined}
+            color={themeType === 'system' ? 'primary' : 'text'}
             bold={themeType === 'system'}
           >
             跟随系统
@@ -51,13 +75,13 @@ const ThemeToggle = ({ type = 'switch', style }) => {
         <TouchableOpacity
           style={[
             styles.button,
-            themeType === 'dark' && styles.activeButton,
+            themeType === 'dark' && dynamicStyles.activeButton,
           ]}
           onPress={() => setThemeType('dark')}
         >
           <Text
             size="small"
-            color={themeType === 'dark' ? 'primary' : undefined}
+            color={themeType === 'dark' ? 'primary' : 'text'}
             bold={themeType === 'dark'}
           >
             深色
@@ -71,7 +95,7 @@ const ThemeToggle = ({ type = 'switch', style }) => {
   if (type === 'switch') {
     return (
       <TouchableOpacity
-        style={[styles.switch, isDarkMode && styles.switchActive, style]}
+        style={[styles.switch, dynamicStyles.switch, style]}
         onPress={toggleTheme}
         activeOpacity={0.8}
       >
@@ -79,6 +103,7 @@ const ThemeToggle = ({ type = 'switch', style }) => {
           style={[
             styles.switchThumb,
             isDarkMode && styles.switchThumbActive,
+            dynamicStyles.switchThumb,
           ]}
         />
       </TouchableOpacity>
@@ -88,7 +113,7 @@ const ThemeToggle = ({ type = 'switch', style }) => {
   // 切换图标
   return (
     <TouchableOpacity
-      style={[styles.iconButton, style]}
+      style={[styles.iconButton, dynamicStyles.iconButton, style]}
       onPress={toggleTheme}
       activeOpacity={0.7}
     >
@@ -106,7 +131,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#F5F5F5',
+    // backgroundColor removed, handled by dynamicStyles
   },
   button: {
     paddingVertical: 8,
@@ -114,25 +139,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activeButton: {
-    backgroundColor: '#E0E0E0',
-  },
+  // activeButton removed, handled by dynamicStyles
   switch: {
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E0E0E0',
+    // backgroundColor removed
     padding: 2,
     justifyContent: 'center',
   },
-  switchActive: {
-    backgroundColor: '#3F51B5',
-  },
+  // switchActive removed
   switchThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    // backgroundColor removed
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -147,7 +168,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F5F5F5',
+    // backgroundColor removed
     alignItems: 'center',
     justifyContent: 'center',
   },

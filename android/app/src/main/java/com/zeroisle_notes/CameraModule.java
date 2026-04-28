@@ -22,6 +22,24 @@ public class CameraModule extends ReactContextBaseJavaModule {
         return "Camera";
     }
 
+    /**
+     * 添加事件监听器 - 为NativeEventEmitter提供支持
+     */
+    @ReactMethod
+    public void addListener(String eventName) {
+        // 为NativeEventEmitter提供支持，实际事件处理在JS端
+        // 这里只是满足NativeEventEmitter的要求
+    }
+
+    /**
+     * 移除事件监听器 - 为NativeEventEmitter提供支持
+     */
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // 为NativeEventEmitter提供支持，实际事件处理在JS端
+        // 这里只是满足NativeEventEmitter的要求
+    }
+
     @ReactMethod
     public void captureImage(Promise promise) {
         promise.reject("ERROR", "This method is deprecated. Please use react-native-camera instead.");

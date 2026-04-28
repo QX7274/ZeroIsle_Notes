@@ -57,27 +57,27 @@ const VirtualizedList = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   const flatListRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
-  
+
   // 处理内容尺寸变化
   const handleContentSizeChange = useCallback((width, height) => {
     setContentHeight(height);
   }, []);
-  
+
   // 处理容器尺寸变化
   const handleLayout = useCallback((event) => {
     setContainerHeight(event.nativeEvent.layout.height);
   }, []);
-  
+
   // 渲染空列表
   const renderEmpty = useCallback(() => {
     if (emptyComponent) {
       return emptyComponent;
     }
-    
+
     return (
       <View style={styles.emptyContainer}>
         <Text
@@ -91,7 +91,7 @@ const VirtualizedList = ({
       </View>
     );
   }, [emptyComponent, emptyText, colors.textSecondary]);
-  
+
   // 渲染底部
   const renderFooter = useCallback(() => {
     if (loading && data.length > 0) {
@@ -101,7 +101,7 @@ const VirtualizedList = ({
         </View>
       );
     }
-    
+
     if (!hasMore && data.length > 0) {
       return (
         <View style={styles.footerContainer}>
@@ -116,14 +116,14 @@ const VirtualizedList = ({
         </View>
       );
     }
-    
+
     if (footerComponent) {
       return footerComponent;
     }
-    
+
     return null;
   }, [loading, hasMore, data.length, colors, footerComponent]);
-  
+
   // 处理到达末尾
   const handleEndReached = useCallback(
     ({ distanceFromEnd }) => {
@@ -133,14 +133,14 @@ const VirtualizedList = ({
     },
     [loading, hasMore, onEndReached]
   );
-  
+
   // 滚动到顶部
   const scrollToTop = useCallback(() => {
     if (flatListRef.current) {
       flatListRef.current.scrollToOffset({ offset: 0, animated: true });
     }
   }, []);
-  
+
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
     if (flatListRef.current && contentHeight > containerHeight) {
@@ -150,7 +150,7 @@ const VirtualizedList = ({
       });
     }
   }, [contentHeight, containerHeight]);
-  
+
   // 滚动到索引
   const scrollToIndex = useCallback((index, animated = true) => {
     if (flatListRef.current) {
@@ -161,7 +161,7 @@ const VirtualizedList = ({
       });
     }
   }, []);
-  
+
   return (
     <FlatList
       ref={flatListRef}

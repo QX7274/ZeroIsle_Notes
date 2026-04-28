@@ -2,8 +2,8 @@
  * 知识图谱API服务
  */
 import instance from './apiClient';
-import { API_ENDPOINTS } from '../../config/api';
-import NetInfo from '@react-native-community/netinfo';
+import { API_ENDPOINTS } from '../../constants/api';
+import networkService from '../network/networkService';
 import authService from '../auth/authService';
 
 /**
@@ -35,15 +35,10 @@ export const getKnowledgeGraph = async (params = {}) => {
     }
 
     // 检查网络连接
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected) {
+    const netInfo = await networkService.checkConnection();
+    if (!netInfo?.isOnline) {
       console.log('知识图谱API: 网络未连接');
-      return {
-        success: false,
-        message: '网络未连接，请检查网络设置',
-        error: new Error('网络未连接'),
-        isNetworkError: true
-      };
+      throw new Error('网络未连接，请检查网络设置');
     }
 
     console.log('知识图谱API: 开始获取知识图谱数据');
@@ -56,18 +51,12 @@ export const getKnowledgeGraph = async (params = {}) => {
       // 如果响应已经包含nodes和edges，直接返回
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } else {
       // 如果响应不包含nodes和edges，但响应本身就是数据
       console.log('知识图谱API: 响应数据格式不包含nodes和edges，使用响应本身作为数据');
-      return {
-        success: true,
-        data: {
-          nodes: [],
-          edges: []
-        }
-      };
+      throw new Error('知识图谱响应缺少 nodes/edges 字段');
     }
   } catch (error) {
     console.error('知识图谱API: 获取知识图谱失败:', error);
@@ -85,17 +74,9 @@ export const getKnowledgeGraph = async (params = {}) => {
       // 服务器返回了错误状态码
       switch (error.response.status) {
         case 401:
-          // 对于401错误，返回空数据而不是错误，避免影响用户体验
-          console.log('知识图谱API: 401认证错误，返回空数据');
-          return {
-            success: true,
-            data: {
-              nodes: [],
-              edges: [],
-              message: '认证过期，显示空知识图谱'
-            },
-            isAuthError: true
-          };
+          // 对于401错误，显式抛错，避免伪成功
+          console.log('知识图谱API: 401认证错误');
+          throw new Error('认证过期，无法获取知识图谱');
         case 403:
           errorMessage = '没有权限访问知识图谱';
           break;
@@ -110,13 +91,11 @@ export const getKnowledgeGraph = async (params = {}) => {
       }
     }
 
-    return {
-      success: false,
-      message: errorMessage,
-      error,
-      isNetworkError,
-      statusCode: error.response?.status
-    };
+    const enrichedError = new Error(errorMessage);
+    enrichedError.isNetworkError = isNetworkError;
+    enrichedError.statusCode = error.response?.status;
+    enrichedError.originalError = error;
+    throw enrichedError;
   }
 };
 
@@ -130,24 +109,16 @@ export const getAllNodes = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.NODES, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     // 特殊处理401错误
     if (error.response && error.response.status === 401) {
-      console.log('知识图谱API: getAllNodes 401认证错误，返回空数据');
-      return {
-        success: true,
-        data: [],
-        isAuthError: true
-      };
+      console.log('知识图谱API: getAllNodes 401认证错误');
+      throw new Error('认证过期，无法获取节点列表');
     }
 
-    return {
-      success: false,
-      message: error.message || '获取节点列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -161,14 +132,10 @@ export const getNodeById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.NODE_DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取节点详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -182,14 +149,10 @@ export const createNode = async (nodeData) => {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.NODES, nodeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建节点失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -204,14 +167,10 @@ export const updateNode = async (id, nodeData) => {
     const response = await instance.put(API_ENDPOINTS.KNOWLEDGE_GRAPH.NODE_DETAIL(id), nodeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新节点失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -224,14 +183,10 @@ export const deleteNode = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.KNOWLEDGE_GRAPH.NODE_DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除节点失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -245,14 +200,10 @@ export const getAllEdges = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.EDGES, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取边列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -266,14 +217,10 @@ export const getEdgeById = async (id) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.EDGE_DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取边详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -287,14 +234,10 @@ export const createEdge = async (edgeData) => {
     const response = await instance.post(API_ENDPOINTS.KNOWLEDGE_GRAPH.EDGES, edgeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建边失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -309,14 +252,10 @@ export const updateEdge = async (id, edgeData) => {
     const response = await instance.put(API_ENDPOINTS.KNOWLEDGE_GRAPH.EDGE_DETAIL(id), edgeData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新边失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -329,14 +268,10 @@ export const deleteEdge = async (id) => {
   try {
     await instance.delete(API_ENDPOINTS.KNOWLEDGE_GRAPH.EDGE_DETAIL(id));
     return {
-      success: true
+      success: true,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除边失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -353,19 +288,15 @@ export const findPath = async (sourceId, targetId, params = {}) => {
       params: {
         source_id: sourceId,
         target_id: targetId,
-        ...params
-      }
+        ...params,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '查找路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -379,14 +310,10 @@ export const analyzeGraph = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.ANALYZE, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '分析图谱失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -400,14 +327,10 @@ export const generateTags = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.GENERATE_TAGS, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '生成标签失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -422,14 +345,10 @@ export const getRelatedConcepts = async (id, params = {}) => {
     const response = await instance.get(API_ENDPOINTS.KNOWLEDGE_GRAPH.RELATED_CONCEPTS(id), { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取相关概念失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -448,7 +367,7 @@ const knowledgeGraphApi = {
   findPath,
   analyzeGraph,
   generateTags,
-  getRelatedConcepts
+  getRelatedConcepts,
 };
 
 export default knowledgeGraphApi;

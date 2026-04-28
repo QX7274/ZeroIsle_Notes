@@ -14,8 +14,8 @@ import { offlineSyncService } from '../services/offline/offlineSyncService';
  * @returns {Object} 前端用户对象
  */
 export const toFrontendUser = (user) => {
-  if (!user) return null;
-  
+  if (!user) {return null;}
+
   try {
     return {
       id: user._id,
@@ -48,8 +48,8 @@ export const toFrontendUser = (user) => {
  * @returns {Object} 后端用户模型
  */
 export const toBackendUser = (user) => {
-  if (!user) return null;
-  
+  if (!user) {return null;}
+
   try {
     return {
       _id: user.id,
@@ -85,8 +85,8 @@ export const createUser = async (userData) => {
   try {
     // 准备用户数据
     const now = new Date();
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
+    const userId = realmService.createObjectId();
+
     const backendUser = {
       _id: userId,
       username: userData.username || '',
@@ -106,14 +106,14 @@ export const createUser = async (userData) => {
       permissions: [...(userData.permissions || [])],
       metadata: { ...(userData.metadata || {}) },
     };
-    
+
     // 创建用户模型
     const realm = await realmService.getRealm();
     let user;
     realm.write(() => {
       user = realm.create('User', backendUser);
     });
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: user._id,
@@ -122,7 +122,7 @@ export const createUser = async (userData) => {
       data: user.toJSON(),
       user_id: user._id,
     });
-    
+
     // 返回前端用户对象
     return toFrontendUser(user);
   } catch (error) {
@@ -142,30 +142,30 @@ export const updateUser = async (userId, userData) => {
     // 查找用户
     const realm = await realmService.getRealm();
     const user = realm.objectForPrimaryKey('User', userId);
-    
+
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
     }
-    
+
     // 更新用户属性
-    if (userData.username !== undefined) user.username = userData.username;
-    if (userData.email !== undefined) user.email = userData.email;
-    if (userData.displayName !== undefined) user.display_name = userData.displayName;
-    if (userData.avatar !== undefined) user.avatar = userData.avatar;
-    if (userData.isActive !== undefined) user.is_active = userData.isActive;
-    if (userData.isVerified !== undefined) user.is_verified = userData.isVerified;
-    if (userData.preferences !== undefined) user.preferences = { ...user.preferences, ...userData.preferences };
-    if (userData.role !== undefined) user.role = userData.role;
-    if (userData.permissions !== undefined) user.permissions = [...userData.permissions];
-    if (userData.metadata !== undefined) user.metadata = { ...user.metadata, ...userData.metadata };
-    
+    if (userData.username !== undefined) {user.username = userData.username;}
+    if (userData.email !== undefined) {user.email = userData.email;}
+    if (userData.displayName !== undefined) {user.display_name = userData.displayName;}
+    if (userData.avatar !== undefined) {user.avatar = userData.avatar;}
+    if (userData.isActive !== undefined) {user.is_active = userData.isActive;}
+    if (userData.isVerified !== undefined) {user.is_verified = userData.isVerified;}
+    if (userData.preferences !== undefined) {user.preferences = { ...user.preferences, ...userData.preferences };}
+    if (userData.role !== undefined) {user.role = userData.role;}
+    if (userData.permissions !== undefined) {user.permissions = [...userData.permissions];}
+    if (userData.metadata !== undefined) {user.metadata = { ...user.metadata, ...userData.metadata };}
+
     // 更新时间
     user.updated_at = new Date();
     user.is_synced = false;
-    
+
     // 保存用户
     await user.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: user._id,
@@ -174,7 +174,7 @@ export const updateUser = async (userId, userData) => {
       data: user.toJSON(),
       user_id: user._id,
     });
-    
+
     // 返回前端用户对象
     return toFrontendUser(user);
   } catch (error) {
@@ -194,11 +194,11 @@ export const deleteUser = async (userId, permanent = false) => {
     // 查找用户
     const realm = await realmService.getRealm();
     const user = realm.objectForPrimaryKey('User', userId);
-    
+
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
     }
-    
+
     if (permanent) {
       // 永久删除
       await user.remove({ soft: false });
@@ -208,7 +208,7 @@ export const deleteUser = async (userId, permanent = false) => {
       user.deleted_at = new Date();
       user.is_synced = false;
       await user.save();
-      
+
       // 添加到同步队列
       await offlineSyncService.addToSyncQueue({
         entity_id: user._id,
@@ -218,7 +218,7 @@ export const deleteUser = async (userId, permanent = false) => {
         user_id: user._id,
       });
     }
-    
+
     return true;
   } catch (error) {
     logService.error(`删除用户失败: ${userId}`, error);
@@ -236,11 +236,11 @@ export const getUser = async (userId) => {
     // 查找用户
     const realm = await realmService.getRealm();
     const user = realm.objectForPrimaryKey('User', userId);
-    
+
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
     }
-    
+
     // 返回前端用户对象
     return toFrontendUser(user);
   } catch (error) {
@@ -258,11 +258,11 @@ export const getCurrentUser = async () => {
     // 查找当前用户
     const realm = await realmService.getRealm();
     const user = realm.objects('User').filtered('is_current = true')[0];
-    
+
     if (!user) {
       throw new Error('当前用户不存在');
     }
-    
+
     // 返回前端用户对象
     return toFrontendUser(user);
   } catch (error) {
@@ -282,24 +282,24 @@ export const updateUserPreferences = async (userId, preferences) => {
     // 查找用户
     const realm = await realmService.getRealm();
     const user = realm.objectForPrimaryKey('User', userId);
-    
+
     if (!user) {
       throw new Error(`用户不存在: ${userId}`);
     }
-    
+
     // 更新偏好设置
     user.preferences = {
       ...user.preferences,
       ...preferences,
     };
-    
+
     // 更新时间
     user.updated_at = new Date();
     user.is_synced = false;
-    
+
     // 保存用户
     await user.save();
-    
+
     // 添加到同步队列
     await offlineSyncService.addToSyncQueue({
       entity_id: user._id,
@@ -308,7 +308,7 @@ export const updateUserPreferences = async (userId, preferences) => {
       data: user.toJSON(),
       user_id: user._id,
     });
-    
+
     // 返回前端用户对象
     return toFrontendUser(user);
   } catch (error) {

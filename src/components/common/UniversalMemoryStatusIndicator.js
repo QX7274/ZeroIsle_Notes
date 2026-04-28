@@ -45,8 +45,8 @@ const UniversalMemoryStatusIndicator = ({ style }) => {
             } catch (error) {
               console.error('内存清理失败:', error);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -59,7 +59,7 @@ const UniversalMemoryStatusIndicator = ({ style }) => {
       '视频类型': ['mp4', 'avi', 'mov', 'mkv'],
       '音频类型': ['mp3', 'wav', 'm4a', 'ogg'],
       '文本类型': ['txt', 'md', 'json', 'xml'],
-      '代码类型': ['js', 'ts', 'py', 'java', 'cpp', 'c', 'html', 'css']
+      '代码类型': ['js', 'ts', 'py', 'java', 'cpp', 'c', 'html', 'css'],
     };
 
     let message = '支持的文件类型:\n\n';
@@ -83,7 +83,7 @@ const UniversalMemoryStatusIndicator = ({ style }) => {
   // 根据内存使用情况决定颜色
   let statusColor = '#4CAF50'; // 绿色 - 正常
   let statusIcon = 'checkmark-circle';
-  
+
   if (usagePercentage > 80) {
     statusColor = '#FF5722'; // 红色 - 危险
     statusIcon = 'warning';
@@ -103,10 +103,10 @@ const UniversalMemoryStatusIndicator = ({ style }) => {
         <Text style={[styles.statusText, { color: statusColor }]}>
           通用内存: {totalAllocatedGB.toFixed(1)}GB / {maxMemoryGB}GB
         </Text>
-        <Icon 
-          name={isExpanded ? 'chevron-up' : 'chevron-down'} 
-          size={16} 
-          color="#666" 
+        <Icon
+          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+          size={16}
+          color="#666"
         />
       </TouchableOpacity>
 
@@ -116,27 +116,27 @@ const UniversalMemoryStatusIndicator = ({ style }) => {
             <Text style={styles.detailLabel}>已分配内存:</Text>
             <Text style={styles.detailValue}>{totalAllocatedGB.toFixed(2)}GB</Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>可用内存:</Text>
             <Text style={styles.detailValue}>{availableGB.toFixed(2)}GB</Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>内存块:</Text>
             <Text style={styles.detailValue}>{allocatedChunks}</Text>
           </View>
-          
+
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
-              <View 
+              <View
                 style={[
-                  styles.progressFill, 
-                  { 
+                  styles.progressFill,
+                  {
                     width: `${usagePercentage}%`,
-                    backgroundColor: statusColor
-                  }
-                ]} 
+                    backgroundColor: statusColor,
+                  },
+                ]}
               />
             </View>
             <Text style={styles.progressText}>{usagePercentage.toFixed(1)}%</Text>

@@ -7,3 +7,14 @@ from .indexer_service import IndexerService
 from .search_service import SearchService
 from .suggestion_service import SuggestionService
 from .vector_service import VectorService
+from .enhanced_vector_service import EnhancedVectorService, get_vector_service
+
+__all__ = [
+    'IndexerService',
+    'SearchService',
+    'SuggestionService',
+    'VectorService',
+    'EnhancedVectorService',
+    'get_vector_service',
+]
+

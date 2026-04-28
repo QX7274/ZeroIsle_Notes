@@ -3,7 +3,7 @@
 """
 
 from .base import *
-from pymongo import MongoClient  
+from pymongo import MongoClient
 
 # 调试模式
 DEBUG = True
@@ -18,10 +18,24 @@ ALLOWED_HOSTS = ['*']
 RUNSERVERPLUS_HOST = '0.0.0.0'
 RUNSERVERPLUS_PORT = 8000
 
-# MongoDB Realm配置 
+# 开发环境 CORS 设置
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+# 开发模式认证中间件仅在此环境启用
+try:
+    MIDDLEWARE  # from base.py
+    _custom_auth_index = MIDDLEWARE.index('users.middleware.CustomAuthenticationMiddleware')
+    MIDDLEWARE.insert(_custom_auth_index, 'common.middleware.dev_auth_middleware.DevAuthMiddleware')
+except Exception:
+    # 回退：若找不到，直接追加
+    MIDDLEWARE = list(globals().get('MIDDLEWARE', []))
+    MIDDLEWARE.append('common.middleware.dev_auth_middleware.DevAuthMiddleware')
+
+# MongoDB Realm配置
 # 直接使用PyMongo客户端进行原生操作
-mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
-if 'mongodb+srv' in mongo_uri:
+mongo_uri = os.environ.get('MONGO_URI')
+if mongo_uri and 'mongodb+srv' in mongo_uri:
     MONGO_CLIENT = MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=30000,
@@ -40,7 +54,7 @@ MONGO_DB = MONGO_CLIENT['ZeroIsle_Notes']
 
 # 断开所有现有连接并重新连接
 mongoengine.disconnect_all()
-if 'mongodb+srv' in mongo_uri:
+if mongo_uri and 'mongodb+srv' in mongo_uri:
     mongoengine.connect(
         host=mongo_uri,
         alias='default'

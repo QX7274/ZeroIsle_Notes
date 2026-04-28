@@ -35,7 +35,7 @@ const HomeSearchBar = ({ onSearch }) => {
         results,
         query,
         searchMode: options.searchMode || 'text',
-        isOfflineSearch: options.isOfflineSearch || false
+        isOfflineSearch: options.isOfflineSearch || false,
       });
     }
   };
@@ -48,7 +48,7 @@ const HomeSearchBar = ({ onSearch }) => {
           {
             backgroundColor: colors.card,
             borderColor: `${colors.border}80`,
-          }
+          },
         ]}
         onPress={() => setShowSearch(true)}
         activeOpacity={0.7}

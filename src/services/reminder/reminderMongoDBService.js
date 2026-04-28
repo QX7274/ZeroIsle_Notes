@@ -20,7 +20,7 @@ class ReminderMongoDBService {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -56,7 +56,7 @@ class ReminderMongoDBService {
       return item.length > 0 ? item[0].value : null;
     } catch (error) {
       logService.error(`获取提醒存储项目失败: ${key}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -87,7 +87,7 @@ class ReminderMongoDBService {
       return true;
     } catch (error) {
       logService.error(`设置提醒存储项目失败: ${key}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -102,12 +102,12 @@ class ReminderMongoDBService {
       const realm = await realmService.getRealm();
       realm.write(() => {
         const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-        if (item.length > 0) realm.delete(item[0]);
+        if (item.length > 0) {realm.delete(item[0]);}
       });
       return true;
     } catch (error) {
       logService.error(`删除提醒存储项目失败: ${key}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -124,7 +124,7 @@ class ReminderMongoDBService {
       return Array.isArray(reminders) ? reminders : [];
     } catch (error) {
       logService.error('获取所有提醒失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -154,7 +154,7 @@ class ReminderMongoDBService {
       return true;
     } catch (error) {
       logService.error('保存所有提醒失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -170,7 +170,7 @@ class ReminderMongoDBService {
       return reminders.find(reminder => reminder.id === id) || null;
     } catch (error) {
       logService.error(`获取提醒失败: ${id}`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -196,7 +196,7 @@ class ReminderMongoDBService {
       return await this.saveAllReminders(reminders);
     } catch (error) {
       logService.error(`保存提醒失败: ${reminder.id}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -219,7 +219,7 @@ class ReminderMongoDBService {
       return await this.saveAllReminders(filteredReminders);
     } catch (error) {
       logService.error(`删除提醒失败: ${id}`, error);
-      return false;
+      throw error;
     }
   }
 
@@ -236,7 +236,7 @@ class ReminderMongoDBService {
       return Array.isArray(operations) ? operations : [];
     } catch (error) {
       logService.error('获取离线操作失败', error);
-      return [];
+      throw error;
     }
   }
 
@@ -249,12 +249,13 @@ class ReminderMongoDBService {
   async addOfflineOperation(operation, data) {
     try {
       await this.initialize();
+      const realm = await realmService.getRealm();
       const operations = await this.getOfflineOperations();
 
       operations.push({
         operation,
         data,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       realm.write(() => {
@@ -274,7 +275,7 @@ class ReminderMongoDBService {
       return true;
     } catch (error) {
       logService.error(`添加离线操作失败: ${operation}`, error);
-      return false;
+      throw error;
     }
   }
 }

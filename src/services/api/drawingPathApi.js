@@ -5,9 +5,8 @@
 
 import { instance } from './config';
 import { API_ENDPOINTS } from '../../utils/constants';
-import notesApi from './notesApi';
 import realmService from '../database/realmService';
-// 已移除 offlineStorageService 导入，现在直接使用 realmService
+import networkService from '../network/networkService';
 
 /**
  * 获取笔记的所有绘图路径
@@ -17,20 +16,10 @@ import realmService from '../database/realmService';
 export const getDrawingPathsByNote = async (noteId) => {
   try {
     // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
 
-    if (!status.isConnected) {
-      // 离线模式：从本地存储获取
-      const realm = await realmService.getRealm();
-      const item = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-      const paths = item.length > 0 ? JSON.parse(item[0].value) : [];
-
-      return {
-        success: true,
-        data: paths,
-        fromCache: true
-      };
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法获取笔记绘图路径，请连接网络后重试');
     }
 
     // 在线模式：从服务器获取
@@ -55,14 +44,10 @@ export const getDrawingPathsByNote = async (noteId) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -74,20 +59,10 @@ export const getDrawingPathsByNote = async (noteId) => {
 export const getDrawingPathsByCanvas = async (canvasId) => {
   try {
     // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
 
-    if (!status.isConnected) {
-      // 离线模式：从本地存储获取
-      const realm = await realmService.getRealm();
-      const item = realm.objects('StorageItem').filtered(`key = "drawing_paths_${canvasId}"`);
-      const paths = item.length > 0 ? JSON.parse(item[0].value) : [];
-
-      return {
-        success: true,
-        data: paths,
-        fromCache: true
-      };
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法获取画布绘图路径，请连接网络后重试');
     }
 
     // 在线模式：从服务器获取
@@ -95,14 +70,10 @@ export const getDrawingPathsByCanvas = async (canvasId) => {
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取画布绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -113,35 +84,25 @@ export const getDrawingPathsByCanvas = async (canvasId) => {
  */
 export const createDrawingPath = async (pathData) => {
   try {
-    // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法创建绘图路径，请连接网络后重试');
+    }
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      const tempId = Date.now().toString();
-      const path = { ...pathData, id: tempId };
+    const response = await instance.post(API_ENDPOINTS.NOTES.DRAWING_PATHS, pathData);
 
+    const noteId = pathData?.note_id || pathData?.noteId;
+    if (noteId) {
       const realm = await realmService.getRealm();
       realm.write(() => {
-        realm.create('OfflineQueue', {
-          type: 'create_drawing_path',
-          data: path,
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 添加到本地存储
-      const localRealm = await realmService.getRealm();
-      localRealm.write(() => {
-        const existingItem = localRealm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
+        const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
         const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-        paths.push(path);
+        paths.push(response.data);
         if (existingItem.length > 0) {
           existingItem[0].value = JSON.stringify(paths);
           existingItem[0].updated_at = new Date();
         } else {
-          localRealm.create('StorageItem', {
+          realm.create('StorageItem', {
             key: `drawing_paths_${noteId}`,
             value: JSON.stringify(paths),
             createdAt: new Date(),
@@ -149,46 +110,14 @@ export const createDrawingPath = async (pathData) => {
           });
         }
       });
-
-      return {
-        success: true,
-        data: path,
-        fromCache: true
-      };
     }
-
-    // 在线模式：发送到服务器
-    const response = await instance.post(API_ENDPOINTS.NOTES.DRAWING_PATHS, pathData);
-
-    // 保存到本地存储
-    const realm = await realmService.getRealm();
-    realm.write(() => {
-      const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-      const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-      paths.push(response.data);
-      if (existingItem.length > 0) {
-        existingItem[0].value = JSON.stringify(paths);
-        existingItem[0].updated_at = new Date();
-      } else {
-        updateRealm.create('StorageItem', {
-          key: `drawing_paths_${noteId}`,
-          value: JSON.stringify(paths),
-          createdAt: new Date(),
-          updated_at: new Date(),
-        });
-      }
-    });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '创建绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -200,35 +129,27 @@ export const createDrawingPath = async (pathData) => {
  */
 export const updateDrawingPath = async (id, pathData) => {
   try {
-    // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法更新绘图路径，请连接网络后重试');
+    }
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        realm.create('OfflineQueue', {
-          type: 'update_drawing_path',
-          id,
-          data: pathData,
-          timestamp: new Date().toISOString()
-        });
-      });
+    const response = await instance.put(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`, pathData);
 
-      // 更新本地存储
-      const localRealm = await realmService.getRealm();
-      localRealm.write(() => {
-        const existingItem = localRealm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
+    const noteId = pathData?.note_id || pathData?.noteId;
+    if (noteId) {
+      const updateRealm = await realmService.getRealm();
+      updateRealm.write(() => {
+        const existingItem = updateRealm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
         const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
         const index = paths.findIndex(path => path.id === id);
         if (index >= 0) {
-          paths[index] = { ...paths[index], ...pathData };
+          paths[index] = { ...paths[index], ...response.data };
           if (existingItem.length > 0) {
             existingItem[0].value = JSON.stringify(paths);
             existingItem[0].updated_at = new Date();
           } else {
-            localRealm.create('StorageItem', {
+            updateRealm.create('StorageItem', {
               key: `drawing_paths_${noteId}`,
               value: JSON.stringify(paths),
               createdAt: new Date(),
@@ -237,49 +158,14 @@ export const updateDrawingPath = async (id, pathData) => {
           }
         }
       });
-
-      return {
-        success: true,
-        data: { ...pathData, id },
-        fromCache: true
-      };
     }
-
-    // 在线模式：发送到服务器
-    const response = await instance.put(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`, pathData);
-
-    // 更新本地存储
-    const updateRealm = await realmService.getRealm();
-    updateRealm.write(() => {
-      const existingItem = updateRealm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-      const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-      const index = paths.findIndex(path => path.id === id);
-      if (index >= 0) {
-        paths[index] = { ...paths[index], ...response.data };
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(paths);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: `drawing_paths_${noteId}`,
-            value: JSON.stringify(paths),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      }
-    });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '更新绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -290,75 +176,19 @@ export const updateDrawingPath = async (id, pathData) => {
  */
 export const deleteDrawingPath = async (id) => {
   try {
-    // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
-
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作和本地存储删除
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        // 添加到离线队列
-        realm.create('OfflineQueue', {
-          type: 'delete_drawing_path',
-          id,
-          timestamp: new Date().toISOString()
-        });
-
-        // 从本地存储删除
-        const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-        const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-        const filteredPaths = paths.filter(path => path.id !== id);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(filteredPaths);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: `drawing_paths_${noteId}`,
-            value: JSON.stringify(filteredPaths),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-
-      return {
-        success: true,
-        fromCache: true
-      };
+    const status = await networkService.checkConnection();
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法删除绘图路径，请连接网络后重试');
     }
 
-    // 在线模式：发送到服务器
-    await instance.delete(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`);
-
-    // 从本地存储删除
-    const deleteRealm = await realmService.getRealm();
-    deleteRealm.write(() => {
-      const existingItem = deleteRealm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-      const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-      const filteredPaths = paths.filter(path => path.id !== id);
-      if (existingItem.length > 0) {
-        existingItem[0].value = JSON.stringify(filteredPaths);
-        existingItem[0].updated_at = new Date();
-      } else {
-        deleteRealm.create('StorageItem', {
-          key: `drawing_paths_${noteId}`,
-          value: JSON.stringify(filteredPaths),
-          createdAt: new Date(),
-          updated_at: new Date(),
-        });
-      }
-    });
+    const response = await instance.delete(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/${id}`);
 
     return {
-      success: true
+      success: true,
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '删除绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -369,88 +199,54 @@ export const deleteDrawingPath = async (id) => {
  */
 export const batchCreateDrawingPaths = async (paths) => {
   try {
-    // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
+    const status = await networkService.checkConnection();
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法批量创建绘图路径，请连接网络后重试');
+    }
 
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      const pathsWithIds = paths.map(path => ({
-        ...path,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
-      }));
+    const response = await instance.post(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/batch_create`, { paths });
+
+    const createdPaths = response?.data?.created;
+    if (Array.isArray(createdPaths) && createdPaths.length > 0) {
+      const groupedByNoteId = createdPaths.reduce((acc, path) => {
+        const noteId = path?.note_id || path?.noteId;
+        if (!noteId) {
+          return acc;
+        }
+        if (!acc[noteId]) {
+          acc[noteId] = [];
+        }
+        acc[noteId].push(path);
+        return acc;
+      }, {});
 
       const realm = await realmService.getRealm();
       realm.write(() => {
-        realm.create('OfflineQueue', {
-          type: 'batch_create_drawing_paths',
-          data: pathsWithIds,
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 添加到本地存储
-      await Promise.all(pathsWithIds.map(async (path) => {
-        const realm = await realmService.getRealm();
-        realm.write(() => {
+        Object.entries(groupedByNoteId).forEach(([noteId, notePaths]) => {
           const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-          const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-          paths.push(path);
+          const currentPaths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
+          const mergedPaths = [...currentPaths, ...notePaths];
           if (existingItem.length > 0) {
-            existingItem[0].value = JSON.stringify(paths);
+            existingItem[0].value = JSON.stringify(mergedPaths);
             existingItem[0].updated_at = new Date();
           } else {
             realm.create('StorageItem', {
               key: `drawing_paths_${noteId}`,
-              value: JSON.stringify(paths),
+              value: JSON.stringify(mergedPaths),
               createdAt: new Date(),
               updated_at: new Date(),
             });
           }
         });
-      }));
-
-      return {
-        success: true,
-        data: pathsWithIds,
-        fromCache: true
-      };
-    }
-
-    // 在线模式：发送到服务器
-    const response = await instance.post(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/batch_create`, { paths });
-
-    // 保存到本地存储
-    await Promise.all(response.data.created.map(async (path) => {
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-        const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-        paths.push(path);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(paths);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: `drawing_paths_${noteId}`,
-            value: JSON.stringify(paths),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
       });
-    }));
+    }
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '批量创建绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -461,84 +257,21 @@ export const batchCreateDrawingPaths = async (paths) => {
  */
 export const batchDeleteDrawingPaths = async (pathIds) => {
   try {
-    // 检查网络状态
-    // 已移除 offlineStorageService 调用，现在直接使用 realmService
-    const status = await notesApi.checkNetwork();
-
-    if (!status.isConnected) {
-      // 离线模式：添加到待处理操作
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        realm.create('OfflineQueue', {
-          type: 'batch_delete_drawing_paths',
-          data: { path_ids: pathIds },
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      // 从本地存储删除
-      await Promise.all(pathIds.map(async (id) => {
-        const realm = await realmService.getRealm();
-        realm.write(() => {
-          const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-          const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-          const filteredPaths = paths.filter(path => path.id !== id);
-          if (existingItem.length > 0) {
-            existingItem[0].value = JSON.stringify(filteredPaths);
-            existingItem[0].updated_at = new Date();
-          } else {
-            realm.create('StorageItem', {
-              key: `drawing_paths_${noteId}`,
-              value: JSON.stringify(filteredPaths),
-              createdAt: new Date(),
-              updated_at: new Date(),
-            });
-          }
-        });
-      }));
-
-      return {
-        success: true,
-        fromCache: true
-      };
+    const status = await networkService.checkConnection();
+    if (!status?.isOnline) {
+      throw new Error('离线模式下无法批量删除绘图路径，请连接网络后重试');
     }
 
-    // 在线模式：发送到服务器
     const response = await instance.delete(`${API_ENDPOINTS.NOTES.DRAWING_PATHS}/batch_delete`, {
-      data: { path_ids: pathIds }
+      data: { path_ids: pathIds },
     });
-
-    // 从本地存储删除
-    await Promise.all(pathIds.map(async (id) => {
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "drawing_paths_${noteId}"`);
-        const paths = existingItem.length > 0 ? JSON.parse(existingItem[0].value) : [];
-        const filteredPaths = paths.filter(path => path.id !== id);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(filteredPaths);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: `drawing_paths_${noteId}`,
-            value: JSON.stringify(filteredPaths),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-    }));
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '批量删除绘图路径失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -549,7 +282,7 @@ const drawingPathApi = {
   updateDrawingPath,
   deleteDrawingPath,
   batchCreateDrawingPaths,
-  batchDeleteDrawingPaths
+  batchDeleteDrawingPaths,
 };
 
 export default drawingPathApi;

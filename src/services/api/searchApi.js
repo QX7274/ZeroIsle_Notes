@@ -3,6 +3,7 @@
  */
 import apiClient from './apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
+import realmService from '../database/realmService';
 
 /**
  * 基础搜索
@@ -15,19 +16,15 @@ export const search = async (query, params = {}) => {
     const response = await apiClient.get(API_ENDPOINTS.SEARCH.BASE, {
       params: {
         q: query,
-        ...params
-      }
+        ...params,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -39,18 +36,14 @@ export const search = async (query, params = {}) => {
 export const advancedSearch = async (searchParams) => {
   try {
     const response = await apiClient.get(API_ENDPOINTS.SEARCH.ADVANCED, {
-      params: searchParams
+      params: searchParams,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '高级搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -65,19 +58,15 @@ export const semanticSearch = async (query, params = {}) => {
     const response = await apiClient.get(API_ENDPOINTS.SEARCH.SEMANTIC, {
       params: {
         q: query,
-        ...params
-      }
+        ...params,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '语义搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -92,19 +81,15 @@ export const searchByTags = async (tags, params = {}) => {
     const response = await apiClient.get(API_ENDPOINTS.SEARCH.TAGS, {
       params: {
         tags: tags.join(','),
-        ...params
-      }
+        ...params,
+      },
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '标签搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -121,36 +106,49 @@ export const getSearchSuggestions = async (query, limit = 5) => {
       const response = await apiClient.get(API_ENDPOINTS.SEARCH.SUGGESTIONS, {
         params: {
           q: query,
-          limit
-        }
+          limit,
+        },
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (onlineError) {
       console.log('在线获取搜索建议失败，尝试离线生成建议:', onlineError.message);
 
-      // 在线获取失败，尝试离线生成建议
-      // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      // 在线获取失败，尝试离线生成建议（性能优化：避免全量扫描 content）
       const realm = await realmService.getRealm();
-      const notes = realm.objects('Note').filtered('is_deleted = false');
+      const loweredQuery = (query || '').toLowerCase();
 
-      // 从笔记中提取关键词
+      // 仅使用 title 生成建议，避免 10 万条笔记场景下扫描 content
+      const notes = realm.objects('Note')
+        .filtered('is_deleted == false')
+        .sorted('updated_at', true)
+        .slice(0, 500);
+
       const keywords = new Set();
-      notes.forEach(note => {
-        const title = note.title || '';
-        const content = note.content || '';
+      for (const note of notes) {
+        const title = String(note.title || '');
+        const titleLower = title.toLowerCase();
+        if (!loweredQuery || !titleLower.includes(loweredQuery)) {
+          continue;
+        }
 
-        // 简单分词，提取可能的关键词
-        const words = (title + ' ' + content).split(/\s+/).filter(word =>
-          word.length >= 2 && word.toLowerCase().includes(query.toLowerCase())
-        );
+        // 简单切词：按空白切分，并做去重
+        const words = title.split(/\s+/).filter(w => w.length >= 2);
+        for (const w of words) {
+          if (w.toLowerCase().includes(loweredQuery)) {
+            keywords.add(w);
+            if (keywords.size >= limit * 5) {
+              break;
+            }
+          }
+        }
+        if (keywords.size >= limit * 5) {
+          break;
+        }
+      }
 
-        words.forEach(word => keywords.add(word));
-      });
-
-      // 转换为建议格式
       const suggestions = Array.from(keywords)
         .slice(0, limit)
         .map(text => ({ text }));
@@ -159,16 +157,12 @@ export const getSearchSuggestions = async (query, limit = 5) => {
         success: true,
         data: {
           suggestions,
-          isOfflineSuggestions: true
-        }
+          isOfflineSuggestions: true,
+        },
       };
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取搜索建议失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -184,47 +178,60 @@ export const textSearch = async (query, params = {}) => {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SEARCH.TEXT, {
         query,
-        ...params
+        ...params,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (onlineError) {
       console.log('在线搜索失败，尝试离线搜索:', onlineError.message);
 
-      // 在线搜索失败，尝试离线搜索
-      // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      // 在线搜索失败，尝试使用 SearchIndex 执行本地搜索 (性能优化：避免全量 Note 扫描)
       const realm = await realmService.getRealm();
-      const notes = realm.objects('Note').filtered('is_deleted = false');
+      const searchQuery = (query || '').toLowerCase();
 
-      // 执行本地搜索
-      const results = notes.filter(note => {
-        const title = (note.title || '').toLowerCase();
-        const content = (note.content || '').toLowerCase();
-        const fileName = (note.file_name || '').toLowerCase();
-        const searchQuery = query.toLowerCase();
+      // 使用 SearchIndex 模型执行过滤
+      // SearchIndex 表不含 strokeData 等大字段，查询速度远快于 Note 表
+      let indexResults = realm.objects('SearchIndex')
+        .filtered('is_deleted == false');
 
-        return title.includes(searchQuery) ||
-               content.includes(searchQuery) ||
-               fileName.includes(searchQuery);
-      });
+      if (searchQuery) {
+        indexResults = indexResults.filtered(
+          'title CONTAINS[c] $0 OR content CONTAINS[c] $0 OR ANY keywords CONTAINS[c] $0 OR ANY tags CONTAINS[c] $0',
+          searchQuery
+        );
+      }
+
+      // 排序并分页
+      const totalResults = indexResults.length;
+      const skip = params.skip || 0;
+      const limit = params.limit || 20;
+      const page = indexResults.sorted('updated_at', true).slice(skip, skip + limit);
+
+      // 转换为输出格式
+      const results = Array.from(page).map(idx => ({
+        _id: idx.entity_id,
+        title: idx.title,
+        type: idx.entity_type,
+        user_id: idx.user_id,
+        updated_at: idx.updated_at,
+        // 标记为来自索引
+        isFromIndex: true,
+      }));
 
       return {
         success: true,
         data: {
           results,
           isOfflineSearch: true,
-          totalResults: results.length
-        }
+          isDegraded: totalResults > 1000, // 提示用户结果较多
+          totalResults,
+        },
       };
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '文本搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -240,28 +247,18 @@ export const voiceSearch = async (audioBase64, params = {}) => {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SEARCH.VOICE, {
         audio: audioBase64,
-        ...params
+        ...params,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (onlineError) {
       console.log('在线语音搜索失败:', onlineError.message);
-
-      // 离线模式下，语音搜索无法执行，返回错误
-      return {
-        success: false,
-        message: '离线模式下无法执行语音搜索，请连接网络后重试',
-        error: onlineError
-      };
+      throw new Error('离线模式下无法执行语音搜索，请连接网络后重试');
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '语音搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -277,28 +274,18 @@ export const imageSearch = async (imageBase64, params = {}) => {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SEARCH.IMAGE, {
         image: imageBase64,
-        ...params
+        ...params,
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (onlineError) {
       console.log('在线图像搜索失败:', onlineError.message);
-
-      // 离线模式下，图像搜索无法执行，返回错误
-      return {
-        success: false,
-        message: '离线模式下无法执行图像搜索，请连接网络后重试',
-        error: onlineError
-      };
+      throw new Error('离线模式下无法执行图像搜索，请连接网络后重试');
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '图像搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -313,11 +300,11 @@ export const getSearchHistory = async (limit = 10, scope = 'home') => {
     // 尝试在线获取搜索历史
     try {
       const response = await apiClient.get(API_ENDPOINTS.SEARCH.HISTORY, {
-        params: { limit, scope }
+        params: { limit, scope },
       });
       return {
         success: true,
-        data: response.data
+        data: response.data,
       };
     } catch (onlineError) {
       console.log('在线获取搜索历史失败，尝试从本地获取:', onlineError.message);
@@ -332,16 +319,12 @@ export const getSearchHistory = async (limit = 10, scope = 'home') => {
         success: true,
         data: {
           history: history.slice(0, limit),
-          isOfflineHistory: true
-        }
+          isOfflineHistory: true,
+        },
       };
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取搜索历史失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -354,14 +337,10 @@ export const clearSearchHistory = async () => {
     const response = await apiClient.delete(API_ENDPOINTS.SEARCH.CLEAR_HISTORY);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '清除搜索历史失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -375,18 +354,14 @@ export const knowledgeGraphSearch = async (query, params = {}) => {
   try {
     const response = await apiClient.post(API_ENDPOINTS.SEARCH.KNOWLEDGE_GRAPH, {
       query,
-      ...params
+      ...params,
     });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '知识图谱搜索失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -401,7 +376,7 @@ const searchApi = {
   imageSearch,
   getSearchHistory,
   clearSearchHistory,
-  knowledgeGraphSearch
+  knowledgeGraphSearch,
 };
 
 export default searchApi;

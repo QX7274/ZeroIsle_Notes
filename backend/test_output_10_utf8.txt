@@ -1,0 +1,424 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+ERROR Internal Server
+ Error: /api/v1/auth/
+bind/phone/
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\exception.py", li
+ne 55, in inner
+    response = get_re
+sponse(request)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\base.py", line 19
+7, in _get_response
+    response = wrappe
+d_callback(request, *
+callback_args, **call
+back_kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\views\deco
+rators\csrf.py", line
+ 65, in _view_wrapper
+    return view_func(
+request, *args, **kwa
+rgs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ewsets.py", line 125,
+ in view
+    return self.dispa
+tch(request, *args, *
+*kwargs)
+           ~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 515, in
+ dispatch
+    response = self.h
+andle_exception(exc)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 475, in
+ handle_exception
+    self.raise_uncaug
+ht_exception(exc)
+    ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 486, in
+ raise_uncaught_excep
+tion
+    raise exc
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 512, in
+ dispatch
+    response = handle
+r(request, *args, **k
+wargs)
+  File "D:\ZeroIsle_N
+otes\backend\users\vi
+ews\auth.py", line 32
+5, in bind_phone
+    verification.save
+()
+    ~~~~~~~~~~~~~~~~~
+^^
+  File "D:\ZeroIsle_N
+otes\backend\users\mo
+dels\verification_cod
+e.py", line 57, in sa
+ve
+    return super(Veri
+ficationCode, self).s
+ave(*args, **kwargs)
+           ~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\mongoengine\docum
+ent.py", line 422, in
+ save
+    self.validate(cle
+an=clean)
+    ~~~~~~~~~~~~~^^^^
+^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\mongoengine\base\
+document.py", line 44
+0, in validate
+    raise ValidationE
+rror(message, errors=
+errors)
+mongoengine.errors.Va
+lidationError: Valida
+tionError (Verificati
+onCode:697e2340d1d753
+82fba6b4dd) (Value mu
+st be one of ['regist
+er', 'login', 'reset_
+password', 'change_ph
+one', 'change_email']
+: ['purpose'])
+F.....
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_bindi
+ng_methods (users.tes
+ts.test_auth.UserAuth
+Test.test_user_bindin
+g_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 224, in test_user_
+binding_methods
+    response = self.c
+lient.post(
+        bind_phone_ur
+l,
+        data=json.dum
+ps(bind_phone_data),
+        content_type=
+'application/json'
+    )
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 299, in 
+post
+    response = super(
+).post(
+        path, data=da
+ta, format=format, co
+ntent_type=content_ty
+pe, **extra)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 213, in 
+post
+    return self.gener
+ic('POST', path, data
+, content_type, **ext
+ra)
+           ~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 237, in 
+generic
+    return super().ge
+neric(
+           ~~~~~~~~~~
+~~~~~^
+        method, path,
+ data, content_type, 
+secure, **extra)
+        ^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 671, in g
+eneric
+    return self.reque
+st(**r)
+           ~~~~~~~~~~
+~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 289, in 
+request
+    return super().re
+quest(**kwargs)
+           ~~~~~~~~~~
+~~~~~^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 241, in 
+request
+    request = super()
+.request(**kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 1087, in 
+request
+    self.check_except
+ion(response)
+    ~~~~~~~~~~~~~~~~~
+~~~^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 802, in c
+heck_exception
+    raise exc_value
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\exception.py", li
+ne 55, in inner
+    response = get_re
+sponse(request)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\base.py", line 19
+7, in _get_response
+    response = wrappe
+d_callback(request, *
+callback_args, **call
+back_kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\views\deco
+rators\csrf.py", line
+ 65, in _view_wrapper
+    return view_func(
+request, *args, **kwa
+rgs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ewsets.py", line 125,
+ in view
+    return self.dispa
+tch(request, *args, *
+*kwargs)
+           ~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 515, in
+ dispatch
+    response = self.h
+andle_exception(exc)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 475, in
+ handle_exception
+    self.raise_uncaug
+ht_exception(exc)
+    ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 486, in
+ raise_uncaught_excep
+tion
+    raise exc
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 512, in
+ dispatch
+    response = handle
+r(request, *args, **k
+wargs)
+  File "D:\ZeroIsle_N
+otes\backend\users\vi
+ews\auth.py", line 32
+5, in bind_phone
+    verification.save
+()
+    ~~~~~~~~~~~~~~~~~
+^^
+  File "D:\ZeroIsle_N
+otes\backend\users\mo
+dels\verification_cod
+e.py", line 57, in sa
+ve
+    return super(Veri
+ficationCode, self).s
+ave(*args, **kwargs)
+           ~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\mongoengine\docum
+ent.py", line 422, in
+ save
+    self.validate(cle
+an=clean)
+    ~~~~~~~~~~~~~^^^^
+^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\mongoengine\base\
+document.py", line 44
+0, in validate
+    raise ValidationE
+rror(message, errors=
+errors)
+mongoengine.errors.Va
+lidationError: Valida
+tionError (Verificati
+onCode:697e2340d1d753
+82fba6b4dd) (Value mu
+st be one of ['regist
+er', 'login', 'reset_
+password', 'change_ph
+one', 'change_email']
+: ['purpose'])
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 65.561
+s
+
+FAILED (failures=1)
+Destroying test datab
+ase for alias 'defaul
+t'...
+
+Found 6 test(s).
+System check identified no issues (0 silenced).

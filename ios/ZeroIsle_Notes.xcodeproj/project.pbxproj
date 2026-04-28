@@ -12,6 +12,8 @@
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
+		AA100001B0B0B0B0B0B0B001 /* AIAssistant.m in Sources */ = {isa = PBXBuildFile; fileRef = AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */; };
+		AA100002B0B0B0B0B0B0B002 /* PermanentStorageManager.m in Sources */ = {isa = PBXBuildFile; fileRef = AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */; };
 		7699B88040F8A987B510C191 /* libPods-ZeroIsle_Notes-ZeroIsle_NotesTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 19F6CBCC0A4E27FBF8BF4A61 /* libPods-ZeroIsle_Notes-ZeroIsle_NotesTests.a */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
@@ -37,6 +39,9 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = ZeroIsle_Notes/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = ZeroIsle_Notes/main.m; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = ZeroIsle_Notes/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA100010B0B0B0B0B0B0B010 /* AIAssistant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AIAssistant.h; path = ZeroIsle_Notes/AIAssistant.h; sourceTree = "<group>"; };
+		AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = AIAssistant.m; path = ZeroIsle_Notes/AIAssistant.m; sourceTree = "<group>"; };
+		AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = PermanentStorageManager.m; path = ../PermanentStorageManager.m; sourceTree = "<group>"; };
 		19F6CBCC0A4E27FBF8BF4A61 /* libPods-ZeroIsle_Notes-ZeroIsle_NotesTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ZeroIsle_Notes-ZeroIsle_NotesTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B4392A12AC88292D35C810B /* Pods-ZeroIsle_Notes.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZeroIsle_Notes.debug.xcconfig"; path = "Target Support Files/Pods-ZeroIsle_Notes/Pods-ZeroIsle_Notes.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-ZeroIsle_Notes.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZeroIsle_Notes.release.xcconfig"; path = "Target Support Files/Pods-ZeroIsle_Notes/Pods-ZeroIsle_Notes.release.xcconfig"; sourceTree = "<group>"; };
@@ -89,6 +94,9 @@
 			children = (
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
+				AA100010B0B0B0B0B0B0B010 /* AIAssistant.h */,
+				AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */,
+				AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -395,6 +403,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
+				AA100001B0B0B0B0B0B0B001 /* AIAssistant.m in Sources */,
+				AA100002B0B0B0B0B0B0B002 /* PermanentStorageManager.m in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

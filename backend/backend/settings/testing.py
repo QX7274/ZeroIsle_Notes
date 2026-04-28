@@ -9,12 +9,38 @@ DEBUG = True
 
 # 允许的主机
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+# 在测试环境中移除不可用的可选依赖（如未安装 django_prometheus）
+try:
+    INSTALLED_APPS = [app for app in INSTALLED_APPS if app not in ['django_prometheus', 'rest_framework_simplejwt.token_blacklist']]
+    MIDDLEWARE = [mw for mw in MIDDLEWARE if not mw.startswith('django_prometheus.')]
+except Exception:
+    pass
+
+# 在测试环境中禁用 common.middleware.* 中间件以避免可选依赖和循环导入
+try:
+    MIDDLEWARE = [mw for mw in MIDDLEWARE if not mw.startswith('common.middleware.')]
+except Exception:
+    pass
+
+# 覆盖测试环境的中间件列表，避免导入有冲突/可选依赖的中间件
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'users.middleware.CustomAuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
 
 # 使用SQLite作为Django测试数据库，但主要数据存储在MongoDB
+# 使用SQLite作为Django测试数据库
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db_test.sqlite3'),
+        'NAME': ':memory:',
     }
 }
 
@@ -123,3 +149,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 # 禁用Celery任务
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Use InMemoryChannelLayer for testing
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}

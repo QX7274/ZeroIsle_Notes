@@ -7,7 +7,11 @@ import { checkAndRequestNotificationPermission } from '../../utils/permissions';
 class NotificationService {
   constructor() {
     this.lastId = 0;
-    this.initialize();
+    // 启动阶段不阻塞应用：在构造时触发初始化，并在边界处捕获异常
+    this.initialize().catch(error => {
+      console.error('通知服务启动初始化失败（已捕获，不阻塞应用）:', error);
+      analyticsService.trackError(error, { action: 'notification_service_constructor_init' });
+    });
   }
 
   async initialize() {
@@ -120,7 +124,7 @@ class NotificationService {
         hasNotificationPermission,
         notificationConfigured,
         channelsCreated,
-        overallSuccess: notificationConfigured // 只要通知服务配置成功，就认为整体初始化成功
+        overallSuccess: notificationConfigured, // 只要通知服务配置成功，就认为整体初始化成功
       };
 
       if (initResult.overallSuccess) {
@@ -135,8 +139,7 @@ class NotificationService {
       console.error('初始化通知服务错误:', error);
       console.error('错误堆栈:', error.stack);
       analyticsService.trackError(error, { action: 'init_notification_service' });
-      // 即使出错也不抛出异常，避免阻塞应用启动
-      return false;
+      throw error;
     }
   }
 
@@ -323,7 +326,7 @@ class NotificationService {
       console.log('通知操作:', notification.action);
       analyticsService.trackEvent('notification_action', {
         id: notification.id,
-        action: notification.action
+        action: notification.action,
       });
     } catch (error) {
       console.error('处理通知操作错误:', error);
@@ -409,7 +412,7 @@ class NotificationService {
 
       analyticsService.trackEvent('notification_scheduled', {
         id,
-        scheduledTime: options.date.toString()
+        scheduledTime: options.date.toString(),
       });
       return id;
     } catch (error) {
@@ -522,5 +525,10 @@ class NotificationService {
   }
 }
 
-export const notificationService = new NotificationService();
+const notificationService = new NotificationService();
+
+module.exports = notificationService;
+module.exports.default = notificationService;
+module.exports.notificationService = notificationService;
+module.exports.NotificationService = NotificationService;
 

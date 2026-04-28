@@ -12,7 +12,7 @@ import {
   Modal,
   Animated,
   Dimensions,
-  Platform
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../context/ThemeContext';
@@ -24,7 +24,7 @@ const NetworkErrorAlert = ({
   error = null,
   onRetry,
   onDismiss,
-  style = {}
+  style = {},
 }) => {
   const { colors } = useTheme();
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -43,7 +43,7 @@ const NetworkErrorAlert = ({
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
-        })
+        }),
       ]).start();
     } else {
       // 隐藏动画
@@ -57,7 +57,7 @@ const NetworkErrorAlert = ({
           toValue: 50,
           duration: 200,
           useNativeDriver: true,
-        })
+        }),
       ]).start();
     }
   }, [visible, fadeAnim, slideAnim]);
@@ -142,18 +142,38 @@ const NetworkErrorAlert = ({
     }
   };
 
-  const errorType = error.errorType || 'unknown_error';
-  const iconName = getErrorIcon(errorType);
-  const iconColor = getErrorColor(errorType);
-  const title = getErrorTitle(errorType);
-  const message = error.userMessage || getErrorMessage(errorType);
+  const resolvedStatus = error?.status ?? error?.response?.status ?? null;
+  const resolvedErrorType = error?.errorType || (
+    resolvedStatus === 401 || resolvedStatus === 403
+      ? 'auth_error'
+      : resolvedStatus >= 500
+        ? 'server_error'
+        : 'unknown_error'
+  );
+
+  const iconName = getErrorIcon(resolvedErrorType);
+  const iconColor = getErrorColor(resolvedErrorType);
+  const title = getErrorTitle(resolvedErrorType);
+  const message = error?.userMessage || error?.message || getErrorMessage(resolvedErrorType);
+
+  const handleDismissPress = () => {
+    if (typeof onDismiss === 'function') {
+      onDismiss();
+    }
+  };
+
+  const handleRetryPress = () => {
+    if (typeof onRetry === 'function') {
+      onRetry();
+    }
+  };
 
   return (
     <Modal
       visible={visible}
       transparent={true}
       animationType="none"
-      onRequestClose={onDismiss}
+      onRequestClose={handleDismissPress}
     >
       <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
         <Animated.View
@@ -163,9 +183,9 @@ const NetworkErrorAlert = ({
               backgroundColor: colors.background,
               borderColor: colors.border,
               opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
+              transform: [{ translateY: slideAnim }],
             },
-            style
+            style,
           ]}
         >
           {/* 错误图标 */}
@@ -188,7 +208,7 @@ const NetworkErrorAlert = ({
             {onRetry && (
               <TouchableOpacity
                 style={[styles.button, styles.retryButton, { backgroundColor: colors.primary }]}
-                onPress={onRetry}
+                onPress={handleRetryPress}
                 activeOpacity={0.8}
               >
                 <Icon name="refresh" size={16} color="#FFFFFF" style={styles.buttonIcon} />
@@ -200,7 +220,7 @@ const NetworkErrorAlert = ({
 
             <TouchableOpacity
               style={[styles.button, styles.dismissButton, { borderColor: colors.border }]}
-              onPress={onDismiss}
+              onPress={handleDismissPress}
               activeOpacity={0.8}
             >
               <Text style={[styles.buttonText, { color: colors.text }]}>

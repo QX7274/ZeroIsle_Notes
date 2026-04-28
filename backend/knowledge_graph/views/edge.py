@@ -9,6 +9,8 @@ from rest_framework.permissions import IsAuthenticated
 import uuid
 from django.utils import timezone
 
+from ..utils.response import KGResponse, ErrorCodes
+
 from knowledge_graph.mongodb_models import KnowledgeEdge, KnowledgeNode
 from knowledge_graph.serializers import KnowledgeEdgeSerializer
 from knowledge_graph.services import Neo4jService
@@ -28,7 +30,7 @@ class KnowledgeEdgeViewSet(viewsets.ViewSet):
         """获取边列表"""
         edges = KnowledgeEdge.objects.filter(user=request.user, is_deleted=False)
         serializer = KnowledgeEdgeSerializer(edges, many=True)
-        return Response(serializer.data)
+        return KGResponse.success(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个边详情"""
@@ -36,12 +38,13 @@ class KnowledgeEdgeViewSet(viewsets.ViewSet):
             edge = KnowledgeEdge.objects.get(id=pk, is_deleted=False)
             # 检查权限
             if edge.user != request.user and not edge.is_public:
-                return Response(
-                    {"detail": "您没有权限查看此连接"},
-                    status=status.HTTP_403_FORBIDDEN
+                return KGResponse.error(
+                    ErrorCodes.FORBIDDEN,
+                    '您没有权限查看此连接',
+                    status_code=status.HTTP_403_FORBIDDEN
                 )
             serializer = KnowledgeEdgeSerializer(edge)
-            return Response(serializer.data)
+            return KGResponse.success(serializer.data)
         except KnowledgeEdge.DoesNotExist:
             return Response(
                 {"detail": "连接不存在或已删除"},
@@ -99,7 +102,7 @@ class KnowledgeEdgeViewSet(viewsets.ViewSet):
                     pass
 
                 serializer = KnowledgeEdgeSerializer(edge)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                return KGResponse.success(serializer.data, status_code=status.HTTP_201_CREATED)
             except KnowledgeNode.DoesNotExist:
                 return Response(
                     {"detail": "源节点或目标节点不存在或已删除"},
@@ -138,12 +141,13 @@ class KnowledgeEdgeViewSet(viewsets.ViewSet):
                     pass
 
                 serializer = KnowledgeEdgeSerializer(edge)
-                return Response(serializer.data)
+                return KGResponse.success(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except KnowledgeEdge.DoesNotExist:
-            return Response(
-                {"detail": "连接不存在或已删除"},
-                status=status.HTTP_404_NOT_FOUND
+            return KGResponse.error(
+                ErrorCodes.NOT_FOUND,
+                '连接不存在或已删除',
+                status_code=status.HTTP_404_NOT_FOUND
             )
 
     def destroy(self, request, pk=None):
@@ -168,7 +172,7 @@ class KnowledgeEdgeViewSet(viewsets.ViewSet):
                 # 如果Neo4j操作失败，不影响数据库操作
                 pass
 
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return KGResponse.success({}, status_code=status.HTTP_204_NO_CONTENT)
         except KnowledgeEdge.DoesNotExist:
             return Response(
                 {"detail": "连接不存在或已删除"},

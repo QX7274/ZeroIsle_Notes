@@ -1,0 +1,525 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test us
+ers.tests.test_auth >
+ test_output ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+Creating test databas
+e for alias 'default'
+...
+
+ERROR Internal Server
+ Error: /api/v1/auth/
+bind/email/
+Traceback (most recen
+t call last):
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\exception.py", li
+ne 55, in inner
+    response = get_re
+sponse(request)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\base.py", line 19
+7, in _get_response
+    response = wrappe
+d_callback(request, *
+callback_args, **call
+back_kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\views\deco
+rators\csrf.py", line
+ 65, in _view_wrapper
+    return view_func(
+request, *args, **kwa
+rgs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ewsets.py", line 125,
+ in view
+    return self.dispa
+tch(request, *args, *
+*kwargs)
+           ~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 515, in
+ dispatch
+    response = self.h
+andle_exception(exc)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 475, in
+ handle_exception
+    self.raise_uncaug
+ht_exception(exc)
+    ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 486, in
+ raise_uncaught_excep
+tion
+    raise exc
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 503, in
+ dispatch
+    self.initial(requ
+est, *args, **kwargs)
+    ~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 421, in
+ initial
+    self.check_permis
+sions(request)
+    ~~~~~~~~~~~~~~~~~
+~~~~~^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 338, in
+ check_permissions
+    if not permission
+.has_permission(reque
+st, self):
+           ~~~~~~~~~~
+~~~~~~~~~~~~~~~^^^^^^
+^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\pe
+rmissions.py", line 1
+51, in has_permission
+    return bool(reque
+st.user and request.u
+ser.is_authenticated)
+                     
+            ^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+' object has no attri
+bute 'is_authenticate
+d'
+E.密码登录失败: 用户不存在, 用户名:
+ None, 邮箱: None, 手机号:
+ 13800138000
+登录验证失败: {'non_field_e
+rrors': [ErrorDetail(
+string='用户不存在', code=
+'invalid')]}
+登录失败记录: username=1380
+0138000, ip=127.0.0.1
+, reason={'non_field_
+errors': [ErrorDetail
+(string='用户不存在', code
+='invalid')]}
+WARNING Bad Request: 
+/api/v1/auth/login/
+F.WARNING Bad Request
+: /api/v1/auth/regist
+er/
+FWARNING Bad Request:
+ /api/v1/auth/registe
+r/
+F
+=====================
+=====================
+=====================
+=======
+ERROR: test_user_bind
+ing_methods (users.te
+sts.test_auth.UserAut
+hTest.test_user_bindi
+ng_methods)
+测试用户绑定多种登录方式
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 180, in test_user_
+binding_methods
+    response = self.c
+lient.post(
+        bind_email_ur
+l,
+        data=json.dum
+ps(bind_email_data),
+        content_type=
+'application/json'
+    )
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 299, in 
+post
+    response = super(
+).post(
+        path, data=da
+ta, format=format, co
+ntent_type=content_ty
+pe, **extra)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 213, in 
+post
+    return self.gener
+ic('POST', path, data
+, content_type, **ext
+ra)
+           ~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 237, in 
+generic
+    return super().ge
+neric(
+           ~~~~~~~~~~
+~~~~~^
+        method, path,
+ data, content_type, 
+secure, **extra)
+        ^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 671, in g
+eneric
+    return self.reque
+st(**r)
+           ~~~~~~~~~~
+~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 289, in 
+request
+    return super().re
+quest(**kwargs)
+           ~~~~~~~~~~
+~~~~~^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\te
+st.py", line 241, in 
+request
+    request = super()
+.request(**kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 1087, in 
+request
+    self.check_except
+ion(response)
+    ~~~~~~~~~~~~~~~~~
+~~~^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\test\clien
+t.py", line 802, in c
+heck_exception
+    raise exc_value
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\exception.py", li
+ne 55, in inner
+    response = get_re
+sponse(request)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\core\handl
+ers\base.py", line 19
+7, in _get_response
+    response = wrappe
+d_callback(request, *
+callback_args, **call
+back_kwargs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\django\views\deco
+rators\csrf.py", line
+ 65, in _view_wrapper
+    return view_func(
+request, *args, **kwa
+rgs)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ewsets.py", line 125,
+ in view
+    return self.dispa
+tch(request, *args, *
+*kwargs)
+           ~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 515, in
+ dispatch
+    response = self.h
+andle_exception(exc)
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 475, in
+ handle_exception
+    self.raise_uncaug
+ht_exception(exc)
+    ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 486, in
+ raise_uncaught_excep
+tion
+    raise exc
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 503, in
+ dispatch
+    self.initial(requ
+est, *args, **kwargs)
+    ~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 421, in
+ initial
+    self.check_permis
+sions(request)
+    ~~~~~~~~~~~~~~~~~
+~~~~~^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\vi
+ews.py", line 338, in
+ check_permissions
+    if not permission
+.has_permission(reque
+st, self):
+           ~~~~~~~~~~
+~~~~~~~~~~~~~~~^^^^^^
+^^^^^^^^^
+  File "C:\Users\QX\A
+ppData\Roaming\Python
+\Python313\site-packa
+ges\rest_framework\pe
+rmissions.py", line 1
+51, in has_permission
+    return bool(reque
+st.user and request.u
+ser.is_authenticated)
+                     
+            ^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'User
+' object has no attri
+bute 'is_authenticate
+d'
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_login
+_with_phone (users.te
+sts.test_auth.UserAut
+hTest.test_user_login
+_with_phone)
+测试手机号登录
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 143, in test_user_
+login_with_phone
+    self.assertEqual(
+response.status_code,
+ status.HTTP_200_OK)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+AssertionError: 400 !
+= 200
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_regis
+ter_with_phone (users
+.tests.test_auth.User
+AuthTest.test_user_re
+gister_with_phone)
+测试手机号注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 116, in test_user_
+register_with_phone
+    self.assertEqual(
+response.status_code,
+ status.HTTP_201_CREA
+TED)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^
+AssertionError: 400 !
+= 201
+
+=====================
+=====================
+=====================
+=======
+FAIL: test_user_regis
+ter_with_username (us
+ers.tests.test_auth.U
+serAuthTest.test_user
+_register_with_userna
+me)
+测试用户名注册
+---------------------
+---------------------
+---------------------
+-------
+Traceback (most recen
+t call last):
+  File "D:\ZeroIsle_N
+otes\backend\users\te
+sts\test_auth.py", li
+ne 71, in test_user_r
+egister_with_username
+    self.assertEqual(
+response.status_code,
+ status.HTTP_201_CREA
+TED)
+    ~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^
+AssertionError: 400 !
+= 201
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 6 tests in 52.832
+s
+
+FAILED (failures=3, e
+rrors=1)
+Destroying test datab
+ase for alias 'defaul
+t'...
+
+Found 6 test(s).
+System check identified no issues (0 silenced).
+Register failed: {'password': [ErrorDetail(string='密码必须包含至少一个大写字母', code='invalid'), ErrorDetail(string='密码必须包含至少一个特殊字符', code='invalid')]}
+Register failed: {'password': [ErrorDetail(string='密码必须包含至少一个大写字母', code='invalid'), ErrorDetail(string='密码必须包含至少一个特殊字符', code='invalid')]}

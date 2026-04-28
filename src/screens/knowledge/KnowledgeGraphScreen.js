@@ -22,6 +22,8 @@ import Animated, { useAnimatedGestureHandler, useSharedValue, useAnimatedStyle }
 
 // 导入知识图谱组件
 import { GraphVisualization } from '../../components/knowledge';
+import { buildGraphFromNotes } from '../../services/noteGraphService';
+import websocketService from '../../services/websocket/websocket';
 
 // 导入Redux相关
 import {
@@ -33,6 +35,9 @@ import {
   selectLayout,
   selectFilters,
   selectVisualization,
+  selectAuthRequired, // <-- Import new selector
+  selectAuthMessage,  // <-- Import new selector
+  selectNetworkFallbackMessage,
   setLayout,
   setFilters,
   setVisualization,
@@ -48,6 +53,8 @@ import networkErrorService from '../../services/networkErrorService';
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
 
+// 后端图与候选边适配器
+import { suggestEdges, acceptSuggestions, ignoreSuggestions, getGraphNodes } from '../../adapters/knowledgeGraphAdapter';
 // 屏幕尺寸
 const { width, height } = Dimensions.get('window');
 
@@ -64,90 +71,114 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   const styles = getStyles(colors);
 
   // 从Redux获取状态
+  // 从 Redux 中获取知识图谱数据与加载状态
   const nodes = useSelector(selectNodes);
   const edges = useSelector(selectEdges);
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
+  const networkFallbackMessage = useSelector(selectNetworkFallbackMessage);
+
+  // Redux state for UI controls
   const layout = useSelector(selectLayout);
   const filters = useSelector(selectFilters);
   const visualization = useSelector(selectVisualization);
 
+// 性能保护：避免大图谱导致渲染/内存崩溃
+  const MAX_RENDER_NODES = 800;
+  const MAX_RENDER_EDGES = 1200;
+
+  const renderNodes = React.useMemo(() => {
+    if (!Array.isArray(nodes)) return [];
+    return nodes.length > MAX_RENDER_NODES ? nodes.slice(0, MAX_RENDER_NODES) : nodes;
+  }, [nodes]);
+
+  const renderNodeIdSet = React.useMemo(() => {
+    return new Set((renderNodes || []).map(n => String(n.id || n._id)));
+  }, [renderNodes]);
+
+  const renderEdges = React.useMemo(() => {
+    if (!Array.isArray(edges)) return [];
+
+    // 仅保留两端节点都在渲染子集中的边
+    let filtered = edges.filter(e => {
+      const s = String(e.source || e.source_id);
+      const t = String(e.target || e.target_id);
+      return renderNodeIdSet.has(s) && renderNodeIdSet.has(t);
+    });
+
+    if (filtered.length > MAX_RENDER_EDGES) {
+      filtered = filtered.slice(0, MAX_RENDER_EDGES);
+    }
+    return filtered;
+  }, [edges, renderNodeIdSet]);
   // 本地状态
   const [showFilters, setShowFilters] = useState(false);
   const [showLayoutOptions, setShowLayoutOptions] = useState(false);
+  // 候选边建议
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+
   const [toastMessage, setToastMessage] = useState('');
   const [selectedNode, setSelectedNode] = useState(null);
 
   // 本地状态 - 不再需要手势状态，由GraphVisualization组件处理
 
-  // 初始化加载知识图谱数据
-  useEffect(() => {
-    loadKnowledgeGraph();
-  }, []);
-
-  // 加载知识图谱数据
+  // 加载知识图谱数据（从后端/Realm 同步）
   const loadKnowledgeGraph = async () => {
     try {
-      console.log('开始加载知识图谱数据...');
-      await dispatch(fetchKnowledgeGraph()).unwrap();
-      console.log('知识图谱数据加载成功');
-    } catch (err) {
-      console.error('加载知识图谱失败:', err);
-
-      // 检查错误类型并提供更具体的错误信息
-      let errorMessage = '请稍后重试';
-
-      if (err.statusCode === 500) {
-        console.log('服务器错误 (500)，可能是用户ID类型不匹配问题');
-        errorMessage = '服务器内部错误，可能是用户ID格式不兼容';
-      } else if (err.statusCode === 401) {
-        console.log('认证错误 (401)，用户可能需要重新登录');
-        errorMessage = '登录已过期，请重新登录';
-      } else if (err.isNetworkError) {
-        console.log('网络错误，可能是连接问题');
-        errorMessage = '网络连接失败，请检查网络设置';
-        
-        // 使用网络错误服务处理错误
-        networkErrorService.handleApiError(err, {
-          context: '加载知识图谱',
-          customMessage: '网络连接失败，无法加载知识图谱'
-        });
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setToastMessage('加载知识图谱失败: ' + errorMessage);
-
-      // Mock数据已移除，现在只使用真实API数据
-      console.log('知识图谱数据加载失败，等待用户手动重试或检查网络');
+      await dispatch(fetchKnowledgeGraph(filters));
+    } catch (e) {
+      // createAsyncThunk 内部已处理错误，这里不阻塞 UI
     }
   };
+
+  useEffect(() => {
+    loadKnowledgeGraph();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 处理节点点击
   const handleNodePress = (node) => {
     setSelectedNode(node);
     dispatch(setCurrentNode(node));
-    // 高亮相关节点和边
-    const relatedEdges = edges.filter(
+    // --- 1st and 2nd Degree Highlighting ---
+    const firstDegreeEdges = edges.filter(
       (edge) => edge.source === node.id || edge.target === node.id
     );
-    const relatedNodeIds = new Set();
-    relatedEdges.forEach((edge) => {
-      relatedNodeIds.add(edge.source);
-      relatedNodeIds.add(edge.target);
+    const firstDegreeNodeIds = new Set([node.id]);
+    firstDegreeEdges.forEach((edge) => {
+      firstDegreeNodeIds.add(edge.source);
+      firstDegreeNodeIds.add(edge.target);
+    });
+
+    const secondDegreeNodeIds = new Set();
+    firstDegreeNodeIds.forEach(firstDegreeNodeId => {
+      if (firstDegreeNodeId !== node.id) {
+        const secondDegreeEdges = edges.filter(
+          (edge) => (edge.source === firstDegreeNodeId || edge.target === firstDegreeNodeId)
+        );
+        secondDegreeEdges.forEach(edge => {
+          const neighborId = edge.source === firstDegreeNodeId ? edge.target : edge.source;
+          if (!firstDegreeNodeIds.has(neighborId)) {
+            secondDegreeNodeIds.add(neighborId);
+          }
+        });
+      }
     });
 
     dispatch(setVisualization({
-      highlightedNodes: Array.from(relatedNodeIds),
-      highlightedEdges: relatedEdges.map(edge => edge.id),
+      highlightedNodes: Array.from(firstDegreeNodeIds),
+      secondDegreeHighlightedNodes: Array.from(secondDegreeNodeIds),
+      highlightedEdges: firstDegreeEdges.map(edge => edge.id),
       centerNode: node.id,
     }));
   };
 
   // 处理节点双击 - 导航到笔记详情
   const handleNodeDoubleTap = (node) => {
-    if (node.type === 'note' && node.noteId) {
-      navigation.navigate('NoteDetail', { noteId: node.noteId });
+    if (node.type === 'note' && node.id) {
+      navigation.navigate('NoteEditor', { noteId: node.id });
     }
   };
 
@@ -191,11 +222,13 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   };
 
   // 渲染加载状态
+
+
   if (isLoading && (!nodes || nodes.length === 0)) {
     return <Loading text="加载知识图谱中..." />;
   }
 
-  // 渲染错误状态
+  // 渲染错误状态（仅非网络错误展示阻断失败页）
   if (error && (!nodes || nodes.length === 0)) {
     return (
       <View style={styles.errorContainer}>
@@ -206,13 +239,16 @@ const KnowledgeGraphScreen = ({ navigation }) => {
     );
   }
 
-  // 渲染空状态
+  // 渲染空状态（包含弱网离线空图提示）
   if (!nodes || nodes.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
         <Text style={styles.emptyText}>暂无知识图谱数据</Text>
         <Text style={styles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
+        {networkFallbackMessage ? (
+          <Text style={styles.networkHintText}>{networkFallbackMessage}</Text>
+        ) : null}
         <Button
           title="创建笔记"
           onPress={() => navigation.navigate('NoteEdit')}
@@ -224,6 +260,19 @@ const KnowledgeGraphScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* 顶部导航栏（统一返回按钮样式） */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.primary + '15' }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="arrow-back" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>知识图谱</Text>
+        <View style={styles.headerRight} />
+      </View>
+
       {/* 顶部工具栏 */}
       <View style={styles.toolbar}>
         <TouchableOpacity
@@ -327,10 +376,10 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* 知识图谱可视化区域 */}
+      {/* 知识图谱可视化区域（使用裁剪后的 renderNodes/renderEdges 以保护性能） */}
       <GraphVisualization
-        nodes={nodes}
-        edges={edges}
+        nodes={renderNodes}
+        edges={renderEdges}
         visualization={visualization}
         onNodePress={handleNodePress}
         onNodeLongPress={handleNodeDoubleTap}
@@ -359,22 +408,100 @@ const KnowledgeGraphScreen = ({ navigation }) => {
           <View style={styles.nodeActions}>
             <TouchableOpacity
               style={styles.nodeActionButton}
-              onPress={() => navigation.navigate('NodeDetail', { nodeId: selectedNode.id })}
+              onPress={() => navigation.navigate('NoteEditor', { noteId: selectedNode.id })}
             >
-              <Icon name="info-outline" size={20} color={colors.primary} />
-              <Text style={styles.nodeActionText}>详情</Text>
+              <Icon name="edit" size={20} color={colors.primary} />
+              <Text style={styles.nodeActionText}>编辑</Text>
             </TouchableOpacity>
 
-            {selectedNode.type === 'note' && selectedNode.noteId && (
-              <TouchableOpacity
-                style={styles.nodeActionButton}
-                onPress={() => navigation.navigate('NoteDetail', { noteId: selectedNode.noteId })}
-              >
-                <Icon name="description" size={20} color={colors.primary} />
-                <Text style={styles.nodeActionText}>查看笔记</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.nodeActionButton}
+              onPress={async () => {
+                try {
+                  setSuggestLoading(true);
+                  const list = await suggestEdges(selectedNode.id, 10);
+                  setSuggestions(list);
+                  setShowSuggestions(true);
+                } catch (e) {
+                  setToastMessage(`获取候选边失败: ${e.message}`);
+                } finally {
+                  setSuggestLoading(false);
+                }
+              }}
+            >
+              <Icon name="lightbulb-outline" size={20} color={colors.primary} />
+              <Text style={styles.nodeActionText}>建议</Text>
+            </TouchableOpacity>
+
+            {showSuggestions && suggestions.length > 0 && (
+              <>
+                <TouchableOpacity
+                  style={styles.nodeActionButton}
+                  onPress={async () => {
+                    try {
+                      setSuggestLoading(true);
+                      const res = await acceptSuggestions(suggestions.map(s => ({
+                        source: s.source, target: s.target, type: s.type,
+                        confidence: s.confidence, evidence: s.evidence || [],
+                      })));
+                      setToastMessage(`采纳成功 ${res.accepted} 条`);
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    } catch (e) {
+                      setToastMessage(`采纳失败: ${e.message}`);
+                    } finally {
+                      setSuggestLoading(false);
+                    }
+                  }}
+                >
+                  <Icon name="check-circle" size={20} color={colors.primary} />
+                  <Text style={styles.nodeActionText}>采纳全部</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.nodeActionButton}
+                  onPress={async () => {
+                    try {
+                      setSuggestLoading(true);
+                      const res = await ignoreSuggestions(suggestions.map(s => ({
+                        source: s.source, target: s.target, type: s.type,
+                      })));
+                      setToastMessage(`忽略成功 ${res.ignored} 条`);
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    } catch (e) {
+                      setToastMessage(`忽略失败: ${e.message}`);
+                    } finally {
+                      setSuggestLoading(false);
+                    }
+                  }}
+                >
+                  <Icon name="block" size={20} color={colors.error} />
+                  <Text style={[styles.nodeActionText, { color: colors.error }]}>忽略全部</Text>
+                </TouchableOpacity>
+              </>
             )}
+
           </View>
+
+          {showSuggestions && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 6 }}>
+                候选边（{suggestions.length}）{suggestLoading ? ' · 加载中...' : ''}
+              </Text>
+              <ScrollView style={{ maxHeight: 200 }}>
+                {suggestions.map((s, idx) => (
+                  <View key={`${s.source}-${s.target}-${idx}`} style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                    <Text style={{ color: colors.text, fontSize: 12 }}>类型: {s.type || 'related'}</Text>
+                    <Text style={{ color: colors.text, fontSize: 12 }}>源: {s.source}</Text>
+                    <Text style={{ color: colors.text, fontSize: 12 }}>目标: {s.target}</Text>
+                    <Text style={{ color: colors.text, fontSize: 12 }}>置信度: {(s.confidence * 100).toFixed(1)}%</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>证据: {(s.evidence || []).length} 条</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
       )}
 
@@ -395,6 +522,34 @@ const getStyles = (colors) => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: -4,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 18,
+    color: colors.text,
+  },
+  headerRight: {
+    width: 40,
   },
   toolbar: {
     flexDirection: 'row',
@@ -552,46 +707,17 @@ const getStyles = (colors) => ({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 10,
-    marginBottom: 30,
+    marginBottom: 12,
+  },
+  networkHintText: {
+    fontSize: 13,
+    color: colors.warning || colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 18,
   },
   createButton: {
     width: 200,
   },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  container: {},
-  toolbar: {},
-  toolbarButton: {},
-  toolbarButtonText: {},
-  disabledText: {},
-  optionsContainer: {},
-  optionButton: {},
-  activeOption: {},
-  optionText: {},
-  filtersContainer: {},
-  filterTitle: {},
-  filterChip: {},
-  activeFilterChip: {},
-  filterChipText: {},
-  graphContainer: {},
-  graphWrapper: {},
-  nodeInfoContainer: {},
-  nodeInfoHeader: {},
-  nodeTypeIndicator: {},
-  nodeTitle: {},
-  closeButton: {},
-  nodeDescription: {},
-  nodeActions: {},
-  nodeActionButton: {},
-  nodeActionText: {},
-  errorContainer: {},
-  errorText: {},
-  emptyContainer: {},
-  emptyText: {},
-  emptySubText: {},
-  createButton: {},
 });
 
 export default KnowledgeGraphScreen;

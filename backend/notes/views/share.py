@@ -1,38 +1,60 @@
 """
-笔记分享视图
+笔记分享视图（优化版）
+- 使用ShareService封装业务逻辑
+- 修复权限控制（by_code和verify_password允许匿名访问）
+- 修复查询语法
+- 添加访问审计
 """
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from notes.mongodb_models import NoteShare, Note
 from notes.serializers import NoteShareSerializer
+from notes.services.share_service import ShareService
 from common.permissions import IsOwnerOrReadOnly
 import logging
-from datetime import timedelta
-import uuid
-import random
-import string
 
 logger = logging.getLogger(__name__)
 
 class NoteShareViewSet(viewsets.ViewSet):
     """
-    笔记分享视图集
+    笔记分享视图集（优化版）
+    - 使用ShareService
+    - 修复查询语法
+    - 正确的权限控制
     """
     serializer_class = NoteShareSerializer
-    permission_classes = [IsOwnerOrReadOnly]
+    permission_classes = [IsAuthenticated]  # 默认需要认证
+
+    def get_permissions(self):
+        """
+        根据action设置不同的权限
+        """
+        if self.action in ['by_code', 'verify_password']:
+            # by_code和verify_password允许匿名访问
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def list(self, request):
-        """获取分享列表"""
+        """获取分享列表（修复查询语法）"""
         user = request.user
         note_id = request.query_params.get('note_id')
 
         if note_id:
-            shares = NoteShare.objects.filter(note__user=user, note=note_id)
+            # 修复：先获取Note对象，再按note引用过滤
+            try:
+                note = Note.objects.get(id=note_id, user=user)
+                shares = ShareService.get_user_shares(user, note=note)
+            except Note.DoesNotExist:
+                return Response(
+                    {"detail": "笔记不存在"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
         else:
-            shares = NoteShare.objects.filter(user=user)
+            shares = ShareService.get_user_shares(user)
 
         serializer = NoteShareSerializer(shares, many=True)
         return Response(serializer.data)
@@ -50,98 +72,109 @@ class NoteShareViewSet(viewsets.ViewSet):
             )
 
     def create(self, request):
-        """创建分享"""
-        serializer = NoteShareSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            # 获取笔记
-            note_id = request.data.get('note')
-            try:
-                note = Note.objects.get(id=note_id, user=request.user)
-            except Note.DoesNotExist:
-                return Response(
-                    {"detail": "笔记不存在"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+        """创建分享（使用ShareService）"""
+        # 获取笔记
+        note_id = request.data.get('note')
+        if not note_id:
+            return Response(
+                {"detail": "缺少笔记ID"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            # 生成分享码
-            share_code = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        try:
+            note = Note.objects.get(id=note_id, user=request.user)
+        except Note.DoesNotExist:
+            return Response(
+                {"detail": "笔记不存在或无权访问"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-            # 创建分享
-            share = NoteShare(
-                id=uuid.uuid4(),
+        # 使用ShareService创建分享
+        try:
+            share = ShareService.create_share(
                 note=note,
                 user=request.user,
                 share_type=request.data.get('share_type', 'link'),
-                share_to=request.data.get('share_to', ''),
-                share_code=share_code,
+                share_to=request.data.get('share_to'),
+                password=request.data.get('password'),
                 expires_at=request.data.get('expires_at'),
-                is_password_protected=request.data.get('is_password_protected', False),
-                password=request.data.get('password', ''),
-                is_active=True,
-                created_at=timezone.now(),
-                updated_at=timezone.now()
+                max_view_count=request.data.get('max_view_count')
             )
-            share.save()
 
             serializer = NoteShareSerializer(share)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"创建分享失败: {str(e)}")
+            return Response(
+                {"detail": "创建分享失败"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def update(self, request, pk=None):
-        """更新分享"""
+        """更新分享（使用ShareService）"""
         try:
             share = NoteShare.objects.get(id=pk, user=request.user)
-            serializer = NoteShareSerializer(share, data=request.data, context={'request': request})
-            if serializer.is_valid():
-                # 更新分享信息
-                share.share_type = request.data.get('share_type', share.share_type)
-                share.share_to = request.data.get('share_to', share.share_to)
-                share.expires_at = request.data.get('expires_at', share.expires_at)
-                share.is_password_protected = request.data.get('is_password_protected', share.is_password_protected)
 
-                # 只有在提供了新密码时才更新密码
-                if 'password' in request.data and request.data['password']:
-                    share.password = request.data['password']
+            # 使用ShareService更新
+            password = request.data.get('password') if 'password' in request.data else None
 
-                share.is_active = request.data.get('is_active', share.is_active)
-                share.updated_at = timezone.now()
-                share.save()
+            share = ShareService.update_share(
+                share=share,
+                share_type=request.data.get('share_type'),
+                share_to=request.data.get('share_to'),
+                password=password,
+                expires_at=request.data.get('expires_at'),
+                max_view_count=request.data.get('max_view_count'),
+                is_active=request.data.get('is_active')
+            )
 
-                serializer = NoteShareSerializer(share)
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = NoteShareSerializer(share)
+            return Response(serializer.data)
         except NoteShare.DoesNotExist:
             return Response(
-                {"detail": "分享不存在"},
+                {"detail": "分享不存在或无权访问"},
                 status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"更新分享失败: {str(e)}")
+            return Response(
+                {"detail": "更新分享失败"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def destroy(self, request, pk=None):
-        """删除分享"""
+        """删除分享（软删除）"""
         try:
             share = NoteShare.objects.get(id=pk, user=request.user)
-            share.is_active = False
-            share.updated_at = timezone.now()
-            share.save()
+            ShareService.revoke_share(share)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except NoteShare.DoesNotExist:
             return Response(
-                {"detail": "分享不存在"},
+                {"detail": "分享不存在或无权访问"},
                 status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"删除分享失败: {str(e)}")
+            return Response(
+                {"detail": "删除分享失败"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=True, methods=['post'])
     def revoke(self, request, pk=None):
-        """撤销分享"""
+        """撤销分享（使用ShareService）"""
         try:
             share = NoteShare.objects.get(id=pk, user=request.user)
-            share.is_active = False
-            share.updated_at = timezone.now()
-            share.save()
+            ShareService.revoke_share(share)
             return Response({'message': '分享已撤销'})
         except NoteShare.DoesNotExist:
             return Response(
-                {"detail": "分享不存在"},
+                {"detail": "分享不存在或无权访问"},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
@@ -153,32 +186,10 @@ class NoteShareViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def shared_with_me(self, request):
-        """获取与我分享的笔记"""
+        """获取与我分享的笔记（使用ShareService）"""
         try:
-            # 查找分享给我的邮箱的分享
-            email_shares = NoteShare.objects.filter(
-                share_type='email',
-                share_to=request.user.email,
-                is_active=True
-            )
-
-            # 查找分享给我的用户的分享
-            user_shares = NoteShare.objects.filter(
-                share_type='user',
-                share_to=str(request.user.id),
-                is_active=True
-            )
-
-            # 合并结果
-            shares = list(email_shares) + list(user_shares)
-
-            # 过滤掉已过期的分享
-            valid_shares = []
-            for share in shares:
-                if not share.is_expired():
-                    valid_shares.append(share)
-
-            serializer = NoteShareSerializer(valid_shares, many=True)
+            shares = ShareService.get_shares_to_user(request.user, active_only=True)
+            serializer = NoteShareSerializer(shares, many=True)
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"获取分享笔记失败: {str(e)}")
@@ -189,12 +200,9 @@ class NoteShareViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def my_shares(self, request):
-        """获取我分享的笔记"""
+        """获取我分享的笔记（使用ShareService）"""
         try:
-            shares = NoteShare.objects.filter(
-                user=request.user,
-                is_active=True
-            )
+            shares = ShareService.get_user_shares(request.user, active_only=True)
             serializer = NoteShareSerializer(shares, many=True)
             return Response(serializer.data)
         except Exception as e:
@@ -204,9 +212,9 @@ class NoteShareViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def by_code(self, request):
-        """通过分享码获取分享"""
+        """通过分享码获取分享（允许匿名访问，使用ShareService）"""
         share_code = request.query_params.get('code')
         if not share_code:
             return Response(
@@ -215,36 +223,43 @@ class NoteShareViewSet(viewsets.ViewSet):
             )
 
         try:
-            share = NoteShare.objects.get(
-                share_code=share_code,
-                is_active=True
-            )
-
-            # 检查是否过期
-            if share.is_expired():
+            # 使用ShareService获取分享
+            share = ShareService.get_share_by_code(share_code)
+            if not share:
                 return Response(
-                    {'error': '分享已过期'},
+                    {'error': '分享不存在或已失效'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # 验证访问权限（不提供密码）
+            access_result = ShareService.verify_share_access(share)
+
+            if not access_result['accessible']:
+                if access_result['requires_password']:
+                    # 需要密码，返回部分信息
+                    serializer = NoteShareSerializer(share, context={'hide_content': True})
+                    return Response({
+                        'share': serializer.data,
+                        'requires_password': True
+                    })
+                else:
+                    # 其他原因不可访问
+                    return Response(
+                        {'error': access_result['reason']},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # 记录访问（包含审计日志）
+            request_meta = request.META if hasattr(request, 'META') else None
+            if not ShareService.record_share_access(share, request_meta):
+                return Response(
+                    {'error': '已达到最大访问次数'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # 增加查看次数
-            share.increment_view_count()
-
-            # 如果需要密码，则不返回笔记内容
-            if share.is_password_protected:
-                serializer = NoteShareSerializer(share, context={'hide_content': True})
-                return Response({
-                    'share': serializer.data,
-                    'requires_password': True
-                })
-
+            # 返回完整信息
             serializer = NoteShareSerializer(share)
             return Response(serializer.data)
-        except NoteShare.DoesNotExist:
-            return Response(
-                {'error': '分享不存在或已失效'},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             logger.error(f"获取分享失败: {str(e)}")
             return Response(
@@ -252,9 +267,9 @@ class NoteShareViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
     def verify_password(self, request, pk=None):
-        """验证分享密码"""
+        """验证分享密码（允许匿名访问，使用ShareService）"""
         password = request.data.get('password')
         if not password:
             return Response(
@@ -265,20 +280,24 @@ class NoteShareViewSet(viewsets.ViewSet):
         try:
             share = NoteShare.objects.get(id=pk, is_active=True)
 
-            # 检查是否过期
-            if share.is_expired():
+            # 使用ShareService验证访问权限（包含密码验证）
+            access_result = ShareService.verify_share_access(share, password=password)
+
+            if not access_result['accessible']:
                 return Response(
-                    {'error': '分享已过期'},
+                    {'error': access_result['reason']},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # 验证密码
-            if share.password != password:
+            # 记录访问（包含审计日志）
+            request_meta = request.META if hasattr(request, 'META') else None
+            if not ShareService.record_share_access(share, request_meta):
                 return Response(
-                    {'error': '密码错误'},
+                    {'error': '已达到最大访问次数'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # 返回完整信息
             serializer = NoteShareSerializer(share)
             return Response(serializer.data)
         except NoteShare.DoesNotExist:

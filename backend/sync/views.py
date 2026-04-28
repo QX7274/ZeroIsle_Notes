@@ -8,17 +8,44 @@
 """
 
 import logging
-from datetime import datetime
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+
+def _parse_limit_param(query_params, default=100, min_value=1, max_value=500):
+    """
+    解析并校验分页 limit 参数。
+
+    Returns:
+        tuple[int|None, str|None]: (limit, error_message)
+    """
+    raw_limit = query_params.get('limit', default)
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return None, 'limit 必须是整数'
+
+    if limit < min_value or limit > max_value:
+        return None, f'limit 必须在 {min_value} 到 {max_value} 之间'
+
+    return limit, None
+
+
+def _build_error_response(code, message):
+    """构建统一错误响应结构，兼容 error 与 errors 字段。"""
+    error_item = {'code': code, 'message': message}
+    return {
+        'success': False,
+        'error': error_item,
+        'errors': [error_item],
+        'timestamp': timezone.now().isoformat()
+    }
+
 from .services.sync_service import SyncService
-from .services.mongodb_service import mongodb_service
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -57,48 +84,57 @@ class SyncDataView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"数据同步失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"数据同步失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     def get(self, request):
         """
-        获取云端最新数据
-
-        查询参数:
-        - since: 上次同步时间 (ISO格式)
+        获取云端最新数据（游标模式）
         """
         try:
-            # 获取用户ID
             user_id = str(request.user.id)
+            notes_cursor = request.query_params.get('notes_cursor')
+            reminders_cursor = request.query_params.get('reminders_cursor')
+            limit, limit_error = _parse_limit_param(request.query_params)
+            if limit_error:
+                return Response(
+                    _build_error_response('SYNC_400_INVALID_LIMIT', limit_error),
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            notes_resp = SyncService.pull_notes(user_id, notes_cursor, limit)
+            reminders_resp = SyncService.pull_reminders(user_id, reminders_cursor, limit)
+            settings_resp = SyncService.get_user_settings(user_id)
 
-            # 获取查询参数
-            since = request.query_params.get('since')
+            all_errors = notes_resp.get('errors', []) + reminders_resp.get('errors', []) + settings_resp.get('errors', [])
 
-            # 获取最新数据
-            notes = SyncService.get_latest_notes(user_id, since)
-            reminders = SyncService.get_latest_reminders(user_id, since)
-            settings = SyncService.get_user_settings(user_id)
+            # Safely extract data and cursors
+            notes_data = notes_resp.get('data', {})
+            reminders_data = reminders_resp.get('data', {})
+            settings_data = settings_resp.get('data', {})
+
+            response_data = {
+                'notes': notes_data.get('items', []),
+                'reminders': reminders_data.get('items', []),
+                'settings': settings_data,
+                'cursors': {
+                    'next_notes_cursor': notes_data.get('next_cursor'),
+                    'next_reminders_cursor': reminders_data.get('next_cursor'),
+                }
+            }
 
             return Response({
-                'success': True,
-                'data': {
-                    'notes': notes,
-                    'reminders': reminders,
-                    'settings': settings,
-                },
-                'timestamp': datetime.now().isoformat()
+                'success': not all_errors,
+                'data': response_data,
+                'errors': all_errors,
+                'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"获取最新数据失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"获取最新数据失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class SyncKeyDataView(APIView):
     """
     关键数据同步视图
@@ -132,56 +168,41 @@ class SyncKeyDataView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"关键数据同步失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"关键数据同步失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     def get(self, request):
         """
         获取云端最新关键数据
-
-        查询参数:
-        - since: 上次同步时间 (ISO格式)
         """
         try:
-            # 获取用户ID
             user_id = str(request.user.id)
+            # 'since' 参数仅用于兼容旧客户端入参，当前服务逻辑不依赖该值。
+            request.query_params.get('since')
 
-            # 获取查询参数
-            since = request.query_params.get('since')
+            settings_resp = SyncService.get_user_settings(user_id)
+            user_resp = SyncService.get_user_data(user_id)
 
-            # 获取最新关键数据
-            settings = SyncService.get_user_settings(user_id)
+            all_errors = settings_resp.get('errors', []) + user_resp.get('errors', [])
 
-            # 获取用户信息
-            user = None
-            try:
-                users_collection = mongodb_service.db.users
-                user_data = users_collection.find_one({'_id': user_id})
-                if user_data and '_id' in user_data:
-                    user_data['_id'] = str(user_data['_id'])
-                user = user_data
-            except Exception as user_error:
-                logger.error(f"获取用户信息失败: {str(user_error)}")
+            response_data = {
+                'settings': settings_resp.get('data', {}),
+                'user': user_resp.get('data', {}) or {},
+            }
 
             return Response({
-                'success': True,
-                'data': {
-                    'settings': settings,
-                    'user': user,
-                },
-                'timestamp': datetime.now().isoformat()
+                'success': not all_errors,
+                'data': response_data,
+                'errors': all_errors,
+                'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"获取最新关键数据失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"获取最新关键数据失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class SyncNotesView(APIView):
     """
@@ -216,42 +237,33 @@ class SyncNotesView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"笔记同步失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"笔记同步失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     def get(self, request):
         """
-        获取云端最新笔记
-
-        查询参数:
-        - since: 上次同步时间 (ISO格式)
+        获取云端最新笔记（游标模式）
         """
         try:
-            # 获取用户ID
             user_id = str(request.user.id)
+            cursor = request.query_params.get('cursor')
+            limit, limit_error = _parse_limit_param(request.query_params)
+            if limit_error:
+                return Response(
+                    _build_error_response('SYNC_400_INVALID_LIMIT', limit_error),
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            result = SyncService.pull_notes(user_id, cursor, limit)
 
-            # 获取查询参数
-            since = request.query_params.get('since')
-
-            # 获取最新笔记
-            notes = SyncService.get_latest_notes(user_id, since)
-
-            return Response({
-                'success': True,
-                'data': notes,
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_200_OK)
+            # The service now returns the standardized response, so we pass it directly.
+            return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"获取最新笔记失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"获取最新笔记失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class SyncRemindersView(APIView):
     """
     提醒同步视图
@@ -284,42 +296,33 @@ class SyncRemindersView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"提醒同步失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"提醒同步失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     def get(self, request):
         """
-        获取云端最新提醒
-
-        查询参数:
-        - since: 上次同步时间 (ISO格式)
+        获取云端最新提醒（游标模式）
         """
         try:
-            # 获取用户ID
             user_id = str(request.user.id)
+            cursor = request.query_params.get('cursor')
+            limit, limit_error = _parse_limit_param(request.query_params)
+            if limit_error:
+                return Response(
+                    _build_error_response('SYNC_400_INVALID_LIMIT', limit_error),
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            result = SyncService.pull_reminders(user_id, cursor, limit)
 
-            # 获取查询参数
-            since = request.query_params.get('since')
-
-            # 获取最新提醒
-            reminders = SyncService.get_latest_reminders(user_id, since)
-
-            return Response({
-                'success': True,
-                'data': reminders,
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_200_OK)
+            # The service now returns the standardized response, so we pass it directly.
+            return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"获取最新提醒失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"获取最新提醒失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class SyncSettingsView(APIView):
     """
     设置同步视图
@@ -351,32 +354,15 @@ class SyncSettingsView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"设置同步失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response(
+                _build_error_response('SYNC_500_INTERNAL_SERVER_ERROR', f"设置同步失败: {str(e)}"),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     def get(self, request):
         """
         获取云端设置
         """
-        try:
-            # 获取用户ID
-            user_id = str(request.user.id)
-
-            # 获取设置
-            settings = SyncService.get_user_settings(user_id)
-
-            return Response({
-                'success': True,
-                'data': settings,
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"获取设置失败: {str(e)}")
-            return Response({
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        user_id = str(request.user.id)
+        result = SyncService.get_user_settings(user_id)
+        # The service now returns the standardized response, so we pass it directly.
+        return Response(result, status=status.HTTP_200_OK)

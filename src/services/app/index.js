@@ -7,5 +7,5 @@ import { appStateService } from './appStateService';
 
 export {
   configService,
-  appStateService
+  appStateService,
 };

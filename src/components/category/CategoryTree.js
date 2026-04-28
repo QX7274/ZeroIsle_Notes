@@ -149,7 +149,7 @@ const CategoryTree = ({
 }) => {
   // 确保 tree 是数组
   const validTree = Array.isArray(tree) ? tree : [];
-  
+
   return (
     <View style={styles.container}>
       <FlatList

@@ -1,12 +1,14 @@
 /**
  * 画布绘图辅助工具函数
- * 
+ *
  * 包含：
  * - 路径相交检测
  * - 淡出动画
  * - 选择框检测
  * - 笔画位移计算
  */
+import realmService from '../../services/database/realmService';
+
 
 /**
  * 检测点是否在矩形内
@@ -146,7 +148,7 @@ export function moveStroke(stroke, deltaX, deltaY) {
  */
 export function moveSelectedStrokes(strokes, strokeIds, deltaX, deltaY) {
   const idSet = new Set(strokeIds);
-  
+
   return strokes.map(stroke => {
     if (idSet.has(stroke.id)) {
       return moveStroke(stroke, deltaX, deltaY);
@@ -226,7 +228,7 @@ export function createFadeOutController(updateOpacity, removeStroke, duration = 
  */
 export function normalizeBox(box) {
   const { x, y, width, height } = box;
-  
+
   return {
     x: width >= 0 ? x : x + width,
     y: height >= 0 ? y : y + height,
@@ -255,7 +257,7 @@ export function createBoxFromPoints(start, end) {
  * @returns {string}
  */
 export function generateStrokeId() {
-  return `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `stroke_${realmService.createObjectId()}`;
 }
 
 /**

@@ -154,19 +154,104 @@ class MongoReminderViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """
-        标记提醒为已完成
+        标记提醒为已完成，支持对重复提醒的单次操作。
         """
+        from .services import ReminderService
+
+        scope = request.data.get('scope', 'this_instance')
+        completion_date_str = request.data.get('completion_date')
+
+        completion_date = None
+        if completion_date_str:
+            try:
+                completion_date = timezone.datetime.fromisoformat(completion_date_str)
+            except ValueError:
+                return Response({'error': '无效的日期格式'}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            reminder = Reminder.objects.get(id=uuid.UUID(pk), user=request.user)
-            reminder.is_completed = True
-            reminder.completed_at = timezone.now()
-            reminder.save()
-            return Response(ReminderSerializer(reminder).data)
-        except (Reminder.DoesNotExist, ValueError):
-            return Response(
-                {'error': '提醒不存在或ID无效'},
-                status=status.HTTP_404_NOT_FOUND
+            service = ReminderService()
+            reminder = service.complete_reminder(
+                user=request.user,
+                reminder_id=uuid.UUID(pk),
+                scope=scope,
+                completion_date=completion_date,
+                request=request
             )
+            return Response(ReminderSerializer(reminder).data)
+        except Reminder.DoesNotExist:
+            return Response({'error': '提醒不存在或ID无效'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """
+        取消一个提醒。
+        """
+        from .services import ReminderService
+
+        scope = request.data.get('scope', 'this_instance')
+        cancellation_date_str = request.data.get('cancellation_date')
+
+        cancellation_date = None
+        if cancellation_date_str:
+            try:
+                cancellation_date = timezone.datetime.fromisoformat(cancellation_date_str)
+            except ValueError:
+                return Response({'error': '无效的日期格式'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            service = ReminderService()
+            reminder = service.cancel_reminder(
+                user=request.user,
+                reminder_id=uuid.UUID(pk),
+                scope=scope,
+                cancellation_date=cancellation_date,
+                request=request
+            )
+            return Response(ReminderSerializer(reminder).data)
+        except Reminder.DoesNotExist:
+            return Response({'error': '提醒不存在或ID无效'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def delay(self, request, pk=None):
+        """
+        延期一个提醒。
+        """
+        from .services import ReminderService
+
+        scope = request.data.get('scope', 'this_instance')
+        new_due_date_str = request.data.get('new_due_date')
+        original_due_date_str = request.data.get('original_due_date')
+
+        if not new_due_date_str:
+            return Response({'error': '必须提供 new_due_date'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_due_date = timezone.datetime.fromisoformat(new_due_date_str)
+            original_due_date = None
+            if original_due_date_str:
+                original_due_date = timezone.datetime.fromisoformat(original_due_date_str)
+        except ValueError:
+            return Response({'error': '无效的日期格式'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            service = ReminderService()
+            reminder = service.delay_reminder(
+                user=request.user,
+                reminder_id=uuid.UUID(pk),
+                scope=scope,
+                new_due_date=new_due_date,
+                original_due_date=original_due_date,
+                request=request
+            )
+            return Response(ReminderSerializer(reminder).data)
+        except Reminder.DoesNotExist:
+            return Response({'error': '提醒不存在或ID无效'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):

@@ -1,0 +1,68 @@
+﻿python : C:\Users\QX\
+AppData\Roaming\Pytho
+n\Python313\site-pack
+ages\jieba\_compat.py
+:18: UserWarning: pkg
+_resources is depreca
+ted as an API. See ht
+tps://setuptools.pypa
+.io/en/latest/pkg_res
+ources.html. The pkg_
+resources package is 
+slated for removal as
+ early as 2025-11-30.
+ Refrain from using t
+his package or pin to
+ Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; pyt
+hon manage.py test no
+tes.tests.test_consum
+ers > test_o ...
++                 ~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\QX\App... Setu    
+ptools<81.:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  import pkg_resource
+s
+C:\Users\QX\AppData\R
+oaming\Python\Python3
+13\site-packages\pymo
+ngo\pyopenssl_context
+.py:352: Cryptography
+DeprecationWarning: P
+arsed a serial number
+ which wasn't positiv
+e (i.e., it was negat
+ive or zero), which i
+s disallowed by RFC 5
+280. Loading this cer
+tificate will cause a
+n exception in a futu
+re release of cryptog
+raphy.
+  _crypto.X509.from_c
+ryptography(x509.load
+_der_x509_certificate
+(cert))
+
+---------------------
+---------------------
+---------------------
+-------
+Ran 0 tests in 0.000s
+
+NO TESTS RAN
+Found 0 test(s).
+System check identified no issues (0 silenced).

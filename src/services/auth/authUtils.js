@@ -2,7 +2,8 @@
  * 认证工具函数
  * 处理认证相关的通用功能
  */
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import networkService from '../network/networkService';
 import { STORAGE_KEYS } from '../../utils/constants/config';
 import { navigationRef } from '../../navigation/navigationRef';
 import { CommonActions } from '@react-navigation/native';
@@ -16,12 +17,31 @@ let isHandlingUnauthorizedError = false;
 /**
  * 处理未授权错误
  * 清除token和用户信息，并重置导航到登录页面
+ * 只有在网络连接正常时才会执行清除和跳转，支持离线模式
  */
 export const handleUnauthorizedError = async () => {
+  // 开发调试模式下允许跳过登录，避免联调时被强制跳回Auth
+  const DEV_SKIP_LOGIN = __DEV__;
+  if (DEV_SKIP_LOGIN) {
+    console.log('DEV_SKIP_LOGIN 已启用，跳过未授权跳转处理');
+    return;
+  }
+
   // 如果已经在处理未授权错误，则直接返回
   if (isHandlingUnauthorizedError) {
     console.log('已经在处理未授权错误，跳过');
     return;
+  }
+
+  // 首先检查网络连接状态
+  try {
+    const networkState = await networkService.checkConnection();
+    if (!Boolean(networkState)) {
+      console.log('网络未连接，跳过未授权处理，保持离线授权状态');
+      return;
+    }
+  } catch (netError) {
+    console.warn('检查网络连接失败，默认继续处理认证错误:', netError);
   }
 
   // 设置标志，表示正在处理未授权错误
@@ -56,7 +76,7 @@ export const handleUnauthorizedError = async () => {
     // 显示提示
     networkErrorService.handleApiError(new Error('登录已过期'), {
       context: '登录过期',
-      customMessage: '请重新登录'
+      customMessage: '请重新登录',
     });
 
     // 使用setTimeout确保Alert显示后再执行导航
@@ -85,7 +105,7 @@ export const handleUnauthorizedError = async () => {
           // 使用reset方法重置导航状态
           navigation.reset({
             index: 0,
-            routes: [{ name: 'Auth' }]
+            routes: [{ name: 'Auth' }],
           });
           console.log('已使用导航辅助函数重置到Auth页面');
         } else if (navigation && typeof navigation.navigate === 'function') {
@@ -98,7 +118,7 @@ export const handleUnauthorizedError = async () => {
             navigationRef.current.dispatch(
               CommonActions.reset({
                 index: 0,
-                routes: [{ name: 'Auth' }]
+                routes: [{ name: 'Auth' }],
               })
             );
             console.log('已使用navigationRef重置到Auth页面');
@@ -111,8 +131,8 @@ export const handleUnauthorizedError = async () => {
                 type: 'RESET',
                 payload: {
                   index: 0,
-                  routes: [{ name: 'Auth' }]
-                }
+                  routes: [{ name: 'Auth' }],
+                },
               });
               console.log('已使用dispatch重置到Auth页面');
             } catch (dispatchError) {
@@ -186,7 +206,7 @@ export const getAuthInfo = async () => {
     return {
       token: tokenData ? tokenData.token : null,
       refreshToken: refreshTokenData ? refreshTokenData.token : null,
-      user
+      user,
     };
   } catch (error) {
     console.error('获取认证信息失败:', error);
@@ -217,5 +237,5 @@ export default {
   handleUnauthorizedError,
   saveAuthInfo,
   getAuthInfo,
-  clearAuthInfo
+  clearAuthInfo,
 };

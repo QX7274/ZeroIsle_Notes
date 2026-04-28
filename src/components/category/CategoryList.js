@@ -33,7 +33,7 @@ const CategoryList = ({
   selectedCategoryId = null,
 }) => {
   const { colors } = useTheme();
-  
+
   // 确保 categories 是数组
   const validCategories = Array.isArray(categories) ? categories : [];
 

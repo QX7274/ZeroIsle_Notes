@@ -1,9 +1,16 @@
-import { NativeModules } from 'react-native';
+const { NativeModules } = require('react-native');
 
-const { NotificationChannelModule } = NativeModules;
+const NotificationChannelModule = NativeModules.NotificationChannelModule || null;
 
-export default {
+const notificationChannelWrapper = {
     createChannel: (channelId, channelName, importance) => {
-        NotificationChannelModule.createChannel(channelId, channelName, importance);
+        if (NotificationChannelModule) {
+            NotificationChannelModule.createChannel(channelId, channelName, importance);
+        } else {
+            console.warn('NotificationChannelModule not available');
+        }
     },
-}; 
+};
+
+module.exports = notificationChannelWrapper;
+module.exports.default = notificationChannelWrapper;

@@ -51,6 +51,24 @@ public class XunfeiAIAssistantModule extends ReactContextBaseJavaModule {
     public String getName() {
         return "XunfeiAIAssistant";
     }
+
+    /**
+     * 添加事件监听器 - 为NativeEventEmitter提供支持
+     */
+    @ReactMethod
+    public void addListener(String eventName) {
+        // 为NativeEventEmitter提供支持，实际事件处理在JS端
+        // 这里只是满足NativeEventEmitter的要求
+    }
+
+    /**
+     * 移除事件监听器 - 为NativeEventEmitter提供支持
+     */
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // 为NativeEventEmitter提供支持，实际事件处理在JS端
+        // 这里只是满足NativeEventEmitter的要求
+    }
     
     @Override
     public Map<String, Object> getConstants() {

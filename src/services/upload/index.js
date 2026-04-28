@@ -5,7 +5,7 @@
 import uploadService from './uploadService';
 
 export {
-  uploadService
+  uploadService,
 };
 
 export default uploadService;

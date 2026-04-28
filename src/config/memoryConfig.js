@@ -12,7 +12,7 @@ export const MEMORY_CONFIG = {
   WARNING_THRESHOLD_MB: 200, // 200MB警告阈值
   CRITICAL_THRESHOLD_MB: 400, // 400MB严重警告阈值
   EMERGENCY_THRESHOLD_MB: 600, // 600MB紧急阈值
-  
+
   // 文件类型内存配置
   FILE_TYPE_MEMORY: {
     // 文档类型
@@ -23,7 +23,7 @@ export const MEMORY_CONFIG = {
     pptx: { multiplier: 4, maxMB: 8192 },
     xls: { multiplier: 3, maxMB: 4096 },
     xlsx: { multiplier: 3, maxMB: 4096 },
-    
+
     // 图片类型
     jpg: { multiplier: 2, maxMB: 2048 },
     jpeg: { multiplier: 2, maxMB: 2048 },
@@ -31,25 +31,25 @@ export const MEMORY_CONFIG = {
     gif: { multiplier: 2, maxMB: 2048 },
     bmp: { multiplier: 2, maxMB: 2048 },
     webp: { multiplier: 2, maxMB: 2048 },
-    
+
     // 视频类型
     mp4: { multiplier: 1.5, maxMB: 4096 },
     avi: { multiplier: 1.5, maxMB: 4096 },
     mov: { multiplier: 1.5, maxMB: 4096 },
     mkv: { multiplier: 1.5, maxMB: 4096 },
-    
+
     // 音频类型
     mp3: { multiplier: 1.5, maxMB: 1024 },
     wav: { multiplier: 1.5, maxMB: 1024 },
     m4a: { multiplier: 1.5, maxMB: 1024 },
     ogg: { multiplier: 1.5, maxMB: 1024 },
-    
+
     // 文本类型
     txt: { multiplier: 2, maxMB: 512 },
     md: { multiplier: 2, maxMB: 512 },
     json: { multiplier: 2, maxMB: 512 },
     xml: { multiplier: 2, maxMB: 512 },
-    
+
     // 代码类型
     js: { multiplier: 1.5, maxMB: 256 },
     ts: { multiplier: 1.5, maxMB: 256 },
@@ -58,7 +58,7 @@ export const MEMORY_CONFIG = {
     cpp: { multiplier: 1.5, maxMB: 256 },
     c: { multiplier: 1.5, maxMB: 256 },
   },
-  
+
   // 内存监控配置
   MONITOR: {
     INTERVAL: 5000, // 5秒监控间隔
@@ -68,7 +68,7 @@ export const MEMORY_CONFIG = {
     AUTO_CLEANUP_ENABLED: true,
     CLEANUP_DELAY: 2000, // 2秒清理延迟
   },
-  
+
   // 内存优化配置
   OPTIMIZATION: {
     ENABLED: true,
@@ -78,14 +78,14 @@ export const MEMORY_CONFIG = {
     MAX_CACHE_SIZE: 500, // 最大缓存项目数
     MAX_CACHE_AGE: 600000, // 10分钟缓存最大年龄
   },
-  
+
   // Android特定配置
   ANDROID: {
     LARGE_HEAP: true,
     HARDWARE_ACCELERATED: true,
     JVM_ARGS: '-Xmx8192m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -XX:+UseG1GC -XX:MaxGCPauseMillis=200',
   },
-  
+
   // iOS特定配置
   IOS: {
     MEMORY_WARNING_THRESHOLD: 0.8, // 80%内存使用率警告
@@ -100,7 +100,7 @@ export function getFileTypeMemoryConfig(fileExtension) {
   const ext = fileExtension.toLowerCase();
   return MEMORY_CONFIG.FILE_TYPE_MEMORY[ext] || {
     multiplier: 1.5,
-    maxMB: 1024
+    maxMB: 1024,
   };
 }
 
@@ -110,11 +110,11 @@ export function getFileTypeMemoryConfig(fileExtension) {
 export function calculateFileMemory(fileSizeMB, fileExtension) {
   const config = getFileTypeMemoryConfig(fileExtension);
   const requiredMemoryMB = Math.min(fileSizeMB * config.multiplier, config.maxMB);
-  
+
   return {
     requiredMemoryMB,
     config,
-    isWithinLimit: requiredMemoryMB <= MEMORY_CONFIG.MAX_MEMORY_GB * 1024
+    isWithinLimit: requiredMemoryMB <= MEMORY_CONFIG.MAX_MEMORY_GB * 1024,
   };
 }
 
@@ -156,4 +156,5 @@ export function getMemoryConfigSummary() {
 }
 
 export default MEMORY_CONFIG;
+
 

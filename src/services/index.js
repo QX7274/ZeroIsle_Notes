@@ -14,7 +14,7 @@ import { appStateService } from './app/appStateService';
 import {
   realmService,
   databaseInitService,
-  dataService
+  dataService,
 } from './database';
 
 // 导入网络服务
@@ -24,7 +24,7 @@ import { networkService, apiService } from './network';
 import {
   offlineStorage,
   // 已移除 offlineStorageService 导出，现在直接使用 realmService
-  offlineSyncService
+  offlineSyncService,
 } from './offline';
 
 // 导入AI服务
@@ -152,6 +152,6 @@ export const {
   code: codeApi,
   user: userApi,
   annotation: annotationApi,
-  drawingPath: drawingPathApi
+  drawingPath: drawingPathApi,
 } = api;
 

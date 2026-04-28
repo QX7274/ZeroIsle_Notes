@@ -20,7 +20,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '我的2025年学习计划',
         x: 0,
         y: 0,
-        type: 'root'
+        type: 'root',
       },
       {
         id: 'node-2',
@@ -28,7 +28,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '编程技能学习',
         x: -200,
         y: -100,
-        type: 'topic'
+        type: 'topic',
       },
       {
         id: 'node-3',
@@ -36,7 +36,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '语言学习',
         x: 200,
         y: -100,
-        type: 'topic'
+        type: 'topic',
       },
       {
         id: 'node-4',
@@ -44,7 +44,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: 'Python编程',
         x: -300,
         y: -200,
-        type: 'subtopic'
+        type: 'subtopic',
       },
       {
         id: 'node-5',
@@ -52,7 +52,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: 'JavaScript编程',
         x: -100,
         y: -200,
-        type: 'subtopic'
+        type: 'subtopic',
       },
       {
         id: 'node-6',
@@ -60,7 +60,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '英语学习',
         x: 100,
         y: -200,
-        type: 'subtopic'
+        type: 'subtopic',
       },
       {
         id: 'node-7',
@@ -68,47 +68,47 @@ export const EXAMPLE_MIND_MAPS = [
         content: '日语学习',
         x: 300,
         y: -200,
-        type: 'subtopic'
-      }
+        type: 'subtopic',
+      },
     ],
     edges: [
       {
         id: 'edge-1',
         source: 'node-1',
         target: 'node-2',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-2',
         source: 'node-1',
         target: 'node-3',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-3',
         source: 'node-2',
         target: 'node-4',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-4',
         source: 'node-2',
         target: 'node-5',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-5',
         source: 'node-3',
         target: 'node-6',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-6',
         source: 'node-3',
         target: 'node-7',
-        type: 'default'
-      }
-    ]
+        type: 'default',
+      },
+    ],
   },
   {
     id: 'example-mind-map-2',
@@ -126,7 +126,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '移动应用开发项目',
         x: 0,
         y: 0,
-        type: 'root'
+        type: 'root',
       },
       {
         id: 'node-2',
@@ -134,7 +134,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '设计阶段',
         x: -200,
         y: -100,
-        type: 'topic'
+        type: 'topic',
       },
       {
         id: 'node-3',
@@ -142,7 +142,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '开发阶段',
         x: 0,
         y: -100,
-        type: 'topic'
+        type: 'topic',
       },
       {
         id: 'node-4',
@@ -150,29 +150,29 @@ export const EXAMPLE_MIND_MAPS = [
         content: '测试阶段',
         x: 200,
         y: -100,
-        type: 'topic'
-      }
+        type: 'topic',
+      },
     ],
     edges: [
       {
         id: 'edge-1',
         source: 'node-1',
         target: 'node-2',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-2',
         source: 'node-1',
         target: 'node-3',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-3',
         source: 'node-1',
         target: 'node-4',
-        type: 'default'
-      }
-    ]
+        type: 'default',
+      },
+    ],
   },
   {
     id: 'example-mind-map-3',
@@ -190,7 +190,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '《思考，快与慢》读书笔记',
         x: 0,
         y: 0,
-        type: 'root'
+        type: 'root',
       },
       {
         id: 'node-2',
@@ -198,7 +198,7 @@ export const EXAMPLE_MIND_MAPS = [
         content: '快速思考',
         x: -200,
         y: -100,
-        type: 'topic'
+        type: 'topic',
       },
       {
         id: 'node-3',
@@ -206,24 +206,24 @@ export const EXAMPLE_MIND_MAPS = [
         content: '慢速思考',
         x: 200,
         y: -100,
-        type: 'topic'
-      }
+        type: 'topic',
+      },
     ],
     edges: [
       {
         id: 'edge-1',
         source: 'node-1',
         target: 'node-2',
-        type: 'default'
+        type: 'default',
       },
       {
         id: 'edge-2',
         source: 'node-1',
         target: 'node-3',
-        type: 'default'
-      }
-    ]
-  }
+        type: 'default',
+      },
+    ],
+  },
 ];
 
 export default EXAMPLE_MIND_MAPS;

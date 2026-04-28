@@ -7,6 +7,7 @@ import { Alert, InteractionManager } from 'react-native';
 import notesApi from '../api/notesApi';
 import RNFS from 'react-native-fs';
 import uiSafeProcessor from './uiSafeProcessor';
+import realmService from '../database/realmService';
 
 class NonBlockingPPTProcessor {
   constructor() {
@@ -30,7 +31,7 @@ class NonBlockingPPTProcessor {
     this.isProcessing = true;
     this.currentTask = {
       documentInfo,
-      startTime: Date.now()
+      startTime: Date.now(),
     };
 
     // 使用InteractionManager确保在交互完成后执行
@@ -109,11 +110,11 @@ class NonBlockingPPTProcessor {
    */
   async validatePPTFile(documentInfo) {
     try {
-      
+
       // 检查文件是否存在
       const filePath = documentInfo.localPath || documentInfo.uri.replace('file://', '');
       const exists = await RNFS.exists(filePath);
-      
+
       if (!exists) {
         console.error('NonBlockingPPTProcessor: PPT文件不存在:', filePath);
         return false;
@@ -129,7 +130,7 @@ class NonBlockingPPTProcessor {
       // 检查文件扩展名
       const fileName = documentInfo.name || '';
       const isValidExtension = /\.(ppt|pptx)$/i.test(fileName);
-      
+
       if (!isValidExtension) {
         console.warn('NonBlockingPPTProcessor: PPT文件扩展名可能不正确:', fileName);
       }
@@ -137,7 +138,7 @@ class NonBlockingPPTProcessor {
       console.log('NonBlockingPPTProcessor: PPT文件验证通过:', {
         path: filePath,
         size: stats.size,
-        name: fileName
+        name: fileName,
       });
 
       return true;
@@ -161,7 +162,7 @@ class NonBlockingPPTProcessor {
     formData.append('file', {
       uri: documentInfo.localPath || documentInfo.uri,
       name: documentInfo.name,
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     });
 
     console.log('NonBlockingPPTProcessor: FormData创建完成');
@@ -176,63 +177,60 @@ class NonBlockingPPTProcessor {
    */
   async importPPTNonBlocking(formData, onProgress) {
     try {
-      console.log('NonBlockingPPTProcessor: 开始UI安全的PPT导入');
+      console.log('NonBlockingPPTProcessor: 开始PPT导入');
 
-      // 使用UI安全处理器执行导入操作
-      const result = await uiSafeProcessor.runSafely(async () => {
-        // 步骤1: 提取FormData信息
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 75, message: '解析文件信息...' });
-        }
+      // 步骤1: 提取FormData信息
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 75, message: '解析文件信息...' });
+      }
+      await this.yieldControl(10);
 
-        const fileInfo = await this.extractFormDataInfo(formData);
+      const fileInfo = await this.extractFormDataInfo(formData);
+      console.log('NonBlockingPPTProcessor: 文件信息提取完成:', fileInfo.fileName);
 
-        // 步骤2: 创建笔记对象
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 80, message: '创建笔记对象...' });
-        }
+      // 步骤2: 创建笔记对象
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 80, message: '创建笔记对象...' });
+      }
+      await this.yieldControl(10);
 
-        const noteData = await this.createNoteData(fileInfo);
+      const noteData = await this.createNoteData(fileInfo);
+      console.log('NonBlockingPPTProcessor: 笔记对象创建完成');
 
-        // 步骤3: 保存到离线存储
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 85, message: '保存到本地存储...' });
-        }
+      // 步骤3: 保存到离线存储
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 85, message: '保存到本地存储...' });
+      }
+      await this.yieldControl(10);
 
-        const savedNote = await this.saveNoteNonBlocking(noteData, onProgress);
+      const savedNote = await this.saveNoteNonBlocking(noteData, onProgress);
+      console.log('NonBlockingPPTProcessor: 笔记保存完成:', savedNote._id);
 
-        // 步骤4: 准备返回结果
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 95, message: '准备返回结果...' });
-        }
+      // 步骤4: 准备返回结果
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 97, message: '准备返回结果...' });
+      }
+      await this.yieldControl(10);
 
-        return {
-          success: true,
-          data: {
-            ...savedNote,
-            message: `导入${fileInfo.fileType}成功`,
-            note_id: savedNote._id,
-            _id: savedNote._id,
-            id: savedNote._id,
-            isOffline: true
-          },
-          isOffline: true
-        };
+      const result = {
+        success: true,
+        data: {
+          ...savedNote,
+          message: `导入${fileInfo.fileType}成功`,
+          note_id: savedNote._id,
+          _id: savedNote._id,
+          id: savedNote._id,
+          isOffline: true,
+        },
+        isOffline: true,
+      };
 
-      }, {
-        priority: 'high',
-        maxChunkTime: 16,
-        yieldInterval: 10,
-        onProgress: (info) => {
-          console.log('UISafeProcessor进度:', info);
-        }
-      });
-
-      console.log('NonBlockingPPTProcessor: PPT导入完成:', result);
+      console.log('NonBlockingPPTProcessor: PPT导入完成');
       return result;
 
     } catch (error) {
       console.error('NonBlockingPPTProcessor: PPT导入失败:', error);
+      console.error('NonBlockingPPTProcessor: 错误详情:', error.stack);
       throw error;
     }
   }
@@ -265,7 +263,7 @@ class NonBlockingPPTProcessor {
       fileType,
       fileObj,
       fileName,
-      fileUri: fileObj?.uri || ''
+      fileUri: fileObj?.uri || '',
     };
   }
 
@@ -277,7 +275,7 @@ class NonBlockingPPTProcessor {
   async createNoteData(fileInfo) {
     await this.yieldControl(10);
 
-    const noteId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const noteId = realmService.createObjectId();
     const now = new Date().toISOString();
 
     // 从文件名中提取标题
@@ -323,8 +321,8 @@ class NonBlockingPPTProcessor {
         lastOpenedTime: now,
         originalType: fileInfo.fileType,
         requiresConversion: requiresOnlineConversion,
-        validationPassed: validationResult.valid
-      })
+        validationPassed: validationResult.valid,
+      }),
     };
 
     return noteData;
@@ -350,30 +348,30 @@ class NonBlockingPPTProcessor {
     try {
       // 动态导入文件验证服务
       const fileValidationService = require('../files/fileValidationService').default;
-      
+
       // 获取实际的文件路径
       const filePath = fileInfo.fileUri?.replace('file://', '') || fileInfo.fileUri;
-      
+
       if (!filePath) {
         return {
           valid: false,
           error: 'NO_FILE_PATH',
-          message: '文件路径不存在'
+          message: '文件路径不存在',
         };
       }
 
       // 验证文件
       const validationResult = await fileValidationService.validateFile(filePath, fileInfo.fileType);
-      
+
       console.log('NonBlockingPPTProcessor: 文件验证结果:', validationResult);
       return validationResult;
-      
+
     } catch (error) {
       console.error('NonBlockingPPTProcessor: 文件验证失败:', error);
       return {
         valid: false,
         error: 'VALIDATION_ERROR',
-        message: `验证失败: ${error.message}`
+        message: `验证失败: ${error.message}`,
       };
     }
   }
@@ -386,47 +384,63 @@ class NonBlockingPPTProcessor {
    */
   async saveNoteNonBlocking(noteData, onProgress) {
     try {
-      // 使用UI安全处理器执行保存操作
-      const savedNote = await uiSafeProcessor.safeFileOperation(async () => {
-        // 动态导入离线存储服务，避免循环依赖
-        // 已移除 offlineStorageService 导入，现在直接使用 realmService
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 87, message: '准备保存笔记...' });
+      }
 
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 87, message: '初始化存储服务...' });
-        }
+      console.log('NonBlockingPPTProcessor: 开始保存笔记, ID:', noteData._id);
 
-        // realmService 不需要手动初始化
+      // 确保realmService已初始化
+      await realmService.initialize();
+      console.log('NonBlockingPPTProcessor: realmService初始化完成');
 
-        if (onProgress) {
-          onProgress({ stage: 'processing', progress: 90, message: '写入数据库...' });
-        }
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 89, message: '获取数据库实例...' });
+      }
 
-        const realm = await realmService.getRealm();
-        let result;
-        realm.write(() => {
-          result = realm.create('Note', noteData);
-        });
-        return result.note || noteData;
+      // 获取realm实例
+      const realm = await realmService.getRealm();
+      console.log('NonBlockingPPTProcessor: 获取realm实例成功');
 
-      }, {
-        timeout: 15000, // 15秒超时
-        retries: 2,
-        onProgress: (info) => {
-          if (info.stage === 'attempting' && onProgress) {
-            onProgress({
-              stage: 'processing',
-              progress: 88,
-              message: `保存尝试 ${info.attempt}/${info.maxAttempts}...`
-            });
-          }
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 91, message: '写入数据库...' });
+      }
+
+      // 执行数据库写入，使用较短的超时来避免阻塞
+      let result;
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('数据库写入超时'));
+        }, 5000); // 5秒内必须完成写入
+
+        try {
+          realm.write(() => {
+            // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+            result = realm.create('Note', noteData, 'modified');
+            console.log('NonBlockingPPTProcessor: 数据库写入完成');
+          });
+          clearTimeout(timeout);
+          resolve();
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(error);
         }
       });
 
+      if (onProgress) {
+        onProgress({ stage: 'processing', progress: 95, message: '保存完成' });
+      }
+
+      // 转换为普通对象
+      const savedNote = result ? realmService.realmObjectToPlain(result) : noteData;
+      console.log('NonBlockingPPTProcessor: 笔记保存成功:', savedNote._id);
+
       return savedNote;
+
     } catch (error) {
       console.error('NonBlockingPPTProcessor: 保存笔记失败:', error);
-      // 返回原始数据作为备用
-      return noteData;
+      console.error('NonBlockingPPTProcessor: 错误详情:', error.stack);
+      throw error;
     }
   }
 
@@ -487,7 +501,7 @@ class NonBlockingPPTProcessor {
     return {
       isProcessing: this.isProcessing,
       currentTask: this.currentTask,
-      processingTime: this.currentTask ? Date.now() - this.currentTask.startTime : 0
+      processingTime: this.currentTask ? Date.now() - this.currentTask.startTime : 0,
     };
   }
 }

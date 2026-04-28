@@ -12,7 +12,7 @@ const ZoomIndicator = ({
   autoHideDelay = 2000,
   style,
   textStyle,
-  topOffset = 0 // 额外的顶部偏移量
+  topOffset = 0, // 额外的顶部偏移量
 }) => {
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;

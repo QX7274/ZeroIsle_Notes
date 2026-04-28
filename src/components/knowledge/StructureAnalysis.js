@@ -228,7 +228,7 @@ const StructureAnalysis = ({
           style={[
             styles.tab,
             activeTab === 'central' && styles.activeTab,
-            activeTab === 'central' && { borderBottomColor: colors.primary }
+            activeTab === 'central' && { borderBottomColor: colors.primary },
           ]}
           onPress={() => setActiveTab('central')}
         >
@@ -236,7 +236,7 @@ const StructureAnalysis = ({
             styles.tabText,
             { color: colors.text },
             activeTab === 'central' && styles.activeTabText,
-            activeTab === 'central' && { color: colors.primary }
+            activeTab === 'central' && { color: colors.primary },
           ]}>
             中心节点
           </Text>
@@ -245,7 +245,7 @@ const StructureAnalysis = ({
           style={[
             styles.tab,
             activeTab === 'components' && styles.activeTab,
-            activeTab === 'components' && { borderBottomColor: colors.primary }
+            activeTab === 'components' && { borderBottomColor: colors.primary },
           ]}
           onPress={() => setActiveTab('components')}
         >
@@ -253,7 +253,7 @@ const StructureAnalysis = ({
             styles.tabText,
             { color: colors.text },
             activeTab === 'components' && styles.activeTabText,
-            activeTab === 'components' && { color: colors.primary }
+            activeTab === 'components' && { color: colors.primary },
           ]}>
             连通分量
           </Text>
@@ -281,8 +281,8 @@ const StructureAnalysis = ({
                     styles.nodeItem,
                     {
                       backgroundColor: colors.card,
-                      borderColor: colors.border
-                    }
+                      borderColor: colors.border,
+                    },
                   ]}
                   onPress={() => onNodePress && onNodePress(item.node)}
                 >
@@ -320,8 +320,8 @@ const StructureAnalysis = ({
                     styles.componentItem,
                     {
                       backgroundColor: colors.card,
-                      borderColor: colors.border
-                    }
+                      borderColor: colors.border,
+                    },
                   ]}
                 >
                   <View style={[styles.componentHeader, { borderBottomColor: colors.border }]}>

@@ -7,10 +7,10 @@ import { logService } from '../../utils/logService';
 
 export {
   eventEmitter,
-  logService
+  logService,
 };
 
 export default {
   eventEmitter,
-  logService
+  logService,
 };

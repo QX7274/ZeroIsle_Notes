@@ -36,6 +36,11 @@ class Notification(Document):
     
     # 关联内容，可以关联到任何文档
     related_object = GenericReferenceField(verbose_name='关联对象')
+
+    # 用于通知合并
+    is_merged = BooleanField(default=False, verbose_name='是否已合并')
+    merged_count = IntField(default=0, verbose_name='合并计数')
+    merged_senders = ListField(ReferenceField(User), verbose_name='合并发送者列表')
     
     is_read = BooleanField(default=False, verbose_name='是否已读')
     is_sent = BooleanField(default=False, verbose_name='是否已发送')

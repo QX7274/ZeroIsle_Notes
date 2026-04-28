@@ -22,5 +22,5 @@ export const validationUtils = {
   // 验证用户名
   isUsername: (username) => {
     return /^[a-zA-Z0-9_]{3,20}$/.test(username);
-  }
-}; 
+  },
+};

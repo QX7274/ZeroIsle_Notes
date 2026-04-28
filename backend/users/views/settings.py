@@ -18,7 +18,8 @@ class UserSettingsViewSet(viewsets.ModelViewSet):
     用户设置视图集
     提供用户设置的CRUD操作
     """
-    queryset = UserSettings.objects.all()
+    # 避免在模块导入阶段触发 MongoDB 连接（例如 manage.py check）
+    queryset = None
     serializer_class = UserSettingsSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
@@ -93,3 +94,25 @@ class UserSettingsViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"更新当前用户的设置失败: {str(e)}", exc_info=True)
             return Response({'error': f'更新设置失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get', 'put', 'patch'])
+    def notification_preferences(self, request):
+        """获取或更新用户的通知偏好设置"""
+        from ..services.user_settings_service import UserSettingsService
+        service = UserSettingsService()
+
+        if request.method == 'GET':
+            try:
+                preferences = service.get_notification_preferences(request.user)
+                return Response(preferences)
+            except Exception as e:
+                return Response({'error': f'获取通知偏好失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        elif request.method in ['PUT', 'PATCH']:
+            try:
+                updated_settings = service.update_notification_preferences(request.user, request.data)
+                return Response(updated_settings.notification_preferences)
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f'更新通知偏好失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

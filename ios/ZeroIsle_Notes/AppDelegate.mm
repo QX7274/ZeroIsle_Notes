@@ -4,10 +4,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <RNCPushNotificationIOS.h>
 
-// 导入原生模块
-#import "NativePDFViewManager.h"
-#import "NativePagedNoteViewManager.h"
-#import "NativeInfiniteCanvasViewManager.h"
+// 所有原生视图管理器已通过 RCT_EXPORT_MODULE 自动注册，无需手动导入
 
 @implementation AppDelegate
 
@@ -31,14 +28,10 @@
   return @[];
 }
 
-// 注册原生视图管理器
+// 所有原生视图管理器已通过 RCT_EXPORT_MODULE 自动注册，无需手动注册
 - (NSArray<id<RCTViewManager>> *)extraViewManagersForBridge:(RCTBridge *)bridge
 {
-  return @[
-    [[NativePDFViewManager alloc] init],
-    [[NativePagedNoteViewManager alloc] init],
-    [[NativeInfiniteCanvasViewManager alloc] init],
-  ];
+  return @[];
 }
 
 // 需要实现的方法

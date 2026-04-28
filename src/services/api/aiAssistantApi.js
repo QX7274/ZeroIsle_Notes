@@ -15,14 +15,10 @@ export const sendChatMessage = async (chatData) => {
     const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.CHAT, chatData);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '发送消息失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -64,10 +60,7 @@ export const sendStreamChatMessage = (chatData, onMessage, onComplete, onError) 
     };
   } catch (error) {
     onError && onError(error);
-    return {
-      controller: null,
-      cancel: () => {},
-    };
+    throw error;
   }
 };
 
@@ -78,17 +71,23 @@ export const sendStreamChatMessage = (chatData, onMessage, onComplete, onError) 
  */
 export const generateContent = async (generateData) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.GENERATE, generateData);
+    // 统一走 /process，组装 payload
+    const isString = typeof generateData === 'string';
+    const prompt = isString ? generateData : (generateData?.prompt ?? generateData?.text ?? '');
+    const payload = {
+      tool: 'generate',
+      prompt,
+      type: isString ? 'text' : (generateData?.type ?? 'text'),
+      length: isString ? 'medium' : (generateData?.length ?? 'medium'),
+    };
+
+    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, payload);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '生成内容失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -99,17 +98,17 @@ export const generateContent = async (generateData) => {
  */
 export const summarizeText = async (summarizeData) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.SUMMARIZE, summarizeData);
+    const payload = (typeof summarizeData === 'string')
+      ? { text: summarizeData, tool: 'summarize' }
+      : { ...summarizeData, tool: 'summarize' };
+
+    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, payload);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '总结文本失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -120,38 +119,38 @@ export const summarizeText = async (summarizeData) => {
  */
 export const translateText = async (translateData) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.TRANSLATE, translateData);
+    const payload = (typeof translateData === 'string')
+      ? { text: translateData, tool: 'translate' }
+      : { ...translateData, tool: 'translate' };
+
+    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, payload);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '翻译文本失败',
-      error
-    };
+    throw error;
   }
 };
 
 /**
- * 分析情感
- * @param {object} sentimentData - 情感数据
+ * 分析情感（统一走 /process）
+ * @param {object|string} sentimentData - 情感数据或文本
  * @returns {Promise} - 分析结果
  */
 export const analyzeSentiment = async (sentimentData) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.ANALYZE_SENTIMENT, sentimentData);
+    const payload = (typeof sentimentData === 'string')
+      ? { text: sentimentData, tool: 'analyze_sentiment' }
+      : { ...sentimentData, tool: 'analyze_sentiment' };
+
+    const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.PROCESS, payload);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '分析情感失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -163,24 +162,21 @@ export const analyzeSentiment = async (sentimentData) => {
 export const transcribeAudio = async (audioFile) => {
   try {
     const formData = new FormData();
-    formData.append('audio', audioFile);
+    // 统一使用 'file' 字段名，后端已兼容
+    formData.append('file', audioFile);
 
     const response = await instance.post(API_ENDPOINTS.VOICE.TRANSCRIBE, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '语音转文字失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -196,20 +192,16 @@ export const analyzeImage = async (imageFile) => {
 
     const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.BASE + 'analyze-image/', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
 
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '图片分析失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -222,14 +214,10 @@ export const getAvailableModels = async () => {
     const response = await instance.get(API_ENDPOINTS.AI_ASSISTANT.MODELS);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '获取可用模型失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -242,14 +230,10 @@ export const resetSession = async () => {
     const response = await instance.post(API_ENDPOINTS.AI_ASSISTANT.RESET_SESSION);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.message || '重置会话失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -263,7 +247,7 @@ const aiAssistantApi = {
   transcribeAudio,
   analyzeImage,
   getAvailableModels,
-  resetSession
+  resetSession,
 };
 
 export default aiAssistantApi;

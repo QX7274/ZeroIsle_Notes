@@ -7,6 +7,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 from users.mongodb_models import User, VerificationCode
+from users.models.login_attempt import LoginAttempt
+from users.services.password_validator import validate_password as validate_password_strength
 import random
 import string
 from datetime import timedelta
@@ -30,8 +32,14 @@ class MongoUserRegistrationSerializer(serializers.Serializer):
         if data['password'] != data.pop('confirm_password'):
             raise serializers.ValidationError({'confirm_password': '两次输入的密码不匹配'})
 
-        # 验证用户名是否已存在
+        # 验证密码强度
+        password = data.get('password')
         username = data.get('username')
+        is_valid, errors = validate_password_strength(password, username)
+        if not is_valid:
+            raise serializers.ValidationError({'password': errors})
+
+        # 验证用户名是否已存在
         if User.objects(username=username).first():
             raise serializers.ValidationError({'username': '用户名已存在'})
 
@@ -143,6 +151,19 @@ class MongoUserLoginSerializer(serializers.Serializer):
         if not any(key in data for key in ['username', 'email', 'phone']):
             logger.error("登录失败: 未提供用户名、邮箱或手机号")
             raise serializers.ValidationError('请提供用户名、邮箱或手机号')
+
+        # 获取登录标识符用于锁定检查
+        login_identifier = data.get('username') or data.get('email') or data.get('phone')
+        
+        # 检查账户是否被锁定
+        lockout_info = LoginAttempt.get_lockout_info(username=login_identifier)
+        if lockout_info.get('locked'):
+            logger.warning(f"登录被拒绝: 账户已锁定, 标识符: {login_identifier}")
+            raise serializers.ValidationError({
+                'non_field_errors': [lockout_info['message']],
+                'locked_until_seconds': lockout_info['remaining_seconds'],
+                'failed_attempts': lockout_info['failed_attempts']
+            })
 
         # 使用验证码登录
         if 'verification_code' in data and data.get('verification_code'):
@@ -339,3 +360,62 @@ class MongoUserSerializer(serializers.Serializer):
             'date_joined': instance.date_joined,
             'last_login': instance.last_login
         }
+
+
+class MongoUserDetailSerializer(MongoUserSerializer):
+    """
+    MongoDB 用户详情序列化器
+    """
+    profile = serializers.SerializerMethodField()
+    settings = serializers.SerializerMethodField()
+
+    def get_profile(self, obj):
+        from users.mongodb_models import UserProfile
+        profile = UserProfile.objects(user=obj).first()
+        if profile:
+            return {
+                'nickname': profile.nickname,
+                'gender': profile.gender,
+                'birthday': profile.birthday.isoformat() if profile.birthday else None,
+                'location': profile.location,
+                'website': profile.website,
+            }
+        return None
+
+    def get_settings(self, obj):
+        from users.mongodb_models import UserSettings
+        settings = UserSettings.objects(user=obj).first()
+        if settings:
+            return {
+                'theme': settings.theme,
+                'language': settings.language,
+                'notification_preferences': settings.notification_preferences,
+            }
+        return None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['bio'] = instance.bio or ''
+        data['is_verified'] = instance.is_verified
+        data['profile'] = self.get_profile(instance)
+        data['settings'] = self.get_settings(instance)
+        return data
+
+class MongoUserUpdateSerializer(serializers.Serializer):
+    """
+    MongoDB 用户更新序列化器
+    """
+    first_name = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    nickname = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    avatar = serializers.URLField(required=False, allow_blank=True)
+    bio = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def update(self, instance, validated_data):
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.nickname = validated_data.get('nickname', instance.nickname)
+        instance.avatar = validated_data.get('avatar', instance.avatar)
+        instance.bio = validated_data.get('bio', instance.bio)
+        instance.save()
+        return instance

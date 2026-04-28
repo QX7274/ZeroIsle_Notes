@@ -6,23 +6,84 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Switch,
   Platform,
   Share,
+  ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import RNShare from 'react-native-share';
+import { exportReminders, importReminders } from '../../services/api/reminderApi';
 
 const ReminderExportScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [format, setFormat] = useState('json');
+  const [inlineHint, setInlineHint] = useState('');
+
+  const notifyNonBlocking = (message) => {
+    setInlineHint(message);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    }
+  };
+
+  const parseCsvLine = (line) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current);
+    return result;
+  };
+
+  const parseCsvContent = (csv) => {
+    if (!csv) {
+      return [];
+    }
+
+    const lines = csv.split('\n').filter((line) => line.trim().length > 0);
+    if (lines.length < 2) {
+      return [];
+    }
+
+    const headers = parseCsvLine(lines[0]);
+    const data = [];
+
+    for (let i = 1; i < lines.length; i += 1) {
+      const values = parseCsvLine(lines[i]);
+      const item = {};
+
+      headers.forEach((header, index) => {
+        item[header] = values[index];
+      });
+
+      data.push(item);
+    }
+
+    return data;
+  };
 
   // 导出提醒数据
   const handleExport = async () => {
@@ -30,18 +91,26 @@ const ReminderExportScreen = ({ navigation }) => {
       setLoading(true);
 
       // 导出提醒数据
-      const data = await reminderNotificationService.exportReminders({
+      const response = await exportReminders({
         format,
         includeCompleted,
       });
+
+      if (!response.success) {
+        throw new Error(response.message || '导出提醒数据失败');
+      }
 
       // 创建临时文件
       const fileExtension = format === 'json' ? 'json' : 'csv';
       const fileName = `reminders_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
       const filePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
+      const exportContent = typeof response.data === 'string'
+        ? response.data
+        : JSON.stringify(response.data, null, 2);
+
       // 写入文件
-      await RNFS.writeFile(filePath, data, 'utf8');
+      await RNFS.writeFile(filePath, exportContent, 'utf8');
 
       // 分享文件
       if (Platform.OS === 'ios') {
@@ -52,15 +121,15 @@ const ReminderExportScreen = ({ navigation }) => {
       } else {
         await Share.share({
           title: '导出的提醒数据',
-          message: format === 'json' ? data : `请查看附件: ${fileName}`,
+          message: format === 'json' ? exportContent : `请查看附件: ${fileName}`,
           url: `file://${filePath}`,
         });
       }
 
-      Alert.alert('成功', '提醒数据导出成功');
+      notifyNonBlocking('提醒数据导出成功');
     } catch (error) {
       console.error('导出提醒数据失败:', error);
-      Alert.alert('错误', '导出提醒数据失败: ' + error.message);
+      notifyNonBlocking('导出提醒数据失败: ' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
     }
@@ -87,32 +156,35 @@ const ReminderExportScreen = ({ navigation }) => {
 
       // 确定文件格式
       const fileFormat = fileUri.endsWith('.csv') ? 'csv' : 'json';
+      const parsedData = fileFormat === 'csv'
+        ? parseCsvContent(fileContent)
+        : JSON.parse(fileContent);
 
-      // 导入提醒数据
-      const importResult = await reminderNotificationService.importReminders(fileContent, fileFormat);
+      if (!Array.isArray(parsedData) || parsedData.length === 0) {
+        throw new Error('导入数据为空或格式不正确');
+      }
 
-      // 显示导入结果
-      Alert.alert(
-        '导入结果',
-        `总计: ${importResult.total}\n导入成功: ${importResult.imported}\n导入失败: ${importResult.failed}`,
-        [
-          { text: '确定' },
-          {
-            text: '查看详情',
-            onPress: () => {
-              if (importResult.errors.length > 0) {
-                Alert.alert('导入错误', importResult.errors.join('\n\n'));
-              } else {
-                Alert.alert('导入成功', '所有提醒都已成功导入');
-              }
-            },
-            style: 'default',
-          },
-        ]
-      );
+      const importResult = await importReminders(parsedData);
+
+      if (!importResult.success) {
+        throw new Error(importResult.message || '导入提醒数据失败');
+      }
+
+      const data = importResult.data || {};
+      const imported = data.imported_count ?? data.imported ?? 0;
+      const failed = data.failed_count ?? data.failed ?? 0;
+      const errors = data.errors ?? [];
+      const total = data.total ?? imported + failed;
+
+      // 非阻断显示导入结果
+      if (errors.length > 0) {
+        notifyNonBlocking(`导入完成：总计${total}，成功${imported}，失败${failed}。首个错误：${errors[0]}`);
+      } else {
+        notifyNonBlocking(`导入完成：总计${total}，成功${imported}，失败${failed}`);
+      }
     } catch (error) {
       console.error('导入提醒数据失败:', error);
-      Alert.alert('错误', '导入提醒数据失败: ' + error.message);
+      notifyNonBlocking('导入提醒数据失败: ' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
     }
@@ -130,6 +202,12 @@ const ReminderExportScreen = ({ navigation }) => {
           <Text style={[styles.loadingText, { color: theme.text }]}>处理中...</Text>
         </View>
       )}
+
+      {inlineHint ? (
+        <View style={[styles.hintBanner, { backgroundColor: theme.warning + '22' }]}>
+          <Text style={[styles.hintText, { color: theme.warning }]}>{inlineHint}</Text>
+        </View>
+      ) : null}
 
       <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>导出选项</Text>
@@ -153,7 +231,7 @@ const ReminderExportScreen = ({ navigation }) => {
                 {
                   backgroundColor: format === 'json' ? theme.primary : theme.background,
                   borderColor: theme.primary,
-                }
+                },
               ]}
               onPress={() => setFormat('json')}
             >
@@ -162,7 +240,7 @@ const ReminderExportScreen = ({ navigation }) => {
                   styles.formatText,
                   {
                     color: format === 'json' ? '#fff' : theme.primary,
-                  }
+                  },
                 ]}
               >
                 JSON
@@ -175,7 +253,7 @@ const ReminderExportScreen = ({ navigation }) => {
                 {
                   backgroundColor: format === 'csv' ? theme.primary : theme.background,
                   borderColor: theme.primary,
-                }
+                },
               ]}
               onPress={() => setFormat('csv')}
             >
@@ -184,7 +262,7 @@ const ReminderExportScreen = ({ navigation }) => {
                   styles.formatText,
                   {
                     color: format === 'csv' ? '#fff' : theme.primary,
-                  }
+                  },
                 ]}
               >
                 CSV
@@ -243,6 +321,15 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 32,
+  },
+  hintBanner: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  hintText: {
+    fontSize: 13,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

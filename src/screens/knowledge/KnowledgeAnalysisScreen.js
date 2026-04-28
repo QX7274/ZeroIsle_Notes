@@ -11,7 +11,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -40,7 +41,7 @@ import {
   StructureAnalysis,
   RelatedConceptsView,
   AutoClassification,
-  KnowledgeGraphBuilder
+  KnowledgeGraphBuilder,
 } from '../../components/knowledge';
 
 /**
@@ -70,6 +71,9 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   const [selectedSourceNode, setSelectedSourceNode] = useState(null);
   const [selectedTargetNode, setSelectedTargetNode] = useState(null);
   const [selectedConceptNode, setSelectedConceptNode] = useState(null);
+  const [showNodePicker, setShowNodePicker] = useState(false);
+  const [pickerType, setPickerType] = useState('source');
+  const [pickerTitle, setPickerTitle] = useState('选择节点');
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [isPathLoading, setIsPathLoading] = useState(false);
   const [isConceptsLoading, setIsConceptsLoading] = useState(false);
@@ -216,7 +220,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
       params: {
         noteId,
         selectedTags: tags,
-      }
+      },
     });
   };
 
@@ -229,7 +233,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
       params: {
         noteId,
         selectedCategory: category,
-      }
+      },
     });
   };
 
@@ -242,7 +246,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
       params: {
         initialNoteId: note.id,
         title: note.title,
-      }
+      },
     });
   };
 
@@ -283,19 +287,9 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
     <TouchableOpacity
       style={dynamicStyles.nodeSelector}
       onPress={() => {
-        // 显示节点选择弹窗
-        Alert.alert(
-          '选择节点',
-          placeholder,
-          [
-            { text: '取消', style: 'cancel' },
-            ...nodes.map(node => ({
-              text: node.title,
-              onPress: () => handleNodeSelect(node, type),
-            })),
-          ],
-          { cancelable: true }
-        );
+        setPickerType(type);
+        setPickerTitle(placeholder);
+        setShowNodePicker(true);
       }}
     >
       {selectedNode ? (
@@ -508,6 +502,46 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
         )}
       </View>
 
+      <Modal
+        visible={showNodePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNodePicker(false)}
+      >
+        <View style={dynamicStyles.pickerOverlay}>
+          <View style={dynamicStyles.pickerContent}>
+            <Text style={dynamicStyles.pickerTitle}>{pickerTitle}</Text>
+            <FlatList
+              data={nodes}
+              keyExtractor={(item) => item.id}
+              style={dynamicStyles.pickerList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={dynamicStyles.pickerItem}
+                  onPress={() => {
+                    handleNodeSelect(item, pickerType);
+                    setShowNodePicker(false);
+                  }}
+                >
+                  <View
+                    style={[
+                      dynamicStyles.nodeTypeIndicator,
+                      { backgroundColor: getNodeColorByType(item.type), marginRight: 8 },
+                    ]}
+                  />
+                  <Text style={dynamicStyles.pickerItemText}>{item.title}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <Button
+              title="取消"
+              type="outline"
+              onPress={() => setShowNodePicker(false)}
+            />
+          </View>
+        </View>
+      </Modal>
+
       {/* Toast消息 */}
       {toastMessage ? (
         <Toast
@@ -677,42 +711,44 @@ const getStyles = (colors) => ({
   createButton: {
     width: 200,
   },
-});
-
-// 创建一个空的StyleSheet，实际样式将在组件内部动态生成
-const styles = StyleSheet.create({
-  container: {},
-  tabContainer: {},
-  tab: {},
-  activeTab: {},
-  tabText: {},
-  activeTabText: {},
-  contentContainer: {},
-  pathContainer: {},
-  pathControls: {},
-  pathTitle: {},
-  pathDescription: {},
-  nodeSelectors: {},
-  nodeSelector: {},
-  selectedNodeContainer: {},
-  nodeTypeIndicator: {},
-  selectedNodeText: {},
-  placeholderText: {},
-  arrowIcon: {},
-  findButton: {},
-  pathVisualizationContainer: {},
-  conceptsContainer: {},
-  conceptsControls: {},
-  conceptsTitle: {},
-  conceptsDescription: {},
-  conceptNodeSelector: {},
-  conceptsVisualizationContainer: {},
-  errorContainer: {},
-  errorText: {},
-  emptyContainer: {},
-  emptyText: {},
-  emptySubText: {},
-  createButton: {},
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pickerContent: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '70%',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  pickerList: {
+    marginBottom: 12,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  pickerItemText: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
 });
 
 export default KnowledgeAnalysisScreen;

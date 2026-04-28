@@ -84,5 +84,5 @@ export const realmModels = [
   SearchIndex,
   Settings,
   OfflineQueue,
-  StorageItem
+  StorageItem,
 ];

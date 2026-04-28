@@ -44,7 +44,7 @@ class NoteToolbarService {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {return;}
 
     try {
       // 加载用户自定义工具栏配置
@@ -150,7 +150,7 @@ class NoteToolbarService {
       return true;
     } catch (error) {
       console.error('更新工具栏配置失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -190,7 +190,7 @@ class NoteToolbarService {
       return true;
     } catch (error) {
       console.error('重置工具栏配置失败', error);
-      return false;
+      throw error;
     }
   }
 
@@ -290,7 +290,7 @@ class NoteToolbarService {
       before: '| 标题1 | 标题2 | 标题3 |\n| --- | --- | --- |\n| 内容1 | 内容2 | 内容3 |\n',
       after: '',
       placeholder: '',
-      newLine: true
+      newLine: true,
     };
   }
 
@@ -299,4 +299,9 @@ class NoteToolbarService {
   }
 }
 
-export const noteToolbarService = new NoteToolbarService();
+const noteToolbarService = new NoteToolbarService();
+
+module.exports = noteToolbarService;
+module.exports.default = noteToolbarService;
+module.exports.noteToolbarService = noteToolbarService;
+module.exports.NoteToolbarService = NoteToolbarService;

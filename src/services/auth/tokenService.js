@@ -1,22 +1,27 @@
-/**
- * 统一令牌服务
- * 管理访问令牌和刷新令牌的存储、获取、刷新等操作
- */
-
-import { STORAGE_KEYS } from '../../config';
-import { TOKEN_CONFIG } from '../../config';
+import { Platform } from 'react-native';
+import { STORAGE_KEYS, TOKEN_CONFIG, API_URL } from '../../config';
 import { AUTH_CONFIG } from './authConfig';
-import realmService from '../database/realmService';
 import axios from 'axios';
 
+// 动态导入 Keychain，防止在 Web 平台上报错
+let Keychain;
+if (Platform.OS !== 'web') {
+  try {
+    Keychain = require('react-native-keychain');
+  } catch (e) {
+    console.warn('无法导入 react-native-keychain:', e);
+  }
+}
+
 // 创建用于刷新令牌的axios实例
+// 使用配置文件中的统一API地址
 const refreshClient = axios.create({
-  baseURL: 'http://192.168.234.232:8000/api/v1',
+  baseURL: `${API_URL}/api/v1`,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-  }
+  },
 });
 
 /**
@@ -31,16 +36,72 @@ class TokenService {
    * 初始化服务
    */
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {return;}
 
     try {
-      // realmService 不需要手动初始化
       this.initialized = true;
       console.log('TokenService初始化成功');
     } catch (error) {
       console.error('TokenService初始化失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 内部方法：安全保存数据
+   * @private
+   */
+  async _saveSecurely(service, value, identifier = 'token') {
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.setItem(`secure_${service}`, value);
+        return true;
+      } catch (e) {
+        console.error(`Web存储失败 (${service}):`, e);
+        return false;
+      }
+    }
+
+    if (!Keychain) {return false;}
+    return await Keychain.setGenericPassword(identifier, value, { service });
+  }
+
+  /**
+   * 内部方法：获取安全数据
+   * @private
+   */
+  async _getSecurely(service) {
+    if (Platform.OS === 'web') {
+      try {
+        const value = localStorage.getItem(`secure_${service}`);
+        return value ? { password: value } : null;
+      } catch (e) {
+        console.error(`Web读取失败 (${service}):`, e);
+        return null;
+      }
+    }
+
+    if (!Keychain) {return null;}
+    return await Keychain.getGenericPassword({ service });
+  }
+
+  /**
+   * 内部方法：重置安全数据
+   * @private
+   */
+  async _resetSecurely(service) {
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.removeItem(`secure_${service}`);
+        return true;
+      } catch (e) {
+        console.error(`Web删除失败 (${service}):`, e);
+        return false;
+      }
+    }
+
+    if (!Keychain) {return false;}
+    return await Keychain.resetGenericPassword({ service });
   }
 
   /**
@@ -59,25 +120,12 @@ class TokenService {
       const tokenData = {
         token,
         expires_at: expiresAt.toISOString(),
-        created_at: now.toISOString()
+        created_at: now.toISOString(),
       };
 
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(tokenData);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: STORAGE_KEYS.AUTH_TOKEN,
-            value: JSON.stringify(tokenData),
-            created_at: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-      console.log('访问令牌保存成功');
+      await this._saveSecurely(STORAGE_KEYS.AUTH_TOKEN, JSON.stringify(tokenData), 'access_token');
+
+      console.log('访问令牌安全保存成功');
       return true;
     } catch (error) {
       console.error('保存访问令牌失败:', error);
@@ -101,25 +149,12 @@ class TokenService {
       const refreshTokenData = {
         token: refreshToken,
         expires_at: expiresAt.toISOString(),
-        created_at: now.toISOString()
+        created_at: now.toISOString(),
       };
 
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(refreshTokenData);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: STORAGE_KEYS.REFRESH_TOKEN,
-            value: JSON.stringify(refreshTokenData),
-            created_at: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-      console.log('刷新令牌保存成功');
+      await this._saveSecurely(STORAGE_KEYS.REFRESH_TOKEN, JSON.stringify(refreshTokenData), 'refresh_token');
+
+      console.log('刷新令牌安全保存成功');
       return true;
     } catch (error) {
       console.error('保存刷新令牌失败:', error);
@@ -135,23 +170,24 @@ class TokenService {
     try {
       await this.initialize();
 
-      // 获取令牌对象
-      const realm = await realmService.getRealm();
-      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
-      const tokenData = item.length > 0 ? JSON.parse(item[0].value) : null;
+      const credentials = await this._getSecurely(STORAGE_KEYS.AUTH_TOKEN);
+
+      if (!credentials) {
+        console.log('未找到有效的访问令牌');
+        return null;
+      }
+
+      const tokenData = JSON.parse(credentials.password);
 
       if (tokenData && tokenData.token) {
-        console.log('获取到访问令牌:', tokenData.token.substring(0, 10) + '...');
-        
         // 检查令牌是否有效
         if (tokenData.expires_at) {
           const expiresAt = new Date(tokenData.expires_at);
           const now = new Date();
           if (expiresAt <= now) {
-            console.log('令牌已过期，过期时间:', expiresAt);
+            console.log('令牌已过期');
             return null;
           } else {
-            console.log('令牌有效，过期时间:', expiresAt);
             return tokenData;
           }
         } else {
@@ -159,7 +195,6 @@ class TokenService {
           return null;
         }
       } else {
-        console.log('未找到有效的访问令牌');
         return null;
       }
     } catch (error) {
@@ -175,9 +210,14 @@ class TokenService {
   async getRefreshToken() {
     try {
       await this.initialize();
-      const realm = await realmService.getRealm();
-      const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
-      return item.length > 0 ? JSON.parse(item[0].value) : null;
+
+      const credentials = await this._getSecurely(STORAGE_KEYS.REFRESH_TOKEN);
+
+      if (!credentials) {
+        return null;
+      }
+
+      return JSON.parse(credentials.password);
     } catch (error) {
       console.error('获取刷新令牌失败:', error);
       return null;
@@ -194,20 +234,17 @@ class TokenService {
       const tokenData = await this.getAccessToken();
 
       if (!tokenData || !tokenData.expires_at) {
-        return true; // 没有令牌或过期时间，视为已过期
+        return true;
       }
 
       const expiresAt = new Date(tokenData.expires_at);
       const now = new Date();
-
-      // 计算阈值时间（当前时间 + 阈值分钟）
       const thresholdTime = new Date(now.getTime() + thresholdMinutes * 60 * 1000);
 
-      // 如果过期时间早于阈值时间，则视为即将过期
       return expiresAt <= thresholdTime;
     } catch (error) {
       console.error('检查令牌过期失败:', error);
-      return true; // 出错时视为已过期
+      return true;
     }
   }
 
@@ -222,51 +259,42 @@ class TokenService {
       const refreshTokenData = await this.getRefreshToken();
 
       if (!refreshTokenData || !refreshTokenData.token) {
-        console.warn('没有可用的刷新令牌，无法刷新访问令牌');
+        // 避免开发模式下频繁 warning 干扰真机联调
+        console.log('没有可用的刷新令牌');
         return null;
       }
 
-      // 检查刷新令牌是否过期
       const refreshExpiresAt = new Date(refreshTokenData.expires_at);
       if (refreshExpiresAt <= new Date()) {
-        console.warn('刷新令牌已过期，需要重新登录');
-        // 清除过期的令牌
+        // 过期属于正常状态，不输出 warning stack
+        console.log('刷新令牌已过期，清理本地令牌');
         await this.clearTokens();
         return null;
       }
 
       try {
-        // 发送刷新请求
         const response = await refreshClient.post(AUTH_CONFIG.API_ENDPOINTS.REFRESH, {
-          refresh: refreshTokenData.token
+          refresh: refreshTokenData.token,
         });
 
-        // 保存新的访问令牌
         if (response.data && response.data.access) {
           await this.saveAccessToken(response.data.access);
 
-          // 如果响应中包含新的刷新令牌，也保存它
           if (response.data.refresh) {
             await this.saveRefreshToken(response.data.refresh);
           }
 
           console.log('成功刷新访问令牌');
-          // 返回新的访问令牌数据
           return await this.getAccessToken();
         } else {
-          console.warn('刷新令牌响应中没有访问令牌');
+          // 开发联调阶段：非阻断场景降级为log，避免warning弹层打断流程
+          console.log('刷新令牌响应中没有访问令牌');
           return null;
         }
       } catch (apiError) {
-        // 如果刷新请求失败，可能是刷新令牌无效
-        console.warn('刷新令牌请求失败，可能需要重新登录:', apiError.message);
-
-        // 检查是否是401错误，如果是则清除令牌
-        if (apiError.response && apiError.response.status === 401) {
-          console.warn('刷新令牌无效，清除所有令牌');
-          await this.clearTokens();
-        }
-
+        // 开发联调阶段：401/刷新失败常见，避免warning弹层打断流程
+        console.log('刷新令牌请求失败:', apiError?.message);
+        await this.clearTokens();
         return null;
       }
     } catch (error) {
@@ -291,23 +319,12 @@ class TokenService {
     try {
       await this.initialize();
 
-      // 清除所有令牌相关的存储
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        // 删除访问令牌
-        const authTokenItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_TOKEN}"`);
-        if (authTokenItem.length > 0) realm.delete(authTokenItem[0]);
-        
-        // 删除刷新令牌
-        const refreshTokenItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.REFRESH_TOKEN}"`);
-        if (refreshTokenItem.length > 0) realm.delete(refreshTokenItem[0]);
-        
-        // 删除过期标记
-        const expiredItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.AUTH_EXPIRED}"`);
-        if (expiredItem.length > 0) realm.delete(expiredItem[0]);
-      });
+      await Promise.all([
+        this._resetSecurely(STORAGE_KEYS.AUTH_TOKEN),
+        this._resetSecurely(STORAGE_KEYS.REFRESH_TOKEN),
+      ]);
 
-      console.log('所有令牌已清除');
+      console.log('所有安全令牌已清除');
       return true;
     } catch (error) {
       console.error('清除令牌失败:', error);
@@ -316,13 +333,17 @@ class TokenService {
   }
 }
 
-// 创建单例实例
 const tokenService = new TokenService();
-
-// 初始化
 tokenService.initialize().catch(error => {
   console.error('初始化令牌服务失败', error);
 });
 
-// 导出
+// 兼容历史调用方式（named import / CommonJS destructuring）
+export const getToken = async () => {
+  const tokenData = await tokenService.getAccessToken();
+  return tokenData?.token || null;
+};
+
+export const refreshToken = async () => tokenService.refreshAccessToken();
+export { tokenService };
 export default tokenService;

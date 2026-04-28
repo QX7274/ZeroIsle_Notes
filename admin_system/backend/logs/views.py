@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db import models
-from .models import AdminOperationLog, SystemLog
-from .serializers import AdminOperationLogSerializer, SystemLogSerializer
+from .models import AdminOperationLog, SystemLog, LogExportHistory
+from .serializers import AdminOperationLogSerializer, SystemLogSerializer, LogExportHistorySerializer
 from .services import log_service
 import logging
 import csv
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     """管理员操作日志视图集"""
-    queryset = AdminOperationLog.objects.all()
+    queryset = []
     serializer_class = AdminOperationLogSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -43,7 +43,10 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
                 from sync.models import SyncConfig
                 try:
                     config = SyncConfig.objects.get(key='last_sync_time_admin_logs')
-                    last_sync_time = config.value
+                    try:
+                        last_sync_time = int(config.value)
+                    except Exception:
+                        last_sync_time = None
                 except SyncConfig.DoesNotExist:
                     pass
 
@@ -54,13 +57,13 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
 
             try:
                 config = SyncConfig.objects.get(key='last_sync_time_admin_logs')
-                config.value = timezone.now().isoformat()
+                config.value = str(int(timezone.now().timestamp()))
                 config.save()
             except SyncConfig.DoesNotExist:
                 SyncConfig(
                     key='last_sync_time_admin_logs',
-                    value=timezone.now().isoformat(),
-                    description='管理员操作日志的最后同步时间'
+                    value=str(int(timezone.now().timestamp())),
+                    description='管理员操作日志的最后同步时间（epoch秒）'
                 ).save()
 
             return Response({
@@ -114,6 +117,25 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
                 'module_stats': module_stats
             }
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'])
+    def clear(self, request):
+        """清空管理员操作日志"""
+        try:
+            deleted_count, _ = AdminOperationLog.objects.all().delete()
+            return Response({
+                'status': 'success',
+                'data': {
+                    'deleted_count': deleted_count
+                },
+                'message': '管理员操作日志已清空'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"清空管理员操作日志失败: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'清空管理员操作日志失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def export(self, request):
@@ -260,7 +282,7 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
     """系统日志视图集"""
-    queryset = SystemLog.objects.all()
+    queryset = []
     serializer_class = SystemLogSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -281,7 +303,10 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                 from sync.models import SyncConfig
                 try:
                     config = SyncConfig.objects.get(key='last_sync_time_system_logs')
-                    last_sync_time = config.value
+                    try:
+                        last_sync_time = int(config.value)
+                    except Exception:
+                        last_sync_time = None
                 except SyncConfig.DoesNotExist:
                     pass
 
@@ -292,7 +317,7 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
 
             try:
                 config = SyncConfig.objects.get(key='last_sync_time_system_logs')
-                config.value = timezone.now().isoformat()
+                config.value = str(int(timezone.now().timestamp()))
                 config.save()
             except SyncConfig.DoesNotExist:
                 SyncConfig(
@@ -352,6 +377,25 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                 'source_stats': source_stats
             }
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'])
+    def clear(self, request):
+        """清空系统日志"""
+        try:
+            deleted_count, _ = SystemLog.objects.all().delete()
+            return Response({
+                'status': 'success',
+                'data': {
+                    'deleted_count': deleted_count
+                },
+                'message': '系统日志已清空'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"清空系统日志失败: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'清空系统日志失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def export(self, request):
@@ -485,7 +529,7 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class LogExportHistoryViewSet(viewsets.ModelViewSet):
     """日志导出历史记录视图集"""
-    queryset = LogExportHistory.objects.all()
+    queryset = []
     serializer_class = LogExportHistorySerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

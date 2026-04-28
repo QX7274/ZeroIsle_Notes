@@ -61,7 +61,7 @@ const CategorySelector = ({
 
   // 创建新分类
   const handleCreateCategory = () => {
-    if (!newCategoryName.trim()) return;
+    if (!newCategoryName.trim()) {return;}
 
     if (onCreateCategory) {
       onCreateCategory(newCategoryName.trim())

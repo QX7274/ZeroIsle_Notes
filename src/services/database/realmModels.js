@@ -3,8 +3,8 @@
  * 定义应用中使用的所有 Realm 模型
  */
 
-import Realm from 'realm';
-import OfflineQueueSchema from '../../schemas/offlineQueueSchema';
+import OfflineQueueSchema from '../../schemas/offlineQueueSchema.js';
+import SearchIndex from '../../models/SearchIndex.js';
 
 /**
  * 笔记模型
@@ -19,13 +19,17 @@ export const NoteSchema = {
     content: 'string?',
     created_at: 'date',
     updated_at: 'date',
+    updatedAt: 'date?',
+    deviceId: 'string?',
+    clientOpId: 'string?',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
+    syncStatus: 'string?', // 添加同步状态字段
     deleted_at: 'date?',
     user_id: 'string?',
     category_id: 'string?',
-    tags: 'string[]',
-    attachments: 'Attachment[]',
+    tags: { type: 'list', objectType: 'string' },
+    attachments: { type: 'list', objectType: 'Attachment' },
     color: 'string?',
     is_pinned: { type: 'bool', default: false },
     is_archived: { type: 'bool', default: false },
@@ -49,12 +53,23 @@ export const NoteSchema = {
     translateY: { type: 'double', default: 0.0 },
     paths: 'string?', // JSON字符串存储绘制路径
     images: 'string?', // JSON字符串存储图片信息
+    strokeData: 'string?', // 存储笔迹数据（JSON字符串）- 无限画布
+    viewport: 'string?', // 存储视窗状态（JSON字符串）- 无限画布
     // 分页笔记相关字段
     noteStyle: 'string?',
+    pageStyle: 'string?', // 页面样式（横线/网格/点阵/Cornell）
     currentPage: { type: 'int', default: 1 },
     totalPages: { type: 'int', default: 1 },
-    pages: 'string?' // JSON字符串存储页面数据
-  }
+    pages: 'string?', // JSON字符串存储页面数据
+    // PDF相关字段
+    pdfPath: 'string?', // PDF文件路径
+    pdfCurrentPage: 'int?', // PDF当前页码
+    pdfTotalPages: 'int?', // PDF总页数
+    pdfScale: 'double?', // PDF缩放比例
+    pdfAnnotations: 'string?', // PDF注释数据（JSON字符串）
+    pdfScrollPosition: 'double?', // PDF滚动位置
+    pdfBookmarks: 'string?', // PDF书签（JSON字符串）
+  },
 };
 
 /**
@@ -78,8 +93,8 @@ export const CanvasCollectionSchema = {
     created_at: 'date',
     updated_at: 'date',
     deleted_at: 'date?',
-    user_id: 'string?'
-  }
+    user_id: 'string?',
+  },
 };
 
 /**
@@ -97,12 +112,15 @@ export const AttachmentSchema = {
     size: 'int?',
     created_at: 'date',
     updated_at: 'date',
+    updatedAt: 'date?',
+    deviceId: 'string?',
+    clientOpId: 'string?',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
     note_id: 'string?',
     user_id: 'string?',
     metadata: 'string?', // JSON 字符串
-  }
+  },
 };
 
 /**
@@ -122,8 +140,8 @@ export const CategorySchema = {
     is_synced: { type: 'bool', default: false },
     user_id: 'string?',
     parent_id: 'string?',
-    order: 'int?'
-  }
+    order: 'int?',
+  },
 };
 
 /**
@@ -141,8 +159,8 @@ export const TagSchema = {
     updated_at: 'date',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
-    user_id: 'string?'
-  }
+    user_id: 'string?',
+  },
 };
 
 /**
@@ -169,15 +187,90 @@ export const ReminderSchema = {
     repeat_end_date: 'date?',
     notification_id: 'string?',
     color: 'string?',
-    is_enabled: { type: 'bool', default: true }
-  }
+    is_enabled: { type: 'bool', default: true },
+  },
+};
+
+/**
+ * 思维导图模型
+ */
+export const MindMapSchema = {
+  name: 'MindMap',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    title: 'string',
+    description: { type: 'string', default: '' },
+    layout_type: { type: 'string', default: 'tree' },
+    theme: { type: 'string', default: 'default' },
+    root_node_id: 'string?',
+    node_count: { type: 'int', default: 0 },
+    edge_count: { type: 'int', default: 0 },
+    metadata: { type: 'string', default: '{}' },
+    created_at: 'date',
+    updated_at: 'date',
+    deleted_at: 'date?',
+    user_id: 'string?',
+    is_deleted: { type: 'bool', default: false },
+    is_synced: { type: 'bool', default: false },
+  },
+};
+
+/**
+ * 思维导图节点模型
+ */
+export const MindMapNodeSchema = {
+  name: 'MindMapNode',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    mind_map_id: { type: 'string', indexed: true },
+    title: { type: 'string', default: '' },
+    content: { type: 'string', default: '' },
+    type: { type: 'string', default: 'topic' },
+    parent_id: 'string?',
+    x: { type: 'double', default: 0 },
+    y: { type: 'double', default: 0 },
+    order: { type: 'int', default: 0 },
+    metadata: { type: 'string', default: '{}' },
+    created_at: 'date',
+    updated_at: 'date',
+    deleted_at: 'date?',
+    user_id: 'string?',
+    is_deleted: { type: 'bool', default: false },
+    is_synced: { type: 'bool', default: false },
+  },
+};
+
+/**
+ * 思维导图边模型
+ */
+export const MindMapEdgeSchema = {
+  name: 'MindMapEdge',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    mind_map_id: { type: 'string', indexed: true },
+    source: 'string',
+    target: 'string',
+    type: { type: 'string', default: 'default' },
+    style: { type: 'string', default: 'solid' },
+    label: 'string?',
+    metadata: { type: 'string', default: '{}' },
+    created_at: 'date',
+    updated_at: 'date',
+    deleted_at: 'date?',
+    user_id: 'string?',
+    is_deleted: { type: 'bool', default: false },
+    is_synced: { type: 'bool', default: false },
+  },
 };
 
 /**
  * AI 聊天模型
  */
 export const AIChatSchema = {
-  name: 'ai_conversations',
+  name: 'AIChat',
   primaryKey: '_id',
   properties: {
     _id: 'string',
@@ -187,25 +280,27 @@ export const AIChatSchema = {
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
     user_id: 'string?',
-    messages: 'AIChatMessage[]'
-  }
+    messages: { type: 'string', default: '[]' }, // 存储为JSON字符串
+  },
 };
 
 /**
  * AI 聊天消息模型
+ * 注意：此schema已不再使用，messages现在存储为JSON字符串
+ * 保留此定义仅供参考
  */
-export const AIChatMessageSchema = {
-  name: 'AIChatMessage',
-  primaryKey: '_id',
-  properties: {
-    _id: 'string',
-    role: 'string', // user, assistant, system
-    content: 'string',
-    created_at: 'date',
-    is_synced: { type: 'bool', default: false },
-    chat_id: 'string'
-  }
-};
+// export const AIChatMessageSchema = {
+//   name: 'AIChatMessage',
+//   primaryKey: '_id',
+//   properties: {
+//     _id: 'string',
+//     role: 'string', // user, assistant, system
+//     content: 'string',
+//     created_at: 'date',
+//     is_synced: { type: 'bool', default: false },
+//     chat_id: 'string'
+//   }
+// };
 
 /**
  * 知识图谱模型
@@ -222,9 +317,9 @@ export const KnowledgeGraphSchema = {
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
     user_id: 'string?',
-    nodes: 'KnowledgeNode[]',
-    edges: 'KnowledgeEdge[]'
-  }
+    nodes: { type: 'list', objectType: 'KnowledgeNode' },
+    edges: { type: 'list', objectType: 'KnowledgeEdge' },
+  },
 };
 
 /**
@@ -245,8 +340,8 @@ export const KnowledgeNodeSchema = {
     updated_at: 'date',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
-    graph_id: 'string'
-  }
+    graph_id: 'string',
+  },
 };
 
 /**
@@ -265,8 +360,8 @@ export const KnowledgeEdgeSchema = {
     updated_at: 'date',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
-    graph_id: 'string'
-  }
+    graph_id: 'string',
+  },
 };
 
 /**
@@ -285,11 +380,14 @@ export const SyncInfoSchema = {
     error: 'string?',
     created_at: 'date',
     updated_at: 'date',
+    updatedAt: 'date?',
+    deviceId: 'string?',
+    clientOpId: 'string?',
     synced_at: 'date?',
     priority: { type: 'int', default: 0 },
     user_id: 'string?',
-    device_id: 'string?'
-  }
+    device_id: 'string?',
+  },
 };
 
 /**
@@ -301,9 +399,9 @@ export const StorageItemSchema = {
   properties: {
     key: 'string',
     value: 'string', // JSON 字符串
-    created_at: 'date',
-    updated_at: 'date'
-  }
+    created_at: { type: 'date', default: () => new Date() },
+    updated_at: { type: 'date', default: () => new Date() },
+  },
 };
 
 /**
@@ -315,9 +413,9 @@ export const SettingsSchema = {
   properties: {
     key: 'string',
     value: 'string', // JSON 字符串
-    created_at: 'date',
-    updated_at: 'date'
-  }
+    created_at: { type: 'date', default: () => new Date() },
+    updated_at: { type: 'date', default: () => new Date() },
+  },
 };
 
 /**
@@ -336,14 +434,108 @@ export const AIToolHistorySchema = {
     updated_at: 'date',
     is_deleted: { type: 'bool', default: false },
     is_synced: { type: 'bool', default: false },
-    user_id: 'string?'
-  }
+    user_id: 'string?',
+  },
+};
+
+/**
+ * 文件模型
+ */
+export const FileSchema = {
+  name: 'File',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    name: 'string',
+    path: 'string',
+    size: 'int?',
+    type: 'string?',
+    created_at: 'date',
+    updated_at: 'date',
+    updatedAt: 'date?',
+    deviceId: 'string?',
+    clientOpId: 'string?',
+    is_deleted: { type: 'bool', default: false },
+    user_id: 'string?',
+    metadata: 'string?', // JSON 字符串
+  },
+};
+
+/**
+ * 笔记备份模型
+ */
+export const NoteBackupSchema = {
+  name: 'NoteBackup',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    note_id: 'string',
+    backup_data: 'string', // JSON 字符串存储备份数据
+    backup_type: 'string', // 'auto', 'manual', 'export'
+    created_at: 'date',
+    lastBackupAt: 'date?', // 添加最后备份时间字段
+    size: 'int?',
+    user_id: 'string?',
+    metadata: 'string?', // JSON 字符串
+  },
+};
+/**
+ * 上传会话模型
+ */
+export const UploadSessionSchema = {
+  name: 'UploadSession',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    sessionId: 'string',
+    fileId: 'string?',
+    localPath: 'string',
+    fileSize: 'int',
+    chunkSize: { type: 'int', default: 1024 * 1024 }, // 1MB chunks by default
+    uploadedBytes: { type: 'int', default: 0 },
+    status: { type: 'string', default: 'pending' }, // pending, uploading, paused, completed, failed
+    error: 'string?',
+    retryCount: { type: 'int', default: 0 },
+    updatedAt: 'date',
+    deviceId: 'string?',
+    clientOpId: 'string?',
+  },
+};
+/**
+ * 附件缓存索引（LRU）
+ */
+export const FileCacheIndexSchema = {
+  name: 'FileCacheIndex',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    fileId: { type: 'string', indexed: true },
+    path: 'string',
+    size: { type: 'int', default: 0 },
+    mimeType: 'string?',
+    lastAccessedAt: 'date',
+  },
 };
 
 /**
  * 获取所有模型
  * @returns {Array} 所有模型定义
  */
+/**
+ * 知识库代码段/片段模型
+ */
+export const KBSnippetSchema = {
+  name: 'KBSnippet',
+  primaryKey: '_id',
+  properties: {
+    _id: 'string',
+    kbId: { type: 'string', indexed: true },
+    text: 'string',
+    source: 'string', // JSON string for source object { type, title, anchor, uri }
+    createdAt: { type: 'date', default: () => new Date() },
+  },
+};
+
 export function getAllSchemas() {
   return [
     NoteSchema,
@@ -352,8 +544,11 @@ export function getAllSchemas() {
     CategorySchema,
     TagSchema,
     ReminderSchema,
+    MindMapSchema,
+    MindMapNodeSchema,
+    MindMapEdgeSchema,
     AIChatSchema,
-    AIChatMessageSchema,
+    // AIChatMessageSchema 已不再使用，messages现在存储为JSON字符串
     KnowledgeGraphSchema,
     KnowledgeNodeSchema,
     KnowledgeEdgeSchema,
@@ -362,6 +557,12 @@ export function getAllSchemas() {
     SettingsSchema,
     AIToolHistorySchema,
     OfflineQueueSchema,
+    FileSchema,
+    NoteBackupSchema,
+    UploadSessionSchema,
+    FileCacheIndexSchema,
+    KBSnippetSchema,
+    SearchIndex.schema,
   ];
 }
 
@@ -386,4 +587,3 @@ export default {
   getAllSchemas,
   registerAllSchemas,
 };
-

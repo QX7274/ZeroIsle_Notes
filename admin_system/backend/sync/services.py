@@ -2,6 +2,7 @@ import uuid
 import logging
 import time
 from datetime import datetime, timedelta
+from urllib.parse import quote_plus
 from django.utils import timezone
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -30,12 +31,14 @@ class SyncService:
     def _get_mongo_client(self):
         """获取MongoDB客户端连接"""
         if self.mongo_user and self.mongo_password:
-            mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_password}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
+            encoded_user = quote_plus(str(self.mongo_user))
+            encoded_password = quote_plus(str(self.mongo_password))
+            mongo_uri = f"mongodb://{encoded_user}:{encoded_password}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
         else:
             mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}/{self.mongo_db}"
-        
+
         return MongoClient(mongo_uri)
-    
+
     def start_sync(self, sync_type, sync_options=None, initiated_by="system"):
         """开始同步操作"""
         sync_id = f"sync_{uuid.uuid4().hex}"
@@ -444,4 +447,20 @@ class SyncService:
             return {}
 
 # 创建同步服务单例
-sync_service = SyncService()
+# 懒加载同步服务，避免模块导入阶段触发数据库连接
+_sync_service_instance = None
+
+
+def get_sync_service():
+    global _sync_service_instance
+    if _sync_service_instance is None:
+        _sync_service_instance = SyncService()
+    return _sync_service_instance
+
+
+class _LazySyncService:
+    def __getattr__(self, item):
+        return getattr(get_sync_service(), item)
+
+
+sync_service = _LazySyncService()

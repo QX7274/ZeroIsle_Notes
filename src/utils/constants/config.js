@@ -3,9 +3,8 @@
  */
 
 // API基础URL
-export const API_BASE_URL = __DEV__
-  ? 'http://localhost:8000/api' // 开发环境
-  : 'https://api.zeroislenotes.com/api'; // 生产环境
+import { API_URL, API_VERSION } from '../../config';
+export const API_BASE_URL = `${API_URL}/api/${API_VERSION}`;
 
 // 应用版本
 export const APP_VERSION = '0.0.1';

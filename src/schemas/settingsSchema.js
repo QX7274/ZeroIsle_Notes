@@ -2,7 +2,6 @@
  * 设置模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 设置模式
@@ -11,8 +10,8 @@ const SettingsSchema = {
   name: 'Settings',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
-    user_id: { type: 'objectId', optional: true },
+    _id: { type: 'string' },
+    user_id: { type: 'string', optional: true },
     key: { type: 'string', default: '' },
     value: { type: 'string', default: '' },
     type: { type: 'string', default: 'string' }, // string, number, boolean, json

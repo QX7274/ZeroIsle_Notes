@@ -1,6 +1,6 @@
 /**
  * 笔记服务 - 提供笔记的CRUD操作和相关功能
- * 使用Realm作为数据存储
+ * 使用Realm作为数据存储，集成永久存储管理器确保数据不丢失
  */
 
 import { Alert } from 'react-native';
@@ -10,13 +10,14 @@ import realmService from '../database/realmService';
 import { networkService } from '../network/networkService';
 import { logService } from '../../utils/logService';
 import { fileService } from '../files/fileService';
+import permanentStorageManager from './permanentStorageManager';
 import {
   findDocuments,
   findOneDocument,
   findDocumentById,
   createDocument,
   updateDocument,
-  deleteDocument
+  deleteDocument,
 } from '../database/realmQueries';
 
 class NoteService {
@@ -30,7 +31,7 @@ class NoteService {
    * 初始化笔记服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) { return Promise.resolve(); }
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -55,11 +56,26 @@ class NoteService {
   }
 
   /**
-   * 创建新笔记
+   * 创建新笔记 - 使用永久存储管理器确保数据不丢失
    * @param {Object} noteData 笔记数据
    * @returns {Promise<Object>} 创建的笔记对象
    */
   async createNote(noteData) {
+    try {
+      // 使用永久存储管理器创建笔记
+      return await permanentStorageManager.createNote(noteData);
+    } catch (error) {
+      logService.error('创建笔记失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建新笔记 - 原始实现（保留作为备用）
+   * @param {Object} noteData 笔记数据
+   * @returns {Promise<Object>} 创建的笔记对象
+   */
+  async createNoteOriginal(noteData) {
     try {
       await this.initialize();
 
@@ -67,40 +83,40 @@ class NoteService {
 
       // 严格遵循Note schema定义
       const note = {
-        _id: noteData._id || new Realm.BSON.ObjectId(),
+        _id: noteData._id || realmService.createObjectId(),
         title: String(noteData.title || ''),
         content: String(noteData.content || ''),
         type: String(noteData.type || 'text'),
         // 确保tags是字符串数组
         tags: Array.isArray(noteData.tags) ? noteData.tags.map(tag => String(tag)) : [],
-        category_id: noteData.category_id ? new Realm.BSON.ObjectId(noteData.category_id) : null,
+        category_id: noteData.category_id ? String(noteData.category_id) : null,
         is_deleted: Boolean(noteData.is_deleted || false),
         created_at: now,
         updated_at: now,
         is_synced: Boolean(noteData.is_synced || networkService.isOnline()),
-        user_id: noteData.user_id ? new Realm.BSON.ObjectId(noteData.user_id) : null,
+        user_id: noteData.user_id ? String(noteData.user_id) : null,
 
         // 文件相关字段严格匹配schema
         file_path: noteData.file_uri ? String(noteData.file_uri) :
-                  noteData.file_path ? String(noteData.file_path) :
-                  noteData.path ? String(noteData.path) :
-                  noteData.uri ? String(noteData.uri) : null,
+          noteData.file_path ? String(noteData.file_path) :
+            noteData.path ? String(noteData.path) :
+              noteData.uri ? String(noteData.uri) : null,
 
         file_type: noteData.file_type ? String(noteData.file_type) :
-                  noteData.type ? String(noteData.type) : null,
+          noteData.type ? String(noteData.type) : null,
 
         // metadata必须是字符串类型
         metadata: typeof noteData.metadata === 'object' ?
-                JSON.stringify(noteData.metadata) :
-                typeof noteData.metadata === 'string' ?
-                noteData.metadata : '{}'
+          JSON.stringify(noteData.metadata) :
+          typeof noteData.metadata === 'string' ?
+            noteData.metadata : '{}',
       };
 
       // 只保留schema中定义的字段
       const schemaFields = [
         '_id', 'title', 'content', 'type', 'tags', 'category_id',
         'is_deleted', 'created_at', 'updated_at', 'is_synced',
-        'user_id', 'file_path', 'file_type', 'metadata'
+        'user_id', 'file_path', 'file_type', 'metadata',
       ];
 
       const finalNote = {};
@@ -118,7 +134,7 @@ class NoteService {
       // 调试日志
       logService.debug('准备创建Note对象', {
         data: finalNote,
-        types: Object.entries(finalNote).map(([k, v]) => [k, typeof v])
+        types: Object.entries(finalNote).map(([k, v]) => [k, typeof v]),
       });
 
       // 使用优化的创建方法
@@ -151,7 +167,8 @@ class NoteService {
         const realm = await realmService.getRealm();
         let noteId;
         realm.write(() => {
-          const savedNote = realm.create('Note', note);
+          // 使用'modified'模式：如果Note已存在则更新，不存在则创建
+          const savedNote = realm.create('Note', note, 'modified');
           noteId = savedNote._id;
         });
         note._id = noteId;
@@ -181,7 +198,7 @@ class NoteService {
       const notes = await findDocuments('Note', defaultFilter, {
         sort,
         limit: limit > 0 ? limit : undefined,
-        skip: skip > 0 ? skip : undefined
+        skip: skip > 0 ? skip : undefined,
       });
 
       // 如果在线，同步到服务器
@@ -204,19 +221,39 @@ class NoteService {
         const { filter = {}, sort = { updated_at: -1 }, limit = 0, skip = 0 } = options;
         const defaultFilter = { is_deleted: false, ...filter };
         const realm = await realmService.getRealm();
-        let notes = realm.objects('Note').filtered('is_deleted = false');
-        
-        if (defaultFilter) {
-          notes = notes.filtered(defaultFilter);
+        let notes = realm.objects('Note').filtered('is_deleted == false');
+
+        // 应用额外过滤 - 转换MongoDB格式为Realm查询字符串
+        if (filter && Object.keys(filter).length > 0) {
+          const queryParts = [];
+          for (const [key, value] of Object.entries(filter)) {
+            if (typeof value === 'boolean') {
+              queryParts.push(`${key} == ${value}`);
+            } else if (typeof value === 'string') {
+              queryParts.push(`${key} == "${value}"`);
+            } else if (typeof value === 'number') {
+              queryParts.push(`${key} == ${value}`);
+            }
+          }
+          if (queryParts.length > 0) {
+            notes = notes.filtered(queryParts.join(' AND '));
+          }
         }
-        if (sort) {
-          notes = notes.sorted(sort);
+
+        // 应用排序 - 转换MongoDB格式为Realm格式
+        if (sort && Object.keys(sort).length > 0) {
+          const sortField = Object.keys(sort)[0];
+          const sortDirection = sort[sortField] === -1; // -1 = descending = true in Realm
+          notes = notes.sorted(sortField, sortDirection);
         }
+
+        // 应用分页
         if (limit) {
           notes = notes.slice(skip || 0, (skip || 0) + limit);
         }
-        
-        return notes;
+
+        // 转换为普通数组
+        return Array.from(notes);
       } catch (fallbackError) {
         logService.error('从离线存储获取笔记失败', fallbackError);
         throw error; // 抛出原始错误
@@ -225,11 +262,26 @@ class NoteService {
   }
 
   /**
-   * 根据ID获取笔记
+   * 根据ID获取笔记 - 使用永久存储管理器确保数据完整性
    * @param {string} noteId 笔记ID
    * @returns {Promise<Object>} 笔记对象
    */
   async getNoteById(noteId) {
+    try {
+      // 使用永久存储管理器获取笔记
+      return await permanentStorageManager.getNote(noteId);
+    } catch (error) {
+      logService.error('获取笔记失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据ID获取笔记 - 原始实现（保留作为备用）
+   * @param {string} noteId 笔记ID
+   * @returns {Promise<Object>} 笔记对象
+   */
+  async getNoteByIdOriginal(noteId) {
     try {
       await this.initialize();
 
@@ -263,12 +315,28 @@ class NoteService {
   }
 
   /**
-   * 更新笔记
+   * 更新笔记 - 使用永久存储管理器确保数据不丢失
    * @param {string} noteId 笔记ID
    * @param {Object} updateData 更新数据
    * @returns {Promise<Object>} 更新后的笔记对象
    */
   async updateNote(noteId, updateData) {
+    try {
+      // 使用永久存储管理器更新笔记
+      return await permanentStorageManager.updateNote(noteId, updateData);
+    } catch (error) {
+      logService.error('更新笔记失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 更新笔记 - 原始实现（保留作为备用）
+   * @param {string} noteId 笔记ID
+   * @param {Object} updateData 更新数据
+   * @returns {Promise<Object>} 更新后的笔记对象
+   */
+  async updateNoteOriginal(noteId, updateData) {
     try {
       await this.initialize();
 
@@ -316,7 +384,6 @@ class NoteService {
             updatedNote = note;
           }
         });
-        return updatedNote;
         return updatedNote;
       } catch (fallbackError) {
         logService.error(`使用离线存储更新笔记(ID: ${noteId})失败`, fallbackError);
@@ -435,9 +502,13 @@ class NoteService {
    * @returns {Promise<Object>} 同步结果
    */
   async syncNotes() {
-    // 此功能在syncService中实现
-    return { success: true };
+    throw new Error('syncNotes 已迁移到 syncService，请调用 syncService.syncNotes');
   }
 }
 
-export const noteService = new NoteService();
+const noteService = new NoteService();
+
+module.exports = noteService;
+module.exports.default = noteService;
+module.exports.noteService = noteService;
+module.exports.NoteService = NoteService;

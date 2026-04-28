@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth import get_user_model
 from common.utils import get_client_ip
 from users.mongodb_models import User, VerificationCode, UserProfile, UserSettings
 from users.serializers.mongo_auth import (
@@ -18,9 +19,38 @@ from users.serializers.mongo_auth import (
     MongoUserSerializer,
     MongoVerificationCodeSerializer
 )
+from pymongo.errors import DuplicateKeyError
+from mongoengine.errors import NotUniqueError
 import logging
 from datetime import timedelta
 import uuid
+
+
+DjangoUser = get_user_model()
+
+
+def _get_or_create_django_user_for_mongo(mongo_user):
+    """为Mongo用户生成/复用对应的Django User，供SimpleJWT签发令牌。"""
+    # 优先尝试按username查找，避免重复创建
+    django_user = DjangoUser.objects.filter(username=mongo_user.username).first()
+    if django_user:
+        # 回填映射字段
+        if getattr(django_user, 'mongo_id', None) != mongo_user.id:
+            django_user.mongo_id = mongo_user.id
+            django_user.save(update_fields=['mongo_id'])
+        return django_user
+
+    # 新建Django用户（不可用登录密码，仅承载认证映射）
+    django_user = DjangoUser(
+        username=mongo_user.username,
+        email=getattr(mongo_user, 'email', None) or None,
+        phone=getattr(mongo_user, 'phone', None) or None,
+        is_active=bool(getattr(mongo_user, 'is_active', True)),
+        mongo_id=mongo_user.id,
+    )
+    django_user.set_unusable_password()
+    django_user.save()
+    return django_user
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +70,9 @@ class MongoUserRegistrationView(viewsets.ViewSet):
                 # 创建用户
                 user = serializer.save()
 
-                # 生成令牌
-                refresh = RefreshToken.for_user(user)
+                # 生成令牌（基于Django User签发）
+                django_user = _get_or_create_django_user_for_mongo(user)
+                refresh = RefreshToken.for_user(django_user)
 
                 # 记录设备信息
                 self._record_device(request, user)
@@ -79,20 +110,25 @@ class MongoUserRegistrationView(viewsets.ViewSet):
         if not username or not password:
             return Response({'error': '用户名和密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if User.objects(username=username).first():
+        try:
+            if User.objects(username=username).first():
+                return Response({'error': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 创建用户
+            user = User(
+                username=username,
+                password=make_password(password),
+                is_active=True,
+                date_joined=timezone.now()
+            )
+            user.save()
+        except (DuplicateKeyError, NotUniqueError):
+            # 并发/脏数据下唯一索引冲突，统一语义化返回
             return Response({'error': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 创建用户
-        user = User(
-            username=username,
-            password=make_password(password),
-            is_active=True,
-            date_joined=timezone.now()
-        )
-        user.save()
-
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+        # 生成令牌（基于Django User签发）
+        django_user = _get_or_create_django_user_for_mongo(user)
+        refresh = RefreshToken.for_user(django_user)
 
         # 记录设备信息
         self._record_device(request, user)
@@ -139,8 +175,9 @@ class MongoUserRegistrationView(viewsets.ViewSet):
         )
         user.save()
 
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+        # 生成令牌（基于Django User签发）
+        django_user = _get_or_create_django_user_for_mongo(user)
+        refresh = RefreshToken.for_user(django_user)
 
         # 记录设备信息
         self._record_device(request, user)
@@ -219,8 +256,9 @@ class MongoUserRegistrationView(viewsets.ViewSet):
         )
         user.save()
 
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+        # 生成令牌（基于Django User签发）
+        django_user = _get_or_create_django_user_for_mongo(user)
+        refresh = RefreshToken.for_user(django_user)
 
         # 记录设备信息
         self._record_device(request, user)
@@ -248,10 +286,21 @@ class MongoUserLoginView(viewsets.ViewSet):
         """
         标准登录方法
         """
+        ip_address = get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        login_identifier = None
+
         try:
             logger.info(f"收到登录请求: {request.data}")
-            ip_address = get_client_ip(request)
             logger.info(f"客户端IP: {ip_address}")
+
+            # 获取登录标识符用于记录
+            login_identifier = (
+                request.data.get('identifier') or
+                request.data.get('username') or
+                request.data.get('email') or
+                request.data.get('phone')
+            )
 
             serializer = MongoUserLoginSerializer(data=request.data)
             if serializer.is_valid():
@@ -264,11 +313,22 @@ class MongoUserLoginView(viewsets.ViewSet):
                 user.save()
                 logger.info(f"更新用户登录信息成功: {user.username}")
 
+                # 记录登录成功
+                from users.models.login_attempt import LoginAttempt
+                LoginAttempt.record_attempt(
+                    ip_address=ip_address,
+                    success=True,
+                    username=user.username,
+                    user_id=str(user.id),
+                    user_agent=user_agent
+                )
+
                 # 记录设备信息
                 self._record_device(request, user)
 
-                # 生成令牌
-                refresh = RefreshToken.for_user(user)
+                # 生成令牌（基于Django User签发）
+                django_user = _get_or_create_django_user_for_mongo(user)
+                refresh = RefreshToken.for_user(django_user)
                 logger.info(f"生成令牌成功: {user.username}")
 
                 # 准备响应数据
@@ -282,9 +342,34 @@ class MongoUserLoginView(viewsets.ViewSet):
                 return Response(response_data)
             else:
                 logger.error(f"登录验证失败: {serializer.errors}")
+
+                # 记录登录失败
+                from users.models.login_attempt import LoginAttempt
+                LoginAttempt.record_attempt(
+                    ip_address=ip_address,
+                    success=False,
+                    username=login_identifier,
+                    user_agent=user_agent,
+                    failure_reason=str(serializer.errors)
+                )
+
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"登录过程中发生异常: {str(e)}")
+
+            # 记录登录异常
+            try:
+                from users.models.login_attempt import LoginAttempt
+                LoginAttempt.record_attempt(
+                    ip_address=ip_address,
+                    success=False,
+                    username=login_identifier,
+                    user_agent=user_agent,
+                    failure_reason=str(e)
+                )
+            except Exception:
+                pass
+
             return Response({'error': f'登录失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
@@ -355,8 +440,9 @@ class MongoUserLoginView(viewsets.ViewSet):
         user.last_login_ip = get_client_ip(request)
         user.save()
 
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+        # 生成令牌（基于Django User签发）
+        django_user = _get_or_create_django_user_for_mongo(user)
+        refresh = RefreshToken.for_user(django_user)
 
         return Response({
             'user': MongoUserSerializer(user).data,
@@ -425,8 +511,9 @@ class MongoUserLoginView(viewsets.ViewSet):
         user.last_login_ip = get_client_ip(request)
         user.save()
 
-        # 生成令牌
-        refresh = RefreshToken.for_user(user)
+        # 生成令牌（基于Django User签发）
+        django_user = _get_or_create_django_user_for_mongo(user)
+        refresh = RefreshToken.for_user(django_user)
 
         return Response({
             'user': MongoUserSerializer(user).data,

@@ -25,13 +25,13 @@ const ErrorState = ({
         color={COLORS.ERROR}
         style={styles.icon}
       />
-      
+
       <Text style={styles.title}>{title}</Text>
-      
+
       {message && (
         <Text style={styles.message}>{message}</Text>
       )}
-      
+
       {onRetry && (
         <TouchableOpacity
           style={styles.button}

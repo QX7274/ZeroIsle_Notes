@@ -12,6 +12,7 @@ import {
   getToolConfig,
   simplifyStroke,
 } from '../utils/drawing/strokeRenderer';
+import realmService from '../services/database/realmService';
 
 /**
  * useDrawing Hook
@@ -61,7 +62,7 @@ export const useDrawing = ({
   const currentStrokeRef = useRef(null);
 
   // ========== 历史记录管理 ==========
-  
+
   /**
    * 添加到历史记录
    */
@@ -103,7 +104,7 @@ export const useDrawing = ({
    */
   const handleToolChange = useCallback((tool) => {
     console.log('[useDrawing] 工具变化:', tool);
-    
+
     const config = getToolConfig(tool);
     setToolConfig(config);
     setCurrentTool(config.type);
@@ -159,7 +160,7 @@ export const useDrawing = ({
     const config = toolConfig || getToolConfig(currentTool);
 
     const newStroke = {
-      id: `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: realmService.createObjectId(),
       tool: currentTool,
       color: currentColor,
       width: currentStrokeWidth,
@@ -177,7 +178,7 @@ export const useDrawing = ({
    * 更新绘制
    */
   const updateDrawing = useCallback((x, y, pressure = 1.0) => {
-    if (!isDrawing && !selectionBox) return;
+    if (!isDrawing && !selectionBox) {return;}
 
     // 移动工具：更新选择框
     if (selectionBox && dragStart.current) {
@@ -192,7 +193,7 @@ export const useDrawing = ({
       return;
     }
 
-    if (!currentStrokeRef.current) return;
+    if (!currentStrokeRef.current) {return;}
 
     const updatedStroke = {
       ...currentStrokeRef.current,
@@ -237,7 +238,7 @@ export const useDrawing = ({
       return;
     }
 
-    if (!currentStrokeRef.current || !isDrawing) return;
+    if (!currentStrokeRef.current || !isDrawing) {return;}
 
     const finalStroke = currentStrokeRef.current;
 
@@ -365,7 +366,7 @@ export const useDrawing = ({
    * 移动选中的笔画
    */
   const handleMoveStrokes = useCallback((dx, dy) => {
-    if (selectedStrokes.length === 0) return;
+    if (selectedStrokes.length === 0) {return;}
 
     setStrokes(prevStrokes =>
       prevStrokes.map(stroke => {
@@ -402,24 +403,24 @@ export const useDrawing = ({
       initialTool: currentTool,
       initialColor: currentColor,
       initialStrokeWidth: currentStrokeWidth,
-      
+
       // AI工具（预留接口）
       onAIToolSelect: () => console.log('[useDrawing] AI工具选择'),
       onAIProcessResult: (result) => console.log('[useDrawing] AI处理结果:', result),
-      
+
       // 书签
       onBookmarkAdd: handleAddBookmark,
       onBookmarkList: () => console.log('[useDrawing] 书签列表'),
       onBookmarkNavigate: handleNavigateToBookmark,
       currentNoteId: noteId,
       currentPage,
-      
+
       // 图片上传（预留接口）
       onImageUpload: (image) => console.log('[useDrawing] 图片上传:', image),
-      
+
       // 文本工具（预留接口）
       onTextAdd: (text) => console.log('[useDrawing] 添加文本:', text),
-      
+
       // 模式切换
       onModeToggle: (isFingerMode) => {
         console.log('[useDrawing] 模式切换:', isFingerMode ? '手指' : '笔');
@@ -458,7 +459,7 @@ export const useDrawing = ({
     setStrokes,
     handleMoveStrokes,
     handleDeleteBookmark,
-    
+
     // 工具配置
     toolConfig: toolConfig || getToolConfig(currentTool),
 

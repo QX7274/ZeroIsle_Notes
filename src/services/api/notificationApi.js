@@ -15,20 +15,16 @@ export const getNotifications = async (params = {}) => {
     const response = await instance.get(API_ENDPOINTS.NOTIFICATION.BASE, { params });
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '获取通知列表',
-        customMessage: '网络连接失败，无法获取通知列表'
+        customMessage: '网络连接失败，无法获取通知列表',
       });
     }
-    return {
-      success: false,
-      message: error.message || '获取通知列表失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -42,20 +38,16 @@ export const getNotificationDetail = async (id) => {
     const response = await instance.get(API_ENDPOINTS.NOTIFICATION.DETAIL(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '获取通知详情',
-        customMessage: '网络连接失败，无法获取通知详情'
+        customMessage: '网络连接失败，无法获取通知详情',
       });
     }
-    return {
-      success: false,
-      message: error.message || '获取通知详情失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -69,20 +61,16 @@ export const markAsRead = async (id) => {
     const response = await instance.post(API_ENDPOINTS.NOTIFICATION.MARK_AS_READ(id));
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '标记通知为已读',
-        customMessage: '网络连接失败，无法标记通知为已读'
+        customMessage: '网络连接失败，无法标记通知为已读',
       });
     }
-    return {
-      success: false,
-      message: error.message || '标记通知为已读失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -95,20 +83,16 @@ export const markAllAsRead = async () => {
     const response = await instance.post(API_ENDPOINTS.NOTIFICATION.MARK_ALL_AS_READ);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '标记所有通知为已读',
-        customMessage: '网络连接失败，无法标记所有通知为已读'
+        customMessage: '网络连接失败，无法标记所有通知为已读',
       });
     }
-    return {
-      success: false,
-      message: error.message || '标记所有通知为已读失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -121,20 +105,16 @@ export const getUnreadCount = async () => {
     const response = await instance.get(API_ENDPOINTS.NOTIFICATION.UNREAD_COUNT);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '获取未读通知数量',
-        customMessage: '网络连接失败，无法获取未读通知数量'
+        customMessage: '网络连接失败，无法获取未读通知数量',
       });
     }
-    return {
-      success: false,
-      message: error.message || '获取未读通知数量失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -147,20 +127,16 @@ export const deleteAllNotifications = async () => {
     const response = await instance.delete(API_ENDPOINTS.NOTIFICATION.DELETE_ALL);
     return {
       success: true,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     if (networkErrorService.isNetworkError(error)) {
       networkErrorService.handleApiError(error, {
         context: '删除所有通知',
-        customMessage: '网络连接失败，无法删除所有通知'
+        customMessage: '网络连接失败，无法删除所有通知',
       });
     }
-    return {
-      success: false,
-      message: error.message || '删除所有通知失败',
-      error
-    };
+    throw error;
   }
 };
 
@@ -171,5 +147,5 @@ export default {
   markAsRead,
   markAllAsRead,
   getUnreadCount,
-  deleteAllNotifications
+  deleteAllNotifications,
 };

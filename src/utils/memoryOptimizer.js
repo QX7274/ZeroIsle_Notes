@@ -5,6 +5,8 @@
 
 import { Alert } from 'react-native';
 import RNFS from 'react-native-fs';
+import realmService from '../services/database/realmService';
+
 
 class MemoryOptimizer {
   constructor() {
@@ -22,13 +24,13 @@ class MemoryOptimizer {
       encoding = 'utf8',
       chunkSize = this.chunkSize,
       onProgress = null,
-      onChunk = null
+      onChunk = null,
     } = options;
 
     try {
       const fileStats = await RNFS.stat(filePath);
       const fileSize = fileStats.size;
-      
+
       console.log(`MemoryOptimizer: 开始安全读取文件 ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
 
       // 如果文件小于10MB，直接读取
@@ -39,23 +41,23 @@ class MemoryOptimizer {
       // 大文件分块处理
       const chunks = [];
       const totalChunks = Math.ceil(fileSize / chunkSize);
-      
+
       for (let i = 0; i < totalChunks; i++) {
         // 检查内存状态
         await this.checkMemoryPressure();
-        
+
         const offset = i * chunkSize;
         const size = Math.min(chunkSize, fileSize - offset);
-        
+
         try {
           const chunk = await RNFS.read(filePath, size, offset, encoding);
           chunks.push(chunk);
-          
+
           // 处理单个块
           if (onChunk) {
             await onChunk(chunk, i, totalChunks);
           }
-          
+
           // 更新进度
           if (onProgress) {
             onProgress({
@@ -63,15 +65,15 @@ class MemoryOptimizer {
               total: totalChunks,
               percentage: Math.round(((i + 1) / totalChunks) * 100),
               processed: offset + size,
-              remaining: fileSize - (offset + size)
+              remaining: fileSize - (offset + size),
             });
           }
-          
+
           // 释放内存压力
           if (i % 5 === 0) {
             await this.forceGarbageCollection();
           }
-          
+
         } catch (chunkError) {
           console.warn(`MemoryOptimizer: 读取块 ${i} 失败:`, chunkError);
           // 继续处理下一个块
@@ -79,7 +81,7 @@ class MemoryOptimizer {
       }
 
       // 合并所有块
-      if (encoding === 'utf8') {
+      if (encoding === 'utf8' || encoding === 'base64' || encoding === 'ascii') {
         return chunks.join('');
       } else {
         return chunks;
@@ -98,11 +100,11 @@ class MemoryOptimizer {
     try {
       // 模拟内存检查
       const memoryUsage = await this.getMemoryUsage();
-      
+
       if (memoryUsage > this.memoryThreshold) {
         console.warn(`MemoryOptimizer: 内存使用率过高 ${(memoryUsage * 100).toFixed(1)}%`);
         await this.forceGarbageCollection();
-        
+
         // 等待一段时间让GC完成
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -118,7 +120,7 @@ class MemoryOptimizer {
     try {
       // 这里可以集成更精确的内存监控
       // 目前返回一个估算值
-      return Math.random() * 0.5 + 0.3; // 30-80%的随机值
+      return 0.5; // 固定估算值，避免随机回退
     } catch (error) {
       return 0.5; // 默认50%
     }
@@ -133,7 +135,7 @@ class MemoryOptimizer {
       if (global.gc) {
         global.gc();
       }
-      
+
       // 等待GC完成
       await new Promise(resolve => setTimeout(resolve, 50));
     } catch (error) {
@@ -145,13 +147,13 @@ class MemoryOptimizer {
    * 处理大文件转换，避免OOM
    */
   async processLargeFileSafely(filePath, processor, options = {}) {
-    const processId = `process_${Date.now()}_${Math.random()}`;
-    
+    const processId = `process_${realmService.createObjectId()}`;
+
     try {
       this.activeProcesses.set(processId, {
         startTime: Date.now(),
         filePath,
-        status: 'processing'
+        status: 'processing',
       });
 
       console.log(`MemoryOptimizer: 开始安全处理大文件: ${filePath}`);
@@ -164,7 +166,7 @@ class MemoryOptimizer {
           if (processor.onChunk) {
             await processor.onChunk(chunk, index, total);
           }
-        }
+        },
       });
 
       // 最终处理
@@ -193,5 +195,9 @@ class MemoryOptimizer {
 }
 
 const memoryOptimizer = new MemoryOptimizer();
-export default memoryOptimizer;
+
+module.exports = memoryOptimizer;
+module.exports.default = memoryOptimizer;
+module.exports.MemoryOptimizer = MemoryOptimizer;
+
 

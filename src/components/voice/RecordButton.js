@@ -9,22 +9,24 @@ import {
   Vibration,
   AccessibilityInfo,
   Platform,
-  PixelRatio
+  PixelRatio,
 } from 'react-native';
-import { useTheme } from '@react-navigation/native';
+import { useTheme } from '../../context/ThemeContext'; // Correct import
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Haptics, ImpactFeedbackStyle, NotificationFeedbackType } from '../../utils/expoCompatibility';
+import { SPACING, RADIUS, ELEVATION, SIZE, ANIMATION, BORDER } from '../../theme/tokens';
 
 /**
  * 录音按钮组件 - 增强版
  * 提供动画效果和状态指示，支持多种反馈方式
  * 优化版本：更现代的UI和交互体验，增强的可访问性支持
+ * Refactored with Design Tokens
  */
 const RecordButton = ({
   onStartRecording,
   onStopRecording,
   isRecording = false,
-  size = 70,
+  size = 70, // Default size, might be overridden by props but we strive to use tokens internally where possible
   disabled = false,
   style = {},
   showTimer = true,
@@ -38,7 +40,6 @@ const RecordButton = ({
   onPressOut = null, // 释放回调
   accessibilityLabel = '录音按钮', // 可访问性标签
   accessibilityHint = '点击开始录音，再次点击停止录音', // 可访问性提示
-  theme = 'light', // 主题：light 或 dark
   showRemainingTime = true, // 是否显示剩余时间
   countdownThreshold = 10, // 倒计时阈值（秒）
   hapticFeedback = true, // 是否启用触觉反馈
@@ -46,12 +47,15 @@ const RecordButton = ({
   pulseColor = null, // 自定义脉冲颜色
   iconName = null, // 自定义图标名称
   iconSize = null, // 自定义图标大小
-  iconColor = '#fff', // 自定义图标颜色
+  iconColor = '#ffffff', // 自定义图标颜色
   timerPosition = 'top', // 计时器位置：top 或 bottom
   showRecordingLabel = true, // 是否显示"录音中..."标签
-  recordingLabelText = '录音中...' // 自定义录音标签文本
+  recordingLabelText = '录音中...', // 自定义录音标签文本
 }) => {
-  const { colors, dark } = useTheme();
+  const { theme } = useTheme();
+  // Ensure correct color references
+  const colors = theme.colors || theme;
+
   const [recordingTime, setRecordingTime] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [isScreenReaderEnabled, setIsScreenReaderEnabled] = useState(false);
@@ -70,9 +74,8 @@ const RecordButton = ({
   const adjustedSize = pixelRatio < 2 ? size * 0.9 : size;
 
   // 确定实际使用的颜色
-  const actualTheme = theme === 'auto' ? (dark ? 'dark' : 'light') : theme;
-  const actualButtonColor = buttonColor || (isRecording ? colors.error || '#ff3b30' : colors.primary);
-  const actualPulseColor = pulseColor || colors.primary;
+  const actualButtonColor = buttonColor || (isRecording ? (colors.error || '#ff3b30') : (colors.primary || '#007AFF'));
+  const actualPulseColor = pulseColor || (colors.primary || '#007AFF');
   const actualIconName = iconName || (isRecording ? 'stop' : 'microphone');
   const actualIconSize = iconSize || adjustedSize / 2.2;
 
@@ -252,9 +255,9 @@ const RecordButton = ({
       // 平滑动画到新的音量值
       Animated.spring(volumeAnim, {
         toValue: volume,
-        useNativeDriver: false,
+        useNativeDriver: false, // height/backgroundColor not supported by native driver
         friction: 7,
-        tension: 40
+        tension: 40,
       }).start();
     }
   }, [volume, showVolumeIndicator, isRecording, volumeAnim]);
@@ -266,7 +269,7 @@ const RecordButton = ({
       toValue: 0.92,
       useNativeDriver: true,
       friction: 7,
-      tension: 40
+      tension: 40,
     }).start();
 
     // 触觉反馈
@@ -311,7 +314,7 @@ const RecordButton = ({
       toValue: 1,
       useNativeDriver: true,
       friction: 7,
-      tension: 40
+      tension: 40,
     }).start();
 
     // 清除长按定时器
@@ -328,7 +331,7 @@ const RecordButton = ({
 
   // 开始脉动动画 - 增强版
   const startPulseAnimation = () => {
-    if (!pulsate) return;
+    if (!pulsate) {return;}
 
     // 创建更自然的呼吸效果
     const breatheAnimation = () => {
@@ -339,29 +342,29 @@ const RecordButton = ({
           toValue: 1.35,
           duration: 1200,
           easing: Easing.bezier(0.4, 0.0, 0.2, 1), // 自定义贝塞尔曲线
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
         // 短暂停留
         Animated.timing(pulseAnim, {
           toValue: 1.35,
           duration: 200,
           easing: Easing.linear,
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
         // 收缩阶段 - 较快收缩
         Animated.timing(pulseAnim, {
           toValue: 1,
           duration: 800,
           easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
         // 短暂停留
         Animated.timing(pulseAnim, {
           toValue: 1,
           duration: 300,
           easing: Easing.linear,
-          useNativeDriver: true
-        })
+          useNativeDriver: true,
+        }),
       ]).start(({ finished }) => {
         if (finished) {
           breatheAnimation(); // 循环动画
@@ -377,14 +380,14 @@ const RecordButton = ({
           toValue: 0.2,
           duration: 1300, // 比呼吸动画稍长
           easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
         Animated.timing(pulseOpacityAnim, {
           toValue: 0.5,
           duration: 1200,
           easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-          useNativeDriver: true
-        })
+          useNativeDriver: true,
+        }),
       ]).start(({ finished }) => {
         if (finished) {
           opacityAnimation(); // 循环动画
@@ -410,15 +413,15 @@ const RecordButton = ({
         toValue: 1,
         friction: 8,  // 增加摩擦力使动画更平滑
         tension: 40,  // 适中的张力
-        useNativeDriver: true
+        useNativeDriver: true,
       }),
       // 使用缓动函数使透明度平滑淡出
       Animated.timing(pulseOpacityAnim, {
         toValue: 0,
         duration: 400,  // 稍微延长淡出时间
         easing: Easing.bezier(0.0, 0.0, 0.2, 1),  // 平滑的淡出曲线
-        useNativeDriver: true
-      })
+        useNativeDriver: true,
+      }),
     ]).start();
   };
 
@@ -439,23 +442,17 @@ const RecordButton = ({
     } else if (remainingTimePercent < 40) {
       return colors.warning || '#ff9500';
     } else {
-      return colors.primary;
+      return colors.primary || '#007AFF';
     }
   };
 
   // 渲染音量指示器
   const renderVolumeIndicator = () => {
-    if (!showVolumeIndicator || !isRecording) return null;
+    if (!showVolumeIndicator || !isRecording) {return null;}
 
     // 计算音量条数量
     const numBars = 8;
     const bars = [];
-
-    // 根据当前音量计算激活的条数
-    const activeVolume = volumeAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, numBars]
-    });
 
     // 创建音量条
     for (let i = 0; i < numBars; i++) {
@@ -466,14 +463,14 @@ const RecordButton = ({
       const opacity = volumeAnim.interpolate({
         inputRange: [i / numBars, (i + 1) / numBars],
         outputRange: [0.3, 1],
-        extrapolate: 'clamp'
+        extrapolate: 'clamp',
       });
 
       // 计算条颜色 - 从绿色到红色
       const backgroundColor = volumeAnim.interpolate({
         inputRange: [0, 0.5, 1],
-        outputRange: [colors.primary, colors.warning || '#ff9500', colors.error || '#ff3b30'],
-        extrapolate: 'clamp'
+        outputRange: [colors.primary || '#007AFF', colors.warning || '#ff9500', colors.error || '#ff3b30'],
+        extrapolate: 'clamp',
       });
 
       bars.push(
@@ -484,8 +481,8 @@ const RecordButton = ({
             {
               height: barHeight,
               opacity,
-              backgroundColor
-            }
+              backgroundColor,
+            },
           ]}
         />
       );
@@ -500,7 +497,7 @@ const RecordButton = ({
 
   // 渲染计时器
   const renderTimer = () => {
-    if (!showTimer || !isRecording) return null;
+    if (!showTimer || !isRecording) {return null;}
 
     // 计算计时器位置样式
     const timerPositionStyle = timerPosition === 'bottom'
@@ -514,7 +511,7 @@ const RecordButton = ({
 
     // 计算倒计时样式
     const countdownStyle = countingDown
-      ? { color: remainingTimePercent < 20 ? colors.error : colors.warning || '#ff9500' }
+      ? { color: remainingTimePercent < 20 ? (colors.error || '#ff3b30') : (colors.warning || '#ff9500') }
       : {};
 
     return (
@@ -528,8 +525,8 @@ const RecordButton = ({
               styles.progressBar,
               {
                 width: `${remainingTimePercent}%`,
-                backgroundColor: getProgressColor()
-              }
+                backgroundColor: getProgressColor(),
+              },
             ]}
           />
         </View>
@@ -555,8 +552,8 @@ const RecordButton = ({
             borderRadius: adjustedSize * 1.8 / 2,
             backgroundColor: isRecording ? actualPulseColor : 'transparent',
             transform: [{ scale: pulseAnim }],
-            opacity: pulseOpacityAnim
-          }
+            opacity: pulseOpacityAnim,
+          },
         ]}
       />
 
@@ -569,7 +566,7 @@ const RecordButton = ({
               width: adjustedSize * 1.2,
               height: adjustedSize * 1.2,
               borderRadius: adjustedSize * 1.2 / 2,
-            }
+            },
           ]}
         />
       )}
@@ -582,8 +579,8 @@ const RecordButton = ({
         style={[
           styles.buttonContainer,
           {
-            transform: [{ scale: scaleAnim }]
-          }
+            transform: [{ scale: scaleAnim }],
+          },
         ]}
       >
         <TouchableOpacity
@@ -605,8 +602,8 @@ const RecordButton = ({
               height: adjustedSize,
               borderRadius: adjustedSize / 2,
               backgroundColor: actualButtonColor,
-              opacity: disabled ? 0.5 : 1
-            }
+              opacity: disabled ? 0.5 : 1,
+            },
           ]}
           accessible={true}
           accessibilityLabel={accessibilityLabel}
@@ -614,7 +611,7 @@ const RecordButton = ({
           accessibilityRole="button"
           accessibilityState={{
             disabled: disabled,
-            checked: isRecording
+            checked: isRecording,
           }}
         >
           <Icon
@@ -643,8 +640,8 @@ const RecordButton = ({
           style={[
             styles.countdownText,
             {
-              color: remainingTimePercent < 20 ? colors.error : colors.warning || '#ff9500'
-            }
+              color: remainingTimePercent < 20 ? (colors.error || '#ff3b30') : (colors.warning || '#ff9500'),
+            },
           ]}
           accessible={true}
           accessibilityLabel={`还剩${maxDuration - recordingTime}秒`}
@@ -661,7 +658,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
+    padding: SPACING.sm,
     minHeight: 120, // 确保有足够的空间显示所有元素
   },
   buttonContainer: {
@@ -672,11 +669,7 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.5,
+    ...ELEVATION.md,
   },
   pulseCircle: {
     position: 'absolute',
@@ -687,11 +680,7 @@ const styles = StyleSheet.create({
   innerShadow: {
     position: 'absolute',
     backgroundColor: 'rgba(0,0,0,0.05)',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    ...ELEVATION.xs,
     zIndex: 1,
   },
   timerContainer: {
@@ -703,7 +692,7 @@ const styles = StyleSheet.create({
   timer: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
     textAlign: 'center',
   },
   maxDuration: {
@@ -714,15 +703,15 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     width: '80%',
     height: 6,
-    borderRadius: 3,
+    borderRadius: RADIUS.xs,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: RADIUS.xs,
   },
   recordingStatus: {
-    marginTop: 12,
+    marginTop: SPACING.ms,
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
@@ -741,7 +730,7 @@ const styles = StyleSheet.create({
   volumeBar: {
     width: 4,
     marginHorizontal: 1,
-    borderRadius: 2,
+    borderRadius: RADIUS.xs,
   },
   countdownText: {
     position: 'absolute',
@@ -749,50 +738,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: RADIUS.lg,
     backgroundColor: 'rgba(0,0,0,0.05)',
     overflow: 'hidden',
   },
-  // 响应式样式
-  landscapeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-  },
-  landscapeTimerContainer: {
-    position: 'relative',
-    top: 0,
-    width: '40%',
-    marginRight: 20,
-  },
-  landscapeButtonSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '60%',
-  },
-  // 无障碍样式
-  accessibilityFocus: {
-    borderWidth: 2,
-    borderColor: '#0066ff',
-    borderRadius: 50,
-  },
-  // 暗色主题样式
-  darkModeInnerShadow: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    shadowColor: '#fff',
-  },
-  // 触觉反馈视觉提示
-  hapticFeedbackIndicator: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    zIndex: 3,
-  }
 });
 
 export default RecordButton;

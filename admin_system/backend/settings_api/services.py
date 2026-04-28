@@ -5,12 +5,21 @@ import zipfile
 import tempfile
 import logging
 from datetime import datetime, timedelta
+from urllib.parse import quote_plus
 from django.utils import timezone
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from .models import SystemSetting, Announcement, SystemBackup
 
 logger = logging.getLogger(__name__)
+
+# 导入增强版备份服务
+try:
+    from .backup_service_enhanced import BackupServiceEnhanced
+    ENHANCED_BACKUP_AVAILABLE = True
+except ImportError:
+    ENHANCED_BACKUP_AVAILABLE = False
+    logger.warning("增强版备份服务不可用，将使用标准备份服务")
 
 class SettingService:
     """设置服务类，用于处理系统设置的同步和访问"""
@@ -33,7 +42,9 @@ class SettingService:
     def _get_mongo_client(self):
         """获取MongoDB客户端连接"""
         if self.mongo_user and self.mongo_password:
-            mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_password}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
+            encoded_user = quote_plus(str(self.mongo_user))
+            encoded_password = quote_plus(str(self.mongo_password))
+            mongo_uri = f"mongodb://{encoded_user}:{encoded_password}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource=admin"
         else:
             mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}/{self.mongo_db}"
 
@@ -325,8 +336,23 @@ class SettingService:
             logger.error(f"在主应用中删除系统公告时出错: {str(e)}")
             return False
 
-# 创建设置服务单例
-setting_service = SettingService()
+# 懒加载设置服务，避免模块导入阶段触发数据库连接
+_setting_service_instance = None
+
+
+def get_setting_service():
+    global _setting_service_instance
+    if _setting_service_instance is None:
+        _setting_service_instance = SettingService()
+    return _setting_service_instance
+
+
+class _LazySettingService:
+    def __getattr__(self, item):
+        return getattr(get_setting_service(), item)
+
+
+setting_service = _LazySettingService()
 
 
 class BackupService:
@@ -361,26 +387,36 @@ class BackupService:
 
         return MongoClient(mongo_uri)
 
-    def create_backup(self, backup_obj):
-        """创建备份"""
+    def create_backup(self, backup_obj, use_enhanced=True):
+        """
+        创建备份
+
+        Args:
+            backup_obj: 备份对象
+            use_enhanced: 是否使用增强版服务（推荐）
+        """
         try:
             # 更新备份状态
             backup_obj.status = 'running'
             backup_obj.save()
 
-            # 根据备份类型执行不同的备份操作
-            if backup_obj.backup_type == 'full':
-                result = self._create_full_backup(backup_obj)
-            elif backup_obj.backup_type == 'data':
-                result = self._create_data_backup(backup_obj)
-            elif backup_obj.backup_type == 'settings':
-                result = self._create_settings_backup(backup_obj)
-            elif backup_obj.backup_type == 'user':
-                result = self._create_user_backup(backup_obj)
-            elif backup_obj.backup_type == 'content':
-                result = self._create_content_backup(backup_obj)
+            # 优先使用增强版服务
+            if use_enhanced and ENHANCED_BACKUP_AVAILABLE:
+                result = self._create_backup_enhanced(backup_obj)
             else:
-                raise ValueError(f"不支持的备份类型: {backup_obj.backup_type}")
+                # 使用原始方法
+                if backup_obj.backup_type == 'full':
+                    result = self._create_full_backup(backup_obj)
+                elif backup_obj.backup_type == 'data':
+                    result = self._create_data_backup(backup_obj)
+                elif backup_obj.backup_type == 'settings':
+                    result = self._create_settings_backup(backup_obj)
+                elif backup_obj.backup_type == 'user':
+                    result = self._create_user_backup(backup_obj)
+                elif backup_obj.backup_type == 'content':
+                    result = self._create_content_backup(backup_obj)
+                else:
+                    raise ValueError(f"不支持的备份类型: {backup_obj.backup_type}")
 
             # 更新备份状态和文件信息
             backup_obj.status = 'completed'
@@ -405,6 +441,33 @@ class BackupService:
                 'status': 'error',
                 'message': f"创建备份失败: {str(e)}"
             }
+
+    def _create_backup_enhanced(self, backup_obj):
+        """
+        使用增强版服务创建备份
+
+        Args:
+            backup_obj: 备份对象
+
+        Returns:
+            Dict: 备份结果
+        """
+        enhanced_service = BackupServiceEnhanced(
+            mongo_host=self.mongo_host,
+            mongo_port=self.mongo_port,
+            mongo_db=self.mongo_db,
+            mongo_user=self.mongo_user,
+            mongo_password=self.mongo_password,
+            backup_dir=self.backup_dir
+        )
+
+        # 获取要备份的集合列表
+        collections = enhanced_service.get_collection_lists_by_type(backup_obj.backup_type)
+
+        # 创建备份
+        result = enhanced_service.create_backup_enhanced(backup_obj, collections)
+
+        return result
 
     def _create_full_backup(self, backup_obj):
         """创建完整备份"""
@@ -772,9 +835,23 @@ class BackupService:
             # 清理临时目录
             shutil.rmtree(temp_dir)
 
-    def restore_backup(self, backup_obj):
-        """恢复备份"""
+    def restore_backup(self, backup_obj, use_enhanced=True, verify_integrity=True):
+        """
+        恢复备份
+
+        Args:
+            backup_obj: 备份对象
+            use_enhanced: 是否使用增强版服务（推荐）
+            verify_integrity: 是否验证完整性
+        """
         try:
+            # 优先使用增强版服务
+            if use_enhanced and ENHANCED_BACKUP_AVAILABLE:
+                return self._restore_backup_enhanced(backup_obj, verify_integrity)
+
+            # 使用原始方法（已知问题：ObjectId未恢复）
+            logger.warning("使用原始恢复方法，可能存在ObjectId类型问题")
+
             # 检查备份状态
             if backup_obj.status != 'completed':
                 raise ValueError(f"备份状态不正确: {backup_obj.status}")
@@ -830,6 +907,31 @@ class BackupService:
                 'status': 'error',
                 'message': f"恢复备份失败: {str(e)}"
             }
+
+    def _restore_backup_enhanced(self, backup_obj, verify_integrity=True):
+        """
+        使用增强版服务恢复备份
+
+        Args:
+            backup_obj: 备份对象
+            verify_integrity: 是否验证完整性
+
+        Returns:
+            Dict: 恢复结果
+        """
+        enhanced_service = BackupServiceEnhanced(
+            mongo_host=self.mongo_host,
+            mongo_port=self.mongo_port,
+            mongo_db=self.mongo_db,
+            mongo_user=self.mongo_user,
+            mongo_password=self.mongo_password,
+            backup_dir=self.backup_dir
+        )
+
+        # 恢复备份
+        result = enhanced_service.restore_backup_enhanced(backup_obj, verify_integrity)
+
+        return result
 
     def download_backup(self, backup_obj):
         """下载备份"""
@@ -995,5 +1097,20 @@ class BackupService:
                 'message': f"导入备份失败: {str(e)}"
             }
 
-# 创建备份服务单例
-backup_service = BackupService()
+# 懒加载备份服务，避免模块导入阶段触发数据库连接
+_backup_service_instance = None
+
+
+def get_backup_service():
+    global _backup_service_instance
+    if _backup_service_instance is None:
+        _backup_service_instance = BackupService()
+    return _backup_service_instance
+
+
+class _LazyBackupService:
+    def __getattr__(self, item):
+        return getattr(get_backup_service(), item)
+
+
+backup_service = _LazyBackupService()

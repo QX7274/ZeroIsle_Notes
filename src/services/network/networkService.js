@@ -50,7 +50,7 @@ class NetworkService {
    * 初始化网络服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -88,13 +88,16 @@ class NetworkService {
     // 更新网络状态
     this.updateNetworkState(netInfo);
 
-    // 触发网络状态变化事件
-    eventEmitter.emit(NETWORK_EVENTS.NETWORK_CHANGE, {
+    // 触发网络状态变化事件（兼容历史 'change' 监听）
+    const networkStatePayload = {
       isOnline: this.isOnlineValue,
       connectionType: this.connectionType,
       connectionQuality: this.connectionQuality,
       details: netInfo,
-    });
+    };
+
+    eventEmitter.emit(NETWORK_EVENTS.NETWORK_CHANGE, networkStatePayload);
+    eventEmitter.emit('change', networkStatePayload);
 
     // 触发上线/离线事件
     if (wasOnline !== this.isOnlineValue) {
@@ -213,6 +216,28 @@ class NetworkService {
   }
 
   /**
+   * 兼容旧接口：添加网络变化监听器
+   * @param {Function} listener 监听器
+   * @returns {Function} 取消监听函数
+   */
+  addNetworkListener(listener) {
+    return this.addListener(NETWORK_EVENTS.NETWORK_CHANGE, listener);
+  }
+
+  /**
+   * 兼容旧接口：移除网络变化监听器
+   * @param {Function} unsubscribeOrListener 取消监听函数或监听器
+   */
+  removeNetworkListener(unsubscribeOrListener) {
+    if (typeof unsubscribeOrListener === 'function') {
+      unsubscribeOrListener();
+      return;
+    }
+
+    this.removeListener(NETWORK_EVENTS.NETWORK_CHANGE, unsubscribeOrListener);
+  }
+
+  /**
    * 移除网络事件监听器
    * @param {string} event 事件名称
    * @param {Function} listener 监听器
@@ -236,6 +261,9 @@ class NetworkService {
   }
 }
 
-export const networkService = new NetworkService();
+const networkService = new NetworkService();
 
+const isNetworkConnected = async () => networkService.checkConnection();
+
+export { NetworkService, networkService, isNetworkConnected };
 export default networkService;

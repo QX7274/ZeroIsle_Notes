@@ -33,18 +33,16 @@ export const DEFAULT_COLORS = [
  * @returns {boolean} 颜色是否有效
  */
 export const isValidColor = (color) => {
-  // 明确检查undefined和null
-  if (color === undefined || color === null || color === '') return false;
+  if (color === undefined || color === null || color === '') {return false;}
 
-  // 检查是否为有效的十六进制颜色
   if (typeof color === 'string') {
     const trimmed = color.trim();
-    if (trimmed === '') return false;
+    if (trimmed === '') {return false;}
 
-    return /^#([0-9A-F]{3}){1,2}$/i.test(trimmed) ||
-           /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i.test(trimmed) ||
-           /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/i.test(trimmed) ||
-           isNamedColor(trimmed);
+    return /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(trimmed) ||
+      /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i.test(trimmed) ||
+      /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0|1|0?\.\d+)\s*\)$/i.test(trimmed) ||
+      isNamedColor(trimmed);
   }
 
   return false;
@@ -56,7 +54,7 @@ export const isValidColor = (color) => {
 const isNamedColor = (color) => {
   const namedColors = [
     'black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'purple',
-    'pink', 'brown', 'gray', 'grey', 'transparent'
+    'pink', 'brown', 'gray', 'grey', 'transparent',
   ];
 
   return namedColors.includes(color.toLowerCase());
@@ -102,7 +100,7 @@ export const getSafeColorArray = (colors) => {
     if (!colors || !Array.isArray(colors) || colors.length === 0) {
       return [...DEFAULT_COLORS];
     }
-    
+
     // 过滤无效颜色
     return filterValidColors(colors);
   } catch (error) {
@@ -118,18 +116,145 @@ export const getSafeColorArray = (colors) => {
  */
 export const getRandomColor = (excludeColors = []) => {
   const availableColors = DEFAULT_COLORS.filter(color => !excludeColors.includes(color));
-  
+
   if (availableColors.length === 0) {
     // 如果所有颜色都被排除，生成随机颜色
     const randomValues = new Uint32Array(1);
     crypto.getRandomValues(randomValues);
     return `#${(randomValues[0] % 16777215).toString(16).padStart(6, '0')}`;
   }
-  
+
   const randomValues = new Uint32Array(1);
   crypto.getRandomValues(randomValues);
   const randomIndex = randomValues[0] % availableColors.length;
   return availableColors[randomIndex];
+};
+
+/**
+ * HSV转RGB
+ * @param {number} h 色相 0-360
+ * @param {number} s 饱和度 0-100
+ * @param {number} v 明度 0-100
+ * @returns {string} HEX颜色值
+ */
+export const hsvToRgb = (h, s, v) => {
+  s = s / 100;
+  v = v / 100;
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0, g = 0, b = 0;
+
+  if (h >= 0 && h < 60) {
+    r = c; g = x; b = 0;
+  } else if (h >= 60 && h < 120) {
+    r = x; g = c; b = 0;
+  } else if (h >= 120 && h < 180) {
+    r = 0; g = c; b = x;
+  } else if (h >= 180 && h < 240) {
+    r = 0; g = x; b = c;
+  } else if (h >= 240 && h < 300) {
+    r = x; g = 0; b = c;
+  } else if (h >= 300 && h < 360) {
+    r = c; g = 0; b = x;
+  }
+
+  r = Math.round((r + m) * 255);
+  g = Math.round((g + m) * 255);
+  b = Math.round((b + m) * 255);
+
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+};
+
+const NAMED_COLOR_TO_HEX = {
+  black: '#000000',
+  white: '#FFFFFF',
+  red: '#FF0000',
+  green: '#008000',
+  blue: '#0000FF',
+  yellow: '#FFFF00',
+  orange: '#FFA500',
+  purple: '#800080',
+  pink: '#FFC0CB',
+  brown: '#A52A2A',
+  gray: '#808080',
+  grey: '#808080',
+  transparent: '#000000',
+};
+
+const clamp255 = (n) => Math.max(0, Math.min(255, Number(n) || 0));
+
+const parseColorToRgb = (color) => {
+  if (!isValidColor(color) || typeof color !== 'string') {return null;}
+  const c = color.trim();
+
+  if (/^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(c)) {
+    const hex = c.length === 4
+      ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`
+      : c;
+    return {
+      r: parseInt(hex.slice(1, 3), 16),
+      g: parseInt(hex.slice(3, 5), 16),
+      b: parseInt(hex.slice(5, 7), 16),
+    };
+  }
+
+  const rgbMatch = c.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+  if (rgbMatch) {
+    return { r: clamp255(rgbMatch[1]), g: clamp255(rgbMatch[2]), b: clamp255(rgbMatch[3]) };
+  }
+
+  const rgbaMatch = c.match(/^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$/i);
+  if (rgbaMatch) {
+    return { r: clamp255(rgbaMatch[1]), g: clamp255(rgbaMatch[2]), b: clamp255(rgbaMatch[3]) };
+  }
+
+  const namedHex = NAMED_COLOR_TO_HEX[c.toLowerCase()];
+  if (namedHex) {
+    return {
+      r: parseInt(namedHex.slice(1, 3), 16),
+      g: parseInt(namedHex.slice(3, 5), 16),
+      b: parseInt(namedHex.slice(5, 7), 16),
+    };
+  }
+
+  return null;
+};
+
+/**
+ * RGB转HSV
+ * @param {string} color 颜色值（HEX/RGB/RGBA/命名色）
+ * @returns {object} {h, s, v}
+ */
+export const rgbToHsv = (color) => {
+  const rgb = parseColorToRgb(color);
+  if (!rgb) {return { h: 0, s: 0, v: 0 };}
+
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const diff = max - min;
+
+  let h = 0;
+  const s = max === 0 ? 0 : (diff / max) * 100;
+  const v = max * 100;
+
+  if (diff !== 0) {
+    if (max === r) {
+      h = 60 * (((g - b) / diff) % 6);
+    } else if (max === g) {
+      h = 60 * ((b - r) / diff + 2);
+    } else {
+      h = 60 * ((r - g) / diff + 4);
+    }
+  }
+
+  if (h < 0) {h += 360;}
+
+  return { h, s, v };
 };
 
 export default {
@@ -137,5 +262,7 @@ export default {
   isValidColor,
   filterValidColors,
   getSafeColorArray,
-  getRandomColor
+  getRandomColor,
+  hsvToRgb,
+  rgbToHsv,
 };

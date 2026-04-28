@@ -2,7 +2,6 @@
  * 提醒模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 提醒模式
@@ -11,7 +10,7 @@ const ReminderSchema = {
   name: 'Reminder',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
+    _id: { type: 'string' },
     title: { type: 'string', default: '' },
     description: { type: 'string', default: '' },
     date: { type: 'date', optional: true },
@@ -23,8 +22,8 @@ const ReminderSchema = {
     updated_at: { type: 'date', default: () => new Date() },
     completed_at: { type: 'date', optional: true },
     deleted_at: { type: 'date', optional: true },
-    user_id: { type: 'objectId', optional: true },
-    note_id: { type: 'objectId', optional: true },
+    user_id: { type: 'string', optional: true },
+    note_id: { type: 'string', optional: true },
     repeat_type: { type: 'string', optional: true }, // daily, weekly, monthly, yearly
     repeat_interval: { type: 'int', optional: true },
     repeat_end_date: { type: 'date', optional: true },

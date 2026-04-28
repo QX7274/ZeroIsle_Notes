@@ -16,7 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../../services/network/networkService';
 import { useDispatch } from 'react-redux';
 
 // 导入API服务
@@ -208,8 +208,8 @@ const VoiceReminderScreen = ({ navigation, route }) => {
 
     try {
       // 检查网络连接
-      const netInfo = await NetInfo.fetch();
-      if (!netInfo.isConnected) {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
         displayToast('需要网络连接');
         return;
       }

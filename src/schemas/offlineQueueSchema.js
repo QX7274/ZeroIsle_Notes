@@ -2,7 +2,6 @@
  * 离线队列模式定义
  */
 
-import { ObjectId } from 'bson';
 
 /**
  * 离线队列模式
@@ -11,18 +10,21 @@ const OfflineQueueSchema = {
   name: 'OfflineQueue',
   primaryKey: '_id',
   properties: {
-    _id: { type: 'objectId', default: () => new ObjectId() },
-    entity_id: { type: 'objectId', optional: true },
+    _id: { type: 'string' },
+    entity_id: { type: 'string', optional: true },
     entity_type: { type: 'string', default: '' },
-    operation: { type: 'string', default: '' }, 
+    operation: { type: 'string', default: '' },
     data: { type: 'string', default: '{}' }, // 存 JSON 字符串
-    status: { type: 'string', default: 'pending' }, 
+    status: { type: 'string', default: 'pending' },
     error: { type: 'string', optional: true },
     retry_count: { type: 'int', default: 0 },
     created_at: { type: 'date', default: () => new Date() },
     updated_at: { type: 'date', default: () => new Date() },
+    updatedAt: { type: 'date', optional: true },
+    deviceId: { type: 'string', optional: true },
+    clientOpId: { type: 'string', optional: true },
     completed_at: { type: 'date', optional: true },
-    user_id: { type: 'objectId', optional: true },
+    user_id: { type: 'string', optional: true },
     device_id: { type: 'string', optional: true },
     priority: { type: 'int', default: 0 },
     _partition: { type: 'string', default: 'offline_queue' },

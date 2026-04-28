@@ -11,7 +11,7 @@ import requests
 from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta
-from ..models import UserProfile, VerificationCode
+from users.models import UserProfile, VerificationCode
 
 logger = logging.getLogger(__name__)
 

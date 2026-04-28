@@ -29,7 +29,7 @@ async function testCreateReminder() {
     description: '这是一个测试提醒',
     due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 明天
     priority: 'medium',
-    frequency: 'once'
+    frequency: 'once',
   };
   const response = await reminderApi.createReminder(reminderData);
   console.log('响应:', response);
@@ -44,7 +44,7 @@ async function testUpdateReminder(id) {
     description: '这是更新后的测试提醒',
     due_date: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 后天
     priority: 'high',
-    frequency: 'daily'
+    frequency: 'daily',
   };
   const response = await reminderApi.updateReminder(id, reminderData);
   console.log('响应:', response);
@@ -98,7 +98,7 @@ async function testCreateReminderFromNote(noteId) {
     note_id: noteId,
     title: '笔记提醒测试',
     description: '这是从笔记创建的测试提醒',
-    due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 明天
+    due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 明天
   };
   const response = await reminderApi.createReminderFromNote(reminderData);
   console.log('响应:', response);
@@ -134,44 +134,44 @@ async function runTests() {
   try {
     // 获取所有提醒
     const remindersResponse = await testGetAllReminders();
-    
+
     // 创建提醒
     const createResponse = await testCreateReminder();
-    
+
     if (createResponse.success) {
       const reminderId = createResponse.data.id;
-      
+
       // 获取提醒详情
       await testGetReminderById(reminderId);
-      
+
       // 更新提醒
       await testUpdateReminder(reminderId);
-      
+
       // 完成提醒
       await testCompleteReminder(reminderId);
-      
+
       // 重新打开提醒
       await testReopenReminder(reminderId);
-      
+
       // 启用/禁用提醒
       await testToggleEnableReminder(reminderId);
-      
+
       // 删除提醒
       await testDeleteReminder(reminderId);
     }
-    
+
     // 获取即将到期的提醒
     await testGetUpcomingReminders();
-    
+
     // 获取已过期的提醒
     await testGetOverdueReminders();
-    
+
     // 获取今日提醒
     await testGetTodayReminders();
-    
+
     // 获取提醒通知
     await testGetReminderNotifications();
-    
+
     // 如果有笔记，测试从笔记创建提醒
     if (remindersResponse.success && remindersResponse.data.results && remindersResponse.data.results.length > 0) {
       const noteId = remindersResponse.data.results[0].note;
@@ -179,7 +179,7 @@ async function runTests() {
         await testCreateReminderFromNote(noteId);
       }
     }
-    
+
     console.log('所有测试完成!');
   } catch (error) {
     console.error('测试过程中出错:', error);

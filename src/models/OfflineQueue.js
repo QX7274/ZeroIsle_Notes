@@ -216,7 +216,7 @@ class OfflineQueue extends Realm.Object {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    let queryStr = `status = "synced" AND synced_at < $0`;
+    let queryStr = 'status = "synced" AND synced_at < $0';
 
     if (query.user_id) {
       queryStr += ` AND user_id = "${query.user_id}"`;

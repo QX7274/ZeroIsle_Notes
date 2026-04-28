@@ -42,7 +42,7 @@ const VoiceRecorder = ({
   // 使用主题
   const { theme } = useTheme();
   const { colors } = theme;
-  
+
   // 状态
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -50,7 +50,7 @@ const VoiceRecorder = ({
   const [recordSecs, setRecordSecs] = useState(0);
   const [filePath, setFilePath] = useState('');
   const [hasPermission, setHasPermission] = useState(false);
-  
+
   // 引用
   const audioRecorderPlayer = useRef(null);
   const recordingTimeout = useRef(null);
@@ -64,11 +64,11 @@ const VoiceRecorder = ({
       console.warn('VoiceRecorder: AudioRecorderPlayer初始化失败:', error);
     }
   }, []);
-  
+
   // 组件挂载时检查权限
   useEffect(() => {
     checkPermission();
-    
+
     // 组件卸载时清理
     return () => {
       if (isRecording) {
@@ -79,7 +79,7 @@ const VoiceRecorder = ({
       }
     };
   }, []);
-  
+
   // 检查录音权限
   const checkPermission = async () => {
     if (Platform.OS === 'android') {
@@ -88,7 +88,7 @@ const VoiceRecorder = ({
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
         ]);
-        
+
         if (
           grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] ===
             PermissionsAndroid.RESULTS.GRANTED &&
@@ -111,7 +111,7 @@ const VoiceRecorder = ({
       setHasPermission(true);
     }
   };
-  
+
   // 开始录音
   const startRecording = async () => {
     if (!hasPermission) {
@@ -120,54 +120,54 @@ const VoiceRecorder = ({
         return;
       }
     }
-    
+
     try {
       // 生成录音文件路径
       const path = Platform.select({
         ios: `${RNFS.DocumentDirectoryPath}/${filePrefix}_${Date.now()}.m4a`,
         android: `${RNFS.ExternalDirectoryPath}/${filePrefix}_${Date.now()}.mp3`,
       });
-      
+
       setFilePath(path);
-      
+
       // 配置录音选项
       const audioSet = {
-        AudioEncoderAndroid: Platform.OS === 'android' ? 
+        AudioEncoderAndroid: Platform.OS === 'android' ?
           AudioRecorderPlayer.AudioEncoderAndroidType.AAC : undefined,
-        AudioSourceAndroid: Platform.OS === 'android' ? 
+        AudioSourceAndroid: Platform.OS === 'android' ?
           AudioRecorderPlayer.AudioSourceAndroidType.MIC : undefined,
-        AVEncoderAudioQualityKeyIOS: Platform.OS === 'ios' ? 
+        AVEncoderAudioQualityKeyIOS: Platform.OS === 'ios' ?
           AudioRecorderPlayer.AVEncoderAudioQualityIOSType.high : undefined,
         AVNumberOfChannelsKeyIOS: Platform.OS === 'ios' ? 2 : undefined,
-        AVFormatIDKeyIOS: Platform.OS === 'ios' ? 
+        AVFormatIDKeyIOS: Platform.OS === 'ios' ?
           AudioRecorderPlayer.AVEncoderAudioQualityIOSType.m4a : undefined,
       };
-      
+
       // 开始录音
       await audioRecorderPlayer.current.startRecorder(path, audioSet);
-      
+
       // 设置录音状态
       setIsRecording(true);
       setIsPaused(false);
-      
+
       // 监听录音进度
       audioRecorderPlayer.current.addRecordBackListener((e) => {
         setRecordSecs(e.currentPosition / 1000);
         setRecordTime(audioRecorderPlayer.current.mmssss(e.currentPosition));
       });
-      
+
       // 设置最大录制时长
       if (maxDuration > 0) {
         recordingTimeout.current = setTimeout(() => {
           stopRecording();
         }, maxDuration * 1000);
       }
-      
+
       // 调用回调
       if (onRecordingStart) {
         onRecordingStart();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('start_recording');
     } catch (error) {
@@ -175,41 +175,41 @@ const VoiceRecorder = ({
       Alert.alert('错误', '开始录音失败: ' + error.message);
     }
   };
-  
+
   // 暂停录音
   const pauseRecording = async () => {
-    if (!isRecording || isPaused) return;
-    
+    if (!isRecording || isPaused) {return;}
+
     try {
       await audioRecorderPlayer.current.pauseRecorder();
       setIsPaused(true);
-      
+
       // 暂停时清除超时计时器
       if (recordingTimeout.current) {
         clearTimeout(recordingTimeout.current);
         recordingTimeout.current = null;
       }
-      
+
       // 调用回调
       if (onRecordingPause) {
         onRecordingPause();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('pause_recording');
     } catch (error) {
       console.error('暂停录音失败:', error);
     }
   };
-  
+
   // 继续录音
   const resumeRecording = async () => {
-    if (!isRecording || !isPaused) return;
-    
+    if (!isRecording || !isPaused) {return;}
+
     try {
       await audioRecorderPlayer.current.resumeRecorder();
       setIsPaused(false);
-      
+
       // 重新设置超时计时器
       if (maxDuration > 0) {
         const remainingTime = maxDuration - recordSecs;
@@ -221,51 +221,51 @@ const VoiceRecorder = ({
           stopRecording();
         }
       }
-      
+
       // 调用回调
       if (onRecordingResume) {
         onRecordingResume();
       }
-      
+
       // 记录分析事件
       analyticsService.trackVoiceAction('resume_recording');
     } catch (error) {
       console.error('继续录音失败:', error);
     }
   };
-  
+
   // 停止录音
   const stopRecording = async (cancel = false) => {
-    if (!isRecording) return;
-    
+    if (!isRecording) {return;}
+
     try {
       // 停止录音
       const result = await audioRecorderPlayer.current.stopRecorder();
       audioRecorderPlayer.current.removeRecordBackListener();
-      
+
       // 重置状态
       setIsRecording(false);
       setIsPaused(false);
       setRecordTime('00:00');
       setRecordSecs(0);
-      
+
       // 清除超时计时器
       if (recordingTimeout.current) {
         clearTimeout(recordingTimeout.current);
         recordingTimeout.current = null;
       }
-      
+
       // 如果是取消录音，删除文件
       if (cancel) {
         if (filePath && await RNFS.exists(filePath)) {
           await RNFS.unlink(filePath);
         }
-        
+
         // 调用取消回调
         if (onRecordingCancel) {
           onRecordingCancel();
         }
-        
+
         // 记录分析事件
         analyticsService.trackVoiceAction('cancel_recording');
       } else {
@@ -273,7 +273,7 @@ const VoiceRecorder = ({
         if (onRecordingComplete) {
           onRecordingComplete(filePath);
         }
-        
+
         // 记录分析事件
         analyticsService.trackVoiceAction('complete_recording', {
           duration: recordSecs,
@@ -284,19 +284,19 @@ const VoiceRecorder = ({
       console.error('停止录音失败:', error);
     }
   };
-  
+
   // 取消录音
   const cancelRecording = () => {
     stopRecording(true);
   };
-  
+
   // 格式化时间显示
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
+
   return (
     <View style={[styles.container, style]}>
       {/* 录音状态显示 */}
@@ -340,7 +340,7 @@ const VoiceRecorder = ({
             </Text>
           </View>
         )}
-        
+
         <Text
           variant="heading"
           level="h6"
@@ -356,7 +356,7 @@ const VoiceRecorder = ({
           {isRecording ? formatTime(recordSecs) : '00:00'}
         </Text>
       </View>
-      
+
       {/* 控制按钮 */}
       <View style={styles.controlsContainer}>
         {isRecording ? (
@@ -374,7 +374,7 @@ const VoiceRecorder = ({
             >
               <Icon name="close" size={24} color={colors.error} />
             </TouchableOpacity>
-            
+
             {/* 暂停/继续按钮 */}
             <TouchableOpacity
               style={[
@@ -395,7 +395,7 @@ const VoiceRecorder = ({
                 color={isPaused ? colors.success : colors.warning}
               />
             </TouchableOpacity>
-            
+
             {/* 停止按钮 */}
             <TouchableOpacity
               style={[

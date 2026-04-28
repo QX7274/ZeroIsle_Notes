@@ -61,7 +61,7 @@ const GroupDetail = ({ groupId }) => {
   };
 
   const handleShareJoinCode = async () => {
-    if (!joinCode) return;
+    if (!joinCode) {return;}
 
     try {
       await Share.share({
@@ -89,7 +89,7 @@ const GroupDetail = ({ groupId }) => {
   };
 
   const formatExpiryTime = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) {return '';}
 
     const expiryDate = new Date(dateString);
     return expiryDate.toLocaleString();

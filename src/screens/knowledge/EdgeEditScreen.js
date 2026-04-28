@@ -10,12 +10,24 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput,
+  Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { colors } from '../../utils/constants/colors';
+import { COLORS } from '../../utils/constants/colors';
 import { Text } from 'react-native';
+
+// 统一颜色键，避免直接使用常量大写键导致的 undefined
+const colors = {
+  background: COLORS.BACKGROUND,
+  primary: COLORS.PRIMARY,
+  error: COLORS.DANGER,
+  warning: COLORS.WARNING,
+  surface: COLORS.SURFACE,
+  border: COLORS.BORDER,
+  text: COLORS.TEXT_PRIMARY,
+  textSecondary: COLORS.TEXT_SECONDARY,
+};
 import { Button, Card, Toast } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { EdgeEditor } from '../../components/knowledge';
@@ -41,6 +53,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
   const [isCreating, setIsCreating] = useState(!edgeId);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('info');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isOffline, setIsOffline] = useState(false); // 简化离线状态检查
 
   // 监听离线状态变化
@@ -101,7 +114,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
 
   // 处理保存
   const handleSave = async () => {
-    if (!edge) return;
+    if (!edge) {return;}
 
     // 验证数据
     if (!edge.source) {
@@ -138,32 +151,19 @@ const EdgeEditScreen = ({ route, navigation }) => {
   };
 
   // 处理删除
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (isCreating) {
       navigation.goBack();
       return;
     }
 
-    Alert.alert(
-      '删除关系',
-      '确定要删除此关系吗？此操作不可撤销。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deleteEdge(edgeId)).unwrap();
-              navigation.goBack();
-              showToast('关系已删除', 'success');
-            } catch (err) {
-              showToast('删除失败: ' + (err.message || '请稍后重试'), 'error');
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await dispatch(deleteEdge(edgeId)).unwrap();
+      navigation.goBack();
+      showToast('关系已删除', 'success');
+    } catch (err) {
+      showToast('删除失败: ' + (err.message || '请稍后重试'), 'error');
+    }
   };
 
   // 渲染加载状态
@@ -257,7 +257,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
                 title="删除"
                 type="outline"
                 icon="delete"
-                onPress={handleDelete}
+                onPress={() => setShowDeleteConfirm(true)}
                 style={[styles.actionButton, styles.deleteButton]}
                 textColor="error"
                 disabled={isOffline}
@@ -273,6 +273,36 @@ const EdgeEditScreen = ({ route, navigation }) => {
           </View>
         </Card>
       </ScrollView>
+
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>删除关系</Text>
+            <Text style={styles.modalMessage}>确定要删除此关系吗？此操作不可撤销。</Text>
+            <View style={styles.modalActions}>
+              <Button
+                title="取消"
+                type="outline"
+                onPress={() => setShowDeleteConfirm(false)}
+                style={styles.modalButton}
+              />
+              <Button
+                title="删除"
+                onPress={async () => {
+                  setShowDeleteConfirm(false);
+                  await handleDelete();
+                }}
+                style={styles.modalButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Toast消息 */}
       {toastMessage ? (
@@ -342,6 +372,41 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     minWidth: 120,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  modalButton: {
+    flex: 1,
   },
 });
 

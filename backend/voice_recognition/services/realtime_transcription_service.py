@@ -85,6 +85,9 @@ class RealtimeTranscriptionService:
             except Exception as e:
                 logger.error(f"实时转写模型初始化失败: {e}")
 
+        # 初始化会话锁
+        self.session_lock = threading.Lock()
+
         # 初始化完成标记
         self._initialized = True
 
@@ -103,31 +106,32 @@ class RealtimeTranscriptionService:
             logger.warning("实时转写功能不可用")
             return None
 
-        # 生成会话ID
-        session_id = str(uuid.uuid4())
+        with self.session_lock:
+            # 生成会话ID
+            session_id = str(uuid.uuid4())
 
-        # 创建会话
-        self.sessions[session_id] = {
-            'user_id': user_id,
-            'created_at': timezone.now(),
-            'last_active': timezone.now(),
-            'language': language or 'zh',
-            'audio_queue': Queue(),
-            'result_queue': Queue(),
-            'is_processing': False,
-            'is_finished': False,
-            'thread': None,
-            'audio_buffer': [],
-            'sample_rate': 16000,
-            'interim_results': [],
-            'final_results': [],
-            'transcription_id': None
-        }
+            # 创建会话
+            self.sessions[session_id] = {
+                'user_id': user_id,
+                'created_at': timezone.now(),
+                'last_active': timezone.now(),
+                'language': language or 'zh',
+                'audio_queue': Queue(),
+                'result_queue': Queue(),
+                'is_processing': False,
+                'is_finished': False,
+                'thread': None,
+                'audio_buffer': [],
+                'sample_rate': 16000,
+                'interim_results': [],
+                'final_results': [],
+                'transcription_id': None
+            }
 
-        # 启动处理线程
-        self._start_processing_thread(session_id)
+            # 启动处理线程
+            self._start_processing_thread(session_id)
 
-        return session_id
+            return session_id
 
     def _start_processing_thread(self, session_id):
         """
@@ -242,75 +246,55 @@ class RealtimeTranscriptionService:
             # 应用音量归一化
             audio_np = self._normalize_audio(audio_np)
 
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
-                temp_file_path = temp_file.name
+            # 转写音频 - 直接使用 numpy 数组，消除磁盘 I/O 延迟
+            segments, info = self.model.transcribe(
+                audio_np,
+                language=session['language'],
+                task="transcribe",
+                beam_size=1,  # 保持小的beam size以提高速度
+                best_of=1,    # 保持小的best_of以提高速度
+                temperature=0.0,  # 确定性输出
+                vad_filter=True,  # 语音活动检测
+                vad_parameters={
+                    'threshold': 0.5,
+                    'min_speech_duration_ms': 250,
+                    'max_speech_duration_s': 30,
+                    'min_silence_duration_ms': 500
+                },
+                word_timestamps=True
+            )
 
-            try:
-                # 保存音频
-                sf.write(temp_file_path, audio_np, session['sample_rate'])
+            # 处理转写结果 (与之前相同)
+            result_text = ""
+            words_with_timestamps = []
 
-                # 转写音频 - 使用优化的参数
-                segments, info = self.model.transcribe(
-                    temp_file_path,
-                    language=session['language'],
-                    task="transcribe",
-                    beam_size=1,  # 保持小的beam size以提高速度
-                    best_of=1,    # 保持小的best_of以提高速度
-                    temperature=0.0,  # 确定性输出
-                    vad_filter=True,  # 语音活动检测
-                    vad_parameters={
-                        'threshold': 0.5,  # 更敏感的VAD阈值
-                        'min_speech_duration_ms': 250,  # 更短的最小语音持续时间
-                        'max_speech_duration_s': 30,  # 更长的最大语音持续时间
-                        'min_silence_duration_ms': 500  # 更短的最小静音持续时间
-                    },
-                    word_timestamps=True  # 获取单词级时间戳，提高实时性
-                )
+            for segment in segments:
+                result_text += segment.text
+                if hasattr(segment, 'words') and segment.words:
+                    for word in segment.words:
+                        words_with_timestamps.append({
+                            'word': word.word,
+                            'start': word.start,
+                            'end': word.end,
+                            'probability': word.probability
+                        })
 
-                # 处理转写结果
-                result_text = ""
-                words_with_timestamps = []
-
-                for segment in segments:
-                    result_text += segment.text
-
-                    # 收集单词级时间戳
-                    if hasattr(segment, 'words') and segment.words:
-                        for word in segment.words:
-                            words_with_timestamps.append({
-                                'word': word.word,
-                                'start': word.start,
-                                'end': word.end,
-                                'probability': word.probability
-                            })
-
-                # 添加到临时结果
-                if result_text.strip():
-                    # 创建更丰富的结果对象
-                    result_obj = {
-                        'text': result_text.strip(),
-                        'timestamp': time.time(),
-                        'words': words_with_timestamps,
-                        'language': info.language,
-                        'language_probability': info.language_probability
-                    }
-
-                    session['interim_results'].append(result_obj)
-
-                    # 将结果放入队列
-                    session['result_queue'].put({
-                        'type': 'interim',
-                        'text': result_text.strip(),
-                        'timestamp': time.time(),
-                        'words': words_with_timestamps,
-                        'language': info.language
-                    })
-
-            finally:
-                # 删除临时文件
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
+            if result_text.strip():
+                result_obj = {
+                    'text': result_text.strip(),
+                    'timestamp': time.time(),
+                    'words': words_with_timestamps,
+                    'language': info.language,
+                    'language_probability': info.language_probability
+                }
+                session['interim_results'].append(result_obj)
+                session['result_queue'].put({
+                    'type': 'interim',
+                    'text': result_text.strip(),
+                    'timestamp': time.time(),
+                    'words': words_with_timestamps,
+                    'language': info.language
+                })
 
         except Exception as e:
             logger.error(f"处理音频块失败: {e}")
@@ -742,19 +726,20 @@ class RealtimeTranscriptionService:
         Returns:
             dict: 最终结果
         """
-        if session_id not in self.sessions:
-            logger.warning(f"会话 {session_id} 不存在")
-            return None
+        with self.session_lock:
+            if session_id not in self.sessions:
+                logger.warning(f"会话 {session_id} 不存在")
+                return None
 
-        session = self.sessions[session_id]
+            session = self.sessions[session_id]
 
-        # 标记会话结束
-        session['is_finished'] = True
+            # 标记会话结束
+            session['is_finished'] = True
 
-        # 添加结束标记
-        session['audio_queue'].put(None)
+            # 添加结束标记
+            session['audio_queue'].put(None)
 
-        # 等待处理完成
+        # 等待处理完成 (释放锁后再等待线程合并)
         if session['thread'] and session['thread'].is_alive():
             session['thread'].join(timeout=5.0)
 
@@ -765,8 +750,9 @@ class RealtimeTranscriptionService:
             if result['type'] == 'final':
                 final_result = result
 
-        # 清理会话
-        self.sessions.pop(session_id, None)
+        # 清理会话 (重新加锁执行 pop)
+        with self.session_lock:
+            self.sessions.pop(session_id, None)
 
         return final_result
 

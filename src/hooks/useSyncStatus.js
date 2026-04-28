@@ -24,12 +24,12 @@ const useSyncStatus = () => {
   // 初始化
   useEffect(() => {
     let isMounted = true;
-    
+
     const initialize = async () => {
       try {
         // 初始化离线同步服务
         await offlineSyncService.initialize();
-        
+
         if (isMounted) {
           // 获取同步状态
           const status = offlineSyncService.getSyncStatus();
@@ -42,9 +42,9 @@ const useSyncStatus = () => {
         }
       }
     };
-    
+
     initialize();
-    
+
     // 监听网络状态变化
     const networkListener = networkService.addNetworkListener((state) => {
       if (isMounted) {
@@ -54,7 +54,7 @@ const useSyncStatus = () => {
         }));
       }
     });
-    
+
     // 定期更新同步状态
     const statusInterval = setInterval(() => {
       if (isMounted) {
@@ -66,7 +66,7 @@ const useSyncStatus = () => {
         }
       }
     }, 5000); // 每5秒更新一次
-    
+
     return () => {
       isMounted = false;
       networkService.removeNetworkListener(networkListener);
@@ -81,19 +81,19 @@ const useSyncStatus = () => {
   const syncNow = useCallback(async () => {
     try {
       setError(null);
-      
+
       // 检查网络连接
       if (!networkService.isOnline()) {
         throw new Error('网络连接不可用');
       }
-      
+
       // 执行同步
       const result = await offlineSyncService.syncWithServer();
-      
+
       // 更新同步状态
       const status = offlineSyncService.getSyncStatus();
       setSyncStatus(status);
-      
+
       return result;
     } catch (err) {
       logService.error('手动同步失败', err);
@@ -114,7 +114,7 @@ const useSyncStatus = () => {
       } else {
         offlineSyncService.stopAutoSync();
       }
-      
+
       // 更新同步状态
       const status = offlineSyncService.getSyncStatus();
       setSyncStatus(status);
@@ -132,11 +132,11 @@ const useSyncStatus = () => {
   const cleanSyncQueue = useCallback(async () => {
     try {
       const result = await offlineSyncService.cleanSyncQueue();
-      
+
       // 更新同步状态
       const status = offlineSyncService.getSyncStatus();
       setSyncStatus(status);
-      
+
       return result;
     } catch (err) {
       logService.error('清理同步队列失败', err);
@@ -164,7 +164,7 @@ const useSyncStatus = () => {
     // 状态
     ...syncStatus,
     error,
-    
+
     // 方法
     syncNow,
     toggleAutoSync,

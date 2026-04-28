@@ -1,10 +1,11 @@
 """
-Common应用URL配置
+通用模块URL配置
 """
 
-from django.urls import path
-from .views.mongodb_test import MongoDBTestView
+from rest_framework.routers import DefaultRouter
+from .views.task_status import TaskStatusViewSet
 
-urlpatterns = [
-    path('mongodb-test/', MongoDBTestView.as_view(), name='mongodb-test'),
-]
+router = DefaultRouter()
+router.register(r'tasks', TaskStatusViewSet, basename='task-status')
+
+urlpatterns = router.urls

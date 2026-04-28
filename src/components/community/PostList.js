@@ -46,11 +46,11 @@ const PostList = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
-  
+
   // 渲染空状态
   const renderEmpty = () => {
-    if (isLoading && !isRefreshing) return null;
-    
+    if (isLoading && !isRefreshing) {return null;}
+
     return (
       <View style={styles.emptyContainer}>
         <Icon name="forum" size={64} color={colors.textSecondary} />
@@ -65,11 +65,11 @@ const PostList = ({
       </View>
     );
   };
-  
+
   // 渲染错误状态
   const renderError = () => {
-    if (!error) return null;
-    
+    if (!error) {return null;}
+
     return (
       <View style={styles.errorContainer}>
         <Icon name="error" size={48} color={colors.error} />
@@ -96,11 +96,11 @@ const PostList = ({
       </View>
     );
   };
-  
+
   // 渲染底部
   const renderFooter = () => {
-    if (!isLoading || isRefreshing) return null;
-    
+    if (!isLoading || isRefreshing) {return null;}
+
     return (
       <View style={styles.footerContainer}>
         <ActivityIndicator size="small" color={colors.primary} />
@@ -115,7 +115,7 @@ const PostList = ({
       </View>
     );
   };
-  
+
   // 渲染帖子项
   const renderItem = ({ item }) => (
     <PostItem
@@ -127,13 +127,13 @@ const PostList = ({
       onUserPress={() => onUserPress && onUserPress(item.user)}
     />
   );
-  
+
   // 处理加载更多
   const handleLoadMore = () => {
-    if (isLoading || !hasMore) return;
+    if (isLoading || !hasMore) {return;}
     onLoadMore && onLoadMore();
   };
-  
+
   return (
     <View style={styles.container}>
       {error ? (

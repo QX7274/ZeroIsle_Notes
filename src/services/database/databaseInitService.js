@@ -8,6 +8,7 @@ import { networkService } from '../network/networkService';
 
 import { configService } from '../app/configService';
 import { offlineSyncService } from '../offline/offlineSyncService';
+import { migrateSnippets } from '../kbSnippetStore';
 
 class DatabaseInitService {
   constructor() {
@@ -20,7 +21,7 @@ class DatabaseInitService {
    * 初始化数据库服务
    */
   async initialize() {
-    if (this.initialized) return Promise.resolve();
+    if (this.initialized) {return Promise.resolve();}
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -144,10 +145,10 @@ class DatabaseInitService {
       await mongoDBService.createIndex('tags', { user_id: 1, count: -1 });
 
       // AI聊天索引
-      await mongoDBService.createIndex('ai_conversations', { user_id: 1, is_deleted: 1 });
-      await mongoDBService.createIndex('ai_conversations', { user_id: 1, updated_at: -1 });
-      await mongoDBService.createIndex('ai_conversations', { user_id: 1, is_favorite: 1 });
-      await mongoDBService.createIndex('ai_conversations', { title: 'text', 'messages.content': 'text' });
+      await mongoDBService.createIndex('AIChat', { user_id: 1, is_deleted: 1 });
+      await mongoDBService.createIndex('AIChat', { user_id: 1, updated_at: -1 });
+      await mongoDBService.createIndex('AIChat', { user_id: 1, is_favorite: 1 });
+      await mongoDBService.createIndex('AIChat', { title: 'text', 'messages.content': 'text' });
 
       // 提醒索引
       await mongoDBService.createIndex('reminders', { user_id: 1, is_deleted: 1 });
@@ -232,11 +233,12 @@ class DatabaseInitService {
 
       // 执行迁移
       // 这里可以添加从SQLite到MongoDB的迁移逻辑
+      await migrateSnippets(); // Add snippet migration
 
       // 更新迁移状态
       await configService.set('database.migration', {
         completed: true,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       console.info('数据迁移完成');
@@ -346,5 +348,10 @@ class DatabaseInitService {
   }
 }
 
-export const databaseInitService = new DatabaseInitService();
+const databaseInitService = new DatabaseInitService();
+
+module.exports = databaseInitService;
+module.exports.default = databaseInitService;
+module.exports.databaseInitService = databaseInitService;
+module.exports.DatabaseInitService = DatabaseInitService;
 

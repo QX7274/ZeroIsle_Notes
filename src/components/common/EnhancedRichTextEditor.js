@@ -16,7 +16,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import networkService from '../../services/network/networkService';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -41,7 +41,7 @@ const EnhancedRichTextEditor = ({
   noteId = null,
   readOnly = false,
   onImageUpload,
-  showToast
+  showToast,
 }) => {
   // 解析内容为富文本格式
   const [content, setContent] = useState(value);
@@ -58,7 +58,7 @@ const EnhancedRichTextEditor = ({
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
-  
+
   const inputRef = useRef(null);
 
   const { theme } = useTheme();
@@ -176,7 +176,7 @@ const EnhancedRichTextEditor = ({
         maxHeight: 1200,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         Alert.alert('错误', '选择图片失败: ' + result.errorMessage);
@@ -203,7 +203,7 @@ const EnhancedRichTextEditor = ({
         maxHeight: 1200,
       });
 
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       if (result.errorCode) {
         Alert.alert('错误', '拍照失败: ' + result.errorMessage);
@@ -223,10 +223,10 @@ const EnhancedRichTextEditor = ({
   const uploadImageToServer = async (asset) => {
     try {
       // 检查网络连接
-      const netInfo = await NetInfo.fetch();
-      
+      const isOnline = await networkService.checkConnection();
+
       // 如果没有网络连接，则保存本地图片路径
-      if (!netInfo.isConnected) {
+      if (!isOnline) {
         insertImage(asset.uri);
         showToast && showToast('离线模式：图片将在联网后上传');
         return;
@@ -343,31 +343,31 @@ const EnhancedRichTextEditor = ({
       for (let i = 0; i < tableColumns; i++) {
         tableHeader += ` 列${i + 1} |`;
       }
-      
+
       // 生成表格分隔行
       let tableDivider = '|';
       for (let i = 0; i < tableColumns; i++) {
         tableDivider += ' --- |';
       }
-      
+
       // 生成表格内容行
       let tableContent = '';
       for (let i = 0; i < tableRows; i++) {
         tableContent += '\n|';
         for (let j = 0; j < tableColumns; j++) {
-          tableContent += `  |`;
+          tableContent += '  |';
         }
       }
-      
+
       // 组合表格Markdown
       const tableMarkdown = `\n${tableHeader}\n${tableDivider}${tableContent}\n`;
-      
+
       // 在当前光标位置插入表格
       const { start } = selection;
       const newContent =
         content.substring(0, start) + tableMarkdown + content.substring(start);
       handleContentChange(newContent);
-      
+
       // 关闭表格模态框
       setShowTableModal(false);
     } catch (error) {
@@ -384,16 +384,16 @@ const EnhancedRichTextEditor = ({
         Alert.alert('错误', '请输入链接URL');
         return;
       }
-      
+
       // 生成链接Markdown
       const linkMarkdown = `[${linkText || linkUrl}](${linkUrl})`;
-      
+
       // 在当前光标位置插入链接
       const { start } = selection;
       const newContent =
         content.substring(0, start) + linkMarkdown + content.substring(start);
       handleContentChange(newContent);
-      
+
       // 关闭链接模态框
       setShowLinkModal(false);
       setLinkUrl('');
@@ -429,7 +429,7 @@ const EnhancedRichTextEditor = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>插入表格</Text>
-          
+
           <View style={styles.tableInputContainer}>
             <View style={styles.tableInputRow}>
               <Text style={[styles.tableInputLabel, { color: colors.text }]}>行数:</Text>
@@ -440,7 +440,7 @@ const EnhancedRichTextEditor = ({
                 keyboardType="number-pad"
               />
             </View>
-            
+
             <View style={styles.tableInputRow}>
               <Text style={[styles.tableInputLabel, { color: colors.text }]}>列数:</Text>
               <TextInput
@@ -451,7 +451,7 @@ const EnhancedRichTextEditor = ({
               />
             </View>
           </View>
-          
+
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={[styles.modalButton, { borderColor: colors.border }]}
@@ -459,7 +459,7 @@ const EnhancedRichTextEditor = ({
             >
               <Text style={[styles.modalButtonText, { color: colors.text }]}>取消</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.modalButton, { backgroundColor: colors.primary }]}
               onPress={insertTable}
@@ -483,7 +483,7 @@ const EnhancedRichTextEditor = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>插入链接</Text>
-          
+
           <View style={styles.linkInputContainer}>
             <Text style={[styles.linkInputLabel, { color: colors.text }]}>链接URL:</Text>
             <TextInput
@@ -494,7 +494,7 @@ const EnhancedRichTextEditor = ({
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="none"
             />
-            
+
             <Text style={[styles.linkInputLabel, { color: colors.text }]}>链接文本:</Text>
             <TextInput
               style={[styles.linkInput, { color: colors.text, borderColor: colors.border }]}
@@ -504,7 +504,7 @@ const EnhancedRichTextEditor = ({
               placeholderTextColor={colors.textSecondary}
             />
           </View>
-          
+
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={[styles.modalButton, { borderColor: colors.border }]}
@@ -512,7 +512,7 @@ const EnhancedRichTextEditor = ({
             >
               <Text style={[styles.modalButtonText, { color: colors.text }]}>取消</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.modalButton, { backgroundColor: colors.primary }]}
               onPress={insertLink}
@@ -684,7 +684,7 @@ const EnhancedRichTextEditor = ({
           ref={inputRef}
           style={[
             styles.editor,
-            { color: colors.text }
+            { color: colors.text },
           ]}
           value={content}
           onChangeText={handleContentChange}

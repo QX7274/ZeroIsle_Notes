@@ -1,0 +1,1919 @@
+﻿python : C:\Users\QX\AppDa
+ta\Roaming\Python\Python31
+3\site-packages\jieba\_com
+pat.py:18: UserWarning: pk
+g_resources is deprecated 
+as an API. See https://set
+uptools.pypa.io/en/latest/
+pkg_resources.html. The pk
+g_resources package is sla
+ted for removal as early a
+s 2025-11-30. Refrain from
+ using this package or pin
+ to Setuptools<81.
+所在位置 行:1 字符: 28
++ ... ='testing'; python m
+anage.py test users.tests.
+test_auth > test_output ..
+.
++                 ~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpe    cified: 
+(C:\User    s\QX\App... Se
+tu    ptools<81.:Strin    
+g) [], RemoteExc    eption
+    + FullyQualified    Er
+rorId : Native    CommandE
+rror
+ 
+  import pkg_resources
+Creating test database for
+ alias 'default'...
+
+EEEEEE
+==========================
+==========================
+==================
+ERROR: test_user_binding_m
+ethods (users.tests.test_a
+uth.UserAuthTest.test_user
+_binding_methods)
+测试用户绑定多种登录方式
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+==========================
+==========================
+==================
+ERROR: test_user_login_wit
+h_email (users.tests.test_
+auth.UserAuthTest.test_use
+r_login_with_email)
+测试邮箱登录
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+==========================
+==========================
+==================
+ERROR: test_user_login_wit
+h_phone (users.tests.test_
+auth.UserAuthTest.test_use
+r_login_with_phone)
+测试手机号登录
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+==========================
+==========================
+==================
+ERROR: test_user_login_wit
+h_username (users.tests.te
+st_auth.UserAuthTest.test_
+user_login_with_username)
+测试用户名登录
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+==========================
+==========================
+==================
+ERROR: test_user_register_
+with_phone (users.tests.te
+st_auth.UserAuthTest.test_
+user_register_with_phone)
+测试手机号注册
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+==========================
+==========================
+==================
+ERROR: test_user_register_
+with_username (users.tests
+.test_auth.UserAuthTest.te
+st_user_register_with_user
+name)
+测试用户名注册
+--------------------------
+--------------------------
+------------------
+Traceback (most recent cal
+l last):
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 448, i
+n save
+    object_id = self._save
+_create(
+        doc=doc, force_ins
+ert=force_insert, write_co
+ncern=write_concern
+    )
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 515, i
+n _save_create
+    object_id = wc_collect
+ion.insert_one(doc).insert
+ed_id
+                ~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 891, in insert_one
+    self._insert_one(
+    ~~~~~~~~~~~~~~~~^
+        document,
+        ^^^^^^^^^
+    ...<5 lines>...
+        comment=comment,
+        ^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 831, in _insert_one
+    self._database.client.
+_retryable_write(
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~^
+        acknowledged, _ins
+ert_command, session, oper
+ation=_Op.INSERT
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2082, in _retryable_
+write
+    return self._retry_wit
+h_session(retryable, func,
+ s, bulk, operation, opera
+tion_id)
+           ~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 1968, in _retry_with
+_session
+    return self._retry_int
+ernal(
+           ~~~~~~~~~~~~~~~
+~~~~~^
+Found 6 test(s).
+System check identified no issues (0 silenced).
+        func=func,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        operation_id=opera
+tion_id,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\_cs
+ot.py", line 125, in csot_
+wrapper
+    return func(self, *arg
+s, **kwargs)
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2014, in _retry_inte
+rnal
+    ).run()
+      ~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2765, in run
+    return self._read() if
+ self._is_read else self._
+write()
+                          
+                    ~~~~~~
+~~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\mongo_client.py",
+ line 2897, in _write
+    return self._func(self
+._session, conn, self._ret
+ryable)  # type: ignore
+           ~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\syn
+chronous\collection.py", l
+ine 829, in _insert_comman
+d
+    _check_write_command_r
+esponse(result)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 322,
+ in _check_write_command_r
+esponse
+    _raise_last_write_erro
+r(write_errors)
+    ~~~~~~~~~~~~~~~~~~~~~~
+~^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\pymongo\hel
+pers_shared.py", line 292,
+ in _raise_last_write_erro
+r
+    raise DuplicateKeyErro
+r(error.get("errmsg"), 110
+00, error)
+pymongo.errors.DuplicateKe
+yError: E11000 duplicate k
+ey error collection: ZeroI
+sle_Notes_Test.users index
+: username_1 dup key: { us
+ername: "testuser" }, full
+ error: {'index': 0, 'code
+': 11000, 'errmsg': 'E1100
+0 duplicate key error coll
+ection: ZeroIsle_Notes_Tes
+t.users index: username_1 
+dup key: { username: "test
+user" }', 'keyPattern': {'
+username': 1}, 'keyValue':
+ {'username': 'testuser'}}
+
+During handling of the abo
+ve exception, another exce
+ption occurred:
+
+Traceback (most recent cal
+l last):
+  File "D:\ZeroIsle_Notes\
+backend\users\tests\test_a
+uth.py", line 25, in setUp
+    self.test_user = User.
+objects.create_user(
+                     ~~~~~
+~~~~~~~~~~~~~~~~~~~^
+        username='testuser
+',
+        ^^^^^^^^^^^^^^^^^^
+^^
+        email='test@exampl
+e.com',
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^
+        password='testpass
+word123'
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+175, in create_user
+    return self._create_us
+er(username, email, passwo
+rd, **extra_fields)
+           ~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\models.py", line 
+163, in _create_user
+    user.save(using=self._
+db)
+    ~~~~~~~~~^^^^^^^^^^^^^
+^^^
+  File "D:\ZeroIsle_Notes\
+backend\users\models\user.
+py", line 37, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\cont
+rib\auth\base_user.py", li
+ne 65, in save
+    super().save(*args, **
+kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 902, 
+in save
+    self.save_base(
+    ~~~~~~~~~~~~~~^
+        using=using,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        update_fields=upda
+te_fields,
+        ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\db\m
+odels\base.py", line 1023,
+ in save_base
+    post_save.send(
+    ~~~~~~~~~~~~~~^
+        sender=origin,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        using=using,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\django\disp
+atch\dispatcher.py", line 
+189, in send
+    response = receiver(si
+gnal=self, sender=sender, 
+**named)
+  File "D:\ZeroIsle_Notes\
+backend\users\signals.py",
+ line 24, in create_mongo_
+user_and_profile
+    ).save()
+      ~~~~^^
+  File "C:\Users\QX\AppDat
+a\Roaming\Python\Python313
+\site-packages\mongoengine
+\document.py", line 473, i
+n save
+    raise NotUniqueError(m
+essage % err)
+mongoengine.errors.NotUniq
+ueError: Tried to save dup
+licate unique keys (E11000
+ duplicate key error colle
+ction: ZeroIsle_Notes_Test
+.users index: username_1 d
+up key: { username: "testu
+ser" }, full error: {'inde
+x': 0, 'code': 11000, 'err
+msg': 'E11000 duplicate ke
+y error collection: ZeroIs
+le_Notes_Test.users index:
+ username_1 dup key: { use
+rname: "testuser" }', 'key
+Pattern': {'username': 1},
+ 'keyValue': {'username': 
+'testuser'}})
+
+--------------------------
+--------------------------
+------------------
+Ran 6 tests in 12.942s
+
+FAILED (errors=6)
+Destroying test database f
+or alias 'default'...
+

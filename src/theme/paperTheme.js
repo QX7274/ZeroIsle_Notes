@@ -32,7 +32,7 @@ const createFonts = (isV3) => {
         letterSpacing: 0,
         lineHeight: LINE_HEIGHT.XLARGE,
       },
-      
+
       // 标题
       headlineLarge: {
         fontFamily: FONT_FAMILY.REGULAR,
@@ -55,7 +55,7 @@ const createFonts = (isV3) => {
         letterSpacing: 0,
         lineHeight: LINE_HEIGHT.MEDIUM,
       },
-      
+
       // 标题
       titleLarge: {
         fontFamily: FONT_FAMILY.MEDIUM,
@@ -78,12 +78,12 @@ const createFonts = (isV3) => {
         letterSpacing: 0,
         lineHeight: LINE_HEIGHT.SMALL,
       },
-      
+
       // 正文
       bodyLarge: BODY.LARGE,
       bodyMedium: BODY.MEDIUM,
       bodySmall: BODY.SMALL,
-      
+
       // 标签
       labelLarge: {
         fontFamily: FONT_FAMILY.MEDIUM,
