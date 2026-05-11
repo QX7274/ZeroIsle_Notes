@@ -20,7 +20,10 @@ const ReminderScreen = ({ navigation, route }) => {
   const text = theme?.text || theme?.colors?.text || '#000000';
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme?.background || theme?.colors?.background || '#FFFFFF' }}>
+      <View
+        style={{ flex: 1, backgroundColor: theme?.background || theme?.colors?.background || '#FFFFFF' }}
+        testID="screen.reminderList"
+      >
       {/* 顶部导航栏（统一返回按钮样式） */}
       <View style={[styles.headerBar, { borderBottomColor: border, backgroundColor: cardBg }]}>
         <TouchableOpacity

@@ -12,8 +12,9 @@ describe('Smoke', () => {
     });
 
     it('should open AI entry from home', async () => {
-        await expect(element(by.id('entry.ai'))).toBeVisible();
-        await element(by.id('entry.ai')).tap();
+        const aiTab = element(by.id('nav.tab.ai'));
+        await expect(aiTab).toBeVisible();
+        await aiTab.tap();
         await expect(element(by.id('screen.ai'))).toBeVisible();
     });
 
@@ -30,7 +31,7 @@ describe('Smoke', () => {
     it('should open reminder screen from profile entry', async () => {
         await element(by.id('nav.tab.profile')).tap();
         await element(by.id('entry.reminder.profile')).tap();
-        await expect(element(by.id('screen.reminder'))).toBeVisible();
+        await expect(element(by.id('screen.reminderList'))).toBeVisible();
     });
 
     it('should open knowledge graph from stable entry', async () => {
