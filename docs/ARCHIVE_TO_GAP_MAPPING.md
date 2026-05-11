@@ -28,10 +28,10 @@
 |---|---|---|---|---|
 | `archive/模块核查方案/*` 中旧的执行入口描述 | 0 | GAP-BASELINE-002 | MAPPED | 已统一切换为总控文档与 GAP 台账 |
 | `archive/模块核查方案/*` 中历史安全类问题 | 1 | GAP-SEC-001, GAP-SEC-002 | NEED_SPLIT | 需按具体问题补录到当前台账 |
-| `archive/模块核查方案/*` 中历史部署类问题 | 2 | GAP-DEPLOY-001, GAP-DEPLOY-002, GAP-DEPLOY-003 | NEED_SPLIT | 需按环境/回滚/监控拆分 |
-| `archive/模块核查方案/*` 中历史 CI/自动化类问题 | 3 | GAP-CI-001, GAP-CI-002, GAP-CI-003 | NEED_SPLIT | 需结合当前流水线现状继续细化 |
-| `archive/模块核查方案/*` 中历史移动端可测性问题 | 4 | GAP-MOBILE-001, GAP-MOBILE-002, GAP-MOBILE-003 | NEED_SPLIT | 重点关注安装包、日志与 Android 平板验证前置 |
-| `archive/模块核查方案/*` 中历史真机或发布阻塞问题 | 5 | GAP-DEVICE-001, GAP-DEVICE-002 | NEED_SPLIT | 仅在前置就绪后进入真机执行 |
+| `archive/模块核查方案/*` 中历史瘦身、缓存、临时产物、环境收敛问题 | 2 | GAP-SLIM-001, GAP-SLIM-002, GAP-ENV-001, GAP-ENV-002, GAP-ENV-003 | NEED_SPLIT | 需拆分为删除清单、Conda、yarn、局域网联调等子项 |
+| `archive/模块核查方案/*` 中历史部署类问题 | 3 | GAP-DEPLOY-001, GAP-DEPLOY-002, GAP-CONFIG-001 | NEED_SPLIT | 需按环境、回滚、健康检查、配置契约继续拆分 |
+| `archive/模块核查方案/*` 中历史 CI/自动化与测试环境类问题 | 4 | GAP-CI-001, GAP-TEST-001, GAP-MOBILE-001 | NEED_SPLIT | 需结合当前流水线、Detox 与测试环境现状继续细化 |
+| `archive/模块核查方案/*` 中历史功能审查、真机或发布阻塞问题 | 5 | GAP-REVIEW-001, GAP-DEVICE-001, GAP-DEVICE-002 | NEED_SPLIT | 仅在环境与真机前置就绪后进入正式审查与上线结论输出 |
 
 ## 5. 维护要求
 - 新发现的历史问题，先补录到 `docs/DOC_GAP_TRACKER.md`，再回填本映射文件

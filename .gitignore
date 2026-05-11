@@ -104,3 +104,18 @@ old_*.js
 java_*.txt
 adb_*.txt
 .tmp_*.py
+
+# Batch 02 slimming: generated verification / environment artifacts
+backend/manage_check*.log
+backend/tests/*.log
+backend/test_output*.txt
+backend/pip_django_log.txt
+compose_*.txt
+audit_*.json
+dump_*.xml
+e2e_result*.txt
+android_*_list.txt
+android_sdk_status.txt
+android/*.log
+**/__pycache__/
+**/*.pyc
