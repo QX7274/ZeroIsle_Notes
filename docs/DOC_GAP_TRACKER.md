@@ -25,14 +25,14 @@
 | GAP ID | 批次 | 优先级 | 状态 | 责任智能体 | 问题/目标 | 验收标准 | 关联提交 | 验证证据 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|
 | GAP-BASELINE-001 | 0 | P0 | DONE | 总控智能体 | 将当前工作区作为生产整改基线入库并推送 `main` | 基线提交存在、已推送、总控文档已记录基线范围与风险 | `a1931d5` | `git log --oneline --decorate -3`；总控文档第 5 节 | 仍需持续补充基线未验证风险 |
-| GAP-BASELINE-002 | 0 | P0 | IN_PROGRESS | 总控智能体 | 建立唯一文档入口，停止以 `archive/*` 作为执行入口 | 总控文档、GAP 台账、历史映射三者一致，后续整改全部从总控入口分派 | `待提交` | 本台账；总控文档；历史映射文档 | 本次需同步恢复台账并检查映射是否与新批次命名一致 |
+| GAP-BASELINE-002 | 0 | P0 | IN_PROGRESS | 总控智能体 | 建立唯一文档入口，停止以 `archive/*` 作为执行入口 | 总控文档、GAP 台账、历史映射三者一致，后续整改全部从总控入口分派 | `1d96221` | 本台账；总控文档；历史映射文档 | 本轮已恢复台账并完成批次结构对齐，后续继续随整改推进维护 |
 | GAP-SEC-001 | 1 | P0 | IN_PROGRESS | 后端/安全智能体 | 清理仓库中的真实凭据、连接串与危险默认值 | 仓库中不再存在真实凭据；生产与测试不内置真实远程连接；危险默认值移除或显式失败 | `c7b162d` | 首轮代码差异；配置检查记录 | 已完成首轮整改，仍需继续扫尾与轮换说明 |
 | GAP-SEC-002 | 1 | P0 | TODO | 后端/安全智能体 | 轮换历史泄露的 MongoDB/第三方密钥并补充环境契约 | 轮换动作有记录；示例配置不再包含真实值；生产缺失配置时明确失败 | `待提交` | 后续环境核查与配置验证 | 涉及外部平台操作，当前仓库内只能先记录待办与约束 |
-| GAP-SLIM-001 | 2 | P1 | IN_PROGRESS | 瘦身与环境智能体 | 删除无用、过时、可再生文件，完成软件首轮瘦身 | 已形成删除清单；只删除安全对象；不影响规划功能与后续实施路径 | `待提交` | `git status`；删除前后清单；验证记录 | 已完成未跟踪缓存、`backend/tests/*.log`、`backend/manage_check*.log`、`.pytest_cache/` 首轮清理；dump、audit、E2E 证据文件保留到后续分批处理 |
-| GAP-SLIM-002 | 2 | P1 | IN_PROGRESS | 瘦身与环境智能体 | 清理已跟踪缓存产物，如 `__pycache__`、`.pyc` 等仓库噪声 | 跟踪缓存文件被移除；`.gitignore` 足以防止再次入库；最小验证通过 | `待提交` | `git ls-files 'admin_system/backend/**/__pycache__/*'` 结果为 `0`；`git status` 删除清单 | 已从 Git 移除 54 个已跟踪 `.pyc` / `__pycache__` 产物，并在 `.gitignore` 增加防回流规则 |
-| GAP-ENV-001 | 2 | P0 | IN_PROGRESS | 瘦身与环境智能体 | 统一 Python 环境为 Conda `ZeroIsle` 并补齐定位方式 | 找到 `conda`/`conda.bat`；确认 `ZeroIsle` 环境存在或明确阻塞；文档写明启用命令 | `待提交` | `where.exe conda`、`C:\\Users\\QX\\.conda\\environments.txt`、`conda run -n Zeroisle python --version` | 当前系统 PATH 未暴露 `conda`，但已定位 `D:\\APP\\Anaconda\\condabin\\conda.bat`，实际环境目录名为 `Zeroisle` |
-| GAP-ENV-002 | 2 | P0 | IN_PROGRESS | 移动端/Android 智能体 | 统一前端安装与 Android 运行命令为 `yarn install` / `yarn android` | 仓库脚本、文档、执行记录统一使用 yarn；如存在偏差已记录原因 | `待提交` | 根目录 `package.json`；`admin_system/frontend/package.json`；`where.exe yarn` | 根目录命令适用于 React Native 主应用，`admin_system/frontend` 需单独安装依赖，不受根目录覆盖 |
-| GAP-ENV-003 | 2 | P1 | IN_PROGRESS | 移动端/Android 智能体 | 明确局域网联调方案，支撑未部署阶段的平板测试 | 文档记录热点/局域网/IP/ADB 方案；实际可用于后续真机验证 | `待提交` | `where.exe adb`；`android/local.properties`；`adb devices -l` | 推荐优先 USB + `adb reverse tcp:8081 tcp:8081`，热点同局域网作为多设备补充方案；当前已识别真实平板 `TB128FU`，但尚未执行 Android 专用 MCP 真机验证 |
+| GAP-SLIM-001 | 2 | P1 | IN_PROGRESS | 瘦身与环境智能体 | 删除无用、过时、可再生文件，完成软件首轮瘦身 | 已形成删除清单；只删除安全对象；不影响规划功能与后续实施路径 | `1d96221` | `git status`；删除前后清单；验证记录 | 已完成未跟踪缓存、`backend/tests/*.log`、`backend/manage_check*.log`、`.pytest_cache/` 首轮清理；dump、audit、E2E 证据文件保留到后续分批处理 |
+| GAP-SLIM-002 | 2 | P1 | IN_PROGRESS | 瘦身与环境智能体 | 清理已跟踪缓存产物，如 `__pycache__`、`.pyc` 等仓库噪声 | 跟踪缓存文件被移除；`.gitignore` 足以防止再次入库；最小验证通过 | `1d96221` | `git ls-files 'admin_system/backend/**/__pycache__/*'` 结果为 `0`；`git status` 删除清单 | 已从 Git 移除 54 个已跟踪 `.pyc` / `__pycache__` 产物，并在 `.gitignore` 增加防回流规则 |
+| GAP-ENV-001 | 2 | P0 | IN_PROGRESS | 瘦身与环境智能体 | 统一 Python 环境为 Conda `ZeroIsle` 并补齐定位方式 | 找到 `conda`/`conda.bat`；确认 `ZeroIsle` 环境存在或明确阻塞；文档写明启用命令 | `1d96221` | `where.exe conda`、`C:\\Users\\QX\\.conda\\environments.txt`、`conda run -n Zeroisle python --version` | 当前系统 PATH 未暴露 `conda`，但已定位 `D:\\APP\\Anaconda\\condabin\\conda.bat`，实际环境目录名为 `Zeroisle` |
+| GAP-ENV-002 | 2 | P0 | IN_PROGRESS | 移动端/Android 智能体 | 统一前端安装与 Android 运行命令为 `yarn install` / `yarn android` | 仓库脚本、文档、执行记录统一使用 yarn；如存在偏差已记录原因 | `1d96221` | 根目录 `package.json`；`admin_system/frontend/package.json`；`where.exe yarn` | 根目录命令适用于 React Native 主应用，`admin_system/frontend` 需单独安装依赖，不受根目录覆盖 |
+| GAP-ENV-003 | 2 | P1 | IN_PROGRESS | 移动端/Android 智能体 | 明确局域网联调方案，支撑未部署阶段的平板测试 | 文档记录热点/局域网/IP/ADB 方案；实际可用于后续真机验证 | `1d96221` | `where.exe adb`；`android/local.properties`；`adb devices -l` | 推荐优先 USB + `adb reverse tcp:8081 tcp:8081`，热点同局域网作为多设备补充方案；当前已识别真实平板 `TB128FU`，但尚未执行 Android 专用 MCP 真机验证 |
 | GAP-DEPLOY-001 | 3 | P0 | IN_PROGRESS | 部署/CI 智能体 | 统一生产入口为 ASGI 主线，收敛 Docker / Compose / 健康检查 | `/health/` 与 `/ready/` 职责清晰；Docker `HEALTHCHECK` 使用 `/health/` | `c7b162d` | 首轮部署整改差异；最小验证日志 | 已完成首轮整改，仍需继续演练冷启动与依赖故障场景 |
 | GAP-DEPLOY-002 | 3 | P0 | TODO | 部署/CI 智能体 | 明确迁移、静态资源、日志目录、持久化路径启动顺序 | 启动链路文档完整；容器冷启动可复现；职责边界清晰 | `待提交` | 启动命令、日志、文档记录 | 后续结合容器验证一起闭环 |
 | GAP-CONFIG-001 | 3 | P0 | TODO | 后端/安全智能体 | 统一生产环境变量契约，不允许真实默认值兜底 | `DJANGO_SECRET_KEY`、`MONGO_URI`、Redis/Neo4j 等缺失时显式失败 | `待提交` | 配置检查与启动失败验证 | 与安全整改、测试环境收敛联动 |
@@ -55,3 +55,4 @@
 | 2026-05-11 | Codex | 新建生产整改 GAP 台账，建立批次 0~5 的唯一问题跟踪入口 |
 | 2026-05-11 | Codex | 恢复误删的 GAP 台账，并补充瘦身、Conda ZeroIsle、`yarn install`、`yarn android`、功能审查与真机验证相关条目 |
 | 2026-05-11 | Codex | 回填批次 2 首轮瘦身执行结果、Conda `Zeroisle` 可执行证据、ADB 识别真实平板证据，并明确尚未进入 Android 专用 MCP 真机验证阶段 |
+| 2026-05-12 | Codex | 回填批次 2 首轮瘦身与环境准备提交哈希 `1d96221`，统一文档与 Git 对应关系 |
