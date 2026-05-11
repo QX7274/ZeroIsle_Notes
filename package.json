@@ -19,7 +19,7 @@
     "install-deps": "npm install --registry=https://registry.npmmirror.com",
     "install-deps-yarn": "yarn --registry=https://registry.npmmirror.com",
     "pod-install": "cd ios && pod install",
-    "postinstall": "npx jetify && node patch-bcrypt.js",
+    "postinstall": "npx jetify && node patch-bcrypt.js && node node_modules/patch-package/index.js",
     "clear-cache": "node node_modules/react-native/cli.js start --reset-cache",
     "patch-bcrypt": "node patch-bcrypt.js",
     "dist": "electron-builder"

@@ -21,6 +21,12 @@ module.exports = {
             testBinaryPath: 'android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk',
             build: 'cd android && gradlew.bat assembleDebug assembleAndroidTest -DtestBuildType=debug',
         },
+        'android.att.debug': {
+            type: 'android.apk',
+            binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
+            testBinaryPath: 'android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk',
+            build: 'cd android && gradlew.bat assembleDebug assembleAndroidTest -DtestBuildType=debug -PreactNativeArchitectures=arm64-v8a',
+        },
     },
     devices: {
         simulator: {
@@ -53,7 +59,7 @@ module.exports = {
         },
         'android.att.debug': {
             device: 'attached',
-            app: 'android.debug',
+            app: 'android.att.debug',
         },
     },
 };

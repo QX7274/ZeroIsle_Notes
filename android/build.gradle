@@ -60,6 +60,90 @@ allprojects {
 
 apply plugin: "com.facebook.react.rootproject"
 
+def syncSkiaPrefabNativeInputs = { Project skiaProject ->
+    def transformsDir = new File(gradle.gradleUserHomeDir, "caches/${gradle.gradleVersion}/transforms")
+    def cxxRoot = new File(skiaProject.buildDir, "intermediates/cxx")
+
+    if (!transformsDir.exists() || !cxxRoot.exists()) {
+        return
+    }
+
+    def expectedNativeLibs = [
+        "libfbjni.so",
+        "libreact_nativemodule_core.so",
+        "libjsi.so",
+        "libreactnativejni.so",
+        "libruntimeexecutor.so",
+        "libturbomodulejsijni.so",
+    ] as Set
+
+    def configuredArchitectures = (
+        skiaProject.findProperty("reactNativeArchitectures")
+            ?: rootProject.findProperty("reactNativeArchitectures")
+            ?: "arm64-v8a"
+    ).toString().split(",").collect { it.trim() }.findAll { it }
+
+    cxxRoot.eachDirRecurse { dir ->
+        if (dir.name != "obj") {
+            return
+        }
+
+        configuredArchitectures.each { abi ->
+            def abiDir = new File(dir, abi)
+            if (!abiDir.exists()) {
+                abiDir.mkdirs()
+            }
+
+            def prefabLibs = skiaProject.fileTree(transformsDir) {
+                include "**/jetified-react-android-*-debug/prefab/modules/*/libs/android.${abi}/*.so"
+                include "**/jetified-fbjni-*/prefab/modules/fbjni/libs/android.${abi}/*.so"
+            }.files.findAll { file ->
+                expectedNativeLibs.contains(file.name)
+            }
+
+            prefabLibs.each { nativeLib ->
+                def targetLib = new File(abiDir, nativeLib.name)
+                if (!targetLib.exists()) {
+                    skiaProject.copy {
+                        from nativeLib
+                        into abiDir
+                    }
+                }
+            }
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    subprojects { project ->
+        project.plugins.withId("com.android.library") {
+            def androidExtension = project.extensions.findByName("android")
+            if (androidExtension != null) {
+                androidExtension.defaultConfig {
+                    minSdkVersion rootProject.ext.minSdkVersion
+                }
+            }
+        }
+
+        if (project.name == "shopify_react-native-skia") {
+            project.tasks.configureEach { task ->
+                if (
+                    task.name.startsWith("buildCMake") ||
+                    (task.name.startsWith("merge") && task.name.endsWith("NativeLibs"))
+                ) {
+                    task.doNotTrackState("Skia native tasks reference imported React Native .so files that are not materialized as local task inputs/outputs under Gradle 8.8.")
+                }
+
+                if (task.name == "mergeDebugNativeLibs") {
+                    task.doFirst {
+                        syncSkiaPrefabNativeInputs(project)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // 自定义任务来预下载依赖
 task downloadDependencies() {
     doLast {

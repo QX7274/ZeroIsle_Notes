@@ -1,0 +1,27 @@
+diff --git a/node_modules/detox/android/detox/src/full/java/com/wix/detox/reactnative/idlingresources/bridge/BridgeIdlingResource.kt b/node_modules/detox/android/detox/src/full/java/com/wix/detox/reactnative/idlingresources/bridge/BridgeIdlingResource.kt
+index 00e8ced..03d9a35 100644
+--- a/node_modules/detox/android/detox/src/full/java/com/wix/detox/reactnative/idlingresources/bridge/BridgeIdlingResource.kt
++++ b/node_modules/detox/android/detox/src/full/java/com/wix/detox/reactnative/idlingresources/bridge/BridgeIdlingResource.kt
+@@ -98,6 +98,7 @@ private class BridgeIdleListenerApi(private val reactContext: ReactContext) {
+                         "equals" -> proxy === args?.firstOrNull()
+                         "hashCode" -> System.identityHashCode(proxy)
+                         "toString" -> "BridgeIdleListenerProxy"
++                        else -> null
+                     }
+                 }
+             )
+diff --git a/node_modules/detox/android/detox/src/main/java/com/wix/detox/common/proxy/SpyingInvocationHandler.kt b/node_modules/detox/android/detox/src/main/java/com/wix/detox/common/proxy/SpyingInvocationHandler.kt
+index e32607d..5da6d68 100644
+--- a/node_modules/detox/android/detox/src/main/java/com/wix/detox/common/proxy/SpyingInvocationHandler.kt
++++ b/node_modules/detox/android/detox/src/main/java/com/wix/detox/common/proxy/SpyingInvocationHandler.kt
+@@ -6,8 +6,8 @@ import java.lang.reflect.Method
+ import java.lang.reflect.Proxy
+ 
+ class SpyingInvocationHandler(private val target: Any, private val spy: MethodsSpy) : InvocationHandler {
+-    override fun invoke(proxy: Any, m: Method, args: Array<Any>): Any {
+-        val result: Any
++    override fun invoke(proxy: Any, m: Method, args: Array<Any>): Any? {
++        val result: Any?
+         try {
+             spy.onBeforeCall(m.name)
+             result = m.invoke(target, *args)

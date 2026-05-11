@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-document-opener/android/build.gradle b/node_modules/react-native-document-opener/android/build.gradle
+index 860fc92..6939cdf 100644
+--- a/node_modules/react-native-document-opener/android/build.gradle
++++ b/node_modules/react-native-document-opener/android/build.gradle
+@@ -29,7 +29,7 @@ android {
+   compileSdkVersion getExtOrIntegerDefault('compileSdkVersion')
+   buildToolsVersion getExtOrDefault('buildToolsVersion')
+   defaultConfig {
+-    minSdkVersion 16
++    minSdkVersion getExtOrIntegerDefault('minSdkVersion')
+     targetSdkVersion getExtOrIntegerDefault('targetSdkVersion')
+     versionCode 1
+     versionName "1.0"
