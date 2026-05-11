@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
+    "test:mindmap:view": "jest src/tests/mindMapView.accessibility.test.js --watch=false",
     "install-deps": "npm install --registry=https://registry.npmmirror.com",
     "install-deps-yarn": "yarn --registry=https://registry.npmmirror.com",
     "pod-install": "cd ios && pod install",

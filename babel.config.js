@@ -7,7 +7,10 @@ module.exports = function (api) {
     require.resolve('babel-plugin-transform-remove-console');
     productionPlugins.push('transform-remove-console');
   } catch (error) {
-    console.warn('[babel.config] 未安装 babel-plugin-transform-remove-console，生产构建将保留 console 输出');
+    // 避免在 test 环境刷屏，仅在非测试环境提示一次
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[babel.config] 未安装 babel-plugin-transform-remove-console，生产构建将保留 console 输出');
+    }
   }
 
   return {

@@ -12,7 +12,11 @@ def show(name, resp):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Backend E2E API check")
-    parser.add_argument("--base", default="http://127.0.0.1:8001", help="API base URL")
+    parser.add_argument(
+        "--base",
+        default="http://127.0.0.1:8000",
+        help="API base URL (ZeroIsle backend default: http://127.0.0.1:8000)",
+    )
     parser.add_argument("--timeout", type=int, default=20, help="request timeout seconds")
     parser.add_argument("--register-retries", type=int, default=8, help="retries for register")
     return parser.parse_args()
@@ -39,6 +43,10 @@ def main():
     args = parse_args()
     base = args.base.rstrip("/")
     timeout = args.timeout
+
+    print(f"[e2e] target base: {base}")
+    if ":8001" in base:
+        print("[e2e] notice: 8001 通常是 admin_system；业务后端默认 8000。")
 
     s = requests.Session()
     password = "Passw0rd!23"

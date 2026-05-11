@@ -30,7 +30,7 @@ import mindMapService from '../../services/ai/mindMapService';
 
 const { width, height } = Dimensions.get('window');
 
-const THEME_SWATCHS = {
+const THEME_SWATCHES = {
   default: [null],
   colorful: ['#4285F4', '#EA4335', '#FBBC05', '#34A853'],
   pastel: ['#B5EAD7', '#C7CEEA', '#FFDAC1', '#FFB7B2'],
@@ -61,6 +61,8 @@ const MindMapEditScreen = () => {
   const [theme, setTheme] = useState('default');
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [layoutApplying, setLayoutApplying] = useState(false);
+
 
   const mindMapViewRef = useRef(null);
 
@@ -279,9 +281,26 @@ const MindMapEditScreen = () => {
 
   const handleChangeLayout = (newLayout) => {
     setLayoutType(newLayout);
-    setShowLayoutOptions(false);
     if (mindMapViewRef.current?.updateLayout) {
       mindMapViewRef.current.updateLayout(newLayout);
+    }
+  };
+
+  const applyLayoutAndTheme = () => {
+    setLayoutApplying(true);
+
+    try {
+      if (mindMapViewRef.current?.updateLayout) {
+        mindMapViewRef.current.updateLayout(layoutType);
+      }
+      showToastMessage('布局与主题已应用');
+    } catch (err) {
+      console.error('应用布局与主题失败:', err);
+      showToastMessage('应用失败，请重试');
+      analyticsService.trackError(err, { action: 'apply_layout_theme' });
+    } finally {
+      setLayoutApplying(false);
+      setShowLayoutOptions(false);
     }
   };
 
@@ -536,7 +555,7 @@ const MindMapEditScreen = () => {
               <View style={styles.divider} />
               <Text style={[styles.sectionTitle, { color: colors.text }]}>主题样式</Text>
 
-              {Object.entries(THEME_SWATCHS).map(([themeKey, swatches]) => (
+              {Object.entries(THEME_SWATCHES).map(([themeKey, swatches]) => (
                 <TouchableOpacity
                   key={themeKey}
                   style={[
@@ -591,9 +610,16 @@ const MindMapEditScreen = () => {
 
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.primary }]}
-                onPress={() => setShowLayoutOptions(false)}
+                onPress={applyLayoutAndTheme}
+                disabled={layoutApplying}
+                accessibilityRole="button"
+                accessibilityLabel="应用布局与主题"
               >
-                <Text style={styles.modalButtonTextInverse}>应用</Text>
+                {layoutApplying ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalButtonTextInverse}>应用</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

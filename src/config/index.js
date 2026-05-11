@@ -5,20 +5,22 @@
 
 import { Platform } from 'react-native';
 
-// API配置 - 开发环境优先指向本机后端
-// 统一走 localhost，并通过 adb reverse tcp:8001 tcp:8001 打通 Android 真机/模拟器到宿主机后端
-const DEV_API_HOST = '127.0.0.1';
-const DEV_API_PORT = '8001';
+// API配置 - 开发环境优先指向业务后端(8000)
+// 如需切换可通过环境变量覆盖：ZEROISLE_API_HOST / ZEROISLE_API_PORT
+const DEV_API_HOST = process.env.ZEROISLE_API_HOST || '127.0.0.1';
+const DEV_API_PORT = process.env.ZEROISLE_API_PORT || '8000';
 
 export const API_URL = __DEV__
   ? `http://${DEV_API_HOST}:${DEV_API_PORT}`
   : 'https://api.zeroislenotes.com';
 
-// 调试信息
-console.log('当前API_URL:', API_URL);
-console.log('开发模式:', __DEV__);
-console.log('平台:', Platform.OS);
-console.log('如无法连接，请检查后端服务是否运行于:', API_URL);
+// 调试信息（仅开发环境）
+if (__DEV__) {
+  console.log('当前API_URL:', API_URL);
+  console.log('开发模式:', __DEV__);
+  console.log('平台:', Platform.OS);
+  console.log('如无法连接，请检查后端服务是否运行于:', API_URL);
+}
 
 export const API_VERSION = 'v1';
 export const API_TIMEOUT = 15000;
@@ -82,7 +84,7 @@ export const DEV_MODE_CONFIG = {
     // 是否显示调试信息
     SHOW_DEBUG_INFO: true,
     // 是否启用性能监控
-    ENAABLE_PERFORMANCE_MONITOR: true,
+    ENABLE_PERFORMANCE_MONITOR: true,
   },
   // 开发者模式安全设置
   SECURITY: {

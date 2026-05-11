@@ -81,6 +81,10 @@ const MindMapToolbar = ({
       style={styles.toolButton}
       onPress={tool.onPress}
       disabled={!tool.onPress}
+      accessibilityRole="button"
+      accessibilityLabel={tool.label}
+      accessibilityState={{ disabled: !tool.onPress }}
+      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
     >
       <Icon
         name={tool.icon}

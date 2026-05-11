@@ -23,9 +23,18 @@ class KnowledgeGraphBuilderService:
     """
     
     def __init__(self):
-        # 初始化服务
-        self.auto_classification_service = AutoClassificationService()
-        self.text_processing_service = TextProcessingService()
+        # 初始化服务（容错：允许在最小测试环境下运行）
+        try:
+            self.auto_classification_service = AutoClassificationService()
+        except Exception as e:
+            logger.warning(f"初始化 AutoClassificationService 失败，将按降级路径运行: {e}")
+            self.auto_classification_service = None
+
+        try:
+            self.text_processing_service = TextProcessingService()
+        except Exception as e:
+            logger.warning(f"初始化 TextProcessingService 失败，将按降级路径运行: {e}")
+            self.text_processing_service = None
     
     def build_graph_from_note(self, note, extract_concepts=True):
         """
@@ -84,8 +93,11 @@ class KnowledgeGraphBuilderService:
                     )
             
             # 查找相似笔记
-            similar_notes = self.auto_classification_service.find_similar_notes(note, threshold=0.4, limit=5)
-            
+            if self.auto_classification_service is not None:
+                similar_notes = self.auto_classification_service.find_similar_notes(note, threshold=0.4, limit=5)
+            else:
+                similar_notes = []
+
             # 创建相似笔记的关联
             related_note_nodes = []
             for item in similar_notes:
@@ -633,6 +645,9 @@ class KnowledgeGraphBuilderService:
             
             # 使用AI服务提取概念
             try:
+                if self.text_processing_service is None:
+                    raise RuntimeError('text_processing_service unavailable')
+
                 result = self.text_processing_service.process_text(
                     text=f"{title}\n\n{content[:2000]}",  # 限制长度，避免请求过大
                     task='extract_concepts'
@@ -669,8 +684,15 @@ class KnowledgeGraphBuilderService:
                 logger.warning(f"使用AI服务提取概念失败: {e}")
                 
                 # 回退到关键词提取
-                keywords = self.auto_classification_service.extract_keywords(content, title, 10)
-                
+                if self.auto_classification_service is not None:
+                    keywords = self.auto_classification_service.extract_keywords(content, title, 10)
+                else:
+                    # 最小可运行降级：基于分词频次抽取关键词
+                    import jieba
+                    from collections import Counter
+                    tokens = [w.strip() for w in jieba.lcut(f"{title} {content}") if len(w.strip()) >= 2]
+                    keywords = [w for w, _ in Counter(tokens).most_common(10)]
+
                 concepts = []
                 for keyword in keywords:
                     concepts.append({

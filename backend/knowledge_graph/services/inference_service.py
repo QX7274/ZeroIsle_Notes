@@ -4,8 +4,12 @@
 """
 
 import logging
-from typing import List, Dict, Optional, Tuple
-from .neo4j_service import Neo4jService
+from typing import List, Dict, Optional, Tuple, Any
+
+try:
+    from .neo4j_service import Neo4jService
+except Exception:
+    Neo4jService = Any
 
 logger = logging.getLogger('backend')
 
@@ -55,10 +59,13 @@ class InferenceService:
             return []
         
         try:
+            # 参数兜底：避免 max_depth < 2 造成无效路径范围（*2..1）
+            safe_max_depth = max(2, int(max_depth))
+
             # 查找通过中间节点连接的终端节点（不直接连接）
             query = f"""
             MATCH (start:KnowledgeNode {{id: $node_id}})
-            MATCH path = (start)-[:{relation_type}*2..{max_depth}]-(end:KnowledgeNode)
+            MATCH path = (start)-[:{relation_type}*2..{safe_max_depth}]-(end:KnowledgeNode)
             WHERE NOT (start)-[:{relation_type}]-(end)
             AND start <> end
             WITH end, length(path) as distance, 

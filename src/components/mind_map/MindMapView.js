@@ -151,6 +151,8 @@ const MindMapView = forwardRef(({
   const [lastScale, setLastScale] = useState(1);
   const [lastPan, setLastPan] = useState({ x: 0, y: 0 });
   const [nodePositions, setNodePositions] = useState({});
+  const [isMinimapExpanded, setIsMinimapExpanded] = useState(false);
+  const [showHints, setShowHints] = useState(true);
 
   // 引用
   const viewRef = useRef(null);
@@ -590,6 +592,15 @@ const MindMapView = forwardRef(({
   useEffect(() => {
     calculateNodePositions();
   }, [nodes, edges, layoutType]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowHints(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
 
   // 渲染节点
   const renderNode = (node) => {
@@ -1087,10 +1098,6 @@ const MindMapView = forwardRef(({
     const viewportMinimapX = viewportX * minimapScale;
     const viewportMinimapY = viewportY * minimapScale;
 
-    // 迷你地图状态
-    const [isMinimapExpanded, setIsMinimapExpanded] = useState(false);
-    const [isDraggingMinimap, setIsDraggingMinimap] = useState(false);
-
     // 处理迷你地图点击 - 移动视图到点击位置
     const handleMinimapPress = (evt) => {
       const { locationX, locationY } = evt.nativeEvent;
@@ -1219,17 +1226,6 @@ const MindMapView = forwardRef(({
 
   // 添加交互提示
   const renderInteractionHints = () => {
-    // 只在初次加载时显示提示
-    const [showHints, setShowHints] = useState(true);
-
-    useEffect(() => {
-      // 5秒后自动隐藏提示
-      const timer = setTimeout(() => {
-        setShowHints(false);
-      }, 5000);
-
-      return () => clearTimeout(timer);
-    }, []);
 
     if (!showHints) {return null;}
 
@@ -1282,6 +1278,8 @@ const MindMapView = forwardRef(({
           style={styles.controlButton}
           onPress={zoomIn}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="放大导图"
         >
           <Text style={styles.controlButtonText}>+</Text>
         </TouchableOpacity>
@@ -1290,6 +1288,8 @@ const MindMapView = forwardRef(({
           style={styles.controlButton}
           onPress={zoomOut}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="缩小导图"
         >
           <Text style={styles.controlButtonText}>-</Text>
         </TouchableOpacity>
@@ -1298,6 +1298,8 @@ const MindMapView = forwardRef(({
           style={styles.controlButton}
           onPress={resetView}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="重置视图"
         >
           <Text style={styles.controlButtonText}>⟲</Text>
         </TouchableOpacity>
