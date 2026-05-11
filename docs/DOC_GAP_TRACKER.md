@@ -41,6 +41,7 @@
 | GAP-ROUTE-001 | 3/5 | P1 | IN_PROGRESS | 验证智能体 | 清理可选功能入口的启动期导入阻塞，确保功能审查前各路由可被正常挂载 | `mind_map`、`document_converter`、`personal_activity` 等可选路由不因模块级初始化失败而被跳过 | `ff72009` | `manage.py check` 输出；`document_converter/tasks.py` 与 `notification/signals.py` 导入副作用修复差异 | 已在首轮 3 个入口基础上继续收敛 `document_converter` 与 `notification` 的模块级副作用；后续继续审查其余模块级服务初始化问题 |
 | GAP-MOBILE-001 | 4 | P1 | IN_PROGRESS | 移动端/Android 智能体 | 补齐关键页面稳定 `testID` 与 Detox smoke 基础 | 首页、底部导航、AI、提醒、知识图谱、我的页具备稳定 `testID`；smoke 可构建安装 | `0f95407` | `detoxrc.js`；`e2e/starter.test.js`；`src/navigation/ReminderNavigator.js`；依赖核查结果 | 已修复 smoke 中 AI 与提醒链路的不稳定/错误断言；当前主应用侧 `detox` 依赖仍未解析到，需补齐安装链后才能进入构建验证 |
 | GAP-REVIEW-001 | 5 | P0 | IN_PROGRESS | 验证智能体 | 使用工具进行功能审查，核查规划功能是否完成、是否足以上线 | 形成逐模块核查结论、缺口清单、体验与速度评估 | `0f95407` | smoke 静态审查结论；工具链阻塞诊断；后续截图与日志 | 已完成前端 smoke 链路首轮静态审查，确认提醒链路原断言错误、AI 链路原入口不稳定；后续继续进入真实构建与设备验证 |
+| GAP-TOKEN-001 | 4/5 | P1 | IN_PROGRESS | 总控智能体 | 将 RTK 纳入默认 shell 巡检与验证策略，降低多轮整改过程中的 token 消耗 | 总控文档与台账明确 RTK 规则；后续常规搜索、读文件、diff、测试输出默认优先使用 `rtk` | `待提交` | `C:\\Users\\QX\\.codex\\AGENTS.md`；`C:\\Users\\QX\\.codex\\RTK.md`；本地 `D:\\rtk` 目录核查 | 仅在 RTK 不支持目标命令或需要完整原始输出时回退原生命令，并在日志中说明原因 |
 | GAP-DEVICE-001 | 5 | P0 | BLOCKED | 验证智能体 | 使用 Android 专用 MCP/插件连接真实平板完成可视化验证 | 至少覆盖首页、底部导航、AI、提醒/日程、我的、一个原生能力页面并产出证据包 | `待提交` | Android 专用 MCP/插件接入后生成 | 插件未就位前不得标记完成 |
 | GAP-DEVICE-002 | 5 | P1 | TODO | 验证智能体 | 输出上线可用性评审结论与遗留阻塞 | 给出“可上线 / 整改完成待真机 / 不可上线”结论并绑定证据 | `待提交` | 真机验证与功能审查汇总报告 | 必须在所有高优先级 GAP 验证后进行 |
 
@@ -60,3 +61,4 @@
 | 2026-05-12 | Codex | 将 GAP-TEST-001 从 `BLOCKED` 更新为 `IN_PROGRESS`，新增 GAP-ROUTE-001 跟踪可选功能入口导入稳定性，并登记批次 3 的 testing 自检与单测验证证据 |
 | 2026-05-12 | Codex | 继续登记批次 3 第二轮启动期副作用清理，补充 `mongodb_realm_service`、`document_converter`、`notification` 的惰性初始化修复与最小导入验证证据 |
 | 2026-05-12 | Codex | 追加前端工具链阻塞记录：登记根目录 `react-native` CLI 调用失效与 `detox` 依赖缺口，转入批次 4/5 的脚本可执行性修复 |
+| 2026-05-12 | Codex | 新增 GAP-TOKEN-001，登记 RTK 默认化规则与本地 RTK 目录核查结果，用于后续整改阶段降低 token 消耗 |
