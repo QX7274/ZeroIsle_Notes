@@ -61,7 +61,7 @@ test_db_name = 'ZeroIsle_Notes_Test'
 MONGODB_AVAILABLE = False
 
 try:
-    mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+    mongo_uri = os.environ.get('MONGO_URI')
 
     if mongo_uri:
         # 使用MongoDB Atlas连接字符串
@@ -85,7 +85,7 @@ try:
         )
     else:
         # 使用传统连接参数
-        mongo_host = os.environ.get('MONGO_HOST', 'localhost')
+        mongo_host = os.environ.get('MONGO_HOST', '127.0.0.1')
         mongo_port = int(os.environ.get('MONGO_PORT', 27017))
         mongo_user = os.environ.get('MONGO_USER', '')
         mongo_password = os.environ.get('MONGO_PASSWORD', '')

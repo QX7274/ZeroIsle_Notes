@@ -35,7 +35,7 @@ X_FRAME_OPTIONS = 'DENY'
 # 从环境变量获取密钥
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', SECRET_KEY)
 # 生产环境必须提供安全的 SECRET_KEY
-if not SECRET_KEY or SECRET_KEY == 'django-insecure-zeroislenotes-secret-key-for-development':
+if not SECRET_KEY or SECRET_KEY == 'django-insecure-zeroislenotes-dev-only':
     raise ValueError('DJANGO_SECRET_KEY 未在生产环境中配置，应用已停止启动。')
 
 # CORS 凭证（如需要 Cookie）

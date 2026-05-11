@@ -1,86 +1,115 @@
-from django.contrib import admin
-from django.urls import path, include, re_path
-from django.conf import settings
-from django.conf.urls.static import static
-from django.views.generic import RedirectView, TemplateView
-from django.http import JsonResponse
-from rest_framework import permissions
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
+import os
 import time
 import logging
+
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.http import JsonResponse
+from django.urls import include, path, re_path
+from django.views.generic import RedirectView, TemplateView
+from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework import permissions
 
 logger = logging.getLogger(__name__)
 
 
-# Health Check View - for Docker/K8s probes
-def health_check(request):
-    """
-    Health check endpoint for container orchestration (Docker/K8s).
-    Checks Redis and MongoDB connectivity.
+def _check_redis():
+    import redis
 
-    说明：探针必须“快速失败”，避免 Redis/Mongo 不可用时阻塞整个接口。
-    """
-    health_status = {
-        'status': 'healthy',
-        'timestamp': time.time(),
-        'services': {}
-    }
+    hosts = settings.CHANNEL_LAYERS['default']['CONFIG'].get('hosts', [])
+    host, port = hosts[0]
+    client = redis.Redis(
+        host=host,
+        port=port,
+        socket_connect_timeout=1,
+        socket_timeout=1,
+    )
+    client.ping()
 
-    # Redis：使用短超时快速探测
-    try:
-        import redis
-        host, port = settings.CHANNEL_LAYERS['default']['CONFIG']['hosts'][0]
-        r = redis.Redis(
-            host=host,
-            port=port,
-            socket_connect_timeout=1,
-            socket_timeout=1,
+
+def _check_mongodb():
+    from pymongo import MongoClient
+
+    mongo_uri = os.environ.get('MONGO_URI')
+    if mongo_uri:
+        client = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=1000,
+            connectTimeoutMS=1000,
+            socketTimeoutMS=1000,
         )
-        r.ping()
-        health_status['services']['redis'] = 'ok'
-    except Exception as e:
-        health_status['services']['redis'] = f'error: {str(e)[:80]}'
-        health_status['status'] = 'degraded'
-
-    # MongoDB：不要复用 development.py 里可能长超时的全局客户端
-    try:
-        from pymongo import MongoClient
-        mongo_client = MongoClient(
+    else:
+        client = MongoClient(
             host=getattr(settings, 'MONGO_HOST', 'localhost'),
             port=int(getattr(settings, 'MONGO_PORT', 27017)),
             serverSelectionTimeoutMS=1000,
             connectTimeoutMS=1000,
             socketTimeoutMS=1000,
         )
-        mongo_client.admin.command('ping')
-        health_status['services']['mongodb'] = 'ok'
-    except Exception as e:
-        health_status['services']['mongodb'] = f'error: {str(e)[:80]}'
-        health_status['status'] = 'degraded'
+    client.admin.command('ping')
 
-    status_code = 200 if health_status['status'] == 'healthy' else 503
-    return JsonResponse(health_status, status=status_code)
 
-# 根路径视图函数 - 返回JSON格式的API信息
-def api_root_json(request):
-    """
-    API根路径，返回API信息（JSON格式）
-    """
+def _check_neo4j():
+    from neo4j import GraphDatabase
+
+    driver = GraphDatabase.driver(
+        settings.NEO4J_URI,
+        auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
+    )
+    try:
+        with driver.session() as session:
+            session.run("RETURN 1").consume()
+    finally:
+        driver.close()
+
+
+def health_check(request):
+    """Lightweight liveness probe."""
     return JsonResponse({
-        'name': '零屿笔记 API',
+        'status': 'alive',
+        'timestamp': time.time(),
+    })
+
+
+def readiness_check(request):
+    """Dependency readiness probe."""
+    readiness_status = {
+        'status': 'ready',
+        'timestamp': time.time(),
+        'services': {},
+    }
+
+    checks = {
+        'redis': _check_redis,
+        'mongodb': _check_mongodb,
+        'neo4j': _check_neo4j,
+    }
+
+    for service_name, checker in checks.items():
+        try:
+            checker()
+            readiness_status['services'][service_name] = 'ok'
+        except Exception as exc:
+            readiness_status['services'][service_name] = f'error: {str(exc)[:120]}'
+            readiness_status['status'] = 'not_ready'
+
+    status_code = 200 if readiness_status['status'] == 'ready' else 503
+    return JsonResponse(readiness_status, status=status_code)
+
+
+def api_root_json(request):
+    return JsonResponse({
+        'name': 'ZeroIsle Notes API',
         'version': 'v1',
         'status': 'running',
         'documentation': '/swagger/',
-        'api_prefix': '/api/v1/'
+        'api_prefix': '/api/v1/',
     })
 
-# API v1根路径视图函数 - 返回API v1信息
+
 def api_v1_root(request):
-    """
-    API v1根路径，返回API v1信息（JSON格式）
-    """
-    # 获取所有API端点
     endpoints = {
         'auth': '/api/v1/auth/',
         'notes': '/api/v1/notes/',
@@ -92,28 +121,28 @@ def api_v1_root(request):
         'search': '/api/v1/search/',
         'community': '/api/v1/community/',
         'canvas': '/api/v1/canvas/',
-        'code_editor': '/api/v1/code-editor/',
-        'common': '/api/v1/common/',
+        'document_converter': '/api/v1/document-converter/',
         'notifications': '/api/v1/notifications/',
         'groups': '/api/v1/groups/',
         'sync': '/api/v1/sync/',
         'personal_activity': '/api/v1/personal-activity/',
+        'tasks': '/api/v1/tasks/',
     }
 
     return JsonResponse({
-        'name': '零屿笔记 API',
+        'name': 'ZeroIsle Notes API',
         'version': 'v1',
         'status': 'running',
         'documentation': '/swagger/',
-        'endpoints': endpoints
+        'endpoints': endpoints,
     })
 
-# API文档配置
+
 schema_view = get_schema_view(
     openapi.Info(
-        title="零屿笔记 API",
+        title="ZeroIsle Notes API",
         default_version='v1',
-        description="零屿笔记应用API文档",
+        description="ZeroIsle Notes 应用 API 文档。",
         terms_of_service="https://www.zeroislenotes.com/terms/",
         contact=openapi.Contact(email="contact@zeroislenotes.com"),
         license=openapi.License(name="BSD License"),
@@ -122,71 +151,59 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
-# Conditionally include Prometheus metrics if available
 try:
     import django_prometheus  # noqa: F401
-    PROMETHEUS_URLS = [path('metrics/', include('django_prometheus.urls'))]
-except Exception:
-    PROMETHEUS_URLS = []
 
-# API版本前缀
+    prometheus_urls = [path('metrics/', include('django_prometheus.urls'))]
+except Exception:
+    prometheus_urls = []
+
+
+def _append_optional_route(urlpatterns, route, module_path):
+    try:
+        urlpatterns.append(path(route, include(module_path)))
+    except Exception as exc:
+        logger.exception("Failed to include %s: %s", module_path, exc)
+
+
 api_prefix = 'api/v1/'
 
 urlpatterns = [
-    # 根路径 - 使用HTML模板
     path('', TemplateView.as_view(template_name='index.html'), name='api-root'),
-
-    # Health Check - for Docker/K8s/Load Balancers
     path('health/', health_check, name='health-check'),
-
-    # 条件引入 Prometheus 指标路由
-    *PROMETHEUS_URLS,
-
-    # API根路径 - JSON格式
+    path('ready/', readiness_check, name='readiness-check'),
+    *prometheus_urls,
     path('api.json', api_root_json, name='api-root-json'),
-
-    # 重定向到Swagger文档
     path('api/', RedirectView.as_view(url='/swagger/', permanent=False), name='api-docs'),
-
-    # API v1根路径
     path(api_prefix.rstrip('/'), api_v1_root, name='api-v1-root'),
-
-    # Django管理后台
     path('admin/', admin.site.urls),
-
-    # API文档
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-
-    # API端点
     path(f'{api_prefix}auth/', include('users.urls')),
     path(f'{api_prefix}ai-assistant/', include('ai_assistant.urls')),
     path(f'{api_prefix}search/', include('search.urls')),
 ]
 
-# 在模块底部，尝试性地追加业务模块路由（如导入失败则记录原因）
-try:
-    urlpatterns.append(path(f'{api_prefix}notes/', include('notes.urls')))
-except Exception as e:
-    logger.exception("Failed to include notes.urls: %s", e)
+optional_routes = [
+    (f'{api_prefix}notes/', 'notes.urls'),
+    (f'{api_prefix}reminders/', 'reminder.urls'),
+    (f'{api_prefix}mind-map/', 'mind_map.urls'),
+    (f'{api_prefix}community/', 'community.urls'),
+    (f'{api_prefix}canvas/', 'canvas.urls'),
+    (f'{api_prefix}document-converter/', 'document_converter.urls'),
+    (f'{api_prefix}notifications/', 'notification.urls'),
+    (f'{api_prefix}groups/', 'groups.urls'),
+    (f'{api_prefix}knowledge-graph/', 'knowledge_graph.urls'),
+    (f'{api_prefix}personal-activity/', 'personal_activity.urls'),
+    (f'{api_prefix}sync/', 'sync.urls'),
+    (f'{api_prefix}tasks/', 'tasks.urls'),
+    (f'{api_prefix}voice-recognition/', 'voice_recognition.urls'),
+]
 
-try:
-    urlpatterns.append(path(f'{api_prefix}knowledge-graph/', include('knowledge_graph.urls')))
-except Exception as e:
-    logger.exception("Failed to include knowledge_graph.urls: %s", e)
-
-try:
-    urlpatterns.append(path(f'{api_prefix}sync/', include('sync.urls')))
-except Exception as e:
-    logger.exception("Failed to include sync.urls: %s", e)
-
-try:
-    urlpatterns.append(path(f'{api_prefix}voice-recognition/', include('voice_recognition.urls')))
-except Exception as e:
-    logger.exception("Failed to include voice_recognition.urls: %s", e)
+for route, module_path in optional_routes:
+    _append_optional_route(urlpatterns, route, module_path)
 
 
-# 添加媒体文件URL
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -14,7 +14,7 @@ from .ai_config import *
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # 安全配置 - 在生产环境中应该保密
-SECRET_KEY = 'django-insecure-zeroislenotes-secret-key-for-development'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-zeroislenotes-dev-only')
 
 # 应用定义
 INSTALLED_APPS = [
@@ -335,7 +335,7 @@ CELERY_TIMEZONE = 'Asia/Shanghai'
 # Neo4j配置
 NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
 NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
-NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'password')
+NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '')
 
 # 短信服务配置
 SMS_API_KEY = os.environ.get('SMS_API_KEY', 'your_sms_api_key')

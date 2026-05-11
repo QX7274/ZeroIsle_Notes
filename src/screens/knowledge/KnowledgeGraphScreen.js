@@ -242,7 +242,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   // 渲染空状态（包含弱网离线空图提示）
   if (!nodes || nodes.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={styles.emptyContainer} testID="screen.knowledgeGraph">
         <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
         <Text style={styles.emptyText}>暂无知识图谱数据</Text>
         <Text style={styles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
@@ -259,7 +259,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="screen.knowledgeGraph">
       {/* 顶部导航栏（统一返回按钮样式） */}
       <View style={styles.headerBar}>
         <TouchableOpacity

@@ -47,7 +47,7 @@ class Neo4jService:
                 # 获取配置，提供默认值
                 neo4j_uri = getattr(settings, 'NEO4J_URI', 'bolt://localhost:7687')
                 neo4j_user = getattr(settings, 'NEO4J_USER', 'neo4j')
-                neo4j_password = getattr(settings, 'NEO4J_PASSWORD', 'password')
+                neo4j_password = getattr(settings, 'NEO4J_PASSWORD', '')
                 
                 # 连接池配置
                 max_connections = getattr(settings, 'NEO4J_MAX_CONNECTIONS', 50)

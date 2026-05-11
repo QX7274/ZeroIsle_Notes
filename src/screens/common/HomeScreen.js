@@ -2589,6 +2589,7 @@ Week 4: □□□□□□□
         <TouchableOpacity
           style={[styles.aiAssistantButton, { backgroundColor: colors.secondary || '#388E3C' }]}
           onPress={() => navigation.navigate('AIAssistant')}
+          testID="entry.ai"
         >
           <Text style={[styles.aiAssistantButtonText, { color: colors.onSecondary || '#FFFFFF' }]}>立即体验</Text>
           <Icon name="arrow-forward-outline" size={18} color={colors.onSecondary || '#FFFFFF'} />
@@ -2606,6 +2607,7 @@ Week 4: □□□□□□□
         <TouchableOpacity
           style={[styles.aiAssistantButton, { backgroundColor: colors.secondary || '#388E3C' }]}
           onPress={() => navigation.navigate('KnowledgeGraph')}
+          testID="entry.knowledgeGraph.home"
         >
           <Text style={[styles.aiAssistantButtonText, { color: colors.onSecondary || '#FFFFFF' }]}>查看图谱</Text>
           <Icon name="arrow-forward-outline" size={18} color={colors.onSecondary || '#FFFFFF'} />
@@ -2635,7 +2637,10 @@ Week 4: □□□□□□□
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      testID="screen.home"
+    >
       {renderLoader()}
 
       {/* 头部区域 - 固定在顶部 */}

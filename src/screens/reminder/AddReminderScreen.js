@@ -241,7 +241,10 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   // 渲染主界面
     return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      testID="screen.reminder"
+    >
       {/* 顶部导航栏（统一返回按钮样式） */}
       <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
         <TouchableOpacity

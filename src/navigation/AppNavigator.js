@@ -376,6 +376,29 @@ const MainTabs = () => {
         headerTitleStyle: {
           fontWeight: '600',
         },
+        tabBarTestID: 'nav.bottomTab',
+        tabBarButton: (props) => {
+          let tabButtonTestID;
+          switch (route.name) {
+            case 'HomeStack':
+              tabButtonTestID = 'nav.tab.home';
+              break;
+            case 'AIAssistant':
+              tabButtonTestID = 'nav.tab.ai';
+              break;
+            case 'CommunityStack':
+              tabButtonTestID = 'nav.tab.community';
+              break;
+            case 'Profile':
+              tabButtonTestID = 'nav.tab.profile';
+              break;
+            default:
+              tabButtonTestID = undefined;
+              break;
+          }
+
+          return <TouchableOpacity {...props} testID={tabButtonTestID} />;
+        },
       })}
     >
       <Tab.Screen
@@ -394,6 +417,7 @@ const MainTabs = () => {
           headerShown: false,
           title: 'AI',
           tabBarLabel: 'AI',
+          tabBarButtonTestID: 'nav.tab.ai',
         }}
       />
 

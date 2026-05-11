@@ -55,7 +55,7 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Type check with mypy
-        run: mypy . --ignore-missing-imports || true  # Soft fail initially
+        run: mypy . --ignore-missing-imports
 
       - name: Run tests with pytest & coverage
         env:
@@ -90,12 +90,12 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Lint check (ESLint)
-        run: yarn lint || true  # Soft fail
+        run: yarn lint
 
       # Note: Full RN build requires native toolchain (iOS/Android)
       # This just validates JS bundle can be created
       - name: Bundle verification
-        run: yarn bundle:verify || echo "Skipping bundle verify, add script if needed"
+        run: yarn bundle:verify
 
   # --- Docker Build & Push ---
   build-push-docker:

@@ -166,7 +166,10 @@ const ProfileSettings = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background }]}
+      testID="screen.profile"
+    >
       <ParticleBackground />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -274,6 +277,7 @@ const ProfileSettings = ({ navigation }) => {
                     navigation.navigate('Reminder');
                   }}
                   activeOpacity={0.7}
+                  testID="entry.reminder.profile"
                 >
                   <View style={[styles.functionIconContainer, { backgroundColor: '#E0F7FA' }]}>
                     <Icon name="schedule" size={18} color="#0097A7" />
@@ -328,6 +332,7 @@ const ProfileSettings = ({ navigation }) => {
                     navigation.navigate('KnowledgeGraph');
                   }}
                   activeOpacity={0.7}
+                  testID="entry.knowledgeGraph.profile"
                 >
                   <View style={[styles.functionIconContainer, { backgroundColor: '#FFE8CC' }]}>
                     <Icon name="hub" size={18} color="#FF9500" />

@@ -29,9 +29,10 @@ class MongoDBRealmService:
     def __init__(self):
         """初始化MongoDB Realm服务"""
         # 从环境变量获取MongoDB连接信息
-        self.mongo_uri = os.environ.get('MONGO_URI', 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/')
+        self.mongo_uri = os.environ.get('MONGO_URI')
         self.db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
         self.realm_app_id = os.environ.get('REALM_APP_ID', '')
+        self.allow_insecure_tls = os.environ.get('ALLOW_INSECURE_TLS', '0').lower() in ('1', 'true', 'yes')
 
         # 初始化连接状态
         self.initialized = False
@@ -49,6 +50,12 @@ class MongoDBRealmService:
 
     def _init_sync_client(self):
         """初始化同步MongoDB客户端"""
+        if not self.mongo_uri:
+            logger.warning("MONGO_URI 未配置，MongoDB Realm 同步客户端未启动")
+            self.initialized = False
+            self.sync_client = None
+            self.db = None
+            return
         try:
             # 创建MongoDB客户端
             self.sync_client = MongoClient(
@@ -57,7 +64,7 @@ class MongoDBRealmService:
                 connectTimeoutMS=30000,
                 socketTimeoutMS=30000,
                 ssl=True,
-                tlsAllowInvalidCertificates=True,
+                tlsAllowInvalidCertificates=self.allow_insecure_tls,
                 retryWrites=True,
                 w='majority'
             )
@@ -83,6 +90,11 @@ class MongoDBRealmService:
 
     async def init_async_client(self):
         """初始化异步MongoDB客户端"""
+        if not self.mongo_uri:
+            logger.warning("MONGO_URI 未配置，MongoDB Realm 异步客户端未启动")
+            self.async_client = None
+            self.async_db = None
+            return False
         try:
             # 创建异步MongoDB客户端
             self.async_client = AsyncIOMotorClient(
@@ -91,7 +103,7 @@ class MongoDBRealmService:
                 connectTimeoutMS=30000,
                 socketTimeoutMS=30000,
                 ssl=True,
-                tlsAllowInvalidCertificates=True,
+                tlsAllowInvalidCertificates=self.allow_insecure_tls,
                 retryWrites=True,
                 w='majority'
             )

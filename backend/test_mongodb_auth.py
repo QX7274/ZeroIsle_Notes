@@ -14,8 +14,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.development')
 django.setup()
 
 # 设置MongoDB连接环境变量
-os.environ['MONGO_URI'] = 'mongodb+srv://qianxin7274:zxcvbnm%40%40081325@cluster0.lo5ybvq.mongodb.net/'
-os.environ['MONGO_DB'] = 'ZeroIsle_Notes'
+os.environ.setdefault('MONGO_DB', 'ZeroIsle_Notes')
+if not os.environ.get('MONGO_URI'):
+    raise RuntimeError('请显式配置 MONGO_URI 后再运行此脚本。')
 
 # 导入MongoDB模型
 from users.mongodb_models import User, VerificationCode
