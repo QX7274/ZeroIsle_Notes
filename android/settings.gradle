@@ -1,7 +1,15 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 
 plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex -> ex.autolinkLibrariesFromCommand() }
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand([
+        "cmd",
+        "/c",
+        "node",
+        "node_modules\\@react-native-community\\cli\\build\\bin.js",
+        "config"
+    ])
+}
 
 
 rootProject.name = 'ZeroIsle_Notes'
@@ -14,17 +22,5 @@ gradle.beforeProject { project ->
         project.ext.defaultVariant = 'general'
     }
 }
-
-include ':@react-native-picker_picker'
-project(':@react-native-picker_picker').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-picker/picker/android')
-
-include ':react-native-linear-gradient'
-project(':react-native-linear-gradient').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-linear-gradient/android')
-
-include ':react-native-permissions'
-project(':react-native-permissions').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-permissions/android')
-
-include ':react-native-get-random-values'
-project(':react-native-get-random-values').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-get-random-values/android')
 
 // SQLite 已移除，因为项目已迁移到 MongoDB

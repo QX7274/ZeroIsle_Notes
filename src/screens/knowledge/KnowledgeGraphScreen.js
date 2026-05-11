@@ -278,6 +278,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         <TouchableOpacity
           style={styles.toolbarButton}
           onPress={() => setShowLayoutOptions(!showLayoutOptions)}
+          testID="action.knowledgeGraph.layout"
         >
           <Icon name="bubble-chart" size={24} color={colors.text} />
           <Text style={styles.toolbarButtonText}>布局</Text>
@@ -286,6 +287,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         <TouchableOpacity
           style={styles.toolbarButton}
           onPress={() => setShowFilters(!showFilters)}
+          testID="action.knowledgeGraph.filter"
         >
           <Icon name="filter-list" size={24} color={colors.text} />
           <Text style={styles.toolbarButtonText}>筛选</Text>
@@ -294,6 +296,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         <TouchableOpacity
           style={styles.toolbarButton}
           onPress={resetView}
+          testID="action.knowledgeGraph.reset"
         >
           <Icon name="refresh" size={24} color={colors.text} />
           <Text style={styles.toolbarButtonText}>重置</Text>
@@ -302,6 +305,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         <TouchableOpacity
           style={styles.toolbarButton}
           onPress={() => navigation.navigate('KnowledgeAnalysis')}
+          testID="action.knowledgeGraph.analysis"
         >
           <Icon name="analytics" size={24} color={colors.text} />
           <Text style={styles.toolbarButtonText}>分析</Text>

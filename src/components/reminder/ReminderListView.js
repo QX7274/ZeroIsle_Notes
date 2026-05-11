@@ -695,7 +695,8 @@ const ReminderListView = ({ navigation, route }) => {
             opacity: !item.is_enabled ? 0.7 : 1,
           },
         ]}
-                 onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id })}
+        testID={`item.reminder.${item.id}`}
+        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id })}
         onLongPress={() => {
           if (!showBatchActions) {
             setShowBatchActions(true);
@@ -835,9 +836,10 @@ const ReminderListView = ({ navigation, route }) => {
 
         {!showBatchActions && (
           <View style={styles.reminderActions}>
-                         <TouchableOpacity
+             <TouchableOpacity
                onPress={() => handleToggleEnabled(item)}
                style={styles.iconButton}
+               testID={`action.reminder.toggle.${item.id}`}
              >
                <Icon
                  name={item.is_enabled ? 'notifications-active' : 'notifications-off'}
@@ -849,6 +851,7 @@ const ReminderListView = ({ navigation, route }) => {
              <TouchableOpacity
                onPress={() => handleDeleteReminder(item)}
                style={styles.iconButton}
+               testID={`action.reminder.delete.${item.id}`}
              >
                <Icon name="delete-outline" size={20} color={getThemeColor('error', '#F44336')} />
              </TouchableOpacity>
@@ -906,6 +909,7 @@ const ReminderListView = ({ navigation, route }) => {
             filter === 'all' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('all')}
+          testID="filter.reminder.all"
         >
           <Text style={[
             styles.filterText,
@@ -921,6 +925,7 @@ const ReminderListView = ({ navigation, route }) => {
             filter === 'today' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('today')}
+          testID="filter.reminder.today"
         >
           <Text style={[
             styles.filterText,
@@ -936,6 +941,7 @@ const ReminderListView = ({ navigation, route }) => {
             filter === 'upcoming' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('upcoming')}
+          testID="filter.reminder.upcoming"
         >
           <Text style={[
             styles.filterText,
@@ -951,6 +957,7 @@ const ReminderListView = ({ navigation, route }) => {
             filter === 'completed' && { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
           ]}
           onPress={() => setFilter('completed')}
+          testID="filter.reminder.completed"
         >
           <Text style={[
             styles.filterText,
@@ -961,7 +968,7 @@ const ReminderListView = ({ navigation, route }) => {
         </TouchableOpacity>
       </ScrollView>
 
-             <TouchableOpacity
+      <TouchableOpacity
          style={[
            styles.advancedFilterButton,
            (advancedFilters.priority !== 'all' ||
@@ -972,6 +979,7 @@ const ReminderListView = ({ navigation, route }) => {
            { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
          ]}
          onPress={() => setShowFilterModal(true)}
+         testID="filter.reminder.advanced"
        >
          <Icon
            name="filter-list"
@@ -1015,7 +1023,7 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 渲染空状态
   const renderEmptyList = () => (
-    <View style={styles.emptyContainer}>
+    <View style={styles.emptyContainer} testID="state.reminder.empty">
       <Icon name="event-note" size={64} color={getThemeColor('primary', '#2196F3')} />
       <Text style={[styles.emptyText, { color: getThemeColor('textSecondary', '#666666') }]}>
         暂无提醒
@@ -1250,7 +1258,8 @@ const ReminderListView = ({ navigation, route }) => {
       {!showBatchActions && (
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
-                     onPress={() => navigation?.navigate('AddReminder')}
+          onPress={() => navigation?.navigate('AddReminder')}
+          testID="action.reminder.add"
         >
           <Icon name="add" size={24} color="#ffffff" />
         </TouchableOpacity>

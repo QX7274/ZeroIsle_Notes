@@ -2,7 +2,7 @@
 module.exports = {
     testRunner: {
         args: {
-            '$0': 'jest',
+            '$0': 'node node_modules/jest/bin/jest.js',
             config: 'e2e/jest.config.js',
         },
         jest: {
@@ -18,7 +18,8 @@ module.exports = {
         'android.debug': {
             type: 'android.apk',
             binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
-            build: 'cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug',
+            testBinaryPath: 'android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk',
+            build: 'cd android && gradlew.bat assembleDebug assembleAndroidTest -DtestBuildType=debug',
         },
     },
     devices: {
@@ -34,6 +35,12 @@ module.exports = {
                 avdName: 'Pixel_3a_API_33_x86_64',
             },
         },
+        attached: {
+            type: 'android.attached',
+            device: {
+                adbName: 'HGR3Y9MA',
+            },
+        },
     },
     configurations: {
         'ios.sim.debug': {
@@ -42,6 +49,10 @@ module.exports = {
         },
         'android.emu.debug': {
             device: 'emulator',
+            app: 'android.debug',
+        },
+        'android.att.debug': {
+            device: 'attached',
             app: 'android.debug',
         },
     },

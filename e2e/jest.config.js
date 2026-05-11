@@ -1,6 +1,8 @@
 module.exports = {
   testMatch: ['**/*.test.js'],
   testTimeout: 120000,
+  globalSetup: 'detox/runners/jest/globalSetup',
+  globalTeardown: 'detox/runners/jest/globalTeardown',
   reporters: ['detox/runners/jest/reporter'],
-  setupFilesAfterEnv: ['detox/runners/jest/setup'],
+  testEnvironment: 'detox/runners/jest/testEnvironment',
 };

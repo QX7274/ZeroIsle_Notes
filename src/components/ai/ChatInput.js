@@ -118,11 +118,11 @@ const ChatInput = ({
     if (isLoading || !voiceEnabled) {return null;}
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          {
-            backgroundColor: isRecording ? colors.error : colors.primary,
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            {
+              backgroundColor: isRecording ? colors.error : colors.primary,
             borderRadius: 25,
             width: 50,
             height: 50,
@@ -132,10 +132,11 @@ const ChatInput = ({
             shadowOpacity: 0.3,
             shadowRadius: 3,
           },
-        ]}
-        onPress={handleVoiceButton}
-        activeOpacity={0.7}
-      >
+          ]}
+          onPress={handleVoiceButton}
+          activeOpacity={0.7}
+          testID="action.ai.voice"
+        >
         {isRecording ? (
           <View style={styles.recordingIndicatorContainer}>
             <Icon
@@ -179,11 +180,11 @@ const ChatInput = ({
     const isDisabled = message.trim() === '';
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          {
-            backgroundColor: isDisabled ? colors.primary + '80' : colors.primary,
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            {
+              backgroundColor: isDisabled ? colors.primary + '80' : colors.primary,
             borderRadius: 25,
             width: 50,
             height: 50,
@@ -193,11 +194,12 @@ const ChatInput = ({
             shadowOpacity: 0.3,
             shadowRadius: 3,
           },
-        ]}
-        onPress={handleSend}
-        disabled={isDisabled}
-        activeOpacity={0.7}
-      >
+          ]}
+          onPress={handleSend}
+          disabled={isDisabled}
+          activeOpacity={0.7}
+          testID="action.ai.send"
+        >
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Icon name="send" size={24} color={colors.card} />
           <Text
@@ -228,6 +230,7 @@ const ChatInput = ({
             styles.input,
             { color: colors.text },
           ]}
+          testID="input.ai.message"
           value={message}
           onChangeText={setMessage}
           placeholder="输入消息..."

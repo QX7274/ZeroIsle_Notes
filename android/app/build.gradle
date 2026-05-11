@@ -88,6 +88,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
         // 启用 multidex 支持
         multiDexEnabled true
@@ -186,6 +187,10 @@ android {
     buildFeatures {
         buildConfig true
     }
+
+    testOptions {
+        execution 'ANDROIDX_TEST_ORCHESTRATOR'
+    }
     
     // Kotlin 编译配置
     kotlinOptions {
@@ -224,6 +229,8 @@ dependencies {
     // Testing Fragments in Isolation
     debugImplementation "androidx.fragment:fragment-testing-manifest:$fragment_version"
     androidTestImplementation "androidx.fragment:fragment-testing:$fragment_version"
+    androidTestImplementation('com.wix:detox:+')
+    androidTestUtil 'androidx.test:orchestrator:1.5.0'
     implementation "androidx.activity:activity:1.10.1"
 
     // 排除重复的依赖

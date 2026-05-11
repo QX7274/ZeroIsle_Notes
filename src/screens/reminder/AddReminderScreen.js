@@ -268,6 +268,7 @@ const AddReminderScreen = ({ route, navigation }) => {
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标题</Text>
           <TextInput
             style={[styles.titleInput, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
+            testID="input.reminder.title"
             value={reminder.title}
             onChangeText={(text) => setReminder({ ...reminder, title: text })}
             placeholder="提醒标题"
@@ -452,6 +453,7 @@ const AddReminderScreen = ({ route, navigation }) => {
             style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleCreate}
             disabled={saving}
+            testID="action.reminder.create"
           >
             {saving ? (
               <ActivityIndicator size="small" color="#fff" />

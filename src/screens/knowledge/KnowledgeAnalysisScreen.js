@@ -47,7 +47,7 @@ import {
 /**
  * 知识图谱分析屏幕组件
  */
-const KnowledgeAnalysisScreen = ({ navigation }) => {
+const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
 
   // 获取主题颜色
@@ -323,7 +323,7 @@ const KnowledgeAnalysisScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={dynamicStyles.container}>
+    <View style={dynamicStyles.container} testID="screen.knowledgeAnalysis">
       {/* 选项卡 */}
       <View style={dynamicStyles.tabContainer}>
         {/* 自动分类标签页 */}
