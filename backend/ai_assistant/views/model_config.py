@@ -14,12 +14,16 @@ from ai_assistant.services import OpenAIService
 
 class ModelConfigViewSet(viewsets.ModelViewSet):
     """模型配置视图集"""
-    queryset = ModelConfig.objects.filter(is_active=True)
     serializer_class = ModelConfigSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['provider', 'is_default', 'supports_functions', 'supports_vision']
     ordering_fields = ['name', 'provider']
     ordering = ['provider', 'name']
+
+    def get_queryset(self):
+        # Delay MongoEngine collection access until request handling so startup checks
+        # do not force a live Mongo connection in testing / offline verification.
+        return ModelConfig.objects.filter(is_active=True)
     
     def get_permissions(self):
         """根据操作类型设置权限"""

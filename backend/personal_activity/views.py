@@ -1,4 +1,4 @@
-"""
+﻿"""
 Personal Activity Tracking Views
 个人活动记录视图
 """
@@ -17,13 +17,34 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from bson import ObjectId
 
-from .mongodb_models import activity_record, activity_category, activity_goal, personal_activity_models
+from .mongodb_models import (
+    get_activity_category,
+    get_activity_goal,
+    get_activity_record,
+    get_personal_activity_models,
+)
 from .serializers import (
     ActivityRecordSerializer, ActivityCategorySerializer, ActivityGoalSerializer,
     ActivityFilterSerializer, BatchOperationSerializer
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _activity_record_service():
+    return get_activity_record()
+
+
+def _activity_category_service():
+    return get_activity_category()
+
+
+def _activity_goal_service():
+    return get_activity_goal()
+
+
+def _personal_activity_models_service():
+    return get_personal_activity_models()
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
@@ -56,7 +77,7 @@ def activity_list_view(request):
                 pass
 
         # 获取活动列表
-        result = activity_record.get_user_activities(user_id, filters, page, page_size)
+        result = _activity_record_service().get_user_activities(user_id, filters, page, page_size)
 
         return Response({
             'success': True,
@@ -67,10 +88,10 @@ def activity_list_view(request):
         # 创建新活动
         serializer = ActivityRecordSerializer(data=request.data)
         if serializer.is_valid():
-            activity_id = activity_record.create(user_id, serializer.validated_data)
+            activity_id = _activity_record_service().create(user_id, serializer.validated_data)
             if activity_id:
                 # 获取创建的活动详情
-                created_activity = activity_record.get_by_id(user_id, activity_id)
+                created_activity = _activity_record_service().get_by_id(user_id, activity_id)
                 return Response({
                     'success': True,
                     'data': created_activity,
@@ -95,7 +116,7 @@ def activity_detail_view(request, activity_id):
 
     if request.method == 'GET':
         # 获取活动详情
-        activity = activity_record.get_by_id(user_id, activity_id)
+        activity = _activity_record_service().get_by_id(user_id, activity_id)
         if activity:
             return Response({
                 'success': True,
@@ -111,10 +132,10 @@ def activity_detail_view(request, activity_id):
         # 更新活动
         serializer = ActivityRecordSerializer(data=request.data, partial=True)
         if serializer.is_valid():
-            success = activity_record.update(user_id, activity_id, serializer.validated_data)
+            success = _activity_record_service().update(user_id, activity_id, serializer.validated_data)
             if success:
                 # 获取更新后的活动详情
-                updated_activity = activity_record.get_by_id(user_id, activity_id)
+                updated_activity = _activity_record_service().get_by_id(user_id, activity_id)
                 return Response({
                     'success': True,
                     'data': updated_activity,
@@ -133,7 +154,7 @@ def activity_detail_view(request, activity_id):
 
     elif request.method == 'DELETE':
         # 删除活动
-        success = activity_record.delete(user_id, activity_id)
+        success = _activity_record_service().delete(user_id, activity_id)
         if success:
             return Response({
                 'success': True,
@@ -165,11 +186,11 @@ def activity_status_view(request, activity_id):
             'message': f'无效的状态值，有效值为: {", ".join(valid_statuses)}'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    success = activity_record.update_status(user_id, activity_id, new_status)
+    success = _activity_record_service().update_status(user_id, activity_id, new_status)
     if success:
         # 如果状态为完成，自动设置进度为100%
         if new_status == 'completed':
-            activity_record.update_progress(user_id, activity_id, 100)
+            _activity_record_service().update_progress(user_id, activity_id, 100)
 
         return Response({
             'success': True,
@@ -204,16 +225,16 @@ def activity_progress_view(request, activity_id):
             'message': '进度值必须是0-100之间的整数'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    success = activity_record.update_progress(user_id, activity_id, progress)
+    success = _activity_record_service().update_progress(user_id, activity_id, progress)
     if success:
         # 如果进度为100%，自动设置状态为完成
         if progress == 100:
-            activity_record.update_status(user_id, activity_id, 'completed')
+            _activity_record_service().update_status(user_id, activity_id, 'completed')
         # 如果进度大于0且当前状态为计划中，设置为进行中
         elif progress > 0:
-            current_activity = activity_record.get_by_id(user_id, activity_id)
+            current_activity = _activity_record_service().get_by_id(user_id, activity_id)
             if current_activity and current_activity.get('status') == 'planned':
-                activity_record.update_status(user_id, activity_id, 'in_progress')
+                _activity_record_service().update_status(user_id, activity_id, 'in_progress')
 
         return Response({
             'success': True,
@@ -241,7 +262,7 @@ def dashboard_view(request):
             'end_date': tomorrow
         }
 
-        today_activities = activity_record.get_user_activities(user_id, today_filters, 1, 100)
+        today_activities = _activity_record_service().get_user_activities(user_id, today_filters, 1, 100)
 
         # 计算统计数据
         total_today = today_activities['total']
@@ -255,7 +276,7 @@ def dashboard_view(request):
             'end_date': today + timedelta(days=1)
         }
 
-        week_activities = activity_record.get_user_activities(user_id, week_filters, 1, 1000)
+        week_activities = _activity_record_service().get_user_activities(user_id, week_filters, 1, 1000)
         total_week = week_activities['total']
         completed_week = len([a for a in week_activities['activities'] if a.get('status') == 'completed'])
 
@@ -264,7 +285,7 @@ def dashboard_view(request):
         completion_rate_week = (completed_week / total_week * 100) if total_week > 0 else 0
 
         # 获取最近活动
-        recent_activities = activity_record.get_user_activities(user_id, {}, 1, 5)
+        recent_activities = _activity_record_service().get_user_activities(user_id, {}, 1, 5)
 
         dashboard_data = {
             'today_stats': {
@@ -308,8 +329,8 @@ def search_activities_view(request):
 
     try:
         # 使用MongoDB文本搜索
-        if personal_activity_models.db:
-            collection = personal_activity_models.db.personal_activities
+        if _personal_activity_models_service().db:
+            collection = _personal_activity_models_service().db.personal_activities
 
             # 构建搜索查询
             search_query = {
@@ -375,29 +396,29 @@ def batch_operation_view(request):
     for activity_id in activity_ids:
         try:
             if operation == 'delete':
-                success = activity_record.delete(user_id, activity_id)
+                success = _activity_record_service().delete(user_id, activity_id)
             elif operation == 'update_status':
-                success = activity_record.update_status(user_id, activity_id, operation_data['status'])
+                success = _activity_record_service().update_status(user_id, activity_id, operation_data['status'])
             elif operation == 'update_category':
-                success = activity_record.update(user_id, activity_id, {'category': operation_data['category']})
+                success = _activity_record_service().update(user_id, activity_id, {'category': operation_data['category']})
             elif operation == 'add_tags':
                 # 获取当前活动的标签，添加新标签
-                current_activity = activity_record.get_by_id(user_id, activity_id)
+                current_activity = _activity_record_service().get_by_id(user_id, activity_id)
                 if current_activity:
                     current_tags = set(current_activity.get('tags', []))
                     new_tags = set(operation_data['tags'])
                     updated_tags = list(current_tags.union(new_tags))
-                    success = activity_record.update(user_id, activity_id, {'tags': updated_tags})
+                    success = _activity_record_service().update(user_id, activity_id, {'tags': updated_tags})
                 else:
                     success = False
             elif operation == 'remove_tags':
                 # 获取当前活动的标签，移除指定标签
-                current_activity = activity_record.get_by_id(user_id, activity_id)
+                current_activity = _activity_record_service().get_by_id(user_id, activity_id)
                 if current_activity:
                     current_tags = set(current_activity.get('tags', []))
                     remove_tags = set(operation_data['tags'])
                     updated_tags = list(current_tags.difference(remove_tags))
-                    success = activity_record.update(user_id, activity_id, {'tags': updated_tags})
+                    success = _activity_record_service().update(user_id, activity_id, {'tags': updated_tags})
                 else:
                     success = False
             else:
@@ -431,12 +452,12 @@ def category_list_view(request):
 
     if request.method == 'GET':
         # 获取用户的所有分类
-        categories = activity_category.get_user_categories(user_id)
+        categories = _activity_category_service().get_user_categories(user_id)
 
         # 如果没有分类，创建默认分类
         if not categories:
-            activity_category.create_default_categories(user_id)
-            categories = activity_category.get_user_categories(user_id)
+            _activity_category_service().create_default_categories(user_id)
+            categories = _activity_category_service().get_user_categories(user_id)
 
         return Response({
             'success': True,
@@ -447,9 +468,9 @@ def category_list_view(request):
         # 创建新分类
         serializer = ActivityCategorySerializer(data=request.data)
         if serializer.is_valid():
-            category_id = activity_category.create(user_id, serializer.validated_data)
+            category_id = _activity_category_service().create(user_id, serializer.validated_data)
             if category_id:
-                created_category = activity_category.get_by_id(user_id, category_id)
+                created_category = _activity_category_service().get_by_id(user_id, category_id)
                 return Response({
                     'success': True,
                     'data': created_category,
@@ -474,7 +495,7 @@ def category_detail_view(request, category_id):
 
     if request.method == 'GET':
         # 获取分类详情
-        category = activity_category.get_by_id(user_id, category_id)
+        category = _activity_category_service().get_by_id(user_id, category_id)
         if category:
             return Response({
                 'success': True,
@@ -490,9 +511,9 @@ def category_detail_view(request, category_id):
         # 更新分类
         serializer = ActivityCategorySerializer(data=request.data, partial=True)
         if serializer.is_valid():
-            success = activity_category.update(user_id, category_id, serializer.validated_data)
+            success = _activity_category_service().update(user_id, category_id, serializer.validated_data)
             if success:
-                updated_category = activity_category.get_by_id(user_id, category_id)
+                updated_category = _activity_category_service().get_by_id(user_id, category_id)
                 return Response({
                     'success': True,
                     'data': updated_category,
@@ -511,7 +532,7 @@ def category_detail_view(request, category_id):
 
     elif request.method == 'DELETE':
         # 删除分类
-        success = activity_category.delete(user_id, category_id)
+        success = _activity_category_service().delete(user_id, category_id)
         if success:
             return Response({
                 'success': True,
@@ -530,7 +551,7 @@ def category_tree_view(request):
     user_id = str(request.user.id)
 
     try:
-        categories = activity_category.get_user_categories(user_id)
+        categories = _activity_category_service().get_user_categories(user_id)
 
         # 构建分类树结构
         category_map = {cat['_id']: cat for cat in categories}
@@ -573,7 +594,7 @@ def goal_list_view(request):
         status_filter = request.GET.get('status')
 
         # 获取用户的目标列表
-        goals = activity_goal.get_user_goals(user_id, status_filter)
+        goals = _activity_goal_service().get_user_goals(user_id, status_filter)
 
         return Response({
             'success': True,
@@ -584,9 +605,9 @@ def goal_list_view(request):
         # 创建新目标
         serializer = ActivityGoalSerializer(data=request.data)
         if serializer.is_valid():
-            goal_id = activity_goal.create(user_id, serializer.validated_data)
+            goal_id = _activity_goal_service().create(user_id, serializer.validated_data)
             if goal_id:
-                created_goal = activity_goal.get_by_id(user_id, goal_id)
+                created_goal = _activity_goal_service().get_by_id(user_id, goal_id)
                 return Response({
                     'success': True,
                     'data': created_goal,
@@ -611,7 +632,7 @@ def goal_detail_view(request, goal_id):
 
     if request.method == 'GET':
         # 获取目标详情
-        goal = activity_goal.get_by_id(user_id, goal_id)
+        goal = _activity_goal_service().get_by_id(user_id, goal_id)
         if goal:
             return Response({
                 'success': True,
@@ -627,9 +648,9 @@ def goal_detail_view(request, goal_id):
         # 更新目标
         serializer = ActivityGoalSerializer(data=request.data, partial=True)
         if serializer.is_valid():
-            success = activity_goal.update(user_id, goal_id, serializer.validated_data)
+            success = _activity_goal_service().update(user_id, goal_id, serializer.validated_data)
             if success:
-                updated_goal = activity_goal.get_by_id(user_id, goal_id)
+                updated_goal = _activity_goal_service().get_by_id(user_id, goal_id)
                 return Response({
                     'success': True,
                     'data': updated_goal,
@@ -648,7 +669,7 @@ def goal_detail_view(request, goal_id):
 
     elif request.method == 'DELETE':
         # 删除目标
-        success = activity_goal.delete(user_id, goal_id)
+        success = _activity_goal_service().delete(user_id, goal_id)
         if success:
             return Response({
                 'success': True,
@@ -690,7 +711,7 @@ def analytics_reports_view(request):
 
         # 获取时间范围内的活动
         filters = {'start_date': start_date, 'end_date': end_date}
-        activities_data = activity_record.get_user_activities(user_id, filters, 1, 1000)
+        activities_data = _activity_record_service().get_user_activities(user_id, filters, 1, 1000)
         activities = activities_data['activities']
 
         # 计算统计数据
@@ -767,7 +788,7 @@ def analytics_insights_view(request):
         end_date = datetime.now()
         start_date = end_date - timedelta(days=30)
         filters = {'start_date': start_date, 'end_date': end_date}
-        activities_data = activity_record.get_user_activities(user_id, filters, 1, 1000)
+        activities_data = _activity_record_service().get_user_activities(user_id, filters, 1, 1000)
         activities = activities_data['activities']
 
         insights = []
@@ -876,7 +897,7 @@ def analytics_trends_view(request):
 
             # 获取该时间段的活动
             filters = {'start_date': current_date, 'end_date': period_end}
-            activities_data = activity_record.get_user_activities(user_id, filters, 1, 1000)
+            activities_data = _activity_record_service().get_user_activities(user_id, filters, 1, 1000)
             activities = activities_data['activities']
 
             # 计算指标
@@ -931,7 +952,7 @@ def export_data_view(request):
     export_format = request.GET.get('format', 'json').lower()
 
     try:
-        activities_data = activity_record.get_user_activities(user_id, page_size=10000) # 导出所有活动
+        activities_data = _activity_record_service().get_user_activities(user_id, page_size=10000) # 导出所有活动
         activities = activities_data['activities']
 
         if export_format == 'json':
@@ -996,7 +1017,7 @@ def import_data_view(request):
         for item in imported_data:
             serializer = ActivityRecordSerializer(data=item)
             if serializer.is_valid():
-                activity_id = activity_record.create(user_id, serializer.validated_data)
+                activity_id = _activity_record_service().create(user_id, serializer.validated_data)
                 if activity_id:
                     success_count += 1
                 else:
@@ -1126,3 +1147,4 @@ def delete_image_view(request, filename):
     except Exception as e:
         logger.error(f"删除图片失败: {e}")
         return Response({'success': False, 'message': '删除图片失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

@@ -3,6 +3,11 @@
 """
 
 from .base import *
+import os
+import logging
+import mongoengine
+import mongomock
+from pymongo import MongoClient
 
 # 调试模式
 DEBUG = True
@@ -44,30 +49,29 @@ DATABASES = {
     }
 }
 
-# 连接到测试MongoDB数据库
-import mongoengine
-from pymongo import MongoClient
-import logging
-
 logger = logging.getLogger(__name__)
 
 # 断开所有现有连接
 mongoengine.disconnect_all()
 
 # 测试数据库名称
-test_db_name = 'ZeroIsle_Notes_Test'
+test_db_name = os.environ.get('MONGO_TEST_DB', 'ZeroIsle_Notes_Test')
+MONGO_DB_NAME = test_db_name
+MONGO_URI = os.environ.get('MONGO_URI', '')
+MONGO_HOST = os.environ.get('MONGO_HOST', '127.0.0.1')
+MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
 
 # 设置MongoDB连接标志
 MONGODB_AVAILABLE = False
 
 try:
-    mongo_uri = os.environ.get('MONGO_URI')
+    use_real_mongo = os.environ.get('USE_REAL_MONGO_FOR_TESTS', '').lower() in ('1', 'true', 'yes')
 
-    if mongo_uri:
-        # 使用MongoDB Atlas连接字符串
+    if use_real_mongo and MONGO_URI:
+        # 显式要求真实 Mongo 且已提供 URI 时，才允许连接真实实例
         mongoengine.connect(
             db=test_db_name,
-            host=mongo_uri,
+            host=MONGO_URI,
             alias='default',
             serverSelectionTimeoutMS=30000,
             connectTimeoutMS=30000,
@@ -75,25 +79,23 @@ try:
             connect=False  # 延迟连接，直到第一次使用
         )
 
-        # 创建PyMongo客户端用于原生操作
+        # 创建 PyMongo 客户端用于原生操作
         MONGO_CLIENT = MongoClient(
-            mongo_uri,
+            MONGO_URI,
             serverSelectionTimeoutMS=30000,
             connectTimeoutMS=30000,
             socketTimeoutMS=30000,
             connect=False  # 延迟连接，直到第一次使用
         )
-    else:
-        # 使用传统连接参数
-        mongo_host = os.environ.get('MONGO_HOST', '127.0.0.1')
-        mongo_port = int(os.environ.get('MONGO_PORT', 27017))
+    elif use_real_mongo:
+        # 显式要求真实 Mongo 但未提供 URI 时，退回到本地/容器配置
         mongo_user = os.environ.get('MONGO_USER', '')
         mongo_password = os.environ.get('MONGO_PASSWORD', '')
 
         mongoengine.connect(
             db=test_db_name,
-            host=mongo_host,
-            port=mongo_port,
+            host=MONGO_HOST,
+            port=MONGO_PORT,
             username=mongo_user,
             password=mongo_password,
             authentication_source='admin',
@@ -104,11 +106,11 @@ try:
             connect=False  # 延迟连接，直到第一次使用
         )
 
-        # 创建PyMongo客户端用于原生操作
+        # 创建 PyMongo 客户端用于原生操作
         if mongo_user and mongo_password:
             MONGO_CLIENT = MongoClient(
-                host=mongo_host,
-                port=mongo_port,
+                host=MONGO_HOST,
+                port=MONGO_PORT,
                 username=mongo_user,
                 password=mongo_password,
                 authSource='admin',
@@ -119,18 +121,29 @@ try:
             )
         else:
             MONGO_CLIENT = MongoClient(
-                host=mongo_host,
-                port=mongo_port,
+                host=MONGO_HOST,
+                port=MONGO_PORT,
                 serverSelectionTimeoutMS=30000,
                 connectTimeoutMS=30000,
                 socketTimeoutMS=30000,
                 connect=False  # 延迟连接，直到第一次使用
             )
+    else:
+        # 默认测试模式：使用 mongomock，避免在 check / pytest / smoke 阶段强依赖真实 Mongo
+        mongoengine.connect(
+            db=test_db_name,
+            host='mongodb://localhost',
+            alias='default',
+            mongo_client_class=mongomock.MongoClient,
+            uuidRepresentation='standard',
+        )
+        MONGO_CLIENT = mongomock.MongoClient()
+        logger.info("测试环境默认使用 mongomock 作为 MongoDB 后端")
 
     # 获取数据库引用
     MONGO_DB = MONGO_CLIENT[test_db_name]
 
-    # 设置MongoDB可用标志
+    # 设置 MongoDB 可用标志
     MONGODB_AVAILABLE = True
     logger.info(f"MongoDB测试配置成功: {test_db_name}")
 

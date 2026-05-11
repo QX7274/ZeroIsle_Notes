@@ -1,7 +1,6 @@
 """
 Custom Prometheus metrics for the document_converter app.
 """
-from django_prometheus.models import model_signals
 from prometheus_client import Counter, Histogram
 
 # Counter for conversion tasks started
@@ -43,4 +42,3 @@ conversion_pages = Histogram(
     'doc_conversion_pages_total',
     'Histogram of the number of pages in converted PDFs.'
 )
-

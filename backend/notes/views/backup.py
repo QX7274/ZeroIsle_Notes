@@ -7,7 +7,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from notes.mongodb_models import NoteBackup, Note
-from knowledge_graph.tasks import build_graph_for_note_task
 from notes.serializers import NoteBackupSerializer
 from common.permissions import IsOwnerOrReadOnly
 import logging

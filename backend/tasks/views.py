@@ -12,7 +12,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     """
     只读视图集，用于查询异步任务的状态。
     """
-    queryset = AsyncTask.objects.all()
+    queryset = None
     serializer_class = AsyncTaskSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'id'

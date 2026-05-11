@@ -2,8 +2,6 @@ import logging
 from django.conf import settings
 from mongoengine import signals
 from .mongodb_models.note import Note
-from knowledge_graph.tasks import auto_extract_entities_task
-from search.tasks import index_note_task
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +22,8 @@ def handle_note_save(sender, document, created, **kwargs):
     try:
         note_id = str(document.id)
         user_id = str(document.user.id) if document.user else None
+        from knowledge_graph.tasks import auto_extract_entities_task
+        from search.tasks import index_note_task
 
         auto_extract_entities_task.delay(note_id, user_id)
         index_note_task.delay(note_id)
@@ -33,7 +33,10 @@ def handle_note_save(sender, document, created, **kwargs):
         logger.error(f"Failed to trigger background tasks for Note {document.id}: {e}")
 
 
+trigger_auto_extraction = handle_note_save
+
+
 def connect_signals():
     """Connect signals to models."""
-    signals.post_save.connect(handle_note_save, sender=Note)
+    signals.post_save.connect(trigger_auto_extraction, sender=Note)
     logger.info("Connected Note signals for Knowledge Graph.")

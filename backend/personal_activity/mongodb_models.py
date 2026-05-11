@@ -576,8 +576,35 @@ class ActivityGoal:
             logger.error(f"更新目标进度失败: {e}")
             return False
 
-# 全局模型实例
-personal_activity_models = PersonalActivityModels()
-activity_record = ActivityRecord(personal_activity_models)
-activity_category = ActivityCategory(personal_activity_models)
-activity_goal = ActivityGoal(personal_activity_models)
+_personal_activity_models = None
+_activity_record = None
+_activity_category = None
+_activity_goal = None
+
+
+def _get_models_bundle():
+    global _personal_activity_models, _activity_record, _activity_category, _activity_goal
+
+    if _personal_activity_models is None:
+        _personal_activity_models = PersonalActivityModels()
+        _activity_record = ActivityRecord(_personal_activity_models)
+        _activity_category = ActivityCategory(_personal_activity_models)
+        _activity_goal = ActivityGoal(_personal_activity_models)
+
+    return _personal_activity_models, _activity_record, _activity_category, _activity_goal
+
+
+def get_personal_activity_models():
+    return _get_models_bundle()[0]
+
+
+def get_activity_record():
+    return _get_models_bundle()[1]
+
+
+def get_activity_category():
+    return _get_models_bundle()[2]
+
+
+def get_activity_goal():
+    return _get_models_bundle()[3]

@@ -9,7 +9,6 @@ from django.utils import timezone
 from notes.mongodb_models import Category, Note
 from notes.serializers import CategorySerializer
 from common.permissions import IsOwnerOrReadOnly
-from mongodb_service import mongodb_service
 import uuid
 import logging
 

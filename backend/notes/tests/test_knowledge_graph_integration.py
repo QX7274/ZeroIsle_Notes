@@ -12,13 +12,14 @@ class KnowledgeGraphIntegrationTest(SimpleTestCase):
     Test the integration between Note events and Knowledge Graph tasks.
     """
 
-    @patch('notes.signals.auto_extract_entities_task.delay')
-    def test_trigger_extraction_logic(self, mock_delay):
+    @patch('search.tasks.index_note_task.delay')
+    @patch('knowledge_graph.tasks.auto_extract_entities_task.delay')
+    def test_trigger_extraction_logic(self, mock_extract_delay, mock_index_delay):
         """
         Verify that the signal handler calls the Celery task with correct arguments.
         """
         # Setup mock objects
-        user = MagicMock(spec=User)
+        user = MagicMock()
         user.id = 'user_123'
         
         note = MagicMock(spec=Note)
@@ -29,7 +30,8 @@ class KnowledgeGraphIntegrationTest(SimpleTestCase):
         trigger_auto_extraction(sender=Note, document=note, created=True)
         
         # Assert task was queued
-        mock_delay.assert_called_once_with('note_456', 'user_123')
+        mock_extract_delay.assert_called_once_with('note_456', 'user_123')
+        mock_index_delay.assert_called_once_with('note_456')
 
     @patch('notes.signals.signals.post_save.connect')
     def test_signal_connection(self, mock_connect):

@@ -11,13 +11,15 @@ from voice_recognition.serializers import LanguageSerializer
 
 class LanguageViewSet(viewsets.ModelViewSet):
     """语言视图集"""
-    queryset = Language.objects.filter(is_active=True)
     serializer_class = LanguageSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active']
     search_fields = ['code', 'name', 'native_name']
     ordering_fields = ['name', 'code']
     ordering = ['name']
+
+    def get_queryset(self):
+        return Language.objects.filter(is_active=True)
     
     def get_permissions(self):
         """根据操作类型设置权限"""

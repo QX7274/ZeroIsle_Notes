@@ -20,7 +20,6 @@ from common.permissions import IsOwnerOrReadOnly
 import uuid
 import logging
 from mongoengine.queryset.visitor import Q
-from knowledge_graph.tasks import build_graph_for_note_task
 
 logger = logging.getLogger(__name__)
 

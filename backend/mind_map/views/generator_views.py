@@ -12,7 +12,10 @@ from rest_framework.permissions import IsAuthenticated
 from mind_map.services.mind_map_generator_service import MindMapGeneratorService
 
 logger = logging.getLogger(__name__)
-generator_service = MindMapGeneratorService()
+
+
+def _get_generator_service():
+    return MindMapGeneratorService()
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -40,7 +43,7 @@ def generate_from_text(request):
         title = request.data.get('title')
         options = request.data.get('options', {})
         
-        result = generator_service.generate_from_text(
+        result = _get_generator_service().generate_from_text(
             text=text,
             user=request.user,
             title=title,
@@ -72,7 +75,7 @@ def generate_from_note(request, note_id):
     try:
         options = request.data.get('options', {})
         
-        result = generator_service.generate_from_note(
+        result = _get_generator_service().generate_from_note(
             note_id=note_id,
             user=request.user,
             options=options

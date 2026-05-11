@@ -148,7 +148,7 @@ class ActivityCategorySerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
     color = serializers.RegexField(
         regex=r'^#[0-9A-Fa-f]{6}$',
-        error_message="颜色必须是有效的十六进制格式 (如: #FF0000)"
+        error_messages={'invalid': '颜色必须是有效的十六进制格式 (如: #FF0000)'}
     )
     icon = serializers.CharField(max_length=50)
     parent_id = serializers.CharField(max_length=24, required=False, allow_null=True)
