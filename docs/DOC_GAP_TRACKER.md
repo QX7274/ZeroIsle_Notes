@@ -37,8 +37,8 @@
 | GAP-DEPLOY-002 | 3 | P0 | TODO | 部署/CI 智能体 | 明确迁移、静态资源、日志目录、持久化路径启动顺序 | 启动链路文档完整；容器冷启动可复现；职责边界清晰 | `待提交` | 启动命令、日志、文档记录 | 后续结合容器验证一起闭环 |
 | GAP-CONFIG-001 | 3 | P0 | TODO | 后端/安全智能体 | 统一生产环境变量契约，不允许真实默认值兜底 | `DJANGO_SECRET_KEY`、`MONGO_URI`、Redis/Neo4j 等缺失时显式失败 | `待提交` | 配置检查与启动失败验证 | 与安全整改、测试环境收敛联动 |
 | GAP-CI-001 | 4 | P0 | IN_PROGRESS | 部署/CI 智能体 | 让 `mypy`、前端 `lint`、构建检查全部 hard-fail | 不存在 `|| true`、空脚本或 `echo` 伪检查；关键检查失败时流水线失败 | `c7b162d` | `npm run bundle:verify` 已通过；脚本差异记录 | 仍需继续覆盖更多真实执行链路 |
-| GAP-TEST-001 | 4 | P0 | IN_PROGRESS | 后端/安全智能体 | 测试环境不得强依赖真实外部 Mongo，需改成本地/容器/in-memory | `manage.py check --settings=backend.settings.testing` 不再强连 `127.0.0.1:27017`，并能稳定完成系统检查 | `f519473` | `python manage.py check --settings=backend.settings.testing`；`pytest backend/notes/tests/test_knowledge_graph_integration.py -q` | 已完成首轮修复：testing 默认使用 `mongomock`，启动期 Mongo 副作用已显著收敛；后续仍需继续清理其余重初始化噪声 |
-| GAP-ROUTE-001 | 3/5 | P1 | IN_PROGRESS | 验证智能体 | 清理可选功能入口的启动期导入阻塞，确保功能审查前各路由可被正常挂载 | `mind_map`、`document_converter`、`personal_activity` 等可选路由不因模块级初始化失败而被跳过 | `f519473` | `manage.py check` 输出；功能入口导入修复差异 | 本轮已修复首批 3 个入口阻塞；后续继续审查其余模块级服务初始化问题 |
+| GAP-TEST-001 | 4 | P0 | IN_PROGRESS | 后端/安全智能体 | 测试环境不得强依赖真实外部 Mongo，需改成本地/容器/in-memory | `manage.py check --settings=backend.settings.testing` 不再强连 `127.0.0.1:27017`，并能稳定完成系统检查 | `待提交` | `python manage.py check --settings=backend.settings.testing`；最小导入验证：`get_document_converter()`、`mongodb_realm_service` | 已完成第二轮修复：`mongodb_realm_service` 改为惰性初始化，同步客户端不再在构造期建立；后续继续清理其余重初始化噪声 |
+| GAP-ROUTE-001 | 3/5 | P1 | IN_PROGRESS | 验证智能体 | 清理可选功能入口的启动期导入阻塞，确保功能审查前各路由可被正常挂载 | `mind_map`、`document_converter`、`personal_activity` 等可选路由不因模块级初始化失败而被跳过 | `待提交` | `manage.py check` 输出；`document_converter/tasks.py` 与 `notification/signals.py` 导入副作用修复差异 | 已在首轮 3 个入口基础上继续收敛 `document_converter` 与 `notification` 的模块级副作用；后续继续审查其余模块级服务初始化问题 |
 | GAP-MOBILE-001 | 4 | P1 | IN_PROGRESS | 移动端/Android 智能体 | 补齐关键页面稳定 `testID` 与 Detox smoke 基础 | 首页、底部导航、AI、提醒、知识图谱、我的页具备稳定 `testID`；smoke 可构建安装 | `c7b162d` | 首轮 Detox/`testID` 差异；`npm run bundle:verify` | 目前只能宣称“可测试性整改进行中”，不能代替真机结论 |
 | GAP-REVIEW-001 | 5 | P0 | TODO | 验证智能体 | 使用工具进行功能审查，核查规划功能是否完成、是否足以上线 | 形成逐模块核查结论、缺口清单、体验与速度评估 | `待提交` | 后续工具审查记录、截图、日志 | 环境准备完成后立即启动 |
 | GAP-DEVICE-001 | 5 | P0 | BLOCKED | 验证智能体 | 使用 Android 专用 MCP/插件连接真实平板完成可视化验证 | 至少覆盖首页、底部导航、AI、提醒/日程、我的、一个原生能力页面并产出证据包 | `待提交` | Android 专用 MCP/插件接入后生成 | 插件未就位前不得标记完成 |
@@ -58,3 +58,4 @@
 | 2026-05-11 | Codex | 回填批次 2 首轮瘦身执行结果、Conda `Zeroisle` 可执行证据、ADB 识别真实平板证据，并明确尚未进入 Android 专用 MCP 真机验证阶段 |
 | 2026-05-12 | Codex | 回填批次 2 首轮瘦身与环境准备提交哈希 `1d96221`，统一文档与 Git 对应关系 |
 | 2026-05-12 | Codex | 将 GAP-TEST-001 从 `BLOCKED` 更新为 `IN_PROGRESS`，新增 GAP-ROUTE-001 跟踪可选功能入口导入稳定性，并登记批次 3 的 testing 自检与单测验证证据 |
+| 2026-05-12 | Codex | 继续登记批次 3 第二轮启动期副作用清理，补充 `mongodb_realm_service`、`document_converter`、`notification` 的惰性初始化修复与最小导入验证证据 |

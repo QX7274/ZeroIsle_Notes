@@ -9,7 +9,6 @@ from django.db.models.signals import post_save
 from .services import NotificationService
 
 logger = logging.getLogger(__name__)
-notification_service = NotificationService()
 
 # 这里可以添加各种信号处理器，监听其他模块的事件并创建通知
 # 例如：

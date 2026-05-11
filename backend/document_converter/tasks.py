@@ -11,7 +11,7 @@ from django.core.files.storage import default_storage
 from django.core.cache import cache
 from celery.exceptions import SoftTimeLimitExceeded
 from backend.celery import app
-from .services import document_converter
+from .services import get_document_converter
 from common.services.storage_service import storage_service
 from common.mongodb_models import AsyncTask
 from notes.mongodb_models.note_attachment import NoteAttachment
@@ -74,7 +74,7 @@ def convert_document_task(self, attachment_id: str):
             input_path = tmp_in.name
 
         with tempfile.TemporaryDirectory() as output_dir:
-            pdf_path = document_converter.convert_to_pdf(input_path, output_dir)
+            pdf_path = get_document_converter().convert_to_pdf(input_path, output_dir)
             pages = 0
             if PdfReader is not None:
                 try:

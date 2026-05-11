@@ -45,8 +45,7 @@ class MongoDBRealmService:
         self.max_retries = 3
         self.retry_delay = 1
 
-        # 初始化同步客户端
-        self._init_sync_client()
+        # 延迟初始化，同步客户端仅在首次真正使用时建立
 
     def _init_sync_client(self):
         """初始化同步MongoDB客户端"""
@@ -88,6 +87,11 @@ class MongoDBRealmService:
             self.sync_client = None
             self.db = None
 
+    def _ensure_sync_client(self):
+        if self.initialized and self.sync_client is not None and self.db is not None:
+            return
+        self._init_sync_client()
+
     async def init_async_client(self):
         """初始化异步MongoDB客户端"""
         if not self.mongo_uri:
@@ -125,6 +129,8 @@ class MongoDBRealmService:
     def get_connection_status(self):
         """获取连接状态"""
         if not self.initialized:
+            self._ensure_sync_client()
+        if not self.initialized:
             return "未初始化"
 
         try:
@@ -137,6 +143,7 @@ class MongoDBRealmService:
     # 同步操作方法
     def insert_document_sync(self, collection_name, document):
         """同步插入文档"""
+        self._ensure_sync_client()
         if not self.initialized or self.db is None:
             logger.error("MongoDB Realm服务未初始化")
             return None
@@ -155,6 +162,7 @@ class MongoDBRealmService:
 
     def find_document_sync(self, collection_name, query):
         """同步查询文档"""
+        self._ensure_sync_client()
         if not self.initialized or self.db is None:
             logger.error("MongoDB Realm服务未初始化")
             return None
@@ -169,6 +177,7 @@ class MongoDBRealmService:
 
     def update_document_sync(self, collection_name, query, update):
         """同步更新文档"""
+        self._ensure_sync_client()
         if not self.initialized or self.db is None:
             logger.error("MongoDB Realm服务未初始化")
             return 0
@@ -183,6 +192,7 @@ class MongoDBRealmService:
 
     def delete_document_sync(self, collection_name, query):
         """同步删除文档"""
+        self._ensure_sync_client()
         if not self.initialized or self.db is None:
             logger.error("MongoDB Realm服务未初始化")
             return 0

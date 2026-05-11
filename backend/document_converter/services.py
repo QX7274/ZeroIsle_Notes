@@ -98,5 +98,11 @@ class DocumentConverterService:
         # 回退 LibreOffice
         return self._convert_with_libreoffice(input_path, output_dir)
 
-# 创建全局实例
-document_converter = DocumentConverterService()
+_document_converter = None
+
+
+def get_document_converter():
+    global _document_converter
+    if _document_converter is None:
+        _document_converter = DocumentConverterService()
+    return _document_converter
