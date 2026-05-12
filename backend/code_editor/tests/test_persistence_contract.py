@@ -162,3 +162,146 @@ class CodeEditorMongoContractTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertIs(snippet_model.call_args.kwargs['user'], self.mongo_user)
+
+    def test_code_snippet_update_persists_tags_list(self):
+        request = self.factory.put('/api/v1/code/snippets/snippet-1/', {
+            'title': 'updated',
+            'description': 'next',
+            'code': 'print(2)',
+            'language': 'python',
+            'tags': ['tag-b', 'tag-c'],
+            'is_public': True,
+        }, format='json')
+        request.user = self.request_user
+        request.mongo_user = self.mongo_user
+        request.data = {
+            'title': 'updated',
+            'description': 'next',
+            'code': 'print(2)',
+            'language': 'python',
+            'tags': ['tag-b', 'tag-c'],
+            'is_public': True,
+        }
+
+        snippet = SimpleNamespace(
+            id='snippet-1',
+            user=self.mongo_user,
+            title='demo',
+            description='desc',
+            code='print(1)',
+            language='python',
+            is_public=False,
+            is_favorite=False,
+            tags=['tag-a'],
+            view_count=0,
+            created_at=None,
+            updated_at=None,
+            save=mock.Mock(),
+        )
+
+        view = CodeSnippetViewSet()
+        view.request = request
+
+        with mock.patch.object(view, 'get_object', return_value=snippet):
+            response = view.update(request, pk='snippet-1')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(snippet.tags, ['tag-b', 'tag-c'])
+        self.assertTrue(snippet.is_public)
+        snippet.save.assert_called_once()
+
+    def test_code_snippet_by_language_requires_query_param(self):
+        request = self.factory.get('/api/v1/code/snippets/by_language/')
+        request.user = self.request_user
+        request.mongo_user = self.mongo_user
+        request.query_params = {}
+
+        view = CodeSnippetViewSet()
+        view.request = request
+
+        response = view.by_language(request)
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_code_snippet_by_tag_uses_filtered_queryset(self):
+        request = self.factory.get('/api/v1/code/snippets/by_tag/?tag=tag-a')
+        request.user = self.request_user
+        request.mongo_user = self.mongo_user
+        request.query_params = {'tag': 'tag-a'}
+
+        snippet = SimpleNamespace(
+            id='snippet-1',
+            user=self.mongo_user,
+            title='demo',
+            description='desc',
+            code='print(1)',
+            language='python',
+            is_public=False,
+            is_favorite=False,
+            tags=['tag-a'],
+            view_count=0,
+            created_at=None,
+            updated_at=None,
+        )
+        queryset = mock.Mock()
+        queryset.filter.return_value = [snippet]
+
+        view = CodeSnippetViewSet()
+        view.request = request
+        with mock.patch.object(view, 'get_queryset', return_value=queryset):
+            response = view.by_tag(request)
+
+        self.assertEqual(response.status_code, 200)
+        queryset.filter.assert_called_once_with(tags='tag-a')
+        self.assertEqual(response.data['results'][0]['id'], 'snippet-1')
+
+    def test_code_execution_retrieve_returns_not_found_for_other_user(self):
+        request = self.factory.get('/api/v1/code/executions/execution-1/')
+        request.user = self.request_user
+        request.mongo_user = self.mongo_user
+
+        view = CodeExecutionViewSet()
+        view.request = request
+        with mock.patch.object(view, 'get_object', return_value=None):
+            response = view.retrieve(request, pk='execution-1')
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_code_execution_rerun_resets_fields_before_execute(self):
+        request = self.factory.post('/api/v1/code/executions/execution-1/rerun/')
+        request.user = self.request_user
+        request.mongo_user = self.mongo_user
+
+        execution = SimpleNamespace(
+            id='execution-1',
+            user=self.mongo_user,
+            code='print(1)',
+            language='python',
+            input_data='',
+            output='old',
+            error='boom',
+            execution_time=9.9,
+            memory_usage=3.3,
+            status='failed',
+            save=mock.Mock(),
+        )
+
+        view = CodeExecutionViewSet()
+        view.request = request
+        with mock.patch.object(view, 'get_object', return_value=execution):
+            with mock.patch('code_editor.views.code_execution.CodeExecutionService') as service_cls:
+                def _rerun_side_effect(obj):
+                    self.assertEqual(obj.status, 'pending')
+                    self.assertEqual(obj.output, '')
+                    self.assertEqual(obj.error, '')
+                    self.assertEqual(obj.execution_time, 0)
+                    self.assertEqual(obj.memory_usage, 0)
+                    obj.status = 'completed'
+                    return obj
+
+                service_cls.return_value.execute_code.side_effect = _rerun_side_effect
+                response = view.rerun(request, pk='execution-1')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(execution.status, 'completed')
+        self.assertGreaterEqual(execution.save.call_count, 1)
