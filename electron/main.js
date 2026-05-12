@@ -61,7 +61,7 @@ function createWindow() {
 
     // Load the app
     if (isDev) {
-        mainWindow.loadURL('http://localhost:8081');
+        mainWindow.loadURL('http://127.0.0.1:8081/shared-screen-lab/');
         mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(__dirname, '../web-build/index.html'));

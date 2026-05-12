@@ -7,6 +7,7 @@
     "ios": "node node_modules/react-native/cli.js run-ios",
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "start": "node node_modules/react-native/cli.js start",
+    "local:web": "node scripts/serve-local-web.js",
     "test": "node node_modules/jest/bin/jest.js",
     "test:e2e:jest": "node node_modules/jest/bin/jest.js --config e2e/jest.config.js",
     "bundle:verify": "node node_modules/react-native/cli.js bundle --platform android --dev false --entry-file index.js --bundle-output tmp/bundle-verify.android.js --assets-dest tmp/bundle-verify-assets",
