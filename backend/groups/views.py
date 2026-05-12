@@ -5,7 +5,9 @@
 import random
 import string
 import uuid
+from bson.dbref import DBRef
 from django.utils import timezone
+from mongoengine.errors import DoesNotExist as MongoDoesNotExist
 from mongoengine.queryset.visitor import Q
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
@@ -27,11 +29,53 @@ def _get_request_mongo_user(request):
     return get_mongo_user_from_django(getattr(request, 'user', None))
 
 
+def _extract_reference_id(raw_ref):
+    if raw_ref is None:
+        return None
+    if isinstance(raw_ref, DBRef):
+        return raw_ref.id
+    if hasattr(raw_ref, 'pk'):
+        return raw_ref.pk
+    if hasattr(raw_ref, 'id'):
+        return raw_ref.id
+    return raw_ref
+
+
+def _get_group_creator_id(group):
+    if not group:
+        return None
+
+    try:
+        creator = getattr(group, 'creator', None)
+        if creator is not None:
+            return _extract_reference_id(creator)
+    except MongoDoesNotExist:
+        pass
+
+    raw_creator_ref = getattr(group, '_data', {}).get('creator')
+    return _extract_reference_id(raw_creator_ref)
+
+
+def _get_document_reference_id(document, field_name):
+    if not document:
+        return None
+
+    try:
+        value = getattr(document, field_name, None)
+        if value is not None:
+            return _extract_reference_id(value)
+    except MongoDoesNotExist:
+        pass
+
+    raw_ref = getattr(document, '_data', {}).get(field_name)
+    return _extract_reference_id(raw_ref)
+
+
 def _is_group_creator(group, mongo_user):
     return bool(
         group
         and mongo_user
-        and str(getattr(group.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
+        and str(_get_group_creator_id(group)) == str(getattr(mongo_user, 'id', ''))
     )
 
 
@@ -39,11 +83,11 @@ def _get_visible_groups_for_mongo_user(mongo_user):
     if not mongo_user:
         return Group.objects.none()
 
-    member_group_ids = [
-        str(getattr(member.group, 'id', ''))
-        for member in GroupMember.objects.filter(user=mongo_user, is_active=True)
-        if getattr(member, 'group', None) is not None
-    ]
+    member_group_ids = []
+    for member in GroupMember.objects.filter(user=mongo_user, is_active=True):
+        group_id = _get_document_reference_id(member, 'group')
+        if group_id is not None:
+            member_group_ids.append(str(group_id))
     member_group_ids = list(dict.fromkeys(filter(None, member_group_ids)))
 
     group_query = Q(creator=mongo_user)
@@ -344,18 +388,20 @@ class GroupViewSet(viewsets.ModelViewSet):
         from users.mongodb_models import User
 
         member_user_ids = {
-            str(getattr(member.user, 'id', ''))
+            str(user_id)
             for member in GroupMember.objects.filter(group=group, is_active=True)
-            if getattr(member, 'user', None) is not None
+            for user_id in [_get_document_reference_id(member, 'user')]
+            if user_id is not None
         }
         pending_invitee_ids = {
-            str(getattr(invitation.invitee, 'id', ''))
+            str(user_id)
             for invitation in GroupInvitation.objects.filter(
                 group=group,
                 status='pending',
                 expires_at__gt=timezone.now()
             )
-            if getattr(invitation, 'invitee', None) is not None
+            for user_id in [_get_document_reference_id(invitation, 'invitee')]
+            if user_id is not None
         }
 
         candidates = User.objects(
@@ -538,6 +584,7 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
     """
     serializer_class = SharedScreenSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         """获取用户可见的共享屏幕"""
@@ -688,3 +735,79 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
             "webrtc_room_id": shared_screen.webrtc_room_id,
             "status": shared_screen.status
         })
+
+    @action(detail=True, methods=['post'])
+    def pause(self, request, pk=None):
+        """暂停共享"""
+        shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        shared_user_id = _get_document_reference_id(shared_screen, 'user')
+
+        if not mongo_user or str(shared_user_id) != str(getattr(mongo_user, 'id', '')):
+            return Response(
+                {"detail": "只有共享者可以暂停共享"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        shared_screen.status = 'paused'
+        shared_screen.save()
+
+        return Response(
+            {"detail": "共享已暂停"},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        """恢复共享"""
+        shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        shared_user_id = _get_document_reference_id(shared_screen, 'user')
+
+        if not mongo_user or str(shared_user_id) != str(getattr(mongo_user, 'id', '')):
+            return Response(
+                {"detail": "只有共享者可以恢复共享"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if shared_screen.status != 'paused':
+            return Response(
+                {"detail": "只有暂停状态的共享可以恢复"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        shared_screen.status = 'active'
+        shared_screen.save()
+
+        return Response(
+            {"detail": "共享已恢复"},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'])
+    def end(self, request, pk=None):
+        """结束共享"""
+        shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        shared_user_id = _get_document_reference_id(shared_screen, 'user')
+
+        if (
+            not mongo_user
+            or (
+                str(shared_user_id) != str(getattr(mongo_user, 'id', ''))
+                and not IsGroupCreatorOrAdmin().has_object_permission(request, self, shared_screen.group)
+            )
+        ):
+            return Response(
+                {"detail": "只有共享者或群组管理员可以结束共享"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        shared_screen.status = 'ended'
+        shared_screen.ended_at = timezone.now()
+        shared_screen.save()
+
+        return Response(
+            {"detail": "共享已结束"},
+            status=status.HTTP_200_OK
+        )

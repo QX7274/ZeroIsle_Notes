@@ -6,9 +6,22 @@
 import logging
 from typing import Optional
 
+from bson.dbref import DBRef
 from mongoengine.errors import DoesNotExist as MongoDoesNotExist
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_reference_id(raw_ref):
+    if raw_ref is None:
+        return None
+    if isinstance(raw_ref, DBRef):
+        return raw_ref.id
+    if hasattr(raw_ref, 'pk'):
+        return raw_ref.pk
+    if hasattr(raw_ref, 'id'):
+        return raw_ref.id
+    return raw_ref
 
 
 def get_mongo_user_from_django(django_user):
@@ -47,6 +60,12 @@ def get_mongo_user_from_django(django_user):
                     "Django 用户 %s 的 Mongo profile 映射已失效，转入回退查找逻辑",
                     getattr(django_user, 'username', django_user),
                 )
+                raw_user_ref = getattr(profile, '_data', {}).get('user')
+                raw_user_id = _extract_reference_id(raw_user_ref)
+                if raw_user_id is not None:
+                    mongo_user = MongoUser.objects(id=raw_user_id).first()
+                    if mongo_user:
+                        return mongo_user
 
         # 如果映射不存在，先按 django_user_id / username 尝试查找 Mongo 用户
         mongo_user = (
