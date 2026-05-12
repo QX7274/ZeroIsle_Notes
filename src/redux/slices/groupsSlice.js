@@ -27,6 +27,61 @@ const findSharedScreenById = (sharedScreens, shareId) => (
   ) || null
 );
 
+const getScreenShareSnapshotSignature = (share) => JSON.stringify({
+  id: share?.id || null,
+  status: share?.status || null,
+  title: share?.title || null,
+  webrtcRoomId: share?.webrtc_room_id || null,
+  ownerId: share?.user?.id || null,
+  groupId: share?.group?.id || null,
+  endedAt: share?.ended_at || null,
+});
+
+const areSharedScreensEquivalent = (currentSharedScreens, nextSharedScreens) => {
+  if (currentSharedScreens === nextSharedScreens) {
+    return true;
+  }
+
+  if (!Array.isArray(currentSharedScreens) || !Array.isArray(nextSharedScreens)) {
+    return false;
+  }
+
+  if (currentSharedScreens.length !== nextSharedScreens.length) {
+    return false;
+  }
+
+  return currentSharedScreens.every((share, index) => (
+    getScreenShareSnapshotSignature(share) === getScreenShareSnapshotSignature(nextSharedScreens[index])
+  ));
+};
+
+const patchScreenShareSession = (session, patch) => {
+  const nextPatch = patch || {};
+  const patchKeys = Object.keys(nextPatch);
+
+  if (patchKeys.length === 0) {
+    return session;
+  }
+
+  const hasChanges = patchKeys.some((key) => {
+    if (key === 'shareSnapshot') {
+      return getScreenShareSnapshotSignature(session?.shareSnapshot)
+        !== getScreenShareSnapshotSignature(nextPatch.shareSnapshot);
+    }
+
+    return session?.[key] !== nextPatch[key];
+  });
+
+  if (!hasChanges) {
+    return session;
+  }
+
+  return {
+    ...session,
+    ...nextPatch,
+  };
+};
+
 const syncActiveScreenShareSession = (session, sharedScreens) => {
   if (!hasActiveScreenShareSession(session)) {
     return session;
@@ -38,8 +93,7 @@ const syncActiveScreenShareSession = (session, sharedScreens) => {
     return session;
   }
 
-  return {
-    ...session,
+  return patchScreenShareSession(session, {
     groupId: matchedShare?.group?.id ?? session.groupId,
     shareId: matchedShare?.id ?? session.shareId,
     webrtcRoomId: matchedShare?.webrtc_room_id ?? session.webrtcRoomId,
@@ -48,7 +102,7 @@ const syncActiveScreenShareSession = (session, sharedScreens) => {
     status: matchedShare?.status === 'paused'
       ? 'paused'
       : (session.role === 'viewer' ? 'viewing' : 'sharing'),
-  };
+  });
 };
 
 const isLikelyNetworkError = (error) => {
@@ -441,10 +495,10 @@ const groupsSlice = createSlice({
         return;
       }
 
-      state.activeScreenShareSession = {
-        ...state.activeScreenShareSession,
-        ...action.payload,
-      };
+      state.activeScreenShareSession = patchScreenShareSession(
+        state.activeScreenShareSession,
+        action.payload
+      );
     },
     clearActiveScreenShareSession: (state) => {
       state.activeScreenShareSession = createEmptyScreenShareSession();
@@ -745,10 +799,17 @@ const groupsSlice = createSlice({
       })
       .addCase(fetchScreenShares.fulfilled, (state, action) => {
         state.screenShareLoading = false;
-        state.sharedScreens = action.payload;
+        const nextSharedScreens = areSharedScreensEquivalent(
+          state.sharedScreens,
+          action.payload
+        )
+          ? state.sharedScreens
+          : action.payload;
+
+        state.sharedScreens = nextSharedScreens;
         state.activeScreenShareSession = syncActiveScreenShareSession(
           state.activeScreenShareSession,
-          action.payload
+          nextSharedScreens
         );
       })
       .addCase(fetchScreenShares.rejected, (state, action) => {

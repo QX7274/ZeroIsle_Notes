@@ -109,6 +109,50 @@ describe('groupsSlice screen share session', () => {
     expect(nextState.activeScreenShareSession.shareSnapshot?.status).toBe('paused');
   });
 
+  it('should keep shared screen and active session references stable for equivalent fetch payload', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const sharedScreens = [
+      {
+        id: 'share-3b',
+        status: 'active',
+        title: '稳定共享',
+        webrtc_room_id: 'room-3b',
+        user: { id: 'user-3b' },
+        group: { id: 'group-3b' },
+      },
+    ];
+    const stateWithList = groupsReducer(baseState, {
+      type: fetchScreenShares.fulfilled.type,
+      payload: sharedScreens,
+    });
+    const state = groupsReducer(stateWithList, patchActiveScreenShareSession({
+      shareId: 'share-3b',
+      role: 'viewer',
+      status: 'viewing',
+      webrtcRoomId: 'room-3b',
+      ownerId: 'user-3b',
+      groupId: 'group-3b',
+      shareSnapshot: sharedScreens[0],
+    }));
+
+    const nextState = groupsReducer(state, {
+      type: fetchScreenShares.fulfilled.type,
+      payload: [
+        {
+          id: 'share-3b',
+          status: 'active',
+          title: '稳定共享',
+          webrtc_room_id: 'room-3b',
+          user: { id: 'user-3b' },
+          group: { id: 'group-3b' },
+        },
+      ],
+    });
+
+    expect(nextState.sharedScreens).toBe(state.sharedScreens);
+    expect(nextState.activeScreenShareSession).toBe(state.activeScreenShareSession);
+  });
+
   it('should clear active session explicitly', () => {
     const baseState = groupsReducer(undefined, { type: 'unknown' });
     const state = groupsReducer(baseState, patchActiveScreenShareSession({
@@ -230,5 +274,47 @@ describe('groupsSlice screen share session', () => {
       status: 'paused',
       title: '新标题',
     });
+  });
+
+  it('should ignore equivalent session patch payload without replacing session reference', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      groupId: 'group-8',
+      shareId: 'share-8',
+      role: 'viewer',
+      status: 'viewing',
+      webrtcRoomId: 'room-8',
+      ownerId: 'user-8',
+      connectionState: 'connected',
+      connectionDetail: 'remote-stream-ready',
+      hasRemoteStream: true,
+      viewerTimeoutReached: false,
+      shareSnapshot: {
+        id: 'share-8',
+        status: 'active',
+        title: '共享八号',
+        webrtc_room_id: 'room-8',
+        user: { id: 'user-8' },
+        group: { id: 'group-8' },
+      },
+    }));
+
+    const nextState = groupsReducer(state, patchActiveScreenShareSession({
+      status: 'viewing',
+      connectionState: 'connected',
+      connectionDetail: 'remote-stream-ready',
+      hasRemoteStream: true,
+      viewerTimeoutReached: false,
+      shareSnapshot: {
+        id: 'share-8',
+        status: 'active',
+        title: '共享八号',
+        webrtc_room_id: 'room-8',
+        user: { id: 'user-8' },
+        group: { id: 'group-8' },
+      },
+    }));
+
+    expect(nextState.activeScreenShareSession).toBe(state.activeScreenShareSession);
   });
 });
