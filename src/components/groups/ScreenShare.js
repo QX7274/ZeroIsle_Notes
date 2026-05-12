@@ -45,6 +45,16 @@ const COLORS = {
   DARK_PANEL: '#102A43',
 };
 
+const VIEWER_STREAM_TIMEOUT_MS = 12000;
+
+const CONNECTION_STATE_LABELS = {
+  idle: '待连接',
+  connecting: '正在连接信令',
+  connected: '信令已连接',
+  closed: '连接已关闭',
+  error: '连接异常',
+};
+
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
   const isLoading = useSelector(selectScreenShareLoading);
@@ -63,11 +73,15 @@ const ScreenShare = ({ groupId }) => {
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
+  const [connectionState, setConnectionState] = useState('idle');
+  const [connectionDetail, setConnectionDetail] = useState(null);
+  const [viewerTimeoutReached, setViewerTimeoutReached] = useState(false);
 
   const videoRef = useRef(null);
   const latestShareIdRef = useRef(null);
   const latestIsSharingRef = useRef(false);
   const joinedShareRef = useRef(null);
+  const viewerTimeoutRef = useRef(null);
 
   const activeGroupShares = useMemo(
     () =>
@@ -104,11 +118,25 @@ const ScreenShare = ({ groupId }) => {
     joinedShareRef.current = joinedShare;
   }, [joinedShare]);
 
+  useEffect(() => () => {
+    if (viewerTimeoutRef.current) {
+      clearTimeout(viewerTimeoutRef.current);
+      viewerTimeoutRef.current = null;
+    }
+  }, []);
+
   const handleLeaveViewer = useCallback(({ silent = false } = {}) => {
     webrtcService.disconnect();
     setJoinedShare(null);
     setConnectedUsers([]);
     setHasRemoteStream(false);
+    setViewerTimeoutReached(false);
+    setConnectionState('idle');
+    setConnectionDetail(null);
+    if (viewerTimeoutRef.current) {
+      clearTimeout(viewerTimeoutRef.current);
+      viewerTimeoutRef.current = null;
+    }
     if (canUseWebShare && currentUser?.id) {
       webrtcService.init(currentUser.id);
     }
@@ -148,13 +176,26 @@ const ScreenShare = ({ groupId }) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setHasRemoteStream(Boolean(stream));
+        if (stream) {
+          setViewerTimeoutReached(false);
+          if (viewerTimeoutRef.current) {
+            clearTimeout(viewerTimeoutRef.current);
+            viewerTimeoutRef.current = null;
+          }
+        }
       }
+    });
+
+    const removeConnectionState = webrtcService.onConnectionStateChange(({ state, detail }) => {
+      setConnectionState(state);
+      setConnectionDetail(detail || null);
     });
 
     return () => {
       removeUserJoin?.();
       removeUserLeave?.();
       removeRemoteStream?.();
+      removeConnectionState?.();
       if (latestIsSharingRef.current && latestShareIdRef.current) {
         dispatch(endScreenShare(latestShareIdRef.current));
       }
@@ -210,6 +251,7 @@ const ScreenShare = ({ groupId }) => {
           .then(() => webrtcService.startScreenShare())
           .then(() => {
             setIsSharing(true);
+            setConnectionDetail(null);
             dispatch(fetchScreenShares());
           })
           .catch((requestError) => {
@@ -238,6 +280,12 @@ const ScreenShare = ({ groupId }) => {
     }
 
     setIsJoiningShare(true);
+    setViewerTimeoutReached(false);
+    setConnectionDetail(null);
+    if (viewerTimeoutRef.current) {
+      clearTimeout(viewerTimeoutRef.current);
+      viewerTimeoutRef.current = null;
+    }
 
     dispatch(joinScreenShare(share.id))
       .unwrap()
@@ -246,6 +294,9 @@ const ScreenShare = ({ groupId }) => {
           setJoinedShare(share);
           setShareId(null);
           setHasRemoteStream(false);
+          viewerTimeoutRef.current = setTimeout(() => {
+            setViewerTimeoutReached(true);
+          }, VIEWER_STREAM_TIMEOUT_MS);
         })
       )
       .catch((requestError) => {
@@ -325,6 +376,11 @@ const ScreenShare = ({ groupId }) => {
     }
 
     if (isViewing) {
+      const connectionLabel = CONNECTION_STATE_LABELS[connectionState] || '连接状态未知';
+      const viewerHint = viewerTimeoutReached
+        ? '超过 12 秒仍未收到远端画面，请检查共享发起端是否正在推流，或重试加入会话。'
+        : connectionDetail || '正在等待远端共享流推送到当前画面。';
+
       return (
         <View style={[styles.stageCard, styles.stageCardViewer]}>
           <Text style={styles.stageEyebrow}>观看中</Text>
@@ -337,10 +393,17 @@ const ScreenShare = ({ groupId }) => {
             <video ref={videoRef} style={styles.viewerVideo} autoPlay playsInline />
             {!hasRemoteStream ? (
               <View style={styles.viewerOverlay}>
-                <Icon name="broadcast" size={34} color="#FFFFFF" />
-                <Text style={styles.viewerOverlayTitle}>已接入观看会话</Text>
+                <Icon
+                  name={viewerTimeoutReached || connectionState === 'error' ? 'broadcast-off' : 'broadcast'}
+                  size={34}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.viewerOverlayTitle}>
+                  {viewerTimeoutReached ? '远端画面接入超时' : '已接入观看会话'}
+                </Text>
+                <Text style={styles.viewerOverlayBadge}>{connectionLabel}</Text>
                 <Text style={styles.viewerOverlayText}>
-                  正在等待远端共享流推送到当前画面。
+                  {viewerHint}
                 </Text>
               </View>
             ) : null}
@@ -651,7 +714,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginTop: SPACING.SMALL,
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  viewerOverlayBadge: {
+    fontSize: 12,
+    color: '#D7F3EE',
+    backgroundColor: 'rgba(15, 118, 110, 0.52)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginBottom: 8,
   },
   viewerOverlayText: {
     fontSize: 13,

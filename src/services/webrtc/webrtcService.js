@@ -14,6 +14,8 @@ class WebRTCService {
     this.onRemoteStreamCallbacks = [];
     this.onUserJoinCallbacks = [];
     this.onUserLeaveCallbacks = [];
+    this.onConnectionStateChangeCallbacks = [];
+    this.connectionState = 'idle';
     this.roomId = null;
     this.userId = null;
     this.isConnected = false;
@@ -42,11 +44,13 @@ class WebRTCService {
     }
 
     this.roomId = roomId;
+    this._setConnectionState('connecting');
 
     return new Promise(async (resolve, reject) => {
       try {
         const token = await getToken();
         if (!token) {
+          this._setConnectionState('error', '未登录，无法连接到信令服务器');
           reject(new Error('未登录，无法连接到信令服务器'));
           return;
         }
@@ -59,6 +63,7 @@ class WebRTCService {
 
         this.socket.onopen = () => {
           this.isConnected = true;
+          this._setConnectionState('connected');
           this._sendMessage({ type: 'get_users' });
           resolve();
         };
@@ -70,13 +75,16 @@ class WebRTCService {
 
         this.socket.onclose = () => {
           this.isConnected = false;
+          this._setConnectionState('closed');
           this._cleanup();
         };
 
         this.socket.onerror = (error) => {
+          this._setConnectionState('error', '信令连接失败，请检查本地 Web 端和网络状态');
           reject(error);
         };
       } catch (error) {
+        this._setConnectionState('error', error?.message || '信令连接初始化失败');
         reject(error);
       }
     });
@@ -86,6 +94,7 @@ class WebRTCService {
     if (this.socket) {
       this.socket.close();
     }
+    this._setConnectionState('idle');
     this._cleanup();
   }
 
@@ -133,6 +142,19 @@ class WebRTCService {
     this.onUserLeaveCallbacks.push(callback);
     return () => {
       this.onUserLeaveCallbacks = this.onUserLeaveCallbacks.filter(
+        (item) => item !== callback
+      );
+    };
+  }
+
+  onConnectionStateChange(callback) {
+    this.onConnectionStateChangeCallbacks.push(callback);
+    callback({
+      state: this.connectionState,
+      detail: null,
+    });
+    return () => {
+      this.onConnectionStateChangeCallbacks = this.onConnectionStateChangeCallbacks.filter(
         (item) => item !== callback
       );
     };
@@ -328,6 +350,13 @@ class WebRTCService {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     }
+  }
+
+  _setConnectionState(state, detail = null) {
+    this.connectionState = state;
+    this.onConnectionStateChangeCallbacks.forEach((callback) => {
+      callback({ state, detail });
+    });
   }
 
   _cleanup() {
