@@ -319,6 +319,54 @@ describe('groupsSlice screen share session', () => {
     });
   });
 
+  it('should keep active session ended when fetchScreenShares returns ended snapshot', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      groupId: 'group-6c',
+      shareId: 'share-6c',
+      role: 'viewer',
+      status: 'ended',
+      webrtcRoomId: 'room-6c',
+      ownerId: 'user-6c',
+      shareSnapshot: {
+        id: 'share-6c',
+        status: 'ended',
+        title: 'Session 6C',
+        webrtc_room_id: 'room-6c',
+        user: { id: 'user-6c' },
+        group: { id: 'group-6c' },
+      },
+    }));
+
+    const nextState = groupsReducer(state, {
+      type: fetchScreenShares.fulfilled.type,
+      payload: [
+        {
+          id: 'share-6c',
+          status: 'ended',
+          title: 'Session 6C',
+          webrtc_room_id: 'room-6c',
+          user: { id: 'user-6c' },
+          group: { id: 'group-6c' },
+        },
+      ],
+    });
+
+    expect(nextState.activeScreenShareSession).toMatchObject({
+      groupId: 'group-6c',
+      shareId: 'share-6c',
+      role: 'viewer',
+      status: 'ended',
+      webrtcRoomId: 'room-6c',
+      ownerId: 'user-6c',
+    });
+    expect(nextState.activeScreenShareSession.shareSnapshot).toMatchObject({
+      id: 'share-6c',
+      status: 'ended',
+      title: 'Session 6C',
+    });
+  });
+
   it('should keep share snapshot fields patchable without replacing session identity fields', () => {
     const baseState = groupsReducer(undefined, { type: 'unknown' });
     const state = groupsReducer(baseState, patchActiveScreenShareSession({

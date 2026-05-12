@@ -119,9 +119,11 @@ const syncActiveScreenShareSession = (session, sharedScreens) => {
     webrtcRoomId: matchedShare?.webrtc_room_id ?? session.webrtcRoomId,
     ownerId: matchedShare?.user?.id ?? session.ownerId,
     shareSnapshot: matchedShare,
-    status: matchedShare?.status === 'paused'
-      ? 'paused'
-      : (session.role === 'viewer' ? 'viewing' : 'sharing'),
+    status: matchedShare?.status === 'ended'
+      ? 'ended'
+      : (matchedShare?.status === 'paused'
+          ? 'paused'
+          : (session.role === 'viewer' ? 'viewing' : 'sharing')),
   });
 };
 
