@@ -8,9 +8,9 @@ from .views import GroupViewSet, GroupInvitationViewSet, SharedScreenViewSet
 
 # 创建路由器
 router = DefaultRouter()
-router.register(r'groups', GroupViewSet, basename='group')
 router.register(r'invitations', GroupInvitationViewSet, basename='invitation')
 router.register(r'shared-screens', SharedScreenViewSet, basename='shared-screen')
+router.register(r'', GroupViewSet, basename='group')
 
 urlpatterns = [
     path('', include(router.urls)),

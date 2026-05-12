@@ -9,6 +9,7 @@ from django.utils import timezone
 from mongoengine.queryset.visitor import Q
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from .mongodb_models import Group, GroupMember, GroupInvitation, SharedScreen
 from .serializers import (
@@ -94,7 +95,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         """创建群组时设置创建者"""
         serializer.save(creator=self.request.user)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='generate-join-code')
     def generate_join_code(self, request, pk=None):
         """生成群组加入码"""
         group = self.get_object()
@@ -126,7 +127,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             "expires_at": group.join_code_expires_at
         })
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='join-by-code')
     def join_by_code(self, request):
         """通过加入码加入群组"""
         join_code = request.data.get('join_code')
@@ -403,31 +404,19 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
         ).distinct()
 
     def perform_create(self, serializer):
-        """创建共享屏幕时设置用户和WebRTC房间ID"""
-        # 获取群组
+        """创建共享屏幕时校验群组和成员资格，并生成WebRTC房间ID。"""
         group_id = self.request.data.get('group_id')
         if not group_id:
-            return Response(
-                {"detail": "群组ID不能为空"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError({"group_id": "群组ID不能为空"})
 
         try:
             group = Group.objects.get(id=group_id)
         except Group.DoesNotExist:
-            return Response(
-                {"detail": "群组不存在"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound("群组不存在")
 
-        # 检查用户是否为群组成员
         if not IsGroupMember().has_object_permission(self.request, self, group):
-            return Response(
-                {"detail": "您不是该群组的成员"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            raise PermissionDenied("您不是该群组的成员")
 
-        # 生成WebRTC房间ID
         webrtc_room_id = f"screen_{uuid.uuid4().hex[:8]}"
 
         serializer.save(
