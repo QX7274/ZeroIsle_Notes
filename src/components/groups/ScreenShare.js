@@ -77,8 +77,6 @@ const ScreenShare = ({ groupId }) => {
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [hasRemoteStream, setHasRemoteStream] = useState(false);
-  const [viewerTimeoutReached, setViewerTimeoutReached] = useState(false);
   const [isTogglingShareState, setIsTogglingShareState] = useState(false);
   const [diagnosticEvents, setDiagnosticEvents] = useState([]);
   const [isCopyingDiagnostic, setIsCopyingDiagnostic] = useState(false);
@@ -104,6 +102,8 @@ const ScreenShare = ({ groupId }) => {
     && ['created', 'sharing', 'paused'].includes(activeSession?.status);
   const connectionState = activeSession?.connectionState || 'idle';
   const connectionDetail = activeSession?.connectionDetail || null;
+  const hasRemoteStream = Boolean(activeSession?.hasRemoteStream);
+  const viewerTimeoutReached = Boolean(activeSession?.viewerTimeoutReached);
   const activeRoomId = activeSession?.webrtcRoomId || null;
   const currentShare = activeGroupShares.find(
     (share) => String(share?.id || '') === String(activeSessionId || '')
@@ -190,8 +190,6 @@ const ScreenShare = ({ groupId }) => {
     webrtcService.disconnect();
     dispatch(clearActiveScreenShareSession());
     setConnectedUsers([]);
-    setHasRemoteStream(false);
-    setViewerTimeoutReached(false);
     if (viewerTimeoutRef.current) {
       clearTimeout(viewerTimeoutRef.current);
       viewerTimeoutRef.current = null;
@@ -240,13 +238,15 @@ const ScreenShare = ({ groupId }) => {
     const removeRemoteStream = webrtcService.onRemoteStream(({ stream }) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setHasRemoteStream(Boolean(stream));
+        dispatch(patchActiveScreenShareSession({
+          hasRemoteStream: Boolean(stream),
+          viewerTimeoutReached: false,
+        }));
         appendDiagnosticEvent(
           stream ? '收到远端流' : '远端流断开',
           stream ? '观看端已拿到远端视频流' : '远端流对象为空，页面已回退到等待态'
         );
         if (stream) {
-          setViewerTimeoutReached(false);
           if (viewerTimeoutRef.current) {
             clearTimeout(viewerTimeoutRef.current);
             viewerTimeoutRef.current = null;
@@ -297,8 +297,6 @@ const ScreenShare = ({ groupId }) => {
   const resetSessionState = () => {
     dispatch(clearActiveScreenShareSession());
     setConnectedUsers([]);
-    setHasRemoteStream(false);
-    setViewerTimeoutReached(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -377,10 +375,11 @@ const ScreenShare = ({ groupId }) => {
     }
 
     setIsJoiningShare(true);
-    setViewerTimeoutReached(false);
-      dispatch(patchActiveScreenShareSession({
-        connectionDetail: null,
-      }));
+    dispatch(patchActiveScreenShareSession({
+      connectionDetail: null,
+      hasRemoteStream: false,
+      viewerTimeoutReached: false,
+    }));
     appendDiagnosticEvent(
       '加入观看请求',
       `会话ID=${share.id}，标题=${share.title || '未命名共享'}`
@@ -394,12 +393,13 @@ const ScreenShare = ({ groupId }) => {
       .unwrap()
       .then((data) =>
         webrtcService.connect(data.webrtc_room_id).then(() => {
-          setHasRemoteStream(false);
           dispatch(patchActiveScreenShareSession({
             status: 'viewing',
             webrtcRoomId: data.webrtc_room_id || null,
             connectionState: 'connected',
             connectionDetail: null,
+            hasRemoteStream: false,
+            viewerTimeoutReached: false,
             shareSnapshot: share,
           }));
           appendDiagnosticEvent(
@@ -407,7 +407,9 @@ const ScreenShare = ({ groupId }) => {
             `已接入房间 ${data.webrtc_room_id || '未知'}，等待远端推流`
           );
           viewerTimeoutRef.current = setTimeout(() => {
-            setViewerTimeoutReached(true);
+            dispatch(patchActiveScreenShareSession({
+              viewerTimeoutReached: true,
+            }));
             appendDiagnosticEvent(
               '远端流等待超时',
               `超过 ${VIEWER_STREAM_TIMEOUT_MS / 1000} 秒仍未收到远端画面`

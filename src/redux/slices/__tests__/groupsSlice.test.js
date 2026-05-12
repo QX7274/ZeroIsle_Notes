@@ -130,7 +130,36 @@ describe('groupsSlice screen share session', () => {
       shareSnapshot: null,
       connectionState: 'idle',
       connectionDetail: null,
+      hasRemoteStream: false,
+      viewerTimeoutReached: false,
       error: null,
+    });
+  });
+
+  it('should patch remote stream diagnostics on active session', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      shareId: 'share-5',
+      role: 'viewer',
+      status: 'viewing',
+      webrtcRoomId: 'room-5',
+      hasRemoteStream: false,
+      viewerTimeoutReached: false,
+    }));
+
+    const nextState = groupsReducer(state, patchActiveScreenShareSession({
+      hasRemoteStream: true,
+      viewerTimeoutReached: false,
+      connectionState: 'connected',
+      connectionDetail: 'remote-stream-ready',
+    }));
+
+    expect(nextState.activeScreenShareSession).toMatchObject({
+      shareId: 'share-5',
+      hasRemoteStream: true,
+      viewerTimeoutReached: false,
+      connectionState: 'connected',
+      connectionDetail: 'remote-stream-ready',
     });
   });
 });

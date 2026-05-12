@@ -14,6 +14,8 @@ const createEmptyScreenShareSession = () => ({
   shareSnapshot: null,
   connectionState: 'idle',
   connectionDetail: null,
+  hasRemoteStream: false,
+  viewerTimeoutReached: false,
   error: null,
 });
 
