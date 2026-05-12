@@ -327,6 +327,36 @@ export const joinScreenShare = createAsyncThunk(
   }
 );
 
+export const pauseScreenShare = createAsyncThunk(
+  'groups/pauseScreenShare',
+  async (shareId, { rejectWithValue }) => {
+    try {
+      const response = await groupApi.pauseScreenShare(shareId);
+      if (!response.success) {
+        return rejectWithValue(response.message || '暂停屏幕共享失败');
+      }
+      return { shareId };
+    } catch (error) {
+      return rejectWithValue(error.message || '暂停屏幕共享失败');
+    }
+  }
+);
+
+export const resumeScreenShare = createAsyncThunk(
+  'groups/resumeScreenShare',
+  async (shareId, { rejectWithValue }) => {
+    try {
+      const response = await groupApi.resumeScreenShare(shareId);
+      if (!response.success) {
+        return rejectWithValue(response.message || '恢复屏幕共享失败');
+      }
+      return { shareId };
+    } catch (error) {
+      return rejectWithValue(error.message || '恢复屏幕共享失败');
+    }
+  }
+);
+
 // 创建Slice
 const groupsSlice = createSlice({
   name: 'groups',
@@ -664,6 +694,40 @@ const groupsSlice = createSlice({
         state.screenShareLoading = false;
       })
       .addCase(joinScreenShare.rejected, (state, action) => {
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
+      })
+
+      // 暂停屏幕共享
+      .addCase(pauseScreenShare.pending, (state) => {
+        state.screenShareLoading = true;
+        state.screenShareError = null;
+      })
+      .addCase(pauseScreenShare.fulfilled, (state, action) => {
+        state.screenShareLoading = false;
+        const index = state.sharedScreens.findIndex(share => share.id === action.payload.shareId);
+        if (index !== -1) {
+          state.sharedScreens[index].status = 'paused';
+        }
+      })
+      .addCase(pauseScreenShare.rejected, (state, action) => {
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
+      })
+
+      // 恢复屏幕共享
+      .addCase(resumeScreenShare.pending, (state) => {
+        state.screenShareLoading = true;
+        state.screenShareError = null;
+      })
+      .addCase(resumeScreenShare.fulfilled, (state, action) => {
+        state.screenShareLoading = false;
+        const index = state.sharedScreens.findIndex(share => share.id === action.payload.shareId);
+        if (index !== -1) {
+          state.sharedScreens[index].status = 'active';
+        }
+      })
+      .addCase(resumeScreenShare.rejected, (state, action) => {
         state.screenShareLoading = false;
         state.screenShareError = action.payload;
       });

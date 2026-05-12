@@ -724,6 +724,12 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if shared_screen.status == 'paused':
+            return Response(
+                {"detail": "共享已暂停，请等待共享者恢复后再加入"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # 检查权限
         if not IsGroupMember().has_object_permission(request, self, shared_screen.group):
             return Response(

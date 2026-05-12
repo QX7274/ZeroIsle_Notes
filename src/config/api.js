@@ -250,6 +250,8 @@ export const API_ENDPOINTS = {
     REJECT_INVITATION: (id) => `/groups/invitations/${id}/reject/`,
     SHARED_SCREENS: '/groups/shared-screens/',
     JOIN_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/join/`,
+    PAUSE_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/pause/`,
+    RESUME_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/resume/`,
     END_SCREEN_SHARE: (id) => `/groups/shared-screens/${id}/end/`,
   },
 

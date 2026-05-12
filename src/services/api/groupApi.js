@@ -344,6 +344,46 @@ export const joinScreenShare = async (shareId) => {
 };
 
 /**
+ * 暂停屏幕共享
+ * @param {string} shareId 共享ID
+ * @returns {Promise} 暂停结果
+ */
+export const pauseScreenShare = async (shareId) => {
+  try {
+    const response = await instance.post(
+      API_ENDPOINTS.GROUPS.PAUSE_SCREEN_SHARE(shareId)
+    );
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('暂停屏幕共享失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 恢复屏幕共享
+ * @param {string} shareId 共享ID
+ * @returns {Promise} 恢复结果
+ */
+export const resumeScreenShare = async (shareId) => {
+  try {
+    const response = await instance.post(
+      API_ENDPOINTS.GROUPS.RESUME_SCREEN_SHARE(shareId)
+    );
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('恢复屏幕共享失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 结束屏幕共享
  * @param {string} shareId 共享ID
  * @returns {Promise} 结束结果

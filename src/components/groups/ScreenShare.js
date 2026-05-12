@@ -23,6 +23,8 @@ import {
   fetchGroupDetail,
   fetchScreenShares,
   joinScreenShare,
+  pauseScreenShare,
+  resumeScreenShare,
   selectCurrentGroup,
   selectScreenShareError,
   selectScreenShareLoading,
@@ -78,6 +80,7 @@ const ScreenShare = ({ groupId }) => {
   const [connectionState, setConnectionState] = useState('idle');
   const [connectionDetail, setConnectionDetail] = useState(null);
   const [viewerTimeoutReached, setViewerTimeoutReached] = useState(false);
+  const [isTogglingShareState, setIsTogglingShareState] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState(null);
   const [diagnosticEvents, setDiagnosticEvents] = useState([]);
   const [isCopyingDiagnostic, setIsCopyingDiagnostic] = useState(false);
@@ -104,6 +107,7 @@ const ScreenShare = ({ groupId }) => {
     : null;
   const diagnosticRole = isSharing ? '共享端' : (joinedShare ? '观看端' : '空闲');
   const activeSessionId = shareId || joinedShare?.id || null;
+  const isCurrentSharePaused = currentShare?.status === 'paused';
 
   const appendDiagnosticEvent = useCallback((label, detail) => {
     diagnosticClockRef.current += 1;
@@ -477,6 +481,43 @@ const ScreenShare = ({ groupId }) => {
       });
   };
 
+  const handlePauseOrResumeShare = () => {
+    if (!shareId) {
+      appendDiagnosticEvent('共享状态切换失败', '当前没有可操作的共享会话');
+      return;
+    }
+
+    const isPaused = currentShare?.status === 'paused';
+    const actionLabel = isPaused ? '恢复共享请求' : '暂停共享请求';
+    appendDiagnosticEvent(actionLabel, `会话ID=${shareId}`);
+    setIsTogglingShareState(true);
+
+    const action = isPaused ? resumeScreenShare(shareId) : pauseScreenShare(shareId);
+
+    dispatch(action)
+      .unwrap()
+      .then(() => {
+        appendDiagnosticEvent(
+          isPaused ? '共享已恢复' : '共享已暂停',
+          isPaused ? '当前共享会话已恢复为可观看状态' : '当前共享会话已切换为暂停状态'
+        );
+        dispatch(fetchScreenShares());
+      })
+      .catch((requestError) => {
+        appendDiagnosticEvent(
+          isPaused ? '恢复共享失败' : '暂停共享失败',
+          requestError?.message || requestError || '共享状态切换接口失败'
+        );
+        Alert.alert(
+          isPaused ? '恢复共享失败' : '暂停共享失败',
+          requestError?.message || requestError || '暂时无法切换共享状态'
+        );
+      })
+      .finally(() => {
+        setIsTogglingShareState(false);
+      });
+  };
+
   const handleCopyDiagnosticSummary = async () => {
     setIsCopyingDiagnostic(true);
     try {
@@ -513,7 +554,10 @@ const ScreenShare = ({ groupId }) => {
           <Text style={styles.stageEyebrow}>共享中</Text>
           <Text style={styles.stageTitle}>你正在向群组直播屏幕</Text>
           <Text style={styles.stageDescription}>
-            {currentShare?.title || title || '未命名共享'}。保持当前页面开启，等待其他成员加入观看。
+            {currentShare?.title || title || '未命名共享'}。
+            {isCurrentSharePaused
+              ? ' 当前共享已暂停，成员暂时不能加入观看。'
+              : ' 保持当前页面开启，等待其他成员加入观看。'}
           </Text>
         </View>
       );
@@ -691,6 +735,7 @@ const ScreenShare = ({ groupId }) => {
         activeGroupShares.map((share) => {
           const isOwner = String(share?.user?.id || '') === String(currentUser?.id || '');
           const isJoined = String(joinedShare?.id || '') === String(share?.id || '');
+          const isPaused = share?.status === 'paused';
           return (
             <View key={share.id} style={styles.shareCard}>
               <View style={styles.shareCardBody}>
@@ -701,6 +746,9 @@ const ScreenShare = ({ groupId }) => {
                 <Text style={styles.shareSubtitle}>
                   状态：{share?.status === 'paused' ? '已暂停' : '共享中'}
                 </Text>
+                {isPaused ? (
+                  <Text style={styles.pausedHint}>暂停中的共享暂不可加入，需由发起人先恢复。</Text>
+                ) : null}
               </View>
               {isOwner ? (
                 <Text style={styles.ownerBadge}>我的共享</Text>
@@ -713,10 +761,10 @@ const ScreenShare = ({ groupId }) => {
                   mode="contained-tonal"
                   compact
                   onPress={() => handleJoinShare(share)}
-                  disabled={!canUseWebShare || isJoiningShare}
+                  disabled={!canUseWebShare || isJoiningShare || isPaused}
                   loading={isJoiningShare}
                 >
-                  加入
+                  {isPaused ? '已暂停' : '加入'}
                 </Button>
               )}
             </View>
@@ -731,16 +779,28 @@ const ScreenShare = ({ groupId }) => {
   const renderActions = () => (
     <View style={styles.actionsContainer}>
       {isSharing ? (
-        <Button
-          mode="contained"
-          icon="monitor-off"
-          style={[styles.button, styles.endButton]}
-          onPress={() => setShowEndDialog(true)}
-          loading={isLoading}
-          disabled={isLoading}
-        >
-          结束共享
-        </Button>
+        <>
+          <Button
+            mode="outlined"
+            icon={isCurrentSharePaused ? 'play-circle-outline' : 'pause-circle-outline'}
+            style={styles.secondaryButton}
+            onPress={handlePauseOrResumeShare}
+            loading={isTogglingShareState}
+            disabled={isLoading || isTogglingShareState}
+          >
+            {isCurrentSharePaused ? '恢复共享' : '暂停共享'}
+          </Button>
+          <Button
+            mode="contained"
+            icon="monitor-off"
+            style={[styles.button, styles.endButton]}
+            onPress={() => setShowEndDialog(true)}
+            loading={isLoading}
+            disabled={isLoading || isTogglingShareState}
+          >
+            结束共享
+          </Button>
+        </>
       ) : (
         <Button
           mode="contained"
@@ -1116,6 +1176,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.TEXT_SECONDARY,
     marginTop: 3,
+  },
+  pausedHint: {
+    fontSize: 12,
+    color: COLORS.ACCENT,
+    marginTop: 6,
   },
   ownerBadge: {
     fontSize: 12,
