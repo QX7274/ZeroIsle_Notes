@@ -93,6 +93,9 @@ const ScreenShare = ({ groupId }) => {
   const videoRef = useRef(null);
   const viewerTimeoutRef = useRef(null);
   const diagnosticClockRef = useRef(0);
+  const activeSessionRef = useRef(activeSession);
+  const joinedShareOwnerIdRef = useRef(joinedShare?.user?.id || null);
+  const isCurrentSharePausedRef = useRef(false);
 
   const activeGroupShares = useMemo(
     () =>
@@ -127,6 +130,12 @@ const ScreenShare = ({ groupId }) => {
   );
   const diagnosticRole = isSharing ? '共享端' : (joinedShare ? '观看端' : '空闲');
   const isCurrentSharePaused = currentShare?.status === 'paused';
+
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+    joinedShareOwnerIdRef.current = joinedShare?.user?.id || null;
+    isCurrentSharePausedRef.current = isCurrentSharePaused;
+  }, [activeSession, isCurrentSharePaused, joinedShare?.user?.id]);
 
   const appendDiagnosticEvent = useCallback((label, detail) => {
     diagnosticClockRef.current += 1;
@@ -242,8 +251,8 @@ const ScreenShare = ({ groupId }) => {
       setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
       appendDiagnosticEvent('成员离开', `${user?.username || user?.id || '未知成员'} 已离开当前共享链`);
       if (
-        activeSession?.role === 'viewer'
-        && String(user?.id || '') === String(joinedShare?.user?.id || '')
+        activeSessionRef.current?.role === 'viewer'
+        && String(user?.id || '') === String(joinedShareOwnerIdRef.current || '')
       ) {
         handleLeaveViewer({ silent: true });
       }
@@ -270,13 +279,14 @@ const ScreenShare = ({ groupId }) => {
     });
 
     const removeConnectionState = webrtcService.onConnectionStateChange(({ state, detail }) => {
+      const currentSession = activeSessionRef.current;
       const nextSessionStatus = state === 'connected'
-        ? (activeSession?.role === 'viewer'
+        ? (currentSession?.role === 'viewer'
             ? 'viewing'
-            : (isCurrentSharePaused ? 'paused' : 'sharing'))
+            : (isCurrentSharePausedRef.current ? 'paused' : 'sharing'))
         : (state === 'error'
             ? 'error'
-            : (state === 'closed' ? 'idle' : activeSession?.status));
+            : (state === 'closed' ? 'idle' : currentSession?.status));
 
       dispatch(patchActiveScreenShareSession({
         status: nextSessionStatus,
@@ -294,21 +304,20 @@ const ScreenShare = ({ groupId }) => {
       removeUserLeave?.();
       removeRemoteStream?.();
       removeConnectionState?.();
-      if (activeSession?.role === 'host' && activeSession?.shareId) {
-        dispatch(endScreenShare(activeSession.shareId));
-      }
-      webrtcService.disconnect();
     };
   }, [
-    activeSession?.role,
-    activeSession?.shareId,
-    activeSession?.status,
     appendDiagnosticEvent,
     dispatch,
     handleLeaveViewer,
-    isCurrentSharePaused,
-    joinedShare?.user?.id,
   ]);
+
+  useEffect(() => () => {
+    const currentSession = activeSessionRef.current;
+    if (currentSession?.role === 'host' && currentSession?.shareId) {
+      dispatch(endScreenShare(currentSession.shareId));
+    }
+    webrtcService.disconnect();
+  }, [dispatch]);
 
   const isViewing = Boolean(joinedShare) && !isSharing;
 
