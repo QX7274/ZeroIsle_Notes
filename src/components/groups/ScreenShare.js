@@ -346,15 +346,20 @@ const ScreenShare = ({ groupId }) => {
             ? 'error'
             : (state === 'closed' ? 'idle' : currentSession?.status));
       const nextConnectionDetail = detail || null;
+      const shouldResetStreamFlags = ['closed', 'error', 'idle'].includes(state);
       const shouldPatchConnectionState = currentSession?.status !== nextSessionStatus
         || currentSession?.connectionState !== state
         || (currentSession?.connectionDetail || null) !== nextConnectionDetail;
 
-      if (shouldPatchConnectionState) {
+      if (shouldPatchConnectionState || shouldResetStreamFlags) {
         dispatch(patchActiveScreenShareSession({
           status: nextSessionStatus,
           connectionState: state,
           connectionDetail: nextConnectionDetail,
+          connectedUsers: shouldResetStreamFlags ? [] : currentSession?.connectedUsers,
+          hasRemoteStream: shouldResetStreamFlags ? false : currentSession?.hasRemoteStream,
+          hasAttachedRemoteStream: shouldResetStreamFlags ? false : currentSession?.hasAttachedRemoteStream,
+          viewerTimeoutReached: shouldResetStreamFlags ? false : currentSession?.viewerTimeoutReached,
         }));
         appendDiagnosticEvent(
           '信令状态更新',

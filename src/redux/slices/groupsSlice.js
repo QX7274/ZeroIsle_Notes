@@ -856,6 +856,10 @@ const groupsSlice = createSlice({
           state.activeScreenShareSession = {
             ...state.activeScreenShareSession,
             status: 'ended',
+            connectedUsers: [],
+            hasRemoteStream: false,
+            hasAttachedRemoteStream: false,
+            viewerTimeoutReached: false,
             shareSnapshot: state.activeScreenShareSession?.shareSnapshot
               ? {
                   ...state.activeScreenShareSession.shareSnapshot,
