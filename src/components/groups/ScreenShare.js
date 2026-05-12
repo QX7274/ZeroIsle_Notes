@@ -17,14 +17,17 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Clipboard as PlatformClipboard } from '../../platform';
 
 import {
+  clearActiveScreenShareSession,
   clearScreenShareError,
   createScreenShare,
   endScreenShare,
   fetchGroupDetail,
   fetchScreenShares,
   joinScreenShare,
+  patchActiveScreenShareSession,
   pauseScreenShare,
   resumeScreenShare,
+  selectActiveScreenShareSession,
   selectCurrentGroup,
   selectScreenShareError,
   selectScreenShareLoading,
@@ -65,23 +68,18 @@ const ScreenShare = ({ groupId }) => {
   const error = useSelector(selectScreenShareError);
   const currentGroup = useSelector(selectCurrentGroup);
   const sharedScreens = useSelector(selectSharedScreens);
+  const activeSession = useSelector(selectActiveScreenShareSession);
   const currentUser = useSelector((state) => state.auth.user);
 
   const [title, setTitle] = useState('');
-  const [shareId, setShareId] = useState(null);
-  const [joinedShare, setJoinedShare] = useState(null);
-  const [isSharing, setIsSharing] = useState(false);
   const [isJoiningShare, setIsJoiningShare] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState([]);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
-  const [connectionState, setConnectionState] = useState('idle');
-  const [connectionDetail, setConnectionDetail] = useState(null);
   const [viewerTimeoutReached, setViewerTimeoutReached] = useState(false);
   const [isTogglingShareState, setIsTogglingShareState] = useState(false);
-  const [activeRoomId, setActiveRoomId] = useState(null);
   const [diagnosticEvents, setDiagnosticEvents] = useState([]);
   const [isCopyingDiagnostic, setIsCopyingDiagnostic] = useState(false);
 
@@ -101,6 +99,15 @@ const ScreenShare = ({ groupId }) => {
   );
 
   const canUseWebShare = Platform.OS === 'web';
+  const shareId = activeSession?.shareId || null;
+  const joinedShare = activeSession?.role === 'viewer'
+    ? (activeSession?.shareSnapshot || null)
+    : null;
+  const isSharing = activeSession?.role === 'host'
+    && ['created', 'sharing', 'paused'].includes(activeSession?.status);
+  const connectionState = activeSession?.connectionState || 'idle';
+  const connectionDetail = activeSession?.connectionDetail || null;
+  const activeRoomId = activeSession?.webrtcRoomId || null;
   const currentShare = activeGroupShares.find((share) => share?.id === shareId) || null;
   const liveJoinedShare = joinedShare
     ? activeGroupShares.find((share) => String(share?.id || '') === String(joinedShare?.id || '')) || null
@@ -192,13 +199,10 @@ const ScreenShare = ({ groupId }) => {
 
   const handleLeaveViewer = useCallback(({ silent = false } = {}) => {
     webrtcService.disconnect();
-    setJoinedShare(null);
+    dispatch(clearActiveScreenShareSession());
     setConnectedUsers([]);
     setHasRemoteStream(false);
     setViewerTimeoutReached(false);
-    setConnectionState('idle');
-    setConnectionDetail(null);
-    setActiveRoomId(null);
     if (viewerTimeoutRef.current) {
       clearTimeout(viewerTimeoutRef.current);
       viewerTimeoutRef.current = null;
@@ -263,8 +267,10 @@ const ScreenShare = ({ groupId }) => {
     });
 
     const removeConnectionState = webrtcService.onConnectionStateChange(({ state, detail }) => {
-      setConnectionState(state);
-      setConnectionDetail(detail || null);
+      dispatch(patchActiveScreenShareSession({
+        connectionState: state,
+        connectionDetail: detail || null,
+      }));
       appendDiagnosticEvent(
         '信令状态更新',
         `${CONNECTION_STATE_LABELS[state] || state}${detail ? `：${detail}` : ''}`
@@ -300,15 +306,10 @@ const ScreenShare = ({ groupId }) => {
   };
 
   const resetSessionState = () => {
-    setIsSharing(false);
-    setShareId(null);
-    setJoinedShare(null);
+    dispatch(clearActiveScreenShareSession());
     setConnectedUsers([]);
     setHasRemoteStream(false);
     setViewerTimeoutReached(false);
-    setConnectionState('idle');
-    setConnectionDetail(null);
-    setActiveRoomId(null);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -334,9 +335,6 @@ const ScreenShare = ({ groupId }) => {
     dispatch(createScreenShare({ groupId, title: title.trim() }))
       .unwrap()
       .then((share) => {
-        setShareId(share.id);
-        setJoinedShare(null);
-        setActiveRoomId(share.webrtc_room_id || null);
         appendDiagnosticEvent(
           '共享会话已创建',
           `会话ID=${share.id || '未知'}，房间=${share.webrtc_room_id || '未知'}`
@@ -344,8 +342,13 @@ const ScreenShare = ({ groupId }) => {
         return webrtcService.connect(share.webrtc_room_id)
           .then(() => webrtcService.startScreenShare())
           .then(() => {
-            setIsSharing(true);
-            setConnectionDetail(null);
+            dispatch(patchActiveScreenShareSession({
+              status: share?.status === 'paused' ? 'paused' : 'sharing',
+              webrtcRoomId: share.webrtc_room_id || null,
+              connectionState: 'connected',
+              connectionDetail: null,
+              shareSnapshot: share,
+            }));
             appendDiagnosticEvent('共享推流已启动', '本地屏幕流已开始推送，等待其他成员接入');
             dispatch(fetchScreenShares());
           })
@@ -386,7 +389,9 @@ const ScreenShare = ({ groupId }) => {
 
     setIsJoiningShare(true);
     setViewerTimeoutReached(false);
-    setConnectionDetail(null);
+      dispatch(patchActiveScreenShareSession({
+        connectionDetail: null,
+      }));
     appendDiagnosticEvent(
       '加入观看请求',
       `会话ID=${share.id}，标题=${share.title || '未命名共享'}`
@@ -400,10 +405,14 @@ const ScreenShare = ({ groupId }) => {
       .unwrap()
       .then((data) =>
         webrtcService.connect(data.webrtc_room_id).then(() => {
-          setJoinedShare(share);
-          setShareId(null);
           setHasRemoteStream(false);
-          setActiveRoomId(data.webrtc_room_id || null);
+          dispatch(patchActiveScreenShareSession({
+            status: 'viewing',
+            webrtcRoomId: data.webrtc_room_id || null,
+            connectionState: 'connected',
+            connectionDetail: null,
+            shareSnapshot: share,
+          }));
           appendDiagnosticEvent(
             '加入观看成功',
             `已接入房间 ${data.webrtc_room_id || '未知'}，等待远端推流`
@@ -444,23 +453,25 @@ const ScreenShare = ({ groupId }) => {
     }
 
     if (liveJoinedShare !== joinedShare) {
-      setJoinedShare(liveJoinedShare);
+      dispatch(patchActiveScreenShareSession({
+        shareSnapshot: liveJoinedShare,
+      }));
       appendDiagnosticEvent('共享快照已同步', '观看中的共享对象已更新为最新服务端快照');
     }
-  }, [appendDiagnosticEvent, handleLeaveViewer, isSharing, joinedShare, liveJoinedShare]);
+  }, [appendDiagnosticEvent, dispatch, handleLeaveViewer, isSharing, joinedShare, liveJoinedShare]);
 
   const handleEndShare = () => {
     setShowEndDialog(false);
 
-    if (!shareId) {
+    if (!activeSessionId) {
       webrtcService.disconnect();
       resetSessionState();
       appendDiagnosticEvent('共享结束', '当前无活动会话，已直接回收本地状态');
       return;
     }
 
-    appendDiagnosticEvent('结束共享请求', `会话ID=${shareId}`);
-    dispatch(endScreenShare(shareId))
+    appendDiagnosticEvent('结束共享请求', `会话ID=${activeSessionId}`);
+    dispatch(endScreenShare(activeSessionId))
       .unwrap()
       .then(() => {
         webrtcService.stopScreenShare();
@@ -482,17 +493,17 @@ const ScreenShare = ({ groupId }) => {
   };
 
   const handlePauseOrResumeShare = () => {
-    if (!shareId) {
+    if (!activeSessionId) {
       appendDiagnosticEvent('共享状态切换失败', '当前没有可操作的共享会话');
       return;
     }
 
     const isPaused = currentShare?.status === 'paused';
     const actionLabel = isPaused ? '恢复共享请求' : '暂停共享请求';
-    appendDiagnosticEvent(actionLabel, `会话ID=${shareId}`);
+    appendDiagnosticEvent(actionLabel, `会话ID=${activeSessionId}`);
     setIsTogglingShareState(true);
 
-    const action = isPaused ? resumeScreenShare(shareId) : pauseScreenShare(shareId);
+    const action = isPaused ? resumeScreenShare(activeSessionId) : pauseScreenShare(activeSessionId);
 
     dispatch(action)
       .unwrap()

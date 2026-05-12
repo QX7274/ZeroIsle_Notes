@@ -4,6 +4,51 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as groupApi from '../../services/api/groupApi';
 
+const createEmptyScreenShareSession = () => ({
+  groupId: null,
+  shareId: null,
+  role: null,
+  status: 'idle',
+  webrtcRoomId: null,
+  ownerId: null,
+  shareSnapshot: null,
+  connectionState: 'idle',
+  connectionDetail: null,
+  error: null,
+});
+
+const hasActiveScreenShareSession = (session) => Boolean(session?.shareId);
+
+const findSharedScreenById = (sharedScreens, shareId) => (
+  (sharedScreens || []).find(
+    (share) => String(share?.id || '') === String(shareId || '')
+  ) || null
+);
+
+const syncActiveScreenShareSession = (session, sharedScreens) => {
+  if (!hasActiveScreenShareSession(session)) {
+    return session;
+  }
+
+  const matchedShare = findSharedScreenById(sharedScreens, session.shareId);
+
+  if (!matchedShare) {
+    return session;
+  }
+
+  return {
+    ...session,
+    groupId: matchedShare?.group?.id ?? session.groupId,
+    shareId: matchedShare?.id ?? session.shareId,
+    webrtcRoomId: matchedShare?.webrtc_room_id ?? session.webrtcRoomId,
+    ownerId: matchedShare?.user?.id ?? session.ownerId,
+    shareSnapshot: matchedShare,
+    status: matchedShare?.status === 'paused'
+      ? 'paused'
+      : (session.role === 'viewer' ? 'viewing' : 'sharing'),
+  };
+};
+
 const isLikelyNetworkError = (error) => {
   const message = error?.message || '';
   return (
@@ -21,6 +66,7 @@ const initialState = {
   members: [],
   invitations: [],
   sharedScreens: [],
+  activeScreenShareSession: createEmptyScreenShareSession(),
   inviteCandidates: [],
   inviteCandidatesLoading: false,
   inviteCandidatesError: null,
@@ -379,6 +425,28 @@ const groupsSlice = createSlice({
     clearScreenShareError: (state) => {
       state.screenShareError = null;
     },
+    setActiveScreenShareSession: (state, action) => {
+      state.activeScreenShareSession = {
+        ...createEmptyScreenShareSession(),
+        ...action.payload,
+      };
+    },
+    patchActiveScreenShareSession: (state, action) => {
+      if (
+        !hasActiveScreenShareSession(state.activeScreenShareSession)
+        && action.payload?.shareId == null
+      ) {
+        return;
+      }
+
+      state.activeScreenShareSession = {
+        ...state.activeScreenShareSession,
+        ...action.payload,
+      };
+    },
+    clearActiveScreenShareSession: (state) => {
+      state.activeScreenShareSession = createEmptyScreenShareSession();
+    },
     setCurrentGroup: (state, action) => {
       state.currentGroup = action.payload;
     },
@@ -645,10 +713,27 @@ const groupsSlice = createSlice({
       .addCase(createScreenShare.fulfilled, (state, action) => {
         state.screenShareLoading = false;
         state.sharedScreens.push(action.payload);
+        state.activeScreenShareSession = {
+          ...createEmptyScreenShareSession(),
+          groupId: action.meta.arg?.groupId ?? action.payload?.group?.id ?? null,
+          shareId: action.payload?.id ?? null,
+          role: 'host',
+          status: action.payload?.status === 'paused' ? 'paused' : 'created',
+          webrtcRoomId: action.payload?.webrtc_room_id ?? null,
+          ownerId: action.payload?.user?.id ?? null,
+          shareSnapshot: action.payload,
+        };
       })
       .addCase(createScreenShare.rejected, (state, action) => {
         state.screenShareLoading = false;
         state.screenShareError = action.payload;
+        state.activeScreenShareSession = {
+          ...createEmptyScreenShareSession(),
+          groupId: action.meta.arg?.groupId ?? null,
+          role: 'host',
+          status: 'error',
+          error: action.payload || '创建屏幕共享失败',
+        };
       })
 
       // 获取屏幕共享列表
@@ -659,6 +744,10 @@ const groupsSlice = createSlice({
       .addCase(fetchScreenShares.fulfilled, (state, action) => {
         state.screenShareLoading = false;
         state.sharedScreens = action.payload;
+        state.activeScreenShareSession = syncActiveScreenShareSession(
+          state.activeScreenShareSession,
+          action.payload
+        );
       })
       .addCase(fetchScreenShares.rejected, (state, action) => {
         state.screenShareLoading = false;
@@ -679,6 +768,19 @@ const groupsSlice = createSlice({
           state.sharedScreens[index].status = 'ended';
           state.sharedScreens[index].ended_at = new Date().toISOString();
         }
+
+        if (String(state.activeScreenShareSession?.shareId || '') === String(action.payload.shareId || '')) {
+          state.activeScreenShareSession = {
+            ...state.activeScreenShareSession,
+            status: 'ended',
+            shareSnapshot: state.activeScreenShareSession?.shareSnapshot
+              ? {
+                  ...state.activeScreenShareSession.shareSnapshot,
+                  status: 'ended',
+                }
+              : state.activeScreenShareSession.shareSnapshot,
+          };
+        }
       })
       .addCase(endScreenShare.rejected, (state, action) => {
         state.screenShareLoading = false;
@@ -690,12 +792,30 @@ const groupsSlice = createSlice({
         state.screenShareLoading = true;
         state.screenShareError = null;
       })
-      .addCase(joinScreenShare.fulfilled, (state) => {
+      .addCase(joinScreenShare.fulfilled, (state, action) => {
         state.screenShareLoading = false;
+        const matchedShare = findSharedScreenById(state.sharedScreens, action.meta.arg);
+        state.activeScreenShareSession = {
+          ...createEmptyScreenShareSession(),
+          groupId: matchedShare?.group?.id ?? state.activeScreenShareSession?.groupId ?? null,
+          shareId: action.meta.arg ?? null,
+          role: 'viewer',
+          status: 'joining',
+          webrtcRoomId: action.payload?.webrtc_room_id ?? matchedShare?.webrtc_room_id ?? null,
+          ownerId: matchedShare?.user?.id ?? null,
+          shareSnapshot: matchedShare,
+        };
       })
       .addCase(joinScreenShare.rejected, (state, action) => {
         state.screenShareLoading = false;
         state.screenShareError = action.payload;
+        state.activeScreenShareSession = {
+          ...createEmptyScreenShareSession(),
+          shareId: action.meta.arg ?? null,
+          role: 'viewer',
+          status: 'error',
+          error: action.payload || '加入屏幕共享失败',
+        };
       })
 
       // 暂停屏幕共享
@@ -708,6 +828,15 @@ const groupsSlice = createSlice({
         const index = state.sharedScreens.findIndex(share => share.id === action.payload.shareId);
         if (index !== -1) {
           state.sharedScreens[index].status = 'paused';
+        }
+        if (String(state.activeScreenShareSession?.shareId || '') === String(action.payload.shareId || '')) {
+          state.activeScreenShareSession = syncActiveScreenShareSession(
+            {
+              ...state.activeScreenShareSession,
+              status: 'paused',
+            },
+            state.sharedScreens
+          );
         }
       })
       .addCase(pauseScreenShare.rejected, (state, action) => {
@@ -726,6 +855,15 @@ const groupsSlice = createSlice({
         if (index !== -1) {
           state.sharedScreens[index].status = 'active';
         }
+        if (String(state.activeScreenShareSession?.shareId || '') === String(action.payload.shareId || '')) {
+          state.activeScreenShareSession = syncActiveScreenShareSession(
+            {
+              ...state.activeScreenShareSession,
+              status: state.activeScreenShareSession?.role === 'viewer' ? 'viewing' : 'sharing',
+            },
+            state.sharedScreens
+          );
+        }
       })
       .addCase(resumeScreenShare.rejected, (state, action) => {
         state.screenShareLoading = false;
@@ -740,7 +878,10 @@ export const {
   clearJoinCode,
   clearInviteCandidates,
   clearLastInvitation,
+  clearActiveScreenShareSession,
   clearScreenShareError,
+  patchActiveScreenShareSession,
+  setActiveScreenShareSession,
   setCurrentGroup,
 } = groupsSlice.actions;
 
@@ -750,6 +891,7 @@ export const selectCurrentGroup = (state) => state.groups.currentGroup;
 export const selectGroupMembers = (state) => state.groups.members;
 export const selectGroupInvitations = (state) => state.groups.invitations;
 export const selectSharedScreens = (state) => state.groups.sharedScreens;
+export const selectActiveScreenShareSession = (state) => state.groups.activeScreenShareSession;
 export const selectInviteCandidates = (state) => state.groups.inviteCandidates;
 export const selectInviteCandidatesLoading = (state) => state.groups.inviteCandidatesLoading;
 export const selectInviteCandidatesError = (state) => state.groups.inviteCandidatesError;
