@@ -13,8 +13,19 @@ class IsOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         # 检查对象是否有user属性
         if hasattr(obj, 'user') and hasattr(request, 'user') and request.user.is_authenticated:
-            # 兼容 Django User 和 MongoEngine User 的比较
-            return obj.user.id == request.user.id
+            obj_user = getattr(obj, 'user', None)
+            req_user = request.user
+            req_mongo_user = getattr(request, 'mongo_user', None)
+
+            if obj_user is not None and req_mongo_user is not None:
+                if getattr(obj_user, 'id', None) == getattr(req_mongo_user, 'id', None):
+                    return True
+
+            obj_django_user_id = getattr(obj_user, 'django_user_id', None)
+            if obj_django_user_id and str(obj_django_user_id) == str(getattr(req_user, 'id', '')):
+                return True
+
+            return getattr(obj_user, 'id', None) == getattr(req_user, 'id', None)
 
         # 检查对象是否有owner属性
         if hasattr(obj, 'owner'):
@@ -30,6 +41,9 @@ class IsOwner(permissions.BasePermission):
 
         # 检查 recipient 属性（用于通知）
         if hasattr(obj, 'recipient'):
+            req_mongo_user = getattr(request, 'mongo_user', None)
+            if req_mongo_user is not None:
+                return getattr(obj.recipient, 'id', None) == getattr(req_mongo_user, 'id', None)
             return obj.recipient.id == request.user.id
 
         # 针对 ReminderNotification 的特殊检查

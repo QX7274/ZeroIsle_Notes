@@ -19,5 +19,9 @@ from .code_request import (
     CodeFormatRequestSerializer,
     CodeFormatResponseSerializer,
     CodeLintRequestSerializer,
-    CodeLintResponseSerializer
+    CodeLintResponseSerializer,
+    CodeExplainRequestSerializer,
+    CodeExplainResponseSerializer,
+    CodeExampleRequestSerializer,
+    CodeExampleResponseSerializer,
 )

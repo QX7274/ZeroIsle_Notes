@@ -112,6 +112,7 @@ def api_root_json(request):
 def api_v1_root(request):
     endpoints = {
         'auth': '/api/v1/auth/',
+        'code': '/api/v1/code/',
         'notes': '/api/v1/notes/',
         'reminders': '/api/v1/reminders/',
         'knowledge_graph': '/api/v1/knowledge-graph/',
@@ -186,6 +187,7 @@ urlpatterns = [
 ]
 
 optional_routes = [
+    (f'{api_prefix}code/', 'code_editor.urls'),
     (f'{api_prefix}notes/', 'notes.urls'),
     (f'{api_prefix}reminders/', 'reminder.urls'),
     (f'{api_prefix}mind-map/', 'mind_map.urls'),

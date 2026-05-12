@@ -1,14 +1,14 @@
 """
-通知模块URL配置
+通知模块 URL 配置
 """
 
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
 from .views import NotificationViewSet
 
-# 创建路由器
 router = DefaultRouter()
-router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('', include(router.urls)),
