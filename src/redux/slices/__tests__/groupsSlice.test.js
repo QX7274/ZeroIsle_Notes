@@ -175,6 +175,7 @@ describe('groupsSlice screen share session', () => {
       shareSnapshot: null,
       connectionState: 'idle',
       connectionDetail: null,
+      hasAttachedRemoteStream: false,
       hasRemoteStream: false,
       viewerTimeoutReached: false,
       error: null,
@@ -194,6 +195,7 @@ describe('groupsSlice screen share session', () => {
 
     const nextState = groupsReducer(state, patchActiveScreenShareSession({
       hasRemoteStream: true,
+      hasAttachedRemoteStream: true,
       viewerTimeoutReached: false,
       connectionState: 'connected',
       connectionDetail: 'remote-stream-ready',
@@ -202,6 +204,7 @@ describe('groupsSlice screen share session', () => {
     expect(nextState.activeScreenShareSession).toMatchObject({
       shareId: 'share-5',
       hasRemoteStream: true,
+      hasAttachedRemoteStream: true,
       viewerTimeoutReached: false,
       connectionState: 'connected',
       connectionDetail: 'remote-stream-ready',

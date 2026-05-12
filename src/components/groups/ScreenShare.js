@@ -147,6 +147,7 @@ const ScreenShare = ({ groupId }) => {
   const connectionState = activeSession?.connectionState || 'idle';
   const connectionDetail = activeSession?.connectionDetail || null;
   const hasRemoteStream = Boolean(activeSession?.hasRemoteStream);
+  const hasAttachedRemoteStream = Boolean(activeSession?.hasAttachedRemoteStream);
   const viewerTimeoutReached = Boolean(activeSession?.viewerTimeoutReached);
   const activeRoomId = activeSession?.webrtcRoomId || null;
   const connectedUsers = activeSession?.connectedUsers || [];
@@ -193,6 +194,7 @@ const ScreenShare = ({ groupId }) => {
       `连接状态：${CONNECTION_STATE_LABELS[connectionState] || connectionState || '未知'}`,
       `连接详情：${connectionDetail || '无'}`,
       `远端画面：${hasRemoteStream ? '已收到' : '未收到'}`,
+      `视频挂载：${hasAttachedRemoteStream ? '已挂载到播放器' : '未挂载到播放器'}`,
       `等待超时：${viewerTimeoutReached ? `已超过 ${VIEWER_STREAM_TIMEOUT_MS / 1000} 秒` : '否'}`,
       `当前活跃共享数：${activeGroupShares.length}`,
       '',
@@ -215,6 +217,7 @@ const ScreenShare = ({ groupId }) => {
     diagnosticEvents,
     diagnosticRole,
     groupId,
+    hasAttachedRemoteStream,
     hasRemoteStream,
     liveJoinedShare?.webrtc_room_id,
     currentShare?.webrtc_room_id,
@@ -308,12 +311,15 @@ const ScreenShare = ({ groupId }) => {
         videoRef.current.srcObject = stream;
         const currentSession = activeSessionRef.current;
         const nextHasRemoteStream = Boolean(stream);
+        const nextHasAttachedRemoteStream = Boolean(stream && videoRef.current?.srcObject);
         const hasRemoteStreamChanged = Boolean(currentSession?.hasRemoteStream) !== nextHasRemoteStream;
+        const hasAttachedStreamChanged = Boolean(currentSession?.hasAttachedRemoteStream) !== nextHasAttachedRemoteStream;
         const timeoutFlagChanged = Boolean(currentSession?.viewerTimeoutReached) !== false;
 
-        if (hasRemoteStreamChanged || timeoutFlagChanged) {
+        if (hasRemoteStreamChanged || hasAttachedStreamChanged || timeoutFlagChanged) {
           dispatch(patchActiveScreenShareSession({
             hasRemoteStream: nextHasRemoteStream,
+            hasAttachedRemoteStream: nextHasAttachedRemoteStream,
             viewerTimeoutReached: false,
           }));
           appendDiagnosticEvent(
@@ -398,6 +404,9 @@ const ScreenShare = ({ groupId }) => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    dispatch(patchActiveScreenShareSession({
+      hasAttachedRemoteStream: false,
+    }));
   };
 
   const handleStartShare = () => {
