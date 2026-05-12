@@ -107,6 +107,7 @@ class WebRTCService {
     this.localStream = stream;
 
     for (const userId in this.peerConnections) {
+      this._syncLocalTracksForPeerConnection(this.peerConnections[userId]);
       await this._createOffer(userId);
     }
 
@@ -117,6 +118,10 @@ class WebRTCService {
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
+    }
+
+    for (const userId in this.peerConnections) {
+      this._syncLocalTracksForPeerConnection(this.peerConnections[userId]);
     }
   }
 
@@ -300,11 +305,7 @@ class WebRTCService {
 
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
 
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        pc.addTrack(track, this.localStream);
-      });
-    }
+    this._syncLocalTracksForPeerConnection(pc);
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -327,6 +328,42 @@ class WebRTCService {
 
     this.peerConnections[userId] = pc;
     return pc;
+  }
+
+  _syncLocalTracksForPeerConnection(pc) {
+    if (!pc || typeof pc.addTrack !== 'function') {
+      return;
+    }
+
+    const localTracks = this.localStream?.getTracks?.() || [];
+    const localTrackIds = new Set(localTracks.map((track) => track?.id).filter(Boolean));
+    const initialSenders = typeof pc.getSenders === 'function' ? pc.getSenders() || [] : [];
+
+    if (typeof pc.removeTrack === 'function') {
+      initialSenders.forEach((sender) => {
+        const senderTrackId = sender?.track?.id;
+        if (senderTrackId && !localTrackIds.has(senderTrackId)) {
+          pc.removeTrack(sender);
+        }
+      });
+    }
+
+    const attachedTrackIds = new Set(
+      (typeof pc.getSenders === 'function' ? pc.getSenders() || [] : initialSenders)
+        .map((sender) => sender?.track?.id)
+        .filter(Boolean)
+    );
+
+    localTracks.forEach((track) => {
+      if (track?.id && attachedTrackIds.has(track.id)) {
+        return;
+      }
+
+      pc.addTrack(track, this.localStream);
+      if (track?.id) {
+        attachedTrackIds.add(track.id);
+      }
+    });
   }
 
   async _createOffer(userId) {
