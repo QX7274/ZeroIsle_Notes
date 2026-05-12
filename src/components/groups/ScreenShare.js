@@ -238,18 +238,29 @@ const ScreenShare = ({ groupId }) => {
     }
 
     const removeUserJoin = webrtcService.onUserJoin((user) => {
+      let shouldAppendJoinEvent = false;
       setConnectedUsers((prev) => {
         if (prev.some((item) => item.id === user.id)) {
           return prev;
         }
+        shouldAppendJoinEvent = true;
         return [...prev, user];
       });
-      appendDiagnosticEvent('成员接入', `${user?.username || user?.id || '未知成员'} 已进入当前共享链`);
+      if (shouldAppendJoinEvent) {
+        appendDiagnosticEvent('成员接入', `${user?.username || user?.id || '未知成员'} 已进入当前共享链`);
+      }
     });
 
     const removeUserLeave = webrtcService.onUserLeave((user) => {
-      setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
-      appendDiagnosticEvent('成员离开', `${user?.username || user?.id || '未知成员'} 已离开当前共享链`);
+      let shouldAppendLeaveEvent = false;
+      setConnectedUsers((prev) => {
+        const nextUsers = prev.filter((item) => item.id !== user.id);
+        shouldAppendLeaveEvent = nextUsers.length !== prev.length;
+        return nextUsers;
+      });
+      if (shouldAppendLeaveEvent) {
+        appendDiagnosticEvent('成员离开', `${user?.username || user?.id || '未知成员'} 已离开当前共享链`);
+      }
       if (
         activeSessionRef.current?.role === 'viewer'
         && String(user?.id || '') === String(joinedShareOwnerIdRef.current || '')
@@ -261,14 +272,21 @@ const ScreenShare = ({ groupId }) => {
     const removeRemoteStream = webrtcService.onRemoteStream(({ stream }) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        dispatch(patchActiveScreenShareSession({
-          hasRemoteStream: Boolean(stream),
-          viewerTimeoutReached: false,
-        }));
-        appendDiagnosticEvent(
-          stream ? '收到远端流' : '远端流断开',
-          stream ? '观看端已拿到远端视频流' : '远端流对象为空，页面已回退到等待态'
-        );
+        const currentSession = activeSessionRef.current;
+        const nextHasRemoteStream = Boolean(stream);
+        const hasRemoteStreamChanged = Boolean(currentSession?.hasRemoteStream) !== nextHasRemoteStream;
+        const timeoutFlagChanged = Boolean(currentSession?.viewerTimeoutReached) !== false;
+
+        if (hasRemoteStreamChanged || timeoutFlagChanged) {
+          dispatch(patchActiveScreenShareSession({
+            hasRemoteStream: nextHasRemoteStream,
+            viewerTimeoutReached: false,
+          }));
+          appendDiagnosticEvent(
+            stream ? '收到远端流' : '远端流断开',
+            stream ? '观看端已拿到远端视频流' : '远端流对象为空，页面已回退到等待态'
+          );
+        }
         if (stream) {
           if (viewerTimeoutRef.current) {
             clearTimeout(viewerTimeoutRef.current);
@@ -287,16 +305,22 @@ const ScreenShare = ({ groupId }) => {
         : (state === 'error'
             ? 'error'
             : (state === 'closed' ? 'idle' : currentSession?.status));
+      const nextConnectionDetail = detail || null;
+      const shouldPatchConnectionState = currentSession?.status !== nextSessionStatus
+        || currentSession?.connectionState !== state
+        || (currentSession?.connectionDetail || null) !== nextConnectionDetail;
 
-      dispatch(patchActiveScreenShareSession({
-        status: nextSessionStatus,
-        connectionState: state,
-        connectionDetail: detail || null,
-      }));
-      appendDiagnosticEvent(
-        '信令状态更新',
-        `${CONNECTION_STATE_LABELS[state] || state}${detail ? `：${detail}` : ''}`
-      );
+      if (shouldPatchConnectionState) {
+        dispatch(patchActiveScreenShareSession({
+          status: nextSessionStatus,
+          connectionState: state,
+          connectionDetail: nextConnectionDetail,
+        }));
+        appendDiagnosticEvent(
+          '信令状态更新',
+          `${CONNECTION_STATE_LABELS[state] || state}${detail ? `：${detail}` : ''}`
+        );
+      }
     });
 
     return () => {
