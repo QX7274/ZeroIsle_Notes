@@ -31,7 +31,7 @@ class CodeExecutionService:
         try:
             # 更新状态
             execution.status = 'running'
-            execution.save(update_fields=['status'])
+            execution.save()
             
             # 执行代码
             result = self.code_service.run_code(
@@ -55,7 +55,7 @@ class CodeExecutionService:
             # 更新错误信息
             execution.error = str(e)
             execution.status = 'failed'
-            execution.save(update_fields=['error', 'status'])
+            execution.save()
             
             return execution
     
@@ -72,8 +72,16 @@ class CodeExecutionService:
             QuerySet: 执行历史查询集
         """
         try:
+            mongo_user = user
+            if getattr(user, 'is_authenticated', False):
+                from users.utils import get_mongo_user_from_django
+
+                mongo_user = get_mongo_user_from_django(user)
+            if not mongo_user:
+                return []
+
             # 构建查询
-            query = CodeExecution.objects.filter(user=user)
+            query = CodeExecution.objects.filter(user=mongo_user)
             
             if language:
                 query = query.filter(language=language)

@@ -168,7 +168,7 @@ class CodeService {
         titleLength: title.length,
       });
 
-      return response.data.snippet;
+      return response.data.snippet || response.data;
     } catch (error) {
       console.error('保存代码片段错误:', error);
       analyticsService.trackError(error, { action: 'save_snippet' });
@@ -182,9 +182,11 @@ class CodeService {
         params: { page, limit },
       });
 
+      const snippetList = response.data.snippets || response.data.results || [];
+
       analyticsService.trackCodeAction('get_snippets', {
         page,
-        snippetCount: response.data.snippets.length,
+        snippetCount: snippetList.length,
       });
 
       return response.data;
