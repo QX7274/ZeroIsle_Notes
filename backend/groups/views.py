@@ -18,6 +18,39 @@ from .serializers import (
 )
 import logging
 from notification.services import NotificationService
+from users.utils import get_mongo_user_from_django
+
+
+def _get_request_mongo_user(request):
+    if hasattr(request, 'mongo_user') and request.mongo_user:
+        return request.mongo_user
+    return get_mongo_user_from_django(getattr(request, 'user', None))
+
+
+def _is_group_creator(group, mongo_user):
+    return bool(
+        group
+        and mongo_user
+        and str(getattr(group.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
+    )
+
+
+def _get_visible_groups_for_mongo_user(mongo_user):
+    if not mongo_user:
+        return Group.objects.none()
+
+    member_group_ids = [
+        str(getattr(member.group, 'id', ''))
+        for member in GroupMember.objects.filter(user=mongo_user, is_active=True)
+        if getattr(member, 'group', None) is not None
+    ]
+    member_group_ids = list(dict.fromkeys(filter(None, member_group_ids)))
+
+    group_query = Q(creator=mongo_user)
+    if member_group_ids:
+        group_query = group_query | Q(id__in=member_group_ids)
+
+    return Group.objects.filter(group_query, is_active=True).distinct()
 
 
 class IsGroupCreatorOrAdmin(permissions.BasePermission):
@@ -32,14 +65,16 @@ class IsGroupCreatorOrAdmin(permissions.BasePermission):
         else:
             return False
 
-        # 检查是否为创建者
-        if group.creator == request.user:
+        mongo_user = _get_request_mongo_user(request)
+        if _is_group_creator(group, mongo_user):
             return True
 
-        # 检查是否为管理员
+        if not mongo_user:
+            return False
+
         return GroupMember.objects.filter(
             group=group,
-            user=request.user,
+            user=mongo_user,
             role='admin',
             is_active=True
         ).exists()
@@ -57,14 +92,16 @@ class IsGroupMember(permissions.BasePermission):
         else:
             return False
 
-        # 检查是否为创建者
-        if group.creator == request.user:
+        mongo_user = _get_request_mongo_user(request)
+        if _is_group_creator(group, mongo_user):
             return True
 
-        # 检查是否为成员
+        if not mongo_user:
+            return False
+
         return GroupMember.objects.filter(
             group=group,
-            user=request.user,
+            user=mongo_user,
             is_active=True
         ).exists()
 
@@ -78,12 +115,8 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """获取用户可见的群组"""
-        user = self.request.user
-        # 用户创建的群组 + 用户加入的群组
-        return Group.objects.filter(
-            Q(creator=user) | Q(members__user=user, members__is_active=True),
-            is_active=True
-        ).distinct()
+        mongo_user = _get_request_mongo_user(self.request)
+        return _get_visible_groups_for_mongo_user(mongo_user)
 
     def get_serializer_class(self):
         """根据操作选择序列化器"""
@@ -93,7 +126,10 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """创建群组时设置创建者"""
-        serializer.save(creator=self.request.user)
+        mongo_user = _get_request_mongo_user(self.request)
+        if not mongo_user:
+            raise ValidationError({"detail": "当前用户缺少 Mongo 用户映射"})
+        serializer.save(creator=mongo_user)
 
     @action(detail=True, methods=['post'], url_path='generate-join-code')
     def generate_join_code(self, request, pk=None):
@@ -130,6 +166,13 @@ class GroupViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='join-by-code')
     def join_by_code(self, request):
         """通过加入码加入群组"""
+        mongo_user = _get_request_mongo_user(request)
+        if not mongo_user:
+            return Response(
+                {"detail": "当前用户缺少 Mongo 用户映射"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         join_code = request.data.get('join_code')
         if not join_code:
             return Response(
@@ -151,9 +194,9 @@ class GroupViewSet(viewsets.ModelViewSet):
             )
 
         # 检查用户是否已经是成员
-        if GroupMember.objects.filter(group=group, user=request.user).exists():
+        if GroupMember.objects.filter(group=group, user=mongo_user).exists():
             # 如果已经是成员但被禁用，则重新激活
-            member = GroupMember.objects.get(group=group, user=request.user)
+            member = GroupMember.objects.get(group=group, user=mongo_user)
             if not member.is_active:
                 member.is_active = True
                 member.save()
@@ -169,7 +212,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         # 创建成员
         GroupMember.objects.create(
             group=group,
-            user=request.user,
+            user=mongo_user,
             role='member'
         )
 
@@ -182,6 +225,12 @@ class GroupViewSet(viewsets.ModelViewSet):
     def invite(self, request, pk=None):
         """邀请用户加入群组"""
         group = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        if not mongo_user:
+            return Response(
+                {"detail": "当前用户缺少 Mongo 用户映射"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # 检查权限
         if not IsGroupCreatorOrAdmin().has_object_permission(request, self, group):
@@ -230,7 +279,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         expires_at = timezone.now() + timezone.timedelta(days=7)  # 默认7天过期
         invitation = GroupInvitation.objects.create(
             group=group,
-            inviter=request.user,
+            inviter=mongo_user,
             invitee=invitee,
             expires_at=expires_at
         )
@@ -241,8 +290,8 @@ class GroupViewSet(viewsets.ModelViewSet):
                 recipient=invitee,
                 notification_type='collaboration',
                 title='群组邀请',
-                message=f'{request.user.username} 邀请你加入群组 "{group.name}"',
-                sender=request.user,
+                message=f'{mongo_user.username} 邀请你加入群组 "{group.name}"',
+                sender=mongo_user,
                 related_object=invitation
             )
         except Exception as notify_error:
@@ -275,9 +324,15 @@ class GroupViewSet(viewsets.ModelViewSet):
     def leave(self, request, pk=None):
         """离开群组"""
         group = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        if not mongo_user:
+            return Response(
+                {"detail": "当前用户缺少 Mongo 用户映射"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # 检查是否为创建者
-        if group.creator == request.user:
+        if _is_group_creator(group, mongo_user):
             return Response(
                 {"detail": "群组创建者不能离开群组，请先转让群组或删除群组"},
                 status=status.HTTP_400_BAD_REQUEST
@@ -285,7 +340,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         # 检查是否为成员
         try:
-            member = GroupMember.objects.get(group=group, user=request.user, is_active=True)
+            member = GroupMember.objects.get(group=group, user=mongo_user, is_active=True)
         except GroupMember.DoesNotExist:
             return Response(
                 {"detail": "您不是该群组的成员"},
@@ -311,8 +366,11 @@ class GroupInvitationViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """获取用户收到的邀请"""
+        mongo_user = _get_request_mongo_user(self.request)
+        if not mongo_user:
+            return GroupInvitation.objects.none()
         return GroupInvitation.objects.filter(
-            invitee=self.request.user,
+            invitee=mongo_user,
             status='pending',
             expires_at__gt=timezone.now()
         )
@@ -321,6 +379,12 @@ class GroupInvitationViewSet(viewsets.ReadOnlyModelViewSet):
     def accept(self, request, pk=None):
         """接受邀请"""
         invitation = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        if not mongo_user:
+            return Response(
+                {"detail": "当前用户缺少 Mongo 用户映射"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # 检查邀请是否已过期
         if invitation.is_expired():
@@ -334,7 +398,7 @@ class GroupInvitationViewSet(viewsets.ReadOnlyModelViewSet):
         # 检查用户是否已经是成员
         if GroupMember.objects.filter(
             group=invitation.group,
-            user=request.user,
+            user=mongo_user,
             is_active=True
         ).exists():
             invitation.status = 'accepted'
@@ -348,7 +412,7 @@ class GroupInvitationViewSet(viewsets.ReadOnlyModelViewSet):
         # 创建成员
         GroupMember.objects.create(
             group=invitation.group,
-            user=request.user,
+            user=mongo_user,
             role='member'
         )
 
@@ -396,15 +460,22 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """获取用户可见的共享屏幕"""
-        user = self.request.user
-        # 用户创建的共享 + 用户所在群组的共享
+        mongo_user = _get_request_mongo_user(self.request)
+        if not mongo_user:
+            return SharedScreen.objects.none()
+
+        visible_groups = list(_get_visible_groups_for_mongo_user(mongo_user))
         return SharedScreen.objects.filter(
-            Q(user=user) | Q(group__members__user=user, group__members__is_active=True),
+            Q(user=mongo_user) | Q(group__in=visible_groups),
             status__in=['active', 'paused']
         ).distinct()
 
     def perform_create(self, serializer):
         """创建共享屏幕时校验群组和成员资格，并生成WebRTC房间ID。"""
+        mongo_user = _get_request_mongo_user(self.request)
+        if not mongo_user:
+            raise ValidationError({"detail": "当前用户缺少 Mongo 用户映射"})
+
         group_id = self.request.data.get('group_id')
         if not group_id:
             raise ValidationError({"group_id": "群组ID不能为空"})
@@ -420,7 +491,7 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
         webrtc_room_id = f"screen_{uuid.uuid4().hex[:8]}"
 
         serializer.save(
-            user=self.request.user,
+            user=mongo_user,
             group=group,
             webrtc_room_id=webrtc_room_id
         )
@@ -429,9 +500,10 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
     def pause(self, request, pk=None):
         """暂停共享"""
         shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
 
         # 检查权限
-        if shared_screen.user != request.user:
+        if not mongo_user or str(getattr(shared_screen.user, 'id', '')) != str(getattr(mongo_user, 'id', '')):
             return Response(
                 {"detail": "只有共享者可以暂停共享"},
                 status=status.HTTP_403_FORBIDDEN
@@ -450,9 +522,10 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
     def resume(self, request, pk=None):
         """恢复共享"""
         shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
 
         # 检查权限
-        if shared_screen.user != request.user:
+        if not mongo_user or str(getattr(shared_screen.user, 'id', '')) != str(getattr(mongo_user, 'id', '')):
             return Response(
                 {"detail": "只有共享者可以恢复共享"},
                 status=status.HTTP_403_FORBIDDEN
@@ -478,9 +551,16 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
     def end(self, request, pk=None):
         """结束共享"""
         shared_screen = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
 
         # 检查权限
-        if shared_screen.user != request.user and not IsGroupCreatorOrAdmin().has_object_permission(request, self, shared_screen.group):
+        if (
+            not mongo_user
+            or (
+                str(getattr(shared_screen.user, 'id', '')) != str(getattr(mongo_user, 'id', ''))
+                and not IsGroupCreatorOrAdmin().has_object_permission(request, self, shared_screen.group)
+            )
+        ):
             return Response(
                 {"detail": "只有共享者或群组管理员可以结束共享"},
                 status=status.HTTP_403_FORBIDDEN

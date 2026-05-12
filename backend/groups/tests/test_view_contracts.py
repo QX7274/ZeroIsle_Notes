@@ -13,13 +13,22 @@ from groups.views import SharedScreenViewSet
 class SharedScreenViewSetContractTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.user = SimpleNamespace(id='mongo-user-1', username='group-user', is_authenticated=True)
+        self.mongo_user = SimpleNamespace(id='mongo-user-1', username='group-user', is_authenticated=True)
+        self.user = SimpleNamespace(
+            id='django-user-1',
+            username='group-user',
+            email='group@example.com',
+            is_authenticated=True,
+            is_anonymous=False,
+        )
 
     def _build_request(self, payload):
         request = self.factory.post('/api/v1/groups/shared-screens/', payload, format='json')
         request.user = self.user
+        request.mongo_user = self.mongo_user
         drf_request = Request(request, parsers=[JSONParser()])
         drf_request.user = self.user
+        drf_request.mongo_user = self.mongo_user
         return drf_request
 
     def test_perform_create_requires_group_id(self):
