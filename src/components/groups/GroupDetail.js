@@ -88,6 +88,8 @@ const GroupDetail = ({ groupId }) => {
     navigation.navigate('ScreenShare', { groupId });
   };
 
+  const canShowJoinCodeActions = Boolean(group?.join_code || group?.creator?.id);
+
   const formatExpiryTime = (dateString) => {
     if (!dateString) {return '';}
 
@@ -152,6 +154,7 @@ const GroupDetail = ({ groupId }) => {
               }}
               title="生成加入码"
               leadingIcon="link-variant"
+              disabled={!canShowJoinCodeActions}
             />
             <Menu.Item
               onPress={() => {
@@ -160,14 +163,6 @@ const GroupDetail = ({ groupId }) => {
               }}
               title="邀请成员"
               leadingIcon="account-plus"
-            />
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                navigation.navigate('EditGroup', { groupId });
-              }}
-              title="编辑群组"
-              leadingIcon="pencil"
             />
             <Divider />
             <Menu.Item

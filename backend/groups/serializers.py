@@ -4,6 +4,7 @@
 
 from rest_framework import serializers
 from users.serializers import UserSerializer
+from users.utils import get_mongo_user_from_django
 from .mongodb_models import Group, GroupMember, GroupInvitation, SharedScreen
 
 
@@ -30,13 +31,28 @@ class GroupDetailSerializer(GroupSerializer):
     class Meta(GroupSerializer.Meta):
         fields = GroupSerializer.Meta.fields + ['join_code', 'join_code_expires_at']
 
+    def _get_request_mongo_user(self):
+        request = self.context.get('request')
+        if not request:
+            return None
+        if hasattr(request, 'mongo_user') and request.mongo_user:
+            return request.mongo_user
+        return get_mongo_user_from_django(getattr(request, 'user', None))
+
     def get_join_code(self, obj):
         # 只有创建者和管理员可以看到加入码
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
 
-        if obj.creator == request.user or GroupMember.objects.filter(group=obj, user=request.user, role='admin', is_active=True).first():
+        mongo_user = self._get_request_mongo_user()
+        if not mongo_user:
+            return None
+
+        if (
+            str(getattr(obj.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
+            or GroupMember.objects.filter(group=obj, user=mongo_user, role='admin', is_active=True).first()
+        ):
             return obj.join_code if obj.is_join_code_valid() else None
         return None
 
@@ -46,7 +62,14 @@ class GroupDetailSerializer(GroupSerializer):
         if not request or not request.user.is_authenticated:
             return None
 
-        if obj.creator == request.user or GroupMember.objects.filter(group=obj, user=request.user, role='admin', is_active=True).first():
+        mongo_user = self._get_request_mongo_user()
+        if not mongo_user:
+            return None
+
+        if (
+            str(getattr(obj.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
+            or GroupMember.objects.filter(group=obj, user=mongo_user, role='admin', is_active=True).first()
+        ):
             return obj.join_code_expires_at if obj.is_join_code_valid() else None
         return None
 
