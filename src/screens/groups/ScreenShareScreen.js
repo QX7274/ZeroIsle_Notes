@@ -1,9 +1,10 @@
 /**
- * 屏幕共享屏幕
+ * 屏幕共享页面
  */
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRoute } from '@react-navigation/native';
+
 import ScreenShare from '../../components/groups/ScreenShare';
 
 const ScreenShareScreen = () => {
@@ -20,7 +21,7 @@ const ScreenShareScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme => theme.colors.background,
+    backgroundColor: '#FFFFFF',
   },
 });
 

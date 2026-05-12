@@ -31,7 +31,9 @@ class GroupDetailSerializerMongoContractTests(SimpleTestCase):
         serializer = GroupDetailSerializer(group, context={'request': self.request})
 
         self.assertEqual(serializer.get_join_code(group), '1234')
-        group_member_objects.filter.assert_called_once_with(
+        self.assertTrue(serializer.get_can_invite(group))
+        self.assertTrue(serializer.get_can_generate_join_code(group))
+        group_member_objects.filter.assert_called_with(
             group=group,
             user=self.mongo_user,
             role='admin',
@@ -50,3 +52,21 @@ class GroupDetailSerializerMongoContractTests(SimpleTestCase):
 
         self.assertEqual(serializer.get_join_code(group), '5678')
         self.assertEqual(serializer.get_join_code_expires_at(group), '2026-05-12T13:00:00')
+        self.assertTrue(serializer.get_can_invite(group))
+        self.assertTrue(serializer.get_can_generate_join_code(group))
+
+    @mock.patch('groups.serializers.GroupMember.objects')
+    def test_management_capabilities_are_hidden_for_non_admin_member(self, group_member_objects):
+        group = SimpleNamespace(
+            creator=SimpleNamespace(id='creator-1'),
+            join_code='9999',
+            join_code_expires_at='2026-05-12T14:00:00',
+            is_join_code_valid=lambda: True,
+        )
+        group_member_objects.filter.return_value.first.return_value = None
+
+        serializer = GroupDetailSerializer(group, context={'request': self.request})
+
+        self.assertFalse(serializer.get_can_invite(group))
+        self.assertFalse(serializer.get_can_generate_join_code(group))
+        self.assertIsNone(serializer.get_join_code(group))

@@ -1,99 +1,124 @@
 /**
  * 屏幕共享组件
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Platform,
   Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
-import { Text, Button, ActivityIndicator, Portal, Dialog } from 'react-native-paper';
+import { useSelector, useDispatch } from 'react-redux';
+import { Text, Button, Portal, Dialog } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import {
   createScreenShare,
   endScreenShare,
+  fetchScreenShares,
   joinScreenShare,
-  selectGroupsLoading,
-  selectGroupsError,
   selectCurrentGroup,
+  selectGroupsError,
+  selectGroupsLoading,
+  selectSharedScreens,
 } from '../../redux/slices/groupsSlice';
 import { webrtcService } from '../../services/webrtc/webrtcService';
 import { SPACING } from '../../utils/constants/dimensions';
-// 定义颜色常量
+
 const COLORS = {
   PRIMARY: '#007AFF',
   ERROR: '#FF3B30',
   TEXT_PRIMARY: '#000000',
   TEXT_SECONDARY: '#8E8E93',
   TEXT_TERTIARY: '#C7C7CC',
+  SURFACE: '#FFFFFF',
 };
 
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
-  const navigation = useNavigation();
   const isLoading = useSelector(selectGroupsLoading);
   const error = useSelector(selectGroupsError);
   const currentGroup = useSelector(selectCurrentGroup);
+  const sharedScreens = useSelector(selectSharedScreens);
+  const currentUser = useSelector((state) => state.auth.user);
 
   const [title, setTitle] = useState('');
   const [shareId, setShareId] = useState(null);
-  const [roomId, setRoomId] = useState(null);
   const [isSharing, setIsSharing] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState([]);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
 
   const videoRef = useRef(null);
+  const latestShareIdRef = useRef(null);
+  const latestIsSharingRef = useRef(false);
+
+  const activeGroupShares = (sharedScreens || []).filter(
+    (share) => share?.group?.id === groupId && share?.status !== 'ended'
+  );
 
   useEffect(() => {
-    // 初始化WebRTC服务
-    if (Platform.OS === 'web') {
-      const userId = currentGroup?.creator?.id;
-      if (userId) {
-        webrtcService.init(userId);
-      }
+    dispatch(fetchScreenShares());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && currentUser?.id) {
+      webrtcService.init(currentUser.id);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    latestShareIdRef.current = shareId;
+    latestIsSharingRef.current = isSharing;
+  }, [shareId, isSharing]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return undefined;
     }
 
+    webrtcService.onUserJoin((user) => {
+      setConnectedUsers((prev) => {
+        if (!prev.some((item) => item.id === user.id)) {
+          return [...prev, user];
+        }
+        return prev;
+      });
+    });
+
+    webrtcService.onUserLeave((user) => {
+      setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
+    });
+
+    webrtcService.onRemoteStream(({ stream }) => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    });
+
     return () => {
-      // 清理
-      if (isSharing) {
-        handleEndShare();
+      if (latestIsSharingRef.current && latestShareIdRef.current) {
+        dispatch(endScreenShare(latestShareIdRef.current));
       }
       webrtcService.disconnect();
     };
-  }, []);
+  }, [dispatch]);
 
-  useEffect(() => {
-    // 注册WebRTC事件监听
-    if (Platform.OS === 'web') {
-      webrtcService.onUserJoin((user) => {
-        setConnectedUsers((prev) => {
-          if (!prev.some((u) => u.id === user.id)) {
-            return [...prev, user];
-          }
-          return prev;
-        });
-      });
-
-      webrtcService.onUserLeave((user) => {
-        setConnectedUsers((prev) => prev.filter((u) => u.id !== user.id));
-      });
-
-      webrtcService.onRemoteStream(({ userId, stream }) => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      });
-    }
-  }, []);
+  const resetShareState = () => {
+    setIsSharing(false);
+    setShareId(null);
+    setConnectedUsers([]);
+  };
 
   const handleStartShare = () => {
+    if (Platform.OS !== 'web') {
+      setShowStartDialog(false);
+      Alert.alert('暂不支持', '移动端当前不创建共享会话，避免产生假活跃共享记录。');
+      return;
+    }
+
     if (!title.trim()) {
       Alert.alert('错误', '请输入共享标题');
       return;
@@ -105,105 +130,66 @@ const ScreenShare = ({ groupId }) => {
       .unwrap()
       .then((share) => {
         setShareId(share.id);
-        setRoomId(share.webrtc_room_id);
-
-        if (Platform.OS === 'web') {
-          // 连接到WebRTC信令服务器
-          webrtcService.connect(share.webrtc_room_id)
-            .then(() => {
-              // 开始屏幕共享
-              return webrtcService.startScreenShare();
-            })
-            .then(() => {
-              setIsSharing(true);
-            })
-            .catch((error) => {
-              console.error('屏幕共享失败:', error);
-              Alert.alert('屏幕共享失败', error.message || '无法启动屏幕共享');
-
-              // 结束共享
-              dispatch(endScreenShare(share.id));
-            });
-        } else {
-          Alert.alert('提示', '移动端暂不支持屏幕共享，请使用Web端进行屏幕共享');
-        }
+        return webrtcService.connect(share.webrtc_room_id).then(() => {
+          return webrtcService.startScreenShare().then(() => {
+            setIsSharing(true);
+            dispatch(fetchScreenShares());
+          });
+        }).catch((requestError) => {
+          dispatch(endScreenShare(share.id));
+          dispatch(fetchScreenShares());
+          throw requestError;
+        });
       })
-      .catch((error) => {
-        console.error('创建屏幕共享失败:', error);
-        Alert.alert('创建屏幕共享失败', error);
+      .catch((requestError) => {
+        Alert.alert('创建屏幕共享失败', requestError?.message || requestError || '暂时无法启动屏幕共享');
       });
   };
 
-  const handleJoinShare = (shareId) => {
-    dispatch(joinScreenShare(shareId))
+  const handleJoinShare = (share) => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('暂不支持', '移动端当前不支持加入屏幕共享，请先使用 Web 端验证该流程。');
+      return;
+    }
+
+    dispatch(joinScreenShare(share.id))
       .unwrap()
       .then((data) => {
-        setRoomId(data.webrtc_room_id);
-
-        if (Platform.OS === 'web') {
-          // 连接到WebRTC信令服务器
-          webrtcService.connect(data.webrtc_room_id)
-            .then(() => {
-              // 已连接，等待接收流
-            })
-            .catch((error) => {
-              console.error('加入屏幕共享失败:', error);
-              Alert.alert('加入屏幕共享失败', error.message || '无法连接到共享');
-            });
-        } else {
-          Alert.alert('提示', '移动端暂不支持屏幕共享，请使用Web端查看屏幕共享');
-        }
+        return webrtcService.connect(data.webrtc_room_id);
       })
-      .catch((error) => {
-        console.error('加入屏幕共享失败:', error);
-        Alert.alert('加入屏幕共享失败', error);
+      .catch((requestError) => {
+        Alert.alert('加入屏幕共享失败', requestError?.message || requestError || '暂时无法加入该共享');
       });
   };
 
   const handleEndShare = () => {
     setShowEndDialog(false);
 
-    if (shareId) {
-      dispatch(endScreenShare(shareId))
-        .unwrap()
-        .then(() => {
-          // 停止屏幕共享
-          if (Platform.OS === 'web') {
-            webrtcService.stopScreenShare();
-            webrtcService.disconnect();
-          }
+    if (!shareId) {
+      webrtcService.disconnect();
+      resetShareState();
+      return;
+    }
 
-          setIsSharing(false);
-          setShareId(null);
-          setRoomId(null);
-          setConnectedUsers([]);
-        })
-        .catch((error) => {
-          console.error('结束屏幕共享失败:', error);
-          Alert.alert('结束屏幕共享失败', error);
-        });
-    } else {
-      // 如果没有shareId，只需要清理本地状态
-      if (Platform.OS === 'web') {
+    dispatch(endScreenShare(shareId))
+      .unwrap()
+      .then(() => {
         webrtcService.stopScreenShare();
         webrtcService.disconnect();
-      }
-
-      setIsSharing(false);
-      setRoomId(null);
-      setConnectedUsers([]);
-    }
+        resetShareState();
+        dispatch(fetchScreenShares());
+      })
+      .catch((requestError) => {
+        Alert.alert('结束屏幕共享失败', requestError?.message || requestError || '暂时无法结束共享');
+      });
   };
 
-  // 仅在Web平台上渲染视频元素
   const renderVideo = () => {
     if (Platform.OS !== 'web') {
       return (
         <View style={styles.unsupportedContainer}>
           <Icon name="monitor-off" size={48} color={COLORS.TEXT_TERTIARY} />
-          <Text style={styles.unsupportedText}>
-            移动端暂不支持屏幕共享，请使用Web端
-          </Text>
+          <Text style={styles.unsupportedText}>移动端当前仅保留共享入口说明，请优先使用 Web 端共享或观看。</Text>
         </View>
       );
     }
@@ -213,12 +199,7 @@ const ScreenShare = ({ groupId }) => {
         {isSharing ? (
           <Text style={styles.sharingText}>正在共享您的屏幕</Text>
         ) : (
-          <video
-            ref={videoRef}
-            style={styles.video}
-            autoPlay
-            playsInline
-          />
+          <video ref={videoRef} style={styles.video} autoPlay playsInline />
         )}
       </View>
     );
@@ -228,12 +209,8 @@ const ScreenShare = ({ groupId }) => {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>
-            {isSharing ? '正在共享屏幕' : '屏幕共享'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {currentGroup?.name}
-          </Text>
+          <Text style={styles.title}>{isSharing ? '正在共享屏幕' : '屏幕共享'}</Text>
+          <Text style={styles.subtitle}>{currentGroup?.name}</Text>
         </View>
 
         {renderVideo()}
@@ -250,13 +227,37 @@ const ScreenShare = ({ groupId }) => {
                   style={styles.userIcon}
                 />
                 <Text style={styles.username}>{user.username}</Text>
-                {user.is_sharing && (
-                  <Text style={styles.sharingBadge}>共享中</Text>
-                )}
+                {user.is_sharing ? <Text style={styles.sharingBadge}>共享中</Text> : null}
               </View>
             ))
           ) : (
-            <Text style={styles.emptyText}>暂无连接用户</Text>
+            <Text style={styles.emptyText}>暂无已连接用户</Text>
+          )}
+        </View>
+
+        <View style={styles.usersContainer}>
+          <Text style={styles.sectionTitle}>当前群组活跃共享</Text>
+          {activeGroupShares.length > 0 ? (
+            activeGroupShares.map((share) => {
+              const isOwner = String(share?.user?.id || '') === String(currentUser?.id || '');
+              return (
+                <View key={share.id} style={styles.userItem}>
+                  <View style={styles.shareMeta}>
+                    <Text style={styles.username}>{share.title || '未命名共享'}</Text>
+                    <Text style={styles.shareSubtitle}>{share?.user?.username || '未知成员'}</Text>
+                  </View>
+                  {isOwner ? (
+                    <Text style={styles.sharingBadge}>我的共享</Text>
+                  ) : (
+                    <Button mode="outlined" compact onPress={() => handleJoinShare(share)} disabled={Platform.OS !== 'web'}>
+                      加入
+                    </Button>
+                  )}
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>当前群组暂无活跃共享</Text>
           )}
         </View>
 
@@ -279,9 +280,9 @@ const ScreenShare = ({ groupId }) => {
               style={styles.button}
               onPress={() => setShowStartDialog(true)}
               loading={isLoading}
-              disabled={isLoading}
+              disabled={isLoading || Platform.OS !== 'web'}
             >
-              开始共享
+              {Platform.OS === 'web' ? '开始共享' : '仅 Web 支持共享'}
             </Button>
           )}
         </View>
@@ -295,16 +296,10 @@ const ScreenShare = ({ groupId }) => {
       </ScrollView>
 
       <Portal>
-        <Dialog
-          visible={showStartDialog}
-          onDismiss={() => setShowStartDialog(false)}
-          style={styles.dialog}
-        >
+        <Dialog visible={showStartDialog} onDismiss={() => setShowStartDialog(false)} style={styles.dialog}>
           <Dialog.Title>开始屏幕共享</Dialog.Title>
           <Dialog.Content>
-            <Text style={styles.dialogText}>
-              请输入共享标题，然后点击"开始共享"按钮。
-            </Text>
+            <Text style={styles.dialogText}>请输入共享标题，然后点击“开始共享”。</Text>
             <TextInput
               style={styles.titleInput}
               placeholder="共享标题"
@@ -315,25 +310,20 @@ const ScreenShare = ({ groupId }) => {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setShowStartDialog(false)}>取消</Button>
-            <Button onPress={handleStartShare} mode="contained">开始共享</Button>
+            <Button onPress={handleStartShare} mode="contained">
+              开始共享
+            </Button>
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog
-          visible={showEndDialog}
-          onDismiss={() => setShowEndDialog(false)}
-        >
+        <Dialog visible={showEndDialog} onDismiss={() => setShowEndDialog(false)}>
           <Dialog.Title>结束屏幕共享</Dialog.Title>
           <Dialog.Content>
-            <Text>确定要结束当前的屏幕共享吗？</Text>
+            <Text>确定要结束当前屏幕共享吗？</Text>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setShowEndDialog(false)}>取消</Button>
-            <Button
-              onPress={handleEndShare}
-              mode="contained"
-              buttonColor={COLORS.ERROR}
-            >
+            <Button onPress={handleEndShare} mode="contained" buttonColor={COLORS.ERROR}>
               结束共享
             </Button>
           </Dialog.Actions>
@@ -408,13 +398,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
+    paddingHorizontal: SPACING.LARGE,
   },
   unsupportedText: {
     fontSize: 16,
     color: COLORS.TEXT_TERTIARY,
     textAlign: 'center',
     marginTop: SPACING.MEDIUM,
-    paddingHorizontal: SPACING.LARGE,
   },
   usersContainer: {
     backgroundColor: '#FFFFFF',
@@ -449,6 +439,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.TEXT_PRIMARY,
     flex: 1,
+  },
+  shareMeta: {
+    flex: 1,
+    marginRight: SPACING.SMALL,
+  },
+  shareSubtitle: {
+    fontSize: 13,
+    color: COLORS.TEXT_SECONDARY,
+    marginTop: 2,
   },
   sharingBadge: {
     fontSize: 12,

@@ -1,20 +1,24 @@
 /**
  * 群组详情组件
  */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
   Share,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { Text, Button, Divider, Menu, Dialog, Portal } from 'react-native-paper';
+import { useDispatch, useSelector } from 'react-redux';
+import { Button, Dialog, Divider, Menu, Portal, Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+import { ErrorState } from '../../components/common';
+import { COLORS } from '../../utils/constants/colors';
+import { SPACING } from '../../utils/constants/dimensions';
 import {
   fetchGroupDetail,
   fetchGroupMembers,
@@ -22,14 +26,11 @@ import {
   leaveGroup,
   selectCurrentGroup,
   selectGroupMembers,
-  selectGroupsLoading,
   selectGroupsError,
+  selectGroupsLoading,
   selectJoinCode,
   selectJoinCodeExpiresAt,
 } from '../../redux/slices/groupsSlice';
-import { SPACING } from '../../utils/constants/dimensions';
-import { COLORS } from '../../utils/constants/colors';
-import { ErrorState } from '../../components/common';
 import MemberList from './MemberList';
 
 const GroupDetail = ({ groupId }) => {
@@ -47,8 +48,9 @@ const GroupDetail = ({ groupId }) => {
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
 
   useEffect(() => {
-    loadGroupData();
-  }, [groupId]);
+    dispatch(fetchGroupDetail(groupId));
+    dispatch(fetchGroupMembers(groupId));
+  }, [dispatch, groupId]);
 
   const loadGroupData = () => {
     dispatch(fetchGroupDetail(groupId));
@@ -56,19 +58,27 @@ const GroupDetail = ({ groupId }) => {
   };
 
   const handleGenerateJoinCode = () => {
-    dispatch(generateJoinCode({ groupId, expiresIn: 30 }));
-    setJoinCodeDialogVisible(true);
+    dispatch(generateJoinCode({ groupId, expiresIn: 30 }))
+      .unwrap()
+      .then(() => {
+        setJoinCodeDialogVisible(true);
+      })
+      .catch((requestError) => {
+        Alert.alert('生成加入码失败', requestError || '暂时无法生成加入码');
+      });
   };
 
   const handleShareJoinCode = async () => {
-    if (!joinCode) {return;}
+    if (!joinCode) {
+      return;
+    }
 
     try {
       await Share.share({
-        message: `加入我的群组"${group.name}"，使用加入码: ${joinCode}`,
+        message: `加入我的群组“${group.name}”，使用加入码：${joinCode}`,
       });
-    } catch (error) {
-      Alert.alert('分享失败', error.message);
+    } catch (shareError) {
+      Alert.alert('分享失败', shareError.message);
     }
   };
 
@@ -79,8 +89,8 @@ const GroupDetail = ({ groupId }) => {
       .then(() => {
         navigation.goBack();
       })
-      .catch((error) => {
-        Alert.alert('离开群组失败', error);
+      .catch((requestError) => {
+        Alert.alert('离开群组失败', requestError || '暂时无法离开群组');
       });
   };
 
@@ -88,13 +98,15 @@ const GroupDetail = ({ groupId }) => {
     navigation.navigate('ScreenShare', { groupId });
   };
 
-  const canShowJoinCodeActions = Boolean(group?.join_code || group?.creator?.id);
+  const canGenerateJoinCode = Boolean(group?.can_generate_join_code);
+  const canInviteMembers = Boolean(group?.can_invite);
 
   const formatExpiryTime = (dateString) => {
-    if (!dateString) {return '';}
+    if (!dateString) {
+      return '';
+    }
 
-    const expiryDate = new Date(dateString);
-    return expiryDate.toLocaleString();
+    return new Date(dateString).toLocaleString();
   };
 
   if (isLoading && !group) {
@@ -106,21 +118,11 @@ const GroupDetail = ({ groupId }) => {
   }
 
   if (error && !group) {
-    return (
-      <ErrorState
-        message={error}
-        onRetry={loadGroupData}
-      />
-    );
+    return <ErrorState message={error} onRetry={loadGroupData} />;
   }
 
   if (!group) {
-    return (
-      <ErrorState
-        message="无法加载群组信息"
-        onRetry={loadGroupData}
-      />
-    );
+    return <ErrorState message="无法加载群组信息" onRetry={loadGroupData} />;
   }
 
   return (
@@ -129,15 +131,10 @@ const GroupDetail = ({ groupId }) => {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.groupName}>{group.name}</Text>
-            <Text style={styles.memberCount}>
-              {group.member_count} 位成员
-            </Text>
+            <Text style={styles.memberCount}>{group.member_count} 位成员</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => setMenuVisible(true)}
-          >
+          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
             <Icon name="dots-vertical" size={24} color={COLORS.TEXT_PRIMARY} />
           </TouchableOpacity>
 
@@ -147,24 +144,27 @@ const GroupDetail = ({ groupId }) => {
             anchor={{ x: 0, y: 0 }}
             style={styles.menu}
           >
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                handleGenerateJoinCode();
-              }}
-              title="生成加入码"
-              leadingIcon="link-variant"
-              disabled={!canShowJoinCodeActions}
-            />
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                navigation.navigate('InviteMembers', { groupId });
-              }}
-              title="邀请成员"
-              leadingIcon="account-plus"
-            />
-            <Divider />
+            {canGenerateJoinCode ? (
+              <Menu.Item
+                onPress={() => {
+                  setMenuVisible(false);
+                  handleGenerateJoinCode();
+                }}
+                title="生成加入码"
+                leadingIcon="link-variant"
+              />
+            ) : null}
+            {canInviteMembers ? (
+              <Menu.Item
+                onPress={() => {
+                  setMenuVisible(false);
+                  navigation.navigate('InviteMembers', { groupId });
+                }}
+                title="邀请成员"
+                leadingIcon="account-plus"
+              />
+            ) : null}
+            {canGenerateJoinCode || canInviteMembers ? <Divider /> : null}
             <Menu.Item
               onPress={() => {
                 setMenuVisible(false);
@@ -185,12 +185,7 @@ const GroupDetail = ({ groupId }) => {
         ) : null}
 
         <View style={styles.actionsContainer}>
-          <Button
-            mode="contained"
-            icon="monitor-share"
-            style={styles.actionButton}
-            onPress={handleStartScreenShare}
-          >
+          <Button mode="contained" icon="monitor-share" style={styles.actionButton} onPress={handleStartScreenShare}>
             屏幕共享
           </Button>
 
@@ -212,33 +207,26 @@ const GroupDetail = ({ groupId }) => {
       </ScrollView>
 
       <Portal>
-        <Dialog
-          visible={joinCodeDialogVisible}
-          onDismiss={() => setJoinCodeDialogVisible(false)}
-          style={styles.dialog}
-        >
+        <Dialog visible={joinCodeDialogVisible} onDismiss={() => setJoinCodeDialogVisible(false)} style={styles.dialog}>
           <Dialog.Title>群组加入码</Dialog.Title>
           <Dialog.Content>
             <View style={styles.joinCodeContainer}>
-              <Text style={styles.joinCode}>{joinCode}</Text>
-              <Text style={styles.joinCodeExpiry}>
-                有效期至: {formatExpiryTime(joinCodeExpiresAt)}
-              </Text>
+              <Text style={styles.joinCode}>{joinCode || '----'}</Text>
+              <Text style={styles.joinCodeExpiry}>有效期至：{formatExpiryTime(joinCodeExpiresAt)}</Text>
             </View>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setJoinCodeDialogVisible(false)}>关闭</Button>
-            <Button onPress={handleShareJoinCode} mode="contained">分享</Button>
+            <Button onPress={handleShareJoinCode} mode="contained" disabled={!joinCode}>
+              分享
+            </Button>
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog
-          visible={leaveDialogVisible}
-          onDismiss={() => setLeaveDialogVisible(false)}
-        >
+        <Dialog visible={leaveDialogVisible} onDismiss={() => setLeaveDialogVisible(false)}>
           <Dialog.Title>离开群组</Dialog.Title>
           <Dialog.Content>
-            <Text>确定要离开"{group.name}"群组吗？</Text>
+            <Text>确定要离开“{group.name}”群组吗？</Text>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setLeaveDialogVisible(false)}>取消</Button>

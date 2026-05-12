@@ -3,13 +3,16 @@
 """
 
 from rest_framework import serializers
+
 from users.serializers import UserSerializer
 from users.utils import get_mongo_user_from_django
-from .mongodb_models import Group, GroupMember, GroupInvitation, SharedScreen
+
+from .mongodb_models import Group, GroupInvitation, GroupMember, SharedScreen
 
 
 class GroupSerializer(serializers.ModelSerializer):
     """群组序列化器"""
+
     creator = UserSerializer(read_only=True)
     member_count = serializers.SerializerMethodField()
 
@@ -19,17 +22,24 @@ class GroupSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
 
     def get_member_count(self, obj):
-        # 统计活跃成员数量（MongoEngine没有反向members集合，直接查询GroupMember）
         return GroupMember.objects.filter(group=obj, is_active=True).count()
 
 
 class GroupDetailSerializer(GroupSerializer):
     """群组详情序列化器"""
+
     join_code = serializers.SerializerMethodField()
     join_code_expires_at = serializers.SerializerMethodField()
+    can_invite = serializers.SerializerMethodField()
+    can_generate_join_code = serializers.SerializerMethodField()
 
     class Meta(GroupSerializer.Meta):
-        fields = GroupSerializer.Meta.fields + ['join_code', 'join_code_expires_at']
+        fields = GroupSerializer.Meta.fields + [
+            'join_code',
+            'join_code_expires_at',
+            'can_invite',
+            'can_generate_join_code',
+        ]
 
     def _get_request_mongo_user(self):
         request = self.context.get('request')
@@ -39,43 +49,45 @@ class GroupDetailSerializer(GroupSerializer):
             return request.mongo_user
         return get_mongo_user_from_django(getattr(request, 'user', None))
 
-    def get_join_code(self, obj):
-        # 只有创建者和管理员可以看到加入码
+    def _can_manage_group(self, obj):
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return None
+        if not request or not getattr(request.user, 'is_authenticated', False):
+            return False
 
         mongo_user = self._get_request_mongo_user()
         if not mongo_user:
-            return None
+            return False
 
-        if (
+        return bool(
             str(getattr(obj.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
-            or GroupMember.objects.filter(group=obj, user=mongo_user, role='admin', is_active=True).first()
-        ):
+            or GroupMember.objects.filter(
+                group=obj,
+                user=mongo_user,
+                role='admin',
+                is_active=True,
+            ).first()
+        )
+
+    def get_join_code(self, obj):
+        if self._can_manage_group(obj):
             return obj.join_code if obj.is_join_code_valid() else None
         return None
 
     def get_join_code_expires_at(self, obj):
-        # 只有创建者和管理员可以看到加入码过期时间
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return None
-
-        mongo_user = self._get_request_mongo_user()
-        if not mongo_user:
-            return None
-
-        if (
-            str(getattr(obj.creator, 'id', '')) == str(getattr(mongo_user, 'id', ''))
-            or GroupMember.objects.filter(group=obj, user=mongo_user, role='admin', is_active=True).first()
-        ):
+        if self._can_manage_group(obj):
             return obj.join_code_expires_at if obj.is_join_code_valid() else None
         return None
+
+    def get_can_invite(self, obj):
+        return self._can_manage_group(obj)
+
+    def get_can_generate_join_code(self, obj):
+        return self._can_manage_group(obj)
 
 
 class GroupMemberSerializer(serializers.ModelSerializer):
     """群组成员序列化器"""
+
     user = UserSerializer(read_only=True)
 
     class Meta:
@@ -86,6 +98,7 @@ class GroupMemberSerializer(serializers.ModelSerializer):
 
 class GroupInvitationSerializer(serializers.ModelSerializer):
     """群组邀请序列化器"""
+
     group = GroupSerializer(read_only=True)
     inviter = UserSerializer(read_only=True)
     invitee = UserSerializer(read_only=True)
@@ -98,6 +111,7 @@ class GroupInvitationSerializer(serializers.ModelSerializer):
 
 class SharedScreenSerializer(serializers.ModelSerializer):
     """共享屏幕序列化器"""
+
     user = UserSerializer(read_only=True)
     group = GroupSerializer(read_only=True)
 
