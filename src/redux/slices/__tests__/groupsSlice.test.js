@@ -162,4 +162,28 @@ describe('groupsSlice screen share session', () => {
       connectionDetail: 'remote-stream-ready',
     });
   });
+
+  it('should patch connection lifecycle state on active session', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      shareId: 'share-6',
+      role: 'host',
+      status: 'sharing',
+      webrtcRoomId: 'room-6',
+      connectionState: 'connected',
+    }));
+
+    const nextState = groupsReducer(state, patchActiveScreenShareSession({
+      status: 'error',
+      connectionState: 'error',
+      connectionDetail: 'signal-failed',
+    }));
+
+    expect(nextState.activeScreenShareSession).toMatchObject({
+      shareId: 'share-6',
+      status: 'error',
+      connectionState: 'error',
+      connectionDetail: 'signal-failed',
+    });
+  });
 });

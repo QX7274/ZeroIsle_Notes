@@ -256,7 +256,16 @@ const ScreenShare = ({ groupId }) => {
     });
 
     const removeConnectionState = webrtcService.onConnectionStateChange(({ state, detail }) => {
+      const nextSessionStatus = state === 'connected'
+        ? (activeSession?.role === 'viewer'
+            ? 'viewing'
+            : (isCurrentSharePaused ? 'paused' : 'sharing'))
+        : (state === 'error'
+            ? 'error'
+            : (state === 'closed' ? 'idle' : activeSession?.status));
+
       dispatch(patchActiveScreenShareSession({
+        status: nextSessionStatus,
         connectionState: state,
         connectionDetail: detail || null,
       }));
@@ -276,7 +285,16 @@ const ScreenShare = ({ groupId }) => {
       }
       webrtcService.disconnect();
     };
-  }, [activeSession?.role, activeSession?.shareId, appendDiagnosticEvent, dispatch, handleLeaveViewer, joinedShare?.user?.id]);
+  }, [
+    activeSession?.role,
+    activeSession?.shareId,
+    activeSession?.status,
+    appendDiagnosticEvent,
+    dispatch,
+    handleLeaveViewer,
+    isCurrentSharePaused,
+    joinedShare?.user?.id,
+  ]);
 
   const isViewing = Boolean(joinedShare) && !isSharing;
 
