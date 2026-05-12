@@ -26,6 +26,8 @@ const initialState = {
   inviteCandidatesError: null,
   inviteActionLoading: false,
   lastInvitation: null,
+  screenShareLoading: false,
+  screenShareError: null,
   isLoading: false,
   error: null,
   joinCode: null,
@@ -344,6 +346,9 @@ const groupsSlice = createSlice({
     clearLastInvitation: (state) => {
       state.lastInvitation = null;
     },
+    clearScreenShareError: (state) => {
+      state.screenShareError = null;
+    },
     setCurrentGroup: (state, action) => {
       state.currentGroup = action.payload;
     },
@@ -604,39 +609,39 @@ const groupsSlice = createSlice({
 
       // 创建屏幕共享
       .addCase(createScreenShare.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+        state.screenShareLoading = true;
+        state.screenShareError = null;
       })
       .addCase(createScreenShare.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.screenShareLoading = false;
         state.sharedScreens.push(action.payload);
       })
       .addCase(createScreenShare.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
       })
 
       // 获取屏幕共享列表
       .addCase(fetchScreenShares.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+        state.screenShareLoading = true;
+        state.screenShareError = null;
       })
       .addCase(fetchScreenShares.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.screenShareLoading = false;
         state.sharedScreens = action.payload;
       })
       .addCase(fetchScreenShares.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
       })
 
       // 结束屏幕共享
       .addCase(endScreenShare.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+        state.screenShareLoading = true;
+        state.screenShareError = null;
       })
       .addCase(endScreenShare.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.screenShareLoading = false;
 
         // 更新屏幕共享状态
         const index = state.sharedScreens.findIndex(share => share.id === action.payload.shareId);
@@ -646,21 +651,21 @@ const groupsSlice = createSlice({
         }
       })
       .addCase(endScreenShare.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
       })
 
       // 加入屏幕共享
       .addCase(joinScreenShare.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+        state.screenShareLoading = true;
+        state.screenShareError = null;
       })
       .addCase(joinScreenShare.fulfilled, (state) => {
-        state.isLoading = false;
+        state.screenShareLoading = false;
       })
       .addCase(joinScreenShare.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+        state.screenShareLoading = false;
+        state.screenShareError = action.payload;
       });
   },
 });
@@ -671,6 +676,7 @@ export const {
   clearJoinCode,
   clearInviteCandidates,
   clearLastInvitation,
+  clearScreenShareError,
   setCurrentGroup,
 } = groupsSlice.actions;
 
@@ -685,6 +691,8 @@ export const selectInviteCandidatesLoading = (state) => state.groups.inviteCandi
 export const selectInviteCandidatesError = (state) => state.groups.inviteCandidatesError;
 export const selectInviteActionLoading = (state) => state.groups.inviteActionLoading;
 export const selectLastInvitation = (state) => state.groups.lastInvitation;
+export const selectScreenShareLoading = (state) => state.groups.screenShareLoading;
+export const selectScreenShareError = (state) => state.groups.screenShareError;
 export const selectGroupsLoading = (state) => state.groups.isLoading;
 export const selectGroupsError = (state) => state.groups.error;
 export const selectJoinCode = (state) => state.groups.joinCode;

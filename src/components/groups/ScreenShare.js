@@ -16,14 +16,15 @@ import { Button, Dialog, Portal, Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import {
+  clearScreenShareError,
   createScreenShare,
   endScreenShare,
   fetchGroupDetail,
   fetchScreenShares,
   joinScreenShare,
   selectCurrentGroup,
-  selectGroupsError,
-  selectGroupsLoading,
+  selectScreenShareError,
+  selectScreenShareLoading,
   selectSharedScreens,
 } from '../../redux/slices/groupsSlice';
 import { webrtcService } from '../../services/webrtc/webrtcService';
@@ -46,8 +47,8 @@ const COLORS = {
 
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
-  const isLoading = useSelector(selectGroupsLoading);
-  const error = useSelector(selectGroupsError);
+  const isLoading = useSelector(selectScreenShareLoading);
+  const error = useSelector(selectScreenShareError);
   const currentGroup = useSelector(selectCurrentGroup);
   const sharedScreens = useSelector(selectSharedScreens);
   const currentUser = useSelector((state) => state.auth.user);
@@ -83,6 +84,7 @@ const ScreenShare = ({ groupId }) => {
     : null;
 
   useEffect(() => {
+    dispatch(clearScreenShareError());
     dispatch(fetchGroupDetail(groupId));
     dispatch(fetchScreenShares());
   }, [dispatch, groupId]);
