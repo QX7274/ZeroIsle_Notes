@@ -19,6 +19,7 @@ const Loading = ({
   size = 'large',
   type = 'inline',
   style,
+  testID,
 }) => {
   const { colors } = useTheme();
   // 获取动态样式
@@ -32,7 +33,7 @@ const Loading = ({
   ];
 
   return (
-    <View style={containerStyle}>
+    <View style={containerStyle} testID={testID}>
       <ActivityIndicator
         size={size}
         color={colors.primary || '#007AFF'}

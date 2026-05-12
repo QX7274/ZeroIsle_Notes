@@ -254,6 +254,12 @@ const KnowledgeGraphScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('NoteEdit')}
           style={styles.createButton}
         />
+        <Button
+          title="鍒嗘瀽"
+          onPress={() => navigation.navigate('KnowledgeAnalysis')}
+          style={styles.createButton}
+          testID="action.knowledgeGraph.analysis"
+        />
       </View>
     );
   }

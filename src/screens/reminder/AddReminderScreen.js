@@ -273,7 +273,6 @@ const AddReminderScreen = ({ route, navigation }) => {
             onChangeText={(text) => setReminder({ ...reminder, title: text })}
             placeholder="提醒标题"
             placeholderTextColor={theme.colors.textDisabled}
-            autoFocus
           />
 
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>描述</Text>
@@ -439,7 +438,17 @@ const AddReminderScreen = ({ route, navigation }) => {
           />
         </View>
 
-        {/* 操作按钮 */}
+      </ScrollView>
+
+      <View
+        style={[
+          styles.actionBar,
+          {
+            backgroundColor: theme.colors.card,
+            borderTopColor: theme.colors.border,
+          },
+        ]}
+      >
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
@@ -462,7 +471,7 @@ const AddReminderScreen = ({ route, navigation }) => {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
 
       {/* 安全日期选择器 */}
       <SafeDateTimePicker
@@ -528,7 +537,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 24,
   },
   hintBanner: {
     borderRadius: 8,
@@ -645,10 +654,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
   },
+  actionBar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+  },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
   cancelButton: {
     paddingVertical: 12,

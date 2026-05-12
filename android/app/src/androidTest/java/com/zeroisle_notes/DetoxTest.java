@@ -21,6 +21,9 @@ public class DetoxTest {
     @Test
     public void runDetoxTests() {
         DetoxConfig detoxConfig = new DetoxConfig();
+        detoxConfig.rnContextLoadTimeoutSec = 180;
+        detoxConfig.idlePolicyConfig.masterTimeoutSec = 420;
+        detoxConfig.idlePolicyConfig.idleResourceTimeoutSec = 240;
         Detox.runTests(activityRule, detoxConfig);
     }
 }

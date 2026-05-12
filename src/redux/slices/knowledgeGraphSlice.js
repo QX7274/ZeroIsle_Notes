@@ -71,6 +71,11 @@ export const fetchKnowledgeGraph = createAsyncThunk(
       const isNetworkError =
         error?.isNetworkError ||
         error?.message === 'Network Error' ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('network') ||
+        error?.message?.includes('socket') ||
+        error?.message?.includes('ECONNREFUSED') ||
+        error?.message?.includes('Failed to connect') ||
         error?.message?.includes('网络') ||
         error?.message?.includes('服务器请求失败');
 

@@ -67,7 +67,15 @@ export const getKnowledgeGraph = async (params = {}) => {
     let errorMessage = '获取知识图谱失败';
     let isNetworkError = false;
 
-    if (error.message === 'Network Error') {
+    if (
+      error.message === 'Network Error' ||
+      error.message?.includes('缃戠粶') ||
+      error.message?.includes('timeout') ||
+      error.message?.includes('network') ||
+      error.message?.includes('socket') ||
+      error.message?.includes('ECONNREFUSED') ||
+      error.message?.includes('Failed to connect')
+    ) {
       errorMessage = '网络连接失败，请检查网络设置';
       isNetworkError = true;
     } else if (error.response) {
@@ -89,6 +97,9 @@ export const getKnowledgeGraph = async (params = {}) => {
         default:
           errorMessage = `服务器返回错误(${error.response.status}): ${error.response.data?.message || '未知错误'}`;
       }
+    } else {
+      errorMessage = '网络连接失败，请检查网络设置';
+      isNetworkError = true;
     }
 
     const enrichedError = new Error(errorMessage);

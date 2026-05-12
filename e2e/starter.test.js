@@ -1,10 +1,7 @@
 describe('Smoke', () => {
-    beforeAll(async () => {
-        await device.launchApp({ newInstance: true });
-    });
-
     beforeEach(async () => {
-        await device.reloadReactNative();
+        await device.launchApp({ newInstance: true });
+        await expect(element(by.id('screen.home'))).toBeVisible();
     });
 
     it('should launch app and show home container', async () => {

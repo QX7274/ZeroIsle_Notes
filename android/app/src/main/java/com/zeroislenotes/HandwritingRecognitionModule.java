@@ -37,10 +37,11 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
     private DigitalInkRecognizer recognizer;
     private DigitalInkRecognitionModel model;
     private boolean isModelDownloaded = false;
+    private boolean initAttempted = false;
+    private String initFailureMessage = null;
 
     public HandwritingRecognitionModule(ReactApplicationContext reactContext) {
         super(reactContext);
-        initializeRecognizer();
     }
 
     @Override
@@ -48,8 +49,13 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
         return MODULE_NAME;
     }
 
-    private void initializeRecognizer() {
-        // Initialize with Chinese preferred, fallback to English
+    private synchronized boolean initializeRecognizer() {
+        if (recognizer != null && model != null) {
+            return true;
+        }
+
+        initAttempted = true;
+
         try {
             DigitalInkRecognitionModelIdentifier modelIdentifier =
                 DigitalInkRecognitionModelIdentifier.fromLanguageTag("zh-CN");
@@ -57,20 +63,47 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
                 modelIdentifier = DigitalInkRecognitionModelIdentifier.fromLanguageTag("en-US");
             }
             if (modelIdentifier == null) {
-                Log.e(MODULE_NAME, "Failed to obtain DigitalInkRecognitionModelIdentifier for zh-CN or en-US");
-                return;
+                initFailureMessage = "Failed to obtain DigitalInkRecognitionModelIdentifier for zh-CN or en-US";
+                Log.e(MODULE_NAME, initFailureMessage);
+                return false;
             }
 
             model = DigitalInkRecognitionModel.builder(modelIdentifier).build();
             DigitalInkRecognizerOptions options =
                 DigitalInkRecognizerOptions.builder(model).build();
             recognizer = DigitalInkRecognition.getClient(options);
+            initFailureMessage = null;
 
-            // Download model if not available
             downloadModelIfNeeded();
-        } catch (MlKitException e) {
+            return true;
+        } catch (Throwable e) {
+            recognizer = null;
+            model = null;
+            isModelDownloaded = false;
+            initFailureMessage = e.getMessage();
             Log.e(MODULE_NAME, "Failed to initialize Digital Ink recognizer", e);
+            return false;
         }
+    }
+
+    private synchronized boolean ensureRecognizerInitialized() {
+        if (recognizer != null && model != null) {
+            return true;
+        }
+
+        return initializeRecognizer();
+    }
+
+    private String getInitFailureMessage() {
+        if (initFailureMessage != null && !initFailureMessage.isEmpty()) {
+            return initFailureMessage;
+        }
+
+        if (!initAttempted) {
+            return "Handwriting recognition module has not been initialized";
+        }
+
+        return "Handwriting recognition module initialization failed";
     }
 
     private void downloadModelIfNeeded() {
@@ -89,6 +122,11 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void recognizeHandwriting(ReadableArray strokesData, Promise promise) {
+        if (!ensureRecognizerInitialized()) {
+            promise.reject("MODEL_INIT_FAILED", getInitFailureMessage());
+            return;
+        }
+
         if (!isModelDownloaded) {
             promise.reject("MODEL_NOT_READY", "Handwriting recognition model not downloaded");
             return;
@@ -182,6 +220,11 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void recognizeBatch(ReadableArray strokeGroups, Promise promise) {
+        if (!ensureRecognizerInitialized()) {
+            promise.reject("MODEL_INIT_FAILED", getInitFailureMessage());
+            return;
+        }
+
         if (!isModelDownloaded) {
             promise.reject("MODEL_NOT_READY", "Handwriting recognition model not downloaded");
             return;
@@ -258,11 +301,16 @@ public class HandwritingRecognitionModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void isModelReady(Promise promise) {
-        promise.resolve(isModelDownloaded);
+        promise.resolve(ensureRecognizerInitialized() && isModelDownloaded);
     }
 
     @ReactMethod
     public void downloadModel(Promise promise) {
+        if (!ensureRecognizerInitialized()) {
+            promise.reject("MODEL_INIT_FAILED", getInitFailureMessage());
+            return;
+        }
+
         if (model != null) {
             DownloadConditions conditions = new DownloadConditions.Builder().build();
             RemoteModelManager.getInstance()

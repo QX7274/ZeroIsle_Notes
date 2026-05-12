@@ -60,7 +60,7 @@ allprojects {
 
 apply plugin: "com.facebook.react.rootproject"
 
-def syncSkiaPrefabNativeInputs = { Project skiaProject ->
+def materializeSkiaNativeInputs = { Project skiaProject ->
     def transformsDir = new File(gradle.gradleUserHomeDir, "caches/${gradle.gradleVersion}/transforms")
     def cxxRoot = new File(skiaProject.buildDir, "intermediates/cxx")
 
@@ -94,16 +94,22 @@ def syncSkiaPrefabNativeInputs = { Project skiaProject ->
                 abiDir.mkdirs()
             }
 
-            def prefabLibs = skiaProject.fileTree(transformsDir) {
+            def availableNativeLibs = [:]
+
+            skiaProject.fileTree(transformsDir) {
+                include "**/jetified-react-android-*-debug/jni/${abi}/*.so"
                 include "**/jetified-react-android-*-debug/prefab/modules/*/libs/android.${abi}/*.so"
+                include "**/jetified-fbjni-*/jni/${abi}/*.so"
                 include "**/jetified-fbjni-*/prefab/modules/fbjni/libs/android.${abi}/*.so"
-            }.files.findAll { file ->
-                expectedNativeLibs.contains(file.name)
+            }.files.each { file ->
+                if (expectedNativeLibs.contains(file.name) && !availableNativeLibs.containsKey(file.name)) {
+                    availableNativeLibs[file.name] = file
+                }
             }
 
-            prefabLibs.each { nativeLib ->
+            availableNativeLibs.values().each { nativeLib ->
                 def targetLib = new File(abiDir, nativeLib.name)
-                if (!targetLib.exists()) {
+                if (!targetLib.exists() || targetLib.length() != nativeLib.length()) {
                     skiaProject.copy {
                         from nativeLib
                         into abiDir
@@ -126,6 +132,15 @@ gradle.projectsEvaluated {
         }
 
         if (project.name == "shopify_react-native-skia") {
+            def prewarmSkiaDebugNativeLibs = project.tasks.create("prewarmSkiaDebugNativeLibs") {
+                group = "build"
+                description = "Materializes imported React Native native libraries into Skia CXX obj directories before mergeDebugNativeLibs input validation."
+                outputs.upToDateWhen { false }
+                doLast {
+                    materializeSkiaNativeInputs(project)
+                }
+            }
+
             project.tasks.configureEach { task ->
                 if (
                     task.name.startsWith("buildCMake") ||
@@ -133,11 +148,12 @@ gradle.projectsEvaluated {
                 ) {
                     task.doNotTrackState("Skia native tasks reference imported React Native .so files that are not materialized as local task inputs/outputs under Gradle 8.8.")
                 }
+                if (task.name.startsWith("buildCMakeDebug")) {
+                    prewarmSkiaDebugNativeLibs.dependsOn(task)
+                }
 
                 if (task.name == "mergeDebugNativeLibs") {
-                    task.doFirst {
-                        syncSkiaPrefabNativeInputs(project)
-                    }
+                    task.dependsOn(prewarmSkiaDebugNativeLibs)
                 }
             }
         }

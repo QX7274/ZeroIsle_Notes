@@ -258,7 +258,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   // 渲染错误状态
   if (error && nodes.length === 0) {
     return (
-      <View style={dynamicStyles.errorContainer}>
+      <View style={dynamicStyles.errorContainer} testID="screen.knowledgeAnalysis">
         <Icon name="error-outline" size={50} color={colors.error} />
         <Text style={dynamicStyles.errorText}>加载失败: {error}</Text>
         <Button title="重试" onPress={loadKnowledgeGraph} />
@@ -269,7 +269,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   // 渲染空状态
   if (nodes.length === 0) {
     return (
-      <View style={dynamicStyles.emptyContainer}>
+      <View style={dynamicStyles.emptyContainer} testID="screen.knowledgeAnalysis">
         <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
         <Text style={dynamicStyles.emptyText}>暂无知识图谱数据</Text>
         <Text style={dynamicStyles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>

@@ -23,7 +23,6 @@ import * as Haptics from '../../utils/haptics';
 import userApi from '../../services/api/userApi';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { setUserInfo } from '../../redux/slices/authSlice';
-import ParticleBackground from '../../components/common/ParticleBackground';
 
 const ProfileSettings = ({ navigation }) => {
   const { colors } = useTheme();
@@ -170,7 +169,6 @@ const ProfileSettings = ({ navigation }) => {
       style={[styles.container, { backgroundColor: colors.background }]}
       testID="screen.profile"
     >
-      <ParticleBackground />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
