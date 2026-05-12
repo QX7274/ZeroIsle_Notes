@@ -62,6 +62,15 @@ const CONNECTION_STATE_LABELS = {
   error: '连接异常',
 };
 
+const getShareSnapshotSignature = (share) => JSON.stringify({
+  id: share?.id || null,
+  status: share?.status || null,
+  title: share?.title || null,
+  webrtcRoomId: share?.webrtc_room_id || null,
+  ownerId: share?.user?.id || null,
+  groupId: share?.group?.id || null,
+});
+
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
   const isLoading = useSelector(selectScreenShareLoading);
@@ -111,6 +120,11 @@ const ScreenShare = ({ groupId }) => {
   const liveJoinedShare = joinedShare
     ? activeGroupShares.find((share) => String(share?.id || '') === String(joinedShare?.id || '')) || null
     : null;
+  const joinedShareSignature = useMemo(() => getShareSnapshotSignature(joinedShare), [joinedShare]);
+  const liveJoinedShareSignature = useMemo(
+    () => getShareSnapshotSignature(liveJoinedShare),
+    [liveJoinedShare]
+  );
   const diagnosticRole = isSharing ? '共享端' : (joinedShare ? '观看端' : '空闲');
   const isCurrentSharePaused = currentShare?.status === 'paused';
 
@@ -461,13 +475,22 @@ const ScreenShare = ({ groupId }) => {
       return;
     }
 
-    if (liveJoinedShare !== joinedShare) {
+    if (liveJoinedShareSignature !== joinedShareSignature) {
       dispatch(patchActiveScreenShareSession({
         shareSnapshot: liveJoinedShare,
       }));
       appendDiagnosticEvent('共享快照已同步', '观看中的共享对象已更新为最新服务端快照');
     }
-  }, [appendDiagnosticEvent, dispatch, handleLeaveViewer, isSharing, joinedShare, liveJoinedShare]);
+  }, [
+    appendDiagnosticEvent,
+    dispatch,
+    handleLeaveViewer,
+    isSharing,
+    joinedShare,
+    joinedShareSignature,
+    liveJoinedShare,
+    liveJoinedShareSignature,
+  ]);
 
   const handleEndShare = () => {
     setShowEndDialog(false);

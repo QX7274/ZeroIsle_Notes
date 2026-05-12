@@ -186,4 +186,49 @@ describe('groupsSlice screen share session', () => {
       connectionDetail: 'signal-failed',
     });
   });
+
+  it('should keep share snapshot fields patchable without replacing session identity fields', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      groupId: 'group-7',
+      shareId: 'share-7',
+      role: 'viewer',
+      status: 'viewing',
+      webrtcRoomId: 'room-7',
+      ownerId: 'user-7',
+      shareSnapshot: {
+        id: 'share-7',
+        status: 'active',
+        title: '旧标题',
+        webrtc_room_id: 'room-7',
+        user: { id: 'user-7' },
+        group: { id: 'group-7' },
+      },
+    }));
+
+    const nextState = groupsReducer(state, patchActiveScreenShareSession({
+      shareSnapshot: {
+        id: 'share-7',
+        status: 'paused',
+        title: '新标题',
+        webrtc_room_id: 'room-7',
+        user: { id: 'user-7' },
+        group: { id: 'group-7' },
+      },
+    }));
+
+    expect(nextState.activeScreenShareSession).toMatchObject({
+      groupId: 'group-7',
+      shareId: 'share-7',
+      role: 'viewer',
+      status: 'viewing',
+      webrtcRoomId: 'room-7',
+      ownerId: 'user-7',
+    });
+    expect(nextState.activeScreenShareSession.shareSnapshot).toMatchObject({
+      id: 'share-7',
+      status: 'paused',
+      title: '新标题',
+    });
+  });
 });
