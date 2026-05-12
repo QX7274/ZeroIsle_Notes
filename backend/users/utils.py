@@ -6,6 +6,8 @@
 import logging
 from typing import Optional
 
+from mongoengine.errors import DoesNotExist as MongoDoesNotExist
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,8 +38,15 @@ def get_mongo_user_from_django(django_user):
         from .mongodb_models import User as MongoUser, UserProfile
 
         profile = UserProfile.objects(django_user_id=str(django_user.id)).first()
-        if profile and profile.user:
-            return profile.user
+        if profile:
+            try:
+                if profile.user:
+                    return profile.user
+            except MongoDoesNotExist:
+                logger.warning(
+                    "Django 用户 %s 的 Mongo profile 映射已失效，转入回退查找逻辑",
+                    getattr(django_user, 'username', django_user),
+                )
 
         # 如果映射不存在，先按 django_user_id / username 尝试查找 Mongo 用户
         mongo_user = (
@@ -116,4 +125,3 @@ def ensure_user_profile_mapping(django_user, mongo_user) -> bool:
     except Exception as e:
         logger.error(f"创建用户映射失败: {str(e)}", exc_info=True)
         return False
-

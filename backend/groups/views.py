@@ -50,7 +50,7 @@ def _get_visible_groups_for_mongo_user(mongo_user):
     if member_group_ids:
         group_query = group_query | Q(id__in=member_group_ids)
 
-    return Group.objects.filter(group_query, is_active=True).distinct()
+    return Group.objects.filter(group_query, is_active=True)
 
 
 class IsGroupCreatorOrAdmin(permissions.BasePermission):
@@ -124,12 +124,27 @@ class GroupViewSet(viewsets.ModelViewSet):
             return GroupDetailSerializer
         return GroupSerializer
 
+    def get_object(self):
+        group_id = self.kwargs.get(self.lookup_field or 'pk')
+        queryset = self.get_queryset()
+        try:
+            return queryset.get(id=group_id)
+        except Group.DoesNotExist:
+            raise NotFound("群组不存在")
+
     def perform_create(self, serializer):
         """创建群组时设置创建者"""
         mongo_user = _get_request_mongo_user(self.request)
         if not mongo_user:
             raise ValidationError({"detail": "当前用户缺少 Mongo 用户映射"})
-        serializer.save(creator=mongo_user)
+        group = serializer.save(creator=mongo_user)
+
+        # 创建者默认加入群组并拥有管理员权限，保证后续邀请、加入码、共享链路可直接使用。
+        GroupMember.objects.create(
+            group=group,
+            user=mongo_user,
+            role='admin',
+        )
 
     @action(detail=True, methods=['post'], url_path='generate-join-code')
     def generate_join_code(self, request, pk=None):
@@ -433,6 +448,14 @@ class GroupInvitationViewSet(viewsets.ReadOnlyModelViewSet):
             expires_at__gt=timezone.now()
         )
 
+    def get_object(self):
+        invitation_id = self.kwargs.get(self.lookup_field or 'pk')
+        queryset = self.get_queryset()
+        try:
+            return queryset.get(id=invitation_id)
+        except GroupInvitation.DoesNotExist:
+            raise NotFound("邀请不存在")
+
     @action(detail=True, methods=['post'])
     def accept(self, request, pk=None):
         """接受邀请"""
@@ -526,7 +549,15 @@ class SharedScreenViewSet(viewsets.ModelViewSet):
         return SharedScreen.objects.filter(
             Q(user=mongo_user) | Q(group__in=visible_groups),
             status__in=['active', 'paused']
-        ).distinct()
+        )
+
+    def get_object(self):
+        shared_screen_id = self.kwargs.get(self.lookup_field or 'pk')
+        queryset = self.get_queryset()
+        try:
+            return queryset.get(id=shared_screen_id)
+        except SharedScreen.DoesNotExist:
+            raise NotFound("共享会话不存在")
 
     def perform_create(self, serializer):
         """创建共享屏幕时校验群组和成员资格，并生成WebRTC房间ID。"""

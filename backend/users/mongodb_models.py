@@ -12,7 +12,8 @@ class User(Document):
     """
     用户文档模型
     """
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='用户ID')
+    # 共享链与 testing/mongomock 联调场景下，显式使用非二进制 UUID，避免引用反解与编码口径不一致。
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), binary=False, verbose_name='用户ID')
     username = StringField(max_length=150, required=True, unique=True, verbose_name='用户名')
     email = EmailField(sparse=True, required=False, verbose_name='邮箱地址')
     phone = StringField(max_length=20, sparse=True, verbose_name='手机号')

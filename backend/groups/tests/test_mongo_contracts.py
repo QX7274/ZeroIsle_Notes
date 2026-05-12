@@ -47,7 +47,6 @@ class GroupsMongoContractTests(SimpleTestCase):
         ]
 
         filtered_queryset = mock.Mock()
-        filtered_queryset.distinct.return_value = 'group-queryset'
         group_objects.filter.return_value = filtered_queryset
 
         view = GroupViewSet()
@@ -55,7 +54,7 @@ class GroupsMongoContractTests(SimpleTestCase):
 
         result = view.get_queryset()
 
-        self.assertEqual(result, 'group-queryset')
+        self.assertIs(result, filtered_queryset)
         group_member_objects.filter.assert_called_once_with(user=self.mongo_user, is_active=True)
         group_objects.filter.assert_called_once()
         query = group_objects.filter.call_args.args[0]
@@ -74,8 +73,7 @@ class GroupsMongoContractTests(SimpleTestCase):
         member_group = SimpleNamespace(id='group-2')
         visible_group = SimpleNamespace(id='group-2')
         group_member_objects.filter.return_value = [SimpleNamespace(group=member_group)]
-        group_queryset = mock.Mock()
-        group_queryset.distinct.return_value = [visible_group]
+        group_queryset = [visible_group]
         group_objects.filter.return_value = group_queryset
 
         shared_screen_queryset = mock.Mock()
@@ -87,7 +85,7 @@ class GroupsMongoContractTests(SimpleTestCase):
 
         result = view.get_queryset()
 
-        self.assertEqual(result, 'shared-screen-queryset')
+        self.assertIs(result, shared_screen_queryset)
         shared_screen_objects.filter.assert_called_once()
         query = shared_screen_objects.filter.call_args.args[0]
         self.assertIn('mongo-user-1', str(query))
@@ -130,12 +128,19 @@ class GroupsMongoContractTests(SimpleTestCase):
 
     def test_group_perform_create_uses_request_mongo_user(self):
         serializer = mock.Mock()
+        serializer.save.return_value = SimpleNamespace(id='group-1')
         view = GroupViewSet()
         view.request = self.request
 
-        view.perform_create(serializer)
+        with mock.patch('groups.views.GroupMember.objects') as group_member_objects:
+            view.perform_create(serializer)
 
         serializer.save.assert_called_once_with(creator=self.mongo_user)
+        group_member_objects.create.assert_called_once_with(
+            group=serializer.save.return_value,
+            user=self.mongo_user,
+            role='admin',
+        )
 
     @mock.patch('groups.views.GroupInvitation.objects')
     def test_group_invitation_queryset_uses_request_mongo_user(self, invitation_objects):

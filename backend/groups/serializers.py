@@ -10,19 +10,29 @@ from users.utils import get_mongo_user_from_django
 from .mongodb_models import Group, GroupInvitation, GroupMember, SharedScreen
 
 
-class GroupSerializer(serializers.ModelSerializer):
+class GroupSerializer(serializers.Serializer):
     """群组序列化器"""
 
+    id = serializers.CharField(read_only=True)
+    name = serializers.CharField(max_length=100)
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     creator = UserSerializer(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
     member_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Group
-        fields = ['id', 'name', 'description', 'creator', 'created_at', 'updated_at', 'member_count']
-        read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
 
     def get_member_count(self, obj):
         return GroupMember.objects.filter(group=obj, is_active=True).count()
+
+    def create(self, validated_data):
+        return Group.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        for field in ['name', 'description']:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+        instance.save()
+        return instance
 
 
 class GroupDetailSerializer(GroupSerializer):
@@ -32,14 +42,6 @@ class GroupDetailSerializer(GroupSerializer):
     join_code_expires_at = serializers.SerializerMethodField()
     can_invite = serializers.SerializerMethodField()
     can_generate_join_code = serializers.SerializerMethodField()
-
-    class Meta(GroupSerializer.Meta):
-        fields = GroupSerializer.Meta.fields + [
-            'join_code',
-            'join_code_expires_at',
-            'can_invite',
-            'can_generate_join_code',
-        ]
 
     def _get_request_mongo_user(self):
         request = self.context.get('request')
@@ -85,28 +87,27 @@ class GroupDetailSerializer(GroupSerializer):
         return self._can_manage_group(obj)
 
 
-class GroupMemberSerializer(serializers.ModelSerializer):
+class GroupMemberSerializer(serializers.Serializer):
     """群组成员序列化器"""
 
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
-
-    class Meta:
-        model = GroupMember
-        fields = ['id', 'user', 'role', 'joined_at', 'is_active']
-        read_only_fields = ['id', 'user', 'joined_at']
+    role = serializers.CharField(read_only=True)
+    joined_at = serializers.DateTimeField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
 
 
-class GroupInvitationSerializer(serializers.ModelSerializer):
+class GroupInvitationSerializer(serializers.Serializer):
     """群组邀请序列化器"""
 
+    id = serializers.CharField(read_only=True)
     group = GroupSerializer(read_only=True)
     inviter = UserSerializer(read_only=True)
     invitee = UserSerializer(read_only=True)
-
-    class Meta:
-        model = GroupInvitation
-        fields = ['id', 'group', 'inviter', 'invitee', 'status', 'created_at', 'expires_at', 'responded_at']
-        read_only_fields = ['id', 'group', 'inviter', 'invitee', 'created_at', 'expires_at', 'responded_at']
+    status = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
+    responded_at = serializers.DateTimeField(read_only=True, allow_null=True)
 
 
 class GroupInviteCandidateSerializer(serializers.Serializer):
@@ -143,13 +144,24 @@ class GroupInviteCandidateSerializer(serializers.Serializer):
         }
 
 
-class SharedScreenSerializer(serializers.ModelSerializer):
+class SharedScreenSerializer(serializers.Serializer):
     """共享屏幕序列化器"""
 
+    id = serializers.CharField(read_only=True)
     user = UserSerializer(read_only=True)
     group = GroupSerializer(read_only=True)
+    title = serializers.CharField(max_length=100)
+    status = serializers.CharField(read_only=True)
+    started_at = serializers.DateTimeField(read_only=True)
+    ended_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    webrtc_room_id = serializers.CharField(read_only=True)
 
-    class Meta:
-        model = SharedScreen
-        fields = ['id', 'group', 'user', 'title', 'status', 'started_at', 'ended_at', 'webrtc_room_id']
-        read_only_fields = ['id', 'group', 'user', 'started_at', 'ended_at', 'webrtc_room_id']
+    def create(self, validated_data):
+        return SharedScreen.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        for field in ['title', 'status', 'ended_at', 'webrtc_room_id']:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+        instance.save()
+        return instance

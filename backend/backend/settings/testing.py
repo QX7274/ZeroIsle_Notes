@@ -5,6 +5,7 @@
 from .base import *
 import os
 import logging
+from functools import partial
 import mongoengine
 import mongomock
 from pymongo import MongoClient
@@ -134,10 +135,10 @@ try:
             db=test_db_name,
             host='mongodb://localhost',
             alias='default',
-            mongo_client_class=mongomock.MongoClient,
+            mongo_client_class=partial(mongomock.MongoClient, uuidRepresentation='standard'),
             uuidRepresentation='standard',
         )
-        MONGO_CLIENT = mongomock.MongoClient()
+        MONGO_CLIENT = mongomock.MongoClient(uuidRepresentation='standard')
         logger.info("测试环境默认使用 mongomock 作为 MongoDB 后端")
 
     # 获取数据库引用

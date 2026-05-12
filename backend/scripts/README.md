@@ -11,6 +11,7 @@
 - **fix_admin_login.py**: 修复管理员登录脚本
 - **reset_admin_password.py**: 重置管理员密码脚本
 - **test_mongodb_auth.py**: MongoDB认证测试脚本
+- **shared_screen_smoke.py**: 共享链最小 API 联调脚本
 
 ## 主要脚本说明
 
@@ -128,6 +129,28 @@ python scripts/reset_admin_password.py
 cd backend
 python scripts/test_mongodb_auth.py
 ```
+
+#### shared_screen_smoke.py
+
+验证“注册 -> 登录 -> 建群 -> 生成加入码 -> 创建共享 -> 列表/加入共享”的最小 HTTP 契约链路。
+
+**功能**:
+- 验证 Mongo 用户注册/登录可用
+- 验证群组创建与加入码生成可用
+- 验证 `/api/v1/groups/shared-screens/` 的最小创建、列表与加入链路
+- 输出共享会话 ID、群组 ID、WebRTC 房间 ID 供后续联调记录复用
+
+**使用方法**:
+
+```bash
+cd backend
+python scripts/shared_screen_smoke.py --base-url http://127.0.0.1:8001/api/v1
+```
+
+**说明**:
+- 推荐优先配合 `DJANGO_ENV=testing` 使用，降低对真实外部依赖的要求
+- 该脚本只验证共享 HTTP 契约最小链路，不等同于 WebRTC 端到端联调完成
+- 该脚本不等同于 Android 专用 MCP 真机可视化验证完成
 
 ## 迁移步骤
 
