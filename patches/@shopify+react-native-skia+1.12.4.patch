@@ -1,8 +1,8 @@
 diff --git a/node_modules/@shopify/react-native-skia/android/CMakeLists.txt b/node_modules/@shopify/react-native-skia/android/CMakeLists.txt
-index 51542ff..123ca0f 100644
+index f48752a..18de9ad 100644
 --- a/node_modules/@shopify/react-native-skia/android/CMakeLists.txt
 +++ b/node_modules/@shopify/react-native-skia/android/CMakeLists.txt
-@@ -13,6 +13,14 @@ set (SKIA_SVG_LIB "svg")
+@@ -11,6 +11,15 @@ set (SKIA_SVG_LIB "svg")
  set (SKIA_SKSHAPER_LIB "skshaper")
  set (SKIA_SKPARAGRAPH_LIB "skparagraph")
  set (SKIA_SKUNICODE_CORE_LIB "skunicode_core")
@@ -14,5 +14,7 @@ index 51542ff..123ca0f 100644
 +if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 +    file(MAKE_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 +endif()
- 
++
  set (SKIA_SKUNICODE_ICU_LIB "skunicode_icu")
+ 
+ 
