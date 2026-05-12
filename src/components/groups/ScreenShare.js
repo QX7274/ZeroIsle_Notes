@@ -404,9 +404,6 @@ const ScreenShare = ({ groupId }) => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    dispatch(patchActiveScreenShareSession({
-      hasAttachedRemoteStream: false,
-    }));
   };
 
   const handleStartShare = () => {
@@ -482,8 +479,12 @@ const ScreenShare = ({ groupId }) => {
     }
 
     setIsJoiningShare(true);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     dispatch(patchActiveScreenShareSession({
       connectionDetail: null,
+      hasAttachedRemoteStream: false,
       hasRemoteStream: false,
       viewerTimeoutReached: false,
     }));
