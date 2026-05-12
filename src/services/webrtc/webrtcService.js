@@ -29,8 +29,16 @@ class WebRTCService {
   }
 
   async connect(roomId) {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (
+      this.socket
+      && this.socket.readyState === WebSocket.OPEN
+      && this.roomId === roomId
+    ) {
       return;
+    }
+
+    if (this.socket && this.socket.readyState === WebSocket.OPEN && this.roomId !== roomId) {
+      this.disconnect();
     }
 
     this.roomId = roomId;
@@ -105,14 +113,29 @@ class WebRTCService {
 
   onRemoteStream(callback) {
     this.onRemoteStreamCallbacks.push(callback);
+    return () => {
+      this.onRemoteStreamCallbacks = this.onRemoteStreamCallbacks.filter(
+        (item) => item !== callback
+      );
+    };
   }
 
   onUserJoin(callback) {
     this.onUserJoinCallbacks.push(callback);
+    return () => {
+      this.onUserJoinCallbacks = this.onUserJoinCallbacks.filter(
+        (item) => item !== callback
+      );
+    };
   }
 
   onUserLeave(callback) {
     this.onUserLeaveCallbacks.push(callback);
+    return () => {
+      this.onUserLeaveCallbacks = this.onUserLeaveCallbacks.filter(
+        (item) => item !== callback
+      );
+    };
   }
 
   async _getScreenStream() {
@@ -308,6 +331,8 @@ class WebRTCService {
   }
 
   _cleanup() {
+    this.socket = null;
+
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;

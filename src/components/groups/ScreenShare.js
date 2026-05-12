@@ -61,6 +61,7 @@ const ScreenShare = ({ groupId }) => {
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasRemoteStream, setHasRemoteStream] = useState(false);
 
   const videoRef = useRef(null);
   const latestShareIdRef = useRef(null);
@@ -98,7 +99,7 @@ const ScreenShare = ({ groupId }) => {
       return undefined;
     }
 
-    webrtcService.onUserJoin((user) => {
+    const removeUserJoin = webrtcService.onUserJoin((user) => {
       setConnectedUsers((prev) => {
         if (prev.some((item) => item.id === user.id)) {
           return prev;
@@ -107,17 +108,21 @@ const ScreenShare = ({ groupId }) => {
       });
     });
 
-    webrtcService.onUserLeave((user) => {
+    const removeUserLeave = webrtcService.onUserLeave((user) => {
       setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
     });
 
-    webrtcService.onRemoteStream(({ stream }) => {
+    const removeRemoteStream = webrtcService.onRemoteStream(({ stream }) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        setHasRemoteStream(Boolean(stream));
       }
     });
 
     return () => {
+      removeUserJoin?.();
+      removeUserLeave?.();
+      removeRemoteStream?.();
       if (latestIsSharingRef.current && latestShareIdRef.current) {
         dispatch(endScreenShare(latestShareIdRef.current));
       }
@@ -144,6 +149,7 @@ const ScreenShare = ({ groupId }) => {
     setShareId(null);
     setJoinedShare(null);
     setConnectedUsers([]);
+    setHasRemoteStream(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -207,6 +213,7 @@ const ScreenShare = ({ groupId }) => {
         webrtcService.connect(data.webrtc_room_id).then(() => {
           setJoinedShare(share);
           setShareId(null);
+          setHasRemoteStream(false);
         })
       )
       .catch((requestError) => {
@@ -224,8 +231,12 @@ const ScreenShare = ({ groupId }) => {
     webrtcService.disconnect();
     setJoinedShare(null);
     setConnectedUsers([]);
+    setHasRemoteStream(false);
     if (canUseWebShare && currentUser?.id) {
       webrtcService.init(currentUser.id);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -288,6 +299,18 @@ const ScreenShare = ({ groupId }) => {
             正在观看 {joinedShare?.user?.username || '群成员'} 的共享：
             {joinedShare?.title || '未命名共享'}。
           </Text>
+          <View style={styles.viewerStage}>
+            <video ref={videoRef} style={styles.viewerVideo} autoPlay playsInline />
+            {!hasRemoteStream ? (
+              <View style={styles.viewerOverlay}>
+                <Icon name="broadcast" size={34} color="#FFFFFF" />
+                <Text style={styles.viewerOverlayTitle}>已接入观看会话</Text>
+                <Text style={styles.viewerOverlayText}>
+                  正在等待远端共享流推送到当前画面。
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <Button
             mode="outlined"
             icon="logout"
@@ -307,7 +330,6 @@ const ScreenShare = ({ groupId }) => {
         <Text style={styles.stageDescription}>
           你可以发起新的共享，或从下方活跃共享列表中加入其他成员的会话。
         </Text>
-        <video ref={videoRef} style={styles.video} autoPlay playsInline />
       </View>
     );
   };
@@ -561,13 +583,47 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: COLORS.TEXT_SECONDARY,
   },
-  video: {
-    width: 0,
-    height: 0,
-  },
   viewerExitButton: {
     alignSelf: 'flex-start',
     marginTop: SPACING.MEDIUM,
+  },
+  viewerStage: {
+    width: '100%',
+    minHeight: 240,
+    marginTop: SPACING.MEDIUM,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#06131F',
+    borderWidth: 1,
+    borderColor: '#0F2C42',
+    position: 'relative',
+  },
+  viewerVideo: {
+    width: '100%',
+    height: 240,
+    objectFit: 'contain',
+    backgroundColor: '#06131F',
+  },
+  viewerOverlay: {
+    position: 'absolute',
+    inset: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.LARGE,
+    backgroundColor: 'rgba(6, 19, 31, 0.55)',
+  },
+  viewerOverlayTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: SPACING.SMALL,
+    marginBottom: 4,
+  },
+  viewerOverlayText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: 'rgba(255,255,255,0.84)',
+    textAlign: 'center',
   },
   panel: {
     backgroundColor: COLORS.SURFACE,
