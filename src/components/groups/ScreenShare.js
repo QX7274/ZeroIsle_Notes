@@ -84,9 +84,6 @@ const ScreenShare = ({ groupId }) => {
   const [isCopyingDiagnostic, setIsCopyingDiagnostic] = useState(false);
 
   const videoRef = useRef(null);
-  const latestShareIdRef = useRef(null);
-  const latestIsSharingRef = useRef(false);
-  const joinedShareRef = useRef(null);
   const viewerTimeoutRef = useRef(null);
   const diagnosticClockRef = useRef(0);
 
@@ -99,7 +96,7 @@ const ScreenShare = ({ groupId }) => {
   );
 
   const canUseWebShare = Platform.OS === 'web';
-  const shareId = activeSession?.shareId || null;
+  const activeSessionId = activeSession?.shareId || null;
   const joinedShare = activeSession?.role === 'viewer'
     ? (activeSession?.shareSnapshot || null)
     : null;
@@ -108,12 +105,13 @@ const ScreenShare = ({ groupId }) => {
   const connectionState = activeSession?.connectionState || 'idle';
   const connectionDetail = activeSession?.connectionDetail || null;
   const activeRoomId = activeSession?.webrtcRoomId || null;
-  const currentShare = activeGroupShares.find((share) => share?.id === shareId) || null;
+  const currentShare = activeGroupShares.find(
+    (share) => String(share?.id || '') === String(activeSessionId || '')
+  ) || null;
   const liveJoinedShare = joinedShare
     ? activeGroupShares.find((share) => String(share?.id || '') === String(joinedShare?.id || '')) || null
     : null;
   const diagnosticRole = isSharing ? '共享端' : (joinedShare ? '观看端' : '空闲');
-  const activeSessionId = shareId || joinedShare?.id || null;
   const isCurrentSharePaused = currentShare?.status === 'paused';
 
   const appendDiagnosticEvent = useCallback((label, detail) => {
@@ -181,15 +179,6 @@ const ScreenShare = ({ groupId }) => {
     }
   }, [appendDiagnosticEvent, currentUser?.id]);
 
-  useEffect(() => {
-    latestShareIdRef.current = shareId;
-    latestIsSharingRef.current = isSharing;
-  }, [shareId, isSharing]);
-
-  useEffect(() => {
-    joinedShareRef.current = joinedShare;
-  }, [joinedShare]);
-
   useEffect(() => () => {
     if (viewerTimeoutRef.current) {
       clearTimeout(viewerTimeoutRef.current);
@@ -241,8 +230,8 @@ const ScreenShare = ({ groupId }) => {
       setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
       appendDiagnosticEvent('成员离开', `${user?.username || user?.id || '未知成员'} 已离开当前共享链`);
       if (
-        !latestIsSharingRef.current
-        && String(user?.id || '') === String(joinedShareRef.current?.user?.id || '')
+        activeSession?.role === 'viewer'
+        && String(user?.id || '') === String(joinedShare?.user?.id || '')
       ) {
         handleLeaveViewer({ silent: true });
       }
@@ -282,12 +271,12 @@ const ScreenShare = ({ groupId }) => {
       removeUserLeave?.();
       removeRemoteStream?.();
       removeConnectionState?.();
-      if (latestIsSharingRef.current && latestShareIdRef.current) {
-        dispatch(endScreenShare(latestShareIdRef.current));
+      if (activeSession?.role === 'host' && activeSession?.shareId) {
+        dispatch(endScreenShare(activeSession.shareId));
       }
       webrtcService.disconnect();
     };
-  }, [appendDiagnosticEvent, dispatch, handleLeaveViewer]);
+  }, [activeSession?.role, activeSession?.shareId, appendDiagnosticEvent, dispatch, handleLeaveViewer, joinedShare?.user?.id]);
 
   const isViewing = Boolean(joinedShare) && !isSharing;
 
