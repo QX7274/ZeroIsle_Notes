@@ -1,7 +1,7 @@
 /**
  * 群组屏幕共享组件
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -66,6 +66,7 @@ const ScreenShare = ({ groupId }) => {
   const videoRef = useRef(null);
   const latestShareIdRef = useRef(null);
   const latestIsSharingRef = useRef(false);
+  const joinedShareRef = useRef(null);
 
   const activeGroupShares = useMemo(
     () =>
@@ -77,6 +78,9 @@ const ScreenShare = ({ groupId }) => {
 
   const canUseWebShare = Platform.OS === 'web';
   const currentShare = activeGroupShares.find((share) => share?.id === shareId) || null;
+  const liveJoinedShare = joinedShare
+    ? activeGroupShares.find((share) => String(share?.id || '') === String(joinedShare?.id || '')) || null
+    : null;
 
   useEffect(() => {
     dispatch(fetchGroupDetail(groupId));
@@ -95,6 +99,26 @@ const ScreenShare = ({ groupId }) => {
   }, [shareId, isSharing]);
 
   useEffect(() => {
+    joinedShareRef.current = joinedShare;
+  }, [joinedShare]);
+
+  const handleLeaveViewer = useCallback(({ silent = false } = {}) => {
+    webrtcService.disconnect();
+    setJoinedShare(null);
+    setConnectedUsers([]);
+    setHasRemoteStream(false);
+    if (canUseWebShare && currentUser?.id) {
+      webrtcService.init(currentUser.id);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    if (!silent) {
+      dispatch(fetchScreenShares());
+    }
+  }, [canUseWebShare, currentUser?.id, dispatch]);
+
+  useEffect(() => {
     if (Platform.OS !== 'web') {
       return undefined;
     }
@@ -110,6 +134,12 @@ const ScreenShare = ({ groupId }) => {
 
     const removeUserLeave = webrtcService.onUserLeave((user) => {
       setConnectedUsers((prev) => prev.filter((item) => item.id !== user.id));
+      if (
+        !latestIsSharingRef.current
+        && String(user?.id || '') === String(joinedShareRef.current?.user?.id || '')
+      ) {
+        handleLeaveViewer({ silent: true });
+      }
     });
 
     const removeRemoteStream = webrtcService.onRemoteStream(({ stream }) => {
@@ -128,7 +158,7 @@ const ScreenShare = ({ groupId }) => {
       }
       webrtcService.disconnect();
     };
-  }, [dispatch]);
+  }, [dispatch, handleLeaveViewer]);
 
   const isViewing = Boolean(joinedShare) && !isSharing;
 
@@ -227,18 +257,20 @@ const ScreenShare = ({ groupId }) => {
       });
   };
 
-  const handleLeaveViewer = () => {
-    webrtcService.disconnect();
-    setJoinedShare(null);
-    setConnectedUsers([]);
-    setHasRemoteStream(false);
-    if (canUseWebShare && currentUser?.id) {
-      webrtcService.init(currentUser.id);
+  useEffect(() => {
+    if (isSharing || !joinedShare) {
+      return;
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+
+    if (!liveJoinedShare || liveJoinedShare.status === 'ended') {
+      handleLeaveViewer({ silent: true });
+      return;
     }
-  };
+
+    if (liveJoinedShare !== joinedShare) {
+      setJoinedShare(liveJoinedShare);
+    }
+  }, [handleLeaveViewer, isSharing, joinedShare, liveJoinedShare]);
 
   const handleEndShare = () => {
     setShowEndDialog(false);
