@@ -241,6 +241,7 @@ export const API_ENDPOINTS = {
     DETAIL: (id) => `/groups/${id}/`,
     MEMBERS: (id) => `/groups/${id}/members/`,
     INVITE: (id) => `/groups/${id}/invite/`,
+    INVITE_CANDIDATES: (id) => `/groups/${id}/invite-candidates/`,
     LEAVE: (id) => `/groups/${id}/leave/`,
     GENERATE_JOIN_CODE: (id) => `/groups/${id}/generate-join-code/`,
     JOIN_BY_CODE: '/groups/join-by-code/',

@@ -149,3 +149,77 @@ class GroupsMongoContractTests(SimpleTestCase):
         self.assertEqual(result, 'invitation-queryset')
         invitation_objects.filter.assert_called_once()
         self.assertIs(invitation_objects.filter.call_args.kwargs['invitee'], self.mongo_user)
+
+    @mock.patch('groups.views.GroupInviteCandidateSerializer')
+    @mock.patch('groups.views.GroupInvitation.objects')
+    @mock.patch('groups.views.GroupMember.objects')
+    @mock.patch('groups.views.IsGroupCreatorOrAdmin')
+    @mock.patch('users.mongodb_models.User.objects')
+    def test_invite_candidates_uses_group_scoped_search_and_filters_membership_state(
+        self,
+        user_objects,
+        permission_class,
+        group_member_objects,
+        invitation_objects,
+        candidate_serializer,
+    ):
+        group = SimpleNamespace(id='group-1')
+        self.request.query_params = {'keyword': 'al'}
+        permission_class.return_value.has_object_permission.return_value = True
+        group_member_objects.filter.return_value = [
+            SimpleNamespace(user=SimpleNamespace(id='member-1'))
+        ]
+        invitation_objects.filter.return_value = [
+            SimpleNamespace(invitee=SimpleNamespace(id='pending-1'))
+        ]
+        user_queryset = mock.Mock()
+        user_queryset.filter.return_value = ['candidate-a', 'candidate-b']
+        user_objects.return_value = user_queryset
+        candidate_serializer.return_value.data = [{'id': 'candidate-a'}]
+
+        view = GroupViewSet()
+        view.request = self.request
+        view.get_object = mock.Mock(return_value=group)
+
+        response = view.invite_candidates(self.request, pk='group-1')
+
+        self.assertEqual(response.status_code, 200)
+        user_objects.assert_called_once()
+        user_queryset.filter.assert_called_once_with(is_active=True)
+        candidate_serializer.assert_called_once_with(
+            ['candidate-a', 'candidate-b'],
+            many=True,
+            context={
+                'request_mongo_user_id': 'mongo-user-1',
+                'member_user_ids': {'member-1'},
+                'pending_invitee_ids': {'pending-1'},
+            }
+        )
+
+    @mock.patch('groups.views.IsGroupCreatorOrAdmin')
+    def test_invite_candidates_rejects_non_admin_member(self, permission_class):
+        self.request.query_params = {'keyword': 'al'}
+        permission_class.return_value.has_object_permission.return_value = False
+
+        view = GroupViewSet()
+        view.request = self.request
+        view.get_object = mock.Mock(return_value=SimpleNamespace(id='group-1'))
+
+        response = view.invite_candidates(self.request, pk='group-1')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['detail'], '您没有权限邀请用户')
+
+    def test_invite_candidates_requires_keyword_with_minimum_length(self):
+        self.request.query_params = {'keyword': 'a'}
+
+        view = GroupViewSet()
+        view.request = self.request
+        view.get_object = mock.Mock(return_value=SimpleNamespace(id='group-1'))
+
+        with mock.patch('groups.views.IsGroupCreatorOrAdmin') as permission_class:
+            permission_class.return_value.has_object_permission.return_value = True
+            response = view.invite_candidates(self.request, pk='group-1')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['detail'], '搜索关键词至少需要 2 个字符')

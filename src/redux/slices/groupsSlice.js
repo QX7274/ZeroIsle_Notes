@@ -21,6 +21,11 @@ const initialState = {
   members: [],
   invitations: [],
   sharedScreens: [],
+  inviteCandidates: [],
+  inviteCandidatesLoading: false,
+  inviteCandidatesError: null,
+  inviteActionLoading: false,
+  lastInvitation: null,
   isLoading: false,
   error: null,
   joinCode: null,
@@ -159,6 +164,21 @@ export const inviteUserToGroup = createAsyncThunk(
 );
 
 // 异步Action: 获取群组成员
+export const searchGroupInviteCandidates = createAsyncThunk(
+  'groups/searchGroupInviteCandidates',
+  async ({ groupId, keyword }, { rejectWithValue }) => {
+    try {
+      const response = await groupApi.searchGroupInviteCandidates(groupId, keyword);
+      if (!response.success) {
+        return rejectWithValue(response.message || '搜索邀请候选失败');
+      }
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.message || '搜索邀请候选失败');
+    }
+  }
+);
+
 export const fetchGroupMembers = createAsyncThunk(
   'groups/fetchGroupMembers',
   async (groupId, { rejectWithValue }) => {
@@ -317,6 +337,13 @@ const groupsSlice = createSlice({
       state.joinCode = null;
       state.joinCodeExpiresAt = null;
     },
+    clearInviteCandidates: (state) => {
+      state.inviteCandidates = [];
+      state.inviteCandidatesError = null;
+    },
+    clearLastInvitation: (state) => {
+      state.lastInvitation = null;
+    },
     setCurrentGroup: (state, action) => {
       state.currentGroup = action.payload;
     },
@@ -452,6 +479,43 @@ const groupsSlice = createSlice({
       })
 
       // 获取群组成员
+      .addCase(searchGroupInviteCandidates.pending, (state) => {
+        state.inviteCandidatesLoading = true;
+        state.inviteCandidatesError = null;
+      })
+      .addCase(searchGroupInviteCandidates.fulfilled, (state, action) => {
+        state.inviteCandidatesLoading = false;
+        state.inviteCandidates = action.payload || [];
+      })
+      .addCase(searchGroupInviteCandidates.rejected, (state, action) => {
+        state.inviteCandidatesLoading = false;
+        state.inviteCandidates = [];
+        state.inviteCandidatesError = action.payload;
+      })
+      .addCase(inviteUserToGroup.pending, (state) => {
+        state.inviteActionLoading = true;
+        state.error = null;
+      })
+      .addCase(inviteUserToGroup.fulfilled, (state, action) => {
+        state.inviteActionLoading = false;
+        state.lastInvitation = action.payload;
+        const inviteeId = action.payload?.invitee?.id;
+        if (inviteeId) {
+          state.inviteCandidates = state.inviteCandidates.map((candidate) =>
+            candidate.id === inviteeId
+              ? {
+                  ...candidate,
+                  can_invite: false,
+                  invite_block_reason: '该用户已经有待处理邀请',
+                }
+              : candidate
+          );
+        }
+      })
+      .addCase(inviteUserToGroup.rejected, (state, action) => {
+        state.inviteActionLoading = false;
+        state.error = action.payload;
+      })
       .addCase(fetchGroupMembers.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -602,7 +666,13 @@ const groupsSlice = createSlice({
 });
 
 // 导出Actions
-export const { clearGroupError, clearJoinCode, setCurrentGroup } = groupsSlice.actions;
+export const {
+  clearGroupError,
+  clearJoinCode,
+  clearInviteCandidates,
+  clearLastInvitation,
+  setCurrentGroup,
+} = groupsSlice.actions;
 
 // 导出Selectors
 export const selectGroups = (state) => state.groups.groups;
@@ -610,6 +680,11 @@ export const selectCurrentGroup = (state) => state.groups.currentGroup;
 export const selectGroupMembers = (state) => state.groups.members;
 export const selectGroupInvitations = (state) => state.groups.invitations;
 export const selectSharedScreens = (state) => state.groups.sharedScreens;
+export const selectInviteCandidates = (state) => state.groups.inviteCandidates;
+export const selectInviteCandidatesLoading = (state) => state.groups.inviteCandidatesLoading;
+export const selectInviteCandidatesError = (state) => state.groups.inviteCandidatesError;
+export const selectInviteActionLoading = (state) => state.groups.inviteActionLoading;
+export const selectLastInvitation = (state) => state.groups.lastInvitation;
 export const selectGroupsLoading = (state) => state.groups.isLoading;
 export const selectGroupsError = (state) => state.groups.error;
 export const selectJoinCode = (state) => state.groups.joinCode;

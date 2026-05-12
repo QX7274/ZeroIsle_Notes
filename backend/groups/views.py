@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from .mongodb_models import Group, GroupMember, GroupInvitation, SharedScreen
 from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupMemberSerializer,
-    GroupInvitationSerializer, SharedScreenSerializer
+    GroupInvitationSerializer, GroupInviteCandidateSerializer, SharedScreenSerializer
 )
 import logging
 from notification.services import NotificationService
@@ -301,6 +301,64 @@ class GroupViewSet(viewsets.ModelViewSet):
             GroupInvitationSerializer(invitation).data,
             status=status.HTTP_201_CREATED
         )
+
+    @action(detail=True, methods=['get'], url_path='invite-candidates')
+    def invite_candidates(self, request, pk=None):
+        """搜索可邀请的群组候选用户"""
+        group = self.get_object()
+        mongo_user = _get_request_mongo_user(request)
+        if not mongo_user:
+            return Response(
+                {"detail": "当前用户缺少 Mongo 用户映射"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not IsGroupCreatorOrAdmin().has_object_permission(request, self, group):
+            return Response(
+                {"detail": "您没有权限邀请用户"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        keyword = (request.query_params.get('keyword') or '').strip()
+        if len(keyword) < 2:
+            return Response(
+                {"detail": "搜索关键词至少需要 2 个字符"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from users.mongodb_models import User
+
+        member_user_ids = {
+            str(getattr(member.user, 'id', ''))
+            for member in GroupMember.objects.filter(group=group, is_active=True)
+            if getattr(member, 'user', None) is not None
+        }
+        pending_invitee_ids = {
+            str(getattr(invitation.invitee, 'id', ''))
+            for invitation in GroupInvitation.objects.filter(
+                group=group,
+                status='pending',
+                expires_at__gt=timezone.now()
+            )
+            if getattr(invitation, 'invitee', None) is not None
+        }
+
+        candidates = User.objects(
+            Q(username__icontains=keyword)
+            | Q(nickname__icontains=keyword)
+            | Q(email__icontains=keyword)
+        ).filter(is_active=True)[:20]
+
+        serializer = GroupInviteCandidateSerializer(
+            candidates,
+            many=True,
+            context={
+                'request_mongo_user_id': str(getattr(mongo_user, 'id', '')),
+                'member_user_ids': member_user_ids,
+                'pending_invitee_ids': pending_invitee_ids,
+            }
+        )
+        return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):

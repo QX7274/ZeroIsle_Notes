@@ -180,6 +180,22 @@ export const inviteUserToGroup = async (groupId, userId) => {
  * @param {string} groupId 群组ID
  * @returns {Promise} 成员列表
  */
+export const searchGroupInviteCandidates = async (groupId, keyword) => {
+  try {
+    const response = await instance.get(
+      API_ENDPOINTS.GROUPS.INVITE_CANDIDATES(groupId),
+      { params: { keyword } }
+    );
+    return {
+      success: true,
+      data: response.data || [],
+    };
+  } catch (error) {
+    console.error('搜索群组邀请候选失败:', error);
+    throw error;
+  }
+};
+
 export const getGroupMembers = async (groupId) => {
   try {
     const response = await instance.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId));

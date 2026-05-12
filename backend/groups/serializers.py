@@ -109,6 +109,40 @@ class GroupInvitationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'group', 'inviter', 'invitee', 'created_at', 'expires_at', 'responded_at']
 
 
+class GroupInviteCandidateSerializer(serializers.Serializer):
+    """群组邀请候选用户序列化器"""
+
+    id = serializers.CharField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    nickname = serializers.CharField(read_only=True)
+    avatar = serializers.CharField(read_only=True)
+    can_invite = serializers.SerializerMethodField()
+    invite_block_reason = serializers.SerializerMethodField()
+
+    def get_can_invite(self, obj):
+        return self.get_invite_block_reason(obj) is None
+
+    def get_invite_block_reason(self, obj):
+        user_id = str(getattr(obj, 'id', ''))
+        if user_id == self.context.get('request_mongo_user_id'):
+            return '不能邀请自己'
+        if user_id in self.context.get('member_user_ids', set()):
+            return '该用户已经是群成员'
+        if user_id in self.context.get('pending_invitee_ids', set()):
+            return '该用户已经有待处理邀请'
+        return None
+
+    def to_representation(self, instance):
+        return {
+            'id': str(getattr(instance, 'id', '')),
+            'username': getattr(instance, 'username', '') or '',
+            'nickname': getattr(instance, 'nickname', '') or '',
+            'avatar': getattr(instance, 'avatar', '') or '',
+            'can_invite': self.get_can_invite(instance),
+            'invite_block_reason': self.get_invite_block_reason(instance),
+        }
+
+
 class SharedScreenSerializer(serializers.ModelSerializer):
     """共享屏幕序列化器"""
 

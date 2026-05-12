@@ -23,6 +23,11 @@ class GroupUrlContractTests(SimpleTestCase):
         match = resolve('/api/v1/groups/invitations/')
         self.assertIs(match.func.cls, GroupInvitationViewSet)
 
+    def test_invite_candidates_route_is_mounted_under_group_detail(self):
+        match = resolve('/api/v1/groups/demo-group/invite-candidates/')
+        self.assertIs(match.func.cls, GroupViewSet)
+        self.assertEqual(match.func.actions['get'], 'invite_candidates')
+
     def test_shared_screens_are_mounted_under_groups_prefix(self):
         match = resolve('/api/v1/groups/shared-screens/')
         self.assertIs(match.func.cls, SharedScreenViewSet)
