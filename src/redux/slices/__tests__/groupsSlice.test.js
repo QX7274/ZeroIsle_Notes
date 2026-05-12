@@ -3,6 +3,7 @@ jest.mock('../../../services/api/groupApi', () => ({}));
 import groupsReducer, {
   clearActiveScreenShareSession,
   createScreenShare,
+  endScreenShare,
   fetchScreenShares,
   joinScreenShare,
   patchActiveScreenShareSession,
@@ -263,6 +264,58 @@ describe('groupsSlice screen share session', () => {
       status: 'error',
       connectionState: 'error',
       connectionDetail: 'signal-failed',
+    });
+  });
+
+  it('should clear ended session diagnostics on endScreenShare.fulfilled', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      groupId: 'group-6b',
+      shareId: 'share-6b',
+      role: 'host',
+      status: 'sharing',
+      webrtcRoomId: 'room-6b',
+      ownerId: 'user-6b',
+      connectedUsers: [
+        { id: 'user-a', username: 'Alpha', is_sharing: true },
+        { id: 'user-b', username: 'Beta', is_sharing: false },
+      ],
+      hasRemoteStream: true,
+      hasAttachedRemoteStream: true,
+      viewerTimeoutReached: true,
+      shareSnapshot: {
+        id: 'share-6b',
+        status: 'active',
+        title: 'Session 6B',
+        webrtc_room_id: 'room-6b',
+        user: { id: 'user-6b' },
+        group: { id: 'group-6b' },
+      },
+    }));
+
+    const nextState = groupsReducer(state, {
+      type: endScreenShare.fulfilled.type,
+      payload: {
+        shareId: 'share-6b',
+      },
+    });
+
+    expect(nextState.activeScreenShareSession).toMatchObject({
+      groupId: 'group-6b',
+      shareId: 'share-6b',
+      role: 'host',
+      status: 'ended',
+      webrtcRoomId: 'room-6b',
+      ownerId: 'user-6b',
+      connectedUsers: [],
+      hasRemoteStream: false,
+      hasAttachedRemoteStream: false,
+      viewerTimeoutReached: false,
+    });
+    expect(nextState.activeScreenShareSession.shareSnapshot).toMatchObject({
+      id: 'share-6b',
+      status: 'ended',
+      title: 'Session 6B',
     });
   });
 
