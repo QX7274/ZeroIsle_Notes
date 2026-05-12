@@ -11,6 +11,7 @@ const createEmptyScreenShareSession = () => ({
   status: 'idle',
   webrtcRoomId: null,
   ownerId: null,
+  connectedUsers: [],
   shareSnapshot: null,
   connectionState: 'idle',
   connectionDetail: null,
@@ -67,6 +68,24 @@ const patchScreenShareSession = (session, patch) => {
     if (key === 'shareSnapshot') {
       return getScreenShareSnapshotSignature(session?.shareSnapshot)
         !== getScreenShareSnapshotSignature(nextPatch.shareSnapshot);
+    }
+
+    if (key === 'connectedUsers') {
+      const currentUsers = Array.isArray(session?.connectedUsers) ? session.connectedUsers : [];
+      const nextUsers = Array.isArray(nextPatch.connectedUsers) ? nextPatch.connectedUsers : [];
+
+      if (currentUsers.length !== nextUsers.length) {
+        return true;
+      }
+
+      return currentUsers.some((user, index) => {
+        const nextUser = nextUsers[index];
+        return (
+          String(user?.id || '') !== String(nextUser?.id || '')
+          || (user?.username || null) !== (nextUser?.username || null)
+          || Boolean(user?.is_sharing) !== Boolean(nextUser?.is_sharing)
+        );
+      });
     }
 
     return session?.[key] !== nextPatch[key];

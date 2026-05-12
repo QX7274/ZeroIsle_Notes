@@ -71,6 +71,39 @@ const getShareSnapshotSignature = (share) => JSON.stringify({
   groupId: share?.group?.id || null,
 });
 
+const updateConnectedUsers = (users, nextUser, mode = 'upsert') => {
+  const currentUsers = Array.isArray(users) ? users : [];
+  const normalizedUser = nextUser
+    ? {
+        id: nextUser.id,
+        username: nextUser.username || null,
+        is_sharing: Boolean(nextUser.is_sharing),
+      }
+    : null;
+
+  if (mode === 'remove') {
+    return currentUsers.filter((user) => String(user?.id || '') !== String(nextUser?.id || ''));
+  }
+
+  const existingIndex = currentUsers.findIndex(
+    (user) => String(user?.id || '') === String(normalizedUser?.id || '')
+  );
+
+  if (existingIndex === -1) {
+    return [...currentUsers, normalizedUser];
+  }
+
+  const existingUser = currentUsers[existingIndex];
+  if (
+    (existingUser?.username || null) === normalizedUser.username
+    && Boolean(existingUser?.is_sharing) === normalizedUser.is_sharing
+  ) {
+    return currentUsers;
+  }
+
+  return currentUsers.map((user, index) => (index === existingIndex ? normalizedUser : user));
+};
+
 const ScreenShare = ({ groupId }) => {
   const dispatch = useDispatch();
   const isLoading = useSelector(selectScreenShareLoading);
@@ -82,7 +115,6 @@ const ScreenShare = ({ groupId }) => {
 
   const [title, setTitle] = useState('');
   const [isJoiningShare, setIsJoiningShare] = useState(false);
-  const [connectedUsers, setConnectedUsers] = useState([]);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,7 +126,7 @@ const ScreenShare = ({ groupId }) => {
   const viewerTimeoutRef = useRef(null);
   const diagnosticClockRef = useRef(0);
   const activeSessionRef = useRef(activeSession);
-  const joinedShareOwnerIdRef = useRef(joinedShare?.user?.id || null);
+  const joinedShareOwnerIdRef = useRef(null);
   const isCurrentSharePausedRef = useRef(false);
 
   const activeGroupShares = useMemo(
@@ -117,6 +149,7 @@ const ScreenShare = ({ groupId }) => {
   const hasRemoteStream = Boolean(activeSession?.hasRemoteStream);
   const viewerTimeoutReached = Boolean(activeSession?.viewerTimeoutReached);
   const activeRoomId = activeSession?.webrtcRoomId || null;
+  const connectedUsers = activeSession?.connectedUsers || [];
   const currentShare = activeGroupShares.find(
     (share) => String(share?.id || '') === String(activeSessionId || '')
   ) || null;
@@ -212,7 +245,6 @@ const ScreenShare = ({ groupId }) => {
   const handleLeaveViewer = useCallback(({ silent = false } = {}) => {
     webrtcService.disconnect();
     dispatch(clearActiveScreenShareSession());
-    setConnectedUsers([]);
     if (viewerTimeoutRef.current) {
       clearTimeout(viewerTimeoutRef.current);
       viewerTimeoutRef.current = null;
@@ -238,26 +270,28 @@ const ScreenShare = ({ groupId }) => {
     }
 
     const removeUserJoin = webrtcService.onUserJoin((user) => {
-      let shouldAppendJoinEvent = false;
-      setConnectedUsers((prev) => {
-        if (prev.some((item) => item.id === user.id)) {
-          return prev;
-        }
-        shouldAppendJoinEvent = true;
-        return [...prev, user];
-      });
+      const currentConnectedUsers = activeSessionRef.current?.connectedUsers || [];
+      const nextConnectedUsers = updateConnectedUsers(currentConnectedUsers, user, 'upsert');
+      const shouldAppendJoinEvent = nextConnectedUsers !== currentConnectedUsers;
+      if (shouldAppendJoinEvent) {
+        dispatch(patchActiveScreenShareSession({
+          connectedUsers: nextConnectedUsers,
+        }));
+      }
       if (shouldAppendJoinEvent) {
         appendDiagnosticEvent('成员接入', `${user?.username || user?.id || '未知成员'} 已进入当前共享链`);
       }
     });
 
     const removeUserLeave = webrtcService.onUserLeave((user) => {
-      let shouldAppendLeaveEvent = false;
-      setConnectedUsers((prev) => {
-        const nextUsers = prev.filter((item) => item.id !== user.id);
-        shouldAppendLeaveEvent = nextUsers.length !== prev.length;
-        return nextUsers;
-      });
+      const currentConnectedUsers = activeSessionRef.current?.connectedUsers || [];
+      const nextConnectedUsers = updateConnectedUsers(currentConnectedUsers, user, 'remove');
+      const shouldAppendLeaveEvent = nextConnectedUsers.length !== currentConnectedUsers.length;
+      if (shouldAppendLeaveEvent) {
+        dispatch(patchActiveScreenShareSession({
+          connectedUsers: nextConnectedUsers,
+        }));
+      }
       if (shouldAppendLeaveEvent) {
         appendDiagnosticEvent('成员离开', `${user?.username || user?.id || '未知成员'} 已离开当前共享链`);
       }
@@ -361,7 +395,6 @@ const ScreenShare = ({ groupId }) => {
 
   const resetSessionState = () => {
     dispatch(clearActiveScreenShareSession());
-    setConnectedUsers([]);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }

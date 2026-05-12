@@ -171,6 +171,7 @@ describe('groupsSlice screen share session', () => {
       status: 'idle',
       webrtcRoomId: null,
       ownerId: null,
+      connectedUsers: [],
       shareSnapshot: null,
       connectionState: 'idle',
       connectionDetail: null,
@@ -205,6 +206,37 @@ describe('groupsSlice screen share session', () => {
       connectionState: 'connected',
       connectionDetail: 'remote-stream-ready',
     });
+  });
+
+  it('should patch connected users on active session without replacing equivalent user list', () => {
+    const baseState = groupsReducer(undefined, { type: 'unknown' });
+    const state = groupsReducer(baseState, patchActiveScreenShareSession({
+      shareId: 'share-5b',
+      role: 'host',
+      status: 'sharing',
+      webrtcRoomId: 'room-5b',
+      connectedUsers: [
+        { id: 'user-a', username: 'Alpha', is_sharing: true },
+      ],
+    }));
+
+    const equivalentState = groupsReducer(state, patchActiveScreenShareSession({
+      connectedUsers: [
+        { id: 'user-a', username: 'Alpha', is_sharing: true },
+      ],
+    }));
+    const nextState = groupsReducer(state, patchActiveScreenShareSession({
+      connectedUsers: [
+        { id: 'user-a', username: 'Alpha', is_sharing: true },
+        { id: 'user-b', username: 'Beta', is_sharing: false },
+      ],
+    }));
+
+    expect(equivalentState.activeScreenShareSession).toBe(state.activeScreenShareSession);
+    expect(nextState.activeScreenShareSession.connectedUsers).toEqual([
+      { id: 'user-a', username: 'Alpha', is_sharing: true },
+      { id: 'user-b', username: 'Beta', is_sharing: false },
+    ]);
   });
 
   it('should patch connection lifecycle state on active session', () => {
