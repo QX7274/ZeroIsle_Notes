@@ -165,6 +165,7 @@ const CommunityScreen = ({ navigation }) => {
     <Card style={styles.postCard}>
       <TouchableOpacity
         onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+        testID={`item.community.post.${item.id}`}
       >
         <View style={styles.postHeader}>
           <View style={styles.authorContainer}>
@@ -191,6 +192,7 @@ const CommunityScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.statItem}
             onPress={() => handleLike(item.id)}
+            testID={`action.community.like.${item.id}`}
           >
             <Icon
               name={likedPosts[item.id] ? 'thumb-up' : 'thumb-up-off-alt'}
@@ -216,6 +218,7 @@ const CommunityScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.statItem}
             onPress={() => handleBookmark(item.id)}
+            testID={`action.community.bookmark.${item.id}`}
           >
             <Icon
               name={bookmarkedPosts[item.id] ? 'bookmark' : 'bookmark-border'}
@@ -265,12 +268,23 @@ const CommunityScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.background }]}
+      testID="screen.community"
+    >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('Notifications')}
+          testID="action.community.notifications"
+        >
           <Icon name="notifications" size={22} color={theme.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Activity')}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('Activity')}
+          testID="action.community.activity"
+        >
           <Icon name="dynamic-feed" size={22} color={theme.text} />
         </TouchableOpacity>
       </View>
@@ -341,6 +355,7 @@ const CommunityScreen = ({ navigation }) => {
                   onPress={handleRefresh}
                   type="primary"
                   style={styles.refreshButton}
+                  testID="action.community.refreshEmpty"
                 />
               </View>
             ) : null
@@ -351,6 +366,7 @@ const CommunityScreen = ({ navigation }) => {
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: '#2196F3' }]}
         onPress={() => navigation.navigate('CreatePost')}
+        testID="action.community.createPost"
       >
         <Icon name="add" size={28} color="#FFFFFF" />
         <Text style={styles.fabButtonText}>发布</Text>

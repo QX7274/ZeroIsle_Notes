@@ -2805,6 +2805,7 @@ Week 4: □□□□□□□
             // 显示创建选项
             setShowCreateOptions(true);
           }}
+          testID="action.home.create"
         >
           <View style={styles.addButtonInner}>
             <Icon name="add" size={30} color={colors.onPrimary} />

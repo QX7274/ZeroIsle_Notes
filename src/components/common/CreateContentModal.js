@@ -373,8 +373,12 @@ const CreateContentModal = ({
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={onClose}
+          testID="overlay.createContent"
         >
-          <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
+          <View
+            style={[styles.modalContainer, { backgroundColor: colors.card }]}
+            testID="modal.createContent"
+          >
             <Text
               variant="heading"
               level="h6"
@@ -390,6 +394,7 @@ const CreateContentModal = ({
                 onClose();
                 if (onCreateNote) onCreateNote();
               }}
+              testID="action.createContent.note"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#E3F2FD' }]}>
                 <MaterialIcon name="note-add" size={24} color="#1976D2" />
@@ -410,6 +415,7 @@ const CreateContentModal = ({
                 onClose();
                 if (onCreateFromTemplate) onCreateFromTemplate();
               }}
+              testID="action.createContent.template"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#F3E5F5' }]}>
                 <MaterialIcon name="file-copy" size={24} color="#8E24AA" />
@@ -430,6 +436,7 @@ const CreateContentModal = ({
                 onClose();
                 if (onCreateCardNote) onCreateCardNote();
               }}
+              testID="action.createContent.cardNote"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#FFF3E0' }]}>
                 <MaterialIcon name="credit-card" size={24} color="#F57C00" />
@@ -447,6 +454,7 @@ const CreateContentModal = ({
             <TouchableOpacity
               style={styles.optionItem}
               onPress={handleImportMarkdown}
+              testID="action.createContent.importMarkdown"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#E8F5E9' }]}>
                 <MaterialIcon name="notes" size={24} color="#388E3C" />
@@ -464,6 +472,7 @@ const CreateContentModal = ({
             <TouchableOpacity
               style={styles.optionItem}
               onPress={handleImportPDF}
+              testID="action.createContent.importPdf"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#FFEBEE' }]}>
                 <MaterialIcon name="picture-as-pdf" size={24} color="#D32F2F" />
@@ -481,6 +490,7 @@ const CreateContentModal = ({
             <TouchableOpacity
               style={styles.optionItem}
               onPress={handleImportPPT}
+              testID="action.createContent.importPpt"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#FFF8E1' }]}>
                 <MaterialIcon name="slideshow" size={24} color="#F57C00" />
@@ -492,6 +502,7 @@ const CreateContentModal = ({
             <TouchableOpacity
               style={styles.optionItem}
               onPress={handleImportWord}
+              testID="action.createContent.importWord"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#E3F2FD' }]}>
                 <MaterialIcon name="article" size={24} color="#1976D2" />
@@ -512,6 +523,7 @@ const CreateContentModal = ({
                 onClose();
                 if (onCreateCanvas) onCreateCanvas();
               }}
+              testID="action.createContent.canvas"
             >
               <View style={[styles.optionIcon, { backgroundColor: '#E8F5E9' }]}>
                 <MaterialIcon name="dashboard" size={24} color="#388E3C" />
