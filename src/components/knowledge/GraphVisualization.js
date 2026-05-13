@@ -320,7 +320,8 @@ const GraphVisualization = ({
 
     // --- Dynamic Node Coloring (Refined with HSL) ---
     const now = Date.now();
-    const updatedAt = new Date(node.updated_at).getTime();
+    const updatedAtRaw = node.updatedAt || node.updated_at;
+    const updatedAt = updatedAtRaw ? new Date(updatedAtRaw).getTime() : Date.now();
     const ageInDays = (now - updatedAt) / (1000 * 60 * 60 * 24);
     const ageFactor = Math.min(ageInDays / 14, 1); // Normalize over two weeks
 
@@ -352,8 +353,9 @@ const GraphVisualization = ({
 
     // Get position from layout engine, fallback to static node.x/y or center
     const layoutPos = positions.get(node.id);
-    const renderX = layoutPos ? layoutPos.x : (node.x || width);
-    const renderY = layoutPos ? layoutPos.y : (node.y || height);
+    const fallbackPosition = node.position || {};
+    const renderX = layoutPos ? layoutPos.x : (node.x ?? fallbackPosition.x ?? width);
+    const renderY = layoutPos ? layoutPos.y : (node.y ?? fallbackPosition.y ?? height);
 
     return (
       <G key={`node-${node.id}`}>
@@ -396,8 +398,16 @@ const GraphVisualization = ({
         (edge.color || getEdgeColorByType(edge.type)));
 
     // Get positions
-    const sourcePos = positions.get(sourceNode.id) || { x: sourceNode.x || width, y: sourceNode.y || height };
-    const targetPos = positions.get(targetNode.id) || { x: targetNode.x || width, y: targetNode.y || height };
+    const sourceFallbackPosition = sourceNode.position || {};
+    const targetFallbackPosition = targetNode.position || {};
+    const sourcePos = positions.get(sourceNode.id) || {
+      x: sourceNode.x ?? sourceFallbackPosition.x ?? width,
+      y: sourceNode.y ?? sourceFallbackPosition.y ?? height,
+    };
+    const targetPos = positions.get(targetNode.id) || {
+      x: targetNode.x ?? targetFallbackPosition.x ?? width,
+      y: targetNode.y ?? targetFallbackPosition.y ?? height,
+    };
 
     // 计算箭头点
     const dx = targetPos.x - sourcePos.x;
@@ -405,8 +415,12 @@ const GraphVisualization = ({
     const angle = Math.atan2(dy, dx);
 
     // 调整起点和终点，避免箭头与节点重叠
-    const sourceNodeSize = sourceNode.size || 20;
-    const targetNodeSize = targetNode.size || 20;
+    const sourceNodeSize = typeof sourceNode.size === 'number'
+      ? sourceNode.size
+      : Math.max(sourceNode.size?.width || 20, sourceNode.size?.height || 20) / 2;
+    const targetNodeSize = typeof targetNode.size === 'number'
+      ? targetNode.size
+      : Math.max(targetNode.size?.width || 20, targetNode.size?.height || 20) / 2;
 
     const startX = sourcePos.x + sourceNodeSize * Math.cos(angle);
     const startY = sourcePos.y + sourceNodeSize * Math.sin(angle);
@@ -499,7 +513,18 @@ const GraphVisualization = ({
         }
       }
     }
-  }, [visualization.centerNode, nodes, width, height, positions]);
+  }, [
+    lastScale,
+    lastTranslateX,
+    lastTranslateY,
+    nodes,
+    positions,
+    scale,
+    translateX,
+    translateY,
+    visualization.centerNode,
+    visualization.zoomLevel,
+  ]);
 
   // 渲染工具栏
   const renderToolbar = () => {

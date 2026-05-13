@@ -9,10 +9,10 @@ import {
   TextInput,
   Platform,
   ToastAndroid,
+  KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useDispatch } from 'react-redux';
-import { addReminder } from '../../redux/slices/reminderSlice';
 import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -25,16 +25,9 @@ const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
   const themeContext = useTheme();
   const theme = themeContext.theme;
-  const dispatch = useDispatch();
+  const statusBarInset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const actionBarHeight = 96;
 
-     // 检查主题对象
-   if (!theme || !theme.colors) {
-     return (
-       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-         <Text>主题加载失败，请重启应用</Text>
-       </View>
-     );
-   }
   const [saving, setSaving] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -59,6 +52,14 @@ const AddReminderScreen = ({ route, navigation }) => {
     reminderNotificationService.requestPermissions();
   }, []);
 
+  if (!theme || !theme.colors) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>主题加载失败，请重启应用</Text>
+      </View>
+    );
+  }
+
   const notifyNonBlocking = (message) => {
     setInlineHint(message);
     if (Platform.OS === 'android') {
@@ -82,17 +83,23 @@ const AddReminderScreen = ({ route, navigation }) => {
       const response = await api.post(API_ENDPOINTS.REMINDER.BASE, reminder);
 
       // 更新Redux状态
-      dispatch(addReminder(response.data));
+      
 
       // 安排本地通知
-      await reminderNotificationService.scheduleReminderNotification(response.data);
+      try {
+        await reminderNotificationService.scheduleReminderNotification(response.data);
+      } catch (notificationError) {
+        console.warn('提醒已创建，但本地通知调度失败:', notificationError);
+        notifyNonBlocking('提醒已创建，但本地通知未成功安排');
+        navigation.goBack();
+        return;
+      }
 
-      // 非阻断成功提示
       notifyNonBlocking('提醒已创建');
       navigation.goBack();
     } catch (error) {
       console.error('创建提醒失败:', error);
-      notifyNonBlocking(error?.message || '创建提醒失败');
+      notifyNonBlocking('创建提醒失败，请稍后重试');
     } finally {
       setSaving(false);
     }
@@ -241,8 +248,10 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   // 渲染主界面
     return (
-    <View
+    <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={statusBarInset + 12}
       testID="screen.reminder"
     >
       {/* 顶部导航栏（统一返回按钮样式） */}
@@ -251,13 +260,18 @@ const AddReminderScreen = ({ route, navigation }) => {
           style={[styles.backButton, { backgroundColor: theme.colors.primary + '15' }]}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          testID="action.reminder.back"
         >
           <Icon name="arrow-back" size={22} color={theme.colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>添加提醒</Text>
         <View style={styles.headerRight} />
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: actionBarHeight + 32 }]}
+        keyboardShouldPersistTaps="handled"
+      >
         {inlineHint ? (
           <View style={[styles.hintBanner, { backgroundColor: theme.colors.warning + '22' }]}>
             <Text style={[styles.hintText, { color: theme.colors.warning }]}>{inlineHint}</Text>
@@ -294,6 +308,7 @@ const AddReminderScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={styles.dateTimeButton}
             onPress={showDateTimePicker}
+            testID="action.reminder.pickDateTime"
           >
             <Icon name="event" size={24} color={theme.colors.primary} style={styles.dateTimeIcon} />
             <Text style={[styles.dateTimeText, { color: theme.colors.text }]}>
@@ -319,6 +334,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, priority })}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                testID={`option.reminder.priority.${priority}`}
               >
                                   <Text
                     style={[
@@ -354,6 +371,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, category })}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                testID={`option.reminder.category.${category}`}
               >
                 <Text
                   style={[
@@ -389,6 +408,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, frequency })}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                testID={`option.reminder.frequency.${frequency}`}
               >
                 <Text
                   style={[
@@ -414,6 +435,7 @@ const AddReminderScreen = ({ route, navigation }) => {
               <TouchableOpacity
                 style={styles.repeatEndButton}
                 onPress={() => setShowRepeatEndPicker(true)}
+                testID="action.reminder.pickRepeatEnd"
               >
                 <Text style={[styles.repeatEndText, { color: theme.colors.text }]}>
                   {reminder.repeat_end_date
@@ -454,6 +476,7 @@ const AddReminderScreen = ({ route, navigation }) => {
             style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
             onPress={() => navigation.goBack()}
             disabled={saving}
+            testID="action.reminder.cancel"
           >
             <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>取消</Text>
           </TouchableOpacity>
@@ -483,7 +506,6 @@ const AddReminderScreen = ({ route, navigation }) => {
         minimumDate={new Date()}
         visible={showDatePicker}
         onClose={() => setShowDatePicker(false)}
-        onError={(error) => console.log('DateTimePicker error:', error)}
         testID="dateTimePicker"
       />
 
@@ -497,10 +519,9 @@ const AddReminderScreen = ({ route, navigation }) => {
         minimumDate={new Date(reminder.due_date)}
         visible={showRepeatEndPicker}
         onClose={() => setShowRepeatEndPicker(false)}
-        onError={(error) => console.log('RepeatEndPicker error:', error)}
         testID="repeatEndPicker"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -514,12 +535,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 24,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 24,
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',

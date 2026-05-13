@@ -107,6 +107,8 @@ const SafeDateTimePicker = ({
   // 处理备用UI的确认按钮
   const handleFallbackConfirm = () => {
     setFallbackVisible(false);
+    setDateTimePickerError(false);
+    setInternalVisible(false);
     if (onChange) {
       // 创建一个模拟的事件对象
       const event = { type: 'set', nativeEvent: { timestamp: selectedValue.getTime() } };
@@ -120,6 +122,8 @@ const SafeDateTimePicker = ({
   // 处理备用UI的取消按钮
   const handleFallbackCancel = () => {
     setFallbackVisible(false);
+    setDateTimePickerError(false);
+    setInternalVisible(false);
     if (onClose) {
       onClose();
     }
@@ -138,6 +142,7 @@ const SafeDateTimePicker = ({
         visible={fallbackVisible}
         onRequestClose={handleFallbackCancel}
         animationType="fade"
+        testID="modal.dateTimePickerFallback"
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -156,10 +161,18 @@ const SafeDateTimePicker = ({
             </Text>
 
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.button} onPress={handleFallbackCancel}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleFallbackCancel}
+                testID="action.dateTimePickerFallback.cancel"
+              >
                 <Text style={styles.buttonText}>取消</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={handleFallbackConfirm}>
+              <TouchableOpacity
+                style={[styles.button, styles.confirmButton]}
+                onPress={handleFallbackConfirm}
+                testID="action.dateTimePickerFallback.confirm"
+              >
                 <Text style={styles.confirmButtonText}>确定</Text>
               </TouchableOpacity>
             </View>

@@ -66,8 +66,6 @@ export const fetchKnowledgeGraph = createAsyncThunk(
 
       return response.data;
     } catch (error) {
-      console.error('获取知识图谱数据异常:', error);
-
       const isNetworkError =
         error?.isNetworkError ||
         error?.message === 'Network Error' ||

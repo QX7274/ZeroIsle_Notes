@@ -6,6 +6,22 @@ import { API_ENDPOINTS } from '../../constants/api';
 import networkService from '../network/networkService';
 import authService from '../auth/authService';
 
+const isExpectedOfflineKnowledgeGraphError = (error) => {
+  const message = error?.message || '';
+
+  return (
+    error?.isNetworkError ||
+    message === 'Network Error' ||
+    message.includes('缃戠粶鏈繛鎺') ||
+    message.includes('缃戠粶杩炴帴澶辫触') ||
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('socket') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('Failed to connect')
+  );
+};
+
 /**
  * 获取知识图谱
  * @param {object} params - 查询参数
@@ -59,23 +75,11 @@ export const getKnowledgeGraph = async (params = {}) => {
       throw new Error('知识图谱响应缺少 nodes/edges 字段');
     }
   } catch (error) {
-    console.error('知识图谱API: 获取知识图谱失败:', error);
-    console.log('知识图谱API: 错误详情:', error.message);
-    console.log('知识图谱API: 错误状态码:', error.response?.status);
-
     // 根据错误类型返回不同的错误信息
     let errorMessage = '获取知识图谱失败';
     let isNetworkError = false;
 
-    if (
-      error.message === 'Network Error' ||
-      error.message?.includes('缃戠粶') ||
-      error.message?.includes('timeout') ||
-      error.message?.includes('network') ||
-      error.message?.includes('socket') ||
-      error.message?.includes('ECONNREFUSED') ||
-      error.message?.includes('Failed to connect')
-    ) {
+    if (isExpectedOfflineKnowledgeGraphError(error) || error.message?.includes('缃戠粶')) {
       errorMessage = '网络连接失败，请检查网络设置';
       isNetworkError = true;
     } else if (error.response) {
@@ -100,6 +104,12 @@ export const getKnowledgeGraph = async (params = {}) => {
     } else {
       errorMessage = '网络连接失败，请检查网络设置';
       isNetworkError = true;
+    }
+
+    if (!isNetworkError || !__DEV__) {
+      console.error('知识图谱API: 获取知识图谱失败:', error);
+      console.log('知识图谱API: 错误详情:', error.message);
+      console.log('知识图谱API: 错误状态码:', error.response?.status);
     }
 
     const enrichedError = new Error(errorMessage);

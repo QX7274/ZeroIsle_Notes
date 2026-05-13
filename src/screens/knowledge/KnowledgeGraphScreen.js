@@ -76,6 +76,8 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   const edges = useSelector(selectEdges);
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
+  const authRequired = useSelector(selectAuthRequired);
+  const authMessage = useSelector(selectAuthMessage);
   const networkFallbackMessage = useSelector(selectNetworkFallbackMessage);
 
   // Redux state for UI controls
@@ -136,7 +138,7 @@ const KnowledgeGraphScreen = ({ navigation }) => {
   useEffect(() => {
     loadKnowledgeGraph();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filters]);
 
   // 处理节点点击
   const handleNodePress = (node) => {
@@ -235,6 +237,21 @@ const KnowledgeGraphScreen = ({ navigation }) => {
         <Icon name="error-outline" size={50} color={colors.error} />
         <Text style={styles.errorText}>加载失败: {error}</Text>
         <Button title="重试" onPress={loadKnowledgeGraph} />
+      </View>
+    );
+  }
+
+  if (authRequired && (!nodes || nodes.length === 0)) {
+    return (
+      <View style={styles.emptyContainer} testID="screen.knowledgeGraph">
+        <Icon name="lock-outline" size={80} color={colors.warning} />
+        <Text style={styles.emptyText}>登录状态已失效</Text>
+        <Text style={styles.emptySubText}>{authMessage || '请重新登录后再查看知识图谱'}</Text>
+        <Button
+          title="前往我的"
+          onPress={() => navigation.navigate('Profile')}
+          style={styles.createButton}
+        />
       </View>
     );
   }

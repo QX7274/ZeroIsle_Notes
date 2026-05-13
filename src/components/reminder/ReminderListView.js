@@ -159,7 +159,8 @@ const ReminderListView = ({ navigation, route }) => {
             }
           }
         } catch (error) {
-          console.error('从服务器加载提醒数据失败:', error);
+          const logMethod = error?.isNetworkError && __DEV__ ? console.log : console.error;
+          logMethod('从服务器加载提醒数据失败:', error);
 
           // 网络失败时不再弹全局阻断提示，直接静默回退本地数据
 
@@ -189,7 +190,8 @@ const ReminderListView = ({ navigation, route }) => {
         }
       }
     } catch (error) {
-      console.error('加载提醒数据失败:', error);
+      const logMethod = error?.isNetworkError && __DEV__ ? console.log : console.error;
+      logMethod('加载提醒数据失败:', error);
 
       // 最后兜底：避免阻断弹窗，优先保证页面可继续操作
       if (Platform.OS === 'android') {
