@@ -6,8 +6,52 @@
  * - Web (React.js)
  * - Desktop (Electron)
  */
+/* global Notification, localStorage */
 
 import { Platform, Dimensions, Linking } from 'react-native';
+
+const getRuntimeRequire = () => {
+    const runtimeScope = typeof global !== 'undefined'
+        ? global
+        : typeof window !== 'undefined'
+            ? window
+            : null;
+
+    if (!runtimeScope) {
+        return null;
+    }
+
+    if (typeof runtimeScope.require === 'function') {
+        return runtimeScope.require.bind(runtimeScope);
+    }
+
+    if (runtimeScope.window && typeof runtimeScope.window.require === 'function') {
+        return runtimeScope.window.require.bind(runtimeScope.window);
+    }
+
+    return null;
+};
+
+const getOptionalModule = (moduleName) => {
+    const runtimeRequire = getRuntimeRequire();
+    if (!runtimeRequire) {
+        return null;
+    }
+
+    try {
+        return runtimeRequire(moduleName);
+    } catch (error) {
+        return null;
+    }
+};
+
+const getElectronModule = () => {
+    if (!isDesktop()) {
+        return null;
+    }
+
+    return getOptionalModule('electron');
+};
 
 /**
  * Platform detection
@@ -69,8 +113,12 @@ export const FileSystem = {
 
         if (isMobile()) {
             // React Native implementation
+            const DocumentPickerModule = getOptionalModule('react-native-document-picker');
+            const DocumentPicker = DocumentPickerModule?.default || DocumentPickerModule;
+            if (!DocumentPicker) {
+                throw new Error('Document picker is unavailable in the current runtime.');
+            }
             try {
-                const DocumentPicker = require('react-native-document-picker').default;
                 const result = await DocumentPicker.pick({
                     type: [type],
                     allowMultiSelection: multiple,
@@ -96,7 +144,11 @@ export const FileSystem = {
             });
         } else if (isDesktop()) {
             // Electron implementation
-            const { dialog } = require('electron').remote;
+            const electron = getElectronModule();
+            const dialog = electron?.remote?.dialog;
+            if (!dialog) {
+                throw new Error('Electron dialog is unavailable in the current runtime.');
+            }
             const result = await dialog.showOpenDialog({
                 properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'],
                 filters: [{ name: 'Files', extensions: [type.replace('*/', '')] }],
@@ -126,8 +178,15 @@ export const FileSystem = {
             URL.revokeObjectURL(url);
             return filename;
         } else if (isDesktop()) {
-            const { dialog } = require('electron').remote;
-            const fs = require('fs');
+            const electron = getElectronModule();
+            const dialog = electron?.remote?.dialog;
+            if (!dialog) {
+                throw new Error('Electron dialog is unavailable in the current runtime.');
+            }
+            const fs = getOptionalModule('fs');
+            if (!fs) {
+                throw new Error('Electron file system bridge is unavailable in the current runtime.');
+            }
             const result = await dialog.showSaveDialog({
                 defaultPath: filename,
             });
@@ -152,8 +211,9 @@ export const Notifications = {
             // Use react-native push notification library
             return true; // Handled by native module
         } else if (isWeb()) {
-            if ('Notification' in window) {
-                const permission = await Notification.requestPermission();
+            const WebNotification = typeof Notification !== 'undefined' ? Notification : null;
+            if (WebNotification) {
+                const permission = await WebNotification.requestPermission();
                 return permission === 'granted';
             }
             return false;
@@ -175,12 +235,18 @@ export const Notifications = {
                 ...options,
             });
         } else if (isWeb()) {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, { body, ...options });
+            const WebNotification = typeof Notification !== 'undefined' ? Notification : null;
+            if (WebNotification && WebNotification.permission === 'granted') {
+                const notification = new WebNotification(title, { body, ...options });
+                return notification;
             }
         } else if (isDesktop()) {
-            const { Notification } = require('electron');
-            new Notification({ title, body }).show();
+            const electron = getElectronModule();
+            const ElectronNotification = electron?.Notification;
+            if (!ElectronNotification) {
+                throw new Error('Electron Notification is unavailable in the current runtime.');
+            }
+            new ElectronNotification({ title, body }).show();
         }
     },
 };
@@ -199,7 +265,11 @@ export const Clipboard = {
         } else if (isWeb()) {
             await navigator.clipboard.writeText(text);
         } else if (isDesktop()) {
-            const { clipboard } = require('electron');
+            const electron = getElectronModule();
+            const clipboard = electron?.clipboard;
+            if (!clipboard) {
+                throw new Error('Electron clipboard is unavailable in the current runtime.');
+            }
             clipboard.writeText(text);
         }
     },
@@ -214,7 +284,11 @@ export const Clipboard = {
         } else if (isWeb()) {
             return await navigator.clipboard.readText();
         } else if (isDesktop()) {
-            const { clipboard } = require('electron');
+            const electron = getElectronModule();
+            const clipboard = electron?.clipboard;
+            if (!clipboard) {
+                throw new Error('Electron clipboard is unavailable in the current runtime.');
+            }
             return clipboard.readText();
         }
         return '';
@@ -259,7 +333,10 @@ export const Biometrics = {
     isAvailable: async () => {
         if (isMobile()) {
             try {
-                const TouchID = require('react-native-touch-id');
+                const TouchID = getOptionalModule('react-native-touch-id');
+                if (!TouchID || typeof TouchID.isSupported !== 'function') {
+                    return { available: false };
+                }
                 const biometryType = await TouchID.isSupported();
                 return { available: true, type: biometryType };
             } catch {
@@ -277,7 +354,10 @@ export const Biometrics = {
      */
     authenticate: async (reason = '请验证身份') => {
         if (isMobile()) {
-            const TouchID = require('react-native-touch-id');
+            const TouchID = getOptionalModule('react-native-touch-id');
+            if (!TouchID || typeof TouchID.authenticate !== 'function') {
+                return false;
+            }
             const config = {
                 title: '身份验证',
                 imageColor: '#3b82f6',
@@ -301,9 +381,12 @@ export const Storage = {
             const AsyncStorage = require('@react-native-async-storage/async-storage').default;
             return await AsyncStorage.getItem(key);
         } else if (isWeb()) {
-            return localStorage.getItem(key);
+            return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
         } else if (isDesktop()) {
-            const Store = require('electron-store');
+            const Store = getOptionalModule('electron-store');
+            if (!Store) {
+                return null;
+            }
             const store = new Store();
             return store.get(key);
         }
@@ -318,9 +401,14 @@ export const Storage = {
             const AsyncStorage = require('@react-native-async-storage/async-storage').default;
             await AsyncStorage.setItem(key, value);
         } else if (isWeb()) {
-            localStorage.setItem(key, value);
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(key, value);
+            }
         } else if (isDesktop()) {
-            const Store = require('electron-store');
+            const Store = getOptionalModule('electron-store');
+            if (!Store) {
+                return;
+            }
             const store = new Store();
             store.set(key, value);
         }
@@ -334,9 +422,14 @@ export const Storage = {
             const AsyncStorage = require('@react-native-async-storage/async-storage').default;
             await AsyncStorage.removeItem(key);
         } else if (isWeb()) {
-            localStorage.removeItem(key);
+            if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem(key);
+            }
         } else if (isDesktop()) {
-            const Store = require('electron-store');
+            const Store = getOptionalModule('electron-store');
+            if (!Store) {
+                return;
+            }
             const store = new Store();
             store.delete(key);
         }
@@ -352,7 +445,10 @@ export const Window = {
      */
     minimize: () => {
         if (isDesktop()) {
-            const { getCurrentWindow } = require('electron').remote;
+            const getCurrentWindow = getElectronModule()?.remote?.getCurrentWindow;
+            if (!getCurrentWindow) {
+                return;
+            }
             getCurrentWindow().minimize();
         }
     },
@@ -362,7 +458,10 @@ export const Window = {
      */
     maximize: () => {
         if (isDesktop()) {
-            const { getCurrentWindow } = require('electron').remote;
+            const getCurrentWindow = getElectronModule()?.remote?.getCurrentWindow;
+            if (!getCurrentWindow) {
+                return;
+            }
             const win = getCurrentWindow();
             if (win.isMaximized()) {
                 win.unmaximize();
@@ -377,7 +476,10 @@ export const Window = {
      */
     close: () => {
         if (isDesktop()) {
-            const { getCurrentWindow } = require('electron').remote;
+            const getCurrentWindow = getElectronModule()?.remote?.getCurrentWindow;
+            if (!getCurrentWindow) {
+                return;
+            }
             getCurrentWindow().close();
         }
     },
@@ -387,7 +489,10 @@ export const Window = {
      */
     setTitle: (title) => {
         if (isDesktop()) {
-            const { getCurrentWindow } = require('electron').remote;
+            const getCurrentWindow = getElectronModule()?.remote?.getCurrentWindow;
+            if (!getCurrentWindow) {
+                return;
+            }
             getCurrentWindow().setTitle(title);
         } else if (isWeb()) {
             document.title = title;
@@ -412,7 +517,10 @@ export const openURL = async (url) => {
     } else if (isWeb()) {
         window.open(url, '_blank');
     } else if (isDesktop()) {
-        const { shell } = require('electron');
+        const shell = getElectronModule()?.shell;
+        if (!shell) {
+            return;
+        }
         shell.openExternal(url);
     }
 };
