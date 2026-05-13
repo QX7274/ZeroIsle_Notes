@@ -17,150 +17,109 @@ import { Button, Card, Skeleton } from '../../components/common';
 import { SPACING } from '../../utils/constants/dimensions';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import { UnifiedSearchBar } from '../../components/search';
-import communityApi from '../../services/api/communityApi';
-import networkErrorService from '../../services/networkErrorService';
 import networkService from '../../services/network/networkService';
 
-/**
- * 社区屏幕组件
- * 用于展示社区内容、分享资源和交流互动
- */
+const FALLBACK_THEME = {
+  background: '#F2F7FB',
+  card: '#FFFFFF',
+  text: '#102A43',
+  textSecondary: '#5B7083',
+  primary: '#2196F3',
+  border: '#D7E8F8',
+  shadow: 'rgba(15, 23, 42, 0.10)',
+};
+
 const CommunityScreen = ({ navigation }) => {
-  // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
-  let theme;
+  let palette = FALLBACK_THEME;
+
   try {
     const themeContext = useTheme();
-    theme = themeContext.theme;
-
-    // 如果 theme 或 theme.colors 为 undefined，使用默认值
-    if (!theme || !theme.colors) {
-      console.warn('CommunityScreen: 主题未正确加载，使用默认主题');
-      theme = {
-        background: '#F2F2F2',
-        card: '#FFFFFF',
-        text: '#000000',
-        textSecondary: '#666666',
-        primary: '#007AFF',
-        border: '#E5E5EA',
-        shadow: 'rgba(0, 0, 0, 0.1)',
-      };
-    } else {
-      // 确保所有需要的颜色属性都存在
-      theme = {
-        background: theme.colors.background || '#F2F2F2',
-        card: theme.colors.card || '#FFFFFF',
-        text: theme.colors.text || '#000000',
-        textSecondary: theme.colors.textSecondary || '#666666',
-        primary: theme.colors.primary || '#007AFF',
-        border: theme.colors.border || '#E5E5EA',
-        shadow: theme.colors.shadow || 'rgba(0, 0, 0, 0.1)',
+    const colors = themeContext?.theme?.colors;
+    if (colors) {
+      palette = {
+        background: colors.background || FALLBACK_THEME.background,
+        card: colors.card || FALLBACK_THEME.card,
+        text: colors.text || FALLBACK_THEME.text,
+        textSecondary: colors.textSecondary || FALLBACK_THEME.textSecondary,
+        primary: colors.primary || FALLBACK_THEME.primary,
+        border: colors.border || FALLBACK_THEME.border,
+        shadow: colors.shadow || FALLBACK_THEME.shadow,
       };
     }
-  } catch (error) {
-    console.error('CommunityScreen: 获取主题失败:', error.message);
-    // 使用默认主题
-    theme = {
-      background: '#F2F2F2',
-      card: '#FFFFFF',
-      text: '#000000',
-      textSecondary: '#666666',
-      primary: '#007AFF',
-      border: '#E5E5EA',
-      shadow: 'rgba(0, 0, 0, 0.1)',
-    };
+  } catch (themeError) {
+    console.error('CommunityScreen: 获取主题失败', themeError?.message || themeError);
   }
 
   const dispatch = useDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
-
-  // 从Redux获取状态
+  const [loadState, setLoadState] = useState('idle');
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector(state => state.community);
   const hasMore = pagination.page < pagination.totalPages;
 
-  // 加载数据
-  useEffect(() => {
-    loadPosts();
-  }, []);
-
-  const loadPosts = async () => {
-    if (isLoading) {return;}
+  const loadPosts = useCallback(async (targetPage = 1) => {
+    if (isLoading) {
+      return;
+    }
 
     const isOnline = await networkService.checkConnection();
     if (!isOnline) {
-      networkErrorService.handleApiError({
-        message: 'Network Error',
-        code: 'ERR_NETWORK',
-        isNetworkError: true,
-      }, {
-        context: '加载社区帖子',
-        customMessage: '当前无网络连接，无法加载社区内容',
-      });
+      setLoadState('offline');
       return;
     }
 
     try {
-      // 尝试从API加载帖子
-      await dispatch(fetchPosts({ page, pageSize: 10 })).unwrap();
-    } catch (error) {
-      console.log('加载帖子失败:', error?.message || error);
-      if (networkErrorService.isNetworkError(error)) {
-        networkErrorService.handleApiError(error, {
-          context: '加载社区帖子',
-          customMessage: '网络连接失败，无法加载社区内容',
-        });
-      }
-      // API加载失败时不使用模拟数据，保持错误状态由Redux处理
+      setLoadState('loading');
+      await dispatch(fetchPosts({
+        page: targetPage,
+        pageSize: 10,
+        suppressGlobalErrorUI: true,
+      })).unwrap();
+      setLoadState('ready');
+    } catch (requestError) {
+      console.log('CommunityScreen: 加载帖子失败', requestError?.message || requestError);
+      setLoadState('error');
     }
-  };
+  }, [dispatch, isLoading]);
 
-  // 下拉刷新
-  const handleRefresh = () => {
+  useEffect(() => {
+    loadPosts(1);
+  }, [loadPosts]);
+
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setPage(1);
+    loadPosts(1).finally(() => setRefreshing(false));
+  }, [loadPosts]);
 
-    dispatch(fetchPosts({ page: 1, pageSize: 10 }))
-      .catch(error => {
-        console.warn('刷新帖子失败:', error?.message || error);
-        if (networkErrorService.isNetworkError(error)) {
-          networkErrorService.handleApiError(error, {
-            context: '刷新社区帖子',
-            customMessage: '网络连接失败，无法刷新社区内容',
-          });
-        }
-      })
-      .finally(() => setRefreshing(false));
-  };
-
-  // 加载更多
-  const handleLoadMore = () => {
-    if (isLoading || !hasMore) {return;}
+  const handleLoadMore = useCallback(() => {
+    if (isLoading || !hasMore) {
+      return;
+    }
 
     const nextPage = page + 1;
     setPage(nextPage);
-    dispatch(fetchPosts({ page: nextPage, pageSize: 10 }))
-      .catch(error => {
-        console.warn('加载更多帖子失败:', error?.message || error);
-        if (networkErrorService.isNetworkError(error)) {
-          networkErrorService.handleApiError(error, {
-            context: '加载更多社区帖子',
-            customMessage: '网络连接失败，无法加载更多内容',
-          });
-        }
+    dispatch(fetchPosts({
+      page: nextPage,
+      pageSize: 10,
+      suppressGlobalErrorUI: true,
+    }))
+      .unwrap()
+      .then(() => setLoadState('ready'))
+      .catch(requestError => {
+        console.warn('CommunityScreen: 加载更多失败', requestError?.message || requestError);
+        setPage(current => Math.max(1, current - 1));
       });
-  };
+  }, [dispatch, hasMore, isLoading, page]);
 
-  // 处理点赞 (优化: useCallback)
   const handleLike = useCallback((postId) => {
     dispatch(likePost({ postId, liked: !likedPosts[postId] }));
   }, [dispatch, likedPosts]);
 
-  // 处理收藏 (优化: useCallback)
   const handleBookmark = useCallback((postId) => {
     dispatch(toggleBookmark(postId));
   }, [dispatch]);
 
-  // 渲染帖子项 (优化: useCallback)
   const renderPostItem = useCallback(({ item }) => (
     <Card style={styles.postCard}>
       <TouchableOpacity
@@ -170,20 +129,23 @@ const CommunityScreen = ({ navigation }) => {
         <View style={styles.postHeader}>
           <View style={styles.authorContainer}>
             <Image source={{ uri: item.authorAvatar }} style={styles.avatar} />
-            <Text style={[styles.authorName, { color: theme.text }]}>{item.author}</Text>
+            <Text style={[styles.authorName, { color: palette.text }]}>{item.author}</Text>
           </View>
-          <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
+          <Text style={[styles.timestamp, { color: palette.textSecondary }]}>
             {new Date(item.timestamp).toLocaleDateString()}
           </Text>
         </View>
 
-        <Text style={[styles.postTitle, { color: theme.text }]}>{item.title}</Text>
-        <Text style={[styles.postPreview, { color: theme.textSecondary }]}>{item.preview}</Text>
+        <Text style={[styles.postTitle, { color: palette.text }]}>{item.title}</Text>
+        <Text style={[styles.postPreview, { color: palette.textSecondary }]}>{item.preview}</Text>
 
         <View style={styles.tagsContainer}>
           {item.tags.map((tag, index) => (
-            <View key={index} style={[styles.tag, { backgroundColor: theme.primary + '20' }]}>
-              <Text style={[styles.tagText, { color: theme.primary }]}>{tag}</Text>
+            <View
+              key={`${item.id}-tag-${index}`}
+              style={[styles.tag, { backgroundColor: `${palette.primary}12`, borderColor: `${palette.primary}2E` }]}
+            >
+              <Text style={[styles.tagText, { color: palette.primary }]}>{tag}</Text>
             </View>
           ))}
         </View>
@@ -197,24 +159,23 @@ const CommunityScreen = ({ navigation }) => {
             <Icon
               name={likedPosts[item.id] ? 'thumb-up' : 'thumb-up-off-alt'}
               size={16}
-              color={likedPosts[item.id] ? theme.primary : theme.textSecondary}
+              color={likedPosts[item.id] ? palette.primary : palette.textSecondary}
             />
-            <Text
-              style={[styles.statText, {
-                color: likedPosts[item.id] ? theme.primary : theme.textSecondary,
-              }]}
-            >
+            <Text style={[styles.statText, { color: likedPosts[item.id] ? palette.primary : palette.textSecondary }]}>
               {item.likes}
             </Text>
           </TouchableOpacity>
+
           <View style={styles.statItem}>
-            <Icon name="comment" size={16} color={theme.textSecondary} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>{item.comments}</Text>
+            <Icon name="comment" size={16} color={palette.textSecondary} />
+            <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.comments}</Text>
           </View>
+
           <View style={styles.statItem}>
-            <Icon name="file-download" size={16} color={theme.textSecondary} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>{item.downloads}</Text>
+            <Icon name="file-download" size={16} color={palette.textSecondary} />
+            <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.downloads}</Text>
           </View>
+
           <TouchableOpacity
             style={styles.statItem}
             onPress={() => handleBookmark(item.id)}
@@ -223,29 +184,28 @@ const CommunityScreen = ({ navigation }) => {
             <Icon
               name={bookmarkedPosts[item.id] ? 'bookmark' : 'bookmark-border'}
               size={16}
-              color={bookmarkedPosts[item.id] ? theme.primary : theme.textSecondary}
+              color={bookmarkedPosts[item.id] ? palette.primary : palette.textSecondary}
             />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
     </Card>
-  ), [theme, likedPosts, bookmarkedPosts, navigation, handleLike, handleBookmark]);
+  ), [bookmarkedPosts, handleBookmark, handleLike, likedPosts, navigation, palette.primary, palette.text, palette.textSecondary]);
 
-  // 渲染加载中的骨架屏
   const renderLoadingSkeleton = () => (
-    <View style={{ padding: 15 }}>
-      {[1, 2, 3].map(i => (
-        <View key={i} style={[styles.postCard, { padding: 15 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+    <View style={styles.skeletonContainer}>
+      {[1, 2, 3].map((item) => (
+        <View key={item} style={[styles.postCard, styles.skeletonCard]}>
+          <View style={styles.skeletonHeader}>
             <Skeleton circle width={40} height={40} />
-            <View style={{ marginLeft: 10 }}>
-              <Skeleton width={120} height={15} style={{ marginBottom: 5 }} />
+            <View style={styles.skeletonMeta}>
+              <Skeleton width={120} height={15} style={styles.skeletonLineTight} />
               <Skeleton width={80} height={10} />
             </View>
           </View>
-          <Skeleton width="100%" height={20} style={{ marginBottom: 10 }} />
-          <Skeleton width="80%" height={15} style={{ marginBottom: 15 }} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Skeleton width="100%" height={20} style={styles.skeletonLine} />
+          <Skeleton width="78%" height={14} style={styles.skeletonLineWide} />
+          <View style={styles.skeletonFooter}>
             <Skeleton width={60} height={20} />
             <Skeleton width={60} height={20} />
             <Skeleton width={60} height={20} />
@@ -255,37 +215,75 @@ const CommunityScreen = ({ navigation }) => {
     </View>
   );
 
-  // 渲染列表底部
   const renderFooter = () => {
-    if (!isLoading || posts.length === 0) {return null;}
+    if (!isLoading || posts.length === 0) {
+      return null;
+    }
 
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={theme.primary} />
-        <Text style={[styles.footerText, { color: theme.textSecondary }]}>加载更多...</Text>
+        <ActivityIndicator size="small" color={palette.primary} />
+        <Text style={[styles.footerText, { color: palette.textSecondary }]}>加载更多中...</Text>
+      </View>
+    );
+  };
+
+  const renderInlineState = () => {
+    if (isLoading || posts.length > 0) {
+      return null;
+    }
+
+    const isOffline = loadState === 'offline';
+    const hasRequestError = loadState === 'error' || Boolean(error);
+    const iconName = isOffline ? 'wifi-off' : hasRequestError ? 'cloud-off' : 'forum';
+    const title = isOffline
+      ? '当前处于离线状态'
+      : hasRequestError
+        ? '社区内容暂时不可用'
+        : '暂无社区内容';
+    const description = isOffline
+      ? '未部署联调阶段会优先展示本地页面结构。连接同一局域网或启动后端后，再回来刷新即可。'
+      : hasRequestError
+        ? '页面主体和关键入口已经可访问，但帖子接口暂时没有返回数据。你仍然可以继续检查导航、搜索区和发布入口。'
+        : '内容区已经准备好，后续接入后端或导入示例数据后会在这里显示社区帖子。';
+
+    return (
+      <View
+        style={styles.emptyContainer}
+        testID={isOffline ? 'state.community.offline' : hasRequestError ? 'state.community.error' : 'state.community.empty'}
+      >
+        <View style={styles.emptyIconShell}>
+          <Icon name={iconName} size={32} color={palette.primary} />
+        </View>
+        <Text style={[styles.emptyTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.emptyText, { color: palette.textSecondary }]}>{description}</Text>
+        <Button
+          title="重新加载"
+          onPress={handleRefresh}
+          type="primary"
+          style={styles.refreshButton}
+          testID="action.community.refreshEmpty"
+        />
       </View>
     );
   };
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.background }]}
-      testID="screen.community"
-    >
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: palette.background }]} testID="screen.community">
+      <View style={[styles.header, { borderBottomColor: `${palette.primary}14` }]}>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={[styles.headerButton, { borderColor: `${palette.primary}28` }]}
           onPress={() => navigation.navigate('Notifications')}
           testID="action.community.notifications"
         >
-          <Icon name="notifications" size={22} color={theme.text} />
+          <Icon name="notifications" size={22} color={palette.text} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={[styles.headerButton, { borderColor: `${palette.primary}28` }]}
           onPress={() => navigation.navigate('Activity')}
           testID="action.community.activity"
         >
-          <Icon name="dynamic-feed" size={22} color={theme.text} />
+          <Icon name="dynamic-feed" size={22} color={palette.text} />
         </TouchableOpacity>
       </View>
 
@@ -294,7 +292,6 @@ const CommunityScreen = ({ navigation }) => {
           searchScope="community"
           resultScreenName="CommunitySearch"
           onSearch={(results) => {
-            // 处理搜索结果
             if (results && results.length > 0) {
               navigation.navigate('CommunitySearch', { results });
             }
@@ -304,67 +301,52 @@ const CommunityScreen = ({ navigation }) => {
 
       <View style={styles.categoriesContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.categoryText, { color: '#FFFFFF' }]}>全部</Text>
+          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: palette.primary, borderColor: palette.primary }]}>
+            <Text style={styles.categoryTextActive}>全部</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
-            <Text style={[styles.categoryText, { color: theme.primary }]}>笔记模板</Text>
+          <TouchableOpacity style={styles.categoryButton}>
+            <Text style={[styles.categoryText, { color: palette.primary }]}>笔记模板</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
-            <Text style={[styles.categoryText, { color: theme.primary }]}>学习资料</Text>
+          <TouchableOpacity style={styles.categoryButton}>
+            <Text style={[styles.categoryText, { color: palette.primary }]}>学习资料</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
-            <Text style={[styles.categoryText, { color: theme.primary }]}>使用技巧</Text>
+          <TouchableOpacity style={styles.categoryButton}>
+            <Text style={[styles.categoryText, { color: palette.primary }]}>使用技巧</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: '#ffffff' }]}>
-            <Text style={[styles.categoryText, { color: theme.primary }]}>知识图谱</Text>
+          <TouchableOpacity style={styles.categoryButton}>
+            <Text style={[styles.categoryText, { color: palette.primary }]}>知识图谱</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
+
       {isLoading && posts.length === 0 ? (
         renderLoadingSkeleton()
       ) : (
         <FlatList
           data={posts}
           renderItem={renderPostItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContainer}
           initialNumToRender={5}
           windowSize={5}
-          removeClippedSubviews={true}
-          refreshControl={
+          removeClippedSubviews
+          refreshControl={(
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[theme.primary]}
-              tintColor={theme.primary}
+              colors={[palette.primary]}
+              tintColor={palette.primary}
             />
-          }
+          )}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
-          ListEmptyComponent={
-            !isLoading ? (
-              <View style={styles.emptyContainer}>
-                <Icon name="forum" size={64} color={theme.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                  暂无社区内容
-                </Text>
-                <Button
-                  title="刷新"
-                  onPress={handleRefresh}
-                  type="primary"
-                  style={styles.refreshButton}
-                  testID="action.community.refreshEmpty"
-                />
-              </View>
-            ) : null
-          }
+          ListEmptyComponent={!isLoading ? renderInlineState() : null}
         />
       )}
 
       <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: '#2196F3' }]}
+        style={[styles.fabButton, { backgroundColor: palette.primary }]}
         onPress={() => navigation.navigate('CreatePost')}
         testID="action.community.createPost"
       >
@@ -387,39 +369,23 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.LARGE + 4,
     paddingBottom: SPACING.MEDIUM + 4,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: '#FFFFFF',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    backgroundColor: '#ffffff',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   headerButton: {
     padding: 12,
     marginLeft: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     borderRadius: 22,
     width: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
     borderWidth: 1,
-    borderColor: '#2196F3',
   },
   searchContainer: {
     paddingHorizontal: SPACING.MEDIUM,
@@ -429,49 +395,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.MEDIUM,
     marginVertical: SPACING.MEDIUM,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2196F3',
-    backgroundColor: '#ffffff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.78)',
   },
   categoryButton: {
     paddingHorizontal: SPACING.LARGE,
     paddingVertical: SPACING.SMALL + 2,
     borderRadius: 24,
     marginRight: SPACING.MEDIUM,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
     borderWidth: 1,
-    borderColor: '#2196F3',
-    backgroundColor: '#ffffff',
+    borderColor: '#B6D8F7',
+    backgroundColor: 'rgba(255,255,255,0.82)',
   },
   categoryText: {
     fontSize: 16,
     fontWeight: '600',
   },
+  categoryTextActive: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   listContainer: {
     padding: SPACING.MEDIUM + 4,
-    paddingBottom: SPACING.XLARGE,
+    paddingBottom: SPACING.XLARGE + 24,
   },
   postCard: {
     marginBottom: SPACING.LARGE,
     padding: SPACING.LARGE,
     borderRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#ffffff',
+    borderColor: '#E1EEF9',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
   },
   postHeader: {
     flexDirection: 'row',
@@ -480,7 +439,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.MEDIUM,
     paddingBottom: SPACING.MEDIUM,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#EEF4FA',
   },
   authorContainer: {
     flexDirection: 'row',
@@ -491,13 +450,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     marginRight: SPACING.MEDIUM,
-    borderWidth: 3,
-    borderColor: '#fff',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    backgroundColor: '#D9ECFD',
   },
   authorName: {
     fontSize: 16,
@@ -506,7 +459,7 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 14,
-    opacity: 0.7,
+    opacity: 0.76,
     fontWeight: '500',
   },
   postTitle: {
@@ -520,7 +473,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: SPACING.LARGE,
     lineHeight: 24,
-    opacity: 0.85,
+    opacity: 0.86,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -533,14 +486,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: SPACING.SMALL,
     marginBottom: SPACING.SMALL,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
     borderWidth: 1,
-    borderColor: '#2196F3',
-    backgroundColor: '#ffffff',
   },
   tagText: {
     fontSize: 14,
@@ -551,45 +497,60 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: SPACING.MEDIUM,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#EEF4FA',
     marginTop: SPACING.MEDIUM,
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: SPACING.LARGE,
-    backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 24,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 1,
-    borderColor: '#2196F3',
+    backgroundColor: 'rgba(247,250,252,0.95)',
   },
   statText: {
     fontSize: 14,
     marginLeft: 8,
     fontWeight: '600',
   },
+  skeletonContainer: {
+    padding: 15,
+  },
+  skeletonCard: {
+    padding: 15,
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  skeletonMeta: {
+    marginLeft: 10,
+  },
+  skeletonLineTight: {
+    marginBottom: 6,
+  },
+  skeletonLine: {
+    marginBottom: 10,
+  },
+  skeletonLineWide: {
+    marginBottom: 16,
+  },
+  skeletonFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   footerLoader: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.LARGE,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 16,
     marginTop: SPACING.MEDIUM,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
     borderWidth: 1,
-    borderColor: '#2196F3',
+    borderColor: '#D9EAF8',
   },
   footerText: {
     marginLeft: SPACING.MEDIUM,
@@ -601,61 +562,69 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: SPACING.XLARGE,
     marginTop: SPACING.XLARGE + 10,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
     marginHorizontal: SPACING.LARGE,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: '#2196F3',
+    borderColor: '#D6E9FB',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 3,
+  },
+  emptyIconShell: {
+    width: 64,
+    height: 64,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(33,150,243,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.18)',
+    marginBottom: SPACING.MEDIUM,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: SPACING.SMALL,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 18,
-    marginTop: SPACING.LARGE,
+    fontSize: 16,
+    marginTop: SPACING.SMALL,
     marginBottom: SPACING.LARGE,
-    opacity: 0.7,
+    opacity: 0.78,
     textAlign: 'center',
     maxWidth: 320,
-    lineHeight: 26,
+    lineHeight: 24,
     fontWeight: '500',
   },
   refreshButton: {
     width: 160,
     height: 50,
     borderRadius: 25,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   fabButton: {
     position: 'absolute',
     right: SPACING.LARGE,
     bottom: SPACING.LARGE + 4,
     width: 120,
-    height: 50,
-    borderRadius: 25,
+    height: 52,
+    borderRadius: 26,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#1D4ED8',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
     elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
   },
   fabButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 8,
   },
 });

@@ -168,6 +168,15 @@ class NetworkErrorService {
     });
 
     if (this.isNetworkError(error)) {
+      const suppressGlobalUI = options.suppressGlobalUI || error?.config?.metadata?.suppressGlobalErrorUI;
+      if (suppressGlobalUI) {
+        console.warn('NetworkErrorService: 已按请求级配置静默全局网络提示', {
+          context: options.context || 'API调用',
+          error: error?.message || error,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
       // 为网络错误添加默认重试功能
       const enhancedOptions = {
         ...options,

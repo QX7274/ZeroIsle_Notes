@@ -232,6 +232,7 @@ apiClient.interceptors.response.use(
     return response;
   },
   async error => {
+    const suppressGlobalErrorUI = Boolean(error?.config?.metadata?.suppressGlobalErrorUI);
     // 处理离线错误
     if (error.isOfflineError) {
       console.log('离线错误，请求已保存到队列或使用本地数据');

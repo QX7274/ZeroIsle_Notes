@@ -10,16 +10,32 @@ export const fetchPosts = createAsyncThunk(
   'community/fetchPosts',
   async (params, { rejectWithValue }) => {
     try {
+      const {
+        page = 1,
+        pageSize = 10,
+        suppressGlobalErrorUI = false,
+        tag,
+        category,
+        author,
+        featured,
+        ordering,
+      } = params || {};
+
       // 调用实际的API
-      const response = await communityApi.getPosts({
-        page: params?.page || 1,
-        page_size: params?.pageSize || 10,
-        tag: params?.tag,
-        category: params?.category,
-        user: params?.author,
-        is_featured: params?.featured,
-        ordering: params?.ordering,
-      });
+      const response = await communityApi.getPosts(
+        {
+          page,
+          page_size: pageSize,
+          tag,
+          category,
+          user: author,
+          is_featured: featured,
+          ordering,
+        },
+        {
+          suppressGlobalErrorUI,
+        }
+      );
 
       if (!response.success) {
         return rejectWithValue(response.message || '获取社区帖子失败');
@@ -46,8 +62,8 @@ export const fetchPosts = createAsyncThunk(
       return {
         posts: uiPosts,
         pagination: {
-          page: params?.page || 1,
-          totalPages: Math.ceil(count / (params?.pageSize || 10)),
+          page,
+          totalPages: Math.ceil(count / pageSize),
           totalItems: count,
         },
       };

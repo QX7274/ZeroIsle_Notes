@@ -13,9 +13,14 @@ import networkService from '../network/networkService';
  * @param {object} params - 查询参数
  * @returns {Promise} - 帖子列表
  */
-export const getPosts = async (params = {}) => {
+export const getPosts = async (params = {}, requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.COMMUNITY.POSTS, { params });
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.POSTS, {
+      params,
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     // apiClient 响应拦截器已返回 response.data，这里直接用 response
     return {
       success: true,
