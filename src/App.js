@@ -44,6 +44,78 @@ import GlobalNetworkErrorHandler from './components/common/GlobalNetworkErrorHan
 import tokenService from './services/auth/tokenService';
 import { handleUnauthorizedError } from './services/auth/authUtils';
 
+const DEV_SUPPRESSED_LOG_PREFIXES = [
+  'App组件渲染中...',
+  'Store状态:',
+  'Persistor状态:',
+  'AppContainer组件开始渲染...',
+  'NavigationContainer已准备就绪',
+  '导航状态已更改，当前路由:',
+  'AppNavigator:',
+  '未找到有效的访问令牌',
+  '访问令牌已过期或即将过期，尝试刷新...',
+  '开始刷新访问令牌...',
+  '没有可用的刷新令牌',
+  '刷新令牌失败或超时，清除认证状态',
+  'DEV_SKIP_LOGIN: 刷新令牌失败，继续以未认证状态请求:',
+  'NetworkErrorService:',
+  '网络错误请求URL:',
+  '网络错误请求方法:',
+  '网络错误请求头:',
+  '网络连接状态:',
+  '没有找到缓存数据:',
+  'CommunityScreen: 加载帖子失败',
+  '网络连接失败:',
+  '网络错误，使用离线模式处理',
+  'API_URL:',
+  'API_VERSION:',
+  'API基础URL构建过程:',
+  '后端API路径示例:',
+  'API_BASE_URL:',
+];
+
+const shouldSuppressDevConsoleMessage = (args = []) => {
+  if (!__DEV__ || args.length === 0) {
+    return false;
+  }
+
+  const [firstArg] = args;
+  if (typeof firstArg !== 'string') {
+    return false;
+  }
+
+  return DEV_SUPPRESSED_LOG_PREFIXES.some(prefix => firstArg.startsWith(prefix));
+};
+
+if (__DEV__ && !global.__ZEROISLE_DEV_CONSOLE_FILTER_INSTALLED__) {
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+
+  console.log = (...args) => {
+    if (shouldSuppressDevConsoleMessage(args)) {
+      return;
+    }
+    originalLog(...args);
+  };
+
+  console.warn = (...args) => {
+    if (shouldSuppressDevConsoleMessage(args)) {
+      return;
+    }
+    originalWarn(...args);
+  };
+
+  console.error = (...args) => {
+    if (shouldSuppressDevConsoleMessage(args)) {
+      return;
+    }
+    originalError(...args);
+  };
+
+  global.__ZEROISLE_DEV_CONSOLE_FILTER_INSTALLED__ = true;
+}
+
 // 忽略特定的警告
 LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
