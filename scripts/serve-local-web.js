@@ -5,7 +5,7 @@ const { URL } = require('url');
 
 const ROOT = path.resolve(__dirname, '..');
 const WEB_ROOT = path.join(ROOT, 'web');
-const PORT = Number(process.env.ZEROISLE_LOCAL_WEB_PORT || 8081);
+const PORT = Number(process.env.ZEROISLE_LOCAL_WEB_PORT || 8091);
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -242,7 +242,7 @@ const DIAGNOSTIC_PAGE = `<!DOCTYPE html>
     <section class="hero">
       <div class="card">
         <h1>共享链本地联调页</h1>
-        <p>这不是 React Native Web 主应用替代品，而是为批次05补的本地双端联调壳。当前目标是先把 <code>localhost:8081</code> 收成一个稳定可打开、可复制证据、可辅助排障的入口，减少 WebRTC 共享链后续真机验证前的反复试错。</p>
+        <p>这不是 React Native Web 主应用替代品，而是为批次05补的本地双端联调壳。当前目标是把 <code>localhost:8091</code> 收成一个稳定可打开、可复制证据、可辅助排障的入口，同时把 <code>8081</code> 留给 React Native Metro，减少 Android 真机验证前的反复试错。</p>
         <div class="pill-row">
           <span class="pill">本地入口已闭环</span>
           <span class="pill">共享链证据优先</span>
@@ -425,7 +425,7 @@ const DIAGNOSTIC_PAGE = `<!DOCTYPE html>
       setStatus('已追加一条关键事件。建议同步把 App 内联调摘要与本页事件时间线对应起来。', false);
     });
 
-    addEvent('本地联调页已启动', 'localhost:8081 已有可访问入口，可用于浏览器或 Electron 承载共享链排障信息');
+    addEvent('本地联调页已启动', 'localhost:8091 已有可访问入口，可用于浏览器或 Electron 承载共享链排障信息，同时避免占用 React Native Metro 默认端口 8081');
     refreshSummary();
     renderTimeline();
   </script>
