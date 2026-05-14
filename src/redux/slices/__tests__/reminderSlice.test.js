@@ -88,6 +88,32 @@ describe('reminderSlice offline projection', () => {
     ]);
   });
 
+  it('should keep projected local reminders mirrored into offlineReminders', () => {
+    const state = remindersReducer(undefined, {
+      type: loadReminders.fulfilled.type,
+      payload: {
+        reminders: [
+          { id: 'r-1', title: 'server-title', is_completed: false },
+        ],
+        offlineOperations: [
+          {
+            operation: 'update',
+            data: { id: 'r-1', title: 'offline-updated', is_completed: true },
+          },
+        ],
+      },
+    });
+
+    expect(state.offlineReminders).toEqual([
+      {
+        id: 'r-1',
+        title: 'offline-updated',
+        is_completed: true,
+        isLocal: true,
+      },
+    ]);
+  });
+
   it('should update unsyncedCount from sync fulfilled remaining payload', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.fulfilled.type,

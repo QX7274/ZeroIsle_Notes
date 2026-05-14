@@ -268,9 +268,9 @@ const reminderSlice = createSlice({
         const preservedLocalReminders = localReminders.filter(reminder => !incomingIds.has(reminder.id));
 
         state.reminders = [...projectedIncomingReminders, ...preservedLocalReminders];
-        // Keep the local shadow list aligned with preserved local reminders
-        // to avoid drift between reminders/offlineReminders state sources.
-        state.offlineReminders = preservedLocalReminders;
+        // Keep local shadow list aligned to the merged reminder truth source.
+        // This includes local drafts and projected local update/delete effects.
+        state.offlineReminders = state.reminders.filter(reminder => reminder?.isLocal);
       })
       .addCase(loadReminders.rejected, (state, action) => {
         state.loading = false;
