@@ -147,8 +147,11 @@ const ReminderListView = ({ navigation, route }) => {
       }
 
       setSyncing(true);
-      await dispatch(syncReminders());
-      notifyNonBlocking(`已同步${unsyncedCount}个离线提醒`);
+      const syncResult = await dispatch(syncReminders()).unwrap();
+      const syncedCount = Number(syncResult?.synced || 0);
+      if (syncedCount > 0) {
+        notifyNonBlocking(`已同步${syncedCount}个离线提醒`);
+      }
     } catch (error) {
       console.error('同步离线提醒失败:', error);
       notifyNonBlocking('无法同步离线提醒，请稍后重试');

@@ -21,9 +21,12 @@ class NotificationService {
       // 确保 Firebase 已初始化，但不阻止通知服务的初始化
       let firebaseInitialized = false;
       try {
-        await initializeFirebase();
-        console.log('Firebase 初始化成功，继续初始化通知服务');
-        firebaseInitialized = true;
+        firebaseInitialized = await initializeFirebase();
+        if (firebaseInitialized) {
+          console.log('Firebase 初始化成功，继续初始化通知服务');
+        } else {
+          console.warn('Firebase 未完成初始化，将以本地通知降级继续运行');
+        }
       } catch (firebaseError) {
         console.warn('Firebase 初始化失败，但将继续初始化通知服务:', firebaseError);
         // 不抛出错误，继续初始化通知服务
