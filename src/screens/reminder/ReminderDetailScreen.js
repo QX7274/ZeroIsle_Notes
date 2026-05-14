@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,296 +13,111 @@ import {
   ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useDispatch } from 'react-redux';
-import { updateReminder, deleteReminder } from '../../redux/slices/reminderSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  updateReminder as updateReminderAction,
+  deleteReminder as deleteReminderAction,
+  selectReminders,
+} from '../../redux/slices/reminderSlice';
 import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import api from '../../services/api';
-import { API_ENDPOINTS } from '../../config/api';
+import reminderApi from '../../services/api/reminderApi';
 import CalendarIntegrationView from '../../components/reminder/CalendarIntegrationView';
 
+const PRIORITIES = ['low', 'medium', 'high'];
+const CATEGORIES = ['work', 'study', 'personal', 'health', 'finance', 'social', 'other'];
+const FREQUENCIES = ['once', 'daily', 'weekly', 'monthly', 'yearly'];
+
+const getPriorityLabel = (priority) => {
+  switch (priority) {
+    case 'high':
+      return '高';
+    case 'medium':
+      return '中';
+    case 'low':
+      return '低';
+    default:
+      return '中';
+  }
+};
+
+const getCategoryLabel = (category) => {
+  switch (category) {
+    case 'work':
+      return '工作';
+    case 'study':
+      return '学习';
+    case 'personal':
+      return '个人';
+    case 'health':
+      return '健康';
+    case 'finance':
+      return '财务';
+    case 'social':
+      return '社交';
+    default:
+      return '其他';
+  }
+};
+
+const getFrequencyLabel = (frequency) => {
+  switch (frequency) {
+    case 'daily':
+      return '每天';
+    case 'weekly':
+      return '每周';
+    case 'monthly':
+      return '每月';
+    case 'yearly':
+      return '每年';
+    default:
+      return '一次';
+  }
+};
+
 const ReminderDetailScreen = ({ route, navigation }) => {
-  const { id } = route.params;
+  const {
+    id,
+    reminder: routeReminderParam = null,
+  } = route.params;
   const { theme } = useTheme();
   const dispatch = useDispatch();
-  const [reminder, setReminder] = useState(null);
+  const localReminders = useSelector(selectReminders);
+  const localReminder = localReminders.find((item) => item.id === id);
+  const routeReminder = routeReminderParam || localReminder || null;
+
+  const [reminder, setReminder] = useState(routeReminder);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [inlineHint, setInlineHint] = useState('');
+  const [hintTone, setHintTone] = useState('warning');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
   const [showRepeatEndPicker, setShowRepeatEndPicker] = useState(false);
   const [showReschedulePicker, setShowReschedulePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(new Date());
-  const [inlineHint, setInlineHint] = useState('');
+  const [tempDate, setTempDate] = useState(new Date(routeReminder?.due_date || Date.now()));
 
-  const notifyNonBlocking = (message) => {
+  const notifyNonBlocking = useCallback((message, tone = 'warning') => {
+    if (!message) {
+      return;
+    }
+    setHintTone(tone);
     setInlineHint(message);
     if (Platform.OS === 'android') {
       ToastAndroid.show(message, ToastAndroid.SHORT);
     }
-  };
+  }, []);
 
-
-  // 加载提醒详情
-  useEffect(() => {
-    fetchReminderDetail();
-  }, [id]);
-
-  // 获取提醒详情
-  const fetchReminderDetail = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(API_ENDPOINTS.REMINDER.DETAIL(id));
-      setReminder(response.data);
-      setTempDate(new Date(response.data.due_date));
-    } catch (error) {
-      console.error('获取提醒详情失败:', error);
-      notifyNonBlocking(error?.message || '获取提醒详情失败，已返回上一页');
-      navigation.goBack();
-    } finally {
-      setLoading(false);
+  const getErrorMessage = useCallback((error, fallbackMessage) => {
+    if (error?.isOfflineError || error?.isNetworkError || error?.message?.includes('Network')) {
+      return '当前网络不可用，详情页已保持本地可读状态，请联网后再试';
     }
-  };
+    return error?.message || fallbackMessage;
+  }, []);
 
-  // 保存提醒
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-
-      // 更新提醒
-      const response = await api.put(API_ENDPOINTS.REMINDER.DETAIL(id), reminder);
-
-      // 更新Redux状态
-      dispatch(updateReminder(response.data));
-
-      // 非阻断成功消息
-      notifyNonBlocking('提醒已更新');
-      navigation.goBack();
-    } catch (error) {
-      console.error('更新提醒失败:', error);
-      notifyNonBlocking(error?.message || '更新提醒失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 删除提醒
-  const handleDelete = () => {
-    if (reminder.frequency !== 'once') {
-      Alert.alert(
-        '删除重复提醒',
-        '您想如何删除这个重复的提醒？',
-        [
-          {
-            text: '仅删除本次',
-            onPress: () => cancelOccurrence(reminder.due_date),
-          },
-          {
-            text: '删除整个系列',
-            onPress: () => deleteSeries(),
-            style: 'destructive',
-          },
-          { text: '取消', style: 'cancel' },
-        ]
-      );
-    } else {
-      deleteSeries(); // 非重复提醒直接删除
-    }
-  };
-
-  // 取消单个实例 (前端调用)
-  const cancelOccurrence = async (occurrenceDate) => {
-    try {
-      setSaving(true);
-      await api.post(API_ENDPOINTS.REMINDER.CANCEL_OCCURRENCE(id), {
-        occurrence_date: occurrenceDate,
-      });
-      notifyNonBlocking('本次提醒已取消');
-      navigation.goBack();
-    } catch (error) {
-      console.error('取消单个提醒实例失败:', error);
-      notifyNonBlocking(error?.message || '操作失败，请重试');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 删除整个系列
-  const deleteSeries = () => {
-    Alert.alert(
-      '确认删除',
-      '确定要删除此提醒系列吗？此操作无法撤销。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              await api.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
-              dispatch(deleteReminder(id));
-              navigation.goBack();
-            } catch (error) {
-              console.error('删除提醒系列失败:', error);
-              notifyNonBlocking(error?.message || '删除失败，请重试');
-            } finally {
-              setSaving(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // 切换提醒完成状态
-  const handleToggleComplete = async () => {
-    // 如果是取消完成，则直接执行
-    if (reminder.is_completed) {
-      // 注意：取消完成一个重复系列的单个实例在当前模型下是复杂操作，
-      // 这里暂时只实现恢复整个系列，或需要后端支持删除exception
-      notifyNonBlocking('目前仅支持重新开启整个重复系列');
-      // ... 此处可添加恢复整个系列的逻辑
-      return;
-    }
-
-    // 对于重复提醒，询问用户操作范围
-    if (reminder.frequency !== 'once') {
-      Alert.alert(
-        '完成重复提醒',
-        '您想如何处理这个重复的提醒？',
-        [
-          {
-            text: '仅完成本次',
-            onPress: () => completeOccurrence(reminder.due_date),
-          },
-          {
-            text: '完成整个系列',
-            onPress: () => completeSeries(),
-            style: 'destructive',
-          },
-          { text: '取消', style: 'cancel' },
-        ]
-      );
-    } else {
-      // 对于非重复提醒，直接完成
-      completeSeries();
-    }
-  };
-
-  // 完成单个实例
-  const completeOccurrence = async (occurrenceDate) => {
-    try {
-      setSaving(true);
-      await api.post(API_ENDPOINTS.REMINDER.COMPLETE(id), {
-        occurrence_date: occurrenceDate,
-      });
-      notifyNonBlocking('本次提醒已完成');
-      navigation.goBack(); // 操作后返回列表页
-    } catch (error) {
-      console.error('完成单个提醒实例失败:', error);
-      notifyNonBlocking(error?.message || '操作失败，请重试');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 完成整个系列
-  const completeSeries = async () => {
-    try {
-      setSaving(true);
-      const updatedReminder = {
-        ...reminder,
-        is_completed: true,
-        completed_at: new Date().toISOString(),
-      };
-      setReminder(updatedReminder);
-      await api.put(API_ENDPOINTS.REMINDER.DETAIL(id), { is_completed: true });
-      dispatch(updateReminder(updatedReminder));
-    } catch (error) {
-      console.error('完成提醒系列失败:', error);
-      notifyNonBlocking(error?.message || '操作失败，请重试');
-      setReminder(reminder); // 恢复状态
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 处理延期
-  const handleReschedule = () => {
-    if (reminder.frequency !== 'once') {
-      // 对于重复提醒，我们需要一个专用的日期选择器来获取新的延期时间
-      setShowReschedulePicker(true);
-    } else {
-      // 对于非重复提醒，直接复用现有的日期时间选择器来修改 due_date
-      showDateTimePicker();
-    }
-  };
-
-  // 延期单个实例
-  const rescheduleOccurrence = async (newDate) => {
-    try {
-      setSaving(true);
-      await api.post(API_ENDPOINTS.REMINDER.RESCHEDULE_OCCURRENCE(id), {
-        occurrence_date: reminder.due_date, // 当前实例的原始日期
-        new_due_date: newDate.toISOString(),
-      });
-      notifyNonBlocking('本次提醒已延期');
-      navigation.goBack();
-    } catch (error) {
-      console.error('延期单个提醒实例失败:', error);
-      notifyNonBlocking(error?.message || '操作失败，请重试');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 处理日期选择
-  const handleDateChange = (event, selectedDate) => {
-    try {
-      // 如果没有选择日期，直接返回
-      if (!selectedDate) {return;}
-
-      // 更新临时日期
-      setTempDate(selectedDate);
-
-      if (datePickerMode === 'date') {
-        // 如果是日期模式，保留原时间部分，只更新日期
-        // 在选择完日期后，显示时间选择器
-        // 使用更长的延迟时间，确保前一个选择器已完全关闭
-        setTimeout(() => {
-          try {
-            setDatePickerMode('time');
-            setShowDatePicker(true);
-          } catch (err) {
-            console.warn('打开时间选择器失败:', err);
-          }
-        }, 500);
-      } else {
-        // 如果是时间模式，合并日期和时间
-        const newDate = new Date(selectedDate);
-        setReminder({
-          ...reminder,
-          due_date: newDate.toISOString(),
-        });
-      }
-    } catch (error) {
-      console.error('处理日期选择错误:', error);
-      // 确保选择器关闭
-      setShowDatePicker(false);
-    }
-  };
-
-  // 显示日期选择器
-  const showDateTimePicker = () => {
-    setDatePickerMode('date');
-    setShowDatePicker(true);
-  };
-
-  // 获取优先级颜色
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = useCallback((priority) => {
     switch (priority) {
       case 'high':
         return theme.error;
@@ -313,120 +128,348 @@ const ReminderDetailScreen = ({ route, navigation }) => {
       default:
         return theme.primary;
     }
-  };
+  }, [theme.error, theme.primary, theme.success, theme.warning]);
 
-  // 获取优先级标签
-  const getPriorityLabel = (priority) => {
-    switch (priority) {
-      case 'high':
-        return '高';
-      case 'medium':
-        return '中';
-      case 'low':
-        return '低';
-      default:
-        return '中';
+  const fetchReminderDetail = useCallback(async () => {
+    try {
+      setLoading(true);
+      setInlineHint('');
+      const response = await reminderApi.getReminderById(id, {
+        suppressGlobalErrorUI: true,
+      });
+      setReminder(response.data);
+      setTempDate(new Date(response.data.due_date || response.data.dueDate || Date.now()));
+    } catch (error) {
+      console.log('获取提醒详情失败:', error);
+      if (routeReminder) {
+        setReminder(routeReminder);
+        setTempDate(new Date(routeReminder.due_date || routeReminder.dueDate || Date.now()));
+        notifyNonBlocking('当前使用列表快照展示详情，联网后可获取最新数据');
+        return;
+      }
+      notifyNonBlocking(getErrorMessage(error, '获取提醒详情失败，已返回上一页'));
+      navigation.goBack();
+    } finally {
+      setLoading(false);
+    }
+  }, [getErrorMessage, id, navigation, notifyNonBlocking, routeReminder]);
+
+  useEffect(() => {
+    fetchReminderDetail();
+  }, [fetchReminderDetail]);
+
+  const handleSave = async () => {
+    if (!reminder?.title?.trim()) {
+      notifyNonBlocking('请输入提醒标题');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await reminderApi.updateReminder(id, reminder, {
+        suppressGlobalErrorUI: true,
+      });
+      dispatch(updateReminderAction(response.data));
+      notifyNonBlocking('提醒已更新', 'success');
+      navigation.goBack();
+    } catch (error) {
+      console.log('更新提醒失败:', error);
+      notifyNonBlocking(getErrorMessage(error, '更新提醒失败，请稍后重试'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  // 获取分类标签
-  const getCategoryLabel = (category) => {
-    switch (category) {
-      case 'work':
-        return '工作';
-      case 'study':
-        return '学习';
-      case 'personal':
-        return '个人';
-      case 'health':
-        return '健康';
-      case 'finance':
-        return '财务';
-      case 'social':
-        return '社交';
-      default:
-        return '其他';
+  const confirmDelete = () => {
+    Alert.alert(
+      '确认删除',
+      '确定要删除这条提醒吗？此操作无法撤销。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              await reminderApi.deleteReminder(id, {
+                suppressGlobalErrorUI: true,
+              });
+              dispatch(deleteReminderAction(id));
+              notifyNonBlocking('提醒已删除', 'success');
+              navigation.goBack();
+            } catch (error) {
+              console.log('删除提醒失败:', error);
+              notifyNonBlocking(getErrorMessage(error, '删除提醒失败，请稍后重试'));
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDelete = () => {
+    if (!reminder) {
+      return;
+    }
+
+    if (reminder.frequency !== 'once') {
+      Alert.alert(
+        '删除重复提醒',
+        '当前阶段先收口整条提醒删除，单次实例删除待后续联网联调后继续完善。',
+        [
+          { text: '取消', style: 'cancel' },
+          { text: '删除整条', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+      return;
+    }
+
+    confirmDelete();
+  };
+
+  const handleToggleComplete = async () => {
+    if (!reminder) {
+      return;
+    }
+
+    if (reminder.is_completed) {
+      notifyNonBlocking('当前阶段暂不支持在详情页撤销完成状态');
+      return;
+    }
+
+    const previousReminder = reminder;
+    const updatedReminder = {
+      ...reminder,
+      is_completed: true,
+      completed_at: new Date().toISOString(),
+    };
+
+    try {
+      setSaving(true);
+      setReminder(updatedReminder);
+      const response = await reminderApi.updateReminder(
+        id,
+        { is_completed: true },
+        { suppressGlobalErrorUI: true }
+      );
+      dispatch(updateReminderAction({
+        ...updatedReminder,
+        ...response.data,
+      }));
+      notifyNonBlocking('提醒已标记完成', 'success');
+    } catch (error) {
+      console.log('标记提醒完成失败:', error);
+      setReminder(previousReminder);
+      notifyNonBlocking(getErrorMessage(error, '标记完成失败，请稍后重试'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  // 获取频率标签
-  const getFrequencyLabel = (frequency) => {
-    switch (frequency) {
-      case 'once':
-        return '一次';
-      case 'daily':
-        return '每天';
-      case 'weekly':
-        return '每周';
-      case 'monthly':
-        return '每月';
-      case 'yearly':
-        return '每年';
-      default:
-        return '一次';
+  const handleDateChange = (event, selectedDate) => {
+    if (!selectedDate || !reminder) {
+      setShowDatePicker(false);
+      return;
+    }
+
+    setTempDate(selectedDate);
+
+    if (datePickerMode === 'date') {
+      setTimeout(() => {
+        setDatePickerMode('time');
+        setShowDatePicker(true);
+      }, 350);
+      return;
+    }
+
+    setReminder({
+      ...reminder,
+      due_date: selectedDate.toISOString(),
+    });
+    setShowDatePicker(false);
+  };
+
+  const handleRescheduleConfirm = async (selectedDate) => {
+    if (!selectedDate || !reminder) {
+      return;
+    }
+
+    const nextDate = selectedDate.toISOString();
+
+    try {
+      setSaving(true);
+      const response = await reminderApi.updateReminder(
+        id,
+        { due_date: nextDate },
+        { suppressGlobalErrorUI: true }
+      );
+      const mergedReminder = {
+        ...reminder,
+        due_date: nextDate,
+        ...response.data,
+      };
+      setReminder(mergedReminder);
+      setTempDate(new Date(nextDate));
+      dispatch(updateReminderAction(mergedReminder));
+      notifyNonBlocking('提醒时间已更新', 'success');
+    } catch (error) {
+      console.log('改期提醒失败:', error);
+      notifyNonBlocking(getErrorMessage(error, '改期失败，请稍后重试'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  // 渲染加载中状态
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+        testID="screen.reminder.detail.loading"
+      >
         <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
 
-  // 渲染主界面
+  if (!reminder) {
+    return (
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+        testID="screen.reminder.detail.empty"
+      >
+        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>提醒详情暂不可用</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* 顶部导航栏（统一返回按钮样式） */}
-      <View style={[styles.headerBar, { borderBottomColor: theme.border, backgroundColor: theme.cardBackground }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.background }]}
+      testID="screen.reminder.detail"
+    >
+      <View
+        style={[
+          styles.headerBar,
+          {
+            borderBottomColor: theme.primary + '16',
+            backgroundColor: theme.cardBackground,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.primary + '15' }]}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          testID="action.reminder.detail.back"
         >
           <Icon name="arrow-back" size={22} color={theme.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>提醒详情</Text>
         <View style={styles.headerRight} />
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {inlineHint ? (
-          <View style={[styles.hintBanner, { backgroundColor: theme.warning + '22' }]}>
-            <Text style={[styles.hintText, { color: theme.warning }]}>{inlineHint}</Text>
+          <View
+            style={[
+              styles.hintBanner,
+              {
+                backgroundColor: hintTone === 'success' ? theme.success + '18' : theme.primary + '12',
+                borderColor: hintTone === 'success' ? theme.success + '40' : theme.primary + '2E',
+              },
+            ]}
+            testID="state.reminder.detailHint"
+          >
+            <Icon
+              name={hintTone === 'success' ? 'check-circle-outline' : 'info-outline'}
+              size={18}
+              color={hintTone === 'success' ? theme.success : theme.primary}
+              style={styles.hintIcon}
+            />
+            <Text
+              style={[
+                styles.hintText,
+                { color: hintTone === 'success' ? theme.success : theme.primary },
+              ]}
+            >
+              {inlineHint}
+            </Text>
           </View>
         ) : null}
-        {/* 标题和描述 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+
+        <View
+          style={[
+            styles.contextCard,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '18',
+            },
+          ]}
+        >
+          <View style={[styles.contextIconWrap, { backgroundColor: theme.primary + '14' }]}>
+            <Icon name="edit-calendar" size={18} color={theme.primary} />
+          </View>
+          <View style={styles.contextContent}>
+            <Text style={[styles.contextTitle, { color: theme.text }]}>编辑提醒</Text>
+            <Text style={[styles.contextDescription, { color: theme.textSecondary }]}>
+              当前阶段优先保证详情页真机可读、可改、可返回。联网后可继续验证完整保存与同步链路。
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>标题</Text>
           <TextInput
             style={[styles.titleInput, { color: theme.text, borderBottomColor: theme.border }]}
-            value={reminder.title}
+            value={reminder.title || ''}
             onChangeText={(text) => setReminder({ ...reminder, title: text })}
-            placeholder="提醒标题"
+            placeholder="请输入提醒标题"
             placeholderTextColor={theme.textDisabled}
+            testID="input.reminder.detail.title"
           />
 
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>描述</Text>
+          <Text style={[styles.sectionTitle, styles.spacedTitle, { color: theme.textSecondary }]}>描述</Text>
           <TextInput
             style={[styles.descriptionInput, { color: theme.text, borderColor: theme.border }]}
             value={reminder.description || ''}
             onChangeText={(text) => setReminder({ ...reminder, description: text })}
-            placeholder="添加描述（可选）"
+            placeholder="补充描述信息"
             placeholderTextColor={theme.textDisabled}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+            testID="input.reminder.detail.description"
           />
         </View>
 
-        {/* 日期和时间 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>日期和时间</Text>
           <TouchableOpacity
             style={styles.dateTimeButton}
-            onPress={showDateTimePicker}
+            onPress={() => {
+              setDatePickerMode('date');
+              setShowDatePicker(true);
+            }}
+            testID="action.reminder.detail.pickDateTime"
           >
             <Icon name="event" size={24} color={theme.primary} style={styles.dateTimeIcon} />
             <Text style={[styles.dateTimeText, { color: theme.text }]}>
@@ -435,118 +478,118 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 优先级 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>优先级</Text>
           <View style={styles.priorityContainer}>
-            {['low', 'medium', 'high'].map((priority) => (
-              <TouchableOpacity
-                key={priority}
-                style={[
-                  styles.priorityButton,
-                  {
-                    backgroundColor: reminder.priority === priority
-                      ? getPriorityColor(priority)
-                      : theme.background,
-                    borderColor: getPriorityColor(priority),
-                  },
-                ]}
-                onPress={() => setReminder({ ...reminder, priority })}
-              >
-                <Text
+            {PRIORITIES.map((priority) => {
+              const isActive = reminder.priority === priority;
+              const accent = getPriorityColor(priority);
+              return (
+                <TouchableOpacity
+                  key={priority}
                   style={[
-                    styles.priorityText,
+                    styles.priorityButton,
                     {
-                      color: reminder.priority === priority
-                        ? '#fff'
-                        : getPriorityColor(priority),
+                      backgroundColor: isActive ? accent : theme.background,
+                      borderColor: accent,
                     },
                   ]}
+                  onPress={() => setReminder({ ...reminder, priority })}
+                  testID={`chip.reminder.detail.priority.${priority}`}
                 >
-                  {getPriorityLabel(priority)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.priorityText, { color: isActive ? '#fff' : accent }]}>
+                    {getPriorityLabel(priority)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* 分类 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>分类</Text>
           <View style={styles.categoryContainer}>
-            {['work', 'study', 'personal', 'health', 'finance', 'social', 'other'].map((category) => (
-              <TouchableOpacity
-                key={category}
-                style={[
-                  styles.categoryButton,
-                  {
-                    backgroundColor: reminder.category === category
-                      ? theme.primary
-                      : theme.background,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                onPress={() => setReminder({ ...reminder, category })}
-              >
-                <Text
+            {CATEGORIES.map((category) => {
+              const isActive = reminder.category === category;
+              return (
+                <TouchableOpacity
+                  key={category}
                   style={[
-                    styles.categoryText,
+                    styles.categoryButton,
                     {
-                      color: reminder.category === category
-                        ? '#fff'
-                        : theme.primary,
+                      backgroundColor: isActive ? theme.primary : theme.background,
+                      borderColor: theme.primary,
                     },
                   ]}
+                  onPress={() => setReminder({ ...reminder, category })}
+                  testID={`chip.reminder.detail.category.${category}`}
                 >
-                  {getCategoryLabel(category)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.categoryText, { color: isActive ? '#fff' : theme.primary }]}>
+                    {getCategoryLabel(category)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* 重复 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>重复</Text>
           <View style={styles.frequencyContainer}>
-            {['once', 'daily', 'weekly', 'monthly', 'yearly'].map((frequency) => (
-              <TouchableOpacity
-                key={frequency}
-                style={[
-                  styles.frequencyButton,
-                  {
-                    backgroundColor: reminder.frequency === frequency
-                      ? theme.primary
-                      : theme.background,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                onPress={() => setReminder({ ...reminder, frequency })}
-              >
-                <Text
+            {FREQUENCIES.map((frequency) => {
+              const isActive = reminder.frequency === frequency;
+              return (
+                <TouchableOpacity
+                  key={frequency}
                   style={[
-                    styles.frequencyText,
+                    styles.frequencyButton,
                     {
-                      color: reminder.frequency === frequency
-                        ? '#fff'
-                        : theme.primary,
+                      backgroundColor: isActive ? theme.primary : theme.background,
+                      borderColor: theme.primary,
                     },
                   ]}
+                  onPress={() => setReminder({ ...reminder, frequency })}
+                  testID={`chip.reminder.detail.frequency.${frequency}`}
                 >
-                  {getFrequencyLabel(frequency)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.frequencyText, { color: isActive ? '#fff' : theme.primary }]}>
+                    {getFrequencyLabel(frequency)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          {reminder.frequency !== 'once' && (
+          {reminder.frequency !== 'once' ? (
             <View style={styles.repeatEndContainer}>
-              <Text style={[styles.repeatEndLabel, { color: theme.textSecondary }]}>
-                重复结束日期
-              </Text>
+              <Text style={[styles.repeatEndLabel, { color: theme.textSecondary }]}>重复结束日期</Text>
               <TouchableOpacity
                 style={styles.repeatEndButton}
                 onPress={() => setShowRepeatEndPicker(true)}
+                testID="action.reminder.detail.pickRepeatEnd"
               >
                 <Text style={[styles.repeatEndText, { color: theme.text }]}>
                   {reminder.repeat_end_date
@@ -556,51 +599,74 @@ const ReminderDetailScreen = ({ route, navigation }) => {
                 <Icon name="event" size={20} color={theme.primary} />
               </TouchableOpacity>
             </View>
-          )}
+          ) : null}
         </View>
 
-        {/* 标签 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>标签</Text>
           <TextInput
             style={[styles.tagsInput, { color: theme.text, borderBottomColor: theme.border }]}
             value={reminder.tags || ''}
             onChangeText={(text) => setReminder({ ...reminder, tags: text })}
-            placeholder="添加标签，用逗号分隔"
+            placeholder="多个标签请用逗号分隔"
             placeholderTextColor={theme.textDisabled}
+            testID="input.reminder.detail.tags"
           />
         </View>
 
-        {/* 开关选项 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <View style={styles.switchRow}>
             <Text style={[styles.switchLabel, { color: theme.text }]}>启用提醒</Text>
             <Switch
-              value={reminder.is_enabled}
+              value={Boolean(reminder.is_enabled)}
               onValueChange={(value) => setReminder({ ...reminder, is_enabled: value })}
               trackColor={{ false: theme.border, true: theme.primary + '80' }}
               thumbColor={reminder.is_enabled ? theme.primary : '#f4f3f4'}
+              testID="switch.reminder.detail.enabled"
             />
           </View>
 
           <View style={styles.switchRow}>
             <Text style={[styles.switchLabel, { color: theme.text }]}>已完成</Text>
             <Switch
-              value={reminder.is_completed}
+              value={Boolean(reminder.is_completed)}
               onValueChange={handleToggleComplete}
               trackColor={{ false: theme.border, true: theme.success + '80' }}
               thumbColor={reminder.is_completed ? theme.success : '#f4f3f4'}
               disabled={saving}
+              testID="switch.reminder.detail.completed"
             />
           </View>
         </View>
 
-        {/* 日历集成 */}
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground + 'F2',
+              borderColor: theme.primary + '14',
+            },
+          ]}
+        >
           <CalendarIntegrationView
             reminder={reminder}
             onSyncComplete={(calendarData) => {
-              // 更新提醒对象
               setReminder({
                 ...reminder,
                 calendar_event_id: calendarData.calendar_event_id,
@@ -609,133 +675,109 @@ const ReminderDetailScreen = ({ route, navigation }) => {
             }}
           />
         </View>
-
-        {/* 操作按钮 */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.deleteButton, { backgroundColor: theme.error }]}
-            onPress={handleDelete}
-            disabled={saving}
-          >
-            <Icon name="delete" size={20} color="#fff" />
-            <Text style={styles.buttonText}>删除</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.snoozeButton, { backgroundColor: theme.warning }]}
-            onPress={handleReschedule}
-            disabled={saving}
-          >
-            <Icon name="snooze" size={20} color="#fff" />
-            <Text style={styles.buttonText}>延期</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: theme.primary }]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Icon name="save" size={20} color="#fff" />
-                <Text style={styles.buttonText}>保存</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
-      {/* 安全日期选择器 */}
+      <View
+        style={[
+          styles.actionBar,
+          {
+            backgroundColor: theme.cardBackground + 'F5',
+            borderTopColor: theme.primary + '16',
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[styles.deleteButton, { backgroundColor: theme.error }]}
+          onPress={handleDelete}
+          disabled={saving}
+          testID="action.reminder.detail.delete"
+        >
+          <Icon name="delete" size={20} color="#fff" />
+          <Text style={styles.buttonText}>删除</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.snoozeButton, { backgroundColor: theme.warning }]}
+          onPress={() => setShowReschedulePicker(true)}
+          disabled={saving}
+          testID="action.reminder.detail.reschedule"
+        >
+          <Icon name="schedule" size={20} color="#fff" />
+          <Text style={styles.buttonText}>改期</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+          onPress={handleSave}
+          disabled={saving}
+          testID="action.reminder.detail.save"
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Icon name="save" size={20} color="#fff" />
+              <Text style={styles.buttonText}>保存</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <SafeDateTimePicker
         value={tempDate}
         mode={datePickerMode}
-        is24Hour={true}
+        is24Hour
         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
         onChange={handleDateChange}
         minimumDate={new Date()}
         visible={showDatePicker}
         onClose={() => setShowDatePicker(false)}
         onError={(error) => console.log('DateTimePicker error:', error)}
-        testID="dateTimePicker"
+        testID="picker.reminder.detail.dateTime"
       />
 
-      {/* 重复结束日期选择器（仅日期） */}
-      {reminder && (
-        <SafeDateTimePicker
-          value={reminder.repeat_end_date ? new Date(reminder.repeat_end_date) : new Date()}
-          mode="date"
-          is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) => {
-            try {
-              if (!selectedDate) {return;}
-              const endDate = new Date(selectedDate);
-              endDate.setHours(0, 0, 0, 0);
-              setReminder({ ...reminder, repeat_end_date: endDate.toISOString() });
-            } catch (e) {
-              console.error('处理重复结束日期选择错误:', e);
-            } finally {
-              setShowRepeatEndPicker(false);
-            }
-          }}
-          minimumDate={new Date(reminder.due_date)}
-          visible={showRepeatEndPicker}
-          onClose={() => setShowRepeatEndPicker(false)}
-          onError={(error) => console.log('RepeatEndPicker error:', error)}
-          testID="repeatEndPicker"
-        />
-      )}
-
-      {/* 重复结束日期选择器（仅日期） */}
       <SafeDateTimePicker
-        value={reminder?.repeat_end_date ? new Date(reminder.repeat_end_date) : new Date()}
+        value={reminder.repeat_end_date ? new Date(reminder.repeat_end_date) : new Date(reminder.due_date)}
         mode="date"
-        is24Hour={true}
+        is24Hour
         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
         onChange={(event, selectedDate) => {
-          try {
-            if (!selectedDate) {return;}
-            const endDate = new Date(selectedDate);
-            endDate.setHours(0, 0, 0, 0);
-            setReminder({
-              ...reminder,
-              repeat_end_date: endDate.toISOString(),
-            });
-          } catch (e) {
-            console.error('处理重复结束日期选择错误:', e);
-          } finally {
+          if (!selectedDate) {
             setShowRepeatEndPicker(false);
+            return;
           }
+          const endDate = new Date(selectedDate);
+          endDate.setHours(0, 0, 0, 0);
+          setReminder({
+            ...reminder,
+            repeat_end_date: endDate.toISOString(),
+          });
+          setShowRepeatEndPicker(false);
         }}
-        minimumDate={reminder?.due_date ? new Date(reminder.due_date) : new Date()}
+        minimumDate={new Date(reminder.due_date)}
         visible={showRepeatEndPicker}
         onClose={() => setShowRepeatEndPicker(false)}
         onError={(error) => console.log('RepeatEndPicker error:', error)}
-        testID="repeatEndPicker"
+        testID="picker.reminder.detail.repeatEnd"
       />
 
-      {/* 延期单个实例的日期时间选择器 */}
-      {reminder && (
-        <SafeDateTimePicker
-          value={new Date(reminder.due_date)} // 默认从当前实例时间开始
-          mode="datetime"
-          is24Hour={true}
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowReschedulePicker(false);
-            if (selectedDate) {
-              rescheduleOccurrence(selectedDate);
-            }
-          }}
-          minimumDate={new Date()}
-          visible={showReschedulePicker}
-          onClose={() => setShowReschedulePicker(false)}
-          onError={(error) => console.log('ReschedulePicker error:', error)}
-          testID="reschedulePicker"
-        />
-      )}
+      <SafeDateTimePicker
+        value={new Date(reminder.due_date)}
+        mode="datetime"
+        is24Hour
+        display="default"
+        onChange={(event, selectedDate) => {
+          setShowReschedulePicker(false);
+          if (selectedDate) {
+            handleRescheduleConfirm(selectedDate);
+          }
+        }}
+        minimumDate={new Date()}
+        visible={showReschedulePicker}
+        onClose={() => setShowReschedulePicker(false)}
+        onError={(error) => console.log('ReschedulePicker error:', error)}
+        testID="picker.reminder.detail.reschedule"
+      />
     </View>
   );
 };
@@ -743,6 +785,14 @@ const ReminderDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
   },
   headerBar: {
     flexDirection: 'row',
@@ -772,43 +822,84 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 128,
   },
   hintBanner: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hintIcon: {
+    marginRight: 10,
   },
   hintText: {
     fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+  },
+  contextCard: {
+    borderRadius: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  contextIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  contextContent: {
+    flex: 1,
+  },
+  contextTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  contextDescription: {
+    fontSize: 13,
+    lineHeight: 20,
   },
   section: {
-    borderRadius: 8,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
   },
   sectionTitle: {
     fontSize: 14,
     marginBottom: 8,
   },
+  spacedTitle: {
+    marginTop: 16,
+  },
   titleInput: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     paddingVertical: 8,
     borderBottomWidth: 1,
   },
   descriptionInput: {
     fontSize: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     minHeight: 100,
   },
   dateTimeButton: {
@@ -821,6 +912,8 @@ const styles = StyleSheet.create({
   },
   dateTimeText: {
     fontSize: 16,
+    flex: 1,
+    lineHeight: 24,
   },
   priorityContainer: {
     flexDirection: 'row',
@@ -830,13 +923,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     marginHorizontal: 4,
     alignItems: 'center',
   },
   priorityText: {
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   categoryContainer: {
     flexDirection: 'row',
@@ -898,10 +991,17 @@ const styles = StyleSheet.create({
   switchLabel: {
     fontSize: 16,
   },
-  actionButtons: {
+  actionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 18,
+    borderTopWidth: 1,
   },
   deleteButton: {
     flexDirection: 'row',
@@ -909,7 +1009,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 14,
     flex: 1,
     marginRight: 4,
   },
@@ -919,7 +1019,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 14,
     flex: 1,
     marginHorizontal: 4,
   },
@@ -929,13 +1029,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 14,
     flex: 1,
     marginLeft: 4,
   },
   buttonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 8,
   },
 });

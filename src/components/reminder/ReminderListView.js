@@ -659,7 +659,7 @@ const ReminderListView = ({ navigation, route }) => {
           },
         ]}
         testID={`item.reminder.${item.id}`}
-        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id })}
+        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id, reminder: item })}
         onLongPress={() => {
           if (!showBatchActions) {
             setShowBatchActions(true);

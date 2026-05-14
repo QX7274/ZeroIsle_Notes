@@ -293,6 +293,7 @@ apiClient.interceptors.response.use(
       networkErrorService.handleApiError(error, {
         context: 'API请求',
         customMessage: '网络连接失败，请检查网络设置后重试',
+        suppressGlobalUI: suppressGlobalErrorUI,
       });
 
       // 直接使用与离线错误相同的处理逻辑
@@ -383,6 +384,7 @@ apiClient.interceptors.response.use(
       networkErrorService.handleApiError(error, {
         context: 'API请求',
         customMessage: '请求超时，请稍后重试',
+        suppressGlobalUI: suppressGlobalErrorUI,
       });
     } else if (error.response) {
       const { status, data } = error.response;
@@ -439,6 +441,7 @@ apiClient.interceptors.response.use(
           networkErrorService.handleApiError(error, {
             context: '访问被拒绝',
             customMessage: ERROR_MESSAGES.FORBIDDEN,
+            suppressGlobalUI: suppressGlobalErrorUI,
           });
           break;
         case 404:
@@ -460,11 +463,13 @@ apiClient.interceptors.response.use(
               networkErrorService.handleApiError(error, {
                 context: '服务器错误',
                 customMessage: '请检查您的网络连接后重试',
+                suppressGlobalUI: suppressGlobalErrorUI,
               });
             } else {
               networkErrorService.handleApiError(error, {
                 context: '服务器错误',
                 customMessage: ERROR_MESSAGES.SERVER_ERROR,
+                suppressGlobalUI: suppressGlobalErrorUI,
               });
             }
           });
@@ -486,6 +491,7 @@ apiClient.interceptors.response.use(
           networkErrorService.handleApiError(error, {
             context: '请求失败',
             customMessage: errorMsg,
+            suppressGlobalUI: suppressGlobalErrorUI,
           });
           break;
       }
@@ -494,6 +500,7 @@ apiClient.interceptors.response.use(
       networkErrorService.handleApiError(error, {
         context: '网络错误',
         customMessage: ERROR_MESSAGES.NETWORK_ERROR,
+        suppressGlobalUI: suppressGlobalErrorUI,
       });
     } else {
       // 请求配置出错
@@ -501,6 +508,7 @@ apiClient.interceptors.response.use(
       networkErrorService.handleApiError(error, {
         context: '请求配置错误',
         customMessage: error.message || '发送请求时出现错误',
+        suppressGlobalUI: suppressGlobalErrorUI,
       });
     }
     return Promise.reject(error);

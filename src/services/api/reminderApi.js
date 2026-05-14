@@ -31,9 +31,13 @@ export const getAllReminders = async (params = {}, requestOptions = {}) => {
  * @param {string} id - 提醒ID
  * @returns {Promise} - 提醒详情
  */
-export const getReminderById = async (id) => {
+export const getReminderById = async (id, requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.REMINDER.DETAIL(id));
+    const response = await instance.get(API_ENDPOINTS.REMINDER.DETAIL(id), {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
@@ -70,9 +74,13 @@ export const createReminder = async (reminderData, requestOptions = {}) => {
  * @param {object} reminderData - 提醒数据
  * @returns {Promise} - 更新结果
  */
-export const updateReminder = async (id, reminderData) => {
+export const updateReminder = async (id, reminderData, requestOptions = {}) => {
   try {
-    const response = await instance.put(API_ENDPOINTS.REMINDER.DETAIL(id), reminderData);
+    const response = await instance.put(API_ENDPOINTS.REMINDER.DETAIL(id), reminderData, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
@@ -87,9 +95,13 @@ export const updateReminder = async (id, reminderData) => {
  * @param {string} id - 提醒ID
  * @returns {Promise} - 删除结果
  */
-export const deleteReminder = async (id) => {
+export const deleteReminder = async (id, requestOptions = {}) => {
   try {
-    await instance.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
+    await instance.delete(API_ENDPOINTS.REMINDER.DETAIL(id), {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
     };

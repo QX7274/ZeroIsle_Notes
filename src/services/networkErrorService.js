@@ -168,7 +168,7 @@ class NetworkErrorService {
     });
 
     if (this.isNetworkError(error)) {
-      const suppressGlobalUI = options.suppressGlobalUI || error?.config?.metadata?.suppressGlobalErrorUI;
+      const suppressGlobalUI = options.suppressGlobalUI ?? error?.config?.metadata?.suppressGlobalErrorUI ?? false;
       if (suppressGlobalUI) {
         console.warn('NetworkErrorService: 已按请求级配置静默全局网络提示', {
           context: options.context || 'API调用',

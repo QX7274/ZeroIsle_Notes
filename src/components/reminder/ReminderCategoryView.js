@@ -159,7 +159,7 @@ const ReminderCategoryView = ({ navigation }) => {
           borderLeftColor: item.color || theme.primary,
         },
       ]}
-      onPress={() => navigation.navigate('ReminderDetail', { id: item.id })}
+      onPress={() => navigation.navigate('ReminderDetail', { id: item.id, reminder: item })}
     >
       <View style={styles.reminderContent}>
         <Text
