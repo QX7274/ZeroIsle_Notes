@@ -64,6 +64,11 @@ const AddReminderScreen = ({ route, navigation }) => {
     }
   };
 
+  const createOptimisticLocalReminder = useCallback(() => ({
+    ...reminderNotificationService.buildOfflineReminderPayload(reminder),
+    createdAt: new Date().toISOString(),
+  }), [reminder]);
+
   // 创建提醒
   const saveReminderLocally = useCallback(async () => {
     setSaving(true);
@@ -88,6 +93,13 @@ const AddReminderScreen = ({ route, navigation }) => {
     }
     navigation.goBack();
   }, [dispatch, navigation, reminder]);
+
+  const fallbackToOptimisticLocalReminder = useCallback((message) => {
+    const optimisticReminder = createOptimisticLocalReminder();
+    dispatch(addLocalReminder(optimisticReminder));
+    notifyNonBlocking(message, 'warning');
+    navigation.goBack();
+  }, [createOptimisticLocalReminder, dispatch, navigation]);
 
   if (!theme || !theme.colors) {
     return (
@@ -156,6 +168,33 @@ const AddReminderScreen = ({ route, navigation }) => {
       notifyNonBlocking(error?.message || '创建提醒失败，请稍后重试', 'warning');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateWithFallback = async () => {
+    if (!reminder.title.trim()) {
+      notifyNonBlocking('请输入提醒标题');
+      return;
+    }
+
+    try {
+      const isConnected = await isNetworkConnected();
+      if (!isConnected) {
+        try {
+          await saveReminderLocally();
+        } catch (offlineError) {
+          console.error('离线创建提醒的最终兜底失败:', offlineError);
+          fallbackToOptimisticLocalReminder('已先在当前设备显示本地提醒，但本地存储未完全成功');
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+
+      await handleCreate();
+    } catch (error) {
+      console.error('创建提醒最终兜底失败:', error);
+      fallbackToOptimisticLocalReminder('已先在当前设备显示本地提醒，但本地存储未完全成功');
     }
   };
   // 处理日期选择
@@ -631,7 +670,7 @@ const AddReminderScreen = ({ route, navigation }) => {
 
           <TouchableOpacity
             style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleCreate}
+            onPress={handleCreateWithFallback}
             disabled={saving}
             testID="action.reminder.create"
           >
