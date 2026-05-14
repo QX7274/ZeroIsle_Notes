@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import reminderApi from '../../services/api/reminderApi';
+import { isNetworkConnected } from '../../services/network/networkService';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
 const AddReminderScreen = ({ route, navigation }) => {
@@ -73,6 +74,12 @@ const AddReminderScreen = ({ route, navigation }) => {
     // 验证表单
     if (!reminder.title.trim()) {
       notifyNonBlocking('请输入提醒标题');
+      return;
+    }
+
+    const isConnected = await isNetworkConnected();
+    if (!isConnected) {
+      notifyNonBlocking('当前网络不可用，暂不支持离线创建提醒，请联网后重试');
       return;
     }
 
