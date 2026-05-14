@@ -83,6 +83,9 @@ describe('reminderSlice offline projection', () => {
     expect(nextState.reminders).toHaveLength(2);
     expect(nextState.reminders.find(item => item.id === 'local-1')).toBeTruthy();
     expect(nextState.reminders.find(item => item.id === 'server-1')).toBeTruthy();
+    expect(nextState.offlineReminders).toEqual([
+      { id: 'local-1', title: 'local-draft', isLocal: true },
+    ]);
   });
 
   it('should update unsyncedCount from sync fulfilled remaining payload', () => {

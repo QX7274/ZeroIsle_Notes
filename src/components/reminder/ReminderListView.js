@@ -1324,6 +1324,12 @@ const ReminderListView = ({ navigation, route }) => {
         <View style={styles.syncStatusContent}>
           <View style={styles.syncStatusHeader}>
             <Text style={[styles.syncStatusTitle, { color: getThemeColor('text', '#0F172A') }]}>
+              <Icon
+                name={syncing ? 'sync' : hasUnsyncedChanges ? 'pending-actions' : isOfflineView ? 'cloud-off' : 'check-circle'}
+                size={14}
+                color={statusTone}
+              />
+              {' '}
               {statusTitle}
             </Text>
             <View
@@ -1449,15 +1455,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 15,
     flexDirection: 'row',
     alignItems: 'stretch',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
     elevation: 4,
   },
   syncStatusAccent: {
@@ -1479,6 +1485,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     marginRight: 12,
+    lineHeight: 20,
   },
   syncStatusDescription: {
     fontSize: 13,
