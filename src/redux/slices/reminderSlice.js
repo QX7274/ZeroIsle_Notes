@@ -47,7 +47,15 @@ export const syncReminders = createAsyncThunk(
         remaining: remainingOperations.length,
       };
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: '同步提醒事项失败' });
+      try {
+        const remainingOperations = await reminderNotificationService.getOfflineOperations();
+        return rejectWithValue({
+          ...(error.response?.data || { message: '同步提醒事项失败' }),
+          remaining: remainingOperations.length,
+        });
+      } catch {
+        return rejectWithValue(error.response?.data || { message: '同步提醒事项失败' });
+      }
     }
   }
 );
@@ -281,6 +289,9 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.rejected, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.error = action.payload || { message: '同步提醒事项失败' };
+        if (typeof action.payload?.remaining === 'number') {
+          state.syncStatus.unsyncedCount = action.payload.remaining;
+        }
       })
       .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
         state.syncStatus.unsyncedCount = action.payload ?? 0;

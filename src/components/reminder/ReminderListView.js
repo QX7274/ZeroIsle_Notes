@@ -91,6 +91,7 @@ const ReminderListView = ({ navigation, route }) => {
   const loadRemindersData = useCallback(async () => {
     try {
       setLoading(true);
+      await dispatch(refreshUnsyncedCount());
 
       const localReminders = await reminderNotificationService.getPreferredLocalReminders();
 
@@ -346,8 +347,9 @@ const ReminderListView = ({ navigation, route }) => {
 
   useFocusEffect(
     useCallback(() => {
+      dispatch(refreshUnsyncedCount());
       loadRemindersData();
-    }, [loadRemindersData])
+    }, [dispatch, loadRemindersData])
   );
 
   // 当提醒列表变化时，更新分组
@@ -1288,7 +1290,7 @@ const ReminderListView = ({ navigation, route }) => {
     const statusTitle = syncing
       ? '同步处理中'
       : hasUnsyncedChanges
-        ? `待同步 ${unsyncedCount} 项`
+        ? `待同步操作 ${unsyncedCount} 条`
         : isOfflineView
           ? '离线本地视图'
           : '同步状态正常';
@@ -1297,7 +1299,7 @@ const ReminderListView = ({ navigation, route }) => {
       syncing
         ? '正在对齐本地提醒与离线队列，请稍候。'
         : hasUnsyncedChanges
-          ? '当前页面已显示本地提醒，联网后会继续自动同步。'
+          ? '当前页面已显示本地提醒，联网后会继续自动同步离线操作。'
           : isOfflineView
             ? '当前已优先展示本地提醒，恢复联网后可继续校验同步结果。'
             : '当前提醒列表与同步状态没有新的阻塞提示。'
