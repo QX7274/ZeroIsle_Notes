@@ -21,6 +21,26 @@ const STORAGE_KEYS = {
   LAST_SYNC_TIME: 'last_sync_time',
 };
 
+const normalizeReminderCollection = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.results)) {
+    return payload.results;
+  }
+
+  if (Array.isArray(payload?.data?.results)) {
+    return payload.data.results;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+};
+
 // 通知渠道ID
 const REMINDER_CHANNEL_ID = 'reminder-notifications';
 
@@ -497,6 +517,7 @@ class ReminderNotificationService {
         console.log(`${failedOperations.length}个操作同步失败，将在下次尝试`);
       } else {
         await reminderMongoDBService.removeItem(STORAGE_KEYS.OFFLINE_OPERATIONS);
+        await reminderMongoDBService.removeItem(STORAGE_KEYS.OFFLINE_REMINDERS);
         console.log('所有离线操作同步成功');
       }
 
@@ -628,11 +649,12 @@ class ReminderNotificationService {
    */
   async saveAllReminders(reminders) {
     try {
-      await reminderMongoDBService.setItem(STORAGE_KEYS.ALL_REMINDERS, reminders);
+      const normalizedReminders = normalizeReminderCollection(reminders);
+      await reminderMongoDBService.setItem(STORAGE_KEYS.ALL_REMINDERS, normalizedReminders);
       await reminderMongoDBService.setItem(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
 
       analyticsService.trackEvent('save_all_reminders', {
-        count: reminders.length,
+        count: normalizedReminders.length,
       });
 
       return true;
@@ -649,12 +671,23 @@ class ReminderNotificationService {
    */
   async getAllReminders() {
     try {
-      return await reminderMongoDBService.getItem(STORAGE_KEYS.ALL_REMINDERS) || [];
+      return normalizeReminderCollection(
+        await reminderMongoDBService.getItem(STORAGE_KEYS.ALL_REMINDERS)
+      );
     } catch (error) {
       console.error('获取所有提醒失败:', error);
       analyticsService.trackError(error, { action: 'get_all_reminders' });
       throw error;
     }
+  }
+
+  async getPreferredLocalReminders() {
+    const allReminders = await this.getAllReminders();
+    if (allReminders.length > 0) {
+      return allReminders;
+    }
+
+    return await this.getOfflineReminders();
   }
 
   /**
@@ -792,11 +825,11 @@ class ReminderNotificationService {
         // 从服务器获取提醒
         const response = await reminderApi.getAllReminders();
         if (response.success) {
-          reminders = response.data;
+          reminders = normalizeReminderCollection(response.data);
         }
       } else {
         // 使用离线提醒
-        reminders = await this.getOfflineReminders();
+        reminders = await this.getPreferredLocalReminders();
       }
 
       // 过滤已完成的提醒

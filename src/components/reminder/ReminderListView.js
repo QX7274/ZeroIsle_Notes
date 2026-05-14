@@ -91,7 +91,7 @@ const ReminderListView = ({ navigation, route }) => {
     try {
       setLoading(true);
 
-      const localReminders = await reminderNotificationService.getOfflineReminders();
+      const localReminders = await reminderNotificationService.getPreferredLocalReminders();
 
       if (isOnline) {
         try {
