@@ -26,6 +26,7 @@ import { loadReminders, updateReminder, deleteReminder, syncReminders } from '..
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
+import * as reminderApi from '../../services/api/reminderApi';
 import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -35,16 +36,7 @@ const ReminderListView = ({ navigation, route }) => {
   const { theme } = useTheme();
   const dispatch = useDispatch();
   const reminders = useSelector(state => state.reminders.reminders);
-
-  // 安全检查navigation对象
-  if (!navigation) {
-    console.error('ReminderListView: navigation对象未定义');
-    return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>导航错误，请重新进入页面</Text>
-      </SafeAreaView>
-    );
-  }
+  const hasNavigation = Boolean(navigation);
 
   // 安全获取主题颜色的辅助函数
   const getThemeColor = (colorKey, defaultValue) => {
@@ -65,6 +57,7 @@ const ReminderListView = ({ navigation, route }) => {
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
+  const [listState, setListState] = useState('idle');
 
   const notifyNonBlocking = useCallback((message) => {
     if (!message) {
@@ -83,77 +76,26 @@ const ReminderListView = ({ navigation, route }) => {
     tags: [],
   });
 
-  // 初始化
-  useEffect(() => {
-    // 检查网络状态
-    const unsubscribe = networkService.addNetworkListener(state => {
-      const online = Boolean(state?.isOnline);
-      setIsOnline(online);
-
-      // 如果网络连接恢复，尝试同步离线数据
-      if (online && offlineReminders.length > 0) {
-        syncOfflineReminders();
-      }
-    });
-
-    // 加载提醒数据
-    loadRemindersData();
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  // 当提醒列表变化时，更新分组
-  useEffect(() => {
-    organizeReminders();
-  }, [reminders, filter, advancedFilters]);
-
-  // 同步动画
-  useEffect(() => {
-    if (syncing) {
-      setShowSyncIndicator(true);
-      Animated.loop(
-        Animated.timing(syncRotation, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ).start();
-    } else {
-      // 延迟隐藏同步指示器，以便用户可以看到同步完成
-      setTimeout(() => {
-        setShowSyncIndicator(false);
-      }, 1000);
-      syncRotation.setValue(0);
-    }
-  }, [syncing]);
-
   // 加载提醒数据
-  const loadRemindersData = async () => {
+  const loadRemindersData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 首先加载本地存储的提醒，确保离线时也能显示数据
       const localReminders = await reminderNotificationService.getOfflineReminders();
 
-      // 如果有网络连接，从服务器获取最新数据
       if (isOnline) {
         try {
           setSyncing(true);
+          setListState('loading');
+          const response = await reminderApi.getAllReminders({}, {
+            suppressGlobalErrorUI: true,
+          });
 
-          // 从API获取提醒
-          const response = await api.get(API_ENDPOINTS.REMINDER.BASE);
-
-          if (response.data && response.data.results) {
-            // 更新Redux状态
+          if (response.success && response.data?.results) {
             dispatch(loadReminders(response.data.results));
-
-            // 更新本地存储
             await reminderNotificationService.saveAllReminders(response.data.results);
-
-            // 显示成功消息
+            setInlineHint('');
+            setListState(response.data.results.length > 0 ? 'ready' : 'empty');
             if (Platform.OS === 'android') {
               ToastAndroid.show('提醒数据已更新', ToastAndroid.SHORT);
             }
@@ -161,74 +103,51 @@ const ReminderListView = ({ navigation, route }) => {
         } catch (error) {
           const logMethod = error?.isNetworkError && __DEV__ ? console.log : console.error;
           logMethod('从服务器加载提醒数据失败:', error);
-
-          // 网络失败时不再弹全局阻断提示，直接静默回退本地数据
-
-          // 服务器请求失败，使用本地数据
           dispatch(loadReminders(localReminders));
-
-          // 显示错误消息
-          if (Platform.OS === 'android') {
-            if (error.isNetworkError) {
-              ToastAndroid.show('网络连接失败，使用本地数据', ToastAndroid.SHORT);
-            } else if (error.isTimeoutError) {
-              ToastAndroid.show('服务器响应超时，使用本地数据', ToastAndroid.SHORT);
-            } else {
-              ToastAndroid.show('无法连接到服务器，使用本地数据', ToastAndroid.SHORT);
-            }
-          }
+          setListState(localReminders.length > 0 ? 'offline' : 'offline-empty');
+          notifyNonBlocking(
+            error?.isNetworkError
+              ? '网络不可用，已切换为本地提醒视图'
+              : '服务器暂不可用，已显示本地提醒'
+          );
         } finally {
           setSyncing(false);
         }
       } else {
-        // 离线模式，使用本地数据
         dispatch(loadReminders(localReminders));
-
-        // 显示离线消息
-        if (Platform.OS === 'android') {
-          ToastAndroid.show('当前处于离线模式', ToastAndroid.SHORT);
-        }
+        setListState(localReminders.length > 0 ? 'offline' : 'offline-empty');
+        notifyNonBlocking('当前处于离线模式，已显示本地提醒');
       }
     } catch (error) {
       const logMethod = error?.isNetworkError && __DEV__ ? console.log : console.error;
       logMethod('加载提醒数据失败:', error);
-
-      // 最后兜底：避免阻断弹窗，优先保证页面可继续操作
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('加载失败，已尝试使用本地数据', ToastAndroid.SHORT);
-      }
+      setListState('error');
+      notifyNonBlocking('加载提醒失败，已尽量回退到本地数据');
     } finally {
       setLoading(false);
     }
-  };
+  }, [dispatch, isOnline, notifyNonBlocking]);
 
   // 同步离线提醒
-  const syncOfflineReminders = async () => {
+  const syncOfflineReminders = useCallback(async () => {
     try {
-      // 如果没有网络连接或没有离线提醒，直接返回
       if (!isOnline || offlineReminders.length === 0) {
         return;
       }
 
       setSyncing(true);
-
-      // 调用Redux action同步离线提醒
       await dispatch(syncReminders());
-
-      // 显示成功消息
       notifyNonBlocking(`已同步${offlineReminders.length}个离线提醒`);
     } catch (error) {
       console.error('同步离线提醒失败:', error);
-
-      // 显示错误消息（非阻断）
       notifyNonBlocking('无法同步离线提醒，请稍后重试');
     } finally {
       setSyncing(false);
     }
-  };
+  }, [dispatch, isOnline, notifyNonBlocking, offlineReminders.length]);
 
   // 将提醒按类别组织
-  const organizeReminders = () => {
+  const organizeReminders = useCallback(() => {
     if (!reminders || reminders.length === 0) {
       setReminderSections([]);
       return;
@@ -387,7 +306,49 @@ const ReminderListView = ({ navigation, route }) => {
     }
 
     setReminderSections(sections);
-  };
+  }, [advancedFilters, filter, reminders]);
+
+  // 初始化
+  useEffect(() => {
+    const unsubscribe = networkService.addNetworkListener(state => {
+      const online = Boolean(state?.isOnline);
+      setIsOnline(online);
+      if (online && offlineReminders.length > 0) {
+        syncOfflineReminders();
+      }
+    });
+
+    loadRemindersData();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [loadRemindersData, offlineReminders.length, syncOfflineReminders]);
+
+  // 当提醒列表变化时，更新分组
+  useEffect(() => {
+    organizeReminders();
+  }, [organizeReminders]);
+
+  // 同步动画
+  useEffect(() => {
+    if (syncing) {
+      setShowSyncIndicator(true);
+      Animated.loop(
+        Animated.timing(syncRotation, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      setTimeout(() => {
+        setShowSyncIndicator(false);
+      }, 1000);
+      syncRotation.setValue(0);
+    }
+  }, [syncRotation, syncing]);
 
   // 切换提醒完成状态
   const handleToggleComplete = async (reminder) => {
@@ -501,7 +462,7 @@ const ReminderListView = ({ navigation, route }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [isOnline, offlineReminders]);
+  }, [isOnline, loadRemindersData, offlineReminders, syncOfflineReminders]);
 
   // 切换提醒选择状态
   const handleToggleSelect = (reminder) => {
@@ -1028,10 +989,12 @@ const ReminderListView = ({ navigation, route }) => {
     <View style={styles.emptyContainer} testID="state.reminder.empty">
       <Icon name="event-note" size={64} color={getThemeColor('primary', '#2196F3')} />
       <Text style={[styles.emptyText, { color: getThemeColor('textSecondary', '#666666') }]}>
-        暂无提醒
+        {listState === 'offline-empty' ? '离线模式下暂无本地提醒' : '暂无提醒'}
       </Text>
       <Text style={[styles.emptySubText, { color: getThemeColor('textSecondary', '#666666') }]}>
-        点击右下角的加号按钮添加新提醒
+        {listState === 'offline' || listState === 'offline-empty'
+          ? '网络恢复后会自动刷新，你也可以先在本地继续添加和管理提醒'
+          : '点击右下角的加号按钮添加新提醒'}
       </Text>
     </View>
   );
@@ -1223,6 +1186,15 @@ const ReminderListView = ({ navigation, route }) => {
       </View>
     );
   };
+
+  if (!hasNavigation) {
+    console.error('ReminderListView: navigation对象未定义');
+    return (
+      <SafeAreaView style={styles.navigationErrorContainer}>
+        <Text style={styles.navigationErrorText}>导航错误，请重新进入页面</Text>
+      </SafeAreaView>
+    );
+  }
 
   // 主渲染
   return (

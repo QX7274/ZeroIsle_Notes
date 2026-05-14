@@ -9,9 +9,14 @@ import { API_ENDPOINTS } from '../../config/api';
  * @param {object} params - 查询参数
  * @returns {Promise} - 提醒列表
  */
-export const getAllReminders = async (params = {}) => {
+export const getAllReminders = async (params = {}, requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.REMINDER.BASE, { params });
+    const response = await instance.get(API_ENDPOINTS.REMINDER.BASE, {
+      params,
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
