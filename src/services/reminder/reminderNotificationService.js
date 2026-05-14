@@ -548,15 +548,17 @@ class ReminderNotificationService {
       // 获取现有的离线提醒
       const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS) || [];
       const offlineReminder = this.buildOfflineReminderPayload(reminder);
-
-      // 添加新的离线提醒
-      offlineReminders.push({
+      const nextOfflineReminder = {
         ...offlineReminder,
-        createdAt: new Date().toISOString(),
-      });
+        createdAt: offlineReminder.createdAt || new Date().toISOString(),
+      };
+      const updatedOfflineReminders = offlineReminders.filter(item => item.id !== nextOfflineReminder.id);
+
+      // 添加或覆盖同 id 的本地提醒，避免通知调度失败后重复重试时不断插入新副本
+      updatedOfflineReminders.push(nextOfflineReminder);
 
       // 保存更新后的离线提醒
-      await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, offlineReminders);
+      await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, updatedOfflineReminders);
 
       // 保存离线操作记录
       await this.saveOfflineOperation('create', offlineReminder);
@@ -565,7 +567,7 @@ class ReminderNotificationService {
         title: offlineReminder.title,
       });
 
-      return offlineReminder;
+      return nextOfflineReminder;
     } catch (error) {
       console.error('保存离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'save_offline_reminder' });

@@ -70,13 +70,22 @@ const AddReminderScreen = ({ route, navigation }) => {
     setInlineHint('');
 
     const offlineReminder = await reminderNotificationService.saveOfflineReminder(reminder);
-    const notificationId = await reminderNotificationService.scheduleReminderNotification(offlineReminder);
-    const localReminder = notificationId
-      ? { ...offlineReminder, notificationId }
-      : offlineReminder;
+    let localReminder = offlineReminder;
+
+    try {
+      const notificationId = await reminderNotificationService.scheduleReminderNotification(offlineReminder);
+      if (notificationId) {
+        localReminder = { ...offlineReminder, notificationId };
+      }
+    } catch (notificationError) {
+      console.warn('本地提醒已保存，但本地通知调度失败:', notificationError);
+      notifyNonBlocking('已保存本地提醒，但通知调度失败', 'warning');
+    }
 
     dispatch(addLocalReminder(localReminder));
-    notifyNonBlocking('已保存为本地提醒，联网后会自动同步', 'success');
+    if (localReminder === offlineReminder) {
+      notifyNonBlocking('已保存为本地提醒，联网后会自动同步', 'success');
+    }
     navigation.goBack();
   }, [dispatch, navigation, reminder]);
 

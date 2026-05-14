@@ -129,17 +129,9 @@ const reminderSlice = createSlice({
       };
       state.reminders = state.reminders.filter(reminder => reminder.id !== newReminder.id);
       state.reminders.push(newReminder);
-
-      // 娣诲姞鍒扮绾挎彁閱掑垪琛?
-      state.offlineReminders.push({
-        id: newReminder.id,
-        operation: 'create',
-        data: newReminder,
-        timestamp: Date.now(),
-      });
-
-      // 鏇存柊鏈悓姝ヨ鏁?
-      state.syncStatus.unsyncedCount = state.offlineReminders.length;
+      state.offlineReminders = state.offlineReminders.filter(reminder => reminder.id !== newReminder.id);
+      state.offlineReminders.push(newReminder);
+      state.syncStatus.unsyncedCount += 1;
     },
 
     // 鏇存柊鏈湴鎻愰啋浜嬮」锛堢绾挎ā寮忥級
@@ -148,17 +140,11 @@ const reminderSlice = createSlice({
       const index = state.reminders.findIndex(reminder => reminder.id === id);
       if (index !== -1) {
         state.reminders[index] = { ...state.reminders[index], ...reminderData };
-
-        // 娣诲姞鍒扮绾挎彁閱掑垪琛?
-        state.offlineReminders.push({
-          id: `update-${id}-${Date.now()}`,
-          operation: 'update',
-          data: { ...state.reminders[index] },
-          timestamp: Date.now(),
-        });
-
-        // 鏇存柊鏈悓姝ヨ鏁?
-        state.syncStatus.unsyncedCount = state.offlineReminders.length;
+        const updatedReminder = { ...state.reminders[index], isLocal: true };
+        state.reminders[index] = updatedReminder;
+        state.offlineReminders = state.offlineReminders.filter(reminder => reminder.id !== id);
+        state.offlineReminders.push(updatedReminder);
+        state.syncStatus.unsyncedCount += 1;
       }
     },
 
@@ -170,17 +156,8 @@ const reminderSlice = createSlice({
       if (reminder) {
         // 浠庡垪琛ㄤ腑绉婚櫎
         state.reminders = state.reminders.filter(r => r.id !== id);
-
-        // 娣诲姞鍒扮绾挎彁閱掑垪琛?
-        state.offlineReminders.push({
-          id: `delete-${id}-${Date.now()}`,
-          operation: 'delete',
-          data: { id },
-          timestamp: Date.now(),
-        });
-
-        // 鏇存柊鏈悓姝ヨ鏁?
-        state.syncStatus.unsyncedCount = state.offlineReminders.length;
+        state.offlineReminders = state.offlineReminders.filter(r => r.id !== id);
+        state.syncStatus.unsyncedCount += 1;
       }
     },
 
@@ -286,7 +263,7 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.fulfilled, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.lastSynced = new Date().toISOString();
-        state.syncStatus.unsyncedCount = action.payload.remaining ?? state.offlineReminders.length;
+        state.syncStatus.unsyncedCount = action.payload.remaining ?? 0;
 
         if (action.payload.remaining === 0) {
           state.offlineReminders = [];
