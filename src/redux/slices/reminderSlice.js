@@ -3,16 +3,16 @@ import api from '../../services/api';
 import { showMessage } from '../../utils/messageUtils';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
-// 异步操作：加载提醒事项
+// 寮傛鎿嶄綔锛氬姞杞芥彁閱掍簨椤?
 export const loadReminders = createAsyncThunk(
   'reminders/loadReminders',
   async (data, { rejectWithValue }) => {
     try {
       if (Array.isArray(data)) {
-        // 直接使用传入的数据（用于离线模式）
+        // 鐩存帴浣跨敤浼犲叆鐨勬暟鎹紙鐢ㄤ簬绂荤嚎妯″紡锛?
         return data;
       } else {
-        // 从API获取数据
+        // 浠嶢PI鑾峰彇鏁版嵁
         const response = await api.get('/reminders/');
         return response.data;
       }
@@ -22,61 +22,37 @@ export const loadReminders = createAsyncThunk(
   }
 );
 
-// 异步操作：同步离线提醒事项
+// 寮傛鎿嶄綔锛氬悓姝ョ绾挎彁閱掍簨椤?
 export const syncReminders = createAsyncThunk(
   'reminders/syncReminders',
-  async (_, { getState, dispatch, rejectWithValue }) => {
+  async (_, { dispatch, rejectWithValue }) => {
     try {
-      const { reminders } = getState();
-      const offlineReminders = reminders.offlineReminders || [];
+      const offlineOperations = await reminderNotificationService.getOfflineOperations();
 
-      if (offlineReminders.length === 0) {
-        return { synced: 0, failed: 0 };
+      if (offlineOperations.length === 0) {
+        return { synced: 0, failed: 0, remaining: 0 };
       }
 
-      let synced = 0;
-      let failed = 0;
+      const syncResult = await reminderNotificationService.syncOfflineReminders();
 
-      // 同步每个离线提醒
-      for (const reminder of offlineReminders) {
-        try {
-          // 根据操作类型执行不同的API请求
-          if (reminder.operation === 'create') {
-            const response = await api.post('/reminders/', reminder.data);
-            // 更新本地存储
-            await reminderNotificationService.removeOfflineReminder(reminder.id);
-            synced++;
-          } else if (reminder.operation === 'update') {
-            const response = await api.put(`/reminders/${reminder.data.id}/`, reminder.data);
-            // 更新本地存储
-            await reminderNotificationService.removeOfflineReminder(reminder.id);
-            synced++;
-          } else if (reminder.operation === 'delete') {
-            await api.delete(`/reminders/${reminder.data.id}/`);
-            // 更新本地存储
-            await reminderNotificationService.removeOfflineReminder(reminder.id);
-            synced++;
-          }
-        } catch (error) {
-          console.error(`同步提醒 ${reminder.id} 失败:`, error);
-          failed++;
-        }
-      }
-
-      // 同步完成后重新加载提醒列表
-      if (synced > 0) {
+      if (syncResult.synced > 0) {
         const response = await api.get('/reminders/');
         dispatch(loadReminders(response.data));
       }
 
-      return { synced, failed };
+      const remainingOperations = await reminderNotificationService.getOfflineOperations();
+      return {
+        synced: syncResult.synced || 0,
+        failed: syncResult.failed || 0,
+        remaining: remainingOperations.length,
+      };
     } catch (error) {
       return rejectWithValue(error.response?.data || { message: '同步提醒事项失败' });
     }
   }
 );
 
-// 异步操作：添加提醒事项
+// 寮傛鎿嶄綔锛氭坊鍔犳彁閱掍簨椤?
 export const addReminder = createAsyncThunk(
   'reminders/addReminder',
   async (reminderData, { rejectWithValue }) => {
@@ -91,7 +67,7 @@ export const addReminder = createAsyncThunk(
   }
 );
 
-// 异步操作：更新提醒事项
+// 寮傛鎿嶄綔锛氭洿鏂版彁閱掍簨椤?
 export const updateReminder = createAsyncThunk(
   'reminders/updateReminder',
   async ({ id, reminderData }, { rejectWithValue }) => {
@@ -106,7 +82,7 @@ export const updateReminder = createAsyncThunk(
   }
 );
 
-// 异步操作：删除提醒事项
+// 寮傛鎿嶄綔锛氬垹闄ゆ彁閱掍簨椤?
 export const deleteReminder = createAsyncThunk(
   'reminders/deleteReminder',
   async (id, { rejectWithValue }) => {
@@ -121,14 +97,14 @@ export const deleteReminder = createAsyncThunk(
   }
 );
 
-// 创建提醒事项切片
+// 鍒涘缓鎻愰啋浜嬮」鍒囩墖
 const reminderSlice = createSlice({
   name: 'reminders',
   initialState: {
     reminders: [],
     loading: false,
     error: null,
-    offlineReminders: [], // 离线提醒列表
+    offlineReminders: [], // 绂荤嚎鎻愰啋鍒楄〃
     syncStatus: {
       syncing: false,
       lastSynced: null,
@@ -144,16 +120,16 @@ const reminderSlice = createSlice({
     },
   },
   reducers: {
-    // 添加本地提醒事项（离线模式）
+    // 娣诲姞鏈湴鎻愰啋浜嬮」锛堢绾挎ā寮忥級
     addLocalReminder: (state, action) => {
       const newReminder = {
         ...action.payload,
-        id: `local-${Date.now()}`, // 本地临时ID
-        isLocal: true, // 标记为本地创建
+        id: `local-${Date.now()}`, // 鏈湴涓存椂ID
+        isLocal: true, // 鏍囪涓烘湰鍦板垱寤?
       };
       state.reminders.push(newReminder);
 
-      // 添加到离线提醒列表
+      // 娣诲姞鍒扮绾挎彁閱掑垪琛?
       state.offlineReminders.push({
         id: newReminder.id,
         operation: 'create',
@@ -161,18 +137,18 @@ const reminderSlice = createSlice({
         timestamp: Date.now(),
       });
 
-      // 更新未同步计数
+      // 鏇存柊鏈悓姝ヨ鏁?
       state.syncStatus.unsyncedCount = state.offlineReminders.length;
     },
 
-    // 更新本地提醒事项（离线模式）
+    // 鏇存柊鏈湴鎻愰啋浜嬮」锛堢绾挎ā寮忥級
     updateLocalReminder: (state, action) => {
       const { id, reminderData } = action.payload;
       const index = state.reminders.findIndex(reminder => reminder.id === id);
       if (index !== -1) {
         state.reminders[index] = { ...state.reminders[index], ...reminderData };
 
-        // 添加到离线提醒列表
+        // 娣诲姞鍒扮绾挎彁閱掑垪琛?
         state.offlineReminders.push({
           id: `update-${id}-${Date.now()}`,
           operation: 'update',
@@ -180,21 +156,21 @@ const reminderSlice = createSlice({
           timestamp: Date.now(),
         });
 
-        // 更新未同步计数
+        // 鏇存柊鏈悓姝ヨ鏁?
         state.syncStatus.unsyncedCount = state.offlineReminders.length;
       }
     },
 
-    // 删除本地提醒事项（离线模式）
+    // 鍒犻櫎鏈湴鎻愰啋浜嬮」锛堢绾挎ā寮忥級
     deleteLocalReminder: (state, action) => {
       const id = action.payload;
       const reminder = state.reminders.find(r => r.id === id);
 
       if (reminder) {
-        // 从列表中移除
+        // 浠庡垪琛ㄤ腑绉婚櫎
         state.reminders = state.reminders.filter(r => r.id !== id);
 
-        // 添加到离线提醒列表
+        // 娣诲姞鍒扮绾挎彁閱掑垪琛?
         state.offlineReminders.push({
           id: `delete-${id}-${Date.now()}`,
           operation: 'delete',
@@ -202,17 +178,17 @@ const reminderSlice = createSlice({
           timestamp: Date.now(),
         });
 
-        // 更新未同步计数
+        // 鏇存柊鏈悓姝ヨ鏁?
         state.syncStatus.unsyncedCount = state.offlineReminders.length;
       }
     },
 
-    // 设置筛选条件
+    // 璁剧疆绛涢€夋潯浠?
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
     },
 
-    // 重置筛选条件
+    // 閲嶇疆绛涢€夋潯浠?
     resetFilters: (state) => {
       state.filters = {
         category: 'all',
@@ -223,13 +199,13 @@ const reminderSlice = createSlice({
       };
     },
 
-    // 清除错误
+    // 娓呴櫎閿欒
     clearError: (state) => {
       state.error = null;
       state.syncStatus.error = null;
     },
 
-    // 清除离线提醒
+    // 娓呴櫎绂荤嚎鎻愰啋
     clearOfflineReminders: (state) => {
       state.offlineReminders = [];
       state.syncStatus.unsyncedCount = 0;
@@ -237,7 +213,7 @@ const reminderSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // 加载提醒事项
+      // 鍔犺浇鎻愰啋浜嬮」
       .addCase(loadReminders.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -251,7 +227,7 @@ const reminderSlice = createSlice({
         state.error = action.payload || { message: '加载提醒事项失败' };
       })
 
-      // 添加提醒事项
+      // 娣诲姞鎻愰啋浜嬮」
       .addCase(addReminder.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -265,7 +241,7 @@ const reminderSlice = createSlice({
         state.error = action.payload || { message: '添加提醒事项失败' };
       })
 
-      // 更新提醒事项
+      // 鏇存柊鎻愰啋浜嬮」
       .addCase(updateReminder.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -282,7 +258,7 @@ const reminderSlice = createSlice({
         state.error = action.payload || { message: '更新提醒事项失败' };
       })
 
-      // 删除提醒事项
+      // 鍒犻櫎鎻愰啋浜嬮」
       .addCase(deleteReminder.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -296,7 +272,7 @@ const reminderSlice = createSlice({
         state.error = action.payload || { message: '删除提醒事项失败' };
       })
 
-      // 同步离线提醒事项
+      // 鍚屾绂荤嚎鎻愰啋浜嬮」
       .addCase(syncReminders.pending, (state) => {
         state.syncStatus.syncing = true;
         state.syncStatus.error = null;
@@ -304,14 +280,10 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.fulfilled, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.lastSynced = new Date().toISOString();
+        state.syncStatus.unsyncedCount = action.payload.remaining ?? state.offlineReminders.length;
 
-        // 如果所有提醒都同步成功，清空离线提醒列表
-        if (action.payload.failed === 0 && action.payload.synced > 0) {
+        if (action.payload.remaining === 0) {
           state.offlineReminders = [];
-          state.syncStatus.unsyncedCount = 0;
-        } else if (action.payload.synced > 0) {
-          // 如果有部分同步成功，更新未同步计数
-          state.syncStatus.unsyncedCount = state.offlineReminders.length;
         }
       })
       .addCase(syncReminders.rejected, (state, action) => {
@@ -320,8 +292,6 @@ const reminderSlice = createSlice({
       });
   },
 });
-
-// 导出操作
 export const {
   addLocalReminder,
   updateLocalReminder,
@@ -332,7 +302,6 @@ export const {
   clearOfflineReminders,
 } = reminderSlice.actions;
 
-// 导出选择器
 export const selectReminders = (state) => state.reminders.reminders;
 export const selectReminderLoading = (state) => state.reminders.loading;
 export const selectReminderError = (state) => state.reminders.error;
@@ -341,5 +310,5 @@ export const selectSyncStatus = (state) => state.reminders.syncStatus;
 export const selectFilters = (state) => state.reminders.filters;
 export const selectUnsyncedCount = (state) => state.reminders.syncStatus.unsyncedCount;
 
-// 导出reducer
+// 瀵煎嚭reducer
 export default reminderSlice.reducer;
