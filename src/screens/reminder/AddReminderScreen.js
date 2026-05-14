@@ -17,8 +17,7 @@ import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import api from '../../services/api';
-import { API_ENDPOINTS } from '../../config/api';
+import reminderApi from '../../services/api/reminderApi';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
 const AddReminderScreen = ({ route, navigation }) => {
@@ -30,6 +29,7 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   const [saving, setSaving] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
+  const [hintTone, setHintTone] = useState('warning');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
   const [showRepeatEndPicker, setShowRepeatEndPicker] = useState(false);
@@ -60,7 +60,8 @@ const AddReminderScreen = ({ route, navigation }) => {
     );
   }
 
-  const notifyNonBlocking = (message) => {
+  const notifyNonBlocking = (message, tone = 'warning') => {
+    setHintTone(tone);
     setInlineHint(message);
     if (Platform.OS === 'android') {
       ToastAndroid.show(message, ToastAndroid.SHORT);
@@ -80,26 +81,34 @@ const AddReminderScreen = ({ route, navigation }) => {
       setInlineHint('');
 
       // 创建提醒
-      const response = await api.post(API_ENDPOINTS.REMINDER.BASE, reminder);
-
-      // 更新Redux状态
-      
+      const response = await reminderApi.createReminder(reminder, {
+        suppressGlobalErrorUI: true,
+      });
 
       // 安排本地通知
       try {
         await reminderNotificationService.scheduleReminderNotification(response.data);
       } catch (notificationError) {
         console.warn('提醒已创建，但本地通知调度失败:', notificationError);
-        notifyNonBlocking('提醒已创建，但本地通知未成功安排');
+        notifyNonBlocking('提醒已创建，但本地通知未成功安排', 'warning');
         navigation.goBack();
         return;
       }
 
-      notifyNonBlocking('提醒已创建');
+      notifyNonBlocking('提醒已创建', 'success');
       navigation.goBack();
     } catch (error) {
       console.error('创建提醒失败:', error);
-      notifyNonBlocking('创建提醒失败，请稍后重试');
+      const offlineLikeMessage = error?.isOfflineError
+        || error?.message?.includes('网络')
+        || error?.message?.includes('offline')
+        || error?.message?.includes('Network');
+      notifyNonBlocking(
+        offlineLikeMessage
+          ? '当前网络不可用，暂不支持离线创建提醒，请联网后重试'
+          : (error?.message || '创建提醒失败，请稍后重试'),
+        'warning'
+      );
     } finally {
       setSaving(false);
     }
@@ -273,12 +282,67 @@ const AddReminderScreen = ({ route, navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         {inlineHint ? (
-          <View style={[styles.hintBanner, { backgroundColor: theme.colors.warning + '22' }]}>
-            <Text style={[styles.hintText, { color: theme.colors.warning }]}>{inlineHint}</Text>
+          <View
+            style={[
+              styles.hintBanner,
+              {
+                backgroundColor: hintTone === 'success'
+                  ? theme.colors.success + '18'
+                  : theme.colors.primary + '12',
+                borderColor: hintTone === 'success'
+                  ? theme.colors.success + '44'
+                  : theme.colors.primary + '2E',
+              },
+            ]}
+            testID="state.reminder.createHint"
+          >
+            <Icon
+              name={hintTone === 'success' ? 'check-circle-outline' : 'wifi-off'}
+              size={18}
+              color={hintTone === 'success' ? theme.colors.success : theme.colors.primary}
+              style={styles.hintIcon}
+            />
+            <Text
+              style={[
+                styles.hintText,
+                {
+                  color: hintTone === 'success' ? theme.colors.success : theme.colors.primary,
+                },
+              ]}
+            >
+              {inlineHint}
+            </Text>
           </View>
         ) : null}
+        <View
+          style={[
+            styles.contextCard,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '18',
+            },
+          ]}
+        >
+          <View style={[styles.contextIconWrap, { backgroundColor: theme.colors.primary + '14' }]}>
+            <Icon name="notifications-active" size={18} color={theme.colors.primary} />
+          </View>
+          <View style={styles.contextContent}>
+            <Text style={[styles.contextTitle, { color: theme.colors.text }]}>创建提醒</Text>
+            <Text style={[styles.contextDescription, { color: theme.colors.textSecondary }]}>
+              当前阶段优先保证真机可点、页内可读和离线提示诚实清晰。联网后即可正常创建并同步提醒。
+            </Text>
+          </View>
+        </View>
         {/* 标题和描述 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标题</Text>
           <TextInput
             style={[styles.titleInput, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
@@ -303,7 +367,15 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 日期和时间 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>日期和时间</Text>
           <TouchableOpacity
             style={styles.dateTimeButton}
@@ -318,7 +390,15 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 优先级 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>优先级</Text>
           <View style={styles.priorityContainer}>
             {['low', 'medium', 'high'].map((priority) => (
@@ -355,7 +435,15 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 分类 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>分类</Text>
           <View style={styles.categoryContainer}>
             {['work', 'study', 'personal', 'health', 'finance', 'social', 'other'].map((category) => (
@@ -392,7 +480,15 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 重复 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>重复</Text>
           <View style={styles.frequencyContainer}>
             {['once', 'daily', 'weekly', 'monthly', 'yearly'].map((frequency) => (
@@ -449,7 +545,15 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
 
         {/* 标签 */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.colors.card + 'F2',
+              borderColor: theme.colors.primary + '14',
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>标签</Text>
           <TextInput
             style={[styles.tagsInput, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
@@ -466,8 +570,8 @@ const AddReminderScreen = ({ route, navigation }) => {
         style={[
           styles.actionBar,
           {
-            backgroundColor: theme.colors.card,
-            borderTopColor: theme.colors.border,
+            backgroundColor: theme.colors.card + 'F5',
+            borderTopColor: theme.colors.primary + '16',
           },
         ]}
       >
@@ -561,23 +665,61 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   hintBanner: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hintIcon: {
+    marginRight: 10,
   },
   hintText: {
     fontSize: 13,
+    flex: 1,
+    lineHeight: 20,
+  },
+  contextCard: {
+    borderRadius: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  contextIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  contextContent: {
+    flex: 1,
+  },
+  contextTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  contextDescription: {
+    fontSize: 13,
+    lineHeight: 20,
   },
   section: {
-    borderRadius: 8,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
   },
   sectionTitle: {
     fontSize: 14,

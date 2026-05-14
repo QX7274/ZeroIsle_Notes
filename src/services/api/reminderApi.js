@@ -48,9 +48,13 @@ export const getReminderById = async (id) => {
  * @param {object} reminderData - 提醒数据
  * @returns {Promise} - 创建结果
  */
-export const createReminder = async (reminderData) => {
+export const createReminder = async (reminderData, requestOptions = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.REMINDER.BASE, reminderData);
+    const response = await instance.post(API_ENDPOINTS.REMINDER.BASE, reminderData, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
