@@ -22,7 +22,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import reminderApi from '../../services/api/reminderApi';
 import { isNetworkConnected } from '../../services/network/networkService';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
-import { addLocalReminder } from '../../redux/slices/reminderSlice';
+import { addLocalReminder, refreshUnsyncedCount } from '../../redux/slices/reminderSlice';
 
 const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
@@ -123,6 +123,7 @@ const AddReminderScreen = ({ route, navigation }) => {
     }
 
     dispatch(addLocalReminder(localReminder));
+    await dispatch(refreshUnsyncedCount());
     if (localReminder === offlineReminder) {
       notifyNonBlocking('已保存为本地提醒，联网后会自动同步', 'success');
     }
@@ -132,6 +133,7 @@ const AddReminderScreen = ({ route, navigation }) => {
   const fallbackToOptimisticLocalReminder = useCallback((message) => {
     const optimisticReminder = createOptimisticLocalReminder();
     dispatch(addLocalReminder(optimisticReminder));
+    dispatch(refreshUnsyncedCount());
     notifyNonBlocking(message, 'warning');
     navigateToReminderList();
   }, [createOptimisticLocalReminder, dispatch, navigateToReminderList]);

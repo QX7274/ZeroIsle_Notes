@@ -52,6 +52,18 @@ export const syncReminders = createAsyncThunk(
   }
 );
 
+export const refreshUnsyncedCount = createAsyncThunk(
+  'reminders/refreshUnsyncedCount',
+  async (_, { rejectWithValue }) => {
+    try {
+      const offlineOperations = await reminderNotificationService.getOfflineOperations();
+      return offlineOperations.length;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { message: '刷新离线计数失败' });
+    }
+  }
+);
+
 // 寮傛鎿嶄綔锛氭坊鍔犳彁閱掍簨椤?
 export const addReminder = createAsyncThunk(
   'reminders/addReminder',
@@ -131,7 +143,6 @@ const reminderSlice = createSlice({
       state.reminders.push(newReminder);
       state.offlineReminders = state.offlineReminders.filter(reminder => reminder.id !== newReminder.id);
       state.offlineReminders.push(newReminder);
-      state.syncStatus.unsyncedCount += 1;
     },
 
     // 鏇存柊鏈湴鎻愰啋浜嬮」锛堢绾挎ā寮忥級
@@ -144,7 +155,6 @@ const reminderSlice = createSlice({
         state.reminders[index] = updatedReminder;
         state.offlineReminders = state.offlineReminders.filter(reminder => reminder.id !== id);
         state.offlineReminders.push(updatedReminder);
-        state.syncStatus.unsyncedCount += 1;
       }
     },
 
@@ -157,7 +167,6 @@ const reminderSlice = createSlice({
         // 浠庡垪琛ㄤ腑绉婚櫎
         state.reminders = state.reminders.filter(r => r.id !== id);
         state.offlineReminders = state.offlineReminders.filter(r => r.id !== id);
-        state.syncStatus.unsyncedCount += 1;
       }
     },
 
@@ -272,6 +281,9 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.rejected, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.error = action.payload || { message: '同步提醒事项失败' };
+      })
+      .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
+        state.syncStatus.unsyncedCount = action.payload ?? 0;
       });
   },
 });
