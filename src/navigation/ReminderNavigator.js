@@ -99,7 +99,7 @@ const ReminderNavigator = () => {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="AddReminder"
+        name="ReminderAdd"
         component={AddReminderScreen}
         initialParams={{ hideTabBar: true }}
         options={{ title: '添加提醒' }}

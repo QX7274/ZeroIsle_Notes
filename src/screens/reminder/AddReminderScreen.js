@@ -11,6 +11,7 @@ import {
   ToastAndroid,
   KeyboardAvoidingView,
   StatusBar,
+  Keyboard,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
@@ -64,10 +65,44 @@ const AddReminderScreen = ({ route, navigation }) => {
     }
   };
 
+  const logHandledCreateIssue = useCallback((message, error) => {
+    if (__DEV__) {
+      console.log(message, error);
+    }
+  }, []);
+
   const createOptimisticLocalReminder = useCallback(() => ({
     ...reminderNotificationService.buildOfflineReminderPayload(reminder),
     createdAt: new Date().toISOString(),
   }), [reminder]);
+
+  const navigateToReminderList = useCallback(() => {
+    const currentState = navigation.getState?.();
+    const currentRouteNames = currentState?.routeNames || [];
+
+    if (currentRouteNames.includes('ReminderList')) {
+      navigation.navigate('ReminderList');
+      return;
+    }
+
+    const parentNavigation = navigation.getParent?.();
+    const parentState = parentNavigation?.getState?.();
+    const parentRouteNames = parentState?.routeNames || [];
+
+    if (parentRouteNames.includes('Reminder')) {
+      parentNavigation.navigate('Reminder', { screen: 'ReminderList' });
+      return;
+    }
+
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    if (parentNavigation?.canGoBack?.()) {
+      parentNavigation.goBack();
+    }
+  }, [navigation]);
 
   // 创建提醒
   const saveReminderLocally = useCallback(async () => {
@@ -91,15 +126,15 @@ const AddReminderScreen = ({ route, navigation }) => {
     if (localReminder === offlineReminder) {
       notifyNonBlocking('已保存为本地提醒，联网后会自动同步', 'success');
     }
-    navigation.goBack();
-  }, [dispatch, navigation, reminder]);
+    navigateToReminderList();
+  }, [dispatch, navigateToReminderList, reminder]);
 
   const fallbackToOptimisticLocalReminder = useCallback((message) => {
     const optimisticReminder = createOptimisticLocalReminder();
     dispatch(addLocalReminder(optimisticReminder));
     notifyNonBlocking(message, 'warning');
-    navigation.goBack();
-  }, [createOptimisticLocalReminder, dispatch, navigation]);
+    navigateToReminderList();
+  }, [createOptimisticLocalReminder, dispatch, navigateToReminderList]);
 
   if (!theme || !theme.colors) {
     return (
@@ -109,6 +144,12 @@ const AddReminderScreen = ({ route, navigation }) => {
     );
   }
   const handleCreate = async () => {
+    Keyboard.dismiss();
+
+    if (Platform.OS === 'android') {
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+
     if (!reminder.title.trim()) {
       notifyNonBlocking('请输入提醒标题');
       return;
@@ -119,7 +160,7 @@ const AddReminderScreen = ({ route, navigation }) => {
       try {
         await saveReminderLocally();
       } catch (offlineError) {
-        console.error('保存本地提醒失败:', offlineError);
+        logHandledCreateIssue('保存本地提醒失败:', offlineError);
         notifyNonBlocking('保存本地提醒失败，请稍后重试');
       } finally {
         setSaving(false);
@@ -140,14 +181,13 @@ const AddReminderScreen = ({ route, navigation }) => {
       } catch (notificationError) {
         console.warn('提醒已创建，但本地通知调度失败:', notificationError);
         notifyNonBlocking('提醒已创建，但本地通知未成功安排', 'warning');
-        navigation.goBack();
+        navigateToReminderList();
         return;
       }
 
       notifyNonBlocking('提醒已创建', 'success');
-      navigation.goBack();
+      navigateToReminderList();
     } catch (error) {
-      console.error('创建提醒失败:', error);
       const shouldFallbackToLocal = error?.isOfflineError
         || error?.isNetworkError
         || error?.message?.includes('网络')
@@ -155,6 +195,7 @@ const AddReminderScreen = ({ route, navigation }) => {
         || error?.message?.includes('Network');
 
       if (shouldFallbackToLocal) {
+        logHandledCreateIssue('创建提醒时触发离线回退:', error);
         try {
           await saveReminderLocally();
           return;
@@ -165,6 +206,7 @@ const AddReminderScreen = ({ route, navigation }) => {
         }
       }
 
+      console.error('创建提醒失败:', error);
       notifyNonBlocking(error?.message || '创建提醒失败，请稍后重试', 'warning');
     } finally {
       setSaving(false);
@@ -172,6 +214,12 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
 
   const handleCreateWithFallback = async () => {
+    Keyboard.dismiss();
+
+    if (Platform.OS === 'android') {
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+
     if (!reminder.title.trim()) {
       notifyNonBlocking('请输入提醒标题');
       return;
@@ -183,7 +231,7 @@ const AddReminderScreen = ({ route, navigation }) => {
         try {
           await saveReminderLocally();
         } catch (offlineError) {
-          console.error('离线创建提醒的最终兜底失败:', offlineError);
+          logHandledCreateIssue('离线创建提醒的最终兜底失败:', offlineError);
           fallbackToOptimisticLocalReminder('已先在当前设备显示本地提醒，但本地存储未完全成功');
         } finally {
           setSaving(false);
@@ -193,7 +241,7 @@ const AddReminderScreen = ({ route, navigation }) => {
 
       await handleCreate();
     } catch (error) {
-      console.error('创建提醒最终兜底失败:', error);
+      logHandledCreateIssue('创建提醒最终兜底失败:', error);
       fallbackToOptimisticLocalReminder('已先在当前设备显示本地提醒，但本地存储未完全成功');
     }
   };
@@ -434,6 +482,9 @@ const AddReminderScreen = ({ route, navigation }) => {
             onChangeText={(text) => setReminder({ ...reminder, title: text })}
             placeholder="提醒标题"
             placeholderTextColor={theme.colors.textDisabled}
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={handleCreateWithFallback}
           />
 
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>描述</Text>
@@ -661,7 +712,7 @@ const AddReminderScreen = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigateToReminderList()}
             disabled={saving}
             testID="action.reminder.cancel"
           >

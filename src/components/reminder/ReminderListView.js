@@ -1274,7 +1274,7 @@ const ReminderListView = ({ navigation, route }) => {
       {!showBatchActions && (
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
-          onPress={() => navigation?.navigate('AddReminder')}
+          onPress={() => navigation?.navigate('ReminderAdd')}
           testID="action.reminder.add"
         >
           <Icon name="add" size={24} color="#ffffff" />

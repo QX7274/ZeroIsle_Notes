@@ -585,7 +585,7 @@ const ReminderCalendarView = ({ navigation }) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.addButton, { backgroundColor: theme.primary }]}
-              onPress={() => navigation.navigate('AddReminder', { date: selectedDate })}
+              onPress={() => navigation.navigate('ReminderAdd', { date: selectedDate })}
             >
               <Icon name="add" size={20} color="#ffffff" />
             </TouchableOpacity>
@@ -611,7 +611,7 @@ const ReminderCalendarView = ({ navigation }) => {
             </Text>
             <TouchableOpacity
               style={[styles.emptyAddButton, { backgroundColor: theme.primary }]}
-              onPress={() => navigation.navigate('AddReminder', { date: selectedDate })}
+              onPress={() => navigation.navigate('ReminderAdd', { date: selectedDate })}
             >
               <Icon name="add" size={16} color="#ffffff" style={styles.emptyAddIcon} />
               <Text style={styles.emptyAddText}>添加提醒</Text>

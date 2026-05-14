@@ -247,7 +247,7 @@ const ReminderCategoryView = ({ navigation }) => {
           </Text>
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: theme.primary }]}
-            onPress={() => navigation.navigate('AddReminder', { category: selectedCategory })}
+            onPress={() => navigation.navigate('ReminderAdd', { category: selectedCategory })}
           >
             <Icon name="add" size={20} color="#ffffff" />
           </TouchableOpacity>

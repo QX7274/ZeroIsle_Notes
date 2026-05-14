@@ -16,6 +16,26 @@ class ReminderMongoDBService {
     this.initializationPromise = null;
   }
 
+  normalizeStoredValueForWrite(value) {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    return JSON.stringify(value);
+  }
+
+  normalizeStoredValueForRead(value) {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
   /**
    * 初始化服务
    */
@@ -53,7 +73,7 @@ class ReminderMongoDBService {
       await this.initialize();
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${key}"`);
-      return item.length > 0 ? item[0].value : null;
+      return item.length > 0 ? this.normalizeStoredValueForRead(item[0].value) : null;
     } catch (error) {
       logService.error(`获取提醒存储项目失败: ${key}`, error);
       throw error;
@@ -70,15 +90,16 @@ class ReminderMongoDBService {
     try {
       await this.initialize();
       const realm = await realmService.getRealm();
+      const normalizedValue = this.normalizeStoredValueForWrite(value);
       realm.write(() => {
         const existingItem = realm.objects('StorageItem').filtered(`key = "${key}"`);
         if (existingItem.length > 0) {
-          existingItem[0].value = value;
+          existingItem[0].value = normalizedValue;
           existingItem[0].updated_at = new Date();
         } else {
           realm.create('StorageItem', {
             key: key,
-            value: value,
+            value: normalizedValue,
             createdAt: new Date(),
             updated_at: new Date(),
           });
@@ -120,7 +141,7 @@ class ReminderMongoDBService {
       await this.initialize();
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered('key = "all_reminders"');
-      const reminders = item.length > 0 ? item[0].value : null;
+      const reminders = item.length > 0 ? this.normalizeStoredValueForRead(item[0].value) : null;
       return Array.isArray(reminders) ? reminders : [];
     } catch (error) {
       logService.error('获取所有提醒失败', error);
@@ -232,7 +253,7 @@ class ReminderMongoDBService {
       await this.initialize();
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered('key = "offline_operations"');
-      const operations = item.length > 0 ? item[0].value : null;
+      const operations = item.length > 0 ? this.normalizeStoredValueForRead(item[0].value) : null;
       return Array.isArray(operations) ? operations : [];
     } catch (error) {
       logService.error('获取离线操作失败', error);
