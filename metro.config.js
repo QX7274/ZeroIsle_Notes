@@ -1,4 +1,5 @@
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
+const exclusionList = require('metro-config/src/defaults/exclusionList');
 const {resolve: defaultResolve} = require('metro-resolver');
 const path = require('path');
 
@@ -9,14 +10,47 @@ const path = require('path');
  * @type {import('metro-config').MetroConfig}
  */
 const defaultConfig = getDefaultConfig(__dirname);
+const excludedRoots = [
+  '.bundle',
+  '.git',
+  '.gradle-run2',
+  '.gradle-user',
+  '.idea',
+  '.local',
+  '.omx',
+  '.overclawck',
+  '.pytest_cache',
+  '.qoder',
+  '.venv',
+  '.vscode',
+  'admin_system',
+  'archive',
+  'backend',
+  'backups',
+  'data',
+  'docs',
+  'Info',
+  'module-status',
+  'nginx',
+  'optimization-docs',
+  'tmp',
+  'web',
+  'zeroislenotes_local.realm.management',
+  '模块功能-核查与优化记录',
+  '模块功能核查与优化记录',
+];
+const excludedRootPatterns = excludedRoots.map(name => {
+  const escaped = name.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
+  return new RegExp(`^${escaped}(?:\\\\|/)`);
+});
 
 // 自定义配置
 const config = {
   projectRoot: __dirname,
-  watchFolders: [__dirname],
   resolver: {
     assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
+    blockList: exclusionList(excludedRootPatterns),
     alias: {
       fs: false,
       path: require.resolve('path-browserify'),
