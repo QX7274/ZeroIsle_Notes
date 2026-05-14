@@ -58,6 +58,7 @@ const ReminderListView = ({ navigation, route }) => {
   const [showSyncIndicator, setShowSyncIndicator] = useState(false);
   const [syncRotation] = useState(new Animated.Value(0));
   const unsyncedCountRef = useRef(unsyncedCount);
+  const syncInFlightRef = useRef(false);
   const [showBatchActions, setShowBatchActions] = useState(false);
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -143,10 +144,11 @@ const ReminderListView = ({ navigation, route }) => {
   // 同步离线提醒
   const syncOfflineReminders = useCallback(async () => {
     try {
-      if (!isOnline || unsyncedCount === 0) {
+      if (!isOnline || unsyncedCount === 0 || syncInFlightRef.current) {
         return;
       }
 
+      syncInFlightRef.current = true;
       setSyncing(true);
       const syncResult = await dispatch(syncReminders()).unwrap();
       const syncedCount = Number(syncResult?.synced || 0);
@@ -158,6 +160,7 @@ const ReminderListView = ({ navigation, route }) => {
       notifyNonBlocking('无法同步离线提醒，请稍后重试');
     } finally {
       setSyncing(false);
+      syncInFlightRef.current = false;
     }
   }, [dispatch, isOnline, notifyNonBlocking, unsyncedCount]);
 
