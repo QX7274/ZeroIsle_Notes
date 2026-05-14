@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ const ReminderCategoryView = ({ navigation }) => {
   const [error, setError] = useState(null);
 
   // 获取分类数据
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -43,7 +43,7 @@ const ReminderCategoryView = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory]);
 
   // 获取指定分类的提醒
   const fetchRemindersByCategory = async (categoryId) => {
@@ -98,7 +98,7 @@ const ReminderCategoryView = ({ navigation }) => {
   // 初始加载
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [fetchCategories]);
 
   // 处理分类选择
   const handleCategorySelect = (categoryId) => {

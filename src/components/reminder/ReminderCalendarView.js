@@ -191,7 +191,7 @@ const ReminderCalendarView = ({ navigation }) => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 当提醒数据变化时更新日历
   useEffect(() => {
@@ -204,7 +204,7 @@ const ReminderCalendarView = ({ navigation }) => {
         processLocalReminders(year, month);
       }
     }
-  }, [allReminders, isOnline]);
+  }, [allReminders, isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 更新周视图日期
   const updateWeekDates = useCallback((date) => {
