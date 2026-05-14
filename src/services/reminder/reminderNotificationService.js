@@ -33,6 +33,32 @@ class ReminderNotificationService {
     this.init();
   }
 
+  buildOfflineReminderPayload(reminder) {
+    const offlineId = reminder.offlineId || realmService.createObjectId();
+    const localId = reminder.id || `local-${offlineId}`;
+
+    return {
+      ...reminder,
+      id: localId,
+      offlineId,
+      isLocal: true,
+    };
+  }
+
+  sanitizeReminderForCreate(reminder) {
+    const {
+      id,
+      offlineId,
+      isLocal,
+      createdAt,
+      updatedAt,
+      notificationId,
+      ...serverPayload
+    } = reminder || {};
+
+    return serverPayload;
+  }
+
   /**
    * 初始化通知服务
    */
@@ -430,7 +456,7 @@ class ReminderNotificationService {
 
           switch (operation.operation) {
             case 'create':
-              result = await reminderApi.createReminder(operation.data);
+              result = await reminderApi.createReminder(this.sanitizeReminderForCreate(operation.data));
               break;
             case 'update':
               result = await reminderApi.updateReminder(operation.data.id, operation.data);
@@ -527,11 +553,11 @@ class ReminderNotificationService {
     try {
       // 获取现有的离线提醒
       const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS) || [];
+      const offlineReminder = this.buildOfflineReminderPayload(reminder);
 
       // 添加新的离线提醒
       offlineReminders.push({
-        ...reminder,
-        offlineId: realmService.createObjectId(),
+        ...offlineReminder,
         createdAt: new Date().toISOString(),
       });
 
@@ -539,13 +565,13 @@ class ReminderNotificationService {
       await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, offlineReminders);
 
       // 保存离线操作记录
-      await this.saveOfflineOperation('create', reminder);
+      await this.saveOfflineOperation('create', offlineReminder);
 
       analyticsService.trackEvent('save_offline_reminder', {
-        title: reminder.title,
+        title: offlineReminder.title,
       });
 
-      return true;
+      return offlineReminder;
     } catch (error) {
       console.error('保存离线提醒失败:', error);
       analyticsService.trackError(error, { action: 'save_offline_reminder' });

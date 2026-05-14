@@ -124,9 +124,10 @@ const reminderSlice = createSlice({
     addLocalReminder: (state, action) => {
       const newReminder = {
         ...action.payload,
-        id: `local-${Date.now()}`, // 鏈湴涓存椂ID
+        id: action.payload?.id || `local-${Date.now()}`, // ????ID
         isLocal: true, // 鏍囪涓烘湰鍦板垱寤?
       };
+      state.reminders = state.reminders.filter(reminder => reminder.id !== newReminder.id);
       state.reminders.push(newReminder);
 
       // 娣诲姞鍒扮绾挎彁閱掑垪琛?

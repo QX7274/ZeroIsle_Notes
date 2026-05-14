@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useDispatch } from 'react-redux';
 import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -20,11 +21,13 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import reminderApi from '../../services/api/reminderApi';
 import { isNetworkConnected } from '../../services/network/networkService';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
+import { addLocalReminder } from '../../redux/slices/reminderSlice';
 
 const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
   const themeContext = useTheme();
   const theme = themeContext.theme;
+  const dispatch = useDispatch();
   const statusBarInset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const actionBarHeight = 96;
 
@@ -53,14 +56,6 @@ const AddReminderScreen = ({ route, navigation }) => {
     reminderNotificationService.requestPermissions();
   }, []);
 
-  if (!theme || !theme.colors) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>主题加载失败，请重启应用</Text>
-      </View>
-    );
-  }
-
   const notifyNonBlocking = (message, tone = 'warning') => {
     setHintTone(tone);
     setInlineHint(message);
@@ -70,8 +65,29 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
 
   // 创建提醒
+  const saveReminderLocally = useCallback(async () => {
+    setSaving(true);
+    setInlineHint('');
+
+    const offlineReminder = await reminderNotificationService.saveOfflineReminder(reminder);
+    const notificationId = await reminderNotificationService.scheduleReminderNotification(offlineReminder);
+    const localReminder = notificationId
+      ? { ...offlineReminder, notificationId }
+      : offlineReminder;
+
+    dispatch(addLocalReminder(localReminder));
+    notifyNonBlocking('已保存为本地提醒，联网后会自动同步', 'success');
+    navigation.goBack();
+  }, [dispatch, navigation, reminder]);
+
+  if (!theme || !theme.colors) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>主题加载失败，请重启应用</Text>
+      </View>
+    );
+  }
   const handleCreate = async () => {
-    // 验证表单
     if (!reminder.title.trim()) {
       notifyNonBlocking('请输入提醒标题');
       return;
@@ -79,7 +95,14 @@ const AddReminderScreen = ({ route, navigation }) => {
 
     const isConnected = await isNetworkConnected();
     if (!isConnected) {
-      notifyNonBlocking('当前网络不可用，暂不支持离线创建提醒，请联网后重试');
+      try {
+        await saveReminderLocally();
+      } catch (offlineError) {
+        console.error('保存本地提醒失败:', offlineError);
+        notifyNonBlocking('保存本地提醒失败，请稍后重试');
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
@@ -87,12 +110,10 @@ const AddReminderScreen = ({ route, navigation }) => {
       setSaving(true);
       setInlineHint('');
 
-      // 创建提醒
       const response = await reminderApi.createReminder(reminder, {
         suppressGlobalErrorUI: true,
       });
 
-      // 安排本地通知
       try {
         await reminderNotificationService.scheduleReminderNotification(response.data);
       } catch (notificationError) {
@@ -106,21 +127,28 @@ const AddReminderScreen = ({ route, navigation }) => {
       navigation.goBack();
     } catch (error) {
       console.error('创建提醒失败:', error);
-      const offlineLikeMessage = error?.isOfflineError
+      const shouldFallbackToLocal = error?.isOfflineError
+        || error?.isNetworkError
         || error?.message?.includes('网络')
         || error?.message?.includes('offline')
         || error?.message?.includes('Network');
-      notifyNonBlocking(
-        offlineLikeMessage
-          ? '当前网络不可用，暂不支持离线创建提醒，请联网后重试'
-          : (error?.message || '创建提醒失败，请稍后重试'),
-        'warning'
-      );
+
+      if (shouldFallbackToLocal) {
+        try {
+          await saveReminderLocally();
+          return;
+        } catch (offlineError) {
+          console.error('远程创建失败后，本地兜底保存失败:', offlineError);
+          notifyNonBlocking('网络不可用且本地保存失败，请稍后重试', 'warning');
+          return;
+        }
+      }
+
+      notifyNonBlocking(error?.message || '创建提醒失败，请稍后重试', 'warning');
     } finally {
       setSaving(false);
     }
   };
-
   // 处理日期选择
   const handleDateChange = (event, selectedDate) => {
     try {

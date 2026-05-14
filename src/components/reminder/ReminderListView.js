@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -328,6 +329,12 @@ const ReminderListView = ({ navigation, route }) => {
       unsubscribe();
     };
   }, [loadRemindersData, offlineReminders.length, syncOfflineReminders]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRemindersData();
+    }, [loadRemindersData])
+  );
 
   // 当提醒列表变化时，更新分组
   useEffect(() => {
