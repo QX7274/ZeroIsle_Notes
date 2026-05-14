@@ -764,6 +764,22 @@ const ReminderListView = ({ navigation, route }) => {
               {item.title}
             </Text>
 
+            {!item.is_enabled && (
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor: getThemeColor('primary', '#2196F3') + '14',
+                    borderColor: getThemeColor('primary', '#2196F3') + '33',
+                  },
+                ]}
+              >
+                <Text style={[styles.statusBadgeText, { color: getThemeColor('primary', '#2196F3') }]}>
+                  已暂停
+                </Text>
+              </View>
+            )}
+
             {isOffline && (
               <View style={[styles.offlineBadge, { backgroundColor: (theme?.warning || '#FFEB3B') + '30', borderColor: theme?.warning || '#FFEB3B' }]}>
                 <Text style={[styles.offlineText, { color: theme?.warning || '#FFEB3B' }]}>
@@ -849,7 +865,13 @@ const ReminderListView = ({ navigation, route }) => {
           <View style={styles.reminderActions}>
              <TouchableOpacity
                onPress={() => handleToggleEnabled(item)}
-               style={styles.iconButton}
+               style={[
+                 styles.iconButton,
+                 !item.is_enabled && {
+                   backgroundColor: getThemeColor('primary', '#2196F3') + '12',
+                   borderColor: getThemeColor('primary', '#2196F3') + '2E',
+                 },
+               ]}
                testID={`action.reminder.toggle.${item.id}`}
              >
                <Icon
@@ -1398,6 +1420,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
   reminderDate: {
     fontSize: 12,
     marginBottom: 4,
@@ -1458,7 +1491,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   iconButton: {
+    minWidth: 36,
+    minHeight: 36,
     padding: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',
