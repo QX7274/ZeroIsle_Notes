@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,21 +9,19 @@ import {
   SectionList,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 
 const ReminderCategoryView = ({ navigation }) => {
   const { theme } = useTheme();
-  const dispatch = useDispatch();
   const [categories, setCategories] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 获取分类数据
+  // 鑾峰彇鍒嗙被鏁版嵁
   const fetchCategories = useCallback(async () => {
     try {
       setLoading(true);
@@ -32,20 +30,20 @@ const ReminderCategoryView = ({ navigation }) => {
       const response = await api.get(API_ENDPOINTS.REMINDER.CATEGORIES);
       setCategories(response.data);
 
-      // 默认选择第一个分类
+      // 榛樿閫夋嫨绗竴涓垎绫?
       if (response.data.length > 0 && !selectedCategory) {
         setSelectedCategory(response.data[0].id);
         fetchRemindersByCategory(response.data[0].id);
       }
-    } catch (error) {
-      console.error('获取分类数据失败:', error);
-      setError('获取分类数据失败，请稍后重试');
+    } catch (fetchError) {
+      console.error('鑾峰彇鍒嗙被鏁版嵁澶辫触:', fetchError);
+      setError('鑾峰彇鍒嗙被鏁版嵁澶辫触锛岃绋嶅悗閲嶈瘯');
     } finally {
       setLoading(false);
     }
   }, [selectedCategory]);
 
-  // 获取指定分类的提醒
+  // 鑾峰彇鎸囧畾鍒嗙被鐨勬彁閱?
   const fetchRemindersByCategory = async (categoryId) => {
     try {
       setLoading(true);
@@ -55,7 +53,7 @@ const ReminderCategoryView = ({ navigation }) => {
         params: { category: categoryId, is_completed: false },
       });
 
-      // 按优先级分组
+      // 鎸変紭鍏堢骇鍒嗙粍
       const highPriority = response.data.results.filter(item => item.priority === 'high');
       const mediumPriority = response.data.results.filter(item => item.priority === 'medium');
       const lowPriority = response.data.results.filter(item => item.priority === 'low');
@@ -64,7 +62,7 @@ const ReminderCategoryView = ({ navigation }) => {
 
       if (highPriority.length > 0) {
         sections.push({
-          title: '高优先级',
+          title: '楂樹紭鍏堢骇',
           data: highPriority,
           priority: 'high',
         });
@@ -72,7 +70,7 @@ const ReminderCategoryView = ({ navigation }) => {
 
       if (mediumPriority.length > 0) {
         sections.push({
-          title: '中优先级',
+          title: '涓紭鍏堢骇',
           data: mediumPriority,
           priority: 'medium',
         });
@@ -80,99 +78,84 @@ const ReminderCategoryView = ({ navigation }) => {
 
       if (lowPriority.length > 0) {
         sections.push({
-          title: '低优先级',
+          title: '浣庝紭鍏堢骇',
           data: lowPriority,
           priority: 'low',
         });
       }
 
       setReminders(sections);
-    } catch (error) {
-      console.error('获取提醒数据失败:', error);
-      setError('获取提醒数据失败，请稍后重试');
+    } catch (fetchError) {
+      console.error('鑾峰彇鎻愰啋鏁版嵁澶辫触:', fetchError);
+      setError('鑾峰彇鎻愰啋鏁版嵁澶辫触锛岃绋嶅悗閲嶈瘯');
     } finally {
       setLoading(false);
     }
   };
 
-  // 初始加载
+  // 鍒濆鍔犺浇
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // 处理分类选择
+  // 澶勭悊鍒嗙被閫夋嫨
   const handleCategorySelect = (categoryId) => {
     setSelectedCategory(categoryId);
     fetchRemindersByCategory(categoryId);
   };
 
-  // 渲染分类项
-  const renderCategoryItem = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.categoryItem,
-        {
-          backgroundColor: selectedCategory === item.id ? theme.primary : theme.cardBackground,
-        },
-      ]}
-      onPress={() => handleCategorySelect(item.id)}
-    >
-      <Text
-        style={[
-          styles.categoryName,
-          {
-            color: selectedCategory === item.id ? '#ffffff' : theme.text,
-          },
-        ]}
-      >
-        {item.name}
-      </Text>
-      <View
-        style={[
-          styles.categoryBadge,
-          {
-            backgroundColor: selectedCategory === item.id ? '#ffffff' : theme.primary,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.categoryCount,
-            {
-              color: selectedCategory === item.id ? theme.primary : '#ffffff',
-            },
-          ]}
-        >
-          {item.count}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  // 娓叉煋鍒嗙被椤?
+  const renderCategoryItem = ({ item }) => {
+    const isSelected = selectedCategory === item.id;
+    const chipStyle = {
+      backgroundColor: isSelected ? theme.primary : `${theme.cardBackground || '#FFFFFF'}E6`,
+      borderColor: isSelected ? theme.primary : `${theme.border || '#D9E2EC'}CC`,
+      shadowColor: isSelected ? theme.primary : '#94A3B8',
+    };
+    const nameColor = isSelected ? '#FFFFFF' : theme.text;
+    const badgeStyle = {
+      backgroundColor: isSelected ? '#FFFFFF' : `${theme.primary}1A`,
+    };
 
-  // 渲染提醒项
-  const renderReminderItem = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.reminderItem,
-        {
-          backgroundColor: theme.cardBackground,
-          borderLeftColor: item.color || theme.primary,
-        },
-      ]}
-      onPress={() => navigation.navigate('ReminderDetail', { id: item.id, reminder: item })}
-    >
-      <View style={styles.reminderContent}>
-        <Text
-          style={[
-            styles.reminderTitle,
-            {
-              color: theme.text,
-              textDecorationLine: item.is_completed ? 'line-through' : 'none',
-            },
-          ]}
-        >
-          {item.title}
+    return (
+      <TouchableOpacity
+        style={[styles.categoryItem, chipStyle]}
+        onPress={() => handleCategorySelect(item.id)}
+      >
+        <Text style={[styles.categoryName, { color: nameColor }]}>
+          {item.name}
         </Text>
+        <View style={[styles.categoryBadge, badgeStyle]}>
+          <Text style={[styles.categoryCount, { color: theme.primary }]}>
+            {item.count}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // 娓叉煋鎻愰啋椤?
+  const renderReminderItem = ({ item }) => {
+    const titleStyle = {
+      color: theme.text,
+      textDecorationLine: item.is_completed ? 'line-through' : 'none',
+    };
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.reminderItem,
+          {
+            backgroundColor: `${theme.cardBackground || '#FFFFFF'}EE`,
+            borderLeftColor: item.color || theme.primary,
+          },
+        ]}
+        onPress={() => navigation.navigate('ReminderDetail', { id: item.id, reminder: item })}
+      >
+        <View style={styles.reminderContent}>
+          <Text style={[styles.reminderTitle, titleStyle]}>
+            {item.title}
+          </Text>
         {item.description && (
           <Text
             style={[styles.reminderDescription, { color: theme.textSecondary }]}
@@ -195,16 +178,17 @@ const ReminderCategoryView = ({ navigation }) => {
             ))}
           </View>
         )}
-      </View>
-      <Icon
-        name={item.is_completed ? 'check-circle' : 'arrow-forward'}
-        size={24}
-        color={item.is_completed ? theme.success : theme.primary}
-      />
-    </TouchableOpacity>
-  );
+        </View>
+        <Icon
+          name={item.is_completed ? 'check-circle' : 'arrow-forward'}
+          size={24}
+          color={item.is_completed ? theme.success : theme.primary}
+        />
+      </TouchableOpacity>
+    );
+  };
 
-  // 渲染分组头部
+  // 娓叉煋鍒嗙粍澶撮儴
   const renderSectionHeader = ({ section }) => (
     <View
       style={[
@@ -221,10 +205,10 @@ const ReminderCategoryView = ({ navigation }) => {
     </View>
   );
 
-  // 获取当前选中分类名称
+  // 鑾峰彇褰撳墠閫変腑鍒嗙被鍚嶇О
   const getSelectedCategoryName = () => {
     const category = categories.find(cat => cat.id === selectedCategory);
-    return category ? category.name : '全部';
+    return category ? category.name : '鍏ㄩ儴';
   };
 
   return (
@@ -243,7 +227,7 @@ const ReminderCategoryView = ({ navigation }) => {
       <View style={styles.reminderSection}>
         <View style={[styles.reminderHeader, { borderBottomColor: theme.border }]}>
           <Text style={[styles.reminderHeaderTitle, { color: theme.text }]}>
-            {getSelectedCategoryName()} 提醒
+            {getSelectedCategoryName()} 鎻愰啋
           </Text>
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: theme.primary }]}
@@ -269,7 +253,7 @@ const ReminderCategoryView = ({ navigation }) => {
           <View style={styles.emptyContainer}>
             <Icon name="category" size={48} color={theme.textDisabled} />
             <Text style={[styles.emptyText, { color: theme.textDisabled }]}>
-              该分类下没有提醒
+              璇ュ垎绫讳笅娌℃湁鎻愰啋
             </Text>
           </View>
         )}
@@ -292,9 +276,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
+    paddingVertical: 9,
+    marginRight: 10,
+    borderRadius: 22,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 3,
   },
   categoryName: {
     fontSize: 14,
@@ -322,6 +311,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
+    backgroundColor: '#FFFFFFD9',
   },
   reminderHeaderTitle: {
     fontSize: 18,
@@ -350,16 +340,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    padding: 13,
     marginHorizontal: 16,
     marginVertical: 6,
-    borderRadius: 8,
+    borderRadius: 14,
     borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: '#D9E2EC99',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   reminderContent: {
     flex: 1,
@@ -409,3 +401,4 @@ const styles = StyleSheet.create({
 });
 
 export default ReminderCategoryView;
+
