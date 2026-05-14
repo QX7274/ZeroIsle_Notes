@@ -24,8 +24,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { loadReminders, updateReminder, deleteReminder, syncReminders } from '../../redux/slices/reminderSlice';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
-import api from '../../services/api';
-import { API_ENDPOINTS } from '../../config/api';
 import * as reminderApi from '../../services/api/reminderApi';
 import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -75,6 +73,12 @@ const ReminderListView = ({ navigation, route }) => {
     endDate: null,
     tags: [],
   });
+
+  const logDegradedReminderAction = useCallback((message, error) => {
+    if (__DEV__) {
+      console.log(message, error);
+    }
+  }, []);
 
   // 加载提醒数据
   const loadRemindersData = useCallback(async () => {
@@ -366,17 +370,21 @@ const ReminderListView = ({ navigation, route }) => {
       // 更新服务器
       try {
         if (updatedReminder.is_completed) {
-          await api.post(API_ENDPOINTS.REMINDER.COMPLETE(reminder.id));
+          await reminderApi.completeReminder(reminder.id, {
+            suppressGlobalErrorUI: true,
+          });
         } else {
-          await api.post(`${API_ENDPOINTS.REMINDER.DETAIL(reminder.id)}reopen/`);
+          await reminderApi.reopenReminder(reminder.id, {
+            suppressGlobalErrorUI: true,
+          });
         }
       } catch (error) {
-        console.error('更新提醒状态失败:', error);
+        logDegradedReminderAction('更新提醒状态失败:', error);
         // 保存到离线存储
         await reminderNotificationService.saveOfflineReminder(updatedReminder);
       }
     } catch (error) {
-      console.error('切换提醒完成状态失败:', error);
+      logDegradedReminderAction('切换提醒完成状态失败:', error);
       notifyNonBlocking('更新提醒失败');
     }
   };
@@ -396,17 +404,21 @@ const ReminderListView = ({ navigation, route }) => {
       // 更新服务器
       try {
         if (updatedReminder.is_enabled) {
-          await api.post(API_ENDPOINTS.REMINDER.ENABLE(reminder.id));
+          await reminderApi.toggleEnableReminder(reminder.id, true, {
+            suppressGlobalErrorUI: true,
+          });
         } else {
-          await api.post(API_ENDPOINTS.REMINDER.DISABLE(reminder.id));
+          await reminderApi.toggleEnableReminder(reminder.id, false, {
+            suppressGlobalErrorUI: true,
+          });
         }
       } catch (error) {
-        console.error('更新提醒启用状态失败:', error);
+        logDegradedReminderAction('更新提醒启用状态失败:', error);
         // 保存到离线存储
         await reminderNotificationService.saveOfflineReminder(updatedReminder);
       }
     } catch (error) {
-      console.error('切换提醒启用状态失败:', error);
+      logDegradedReminderAction('切换提醒启用状态失败:', error);
       notifyNonBlocking('更新提醒失败');
     }
   };
@@ -430,12 +442,14 @@ const ReminderListView = ({ navigation, route }) => {
 
                 // 删除服务器数据
                 try {
-                  await api.delete(API_ENDPOINTS.REMINDER.DETAIL(reminder.id));
+                  await reminderApi.deleteReminder(reminder.id, {
+                    suppressGlobalErrorUI: true,
+                  });
                 } catch (error) {
-                  console.error('删除提醒失败:', error);
+                  logDegradedReminderAction('删除提醒失败:', error);
                 }
               } catch (error) {
-                console.error('删除提醒失败:', error);
+                logDegradedReminderAction('删除提醒失败:', error);
                 notifyNonBlocking('删除提醒失败');
               }
             },
@@ -443,7 +457,7 @@ const ReminderListView = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error('删除提醒操作失败:', error);
+      logDegradedReminderAction('删除提醒操作失败:', error);
     }
   };
 
@@ -458,11 +472,11 @@ const ReminderListView = ({ navigation, route }) => {
         await syncOfflineReminders();
       }
     } catch (error) {
-      console.error('刷新提醒列表失败:', error);
+      logDegradedReminderAction('刷新提醒列表失败:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [isOnline, loadRemindersData, offlineReminders, syncOfflineReminders]);
+  }, [isOnline, loadRemindersData, logDegradedReminderAction, offlineReminders, syncOfflineReminders]);
 
   // 切换提醒选择状态
   const handleToggleSelect = (reminder) => {
@@ -512,9 +526,11 @@ const ReminderListView = ({ navigation, route }) => {
                   // 更新服务器
                   if (isOnline) {
                     try {
-                      await api.post(API_ENDPOINTS.REMINDER.COMPLETE(reminder.id));
+                      await reminderApi.completeReminder(reminder.id, {
+                        suppressGlobalErrorUI: true,
+                      });
                     } catch (error) {
-                      console.error(`更新提醒 ${reminder.id} 状态失败:`, error);
+                      logDegradedReminderAction(`更新提醒 ${reminder.id} 状态失败:`, error);
                       // 保存到离线存储
                       await reminderNotificationService.saveOfflineReminder(updatedReminder);
                     }
@@ -531,7 +547,7 @@ const ReminderListView = ({ navigation, route }) => {
                 // 显示成功消息
                 notifyNonBlocking(`已完成 ${selectedItems.length} 个提醒`);
               } catch (error) {
-                console.error('批量完成提醒失败:', error);
+                logDegradedReminderAction('批量完成提醒失败:', error);
                 notifyNonBlocking('批量完成提醒失败');
               } finally {
                 setSyncing(false);
@@ -541,7 +557,7 @@ const ReminderListView = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error('批量操作失败:', error);
+      logDegradedReminderAction('批量操作失败:', error);
       notifyNonBlocking('批量操作失败');
       setSyncing(false);
     }
@@ -576,9 +592,11 @@ const ReminderListView = ({ navigation, route }) => {
                   // 更新服务器
                   if (isOnline) {
                     try {
-                      await api.delete(API_ENDPOINTS.REMINDER.DETAIL(id));
+                      await reminderApi.deleteReminder(id, {
+                        suppressGlobalErrorUI: true,
+                      });
                     } catch (error) {
-                      console.error(`删除提醒 ${id} 失败:`, error);
+                      logDegradedReminderAction(`删除提醒 ${id} 失败:`, error);
                     }
                   }
                 }
@@ -590,7 +608,7 @@ const ReminderListView = ({ navigation, route }) => {
                 // 显示成功消息
                 notifyNonBlocking(`已删除 ${selectedReminders.length} 个提醒`);
               } catch (error) {
-                console.error('批量删除提醒失败:', error);
+                logDegradedReminderAction('批量删除提醒失败:', error);
                 notifyNonBlocking('批量删除提醒失败');
               } finally {
                 setSyncing(false);
@@ -600,7 +618,7 @@ const ReminderListView = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error('批量操作失败:', error);
+      logDegradedReminderAction('批量操作失败:', error);
       notifyNonBlocking('批量操作失败');
     }
   };
@@ -1188,7 +1206,7 @@ const ReminderListView = ({ navigation, route }) => {
   };
 
   if (!hasNavigation) {
-    console.error('ReminderListView: navigation对象未定义');
+    logDegradedReminderAction('ReminderListView: navigation对象未定义');
     return (
       <SafeAreaView style={styles.navigationErrorContainer}>
         <Text style={styles.navigationErrorText}>导航错误，请重新进入页面</Text>

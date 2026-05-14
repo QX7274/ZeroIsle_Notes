@@ -115,9 +115,13 @@ export const deleteReminder = async (id, requestOptions = {}) => {
  * @param {string} id - 提醒ID
  * @returns {Promise} - 操作结果
  */
-export const completeReminder = async (id) => {
+export const completeReminder = async (id, requestOptions = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.REMINDER.COMPLETE(id));
+    const response = await instance.post(API_ENDPOINTS.REMINDER.COMPLETE(id), null, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
@@ -132,9 +136,13 @@ export const completeReminder = async (id) => {
  * @param {string} id - 提醒ID
  * @returns {Promise} - 操作结果
  */
-export const reopenReminder = async (id) => {
+export const reopenReminder = async (id, requestOptions = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.REMINDER.REOPEN(id));
+    const response = await instance.post(API_ENDPOINTS.REMINDER.REOPEN(id), null, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
@@ -218,15 +226,21 @@ export const createReminderFromNote = async (data) => {
  * @param {string} id - 提醒ID
  * @returns {Promise} - 操作结果
  */
-export const toggleEnableReminder = async (id) => {
+export const toggleEnableReminder = async (id, enabled, requestOptions = {}) => {
   try {
-    const response = await instance.post(`${API_ENDPOINTS.REMINDER.DETAIL(id)}toggle_enable/`);
+    const endpoint = enabled
+      ? API_ENDPOINTS.REMINDER.ENABLE(id)
+      : API_ENDPOINTS.REMINDER.DISABLE(id);
+    const response = await instance.post(endpoint, null, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('启用/禁用提醒失败:', error);
     throw error;
   }
 };
