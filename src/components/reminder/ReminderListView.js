@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -26,7 +26,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   loadReminders,
   updateLocalReminder,
-  deleteReminder,
+  deleteLocalReminder,
   syncReminders,
 } from '../../redux/slices/reminderSlice';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
@@ -56,6 +56,7 @@ const ReminderListView = ({ navigation, route }) => {
   const [syncing, setSyncing] = useState(false);
   const [showSyncIndicator, setShowSyncIndicator] = useState(false);
   const [syncRotation] = useState(new Animated.Value(0));
+  const unsyncedCountRef = useRef(unsyncedCount);
   const [showBatchActions, setShowBatchActions] = useState(false);
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -154,6 +155,10 @@ const ReminderListView = ({ navigation, route }) => {
       setSyncing(false);
     }
   }, [dispatch, isOnline, notifyNonBlocking, unsyncedCount]);
+
+  useEffect(() => {
+    unsyncedCountRef.current = unsyncedCount;
+  }, [unsyncedCount]);
 
   // 将提醒按类别组织
   const organizeReminders = useCallback(() => {
@@ -322,7 +327,8 @@ const ReminderListView = ({ navigation, route }) => {
     const unsubscribe = networkService.addNetworkListener(state => {
       const online = Boolean(state?.isOnline);
       setIsOnline(online);
-      if (online && unsyncedCount > 0) {
+
+      if (online && unsyncedCountRef.current > 0) {
         syncOfflineReminders();
       }
     });
@@ -332,7 +338,7 @@ const ReminderListView = ({ navigation, route }) => {
     return () => {
       unsubscribe();
     };
-  }, [loadRemindersData, syncOfflineReminders, unsyncedCount]);
+  }, [loadRemindersData, syncOfflineReminders]);
 
   useFocusEffect(
     useCallback(() => {
@@ -455,7 +461,7 @@ const ReminderListView = ({ navigation, route }) => {
             onPress: async () => {
               try {
                 // 调度删除提醒操作
-                dispatch(deleteReminder(reminder.id));
+                dispatch(deleteLocalReminder(reminder.id));
 
                 // 删除服务器数据
                 try {
@@ -608,7 +614,7 @@ const ReminderListView = ({ navigation, route }) => {
                 // 删除每个提醒
                 for (const id of selectedReminders) {
                   // 更新Redux状态
-                  dispatch(deleteReminder(id));
+                  dispatch(deleteLocalReminder(id));
 
                   // 更新服务器
                   if (isOnline) {
