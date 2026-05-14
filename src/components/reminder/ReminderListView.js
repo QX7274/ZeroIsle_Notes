@@ -1268,6 +1268,78 @@ const ReminderListView = ({ navigation, route }) => {
     );
   };
 
+  const renderSyncStatusCard = () => {
+    const isOfflineView = listState === 'offline' || listState === 'offline-empty';
+    const hasUnsyncedChanges = unsyncedCount > 0;
+    const shouldRender = isOfflineView || hasUnsyncedChanges || syncing || Boolean(inlineHint);
+
+    if (!shouldRender) {
+      return null;
+    }
+
+    const statusTone = syncing
+      ? getThemeColor('primary', '#2196F3')
+      : hasUnsyncedChanges
+        ? getThemeColor('warning', '#FFB300')
+        : isOfflineView
+          ? getThemeColor('primary', '#2196F3')
+          : getThemeColor('success', '#2E7D32');
+
+    const statusTitle = syncing
+      ? '同步处理中'
+      : hasUnsyncedChanges
+        ? `待同步 ${unsyncedCount} 项`
+        : isOfflineView
+          ? '离线本地视图'
+          : '同步状态正常';
+
+    const statusDescription = inlineHint || (
+      syncing
+        ? '正在对齐本地提醒与离线队列，请稍候。'
+        : hasUnsyncedChanges
+          ? '当前页面已显示本地提醒，联网后会继续自动同步。'
+          : isOfflineView
+            ? '当前已优先展示本地提醒，恢复联网后可继续校验同步结果。'
+            : '当前提醒列表与同步状态没有新的阻塞提示。'
+    );
+
+    return (
+      <View
+        style={[
+          styles.syncStatusCard,
+          {
+            backgroundColor: getThemeColor('cardBackground', '#FFFFFF'),
+            borderColor: statusTone + '30',
+            shadowColor: statusTone,
+          },
+        ]}
+        testID="state.reminder.syncStatus"
+      >
+        <View style={[styles.syncStatusAccent, { backgroundColor: statusTone }]} />
+        <View style={styles.syncStatusContent}>
+          <View style={styles.syncStatusHeader}>
+            <Text style={[styles.syncStatusTitle, { color: getThemeColor('text', '#0F172A') }]}>
+              {statusTitle}
+            </Text>
+            <View
+              style={[
+                styles.syncStatusPill,
+                { backgroundColor: statusTone + '14', borderColor: statusTone + '24' },
+              ]}
+            >
+              <Text style={[styles.syncStatusPillText, { color: statusTone }]}>
+                {syncing ? '同步中' : hasUnsyncedChanges ? '待处理' : isOfflineView ? '离线' : '正常'}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.syncStatusDescription, { color: getThemeColor('textSecondary', '#64748B') }]}>
+            {statusDescription}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   if (!hasNavigation) {
     logDegradedReminderAction('ReminderListView: navigation对象未定义');
     return (
@@ -1281,12 +1353,7 @@ const ReminderListView = ({ navigation, route }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
       {renderFilterBar()}
-
-      {inlineHint ? (
-        <View style={[styles.hintBanner, { backgroundColor: getThemeColor('warning', '#ff9800') + '22' }]}>
-          <Text style={[styles.hintText, { color: getThemeColor('warning', '#ff9800') }]}>{inlineHint}</Text>
-        </View>
-      ) : null}
+      {renderSyncStatusCard()}
 
       <SectionList
         sections={reminderSections}
@@ -1370,19 +1437,57 @@ const styles = StyleSheet.create({
      marginLeft: 4,
    },
   listContainer: {
-    paddingBottom: 16,
+    paddingBottom: 88,
     flexGrow: 1,
   },
-  hintBanner: {
+  syncStatusCard: {
     marginHorizontal: 16,
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 8,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 3,
   },
-  hintText: {
+  syncStatusAccent: {
+    width: 4,
+    borderRadius: 999,
+    marginRight: 12,
+  },
+  syncStatusContent: {
+    flex: 1,
+  },
+  syncStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  syncStatusTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 12,
+  },
+  syncStatusDescription: {
     fontSize: 13,
+    lineHeight: 19,
+  },
+  syncStatusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  syncStatusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   reminderItem: {
     flexDirection: 'row',
