@@ -262,11 +262,6 @@ class ReminderNotificationService {
         },
       });
 
-      // 如果是重复提醒，安排下一次通知
-      if (reminder.frequency && reminder.frequency !== 'once') {
-        await this._scheduleRepeatingReminder(reminder, notificationTime);
-      }
-
       analyticsService.trackEvent('schedule_reminder_notification', {
         reminderId: reminder.id,
         title: reminder.title,
@@ -314,8 +309,7 @@ class ReminderNotificationService {
         due_date: nextNotificationTime.toISOString(),
       };
 
-      // 安排下一次通知
-      return await this.scheduleReminderNotification(nextReminder);
+      return nextReminder;
     } catch (error) {
       console.error('安排重复提醒失败:', error);
       analyticsService.trackError(error, { action: 'schedule_repeating_reminder' });

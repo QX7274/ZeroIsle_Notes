@@ -23,10 +23,15 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { loadReminders, updateReminder, deleteReminder, syncReminders } from '../../redux/slices/reminderSlice';
+import {
+  loadReminders,
+  updateLocalReminder,
+  deleteReminder,
+  syncReminders,
+} from '../../redux/slices/reminderSlice';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import * as reminderApi from '../../services/api/reminderApi';
-import { format, isToday, isPast, isFuture, addDays, parseISO } from 'date-fns';
+import { format, isToday, isPast, isFuture, addDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import networkService from '../../services/network/networkService';
@@ -41,8 +46,7 @@ const ReminderListView = ({ navigation, route }) => {
   const getThemeColor = (colorKey, defaultValue) => {
     return theme?.[colorKey] || defaultValue;
   };
-  const syncStatus = useSelector(state => state.reminders.syncStatus);
-  const offlineReminders = useSelector(state => state.reminders.offlineReminders || []);
+  const unsyncedCount = useSelector(state => state.reminders.syncStatus?.unsyncedCount || 0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,20 +140,20 @@ const ReminderListView = ({ navigation, route }) => {
   // 同步离线提醒
   const syncOfflineReminders = useCallback(async () => {
     try {
-      if (!isOnline || offlineReminders.length === 0) {
+      if (!isOnline || unsyncedCount === 0) {
         return;
       }
 
       setSyncing(true);
       await dispatch(syncReminders());
-      notifyNonBlocking(`已同步${offlineReminders.length}个离线提醒`);
+      notifyNonBlocking(`已同步${unsyncedCount}个离线提醒`);
     } catch (error) {
       console.error('同步离线提醒失败:', error);
       notifyNonBlocking('无法同步离线提醒，请稍后重试');
     } finally {
       setSyncing(false);
     }
-  }, [dispatch, isOnline, notifyNonBlocking, offlineReminders.length]);
+  }, [dispatch, isOnline, notifyNonBlocking, unsyncedCount]);
 
   // 将提醒按类别组织
   const organizeReminders = useCallback(() => {
@@ -318,7 +322,7 @@ const ReminderListView = ({ navigation, route }) => {
     const unsubscribe = networkService.addNetworkListener(state => {
       const online = Boolean(state?.isOnline);
       setIsOnline(online);
-      if (online && offlineReminders.length > 0) {
+      if (online && unsyncedCount > 0) {
         syncOfflineReminders();
       }
     });
@@ -328,7 +332,7 @@ const ReminderListView = ({ navigation, route }) => {
     return () => {
       unsubscribe();
     };
-  }, [loadRemindersData, offlineReminders.length, syncOfflineReminders]);
+  }, [loadRemindersData, syncOfflineReminders, unsyncedCount]);
 
   useFocusEffect(
     useCallback(() => {
@@ -372,7 +376,10 @@ const ReminderListView = ({ navigation, route }) => {
       };
 
       // 调度更新提醒操作
-      dispatch(updateReminder(updatedReminder));
+      dispatch(updateLocalReminder({
+        id: reminder.id,
+        reminderData: updatedReminder,
+      }));
 
       // 更新服务器
       try {
@@ -406,7 +413,10 @@ const ReminderListView = ({ navigation, route }) => {
       };
 
       // 调度更新提醒操作
-      dispatch(updateReminder(updatedReminder));
+      dispatch(updateLocalReminder({
+        id: reminder.id,
+        reminderData: updatedReminder,
+      }));
 
       // 更新服务器
       try {
@@ -476,7 +486,7 @@ const ReminderListView = ({ navigation, route }) => {
       await loadRemindersData();
 
       // 如果有网络连接，尝试同步离线提醒
-      if (isOnline && offlineReminders.length > 0) {
+      if (isOnline && unsyncedCount > 0) {
         await syncOfflineReminders();
       }
     } catch (error) {
@@ -484,7 +494,7 @@ const ReminderListView = ({ navigation, route }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [isOnline, loadRemindersData, logDegradedReminderAction, offlineReminders, syncOfflineReminders]);
+  }, [isOnline, loadRemindersData, logDegradedReminderAction, syncOfflineReminders, unsyncedCount]);
 
   // 切换提醒选择状态
   const handleToggleSelect = (reminder) => {
@@ -529,7 +539,10 @@ const ReminderListView = ({ navigation, route }) => {
                   };
 
                   // 更新Redux状态
-                  dispatch(updateReminder(updatedReminder));
+                  dispatch(updateLocalReminder({
+                    id: reminder.id,
+                    reminderData: updatedReminder,
+                  }));
 
                   // 更新服务器
                   if (isOnline) {

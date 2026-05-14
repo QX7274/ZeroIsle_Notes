@@ -221,7 +221,12 @@ const reminderSlice = createSlice({
       })
       .addCase(loadReminders.fulfilled, (state, action) => {
         state.loading = false;
-        state.reminders = action.payload;
+        const localReminders = state.reminders.filter(reminder => reminder.isLocal);
+        const incomingReminders = Array.isArray(action.payload) ? action.payload : [];
+        const incomingIds = new Set(incomingReminders.map(reminder => reminder.id));
+        const preservedLocalReminders = localReminders.filter(reminder => !incomingIds.has(reminder.id));
+
+        state.reminders = [...incomingReminders, ...preservedLocalReminders];
       })
       .addCase(loadReminders.rejected, (state, action) => {
         state.loading = false;
