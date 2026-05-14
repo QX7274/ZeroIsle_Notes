@@ -10,7 +10,7 @@ jest.mock('../../../services/reminder/reminderNotificationService', () => ({
   getOfflineOperations: jest.fn(),
 }));
 
-import remindersReducer, { loadReminders } from '../reminderSlice';
+import remindersReducer, { loadReminders, syncReminders } from '../reminderSlice';
 
 describe('reminderSlice offline projection', () => {
   it('should project offline update onto incoming reminders', () => {
@@ -84,5 +84,36 @@ describe('reminderSlice offline projection', () => {
     expect(nextState.reminders.find(item => item.id === 'local-1')).toBeTruthy();
     expect(nextState.reminders.find(item => item.id === 'server-1')).toBeTruthy();
   });
-});
 
+  it('should update unsyncedCount from sync fulfilled remaining payload', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.fulfilled.type,
+      payload: {
+        synced: 2,
+        failed: 1,
+        remaining: 4,
+      },
+    });
+
+    expect(state.syncStatus.syncing).toBe(false);
+    expect(state.syncStatus.unsyncedCount).toBe(4);
+    expect(state.syncStatus.lastSynced).toBeTruthy();
+  });
+
+  it('should update unsyncedCount from sync rejected remaining payload', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.rejected.type,
+      payload: {
+        message: 'sync failed',
+        remaining: 3,
+      },
+    });
+
+    expect(state.syncStatus.syncing).toBe(false);
+    expect(state.syncStatus.unsyncedCount).toBe(3);
+    expect(state.syncStatus.error).toMatchObject({
+      message: 'sync failed',
+      remaining: 3,
+    });
+  });
+});
