@@ -491,8 +491,15 @@ class ErrorBoundary extends React.Component {
 
 // 加载组件
 const LoadingComponent = () => {
-  console.log('显示启动屏幕...');
-  return <SplashScreen onComplete={() => { }} />;
+  console.log('PersistGate: 等待本地持久化数据恢复...');
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+      }}
+    />
+  );
 };
 
 // 持久化错误组件

@@ -6,6 +6,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, Animated, Dimensions } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
+const SPLASH_STAGES = [
+  { name: '服务初始化', message: '正在初始化基础服务...', duration: 1000 },
+  { name: '服务检查', message: '正在检查服务状态...', duration: 1500 },
+  { name: '认证检查', message: '正在检查认证状态...', duration: 1500 },
+  { name: '完成', message: '即将进入应用...', duration: 500 },
+];
 
 const SplashScreen = ({ onComplete }) => {
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -18,14 +24,6 @@ const SplashScreen = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
 
   const pulseRef = useRef();
-
-  // 定义加载阶段
-  const stages = [
-    { name: '服务初始化', message: '正在初始化基础服务...', duration: 1000 },
-    { name: '服务检查', message: '正在检查服务状态...', duration: 1500 },
-    { name: '认证检查', message: '正在检查认证状态...', duration: 1500 },
-    { name: '完成', message: '即将进入应用...', duration: 500 },
-  ];
 
   useEffect(() => {
     // 启动淡入动画
@@ -78,15 +76,14 @@ const SplashScreen = ({ onComplete }) => {
     const runStages = async () => {
       let currentProgress = 0;
 
-      for (let i = 0; i < stages.length; i++) {
+      for (let i = 0; i < SPLASH_STAGES.length; i++) {
         if (isCancelled) {return;}
 
         setCurrentStage(i);
-        setStageMessage(stages[i].message);
+        setStageMessage(SPLASH_STAGES[i].message);
 
         // 模拟进度增长
-        const stepProgress = 100 / stages.length;
-        const startProgress = currentProgress;
+        const stepProgress = 100 / SPLASH_STAGES.length;
         const endProgress = currentProgress + stepProgress;
 
         // 平滑进度条动画
@@ -111,7 +108,7 @@ const SplashScreen = ({ onComplete }) => {
         }, 50);
 
         // 等待当前阶段完成
-        await new Promise(resolve => setTimeout(resolve, stages[i].duration));
+        await new Promise(resolve => setTimeout(resolve, SPLASH_STAGES[i].duration));
         clearInterval(progressInterval);
         setProgress(endProgress);
       }
@@ -146,7 +143,7 @@ const SplashScreen = ({ onComplete }) => {
         pulseRef.current.stop();
       }
     };
-  }, [onComplete]);
+  }, [fadeAnim, onComplete, progressAnim, pulseAnim, scaleAnim, slideAnim]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -253,7 +250,7 @@ const SplashScreen = ({ onComplete }) => {
           { transform: [{ translateY: slideAnim }] },
         ]}
       >
-        {stages.map((stage, index) => (
+        {SPLASH_STAGES.map((stage, index) => (
           <View
             key={index}
             style={[
@@ -283,7 +280,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%)',
+    backgroundColor: '#F8F9FF',
     opacity: 0.3,
   },
   // Logo容器
