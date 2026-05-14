@@ -1310,8 +1310,8 @@ const ReminderListView = ({ navigation, route }) => {
         style={[
           styles.syncStatusCard,
           {
-            backgroundColor: getThemeColor('cardBackground', '#FFFFFF'),
-            borderColor: statusTone + '30',
+            backgroundColor: getThemeColor('cardBackground', '#FFFFFF') + 'E8',
+            borderColor: statusTone + '3D',
             shadowColor: statusTone,
           },
         ]}
@@ -1446,16 +1446,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
     flexDirection: 'row',
     alignItems: 'stretch',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 4,
   },
   syncStatusAccent: {
     width: 4,
@@ -1479,7 +1479,7 @@ const styles = StyleSheet.create({
   },
   syncStatusDescription: {
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   syncStatusPill: {
     borderRadius: 999,
