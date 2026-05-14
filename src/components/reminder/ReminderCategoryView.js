@@ -194,8 +194,8 @@ const ReminderCategoryView = ({ navigation }) => {
       style={[
         styles.sectionHeader,
         {
-          backgroundColor: theme.background,
-          borderBottomColor: theme.border,
+          backgroundColor: `${theme.cardBackground || '#FFFFFF'}CC`,
+          borderBottomColor: `${theme.border || '#D9E2EC'}CC`,
         },
       ]}
     >
@@ -251,7 +251,9 @@ const ReminderCategoryView = ({ navigation }) => {
           />
         ) : (
           <View style={styles.emptyContainer}>
-            <Icon name="category" size={48} color={theme.textDisabled} />
+            <View style={[styles.emptyGlassCard, { backgroundColor: `${theme.cardBackground || '#FFFFFF'}E6`, borderColor: `${theme.border || '#D9E2EC'}CC` }]}>
+              <Icon name="category" size={42} color={theme.textDisabled} />
+            </View>
             <Text style={[styles.emptyText, { color: theme.textDisabled }]}>
               璇ュ垎绫讳笅娌℃湁鎻愰啋
             </Text>
@@ -312,6 +314,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     backgroundColor: '#FFFFFFD9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
   },
   reminderHeaderTitle: {
     fontSize: 18,
@@ -326,12 +333,16 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderBottomWidth: 1,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   reminderList: {
     paddingBottom: 16,
@@ -394,9 +405,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  emptyGlassCard: {
+    width: 74,
+    height: 74,
+    borderRadius: 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
+  },
   emptyText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: 14,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
 
