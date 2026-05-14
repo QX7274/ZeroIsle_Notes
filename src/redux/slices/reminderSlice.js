@@ -3,6 +3,41 @@ import api from '../../services/api';
 import { showMessage } from '../../utils/messageUtils';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
+const applyOfflineOperationProjection = (reminders = [], offlineOperations = []) => {
+  if (!Array.isArray(reminders) || reminders.length === 0 || !Array.isArray(offlineOperations) || offlineOperations.length === 0) {
+    return Array.isArray(reminders) ? reminders : [];
+  }
+
+  const projected = reminders.map(reminder => ({ ...reminder }));
+
+  offlineOperations.forEach(operation => {
+    if (!operation || !operation.operation || !operation.data) {
+      return;
+    }
+
+    if (operation.operation === 'update' && operation.data.id) {
+      const targetIndex = projected.findIndex(reminder => reminder.id === operation.data.id);
+      if (targetIndex !== -1) {
+        projected[targetIndex] = {
+          ...projected[targetIndex],
+          ...operation.data,
+          isLocal: true,
+        };
+      }
+      return;
+    }
+
+    if (operation.operation === 'delete' && operation.data.id) {
+      const targetIndex = projected.findIndex(reminder => reminder.id === operation.data.id);
+      if (targetIndex !== -1) {
+        projected.splice(targetIndex, 1);
+      }
+    }
+  });
+
+  return projected;
+};
+
 // 寮傛鎿嶄綔锛氬姞杞芥彁閱掍簨椤?
 export const loadReminders = createAsyncThunk(
   'reminders/loadReminders',
@@ -10,11 +45,19 @@ export const loadReminders = createAsyncThunk(
     try {
       if (Array.isArray(data)) {
         // 鐩存帴浣跨敤浼犲叆鐨勬暟鎹紙鐢ㄤ簬绂荤嚎妯″紡锛?
-        return data;
+        const offlineOperations = await reminderNotificationService.getOfflineOperations();
+        return {
+          reminders: data,
+          offlineOperations,
+        };
       } else {
         // 浠嶢PI鑾峰彇鏁版嵁
         const response = await api.get('/reminders/');
-        return response.data;
+        const offlineOperations = await reminderNotificationService.getOfflineOperations();
+        return {
+          reminders: response.data,
+          offlineOperations,
+        };
       }
     } catch (error) {
       return rejectWithValue(error.response?.data || { message: '加载提醒事项失败' });
@@ -216,11 +259,15 @@ const reminderSlice = createSlice({
       .addCase(loadReminders.fulfilled, (state, action) => {
         state.loading = false;
         const localReminders = state.reminders.filter(reminder => reminder.isLocal);
-        const incomingReminders = Array.isArray(action.payload) ? action.payload : [];
-        const incomingIds = new Set(incomingReminders.map(reminder => reminder.id));
+        const incomingReminders = Array.isArray(action.payload?.reminders) ? action.payload.reminders : [];
+        const projectedIncomingReminders = applyOfflineOperationProjection(
+          incomingReminders,
+          action.payload?.offlineOperations
+        );
+        const incomingIds = new Set(projectedIncomingReminders.map(reminder => reminder.id));
         const preservedLocalReminders = localReminders.filter(reminder => !incomingIds.has(reminder.id));
 
-        state.reminders = [...incomingReminders, ...preservedLocalReminders];
+        state.reminders = [...projectedIncomingReminders, ...preservedLocalReminders];
       })
       .addCase(loadReminders.rejected, (state, action) => {
         state.loading = false;
