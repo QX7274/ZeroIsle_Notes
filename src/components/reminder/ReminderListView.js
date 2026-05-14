@@ -381,7 +381,7 @@ const ReminderListView = ({ navigation, route }) => {
       } catch (error) {
         logDegradedReminderAction('更新提醒状态失败:', error);
         // 保存到离线存储
-        await reminderNotificationService.saveOfflineReminder(updatedReminder);
+        await reminderNotificationService.saveOfflineReminderUpdate(updatedReminder);
       }
     } catch (error) {
       logDegradedReminderAction('切换提醒完成状态失败:', error);
@@ -415,7 +415,7 @@ const ReminderListView = ({ navigation, route }) => {
       } catch (error) {
         logDegradedReminderAction('更新提醒启用状态失败:', error);
         // 保存到离线存储
-        await reminderNotificationService.saveOfflineReminder(updatedReminder);
+        await reminderNotificationService.saveOfflineReminderUpdate(updatedReminder);
       }
     } catch (error) {
       logDegradedReminderAction('切换提醒启用状态失败:', error);
@@ -447,6 +447,7 @@ const ReminderListView = ({ navigation, route }) => {
                   });
                 } catch (error) {
                   logDegradedReminderAction('删除提醒失败:', error);
+                  await reminderNotificationService.saveOfflineReminderDelete(reminder);
                 }
               } catch (error) {
                 logDegradedReminderAction('删除提醒失败:', error);
@@ -532,11 +533,11 @@ const ReminderListView = ({ navigation, route }) => {
                     } catch (error) {
                       logDegradedReminderAction(`更新提醒 ${reminder.id} 状态失败:`, error);
                       // 保存到离线存储
-                      await reminderNotificationService.saveOfflineReminder(updatedReminder);
+                      await reminderNotificationService.saveOfflineReminderUpdate(updatedReminder);
                     }
                   } else {
                     // 离线模式，保存到本地
-                    await reminderNotificationService.saveOfflineReminder(updatedReminder);
+                    await reminderNotificationService.saveOfflineReminderUpdate(updatedReminder);
                   }
                 }
 
@@ -597,7 +598,10 @@ const ReminderListView = ({ navigation, route }) => {
                       });
                     } catch (error) {
                       logDegradedReminderAction(`删除提醒 ${id} 失败:`, error);
+                      await reminderNotificationService.saveOfflineReminderDelete(id);
                     }
+                  } else {
+                    await reminderNotificationService.saveOfflineReminderDelete(id);
                   }
                 }
 

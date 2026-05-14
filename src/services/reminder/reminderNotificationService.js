@@ -554,6 +554,38 @@ class ReminderNotificationService {
   }
 
   /**
+   * 保存离线更新提醒
+   * @param {Object} reminder 提醒对象
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async saveOfflineReminderUpdate(reminder) {
+    try {
+      const offlineReminders = await reminderMongoDBService.getItem(STORAGE_KEYS.OFFLINE_REMINDERS) || [];
+      const updatedOfflineReminders = offlineReminders.filter(item => item.id !== reminder.id);
+
+      updatedOfflineReminders.push({
+        ...reminder,
+        offlineId: reminder.offlineId || realmService.createObjectId(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await reminderMongoDBService.setItem(STORAGE_KEYS.OFFLINE_REMINDERS, updatedOfflineReminders);
+      await this.saveOfflineOperation('update', reminder);
+
+      analyticsService.trackEvent('save_offline_reminder_update', {
+        id: reminder.id,
+        title: reminder.title,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('保存离线更新提醒失败:', error);
+      analyticsService.trackError(error, { action: 'save_offline_reminder_update' });
+      throw error;
+    }
+  }
+
+  /**
    * 获取离线提醒
    * @returns {Promise<Array>} 离线提醒列表
    */
@@ -629,6 +661,33 @@ class ReminderNotificationService {
     } catch (error) {
       console.error('保存离线操作记录失败:', error);
       analyticsService.trackError(error, { action: 'save_offline_operation' });
+      throw error;
+    }
+  }
+
+  /**
+   * 保存离线删除提醒
+   * @param {Object|string} reminder 提醒对象或提醒ID
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async saveOfflineReminderDelete(reminder) {
+    try {
+      const reminderId = typeof reminder === 'string' ? reminder : reminder?.id;
+      if (!reminderId) {
+        throw new Error('保存离线删除提醒失败：缺少 reminderId');
+      }
+
+      await this.removeOfflineReminder(reminderId);
+      await this.saveOfflineOperation('delete', { id: reminderId });
+
+      analyticsService.trackEvent('save_offline_reminder_delete', {
+        id: reminderId,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('保存离线删除提醒失败:', error);
+      analyticsService.trackError(error, { action: 'save_offline_reminder_delete' });
       throw error;
     }
   }
