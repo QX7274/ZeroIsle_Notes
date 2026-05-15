@@ -1492,7 +1492,7 @@ const styles = StyleSheet.create({
   syncStatusDescription: {
     fontSize: 13,
     lineHeight: 21,
-    letterSpacing: 0.1,
+    letterSpacing: 0.12,
   },
   syncStatusPill: {
     borderRadius: 999,
