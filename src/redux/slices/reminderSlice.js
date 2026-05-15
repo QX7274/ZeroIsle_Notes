@@ -9,26 +9,40 @@ const applyOfflineOperationProjection = (reminders = [], offlineOperations = [])
   }
 
   const projected = reminders.map(reminder => ({ ...reminder }));
+  const resolveOperationReminderId = (operation) => {
+    if (!operation) {
+      return null;
+    }
+    if (typeof operation.data === 'string') {
+      return operation.data;
+    }
+    return operation.data?.id || operation.data?.reminderId || null;
+  };
 
   offlineOperations.forEach(operation => {
     if (!operation || !operation.operation || !operation.data) {
       return;
     }
+    const reminderId = resolveOperationReminderId(operation);
+    if (!reminderId) {
+      return;
+    }
 
-    if (operation.operation === 'update' && operation.data.id) {
-      const targetIndex = projected.findIndex(reminder => reminder.id === operation.data.id);
+    if (operation.operation === 'update') {
+      const targetIndex = projected.findIndex(reminder => reminder.id === reminderId);
       if (targetIndex !== -1) {
         projected[targetIndex] = {
           ...projected[targetIndex],
-          ...operation.data,
+          ...(typeof operation.data === 'object' ? operation.data : {}),
+          id: reminderId,
           isLocal: true,
         };
       }
       return;
     }
 
-    if (operation.operation === 'delete' && operation.data.id) {
-      const targetIndex = projected.findIndex(reminder => reminder.id === operation.data.id);
+    if (operation.operation === 'delete') {
+      const targetIndex = projected.findIndex(reminder => reminder.id === reminderId);
       if (targetIndex !== -1) {
         projected.splice(targetIndex, 1);
       }
