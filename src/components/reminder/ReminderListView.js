@@ -649,9 +649,14 @@ const ReminderListView = ({ navigation, route }) => {
             onPress: async () => {
               try {
                 setSyncing(true);
+                const selectedKeys = [...selectedReminders];
+                let shouldRefreshUnsyncedCount = false;
 
                 // 删除每个提醒
-                for (const id of selectedReminders) {
+                for (const id of selectedKeys) {
+                  if (!id) {
+                    continue;
+                  }
                   // 更新Redux状态
                   dispatch(deleteLocalReminder(id));
 
@@ -664,12 +669,16 @@ const ReminderListView = ({ navigation, route }) => {
                     } catch (error) {
                       logDegradedReminderAction(`删除提醒 ${id} 失败:`, error);
                       await reminderNotificationService.saveOfflineReminderDelete(id);
-                      await dispatch(refreshUnsyncedCount());
+                      shouldRefreshUnsyncedCount = true;
                     }
                   } else {
                     await reminderNotificationService.saveOfflineReminderDelete(id);
-                    await dispatch(refreshUnsyncedCount());
+                    shouldRefreshUnsyncedCount = true;
                   }
+                }
+
+                if (shouldRefreshUnsyncedCount) {
+                  await dispatch(refreshUnsyncedCount());
                 }
 
                 // 清除选择
