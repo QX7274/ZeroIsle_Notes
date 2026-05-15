@@ -358,6 +358,8 @@ const reminderSlice = createSlice({
         state.syncStatus.error = action.payload || { message: '同步提醒事项失败' };
         if (typeof action.payload?.remaining === 'number') {
           state.syncStatus.unsyncedCount = action.payload.remaining;
+        } else {
+          state.syncStatus.unsyncedCount = 0;
         }
       })
       .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
