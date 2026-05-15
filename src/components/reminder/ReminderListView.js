@@ -1464,7 +1464,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.14,
-    shadowRadius: 20,
+    shadowRadius: 22,
     elevation: 4,
   },
   syncStatusAccent: {
@@ -1498,6 +1498,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 11,
     paddingVertical: 5,
+    minWidth: 62,
+    alignItems: 'center',
   },
   syncStatusPillText: {
     fontSize: 11,

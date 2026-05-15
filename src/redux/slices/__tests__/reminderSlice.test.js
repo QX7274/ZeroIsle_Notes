@@ -38,6 +38,31 @@ describe('reminderSlice offline projection', () => {
     });
   });
 
+  it('should project offline update when payload uses reminderId field', () => {
+    const state = remindersReducer(undefined, {
+      type: loadReminders.fulfilled.type,
+      payload: {
+        reminders: [
+          { id: 'r-1', title: 'server-title', is_completed: false },
+        ],
+        offlineOperations: [
+          {
+            operation: 'update',
+            data: { reminderId: 'r-1', title: 'offline-updated-by-reminderId', is_completed: true },
+          },
+        ],
+      },
+    });
+
+    expect(state.reminders).toHaveLength(1);
+    expect(state.reminders[0]).toMatchObject({
+      id: 'r-1',
+      title: 'offline-updated-by-reminderId',
+      is_completed: true,
+      isLocal: true,
+    });
+  });
+
   it('should remove deleted reminder via offline delete projection', () => {
     const state = remindersReducer(undefined, {
       type: loadReminders.fulfilled.type,
