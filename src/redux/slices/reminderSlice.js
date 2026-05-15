@@ -366,6 +366,7 @@ const reminderSlice = createSlice({
         }
       })
       .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
+        state.syncStatus.error = null;
         state.syncStatus.unsyncedCount = Number.isFinite(action.payload)
           ? Math.max(0, action.payload)
           : 0;

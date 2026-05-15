@@ -1466,6 +1466,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 21,
     elevation: 5,
+    overflow: 'hidden',
   },
   syncStatusAccent: {
     width: 4,

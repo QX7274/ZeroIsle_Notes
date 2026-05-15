@@ -501,6 +501,21 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 
+  it('should clear syncStatus.error when refresh fulfilled succeeds', () => {
+    const baseState = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.rejected.type,
+      payload: { message: 'refresh failed' },
+    });
+
+    const state = remindersReducer(baseState, {
+      type: refreshUnsyncedCount.fulfilled.type,
+      payload: 2,
+    });
+
+    expect(state.syncStatus.error).toBeNull();
+    expect(state.syncStatus.unsyncedCount).toBe(2);
+  });
+
   it('should reset unsyncedCount to 0 when refresh is rejected', () => {
     const state = remindersReducer(undefined, {
       type: refreshUnsyncedCount.rejected.type,
