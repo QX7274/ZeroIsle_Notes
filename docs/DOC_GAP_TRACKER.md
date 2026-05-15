@@ -36,6 +36,7 @@
 | GAP-UI-REMINDER-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 Reminder 同步状态可测锚点与轻毛玻璃层级一致性 | `待提交` | `src/components/reminder/ReminderListView.js` 中 `state.reminder.syncStatus.*` 与筛选栏/卡片玻璃样式更新 | 补 round65 reminder 同步状态卡真机证据并复核同步链稳定性 |
 | GAP-UI-GROUP-DETAIL-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 GroupDetail 阻断交互与菜单动作可测性 | `待提交` | `src/components/groups/GroupDetail.js` 中 `state.group.inlineStatus.*` 与 `action.group.*` 锚点 | 补 round65 group detail 真机菜单动作链与页内状态证据 |
 | GAP-UI-ADD-REMINDER-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 AddReminder 创建提示状态可测性与操作条玻璃层级一致性 | `待提交` | `src/screens/reminder/AddReminderScreen.js` 中 `state.reminder.createHint.*` 与 `state.reminder.actionBar` | 补 round65 add reminder 真机创建状态证据并复核创建回流链 |
+| GAP-DEVICE-ROUND65-001 | P0 | IN_PROGRESS | 验证 | 补齐 round65 对 AddReminder/GroupDetail/Reminder 回流链的真机证据 | `待提交` | `.local/android-mcp-server/round65_add_group_reminder_followup.xml`、`.local/android-mcp-server/round65_add_group_reminder_followup.png`（已落盘）；XML 命中 `screen.reminderList`、`filter.reminder.*`、`state.reminder.syncStatus` | 继续补 GroupDetail 和 AddReminder 的独立场景证据，覆盖本轮新增状态锚点 |
 
 ## 3. 已完成里程碑（保留最少）
 | GAP ID | 状态 | 结论 | 提交 |
