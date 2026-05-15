@@ -688,7 +688,9 @@ const ReminderListView = ({ navigation, route }) => {
   };
 
   // 渲染提醒项
-  const renderReminderItem = ({ item }) => {
+  const renderReminderItem = ({ item, index: itemIndex }) => {
+    const reminderKey = String(item?.id ?? item?.offlineId ?? `reminder-${itemIndex}`);
+    const reminderId = item?.id ?? item?.offlineId ?? reminderKey;
     const dueDate = new Date(item.dueDate || item.due_date);
     const isPastDue = isPast(dueDate) && !isToday(dueDate);
 
@@ -707,10 +709,10 @@ const ReminderListView = ({ navigation, route }) => {
     );
 
     // 检查是否为离线创建的提醒
-    const isOffline = item.id.toString().startsWith('local-');
+    const isOffline = reminderKey.startsWith('local-');
 
     // 检查是否被选中
-    const isSelected = selectedReminders.includes(item.id);
+    const isSelected = selectedReminders.includes(reminderId);
 
     return (
       <TouchableOpacity
@@ -723,8 +725,8 @@ const ReminderListView = ({ navigation, route }) => {
             opacity: !item.is_enabled ? 0.7 : 1,
           },
         ]}
-        testID={`item.reminder.${item.id}`}
-        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: item.id, reminder: item })}
+        testID={`item.reminder.${reminderKey}`}
+        onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: reminderId, reminder: item })}
         onLongPress={() => {
           if (!showBatchActions) {
             setShowBatchActions(true);
