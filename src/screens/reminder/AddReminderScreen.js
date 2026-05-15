@@ -421,25 +421,46 @@ const AddReminderScreen = ({ route, navigation }) => {
               {
                 backgroundColor: hintTone === 'success'
                   ? theme.colors.success + '18'
-                  : theme.colors.primary + '12',
+                  : hintTone === 'error'
+                    ? theme.colors.error + '18'
+                    : theme.colors.primary + '12',
                 borderColor: hintTone === 'success'
                   ? theme.colors.success + '44'
-                  : theme.colors.primary + '2E',
+                  : hintTone === 'error'
+                    ? theme.colors.error + '3E'
+                    : theme.colors.primary + '2E',
               },
             ]}
-            testID="state.reminder.createHint"
+            testID={`state.reminder.createHint.${hintTone || 'warning'}`}
           >
             <Icon
-              name={hintTone === 'success' ? 'check-circle-outline' : 'wifi-off'}
+              name={
+                hintTone === 'success'
+                  ? 'check-circle-outline'
+                  : hintTone === 'error'
+                    ? 'error-outline'
+                    : 'wifi-off'
+              }
               size={18}
-              color={hintTone === 'success' ? theme.colors.success : theme.colors.primary}
+              color={
+                hintTone === 'success'
+                  ? theme.colors.success
+                  : hintTone === 'error'
+                    ? theme.colors.error
+                    : theme.colors.primary
+              }
               style={styles.hintIcon}
             />
             <Text
               style={[
                 styles.hintText,
                 {
-                  color: hintTone === 'success' ? theme.colors.success : theme.colors.primary,
+                  color:
+                    hintTone === 'success'
+                      ? theme.colors.success
+                      : hintTone === 'error'
+                        ? theme.colors.error
+                        : theme.colors.primary,
                 },
               ]}
             >
@@ -706,10 +727,11 @@ const AddReminderScreen = ({ route, navigation }) => {
         style={[
           styles.actionBar,
           {
-            backgroundColor: theme.colors.card + 'F5',
+            backgroundColor: theme.colors.card + 'EB',
             borderTopColor: theme.colors.primary + '16',
           },
         ]}
+        testID="state.reminder.actionBar"
       >
         <View style={styles.actionButtons}>
           <TouchableOpacity
