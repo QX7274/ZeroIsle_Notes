@@ -570,6 +570,11 @@ const ReminderListView = ({ navigation, route }) => {
               try {
                 // 更新每个提醒
                 for (const reminder of selectedItems) {
+                  const reminderKey = resolveReminderSelectionKey(reminder);
+                  if (!reminderKey) {
+                    notifyNonBlocking('存在缺少标识的提醒，已跳过该条批量完成');
+                    continue;
+                  }
                   const updatedReminder = {
                     ...reminder,
                     is_completed: true,
@@ -578,14 +583,14 @@ const ReminderListView = ({ navigation, route }) => {
 
                   // 更新Redux状态
                   dispatch(updateLocalReminder({
-                    id: reminder.id,
+                    id: reminderKey,
                     reminderData: updatedReminder,
                   }));
 
                   // 更新服务器
                   if (isOnline) {
                     try {
-                      await reminderApi.completeReminder(reminder.id, {
+                      await reminderApi.completeReminder(reminderKey, {
                         suppressGlobalErrorUI: true,
                       });
                     } catch (error) {
