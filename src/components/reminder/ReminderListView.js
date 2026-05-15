@@ -1374,7 +1374,7 @@ const ReminderListView = ({ navigation, route }) => {
         sections={reminderSections}
         renderItem={renderReminderItem}
         renderSectionHeader={renderSectionHeader}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={(item, index) => String(item?.id ?? item?.offlineId ?? `reminder-${index}`)}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={renderEmptyList}
         refreshControl={
