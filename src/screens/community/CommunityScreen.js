@@ -301,19 +301,22 @@ const CommunityScreen = ({ navigation }) => {
 
       <View style={styles.categoriesContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity style={[styles.categoryButton, { backgroundColor: palette.primary, borderColor: palette.primary }]}>
+          <TouchableOpacity
+            style={[styles.categoryButton, { backgroundColor: palette.primary, borderColor: palette.primary }]}
+            testID="filter.community.all"
+          >
             <Text style={styles.categoryTextActive}>全部</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton}>
+          <TouchableOpacity style={styles.categoryButton} testID="filter.community.noteTemplate">
             <Text style={[styles.categoryText, { color: palette.primary }]}>笔记模板</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton}>
+          <TouchableOpacity style={styles.categoryButton} testID="filter.community.learning">
             <Text style={[styles.categoryText, { color: palette.primary }]}>学习资料</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton}>
+          <TouchableOpacity style={styles.categoryButton} testID="filter.community.tips">
             <Text style={[styles.categoryText, { color: palette.primary }]}>使用技巧</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton}>
+          <TouchableOpacity style={styles.categoryButton} testID="filter.community.knowledgeGraph">
             <Text style={[styles.categoryText, { color: palette.primary }]}>知识图谱</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -396,6 +399,9 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.MEDIUM,
     paddingVertical: 12,
     backgroundColor: 'rgba(255,255,255,0.78)',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#DBEBFA',
   },
   categoryButton: {
     paddingHorizontal: SPACING.LARGE,
@@ -404,7 +410,7 @@ const styles = StyleSheet.create({
     marginRight: SPACING.MEDIUM,
     borderWidth: 1,
     borderColor: '#B6D8F7',
-    backgroundColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.74)',
   },
   categoryText: {
     fontSize: 16,
