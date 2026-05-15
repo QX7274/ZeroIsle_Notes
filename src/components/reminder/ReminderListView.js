@@ -48,6 +48,7 @@ const ReminderListView = ({ navigation, route }) => {
     return theme?.[colorKey] || defaultValue;
   };
   const unsyncedCount = useSelector(state => state.reminders.syncStatus?.unsyncedCount || 0);
+  const syncStatusError = useSelector(state => state.reminders.syncStatus?.error || null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1276,7 +1277,8 @@ const ReminderListView = ({ navigation, route }) => {
   const renderSyncStatusCard = () => {
     const isOfflineView = listState === 'offline' || listState === 'offline-empty';
     const hasUnsyncedChanges = unsyncedCount > 0;
-    const shouldRender = isOfflineView || hasUnsyncedChanges || syncing || Boolean(inlineHint);
+    const hasSyncError = Boolean(syncStatusError);
+    const shouldRender = isOfflineView || hasUnsyncedChanges || syncing || hasSyncError || Boolean(inlineHint);
 
     if (!shouldRender) {
       return null;
@@ -1284,11 +1286,13 @@ const ReminderListView = ({ navigation, route }) => {
 
     const statusTone = syncing
       ? getThemeColor('primary', '#2196F3')
-      : hasUnsyncedChanges
-        ? getThemeColor('warning', '#FFB300')
-        : isOfflineView
-          ? getThemeColor('primary', '#2196F3')
-          : getThemeColor('success', '#2E7D32');
+      : hasSyncError
+        ? getThemeColor('error', '#F44336')
+        : hasUnsyncedChanges
+          ? getThemeColor('warning', '#FFB300')
+          : isOfflineView
+            ? getThemeColor('primary', '#2196F3')
+            : getThemeColor('success', '#2E7D32');
 
     const statusTitle = syncing
       ? '同步处理中'
@@ -1325,7 +1329,7 @@ const ReminderListView = ({ navigation, route }) => {
           <View style={styles.syncStatusHeader}>
             <Text style={[styles.syncStatusTitle, { color: getThemeColor('text', '#0F172A') }]}>
               <Icon
-                name={syncing ? 'sync' : hasUnsyncedChanges ? 'pending-actions' : isOfflineView ? 'cloud-off' : 'check-circle'}
+                name={syncing ? 'sync' : hasSyncError ? 'error-outline' : hasUnsyncedChanges ? 'pending-actions' : isOfflineView ? 'cloud-off' : 'check-circle'}
                 size={14}
                 color={statusTone}
               />
