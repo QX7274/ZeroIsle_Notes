@@ -1498,7 +1498,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingVertical: 4,
     minWidth: 62,
     alignItems: 'center',
   },

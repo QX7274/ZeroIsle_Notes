@@ -253,6 +253,24 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.lastSynced).toBeTruthy();
   });
 
+  it('should clear offlineReminders when sync fulfilled has no payload', () => {
+    const baseState = remindersReducer(undefined, { type: 'unknown' });
+    const stateWithOffline = {
+      ...baseState,
+      offlineReminders: [
+        { id: 'local-1', title: 'offline-item', isLocal: true },
+      ],
+    };
+
+    const nextState = remindersReducer(stateWithOffline, {
+      type: syncReminders.fulfilled.type,
+      payload: undefined,
+    });
+
+    expect(nextState.offlineReminders).toEqual([]);
+    expect(nextState.syncStatus.unsyncedCount).toBe(0);
+  });
+
   it('should update unsyncedCount from sync rejected remaining payload', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.rejected.type,
