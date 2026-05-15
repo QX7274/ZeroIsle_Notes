@@ -63,6 +63,30 @@ describe('reminderSlice offline projection', () => {
     });
   });
 
+  it('should safely ignore update projection when payload is string id', () => {
+    const state = remindersReducer(undefined, {
+      type: loadReminders.fulfilled.type,
+      payload: {
+        reminders: [
+          { id: 'r-1', title: 'server-title', is_completed: false },
+        ],
+        offlineOperations: [
+          {
+            operation: 'update',
+            data: 'r-1',
+          },
+        ],
+      },
+    });
+
+    expect(state.reminders).toHaveLength(1);
+    expect(state.reminders[0]).toMatchObject({
+      id: 'r-1',
+      title: 'server-title',
+      is_completed: false,
+    });
+  });
+
   it('should remove deleted reminder via offline delete projection', () => {
     const state = remindersReducer(undefined, {
       type: loadReminders.fulfilled.type,

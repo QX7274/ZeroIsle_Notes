@@ -29,11 +29,14 @@ const applyOfflineOperationProjection = (reminders = [], offlineOperations = [])
     }
 
     if (operation.operation === 'update') {
+      if (typeof operation.data !== 'object' || operation.data === null) {
+        return;
+      }
       const targetIndex = projected.findIndex(reminder => reminder.id === reminderId);
       if (targetIndex !== -1) {
         projected[targetIndex] = {
           ...projected[targetIndex],
-          ...(typeof operation.data === 'object' ? operation.data : {}),
+          ...operation.data,
           id: reminderId,
           isLocal: true,
         };
