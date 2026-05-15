@@ -318,6 +318,25 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 
+  it('should clear syncStatus.error when sync fulfilled succeeds', () => {
+    const baseState = remindersReducer(undefined, {
+      type: syncReminders.rejected.type,
+      payload: { message: 'sync failed' },
+    });
+
+    const state = remindersReducer(baseState, {
+      type: syncReminders.fulfilled.type,
+      payload: {
+        synced: 1,
+        failed: 0,
+        remaining: 0,
+      },
+    });
+
+    expect(state.syncStatus.error).toBeNull();
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+  });
+
   it('should clear offlineReminders when sync fulfilled has no payload', () => {
     const baseState = remindersReducer(undefined, { type: 'unknown' });
     const stateWithOffline = {

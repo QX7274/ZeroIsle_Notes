@@ -346,6 +346,7 @@ const reminderSlice = createSlice({
       })
       .addCase(syncReminders.fulfilled, (state, action) => {
         state.syncStatus.syncing = false;
+        state.syncStatus.error = null;
         state.syncStatus.lastSynced = new Date().toISOString();
         const remainingCount = Number.isFinite(action.payload?.remaining)
           ? Math.max(0, action.payload.remaining)
