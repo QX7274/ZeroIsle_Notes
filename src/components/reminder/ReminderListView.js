@@ -1471,7 +1471,7 @@ const styles = StyleSheet.create({
     width: 4,
     borderRadius: 999,
     marginRight: 12,
-    opacity: 0.92,
+    opacity: 0.9,
   },
   syncStatusContent: {
     flex: 1,

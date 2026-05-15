@@ -267,4 +267,14 @@ describe('reminderSlice offline projection', () => {
 
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
+
+  it('should reset unsyncedCount to 0 when refresh is rejected', () => {
+    const state = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.rejected.type,
+      payload: { message: 'refresh failed' },
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.error).toMatchObject({ message: 'refresh failed' });
+  });
 });

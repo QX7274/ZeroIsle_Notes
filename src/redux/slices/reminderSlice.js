@@ -362,6 +362,10 @@ const reminderSlice = createSlice({
       })
       .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
         state.syncStatus.unsyncedCount = action.payload ?? 0;
+      })
+      .addCase(refreshUnsyncedCount.rejected, (state, action) => {
+        state.syncStatus.error = action.payload || { message: '刷新离线计数失败' };
+        state.syncStatus.unsyncedCount = 0;
       });
   },
 });
