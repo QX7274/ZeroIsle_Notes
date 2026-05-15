@@ -292,4 +292,14 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
     expect(state.syncStatus.error).toMatchObject({ message: 'refresh failed' });
   });
+
+  it('should use fallback refresh error message when rejected has no payload', () => {
+    const state = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.rejected.type,
+      payload: undefined,
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.error).toMatchObject({ message: '刷新离线计数失败' });
+  });
 });
