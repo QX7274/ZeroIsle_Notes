@@ -105,6 +105,27 @@ describe('reminderSlice offline projection', () => {
     expect(state.reminders[0].id).toBe('r-1');
   });
 
+  it('should remove reminder when delete projection uses reminderId field', () => {
+    const state = remindersReducer(undefined, {
+      type: loadReminders.fulfilled.type,
+      payload: {
+        reminders: [
+          { id: 'r-1', title: 'keep-me' },
+          { id: 'r-2', title: 'delete-me' },
+        ],
+        offlineOperations: [
+          {
+            operation: 'delete',
+            data: { reminderId: 'r-2' },
+          },
+        ],
+      },
+    });
+
+    expect(state.reminders).toHaveLength(1);
+    expect(state.reminders[0].id).toBe('r-1');
+  });
+
   it('should preserve local reminders not present in incoming list', () => {
     const baseState = remindersReducer(undefined, {
       type: 'unknown',

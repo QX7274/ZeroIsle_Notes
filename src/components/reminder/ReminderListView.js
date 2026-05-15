@@ -1465,7 +1465,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.14,
     shadowRadius: 22,
-    elevation: 4,
+    elevation: 5,
   },
   syncStatusAccent: {
     width: 4,
@@ -1492,6 +1492,7 @@ const styles = StyleSheet.create({
   syncStatusDescription: {
     fontSize: 13,
     lineHeight: 21,
+    letterSpacing: 0.1,
   },
   syncStatusPill: {
     borderRadius: 999,
