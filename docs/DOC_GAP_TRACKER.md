@@ -2,6 +2,8 @@
 
 > 总控入口：[生产上线整改总控](D:/ZeroIsle_Notes/docs/生产上线整改总控.md)  
 > 历史归档：[DOC_GAP_TRACKER-历史归档](D:/ZeroIsle_Notes/docs/archive/DOC_GAP_TRACKER-历史归档.md)
+> 页面矩阵：[页面能力矩阵](D:/ZeroIsle_Notes/docs/页面能力矩阵.md)
+> 子批次记录：[子批次执行记录-批次01（10页）](D:/ZeroIsle_Notes/docs/子批次执行记录-批次01（10页）.md)
 
 ## 1. 状态定义
 - `TODO`：已登记未实施
@@ -27,6 +29,8 @@
 | GAP-ENV-001 | P0 | IN_PROGRESS | 总控/环境 | Conda `Zeroisle` 命令统一 | `1d96221` | `conda run -n Zeroisle` | 全测试命令统一到该入口 |
 | GAP-ENV-002 | P0 | IN_PROGRESS | 移动端 | 统一 `yarn install` / `yarn android` | `1d96221` | 脚本与执行记录 | 继续约束子项目差异说明 |
 | GAP-ENV-003 | P1 | IN_PROGRESS | 移动端 | 同局域网联调策略（热点/USB/ADB） | `3e961da` | `adb devices -l` 与本地联调记录 | 补无线 ADB 与失败回退文档 |
+| GAP-DOC-ENC-001 | P0 | IN_PROGRESS | 总控/环境 | 统一 docs 活跃文档 UTF-8（无 BOM）并建立编码巡检 | `待提交` | `scripts/tools/check-doc-encoding.ps1` | 执行一次全量编码巡检并固定到每轮提交前 |
+| GAP-PAGE-MATRIX-001 | P0 | IN_PROGRESS | 总控/验证 | 建立逐界面/逐功能/逐子功能执行矩阵并绑定活跃 GAP | `待提交` | `docs/页面能力矩阵.md`、`docs/子批次执行记录-批次01（10页）.md` | 进入 round65 按 10 页批次推进并回填证据 |
 
 ## 3. 已完成里程碑（保留最少）
 | GAP ID | 状态 | 结论 | 提交 |
@@ -40,3 +44,4 @@
   - 必须写“推进了哪个 GAP 的哪个验收标准”。
   - 只写新增证据，不重复粘贴历史证据长列表。
   - 每轮提交后更新“最近提交”和“下一步”列。
+  - 每轮提交前必须执行一次 `scripts/tools/check-doc-encoding.ps1`，防止编码回退导致文档乱码。
