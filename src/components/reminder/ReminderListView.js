@@ -1499,7 +1499,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 4,
-    minWidth: 62,
+    minWidth: 64,
     alignItems: 'center',
   },
   syncStatusPillText: {

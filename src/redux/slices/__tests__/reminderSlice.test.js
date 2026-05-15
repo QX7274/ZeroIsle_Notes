@@ -466,6 +466,15 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 
+  it('should fallback unsyncedCount to 0 when refresh result is Infinity', () => {
+    const state = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.fulfilled.type,
+      payload: Number.POSITIVE_INFINITY,
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+  });
+
   it('should reset unsyncedCount to 0 when refresh is rejected', () => {
     const state = remindersReducer(undefined, {
       type: refreshUnsyncedCount.rejected.type,
