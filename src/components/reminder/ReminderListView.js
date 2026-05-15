@@ -1509,7 +1509,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF1F',
   },
   syncStatusAccent: {
-    width: 4,
+    width: 5,
     borderRadius: 999,
     marginRight: 12,
     opacity: 0.9,
