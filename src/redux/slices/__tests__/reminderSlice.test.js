@@ -10,7 +10,7 @@ jest.mock('../../../services/reminder/reminderNotificationService', () => ({
   getOfflineOperations: jest.fn(),
 }));
 
-import remindersReducer, { loadReminders, syncReminders } from '../reminderSlice';
+import remindersReducer, { loadReminders, refreshUnsyncedCount, syncReminders } from '../reminderSlice';
 
 describe('reminderSlice offline projection', () => {
   it('should project offline update onto incoming reminders', () => {
@@ -165,5 +165,14 @@ describe('reminderSlice offline projection', () => {
       message: 'sync failed',
       remaining: 3,
     });
+  });
+
+  it('should fallback unsyncedCount to 0 when refresh result is null', () => {
+    const state = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.fulfilled.type,
+      payload: null,
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 });

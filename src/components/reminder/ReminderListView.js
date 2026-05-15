@@ -1457,6 +1457,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 24,
     borderWidth: 1,
+    borderStyle: 'solid',
     paddingHorizontal: 18,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -1470,6 +1471,7 @@ const styles = StyleSheet.create({
     width: 4,
     borderRadius: 999,
     marginRight: 12,
+    opacity: 0.92,
   },
   syncStatusContent: {
     flex: 1,
