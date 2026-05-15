@@ -1505,7 +1505,7 @@ const styles = StyleSheet.create({
   syncStatusPillText: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.18,
   },
   reminderItem: {
     flexDirection: 'row',

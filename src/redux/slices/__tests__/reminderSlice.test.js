@@ -279,6 +279,19 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 
+  it('should fallback unsyncedCount to 0 when sync fulfilled remaining is NaN', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.fulfilled.type,
+      payload: {
+        synced: 0,
+        failed: 0,
+        remaining: Number.NaN,
+      },
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+  });
+
   it('should clear offlineReminders when sync fulfilled has no payload', () => {
     const baseState = remindersReducer(undefined, { type: 'unknown' });
     const stateWithOffline = {
@@ -387,6 +400,21 @@ describe('reminderSlice offline projection', () => {
     });
   });
 
+  it('should reset unsyncedCount to 0 when sync rejected remaining is NaN', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.rejected.type,
+      payload: {
+        message: 'sync failed nan remaining',
+        remaining: Number.NaN,
+      },
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.error).toMatchObject({
+      message: 'sync failed nan remaining',
+    });
+  });
+
   it('should fallback unsyncedCount to 0 when refresh result is null', () => {
     const state = remindersReducer(undefined, {
       type: refreshUnsyncedCount.fulfilled.type,
@@ -409,6 +437,15 @@ describe('reminderSlice offline projection', () => {
     const state = remindersReducer(undefined, {
       type: refreshUnsyncedCount.fulfilled.type,
       payload: -4,
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+  });
+
+  it('should fallback unsyncedCount to 0 when refresh result is NaN', () => {
+    const state = remindersReducer(undefined, {
+      type: refreshUnsyncedCount.fulfilled.type,
+      payload: Number.NaN,
     });
 
     expect(state.syncStatus.unsyncedCount).toBe(0);

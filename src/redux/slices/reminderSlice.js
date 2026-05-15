@@ -347,7 +347,7 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.fulfilled, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.lastSynced = new Date().toISOString();
-        const remainingCount = typeof action.payload?.remaining === 'number'
+        const remainingCount = Number.isFinite(action.payload?.remaining)
           ? Math.max(0, action.payload.remaining)
           : 0;
         state.syncStatus.unsyncedCount = remainingCount;
@@ -359,14 +359,14 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.rejected, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.error = action.payload || { message: '同步提醒事项失败' };
-        if (typeof action.payload?.remaining === 'number') {
+        if (Number.isFinite(action.payload?.remaining)) {
           state.syncStatus.unsyncedCount = Math.max(0, action.payload.remaining);
         } else {
           state.syncStatus.unsyncedCount = 0;
         }
       })
       .addCase(refreshUnsyncedCount.fulfilled, (state, action) => {
-        state.syncStatus.unsyncedCount = typeof action.payload === 'number'
+        state.syncStatus.unsyncedCount = Number.isFinite(action.payload)
           ? Math.max(0, action.payload)
           : 0;
       })
