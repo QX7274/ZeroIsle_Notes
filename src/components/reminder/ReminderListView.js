@@ -65,6 +65,19 @@ const ReminderListView = ({ navigation, route }) => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
   const [listState, setListState] = useState('idle');
+  const resolveReminderSelectionKey = useCallback((reminder) => {
+    if (reminder == null) {
+      return null;
+    }
+    if (typeof reminder === 'string' || typeof reminder === 'number') {
+      return String(reminder);
+    }
+    return reminder.id != null
+      ? String(reminder.id)
+      : reminder.offlineId != null
+        ? String(reminder.offlineId)
+        : null;
+  }, []);
 
   const notifyNonBlocking = useCallback((message) => {
     if (!message) {
@@ -517,10 +530,16 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 切换提醒选择状态
   const handleToggleSelect = (reminder) => {
-    if (selectedReminders.includes(reminder.id)) {
-      setSelectedReminders(selectedReminders.filter(id => id !== reminder.id));
+    const reminderKey = resolveReminderSelectionKey(reminder);
+    if (!reminderKey) {
+      notifyNonBlocking('该提醒缺少可用标识，暂不可加入批量操作');
+      return;
+    }
+
+    if (selectedReminders.includes(reminderKey)) {
+      setSelectedReminders(selectedReminders.filter(id => id !== reminderKey));
     } else {
-      setSelectedReminders([...selectedReminders, reminder.id]);
+      setSelectedReminders([...selectedReminders, reminderKey]);
     }
   };
 
@@ -531,7 +550,7 @@ const ReminderListView = ({ navigation, route }) => {
 
       // 获取选中的提醒
       const selectedItems = reminders.filter(reminder =>
-        selectedReminders.includes(reminder.id) && !reminder.is_completed
+        selectedReminders.includes(resolveReminderSelectionKey(reminder)) && !reminder.is_completed
       );
 
       if (selectedItems.length === 0) {
