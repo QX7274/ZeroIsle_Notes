@@ -4,7 +4,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   Share,
   StyleSheet,
@@ -46,6 +45,8 @@ const GroupDetail = ({ groupId }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [joinCodeDialogVisible, setJoinCodeDialogVisible] = useState(false);
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
+  const [inlineStatus, setInlineStatus] = useState('');
+  const [inlineStatusTone, setInlineStatusTone] = useState('info');
 
   useEffect(() => {
     dispatch(fetchGroupDetail(groupId));
@@ -61,10 +62,13 @@ const GroupDetail = ({ groupId }) => {
     dispatch(generateJoinCode({ groupId, expiresIn: 30 }))
       .unwrap()
       .then(() => {
+        setInlineStatus('加入码已生成，可复制或分享');
+        setInlineStatusTone('success');
         setJoinCodeDialogVisible(true);
       })
       .catch((requestError) => {
-        Alert.alert('生成加入码失败', requestError || '暂时无法生成加入码');
+        setInlineStatus(requestError || '生成加入码失败，请稍后重试');
+        setInlineStatusTone('error');
       });
   };
 
@@ -77,8 +81,11 @@ const GroupDetail = ({ groupId }) => {
       await Share.share({
         message: `加入我的群组“${group.name}”，使用加入码：${joinCode}`,
       });
+      setInlineStatus('加入码分享面板已打开');
+      setInlineStatusTone('success');
     } catch (shareError) {
-      Alert.alert('分享失败', shareError.message);
+      setInlineStatus(shareError.message || '分享失败，请稍后重试');
+      setInlineStatusTone('error');
     }
   };
 
@@ -90,7 +97,8 @@ const GroupDetail = ({ groupId }) => {
         navigation.goBack();
       })
       .catch((requestError) => {
-        Alert.alert('离开群组失败', requestError || '暂时无法离开群组');
+        setInlineStatus(requestError || '离开群组失败，请稍后重试');
+        setInlineStatusTone('error');
       });
   };
 
@@ -105,7 +113,6 @@ const GroupDetail = ({ groupId }) => {
     if (!dateString) {
       return '';
     }
-
     return new Date(dateString).toLocaleString();
   };
 
@@ -126,15 +133,29 @@ const GroupDetail = ({ groupId }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="screen.groups.detail">
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {inlineStatus ? (
+          <View
+            style={[
+              styles.inlineStatusBanner,
+              inlineStatusTone === 'error' ? styles.inlineStatusBannerError : styles.inlineStatusBannerInfo,
+            ]}
+            testID={`state.group.inlineStatus.${inlineStatusTone}`}
+          >
+            <Text style={inlineStatusTone === 'error' ? styles.inlineStatusTextError : styles.inlineStatusTextInfo}>
+              {inlineStatus}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.groupName}>{group.name}</Text>
             <Text style={styles.memberCount}>{group.member_count} 位成员</Text>
           </View>
 
-          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
+          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)} testID="action.group.openMenu">
             <Icon name="dots-vertical" size={24} color={COLORS.TEXT_PRIMARY} />
           </TouchableOpacity>
 
@@ -185,7 +206,7 @@ const GroupDetail = ({ groupId }) => {
         ) : null}
 
         <View style={styles.actionsContainer}>
-          <Button mode="contained" icon="monitor-share" style={styles.actionButton} onPress={handleStartScreenShare}>
+          <Button mode="contained" icon="monitor-share" style={styles.actionButton} onPress={handleStartScreenShare} testID="action.group.startShare">
             屏幕共享
           </Button>
 
@@ -195,6 +216,7 @@ const GroupDetail = ({ groupId }) => {
             style={styles.actionButton}
             onPress={loadGroupData}
             loading={isLoading}
+            testID="action.group.refresh"
           >
             刷新
           </Button>
@@ -217,7 +239,7 @@ const GroupDetail = ({ groupId }) => {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setJoinCodeDialogVisible(false)}>关闭</Button>
-            <Button onPress={handleShareJoinCode} mode="contained" disabled={!joinCode}>
+            <Button onPress={handleShareJoinCode} mode="contained" disabled={!joinCode} testID="action.group.shareJoinCode">
               分享
             </Button>
           </Dialog.Actions>
@@ -230,7 +252,7 @@ const GroupDetail = ({ groupId }) => {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setLeaveDialogVisible(false)}>取消</Button>
-            <Button onPress={handleLeaveGroup} mode="contained" buttonColor={COLORS.ERROR}>
+            <Button onPress={handleLeaveGroup} mode="contained" buttonColor={COLORS.ERROR} testID="action.group.confirmLeave">
               离开
             </Button>
           </Dialog.Actions>
@@ -252,6 +274,31 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  inlineStatusBanner: {
+    marginBottom: SPACING.MEDIUM,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: SPACING.SMALL + 2,
+  },
+  inlineStatusBannerInfo: {
+    backgroundColor: 'rgba(33,150,243,0.10)',
+    borderColor: 'rgba(33,150,243,0.30)',
+  },
+  inlineStatusBannerError: {
+    backgroundColor: 'rgba(244,67,54,0.10)',
+    borderColor: 'rgba(244,67,54,0.32)',
+  },
+  inlineStatusTextInfo: {
+    color: COLORS.PRIMARY,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inlineStatusTextError: {
+    color: COLORS.ERROR,
+    fontSize: 13,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -344,18 +391,18 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.MEDIUM,
   },
   dialog: {
-    borderRadius: 20,
+    borderRadius: 16,
   },
   joinCodeContainer: {
     alignItems: 'center',
-    marginVertical: SPACING.MEDIUM,
+    paddingVertical: SPACING.MEDIUM,
   },
   joinCode: {
     fontSize: 32,
     fontWeight: '700',
-    letterSpacing: 8,
+    letterSpacing: 2,
     color: COLORS.PRIMARY,
-    marginBottom: SPACING.MEDIUM,
+    marginBottom: SPACING.SMALL,
   },
   joinCodeExpiry: {
     fontSize: 14,
