@@ -348,7 +348,7 @@ const reminderSlice = createSlice({
         state.syncStatus.syncing = false;
         state.syncStatus.lastSynced = new Date().toISOString();
         const remainingCount = typeof action.payload?.remaining === 'number'
-          ? action.payload.remaining
+          ? Math.max(0, action.payload.remaining)
           : 0;
         state.syncStatus.unsyncedCount = remainingCount;
 
@@ -360,7 +360,7 @@ const reminderSlice = createSlice({
         state.syncStatus.syncing = false;
         state.syncStatus.error = action.payload || { message: '同步提醒事项失败' };
         if (typeof action.payload?.remaining === 'number') {
-          state.syncStatus.unsyncedCount = action.payload.remaining;
+          state.syncStatus.unsyncedCount = Math.max(0, action.payload.remaining);
         } else {
           state.syncStatus.unsyncedCount = 0;
         }
