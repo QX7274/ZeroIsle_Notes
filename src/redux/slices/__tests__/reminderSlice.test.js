@@ -329,6 +329,22 @@ describe('reminderSlice offline projection', () => {
     });
   });
 
+  it('should reset unsyncedCount to 0 when sync rejected remaining is null', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.rejected.type,
+      payload: {
+        message: 'sync failed null remaining',
+        remaining: null,
+      },
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.error).toMatchObject({
+      message: 'sync failed null remaining',
+      remaining: null,
+    });
+  });
+
   it('should use fallback sync error message when rejected has no payload', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.rejected.type,

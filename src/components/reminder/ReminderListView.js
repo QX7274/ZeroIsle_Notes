@@ -1497,7 +1497,7 @@ const styles = StyleSheet.create({
   syncStatusPill: {
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     minWidth: 62,
     alignItems: 'center',
