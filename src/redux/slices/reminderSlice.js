@@ -347,9 +347,10 @@ const reminderSlice = createSlice({
       .addCase(syncReminders.fulfilled, (state, action) => {
         state.syncStatus.syncing = false;
         state.syncStatus.lastSynced = new Date().toISOString();
-        state.syncStatus.unsyncedCount = action.payload.remaining ?? 0;
+        const remainingCount = action.payload?.remaining ?? 0;
+        state.syncStatus.unsyncedCount = remainingCount;
 
-        if (action.payload.remaining === 0) {
+        if (remainingCount === 0) {
           state.offlineReminders = [];
         }
       })

@@ -242,6 +242,17 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.lastSynced).toBeTruthy();
   });
 
+  it('should fallback unsyncedCount to 0 when sync fulfilled has no payload', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.fulfilled.type,
+      payload: undefined,
+    });
+
+    expect(state.syncStatus.syncing).toBe(false);
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.lastSynced).toBeTruthy();
+  });
+
   it('should update unsyncedCount from sync rejected remaining payload', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.rejected.type,
