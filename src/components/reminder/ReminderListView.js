@@ -1454,7 +1454,7 @@ const styles = StyleSheet.create({
   syncStatusCard: {
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 10,
     borderRadius: 24,
     borderWidth: 1,
     borderStyle: 'solid',
@@ -1487,7 +1487,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     marginRight: 12,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   syncStatusDescription: {
     fontSize: 13,

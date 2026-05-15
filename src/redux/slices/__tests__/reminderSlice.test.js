@@ -181,6 +181,28 @@ describe('reminderSlice offline projection', () => {
     ]);
   });
 
+  it('should ignore unknown offline operations without mutating incoming list', () => {
+    const state = remindersReducer(undefined, {
+      type: loadReminders.fulfilled.type,
+      payload: {
+        reminders: [
+          { id: 'r-1', title: 'server-a' },
+          { id: 'r-2', title: 'server-b' },
+        ],
+        offlineOperations: [
+          {
+            operation: 'noop',
+            data: { id: 'r-1', title: 'unexpected-change' },
+          },
+        ],
+      },
+    });
+
+    expect(state.reminders).toHaveLength(2);
+    expect(state.reminders.find(item => item.id === 'r-1')?.title).toBe('server-a');
+    expect(state.offlineReminders).toEqual([]);
+  });
+
   it('should update unsyncedCount from sync fulfilled remaining payload', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.fulfilled.type,
