@@ -1347,6 +1347,16 @@ const ReminderListView = ({ navigation, route }) => {
             : '当前提醒列表与同步状态没有新的阻塞提示。'
     );
 
+    const statusKey = syncing
+      ? 'syncing'
+      : hasSyncError
+        ? 'error'
+        : hasUnsyncedChanges
+          ? 'pending'
+          : isOfflineView
+            ? 'offline'
+            : 'ok';
+
     return (
       <View
         style={[
@@ -1357,7 +1367,7 @@ const ReminderListView = ({ navigation, route }) => {
             shadowColor: statusTone,
           },
         ]}
-        testID="state.reminder.syncStatus"
+        testID={`state.reminder.syncStatus.${statusKey}`}
       >
         <View style={[styles.syncStatusAccent, { backgroundColor: statusTone }]} />
         <View style={styles.syncStatusContent}>
@@ -1452,12 +1462,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#D9E8F8',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 0, // 确保没有顶部边距
     // 为Android添加状态栏高度补偿，确保过滤器栏在状态栏下方
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    borderTopWidth: 1,
+    borderTopColor: '#ECF4FC',
   },
   filterScroll: {
     flex: 1,
@@ -1555,6 +1568,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 6,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DCEAF9',
+    backgroundColor: 'rgba(255,255,255,0.86)',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
