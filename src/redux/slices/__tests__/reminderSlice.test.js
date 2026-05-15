@@ -329,6 +329,16 @@ describe('reminderSlice offline projection', () => {
     });
   });
 
+  it('should use fallback sync error message when rejected has no payload', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.rejected.type,
+      payload: undefined,
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+    expect(state.syncStatus.error).toMatchObject({ message: '同步提醒事项失败' });
+  });
+
   it('should reset unsyncedCount to 0 when sync rejected remaining is not a number', () => {
     const state = remindersReducer(undefined, {
       type: syncReminders.rejected.type,
