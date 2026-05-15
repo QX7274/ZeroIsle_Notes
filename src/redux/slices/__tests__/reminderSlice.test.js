@@ -305,6 +305,19 @@ describe('reminderSlice offline projection', () => {
     expect(state.syncStatus.unsyncedCount).toBe(0);
   });
 
+  it('should fallback unsyncedCount to 0 when sync fulfilled remaining is Infinity', () => {
+    const state = remindersReducer(undefined, {
+      type: syncReminders.fulfilled.type,
+      payload: {
+        synced: 0,
+        failed: 0,
+        remaining: Number.POSITIVE_INFINITY,
+      },
+    });
+
+    expect(state.syncStatus.unsyncedCount).toBe(0);
+  });
+
   it('should clear offlineReminders when sync fulfilled has no payload', () => {
     const baseState = remindersReducer(undefined, { type: 'unknown' });
     const stateWithOffline = {
