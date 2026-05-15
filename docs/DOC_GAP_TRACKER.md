@@ -31,6 +31,7 @@
 | GAP-ENV-003 | P1 | IN_PROGRESS | 移动端 | 同局域网联调策略（热点/USB/ADB） | `3e961da` | `adb devices -l` 与本地联调记录 | 补无线 ADB 与失败回退文档 |
 | GAP-DOC-ENC-001 | P0 | IN_PROGRESS | 总控/环境 | 统一 docs 活跃文档 UTF-8（无 BOM）并建立编码巡检 | `待提交` | `scripts/tools/check-doc-encoding.ps1` | 执行一次全量编码巡检并固定到每轮提交前 |
 | GAP-PAGE-MATRIX-001 | P0 | IN_PROGRESS | 总控/验证 | 建立逐界面/逐功能/逐子功能执行矩阵并绑定活跃 GAP | `待提交` | `docs/页面能力矩阵.md`、`docs/子批次执行记录-批次01（10页）.md` | 进入 round65 按 10 页批次推进并回填证据 |
+| GAP-UI-PROFILE-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 Profile 页面阻断式交互与页内反馈一致性 | `待提交` | `src/screens/settings/ProfileSettings.js` 中 `state.profile.inlineStatus`；后续真机 round65 证据待补 | 继续补 Community/Reminder 页内状态一致性并统一玻璃卡视觉层级 |
 
 ## 3. 已完成里程碑（保留最少）
 | GAP ID | 状态 | 结论 | 提交 |

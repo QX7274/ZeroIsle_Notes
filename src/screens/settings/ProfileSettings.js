@@ -9,7 +9,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert,
 
 } from 'react-native';
 
@@ -35,6 +34,7 @@ const ProfileSettings = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+  const [inlineStatus, setInlineStatus] = useState('');
 
 
 
@@ -108,7 +108,7 @@ const ProfileSettings = ({ navigation }) => {
           console.warn('头像上传到服务器失败，但本地已保存:', err);
         });
 
-        Alert.alert('成功', '头像已更新');
+        setInlineStatus('头像已更新，本地已生效');
 
         setIsUploading(false);
       }
@@ -128,6 +128,7 @@ const ProfileSettings = ({ navigation }) => {
     try {
       setIsLoading(true);
       setError('');
+      setInlineStatus('');
       Haptics.mediumFeedback();
 
       const updatedUserInfo = {
@@ -153,12 +154,11 @@ const ProfileSettings = ({ navigation }) => {
         console.warn('同步到服务器失败，但本地已保存:', err);
       });
 
-      // 显示成功提示
-      Alert.alert('成功', '个人资料已保存');
+      // 使用页内提示，避免阻断流程
+      setInlineStatus('个人资料已保存，本地已生效');
     } catch (err) {
       console.error('保存个人资料失败:', err);
       setError(err.message || '保存个人资料失败，请稍后重试');
-      Alert.alert('失败', err.message || '保存个人资料失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }
@@ -252,6 +252,15 @@ const ProfileSettings = ({ navigation }) => {
                 style={styles.errorText}
               >
                 {error}
+              </Text>
+            ) : null}
+            {inlineStatus ? (
+              <Text
+                variant="caption"
+                style={[styles.successText, { color: colors.primary }]}
+                testID="state.profile.inlineStatus"
+              >
+                {inlineStatus}
               </Text>
             ) : null}
 
@@ -507,6 +516,9 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   errorText: {
+    marginBottom: 16,
+  },
+  successText: {
     marginBottom: 16,
   },
   functionsCenter: {
