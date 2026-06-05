@@ -8,22 +8,22 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SkeletonBlock, SkeletonListCards } from '../../components/common/Skeleton';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchKnowledgeBaseDetails } from '../../redux/slices/knowledgeBaseSlice';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import QATab from './QATab';
 import ContentTab from './ContentTab';
 import GraphTab from './GraphTab';
 import AnalysisTab from './AnalysisTab';
-import { Card } from '../../components/common';
 import SettingsTab from './SettingsTab';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../utils/constants/dimensions';
 
@@ -73,8 +73,9 @@ const KnowledgeBaseDetailScreen = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
 
-  const { id } = route.params;
+  const { id } = route.params || {};
   const dispatch = useDispatch();
   const { currentKnowledgeBase: kbDetail, status, error } = useSelector((state) => state.knowledgeBase);
 
@@ -94,21 +95,13 @@ const KnowledgeBaseDetailScreen = () => {
     }
   }, [id, dispatch]);
 
-  useEffect(() => {
-    if (kbDetail) {
-      navigation.setOptions({
-        title: kbDetail.name,
-        headerRight: () => (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('KnowledgeBaseSearch', { kbId: id })}
-            style={{ marginRight: SPACING.medium }}
-          >
-            <Icon name="search" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        ),
-      });
-    }
-  }, [kbDetail, navigation, id, theme.colors.text]);
+  const openKnowledgeBaseEdit = () => {
+    navigation.navigate('KnowledgeBaseEdit', { kbId: id });
+  };
+
+  const handleTabIndexChange = (nextIndex) => {
+    setIndex(nextIndex);
+  };
 
   const renderScene = SceneMap({
     overview: () => <OverviewTab kb={kbDetail} styles={styles} />,
@@ -137,11 +130,26 @@ const KnowledgeBaseDetailScreen = () => {
   }
 
   const accent = kbDetail?.color || theme.colors.primary;
-  const iconName = kbDetail?.icon || 'auto-stories';
+  const iconName = kbDetail?.icon || 'menu-book';
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <View style={[styles.headerCard, { borderColor: theme.colors.border }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+        <View style={styles.pageHeaderTopRow}>
+          <ScreenHeaderBackButton
+            onPress={() => navigation.goBack()}
+            testID="action.knowledgeBaseDetail.back"
+            style={styles.backButton}
+          />
+          <TouchableOpacity
+            style={[styles.headerActionBtn, { borderColor: accent }]}
+            onPress={openKnowledgeBaseEdit}
+            activeOpacity={0.7}
+          >
+            <Icon name="edit" size={18} color={accent} />
+            <Text style={[styles.headerActionText, { color: accent }]}>编辑</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.headerRow}>
           <View style={[styles.headerIconBadge, { backgroundColor: accent + '22' }]}>
             <Icon name={iconName} size={26} color={accent} />
@@ -152,21 +160,14 @@ const KnowledgeBaseDetailScreen = () => {
               <Text style={styles.headerSubtitle}>更新于 {new Date(kbDetail.updatedAt).toLocaleDateString()}</Text>
             )}
           </View>
-          <TouchableOpacity
-            style={[styles.headerActionBtn, { borderColor: accent }]}
-            onPress={() => navigation.navigate('KnowledgeBaseEdit', { kbId: id })}
-            activeOpacity={0.7}
-          >
-            <Icon name="edit" size={18} color={accent} />
-            <Text style={[styles.headerActionText, { color: accent }]}>编辑</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
       <TabView
+        style={styles.tabView}
         navigationState={{ index, routes }}
         renderScene={renderScene}
-        onIndexChange={setIndex}
+        onIndexChange={handleTabIndexChange}
         initialLayout={initialLayout}
         renderTabBar={(props) => (
           <TabBar
@@ -187,11 +188,30 @@ const KnowledgeBaseDetailScreen = () => {
           />
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  pageHeader: {
+    paddingHorizontal: SPACING.medium,
+    paddingBottom: SPACING.medium,
+    backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.medium,
+  },
+  backButton: {
+    marginRight: SPACING.small,
+  },
   headerCard: {
     backgroundColor: theme.colors.card,
     borderBottomWidth: 1,
@@ -202,6 +222,9 @@ const getStyles = (theme) => StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  tabView: {
+    flex: 1,
   },
   headerIconBadge: {
     width: 40,
@@ -293,4 +316,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default KnowledgeBaseDetailScreen;
-

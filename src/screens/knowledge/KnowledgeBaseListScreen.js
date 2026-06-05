@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { EmptyState, Card } from '../../components/common';
@@ -31,6 +32,7 @@ const KnowledgeBaseListScreen = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
 
   const dispatch = useDispatch();
   const { knowledgeBases, status } = useSelector((state) => state.knowledgeBase);
@@ -155,9 +157,9 @@ const KnowledgeBaseListScreen = () => {
     <Card style={[styles.kbCard, { borderColor: theme.colors.border }]} onLongPress={() => openActionMenu(item)}>
       <TouchableOpacity activeOpacity={0.8} onPress={() => openKnowledgeBaseDetail(item.id)}>
         <View style={styles.cardHeader}>
-          <View style={[styles.iconBadge, { backgroundColor: (item.color || theme.colors.primary) + '22' }]}>
-            <Icon name={item.icon || 'auto-stories'} size={20} color={item.color || theme.colors.primary} />
-          </View>
+            <View style={[styles.iconBadge, { backgroundColor: (item.color || theme.colors.primary) + '22' }]}>
+            <Icon name={item.icon || 'menu-book'} size={20} color={item.color || theme.colors.primary} />
+            </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.kbTitle}>{item.name}</Text>
             {!!item.updatedAt && (
@@ -189,14 +191,16 @@ const KnowledgeBaseListScreen = () => {
     <SafeAreaView style={styles.container}>
       {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
       {/* 椤堕儴瀵艰埅鏍忥紙缁熶竴杩斿洖鎸夐挳鏍峰紡锛?*/}
-      <View style={styles.headerBar}>
-        <ScreenHeaderBackButton
-          onPress={handleGoBack}
-          testID="action.knowledgeBaseList.back"
-          style={styles.backButton}
-        />
-        <Text style={styles.headerTitle}>知识库</Text>
-        <View style={styles.headerRight} />
+      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 8) }]}>
+        <View style={styles.headerTopRow}>
+          <ScreenHeaderBackButton
+            onPress={handleGoBack}
+            testID="action.knowledgeBaseList.back"
+            style={styles.backButton}
+          />
+          <Text style={styles.headerTitle}>知识库</Text>
+          <View style={styles.headerRight} />
+        </View>
       </View>
 
       <UnifiedSearchBar
@@ -211,7 +215,7 @@ const KnowledgeBaseListScreen = () => {
           renderItem={renderKnowledgeBaseCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={<EmptyState message="还没有知识库，快创建一个吧" icon="auto-stories" />}
+          ListEmptyComponent={<EmptyState message="还没有知识库，快创建一个吧" icon="menu-book" />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} tintColor={theme.colors.primary} />}
         />
       )}
@@ -317,12 +321,8 @@ const getStyles = (theme) => StyleSheet.create({
     fontSize: FONT_SIZES.small,
   },
   headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: 10,
-    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.primary + '1C',
     backgroundColor: theme.colors.card + 'E8',
@@ -331,6 +331,11 @@ const getStyles = (theme) => StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
     marginLeft: -4,

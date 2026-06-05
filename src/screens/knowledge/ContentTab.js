@@ -49,10 +49,18 @@ const ContentTab = ({ kbId }) => {
     }
   };
 
+  const openNodeDetail = (node) => {
+    navigation.navigate('NodeDetail', { id: node.id, title: node.title });
+  };
+
+  const openKnowledgeNodeEdit = () => {
+    navigation.navigate('KnowledgeNodeEdit', { kbId });
+  };
+
   const renderNodeItem = ({ item }) => {
     const iconInfo = getNodeIcon(item.type);
     return (
-      <TouchableOpacity style={styles.nodeItem} onPress={() => navigation.navigate('NodeDetail', { id: item.id, title: item.title })}>
+      <TouchableOpacity style={styles.nodeItem} onPress={() => openNodeDetail(item)}>
         <View style={[styles.nodeIconContainer, { backgroundColor: iconInfo.color + '20' }]}>
             <Icon name={iconInfo.name} size={24} color={iconInfo.color} />
         </View>
@@ -84,11 +92,11 @@ const ContentTab = ({ kbId }) => {
         data={filteredNodes}
         renderItem={renderNodeItem}
         keyExtractor={item => item.id}
-        ListEmptyComponent={<EmptyState message="知识库中还没有内容，点击右下角 + 开始创建吧" icon="auto-stories" />}
+        ListEmptyComponent={<EmptyState message="知识库中还没有内容，点击右下角 + 开始创建吧" icon="menu-book" />}
         contentContainerStyle={styles.listContainer}
         ItemSeparatorComponent={() => <View style={{ height: SPACING.small }} />}
       />
-      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('KnowledgeNodeEdit', { kbId })}>
+      <TouchableOpacity style={styles.fab} onPress={openKnowledgeNodeEdit}>
         <Icon name="add" size={30} color={theme.colors.onPrimary} />
       </TouchableOpacity>
     </View>

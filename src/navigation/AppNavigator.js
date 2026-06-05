@@ -311,7 +311,7 @@ const MainTabs = () => {
               iconName = 'smart-toy'; // AI助手
               break;
             case 'KnowledgeStack':
-              iconName = 'auto-stories'; // 知识库
+              iconName = 'menu-book'; // 知识库
               break;
             case 'PersonalActivity':
               iconName = 'space-dashboard'; // 零屿空间
