@@ -1,10 +1,10 @@
-/**
- * 知识图谱分析屏幕
- * 用于分析知识图谱结构、查找路径和相关概念
- * 提供自动分类、知识图谱构建和分析功能
+﻿/**
+ * 鐭ヨ瘑鍥捐氨鍒嗘瀽灞忓箷
+ * 鐢ㄤ簬鍒嗘瀽鐭ヨ瘑鍥捐氨缁撴瀯銆佹煡鎵捐矾寰勫拰鐩稿叧姒傚康
+ * 鎻愪緵鑷姩鍒嗙被銆佺煡璇嗗浘璋辨瀯寤哄拰鍒嗘瀽鍔熻兘
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,10 @@ import {
   FlatList,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-// 导入Redux相关
+// 瀵煎叆Redux鐩稿叧
 import {
   selectNodes,
   selectEdges,
@@ -26,16 +27,17 @@ import {
   fetchKnowledgeGraph,
 } from '../../redux/slices/knowledgeGraphSlice';
 
-// 导入API服务
+// 瀵煎叆API鏈嶅姟
 import * as knowledgeGraphApi from '../../services/api/knowledgeGraphApi';
 import autoClassificationApi from '../../services/api/autoClassificationApi';
 
-// 导入常量和工具函数
+// 瀵煎叆甯搁噺鍜屽伐鍏峰嚱鏁?
 import { useTheme } from '../../context/ThemeContext';
 import { SPACING, TYPOGRAPHY } from '../../styles/constants';
 
-// 导入组件
+// 瀵煎叆缁勪欢
 import { Button, Loading, Toast } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import {
   PathVisualization,
   StructureAnalysis,
@@ -45,24 +47,25 @@ import {
 } from '../../components/knowledge';
 
 /**
- * 知识图谱分析屏幕组件
+ * 鐭ヨ瘑鍥捐氨鍒嗘瀽灞忓箷缁勪欢
  */
 const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
 
-  // 获取主题颜色
+  // 鑾峰彇涓婚棰滆壊
   const { colors } = useTheme();
 
-  // 获取动态样式
+  // 鑾峰彇鍔ㄦ€佹牱寮?
   const dynamicStyles = getStyles(colors);
+  const insets = useSafeAreaInsets();
 
-  // 从Redux获取状态
+  // 浠嶳edux鑾峰彇鐘舵€?
   const nodes = useSelector(selectNodes);
   const edges = useSelector(selectEdges);
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
 
-  // 本地状态
+  // 鏈湴鐘舵€?
   const [activeTab, setActiveTab] = useState('auto-classification'); // 'auto-classification', 'graph-builder', 'structure', 'path', 'concepts'
   const [toastMessage, setToastMessage] = useState('');
   const [analysisData, setAnalysisData] = useState(null);
@@ -81,30 +84,53 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const [pathError, setPathError] = useState(null);
   const [conceptsError, setConceptsError] = useState(null);
 
-  // 获取路由参数
-  const noteId = route?.params?.noteId;
-  const noteTitle = route?.params?.noteTitle;
-
-  // 初始化加载知识图谱数据
-  useEffect(() => {
-    loadKnowledgeGraph();
-  }, []);
-
-  // 加载知识图谱数据
-  const loadKnowledgeGraph = async () => {
-    try {
-      await dispatch(fetchKnowledgeGraph()).unwrap();
-      // 加载结构分析数据
-      if (activeTab === 'structure') {
-        loadStructureAnalysis();
-      }
-    } catch (err) {
-      setToastMessage('加载知识图谱失败: ' + (err.message || '请稍后重试'));
-    }
+  const openNodePicker = (type, title) => {
+    setPickerType(type);
+    setPickerTitle(title);
+    setShowNodePicker(true);
   };
 
-  // 加载结构分析数据
-  const loadStructureAnalysis = async () => {
+  const closeNodePicker = () => {
+    setShowNodePicker(false);
+  };
+
+  const clearToastMessage = () => setToastMessage('');
+  const isErrorToastMessage = (message) => message.includes('失败');
+
+  const navigateToNoteEdit = () => {
+    navigation.navigate('Notes', { screen: 'NoteEdit' });
+  };
+
+  const handleNodePickerItemPress = (node) => {
+    handleNodeSelect(node, pickerType);
+    closeNodePicker();
+  };
+
+  const setAutoClassificationTab = () => {
+    handleTabChange('auto-classification');
+  };
+
+  const setGraphBuilderTab = () => {
+    handleTabChange('graph-builder');
+  };
+
+  const setStructureTab = () => {
+    handleTabChange('structure');
+  };
+
+  const setPathTab = () => {
+    handleTabChange('path');
+  };
+
+  const setConceptsTab = () => {
+    handleTabChange('concepts');
+  };
+
+  // 鑾峰彇璺敱鍙傛暟
+  const noteId = route?.params?.noteId;
+
+  // 鍔犺浇缁撴瀯鍒嗘瀽鏁版嵁
+  const loadStructureAnalysis = useCallback(async () => {
     setIsAnalysisLoading(true);
     setAnalysisError(null);
 
@@ -116,9 +142,27 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     } finally {
       setIsAnalysisLoading(false);
     }
-  };
+  }, []);
 
-  // 查找路径
+  // 鍒濆鍖栧姞杞界煡璇嗗浘璋辨暟鎹?
+  // 鍔犺浇鐭ヨ瘑鍥捐氨鏁版嵁
+  const loadKnowledgeGraph = useCallback(async () => {
+    try {
+      await dispatch(fetchKnowledgeGraph()).unwrap();
+      // 鍔犺浇缁撴瀯鍒嗘瀽鏁版嵁
+      if (activeTab === 'structure') {
+        loadStructureAnalysis();
+      }
+    } catch (err) {
+      setToastMessage('加载知识图谱失败: ' + (err.message || '请稍后重试'));
+    }
+  }, [activeTab, dispatch, loadStructureAnalysis]);
+
+  useEffect(() => {
+    loadKnowledgeGraph();
+  }, [loadKnowledgeGraph]);
+
+  // 鏌ユ壘璺緞
   const findPath = async () => {
     if (!selectedSourceNode || !selectedTargetNode) {
       setPathError('请选择源节点和目标节点');
@@ -138,7 +182,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     }
   };
 
-  // 查找相关概念
+  // 鏌ユ壘鐩稿叧姒傚康
   const findRelatedConcepts = async () => {
     if (!selectedConceptNode) {
       setConceptsError('请选择一个知识点');
@@ -161,7 +205,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     }
   };
 
-  // 处理节点选择
+  // 澶勭悊鑺傜偣閫夋嫨
   const handleNodeSelect = (node, type) => {
     switch (type) {
       case 'source':
@@ -178,16 +222,17 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     }
   };
 
-  // 处理节点点击
+  // 澶勭悊鑺傜偣鐐瑰嚮
   const handleNodePress = (node) => {
     navigation.navigate('NodeDetail', { nodeId: node.id });
   };
+  const handleGoBack = () => navigation.goBack();
 
-  // 切换标签页
+  // 鍒囨崲鏍囩椤?
   const handleTabChange = (tab) => {
     setActiveTab(tab);
 
-    // 加载对应标签页的数据
+    // 鍔犺浇瀵瑰簲鏍囩椤电殑鏁版嵁
     switch (tab) {
       case 'structure':
         if (!analysisData && !isAnalysisLoading) {
@@ -195,26 +240,26 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
         }
         break;
       case 'path':
-        // 路径查找需要用户选择节点后手动触发
+        // 璺緞鏌ユ壘闇€瑕佺敤鎴烽€夋嫨鑺傜偣鍚庢墜鍔ㄨЕ鍙?
         break;
       case 'concepts':
-        // 相关概念需要用户选择节点后手动触发
+        // 鐩稿叧姒傚康闇€瑕佺敤鎴烽€夋嫨鑺傜偣鍚庢墜鍔ㄨЕ鍙?
         break;
       case 'auto-classification':
-        // 自动分类不需要预加载数据
+        // 鑷姩鍒嗙被涓嶉渶瑕侀鍔犺浇鏁版嵁
         break;
       case 'graph-builder':
-        // 知识图谱构建不需要预加载数据
+        // 鐭ヨ瘑鍥捐氨鏋勫缓涓嶉渶瑕侀鍔犺浇鏁版嵁
         break;
       default:
         break;
     }
   };
 
-  // 处理标签选择
+  // 澶勭悊鏍囩閫夋嫨
   const handleTagsSelected = (tags) => {
-    // 导航到笔记编辑页面，并传递选中的标签
-    // 使用嵌套导航，确保导航到正确的笔记编辑屏幕
+    // 瀵艰埅鍒扮瑪璁扮紪杈戦〉闈紝骞朵紶閫掗€変腑鐨勬爣绛?
+    // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁扮紪杈戝睆骞?
     navigation.navigate('Notes', {
       screen: 'NoteEdit',
       params: {
@@ -224,10 +269,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     });
   };
 
-  // 处理分类选择
+  // 澶勭悊鍒嗙被閫夋嫨
   const handleCategorySelected = (category) => {
-    // 导航到笔记编辑页面，并传递选中的分类
-    // 使用嵌套导航，确保导航到正确的笔记编辑屏幕
+    // 瀵艰埅鍒扮瑪璁扮紪杈戦〉闈紝骞朵紶閫掗€変腑鐨勫垎绫?
+    // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁扮紪杈戝睆骞?
     navigation.navigate('Notes', {
       screen: 'NoteEdit',
       params: {
@@ -237,10 +282,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     });
   };
 
-  // 处理笔记选择
+  // 澶勭悊绗旇閫夋嫨
   const handleNoteSelected = (note) => {
-    // 导航到笔记详情页面
-    // 使用嵌套导航，确保导航到正确的笔记详情屏幕
+    // 瀵艰埅鍒扮瑪璁拌鎯呴〉闈?
+    // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁拌鎯呭睆骞?
     navigation.navigate('Notes', {
       screen: 'NotesList',
       params: {
@@ -250,12 +295,12 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     });
   };
 
-  // 渲染加载状态
+  // 娓叉煋鍔犺浇鐘舵€?
   if (isLoading && nodes.length === 0) {
     return <Loading text="加载知识图谱数据中..." />;
   }
 
-  // 渲染错误状态
+  // 娓叉煋閿欒鐘舵€?
   if (error && nodes.length === 0) {
     return (
       <View style={dynamicStyles.errorContainer} testID="screen.knowledgeAnalysis">
@@ -266,7 +311,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     );
   }
 
-  // 渲染空状态
+  // 娓叉煋绌虹姸鎬?
   if (nodes.length === 0) {
     return (
       <View style={dynamicStyles.emptyContainer} testID="screen.knowledgeAnalysis">
@@ -275,22 +320,18 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
         <Text style={dynamicStyles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
         <Button
           title="创建笔记"
-          onPress={() => navigation.navigate('Notes', { screen: 'NoteEdit' })}
+          onPress={navigateToNoteEdit}
           style={dynamicStyles.createButton}
         />
       </View>
     );
   }
 
-  // 渲染节点选择器
+  // 娓叉煋鑺傜偣閫夋嫨鍣?
   const renderNodeSelector = (type, selectedNode, placeholder) => (
     <TouchableOpacity
       style={dynamicStyles.nodeSelector}
-      onPress={() => {
-        setPickerType(type);
-        setPickerTitle(placeholder);
-        setShowNodePicker(true);
-      }}
+      onPress={() => openNodePicker(type, placeholder)}
     >
       {selectedNode ? (
         <View style={dynamicStyles.selectedNodeContainer}>
@@ -306,7 +347,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
     </TouchableOpacity>
   );
 
-  // 根据节点类型获取颜色
+  // 鏍规嵁鑺傜偣绫诲瀷鑾峰彇棰滆壊
   const getNodeColorByType = (type) => {
     switch (type) {
       case 'note':
@@ -321,15 +362,29 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
         return colors.textSecondary;
     }
   };
+  const renderTopChrome = () => (
+    <View style={[dynamicStyles.pageHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+      <View style={dynamicStyles.pageHeaderTopRow}>
+        <ScreenHeaderBackButton
+          onPress={handleGoBack}
+          testID="action.knowledgeAnalysis.back"
+          style={dynamicStyles.backButton}
+        />
+        <Text style={dynamicStyles.pageTitle}>知识图谱分析</Text>
+        <View style={dynamicStyles.headerSpacer} />
+      </View>
+    </View>
+  );
 
   return (
-    <View style={dynamicStyles.container} testID="screen.knowledgeAnalysis">
-      {/* 选项卡 */}
+    <SafeAreaView style={dynamicStyles.container} testID="screen.knowledgeAnalysis">
+      {renderTopChrome()}
+      {/* 閫夐」鍗?*/}
       <View style={dynamicStyles.tabContainer}>
-        {/* 自动分类标签页 */}
+        {/* 鑷姩鍒嗙被鏍囩椤?*/}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'auto-classification' && dynamicStyles.activeTab]}
-          onPress={() => handleTabChange('auto-classification')}
+          onPress={setAutoClassificationTab}
         >
           <Icon
             name="category"
@@ -341,10 +396,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           </Text>
         </TouchableOpacity>
 
-        {/* 知识图谱构建标签页 */}
+        {/* 鐭ヨ瘑鍥捐氨鏋勫缓鏍囩椤?*/}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'graph-builder' && dynamicStyles.activeTab]}
-          onPress={() => handleTabChange('graph-builder')}
+          onPress={setGraphBuilderTab}
         >
           <Icon
             name="account-tree"
@@ -356,10 +411,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           </Text>
         </TouchableOpacity>
 
-        {/* 结构分析标签页 */}
+        {/* 缁撴瀯鍒嗘瀽鏍囩椤?*/}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'structure' && dynamicStyles.activeTab]}
-          onPress={() => handleTabChange('structure')}
+          onPress={setStructureTab}
         >
           <Icon
             name="bubble-chart"
@@ -371,10 +426,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           </Text>
         </TouchableOpacity>
 
-        {/* 路径查找标签页 */}
+        {/* 璺緞鏌ユ壘鏍囩椤?*/}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'path' && dynamicStyles.activeTab]}
-          onPress={() => handleTabChange('path')}
+          onPress={setPathTab}
         >
           <Icon
             name="timeline"
@@ -386,10 +441,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           </Text>
         </TouchableOpacity>
 
-        {/* 相关概念标签页 */}
+        {/* 鐩稿叧姒傚康鏍囩椤?*/}
         <TouchableOpacity
           style={[dynamicStyles.tab, activeTab === 'concepts' && dynamicStyles.activeTab]}
-          onPress={() => handleTabChange('concepts')}
+          onPress={setConceptsTab}
         >
           <Icon
             name="share"
@@ -402,9 +457,9 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      {/* 内容区域 */}
+      {/* 鍐呭鍖哄煙 */}
       <View style={dynamicStyles.contentContainer}>
-        {/* 自动分类 */}
+        {/* 鑷姩鍒嗙被 */}
         {activeTab === 'auto-classification' && (
           <AutoClassification
             noteId={noteId}
@@ -416,7 +471,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           />
         )}
 
-        {/* 知识图谱构建 */}
+        {/* 鐭ヨ瘑鍥捐氨鏋勫缓 */}
         {activeTab === 'graph-builder' && (
           <KnowledgeGraphBuilder
             noteId={noteId}
@@ -424,7 +479,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           />
         )}
 
-        {/* 结构分析 */}
+        {/* 缁撴瀯鍒嗘瀽 */}
         {activeTab === 'structure' && (
           <StructureAnalysis
             analysis={analysisData}
@@ -434,7 +489,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           />
         )}
 
-        {/* 路径查找 */}
+        {/* 璺緞鏌ユ壘 */}
         {activeTab === 'path' && (
           <View style={dynamicStyles.pathContainer}>
             <View style={dynamicStyles.pathControls}>
@@ -468,7 +523,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* 相关概念 */}
+        {/* 鐩稿叧姒傚康 */}
         {activeTab === 'concepts' && (
           <View style={dynamicStyles.conceptsContainer}>
             <View style={dynamicStyles.conceptsControls}>
@@ -506,7 +561,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
         visible={showNodePicker}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowNodePicker(false)}
+        onRequestClose={closeNodePicker}
       >
         <View style={dynamicStyles.pickerOverlay}>
           <View style={dynamicStyles.pickerContent}>
@@ -518,10 +573,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={dynamicStyles.pickerItem}
-                  onPress={() => {
-                    handleNodeSelect(item, pickerType);
-                    setShowNodePicker(false);
-                  }}
+                  onPress={() => handleNodePickerItemPress(item)}
                 >
                   <View
                     style={[
@@ -536,35 +588,61 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
             <Button
               title="取消"
               type="outline"
-              onPress={() => setShowNodePicker(false)}
+              onPress={closeNodePicker}
             />
           </View>
         </View>
       </Modal>
 
-      {/* Toast消息 */}
+      {/* Toast娑堟伅 */}
       {toastMessage ? (
         <Toast
           message={toastMessage}
-          onDismiss={() => setToastMessage('')}
-          type={toastMessage.includes('失败') ? 'error' : 'success'}
+          onDismiss={clearToastMessage}
+          type={isErrorToastMessage(toastMessage) ? 'error' : 'success'}
         />
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
-// 使用内联样式，因为我们需要访问动态的颜色主题
+// 浣跨敤鍐呰仈鏍峰紡锛屽洜涓烘垜浠渶瑕佽闂姩鎬佺殑棰滆壊涓婚
 const getStyles = (colors) => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
+  pageHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    marginRight: 8,
+  },
+  pageTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.card + 'E8',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary + '22',
   },
   tab: {
     flex: 1,
@@ -592,9 +670,9 @@ const getStyles = (colors) => ({
   },
   pathControls: {
     padding: 15,
-    backgroundColor: colors.card,
+    backgroundColor: colors.card + 'E8',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.primary + '22',
   },
   pathTitle: {
     fontSize: 18,
@@ -619,9 +697,9 @@ const getStyles = (colors) => ({
     justifyContent: 'space-between',
     padding: 10,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.primary + '22',
     borderRadius: 4,
-    backgroundColor: colors.card,
+    backgroundColor: colors.card + 'F2',
   },
   selectedNodeContainer: {
     flex: 1,
@@ -656,9 +734,9 @@ const getStyles = (colors) => ({
   },
   conceptsControls: {
     padding: 15,
-    backgroundColor: colors.card,
+    backgroundColor: colors.card + 'E8',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.primary + '22',
   },
   conceptsTitle: {
     fontSize: 18,
@@ -722,10 +800,10 @@ const getStyles = (colors) => ({
     width: '100%',
     maxWidth: 380,
     maxHeight: '70%',
-    backgroundColor: colors.card,
+    backgroundColor: `${colors.card}F2`,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: `${colors.primary}22`,
     padding: 16,
   },
   pickerTitle: {
@@ -752,3 +830,4 @@ const getStyles = (colors) => ({
 });
 
 export default KnowledgeAnalysisScreen;
+

@@ -3,7 +3,7 @@
  * 用于查看和编辑知识图谱中的节点详情
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // 导入Redux相关
@@ -36,6 +37,7 @@ import { useTheme } from '../../context/ThemeContext';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 /**
  * 知识图谱节点详情屏幕组件
@@ -48,6 +50,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
 
   // 获取动态样式
   const styles = getStyles(colors);
+  const insets = useSafeAreaInsets();
 
   // 从路由参数获取节点ID
   const { nodeId } = route.params || {};
@@ -70,6 +73,16 @@ const NodeDetailScreen = ({ navigation, route }) => {
   const [showAddRelation, setShowAddRelation] = useState(false);
   const [selectedRelationType, setSelectedRelationType] = useState('related');
   const [selectedTargetNode, setSelectedTargetNode] = useState(null);
+
+  const handleGoBack = useCallback(() => navigation.goBack(), [navigation]);
+  const goBackAfterShortDelay = useCallback(() => setTimeout(handleGoBack, 1000), [handleGoBack]);
+  const goBackAfterLongDelay = useCallback(() => setTimeout(handleGoBack, 2000), [handleGoBack]);
+  const openConfirmModal = () => setShowConfirmModal(true);
+  const closeConfirmModal = () => setShowConfirmModal(false);
+  const toggleAddRelation = () => setShowAddRelation((prev) => !prev);
+  const clearToastMessage = () => setToastMessage('');
+  const isErrorToastMessage = (message) =>
+    message.includes('失败') || message.includes('未找到');
 
   // 加载节点数据
   useEffect(() => {
@@ -97,10 +110,10 @@ const NodeDetailScreen = ({ navigation, route }) => {
         setRelatedNodes(relatedNodesData);
       } else {
         setToastMessage('未找到节点数据');
-        setTimeout(() => navigation.goBack(), 2000);
+        goBackAfterLongDelay();
       }
     }
-  }, [nodeId, nodes, edges]);
+  }, [nodeId, nodes, edges, goBackAfterLongDelay]);
 
   // 切换编辑模式
   const toggleEditMode = () => {
@@ -110,12 +123,34 @@ const NodeDetailScreen = ({ navigation, route }) => {
       setConfirmAction(() => async () => {
         await saveNodeChanges();
       });
-      setShowConfirmModal(true);
+      openConfirmModal();
     } else {
       // 进入编辑模式
       setIsEditing(true);
     }
   };
+
+  const renderTopChrome = () => (
+    <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+      <View style={styles.pageHeaderTopRow}>
+        <ScreenHeaderBackButton
+          onPress={handleGoBack}
+          testID="action.nodeDetail.back"
+          style={styles.backButton}
+        />
+        <Text style={styles.pageTitle}>节点详情</Text>
+        <TouchableOpacity
+          style={styles.headerAction}
+          onPress={toggleEditMode}
+          testID="action.nodeDetail.toggleEdit"
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? '保存更改' : '编辑节点'}
+        >
+          <Icon name={isEditing ? 'check' : 'edit'} size={20} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   // 保存节点更改
   const saveNodeChanges = async () => {
@@ -201,7 +236,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
       }
       setToastMessage('节点已删除');
       dispatch(fetchKnowledgeGraph()).catch(() => {});
-      setTimeout(() => navigation.goBack(), 1000);
+      goBackAfterShortDelay();
     } catch (error) {
       setToastMessage('删除失败: ' + (error.message || '请稍后重试'));
     }
@@ -213,37 +248,46 @@ const NodeDetailScreen = ({ navigation, route }) => {
     setConfirmAction(() => async () => {
       await confirmDeleteNode();
     });
-    setShowConfirmModal(true);
+    openConfirmModal();
   };
 
   // 渲染加载状态
   if (isLoading) {
-    return <Loading text="加载节点数据中..." />;
+    return (
+      <SafeAreaView style={styles.container}>
+        {renderTopChrome()}
+        <View style={styles.loadingContainer}>
+          <Loading text="加载节点数据中..." />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   // 渲染节点未找到状态
   if (!node) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        {renderTopChrome()}
         <View style={styles.errorContainer}>
           <Icon name="error-outline" size={50} color={colors.error} />
           <Text style={styles.errorText}>未找到节点数据</Text>
-          <Button title="返回" onPress={() => navigation.goBack()} />
+          <Button title="返回" onPress={handleGoBack} />
         </View>
 
         {toastMessage ? (
           <Toast
             message={toastMessage}
-            onDismiss={() => setToastMessage('')}
+            onDismiss={clearToastMessage}
             type="error"
           />
         ) : null}
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {renderTopChrome()}
       <ScrollView style={styles.scrollContainer}>
         {/* 节点基本信息 */}
         <View style={styles.section}>
@@ -358,7 +402,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>关联关系</Text>
-            <TouchableOpacity onPress={() => setShowAddRelation(!showAddRelation)}>
+            <TouchableOpacity onPress={toggleAddRelation}>
               <Icon
                 name={showAddRelation ? 'close' : 'add'}
                 size={24}
@@ -492,7 +536,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
         visible={showConfirmModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowConfirmModal(false)}
+        onRequestClose={closeConfirmModal}
       >
         <View style={styles.confirmModalOverlay}>
           <View style={styles.confirmModalContent}>
@@ -503,7 +547,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
                 title="取消"
                 variant="outline"
                 onPress={() => {
-                  setShowConfirmModal(false);
+                  closeConfirmModal();
                   if (isEditing && confirmTitle === '保存更改') {
                     setEditedNode(node);
                     setIsEditing(false);
@@ -515,7 +559,7 @@ const NodeDetailScreen = ({ navigation, route }) => {
                 title={confirmTitle === '删除节点' ? '删除' : '保存'}
                 onPress={async () => {
                   const action = confirmAction;
-                  setShowConfirmModal(false);
+                  closeConfirmModal();
                   if (action) {
                     await action();
                   }
@@ -531,11 +575,11 @@ const NodeDetailScreen = ({ navigation, route }) => {
       {toastMessage ? (
         <Toast
           message={toastMessage}
-          onDismiss={() => setToastMessage('')}
-          type={toastMessage.includes('失败') ? 'error' : 'success'}
+          onDismiss={clearToastMessage}
+          type={isErrorToastMessage(toastMessage) ? 'error' : 'success'}
         />
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -560,6 +604,40 @@ const getStyles = (colors) => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  pageHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    marginRight: 8,
+  },
+  pageTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '12',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   scrollContainer: {
     flex: 1,

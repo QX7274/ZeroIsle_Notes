@@ -72,8 +72,8 @@ const MindMapNavigator = () => (
 const KnowledgeGraphNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
     <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱', headerShown: false }} />
-    <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
-    <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
+    <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情', headerShown: false }} />
+    <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析', headerShown: false }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
     <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图', headerShown: false }} />

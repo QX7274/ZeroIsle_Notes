@@ -184,9 +184,7 @@ const ProfileNavigator = () => {
       <Stack.Screen
         name="NodeDetail"
         component={NodeDetailScreen}
-        options={({ route }) => ({
-          title: route.params?.title || '节点详情',
-        })}
+        options={{ title: '节点详情', headerShown: false }}
       />
       <Stack.Screen
         name="EdgeEdit"
@@ -198,7 +196,7 @@ const ProfileNavigator = () => {
       <Stack.Screen
         name="KnowledgeAnalysis"
         component={KnowledgeAnalysisScreen}
-        options={{ title: '知识分析' }}
+        options={{ title: '知识分析', headerShown: false }}
       />
       {/* 知识库相关 */}
       <Stack.Screen
