@@ -572,6 +572,7 @@ const HomeStack = () => {
         component={EdgeEditScreen}
         options={({ route }) => ({
           title: route.params?.edgeId ? '编辑关系' : '创建关系',
+          headerShown: false,
           headerBackTitleVisible: false,
         })}
       />

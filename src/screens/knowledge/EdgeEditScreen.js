@@ -8,11 +8,10 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
-  TextInput,
   Modal,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { COLORS } from '../../utils/constants/colors';
 import { Text } from 'react-native';
@@ -39,22 +38,30 @@ import {
   getAllNodes,
 } from '../../redux/slices/knowledgeGraphSlice';
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const EdgeEditScreen = ({ route, navigation }) => {
   const { edgeId, sourceNodeId, targetNodeId } = route.params || {};
   // 使用静态颜色
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
 
   // 从Redux获取状态
   const { currentEdge, nodes, loading, error } = useSelector(state => state.knowledgeGraph);
 
   // 本地状态
   const [edge, setEdge] = useState(null);
-  const [isCreating, setIsCreating] = useState(!edgeId);
+  const [isCreating] = useState(!edgeId);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('info');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isOffline, setIsOffline] = useState(false); // 简化离线状态检查
+  const [isOffline] = useState(false); // 简化离线状态检查
+
+  const handleGoBack = () => navigation.goBack();
+  const goBackAfterDelay = () => setTimeout(handleGoBack, 1000);
+  const openDeleteConfirm = () => setShowDeleteConfirm(true);
+  const closeDeleteConfirm = () => setShowDeleteConfirm(false);
+  const clearToastMessage = React.useCallback(() => setToastMessage(''), []);
 
   // 监听离线状态变化
   useEffect(() => {
@@ -65,6 +72,25 @@ const EdgeEditScreen = ({ route, navigation }) => {
   }, []);
 
   // 加载边数据
+  // 显示Toast消息
+  const showToast = React.useCallback((message, type = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+
+    // 自动关闭
+    setTimeout(() => {
+      clearToastMessage();
+    }, 3000);
+  }, [clearToastMessage]);
+
+  const loadEdgeData = React.useCallback(async () => {
+    try {
+      await dispatch(fetchEdgeById(edgeId)).unwrap();
+    } catch (err) {
+      showToast('加载边数据失败: ' + (err.message || '请稍后重试'), 'error');
+    }
+  }, [dispatch, edgeId, showToast]);
+
   useEffect(() => {
     if (edgeId) {
       loadEdgeData();
@@ -83,7 +109,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
     if (nodes.length === 0) {
       dispatch(getAllNodes());
     }
-  }, [edgeId, sourceNodeId, targetNodeId]);
+  }, [dispatch, edgeId, loadEdgeData, nodes.length, sourceNodeId, targetNodeId]);
 
   // 当边数据加载完成后，初始化编辑状态
   useEffect(() => {
@@ -91,26 +117,6 @@ const EdgeEditScreen = ({ route, navigation }) => {
       setEdge({ ...currentEdge });
     }
   }, [currentEdge, isCreating]);
-
-  // 加载边数据
-  const loadEdgeData = async () => {
-    try {
-      await dispatch(fetchEdgeById(edgeId)).unwrap();
-    } catch (err) {
-      showToast('加载边数据失败: ' + (err.message || '请稍后重试'), 'error');
-    }
-  };
-
-  // 显示Toast消息
-  const showToast = (message, type = 'info') => {
-    setToastMessage(message);
-    setToastType(type);
-
-    // 自动关闭
-    setTimeout(() => {
-      setToastMessage('');
-    }, 3000);
-  };
 
   // 处理保存
   const handleSave = async () => {
@@ -142,9 +148,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
       }
 
       // 返回上一页
-      setTimeout(() => {
-        navigation.goBack();
-      }, 1000);
+      goBackAfterDelay();
     } catch (err) {
       showToast('保存失败: ' + (err.message || '请稍后重试'), 'error');
     }
@@ -153,17 +157,22 @@ const EdgeEditScreen = ({ route, navigation }) => {
   // 处理删除
   const handleDelete = async () => {
     if (isCreating) {
-      navigation.goBack();
+      handleGoBack();
       return;
     }
 
     try {
       await dispatch(deleteEdge(edgeId)).unwrap();
-      navigation.goBack();
+      handleGoBack();
       showToast('关系已删除', 'success');
     } catch (err) {
       showToast('删除失败: ' + (err.message || '请稍后重试'), 'error');
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    closeDeleteConfirm();
+    await handleDelete();
   };
 
   // 渲染加载状态
@@ -210,7 +219,21 @@ const EdgeEditScreen = ({ route, navigation }) => {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 8), borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+        <View style={styles.pageHeaderTopRow}>
+          <ScreenHeaderBackButton
+            onPress={handleGoBack}
+            testID="action.edgeEdit.back"
+            style={styles.backButton}
+          />
+          <Text variant="heading" level="h5" style={[styles.pageTitle, { color: colors.text }]}>
+            {isCreating ? '创建关系' : '编辑关系'}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </View>
+
       {/* 离线指示器 */}
       {isOffline && (
         <View style={[styles.offlineBar, { backgroundColor: colors.warning + '20' }]}>
@@ -227,14 +250,6 @@ const EdgeEditScreen = ({ route, navigation }) => {
 
       <ScrollView style={styles.scrollView}>
         <Card style={styles.card}>
-          <Text
-            variant="heading"
-            level="h5"
-            style={styles.cardTitle}
-          >
-            {isCreating ? '创建关系' : '编辑关系'}
-          </Text>
-
           {edge && (
             <EdgeEditor
               edge={edge}
@@ -248,7 +263,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
             <Button
               title="取消"
               type="outline"
-              onPress={() => navigation.goBack()}
+              onPress={handleGoBack}
               style={styles.actionButton}
             />
 
@@ -257,7 +272,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
                 title="删除"
                 type="outline"
                 icon="delete"
-                onPress={() => setShowDeleteConfirm(true)}
+                onPress={openDeleteConfirm}
                 style={[styles.actionButton, styles.deleteButton]}
                 textColor="error"
                 disabled={isOffline}
@@ -278,7 +293,7 @@ const EdgeEditScreen = ({ route, navigation }) => {
         visible={showDeleteConfirm}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
+        onRequestClose={closeDeleteConfirm}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -288,15 +303,12 @@ const EdgeEditScreen = ({ route, navigation }) => {
               <Button
                 title="取消"
                 type="outline"
-                onPress={() => setShowDeleteConfirm(false)}
+                onPress={closeDeleteConfirm}
                 style={styles.modalButton}
               />
               <Button
                 title="删除"
-                onPress={async () => {
-                  setShowDeleteConfirm(false);
-                  await handleDelete();
-                }}
+                onPress={handleDeleteConfirm}
                 style={styles.modalButton}
               />
             </View>
@@ -308,17 +320,40 @@ const EdgeEditScreen = ({ route, navigation }) => {
       {toastMessage ? (
         <Toast
           message={toastMessage}
-          onDismiss={() => setToastMessage('')}
+          onDismiss={clearToastMessage}
           type={toastType}
         />
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pageHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+  },
+  pageTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
   },
   offlineBar: {
     flexDirection: 'row',
