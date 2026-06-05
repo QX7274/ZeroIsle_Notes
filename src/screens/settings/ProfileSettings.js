@@ -6,7 +6,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
 import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
@@ -19,15 +18,6 @@ import userApi from '../../services/api/userApi';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { setUserInfo } from '../../redux/slices/authSlice';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
-
-const ENTRY_PALETTE_MAP = {
-  Reminder: { tint: 'rgba(76,141,255,0.10)', accent: 'rgba(76,141,255,0.22)', iconBg: 'rgba(76,141,255,0.14)', shadow: '#4C8DFF', label: '#1F5FBF' },
-  Groups: { tint: 'rgba(155,89,255,0.10)', accent: 'rgba(155,89,255,0.22)', iconBg: 'rgba(155,89,255,0.14)', shadow: '#9B59FF', label: '#6A35D3' },
-  MindMap: { tint: 'rgba(17,170,144,0.10)', accent: 'rgba(17,170,144,0.22)', iconBg: 'rgba(17,170,144,0.14)', shadow: '#11AA90', label: '#0B7D67' },
-  KnowledgeGraph: { tint: 'rgba(245,158,11,0.10)', accent: 'rgba(245,158,11,0.22)', iconBg: 'rgba(245,158,11,0.14)', shadow: '#F59E0B', label: '#B26A00' },
-  PersonalActivity: { tint: 'rgba(59,130,246,0.10)', accent: 'rgba(59,130,246,0.22)', iconBg: 'rgba(59,130,246,0.14)', shadow: '#3B82F6', label: '#2456B5' },
-  KnowledgeBase: { tint: 'rgba(236,72,153,0.10)', accent: 'rgba(236,72,153,0.22)', iconBg: 'rgba(236,72,153,0.14)', shadow: '#EC4899', label: '#B91C5A' },
-};
 
 const ProfileSettings = ({ navigation }) => {
   const { colors } = useTheme();
@@ -133,48 +123,6 @@ const ProfileSettings = ({ navigation }) => {
     { key: 'KnowledgeBase', label: '知识库', icon: 'library-books', hint: '资料沉淀' },
   ];
 
-  const renderFunctionEntry = useCallback((entry) => {
-    const palette = ENTRY_PALETTE_MAP[entry.key] || {
-      tint: 'rgba(76,141,255,0.10)',
-      accent: 'rgba(76,141,255,0.22)',
-      iconBg: 'rgba(76,141,255,0.14)',
-      shadow: '#4C8DFF',
-      label: colors.text,
-    };
-
-    return (
-      <Pressable
-        key={entry.key}
-        style={({ pressed }) => [
-          styles.itemBtn,
-          {
-            backgroundColor: pressed ? 'rgba(255,255,255,0.98)' : palette.tint,
-            borderColor: palette.accent,
-            shadowColor: palette.shadow,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          },
-        ]}
-        onPress={() => navigateWithGuard(entry.key)}
-        disabled={interactionBusy}
-        testID={`entry.${entry.key === 'Groups' ? 'group' : entry.key === 'MindMap' ? 'mindMap' : entry.key === 'KnowledgeGraph' ? 'knowledgeGraph' : entry.key === 'PersonalActivity' ? 'activity' : entry.key === 'KnowledgeBase' ? 'knowledgeBase' : 'reminder'}.profile`}
-      >
-        <View style={[styles.itemAccentBar, { backgroundColor: palette.label }]} />
-        <View style={styles.itemTopRow}>
-          <View style={[styles.itemIconWrap, { backgroundColor: palette.iconBg, borderColor: palette.accent }]}>
-            <Icon name={entry.icon} size={20} color={palette.label} />
-          </View>
-          <Icon name="chevron-right" size={18} color={palette.label} />
-        </View>
-        <View style={styles.itemTextWrap}>
-          <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>{entry.label}</Text>
-          <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={2}>
-            {entry.hint}
-          </Text>
-        </View>
-      </Pressable>
-    );
-  }, [colors.text, colors.textSecondary, interactionBusy, navigateWithGuard]);
-
   return (
     <View style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.profile.state.${profileState}`}>
       <View testID="state.profile.visibility.visible" />
@@ -213,12 +161,25 @@ const ProfileSettings = ({ navigation }) => {
         </View>
 
         <View style={[styles.functionCard, styles.glassCard]}>
-          <View style={styles.sectionHead}>
-            <Text variant="h3">功能中心</Text>
-            <Text variant="caption" style={{ color: colors.textSecondary }}>常用功能入口</Text>
-          </View>
+          <Text variant="h3">功能中心</Text>
           <View style={styles.grid}>
-            {functionEntries.map((entry) => renderFunctionEntry(entry))}
+            {functionEntries.map((entry) => (
+              <TouchableOpacity
+                key={entry.key}
+                style={styles.itemBtn}
+                onPress={() => navigateWithGuard(entry.key)}
+                disabled={interactionBusy}
+                testID={`entry.${entry.key === 'Groups' ? 'group' : entry.key === 'MindMap' ? 'mindMap' : entry.key === 'KnowledgeGraph' ? 'knowledgeGraph' : entry.key === 'PersonalActivity' ? 'activity' : entry.key === 'KnowledgeBase' ? 'knowledgeBase' : 'reminder'}.profile`}
+              >
+                <View style={[styles.itemIconWrap, { backgroundColor: `${colors.primary}14` }]}>
+                  <Icon name={entry.icon} size={20} color={colors.primary} />
+                </View>
+                <Text style={[styles.itemTitle, { color: colors.text }]}>{entry.label}</Text>
+                <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {entry.hint}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -259,35 +220,35 @@ const styles = StyleSheet.create({
   formCard: { padding: 14, marginBottom: 14 },
   bioInput: { height: 100, textAlignVertical: 'top' },
   functionCard: { padding: 14, marginBottom: 14 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
   itemBtn: {
     width: '48%',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 18,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     marginBottom: 12,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 4,
-    alignItems: 'stretch',
-    minHeight: 120,
+    borderColor: 'rgba(76,141,255,0.20)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+    alignItems: 'flex-start',
   },
-  itemAccentBar: { height: 4, borderRadius: 999, marginBottom: 10, opacity: 0.92 },
-  itemTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   itemIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 12,
     borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.12)',
   },
-  itemTextWrap: { flex: 1 },
-  itemTitle: { fontSize: 16, fontWeight: '800', marginBottom: 8, letterSpacing: 0.2 },
-  itemHint: { fontSize: 12, lineHeight: 18 },
+  itemTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  itemHint: { fontSize: 12, lineHeight: 17 },
   actionRow: { padding: 10, flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { width: '48%', minHeight: 42, justifyContent: 'center', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(76,141,255,0.22)', backgroundColor: 'rgba(255,255,255,0.94)' },
 });
