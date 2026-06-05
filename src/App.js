@@ -11,6 +11,7 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { createPaperLightTheme, createPaperDarkTheme } from './theme/paperTheme';
 import { NavigationContainer } from '@react-navigation/native';
 
@@ -138,6 +139,22 @@ const defaultTheme = {
     accent: '#FF9500',
     error: '#FF3B30',
   },
+};
+
+const safePaperIcon = ({ name, color, size, direction, testID }) => {
+  const resolvedName = typeof name === 'string' && name.trim().length > 0
+    ? name
+    : 'help-circle-outline';
+
+  return (
+    <MaterialCommunityIcons
+      name={resolvedName}
+      color={color}
+      size={size}
+      testID={testID}
+      style={direction === 'rtl' ? { transform: [{ scaleX: -1 }] } : undefined}
+    />
+  );
 };
 
 // 统一的初始化逻辑（带服务检测）
@@ -325,7 +342,7 @@ const AppContainer = () => {
 
   // 应用准备完成，渲染主界面
   return (
-    <PaperProvider theme={paperTheme}>
+    <PaperProvider theme={paperTheme} settings={{ icon: safePaperIcon }}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.colors.background}
@@ -351,8 +368,7 @@ const AppContainer = () => {
         }}
       >
         <AppNavigator />
-        {/* 开发联调阶段禁用全局网络阻断弹窗，避免无网测试被打断 */}
-        {!__DEV__ ? <GlobalNetworkErrorHandler /> : null}
+        <GlobalNetworkErrorHandler />
       </NavigationContainer>
     </PaperProvider>
   );

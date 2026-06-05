@@ -25,6 +25,7 @@ import { zhCN } from 'date-fns/locale';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import reminderApi from '../../services/api/reminderApi';
 import CalendarIntegrationView from '../../components/reminder/CalendarIntegrationView';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const PRIORITIES = ['low', 'medium', 'high'];
 const CATEGORIES = ['work', 'study', 'personal', 'health', 'finance', 'social', 'other'];
@@ -98,6 +99,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   const [showRepeatEndPicker, setShowRepeatEndPicker] = useState(false);
   const [showReschedulePicker, setShowReschedulePicker] = useState(false);
   const [tempDate, setTempDate] = useState(new Date(routeReminder?.due_date || Date.now()));
+  const detailState = loading ? 'loading' : !reminder ? 'empty' : saving ? 'busy' : 'ready';
 
   const notifyNonBlocking = useCallback((message, tone = 'warning') => {
     if (!message) {
@@ -159,6 +161,9 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   }, [fetchReminderDetail]);
 
   const handleSave = async () => {
+    if (saving) {
+      return;
+    }
     if (!reminder?.title?.trim()) {
       notifyNonBlocking('请输入提醒标题');
       return;
@@ -181,6 +186,9 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   };
 
   const confirmDelete = () => {
+    if (saving) {
+      return;
+    }
     Alert.alert(
       '确认删除',
       '确定要删除这条提醒吗？此操作无法撤销。',
@@ -211,6 +219,9 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   };
 
   const handleDelete = () => {
+    if (saving) {
+      return;
+    }
     if (!reminder) {
       return;
     }
@@ -231,6 +242,9 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   };
 
   const handleToggleComplete = async () => {
+    if (saving) {
+      return;
+    }
     if (!reminder) {
       return;
     }
@@ -270,6 +284,10 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   };
 
   const handleDateChange = (event, selectedDate) => {
+    if (saving) {
+      setShowDatePicker(false);
+      return;
+    }
     if (!selectedDate || !reminder) {
       setShowDatePicker(false);
       return;
@@ -292,7 +310,61 @@ const ReminderDetailScreen = ({ route, navigation }) => {
     setShowDatePicker(false);
   };
 
+  const openRepeatEndPicker = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    setShowRepeatEndPicker(true);
+  }, [saving]);
+
+  const handleRepeatEndChange = useCallback((event, selectedDate) => {
+    if (saving) {
+      setShowRepeatEndPicker(false);
+      return;
+    }
+    if (!selectedDate) {
+      setShowRepeatEndPicker(false);
+      return;
+    }
+    if (!reminder) {
+      setShowRepeatEndPicker(false);
+      return;
+    }
+    const endDate = new Date(selectedDate);
+    endDate.setHours(0, 0, 0, 0);
+    setReminder({
+      ...reminder,
+      repeat_end_date: endDate.toISOString(),
+    });
+    setShowRepeatEndPicker(false);
+  }, [reminder, saving]);
+
+  const openReschedulePicker = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    setShowReschedulePicker(true);
+  }, [saving]);
+
+  const handleBackPress = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    navigation.goBack();
+  }, [navigation, saving]);
+
+  const openDateTimePicker = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    setDatePickerMode('date');
+    setShowDatePicker(true);
+  }, [saving]);
+
   const handleRescheduleConfirm = async (selectedDate) => {
+    if (saving) {
+      return;
+    }
     if (!selectedDate || !reminder) {
       return;
     }
@@ -323,6 +395,32 @@ const ReminderDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleRescheduleChange = useCallback((event, selectedDate) => {
+    if (saving) {
+      setShowReschedulePicker(false);
+      return;
+    }
+    setShowReschedulePicker(false);
+    if (selectedDate) {
+      handleRescheduleConfirm(selectedDate);
+    }
+  }, [handleRescheduleConfirm, saving]);
+
+  const closeDatePicker = useCallback(() => {
+    if (saving) {return;}
+    setShowDatePicker(false);
+  }, [saving]);
+
+  const closeRepeatEndPicker = useCallback(() => {
+    if (saving) {return;}
+    setShowRepeatEndPicker(false);
+  }, [saving]);
+
+  const closeReschedulePicker = useCallback(() => {
+    if (saving) {return;}
+    setShowReschedulePicker(false);
+  }, [saving]);
+
   if (loading) {
     return (
       <View
@@ -350,6 +448,11 @@ const ReminderDetailScreen = ({ route, navigation }) => {
       style={[styles.container, { backgroundColor: theme.background }]}
       testID="screen.reminder.detail"
     >
+      <View testID={`state.reminder.detail.state.${detailState}`} />
+      <View testID={`state.reminder.detail.saving.visibility.${saving ? 'visible' : 'hidden'}`} />
+      <View testID={`state.reminder.detail.datePicker.visibility.${showDatePicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.reminder.detail.repeatEndPicker.visibility.${showRepeatEndPicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.reminder.detail.reschedulePicker.visibility.${showReschedulePicker ? 'visible' : 'hidden'}`} />
       <View
         style={[
           styles.headerBar,
@@ -359,14 +462,11 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.primary + '15' }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
+        <ScreenHeaderBackButton
+          onPress={handleBackPress}
           testID="action.reminder.detail.back"
-        >
-          <Icon name="arrow-back" size={22} color={theme.primary} />
-        </TouchableOpacity>
+          style={styles.backButton}
+        />
         <Text style={[styles.headerTitle, { color: theme.text }]}>提醒详情</Text>
         <View style={styles.headerRight} />
       </View>
@@ -465,10 +565,8 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>日期和时间</Text>
           <TouchableOpacity
             style={styles.dateTimeButton}
-            onPress={() => {
-              setDatePickerMode('date');
-              setShowDatePicker(true);
-            }}
+            onPress={openDateTimePicker}
+            disabled={saving}
             testID="action.reminder.detail.pickDateTime"
           >
             <Icon name="event" size={24} color={theme.primary} style={styles.dateTimeIcon} />
@@ -503,6 +601,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
                     },
                   ]}
                   onPress={() => setReminder({ ...reminder, priority })}
+                  disabled={saving}
                   testID={`chip.reminder.detail.priority.${priority}`}
                 >
                   <Text style={[styles.priorityText, { color: isActive ? '#fff' : accent }]}>
@@ -538,6 +637,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
                     },
                   ]}
                   onPress={() => setReminder({ ...reminder, category })}
+                  disabled={saving}
                   testID={`chip.reminder.detail.category.${category}`}
                 >
                   <Text style={[styles.categoryText, { color: isActive ? '#fff' : theme.primary }]}>
@@ -573,6 +673,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
                     },
                   ]}
                   onPress={() => setReminder({ ...reminder, frequency })}
+                  disabled={saving}
                   testID={`chip.reminder.detail.frequency.${frequency}`}
                 >
                   <Text style={[styles.frequencyText, { color: isActive ? '#fff' : theme.primary }]}>
@@ -588,7 +689,8 @@ const ReminderDetailScreen = ({ route, navigation }) => {
               <Text style={[styles.repeatEndLabel, { color: theme.textSecondary }]}>重复结束日期</Text>
               <TouchableOpacity
                 style={styles.repeatEndButton}
-                onPress={() => setShowRepeatEndPicker(true)}
+                onPress={openRepeatEndPicker}
+                disabled={saving}
                 testID="action.reminder.detail.pickRepeatEnd"
               >
                 <Text style={[styles.repeatEndText, { color: theme.text }]}>
@@ -638,6 +740,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
               onValueChange={(value) => setReminder({ ...reminder, is_enabled: value })}
               trackColor={{ false: theme.border, true: theme.primary + '80' }}
               thumbColor={reminder.is_enabled ? theme.primary : '#f4f3f4'}
+              disabled={saving}
               testID="switch.reminder.detail.enabled"
             />
           </View>
@@ -690,6 +793,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           style={[styles.deleteButton, { backgroundColor: theme.error }]}
           onPress={handleDelete}
           disabled={saving}
+          activeOpacity={saving ? 1 : 0.7}
           testID="action.reminder.detail.delete"
         >
           <Icon name="delete" size={20} color="#fff" />
@@ -698,8 +802,9 @@ const ReminderDetailScreen = ({ route, navigation }) => {
 
         <TouchableOpacity
           style={[styles.snoozeButton, { backgroundColor: theme.warning }]}
-          onPress={() => setShowReschedulePicker(true)}
+          onPress={openReschedulePicker}
           disabled={saving}
+          activeOpacity={saving ? 1 : 0.7}
           testID="action.reminder.detail.reschedule"
         >
           <Icon name="schedule" size={20} color="#fff" />
@@ -710,6 +815,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           style={[styles.saveButton, { backgroundColor: theme.primary }]}
           onPress={handleSave}
           disabled={saving}
+          activeOpacity={saving ? 1 : 0.7}
           testID="action.reminder.detail.save"
         >
           {saving ? (
@@ -731,7 +837,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
         onChange={handleDateChange}
         minimumDate={new Date()}
         visible={showDatePicker}
-        onClose={() => setShowDatePicker(false)}
+        onClose={closeDatePicker}
         onError={(error) => console.log('DateTimePicker error:', error)}
         testID="picker.reminder.detail.dateTime"
       />
@@ -741,22 +847,10 @@ const ReminderDetailScreen = ({ route, navigation }) => {
         mode="date"
         is24Hour
         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-        onChange={(event, selectedDate) => {
-          if (!selectedDate) {
-            setShowRepeatEndPicker(false);
-            return;
-          }
-          const endDate = new Date(selectedDate);
-          endDate.setHours(0, 0, 0, 0);
-          setReminder({
-            ...reminder,
-            repeat_end_date: endDate.toISOString(),
-          });
-          setShowRepeatEndPicker(false);
-        }}
+        onChange={handleRepeatEndChange}
         minimumDate={new Date(reminder.due_date)}
         visible={showRepeatEndPicker}
-        onClose={() => setShowRepeatEndPicker(false)}
+        onClose={closeRepeatEndPicker}
         onError={(error) => console.log('RepeatEndPicker error:', error)}
         testID="picker.reminder.detail.repeatEnd"
       />
@@ -766,15 +860,10 @@ const ReminderDetailScreen = ({ route, navigation }) => {
         mode="datetime"
         is24Hour
         display="default"
-        onChange={(event, selectedDate) => {
-          setShowReschedulePicker(false);
-          if (selectedDate) {
-            handleRescheduleConfirm(selectedDate);
-          }
-        }}
+        onChange={handleRescheduleChange}
         minimumDate={new Date()}
         visible={showReschedulePicker}
-        onClose={() => setShowReschedulePicker(false)}
+        onClose={closeReschedulePicker}
         onError={(error) => console.log('ReschedulePicker error:', error)}
         testID="picker.reminder.detail.reschedule"
       />
@@ -804,11 +893,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
   },
   headerTitle: {
@@ -876,10 +960,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   sectionTitle: {
     fontSize: 14,

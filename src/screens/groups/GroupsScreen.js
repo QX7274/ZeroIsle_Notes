@@ -2,67 +2,110 @@
  * 群组屏幕
  */
 import React, { useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectGroupInvitations, fetchGroupInvitations } from '../../redux/slices/groupsSlice';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MIIcon from 'react-native-vector-icons/MaterialIcons';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+
+import {
+  selectGroupInvitations,
+  fetchGroupInvitations,
+  selectGroupsLoading,
+  selectGroupsError,
+} from '../../redux/slices/groupsSlice';
 import GroupList from '../../components/groups/GroupList';
 import { useTheme } from '../../context/ThemeContext';
-
 import { COLORS } from '../../utils/constants/colors';
 
 const GroupsScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const invitations = useSelector(selectGroupInvitations) || [];
+  const isLoading = useSelector(selectGroupsLoading);
+  const groupsError = useSelector(selectGroupsError);
   const { theme } = useTheme();
+  const primary = theme?.primary || '#2563EB';
+
+  const invitationCount = invitations.length;
+  const invitationBadgeVisible = invitationCount > 0;
+  const invitationLabel = `邀请${invitationCount ? `(${invitationCount})` : ''}`;
+  const pageState = isLoading
+    ? 'loading'
+    : groupsError
+      ? 'error'
+      : invitationCount > 0
+        ? 'readyWithInvitations'
+        : 'ready';
 
   useEffect(() => {
-    // 初始化加载邀请数量
     dispatch(fetchGroupInvitations());
   }, [dispatch]);
 
   return (
-    <View style={styles.container}>
-      {/* 顶部导航栏（统一返回按钮样式） */}
+    <View style={styles.container} testID={`state.groups.screen.state.${pageState}`}>
+      <View testID="state.groups.screen.visibility.visible" />
+      <View testID={`state.groups.screen.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.screen.error.visibility.${groupsError ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.invitations.count.${invitationCount}`} />
+      <View testID={`state.groups.invitations.badge.visibility.${invitationBadgeVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.invitations.label.visibility.${invitationLabel ? 'visible' : 'hidden'}`} />
+
       <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: (theme?.primary || '#2196F3') + '15' }]}
+        <View testID="state.groups.header.visibility.visible" />
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <MIIcon name="arrow-back" size={22} color={theme?.primary || '#2196F3'} />
-        </TouchableOpacity>
+          testID="action.group.screen.back"
+          style={styles.backButton}
+        />
+
         <Text style={styles.headerTitle}>群组</Text>
-        <View style={styles.headerRight}>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: '#FF9800' }]}
-              onPress={() => navigation.navigate('Invitations')}
-            >
-              <Icon name="email" size={22} color="#FFFFFF" />
-              <Text style={styles.buttonText}>邀请{invitations?.length ? `(${invitations.length})` : ''}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: '#2196F3' }]}
-              onPress={() => navigation.navigate('JoinGroup')}
-            >
-              <Icon name="account-plus" size={22} color="#FFFFFF" />
-              <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>加入</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: '#2196F3' }]}
-              onPress={() => navigation.navigate('CreateGroup')}
-            >
-              <Icon name="plus" size={22} color="#FFFFFF" />
-              <Text style={styles.buttonText}>创建</Text>
-            </TouchableOpacity>
-          </View>
+
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={[styles.headerButton, styles.glassButtonWarning]}
+            onPress={() => navigation.navigate('Invitations')}
+            testID="action.group.openInvitations"
+          >
+            <Icon name="email" size={20} color="#FFFFFF" />
+            <Text style={styles.buttonText}>{invitationLabel}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.headerButton, styles.glassButtonPrimary]}
+            onPress={() => navigation.navigate('JoinGroup')}
+            testID="action.group.openJoin"
+          >
+            <Icon name="account-plus" size={20} color="#FFFFFF" />
+            <Text style={styles.buttonText}>加入</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.headerButton, styles.glassButtonPrimary]}
+            onPress={() => navigation.navigate('CreateGroup')}
+            testID="action.group.openCreate"
+          >
+            <Icon name="plus" size={20} color="#FFFFFF" />
+            <Text style={styles.buttonText}>创建</Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      {groupsError ? (
+        <View style={styles.errorCard} testID="state.groups.screen.errorCard">
+          <MIIcon name="error-outline" size={16} color="#B91C1C" />
+          <Text style={styles.errorText}>{String(groupsError)}</Text>
+        </View>
+      ) : null}
+
+      {isLoading ? (
+        <View style={styles.loadingBar} testID="state.groups.screen.loadingBar">
+          <ActivityIndicator size="small" color={primary} />
+          <Text style={styles.loadingText}>正在同步群组数据...</Text>
+        </View>
+      ) : null}
 
       <GroupList />
     </View>
@@ -72,7 +115,7 @@ const GroupsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: '#F6FAFF',
   },
   headerBar: {
     flexDirection: 'row',
@@ -82,69 +125,99 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingTop: 24,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
-    backgroundColor: 'rgba(0,0,0,0.04)',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 18,
     color: COLORS.TEXT,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    letterSpacing: 0.2,
   },
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D9E8FF',
+    paddingHorizontal: 4,
+    paddingVertical: 3,
   },
   headerButton: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    marginLeft: 10,
-    borderRadius: 20,
+    marginLeft: 8,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  glassButtonPrimary: {
+    backgroundColor: 'rgba(37,99,235,0.9)',
+  },
+  glassButtonWarning: {
+    backgroundColor: 'rgba(59,130,246,0.72)',
   },
   buttonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginLeft: 4,
   },
-  fabButton: {
-    position: 'absolute',
-    right: 26, // 使用固定值替代 SPACING.LARGE
-    bottom: 30, // 使用固定值替代 SPACING.LARGE + 4
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.PRIMARY,
-    justifyContent: 'center',
+  errorCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: 'rgba(254,242,242,0.92)',
+    flexDirection: 'row',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.9)',
+    gap: 8,
+  },
+  errorText: {
+    color: '#B91C1C',
+    flex: 1,
+    lineHeight: 18,
+    fontSize: 13,
+  },
+  loadingBar: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: '#D9E8FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    color: '#4B627A',
+    fontSize: 12,
   },
 });
 

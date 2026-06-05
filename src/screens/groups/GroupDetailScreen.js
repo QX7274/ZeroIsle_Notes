@@ -1,6 +1,3 @@
-/**
- * 群组详情屏幕
- */
 import React, { useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -8,39 +5,52 @@ import MIIcon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch } from 'react-redux';
 import { setCurrentGroup } from '../../redux/slices/groupsSlice';
 import GroupDetail from '../../components/groups/GroupDetail';
-import { useTheme } from '../../context/ThemeContext';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import { COLORS } from '../../utils/constants/colors';
 
 const GroupDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const { theme } = useTheme();
-  const { groupId } = route.params;
+  const { groupId } = route.params || {};
+  const hasGroupId = Boolean(groupId);
+  const pageState = hasGroupId ? 'ready' : 'invalid';
 
   useEffect(() => {
-    // 设置当前群组
     return () => {
       dispatch(setCurrentGroup(null));
     };
-  }, []);
+  }, [dispatch]);
 
   return (
-    <View style={styles.container}>
-      {/* 顶部导航栏（统一返回按钮样式） */}
+    <View style={styles.container} testID={`state.group.detailScreen.state.${pageState}`}>
+      <View testID="state.group.detailScreen.visibility.visible" />
+      <View testID={`state.group.detailScreen.groupId.visibility.${hasGroupId ? 'visible' : 'hidden'}`} />
+      <View testID={`state.group.detailScreen.invalid.visibility.${hasGroupId ? 'hidden' : 'visible'}`} />
       <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={styles.backButton}
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <MIIcon name="arrow-back" size={22} color={COLORS.PRIMARY} />
-        </TouchableOpacity>
+          testID="action.group.detailScreen.back"
+          style={styles.backButton}
+        />
         <Text style={styles.headerTitle}>群组详情</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <GroupDetail groupId={groupId} />
+      {!hasGroupId ? (
+        <View style={styles.invalidWrap} testID="state.group.detailScreen.invalid">
+          <Text style={styles.invalidText}>缺少群组标识，无法加载详情</Text>
+          <TouchableOpacity
+            style={styles.invalidBackButton}
+            onPress={() => navigation.goBack()}
+            testID="action.group.detailScreen.invalidBack"
+          >
+            <Text style={styles.invalidBackText}>返回</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <GroupDetail groupId={groupId} />
+      )}
     </View>
   );
 };
@@ -48,7 +58,7 @@ const GroupDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: '#F6FAFF',
   },
   headerBar: {
     flexDirection: 'row',
@@ -58,16 +68,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingTop: 24,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.11,
+    shadowRadius: 14,
+    elevation: 3,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
-    backgroundColor: 'rgba(0,0,0,0.04)',
   },
   headerTitle: {
     flex: 1,
@@ -78,6 +88,36 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+  },
+  invalidWrap: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: 'rgba(254,242,242,0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    alignItems: 'flex-start',
+  },
+  invalidText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  invalidBackButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  invalidBackText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
 

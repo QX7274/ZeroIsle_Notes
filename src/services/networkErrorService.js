@@ -2,8 +2,6 @@
  * 网络错误处理服务
  * 统一管理应用中的网络错误显示和处理
  */
-import { Alert } from 'react-native';
-
 class NetworkErrorService {
   constructor() {
     this.errorHandlers = new Map();
@@ -187,10 +185,9 @@ class NetworkErrorService {
       console.log('NetworkErrorService: 检测到网络错误，准备通知全局监听器');
       this.notifyGlobalErrorListeners(error, enhancedOptions);
 
-      // 开发模式或未挂载全局监听器时，回退为原生提示，避免“无提示静默失败”
+      // 不再使用原生 Alert 兜底，统一交由 NetworkErrorAlert 显示
       if (this.globalErrorListeners.size === 0) {
-        const fallbackMessage = enhancedOptions.customMessage || this.getUserFriendlyMessage(this.getNetworkErrorType(error));
-        Alert.alert('网络提示', fallbackMessage);
+        console.warn('NetworkErrorService: 未挂载全局网络错误提示组件，已记录错误但不使用原生弹窗兜底');
       }
 
       // 记录错误日志
@@ -299,14 +296,9 @@ class NetworkErrorService {
           retryMessage = '网络连接出现问题，请检查网络设置后重试';
       }
 
-      // 显示重试提示
-      if (typeof Alert !== 'undefined') {
-        Alert.alert('重试提示', retryMessage, [
-          { text: '确定', style: 'default' },
-        ]);
-      } else {
-        console.log('重试提示:', retryMessage);
-      }
+      console.warn('NetworkErrorService: 默认重试提示已简化为日志输出，避免原生弹窗打断统一交互样式', {
+        retryMessage,
+      });
 
       // 记录重试操作
       console.log('NetworkErrorService: 默认重试完成，显示提示:', retryMessage);

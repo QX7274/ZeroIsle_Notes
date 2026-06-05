@@ -1,23 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
   FlatList,
-  TouchableOpacity,
   Image,
   RefreshControl,
-  ActivityIndicator,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useTheme } from '../../context/ThemeContext';
 import { Button, Card, Skeleton } from '../../components/common';
-import { SPACING } from '../../utils/constants/dimensions';
-import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import { UnifiedSearchBar } from '../../components/search';
+import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import networkService from '../../services/network/networkService';
+import { SPACING } from '../../utils/constants/dimensions';
 
 const FALLBACK_THEME = {
   background: '#F2F7FB',
@@ -26,12 +27,18 @@ const FALLBACK_THEME = {
   textSecondary: '#5B7083',
   primary: '#2196F3',
   border: '#D7E8F8',
-  shadow: 'rgba(15, 23, 42, 0.10)',
 };
+
+const CATEGORY_OPTIONS = [
+  { key: 'all', label: '全部' },
+  { key: 'note_template', label: '笔记模板' },
+  { key: 'learning', label: '学习资料' },
+  { key: 'tips', label: '使用技巧' },
+  { key: 'knowledge_graph', label: '知识图谱' },
+];
 
 const CommunityScreen = ({ navigation }) => {
   let palette = FALLBACK_THEME;
-
   try {
     const themeContext = useTheme();
     const colors = themeContext?.theme?.colors;
@@ -43,157 +50,246 @@ const CommunityScreen = ({ navigation }) => {
         textSecondary: colors.textSecondary || FALLBACK_THEME.textSecondary,
         primary: colors.primary || FALLBACK_THEME.primary,
         border: colors.border || FALLBACK_THEME.border,
-        shadow: colors.shadow || FALLBACK_THEME.shadow,
       };
     }
-  } catch (themeError) {
-    console.error('CommunityScreen: 获取主题失败', themeError?.message || themeError);
+  } catch (error) {
+    console.warn('CommunityScreen theme fallback:', error?.message || error);
   }
 
   const dispatch = useDispatch();
+  const requestInFlightRef = useRef(false);
+
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [loadState, setLoadState] = useState('idle');
-  const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector(state => state.community);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [loadMoreError, setLoadMoreError] = useState('');
+  const [actionSource, setActionSource] = useState('');
+
+  const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
   const hasMore = pagination.page < pagination.totalPages;
+  const interactionBusy = isLoading || refreshing || requestInFlightRef.current;
+  const currentCategoryLabel = CATEGORY_OPTIONS.find((i) => i.key === activeCategory)?.label || '全部';
 
-  const loadPosts = useCallback(async (targetPage = 1) => {
-    if (isLoading) {
-      return;
-    }
+  const resetTransient = useCallback(() => {
+    setLoadMoreError('');
+  }, []);
 
-    const isOnline = await networkService.checkConnection();
-    if (!isOnline) {
-      setLoadState('offline');
-      return;
-    }
+  const loadPosts = useCallback(
+    async (targetPage = 1, categoryOverride = undefined) => {
+      if (requestInFlightRef.current) {
+        return;
+      }
 
-    try {
-      setLoadState('loading');
-      await dispatch(fetchPosts({
-        page: targetPage,
-        pageSize: 10,
-        suppressGlobalErrorUI: true,
-      })).unwrap();
-      setLoadState('ready');
-    } catch (requestError) {
-      console.log('CommunityScreen: 加载帖子失败', requestError?.message || requestError);
-      setLoadState('error');
-    }
-  }, [dispatch, isLoading]);
+      requestInFlightRef.current = true;
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
+        setLoadState('offline');
+        requestInFlightRef.current = false;
+        return;
+      }
+
+      try {
+        setLoadState('loading');
+        const resolvedCategory = categoryOverride !== undefined
+          ? categoryOverride
+          : activeCategory === 'all'
+            ? undefined
+            : activeCategory;
+        await dispatch(
+          fetchPosts({
+            page: targetPage,
+            pageSize: 10,
+            suppressGlobalErrorUI: true,
+            category: resolvedCategory,
+          })
+        ).unwrap();
+        setLoadState('ready');
+      } catch (requestError) {
+        setLoadState('error');
+        console.warn('CommunityScreen load failed:', requestError?.message || requestError);
+      } finally {
+        requestInFlightRef.current = false;
+      }
+    },
+    [activeCategory, dispatch]
+  );
 
   useEffect(() => {
-    loadPosts(1);
-  }, [loadPosts]);
+    const category = activeCategory === 'all' ? undefined : activeCategory;
+    loadPosts(1, category);
+  }, [activeCategory, loadPosts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        requestInFlightRef.current = false;
+        setRefreshing(false);
+        setPage(1);
+        setLoadState('idle');
+        setActionSource('');
+        resetTransient();
+      };
+    }, [resetTransient])
+  );
 
   const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setPage(1);
-    loadPosts(1).finally(() => setRefreshing(false));
-  }, [loadPosts]);
-
-  const handleLoadMore = useCallback(() => {
-    if (isLoading || !hasMore) {
+    if (interactionBusy) {
       return;
     }
+    setActionSource('refresh');
+    setRefreshing(true);
+    setPage(1);
+    resetTransient();
+    loadPosts(1).finally(() => setRefreshing(false));
+  }, [interactionBusy, loadPosts, resetTransient]);
 
+  const handleLoadMore = useCallback(() => {
+    if (interactionBusy || !hasMore) {
+      return;
+    }
+    requestInFlightRef.current = true;
+    setActionSource(loadMoreError ? 'retryLoadMore' : 'loadMore');
+    setLoadState('loading');
     const nextPage = page + 1;
-    setPage(nextPage);
-    dispatch(fetchPosts({
-      page: nextPage,
-      pageSize: 10,
-      suppressGlobalErrorUI: true,
-    }))
+    const category = activeCategory === 'all' ? undefined : activeCategory;
+    dispatch(
+      fetchPosts({
+        page: nextPage,
+        pageSize: 10,
+        suppressGlobalErrorUI: true,
+        category,
+      })
+    )
       .unwrap()
-      .then(() => setLoadState('ready'))
-      .catch(requestError => {
-        console.warn('CommunityScreen: 加载更多失败', requestError?.message || requestError);
-        setPage(current => Math.max(1, current - 1));
+      .then(() => {
+        setPage(nextPage);
+        setLoadState('ready');
+        setLoadMoreError('');
+      })
+      .catch((requestError) => {
+        setLoadMoreError(requestError?.message || '加载更多失败，请重试');
+      })
+      .finally(() => {
+        requestInFlightRef.current = false;
       });
-  }, [dispatch, hasMore, isLoading, page]);
+  }, [activeCategory, dispatch, hasMore, interactionBusy, loadMoreError, page]);
 
-  const handleLike = useCallback((postId) => {
-    dispatch(likePost({ postId, liked: !likedPosts[postId] }));
-  }, [dispatch, likedPosts]);
+  const handleLike = useCallback(
+    (postId) => {
+      if (interactionBusy) {
+        return;
+      }
+      setActionSource(`likePost.${postId}`);
+      dispatch(likePost({ postId, liked: !likedPosts[postId] }));
+    },
+    [dispatch, interactionBusy, likedPosts]
+  );
 
-  const handleBookmark = useCallback((postId) => {
-    dispatch(toggleBookmark(postId));
-  }, [dispatch]);
+  const handleBookmark = useCallback(
+    (postId) => {
+      if (interactionBusy) {
+        return;
+      }
+      setActionSource(`bookmarkPost.${postId}`);
+      dispatch(toggleBookmark(postId));
+    },
+    [dispatch, interactionBusy]
+  );
 
-  const renderPostItem = useCallback(({ item }) => (
-    <Card style={styles.postCard}>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-        testID={`item.community.post.${item.id}`}
-      >
-        <View style={styles.postHeader}>
-          <View style={styles.authorContainer}>
-            <Image source={{ uri: item.authorAvatar }} style={styles.avatar} />
-            <Text style={[styles.authorName, { color: palette.text }]}>{item.author}</Text>
-          </View>
-          <Text style={[styles.timestamp, { color: palette.textSecondary }]}>
-            {new Date(item.timestamp).toLocaleDateString()}
-          </Text>
-        </View>
-
-        <Text style={[styles.postTitle, { color: palette.text }]}>{item.title}</Text>
-        <Text style={[styles.postPreview, { color: palette.textSecondary }]}>{item.preview}</Text>
-
-        <View style={styles.tagsContainer}>
-          {item.tags.map((tag, index) => (
-            <View
-              key={`${item.id}-tag-${index}`}
-              style={[styles.tag, { backgroundColor: `${palette.primary}12`, borderColor: `${palette.primary}2E` }]}
-            >
-              <Text style={[styles.tagText, { color: palette.primary }]}>{tag}</Text>
+  const renderPostItem = useCallback(
+    ({ item }) => (
+      <Card style={[styles.postCard, { backgroundColor: `${palette.card}EE`, borderColor: `${palette.primary}20` }]}>
+        <TouchableOpacity
+          onPress={() => {
+            if (interactionBusy) {
+              return;
+            }
+            setActionSource(`openPost.${item.id}`);
+            navigation.navigate('PostDetail', { postId: item.id });
+          }}
+          disabled={interactionBusy}
+          testID={`item.community.post.${item.id}`}
+        >
+          <View testID={`state.community.postLike.${item.id}.${likedPosts[item.id] ? 'on' : 'off'}`} />
+          <View testID={`state.community.postBookmark.${item.id}.${bookmarkedPosts[item.id] ? 'on' : 'off'}`} />
+          <View style={styles.postHeader}>
+            <View style={styles.authorContainer}>
+              <Image source={{ uri: item.authorAvatar }} style={styles.avatar} />
+              <Text style={[styles.authorName, { color: palette.text }]}>{item.author}</Text>
             </View>
-          ))}
-        </View>
-
-        <View style={styles.postFooter}>
-          <TouchableOpacity
-            style={styles.statItem}
-            onPress={() => handleLike(item.id)}
-            testID={`action.community.like.${item.id}`}
-          >
-            <Icon
-              name={likedPosts[item.id] ? 'thumb-up' : 'thumb-up-off-alt'}
-              size={16}
-              color={likedPosts[item.id] ? palette.primary : palette.textSecondary}
-            />
-            <Text style={[styles.statText, { color: likedPosts[item.id] ? palette.primary : palette.textSecondary }]}>
-              {item.likes}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.statItem}>
-            <Icon name="comment" size={16} color={palette.textSecondary} />
-            <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.comments}</Text>
+            <Text style={[styles.timestamp, { color: palette.textSecondary }]}>{new Date(item.timestamp).toLocaleDateString()}</Text>
           </View>
-
-          <View style={styles.statItem}>
-            <Icon name="file-download" size={16} color={palette.textSecondary} />
-            <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.downloads}</Text>
+          <Text style={[styles.postTitle, { color: palette.text }]}>{item.title}</Text>
+          <Text style={[styles.postPreview, { color: palette.textSecondary }]}>{item.preview}</Text>
+          <View style={styles.tagsContainer}>
+            {(item.tags || []).map((tag, index) => (
+              <View key={`${item.id}-tag-${index}`} style={[styles.tag, { borderColor: `${palette.primary}2B` }]}>
+                <Text style={[styles.tagText, { color: palette.primary }]}>{tag}</Text>
+              </View>
+            ))}
           </View>
+          <View style={styles.postFooter}>
+            <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.statItem} disabled={interactionBusy} testID={`action.community.like.${item.id}`}>
+              <Icon name={likedPosts[item.id] ? 'thumb-up' : 'thumb-up-off-alt'} size={16} color={likedPosts[item.id] ? palette.primary : palette.textSecondary} />
+              <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.likes}</Text>
+            </TouchableOpacity>
+            <View style={styles.statItem}>
+              <Icon name="comment" size={16} color={palette.textSecondary} />
+              <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.comments}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Icon name="file-download" size={16} color={palette.textSecondary} />
+              <Text style={[styles.statText, { color: palette.textSecondary }]}>{item.downloads}</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleBookmark(item.id)} style={styles.statItem} disabled={interactionBusy} testID={`action.community.bookmark.${item.id}`}>
+              <Icon name={bookmarkedPosts[item.id] ? 'bookmark' : 'bookmark-border'} size={16} color={bookmarkedPosts[item.id] ? palette.primary : palette.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Card>
+    ),
+    [bookmarkedPosts, handleBookmark, handleLike, interactionBusy, likedPosts, navigation, palette.card, palette.primary, palette.text, palette.textSecondary]
+  );
 
-          <TouchableOpacity
-            style={styles.statItem}
-            onPress={() => handleBookmark(item.id)}
-            testID={`action.community.bookmark.${item.id}`}
-          >
-            <Icon
-              name={bookmarkedPosts[item.id] ? 'bookmark' : 'bookmark-border'}
-              size={16}
-              color={bookmarkedPosts[item.id] ? palette.primary : palette.textSecondary}
-            />
-          </TouchableOpacity>
+  const footer = useMemo(() => {
+    if (posts.length === 0) {
+      return null;
+    }
+    if (isLoading) {
+      return (
+        <View style={styles.footerLoader} testID="state.community.loadingMore">
+          <ActivityIndicator size="small" color={palette.primary} />
+          <Text style={[styles.footerText, { color: palette.textSecondary }]}>加载更多中…</Text>
         </View>
-      </TouchableOpacity>
-    </Card>
-  ), [bookmarkedPosts, handleBookmark, handleLike, likedPosts, navigation, palette.primary, palette.text, palette.textSecondary]);
+      );
+    }
+    if (!hasMore) {
+      return (
+        <View style={styles.footerLoader} testID="state.community.endOfList">
+          <Icon name="check-circle" size={16} color={palette.primary} />
+          <Text style={[styles.footerText, { color: palette.textSecondary }]}>已加载全部内容</Text>
+        </View>
+      );
+    }
+    return null;
+  }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length]);
 
-  const renderLoadingSkeleton = () => (
-    <View style={styles.skeletonContainer}>
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer} testID="state.community.empty">
+      <View style={styles.emptyIconShell}>
+        <Icon name="forum" size={28} color={palette.primary} />
+      </View>
+      <Text style={[styles.emptyTitle, { color: palette.text }]}>暂无社区内容</Text>
+      <Text style={[styles.emptyText, { color: palette.textSecondary }]}>可下拉刷新，或切换分类后再试。</Text>
+      <Button mode="contained" onPress={handleRefresh} testID="action.community.refreshEmpty">
+        立即刷新
+      </Button>
+    </View>
+  );
+
+  const renderSkeleton = () => (
+    <View style={styles.skeletonContainer} testID="state.community.loading">
       {[1, 2, 3].map((item) => (
         <View key={item} style={[styles.postCard, styles.skeletonCard]}>
           <View style={styles.skeletonHeader}>
@@ -215,76 +311,53 @@ const CommunityScreen = ({ navigation }) => {
     </View>
   );
 
-  const renderFooter = () => {
-    if (!isLoading || posts.length === 0) {
-      return null;
-    }
-
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={palette.primary} />
-        <Text style={[styles.footerText, { color: palette.textSecondary }]}>加载更多中...</Text>
-      </View>
-    );
-  };
-
-  const renderInlineState = () => {
-    if (isLoading || posts.length > 0) {
-      return null;
-    }
-
-    const isOffline = loadState === 'offline';
-    const hasRequestError = loadState === 'error' || Boolean(error);
-    const iconName = isOffline ? 'wifi-off' : hasRequestError ? 'cloud-off' : 'forum';
-    const title = isOffline
-      ? '当前处于离线状态'
-      : hasRequestError
-        ? '社区内容暂时不可用'
-        : '暂无社区内容';
-    const description = isOffline
-      ? '未部署联调阶段会优先展示本地页面结构。连接同一局域网或启动后端后，再回来刷新即可。'
-      : hasRequestError
-        ? '页面主体和关键入口已经可访问，但帖子接口暂时没有返回数据。你仍然可以继续检查导航、搜索区和发布入口。'
-        : '内容区已经准备好，后续接入后端或导入示例数据后会在这里显示社区帖子。';
-
-    return (
-      <View
-        style={styles.emptyContainer}
-        testID={isOffline ? 'state.community.offline' : hasRequestError ? 'state.community.error' : 'state.community.empty'}
-      >
-        <View style={styles.emptyIconShell}>
-          <Icon name={iconName} size={32} color={palette.primary} />
-        </View>
-        <Text style={[styles.emptyTitle, { color: palette.text }]}>{title}</Text>
-        <Text style={[styles.emptyText, { color: palette.textSecondary }]}>{description}</Text>
-        <Button
-          title="重新加载"
-          onPress={handleRefresh}
-          type="primary"
-          style={styles.refreshButton}
-          testID="action.community.refreshEmpty"
-        />
-      </View>
-    );
-  };
+  const pageState = isLoading && posts.length === 0 ? 'loading' : error ? 'error' : posts.length === 0 ? 'empty' : 'ready';
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.background }]} testID="screen.community">
-      <View style={[styles.header, { borderBottomColor: `${palette.primary}14` }]}>
-        <TouchableOpacity
-          style={[styles.headerButton, { borderColor: `${palette.primary}28` }]}
-          onPress={() => navigation.navigate('Notifications')}
-          testID="action.community.notifications"
-        >
-          <Icon name="notifications" size={22} color={palette.text} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.headerButton, { borderColor: `${palette.primary}28` }]}
-          onPress={() => navigation.navigate('Activity')}
-          testID="action.community.activity"
-        >
-          <Icon name="dynamic-feed" size={22} color={palette.text} />
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: palette.background }]} testID={`state.community.pageState.${pageState}`}>
+      <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.error.visibility.${error ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.activeCategory.${activeCategory}`} />
+
+      <View style={styles.header}>
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>社区</Text>
+          <Text style={[styles.headerSubtitle, { color: palette.textSecondary }]}>浏览帖子、动态和社区资源</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={interactionBusy} testID="action.community.refresh">
+            <Icon name="refresh" size={21} color={palette.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => {
+              if (interactionBusy) {
+                return;
+              }
+              setActionSource('openNotifications');
+              navigation.navigate('Notifications');
+            }}
+            disabled={interactionBusy}
+            testID="action.community.notifications"
+          >
+            <Icon name="notifications" size={21} color={palette.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => {
+              if (interactionBusy) {
+                return;
+              }
+              setActionSource('openActivity');
+              navigation.navigate('Activity');
+            }}
+            disabled={interactionBusy}
+            testID="action.community.activity"
+          >
+            <Icon name="dynamic-feed" size={21} color={palette.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchContainer}>
@@ -292,68 +365,98 @@ const CommunityScreen = ({ navigation }) => {
           searchScope="community"
           resultScreenName="CommunitySearch"
           onSearch={(results) => {
-            if (results && results.length > 0) {
-              navigation.navigate('CommunitySearch', { results });
+            if (!results || results.length === 0 || interactionBusy) {
+              return;
             }
+            setActionSource('openSearchResults');
+            navigation.navigate('CommunitySearch', { results });
           }}
         />
       </View>
 
-      <View style={styles.categoriesContainer}>
+      <View style={styles.categoryWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity
-            style={[styles.categoryButton, { backgroundColor: palette.primary, borderColor: palette.primary }]}
-            testID="filter.community.all"
-          >
-            <Text style={styles.categoryTextActive}>全部</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton} testID="filter.community.noteTemplate">
-            <Text style={[styles.categoryText, { color: palette.primary }]}>笔记模板</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton} testID="filter.community.learning">
-            <Text style={[styles.categoryText, { color: palette.primary }]}>学习资料</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton} testID="filter.community.tips">
-            <Text style={[styles.categoryText, { color: palette.primary }]}>使用技巧</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.categoryButton} testID="filter.community.knowledgeGraph">
-            <Text style={[styles.categoryText, { color: palette.primary }]}>知识图谱</Text>
-          </TouchableOpacity>
+          {CATEGORY_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.categoryButton,
+                activeCategory === option.key ? { backgroundColor: palette.primary, borderColor: palette.primary } : null,
+                interactionBusy ? styles.disabled : null,
+              ]}
+              onPress={() => {
+                if (interactionBusy || option.key === activeCategory) {
+                  return;
+                }
+                setActionSource(`switchCategory.${option.key}`);
+                setPage(1);
+                resetTransient();
+                setActiveCategory(option.key);
+              }}
+              disabled={interactionBusy}
+              testID={`filter.community.${option.key}`}
+            >
+              <Text style={activeCategory === option.key ? styles.categoryTextActive : [styles.categoryText, { color: palette.primary }]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
+        <View style={styles.activeHint}>
+          <Icon name="tune" size={14} color={palette.primary} />
+          <Text style={[styles.activeHintText, { color: palette.primary }]} testID="state.community.activeCategoryText">
+            当前分类：{currentCategoryLabel}
+          </Text>
+        </View>
       </View>
 
+      {loadMoreError ? (
+        <View style={styles.loadMoreErrorBanner} testID="state.community.loadMoreError">
+          <Icon name="warning-amber" size={16} color="#B45309" />
+          <Text style={styles.loadMoreErrorText}>{loadMoreError}</Text>
+          <TouchableOpacity onPress={handleLoadMore} disabled={interactionBusy} testID="action.community.retryLoadMore">
+            <Text style={styles.loadMoreRetryText}>重试</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {isLoading && posts.length === 0 ? (
-        renderLoadingSkeleton()
+        renderSkeleton()
       ) : (
         <FlatList
           data={posts}
           renderItem={renderPostItem}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContainer}
-          initialNumToRender={5}
-          windowSize={5}
-          removeClippedSubviews
-          refreshControl={(
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[palette.primary]}
-              tintColor={palette.primary}
-            />
-          )}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[palette.primary]} tintColor={palette.primary} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={!isLoading ? renderInlineState() : null}
+          ListFooterComponent={footer}
+          ListEmptyComponent={renderEmpty}
+          testID="list.community.posts"
         />
       )}
 
+      {error ? (
+        <View style={styles.errorBanner} testID="state.community.error">
+          <Icon name="error-outline" size={16} color="#B91C1C" />
+          <Text style={styles.errorBannerText}>{error}</Text>
+        </View>
+      ) : null}
+
       <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: palette.primary }]}
-        onPress={() => navigation.navigate('CreatePost')}
+        style={[styles.fabButton, { backgroundColor: palette.primary }, interactionBusy ? styles.disabled : null]}
+        onPress={() => {
+          if (interactionBusy) {
+            return;
+          }
+          setActionSource('createPost');
+          navigation.navigate('CreatePost');
+        }}
+        disabled={interactionBusy}
         testID="action.community.createPost"
       >
-        <Icon name="add" size={28} color="#FFFFFF" />
+        <Icon name="add" size={26} color="#FFFFFF" />
         <Text style={styles.fabButtonText}>发布</Text>
       </TouchableOpacity>
     </View>
@@ -361,44 +464,47 @@ const CommunityScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.LARGE,
-    paddingTop: SPACING.LARGE + 4,
-    paddingBottom: SPACING.MEDIUM + 4,
-    borderBottomWidth: 1,
-    backgroundColor: '#FFFFFF',
-    elevation: 4,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
-  headerButton: {
-    padding: 12,
-    marginLeft: 14,
+    paddingTop: 8,
+    paddingBottom: 4,
     backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: 22,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#DDEAF7',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    paddingRight: SPACING.MEDIUM,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 20,
     borderWidth: 1,
+    borderColor: '#CAE0F6',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  searchContainer: {
+  searchContainer: { paddingHorizontal: SPACING.MEDIUM, marginTop: 0, marginBottom: SPACING.SMALL },
+  categoryWrap: {
+    paddingVertical: 8,
     paddingHorizontal: SPACING.MEDIUM,
-    marginVertical: SPACING.SMALL,
-  },
-  categoriesContainer: {
-    paddingHorizontal: SPACING.MEDIUM,
-    marginVertical: SPACING.MEDIUM,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: 'rgba(255,255,255,0.84)',
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: '#DBEBFA',
@@ -407,34 +513,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.LARGE,
     paddingVertical: SPACING.SMALL + 2,
     borderRadius: 24,
-    marginRight: SPACING.MEDIUM,
+    marginRight: SPACING.SMALL,
     borderWidth: 1,
     borderColor: '#B6D8F7',
-    backgroundColor: 'rgba(255,255,255,0.74)',
+    backgroundColor: 'rgba(255,255,255,0.80)',
   },
-  categoryText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  categoryTextActive: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  listContainer: {
-    padding: SPACING.MEDIUM + 4,
-    paddingBottom: SPACING.XLARGE + 24,
-  },
-  postCard: {
-    marginBottom: SPACING.LARGE,
-    padding: SPACING.LARGE,
-    borderRadius: 20,
+  categoryText: { fontSize: 15, fontWeight: '600' },
+  categoryTextActive: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  activeHint: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E1EEF9',
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    shadowColor: '#0F172A',
+    borderColor: 'rgba(33,150,243,0.24)',
+    backgroundColor: 'rgba(33,150,243,0.10)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activeHintText: { marginLeft: 6, fontSize: 12, fontWeight: '600' },
+  listContainer: { padding: SPACING.MEDIUM, paddingBottom: SPACING.XLARGE + 24 },
+  postCard: {
+    marginBottom: SPACING.MEDIUM,
+    padding: SPACING.MEDIUM,
+    borderRadius: 18,
+    borderWidth: 1,
+    shadowColor: '#4C8DFF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 18,
     elevation: 3,
   },
@@ -442,197 +549,114 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.MEDIUM,
-    paddingBottom: SPACING.MEDIUM,
+    marginBottom: SPACING.SMALL,
+    paddingBottom: SPACING.SMALL,
     borderBottomWidth: 1,
     borderBottomColor: '#EEF4FA',
   },
-  authorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginRight: SPACING.MEDIUM,
-    backgroundColor: '#D9ECFD',
-  },
-  authorName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  timestamp: {
-    fontSize: 14,
-    opacity: 0.76,
-    fontWeight: '500',
-  },
-  postTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: SPACING.MEDIUM,
-    lineHeight: 30,
-    letterSpacing: -0.3,
-  },
-  postPreview: {
-    fontSize: 16,
-    marginBottom: SPACING.LARGE,
-    lineHeight: 24,
-    opacity: 0.86,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: SPACING.MEDIUM,
-  },
-  tag: {
-    paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: SPACING.SMALL,
-    marginBottom: SPACING.SMALL,
-    borderWidth: 1,
-  },
-  tagText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  postFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingTop: SPACING.MEDIUM,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF4FA',
-    marginTop: SPACING.MEDIUM,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: SPACING.LARGE,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
-    backgroundColor: 'rgba(247,250,252,0.95)',
-  },
-  statText: {
-    fontSize: 14,
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  skeletonContainer: {
-    padding: 15,
-  },
-  skeletonCard: {
-    padding: 15,
-  },
-  skeletonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  skeletonMeta: {
-    marginLeft: 10,
-  },
-  skeletonLineTight: {
-    marginBottom: 6,
-  },
-  skeletonLine: {
-    marginBottom: 10,
-  },
-  skeletonLineWide: {
-    marginBottom: 16,
-  },
-  skeletonFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  authorContainer: { flexDirection: 'row', alignItems: 'center' },
+  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: SPACING.SMALL, backgroundColor: '#D9ECFD' },
+  authorName: { fontSize: 15, fontWeight: '700' },
+  timestamp: { fontSize: 12 },
+  postTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.SMALL },
+  postPreview: { fontSize: 14, lineHeight: 21 },
+  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: SPACING.SMALL },
+  tag: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, marginRight: 6, marginBottom: 6, borderWidth: 1 },
+  tagText: { fontSize: 12, fontWeight: '600' },
+  postFooter: { flexDirection: 'row', alignItems: 'center', marginTop: SPACING.SMALL, paddingTop: SPACING.SMALL, borderTopWidth: 1, borderTopColor: '#EEF4FA' },
+  statItem: { flexDirection: 'row', alignItems: 'center', marginRight: SPACING.MEDIUM, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, backgroundColor: 'rgba(247,250,252,0.95)' },
+  statText: { marginLeft: 6, fontSize: 12, fontWeight: '600' },
+  skeletonContainer: { padding: SPACING.MEDIUM },
+  skeletonCard: { padding: SPACING.MEDIUM },
+  skeletonHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  skeletonMeta: { marginLeft: 10 },
+  skeletonLineTight: { marginBottom: 6 },
+  skeletonLine: { marginBottom: 10 },
+  skeletonLineWide: { marginBottom: 16 },
+  skeletonFooter: { flexDirection: 'row', justifyContent: 'space-between' },
   footerLoader: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: SPACING.LARGE,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 16,
-    marginTop: SPACING.MEDIUM,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#D9EAF8',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    padding: SPACING.MEDIUM,
+    marginTop: SPACING.SMALL,
   },
-  footerText: {
-    marginLeft: SPACING.MEDIUM,
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  footerText: { marginLeft: 8, fontSize: 13, fontWeight: '600' },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: SPACING.XLARGE,
-    marginTop: SPACING.XLARGE + 10,
-    marginHorizontal: SPACING.LARGE,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 28,
+    marginHorizontal: SPACING.MEDIUM,
+    marginTop: SPACING.XLARGE,
+    padding: SPACING.LARGE,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: '#D6E9FB',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 3,
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   emptyIconShell: {
-    width: 64,
-    height: 64,
-    borderRadius: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(33,150,243,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(33,150,243,0.18)',
-    marginBottom: SPACING.MEDIUM,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
     marginBottom: SPACING.SMALL,
-    textAlign: 'center',
   },
-  emptyText: {
-    fontSize: 16,
+  emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.SMALL },
+  emptyText: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: SPACING.MEDIUM },
+  loadMoreErrorBanner: {
+    marginHorizontal: SPACING.MEDIUM,
     marginTop: SPACING.SMALL,
-    marginBottom: SPACING.LARGE,
-    opacity: 0.78,
-    textAlign: 'center',
-    maxWidth: 320,
-    lineHeight: 24,
-    fontWeight: '500',
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: SPACING.SMALL,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    backgroundColor: '#FFFBEB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  refreshButton: {
-    width: 160,
-    height: 50,
-    borderRadius: 25,
+  loadMoreErrorText: { flex: 1, color: '#92400E', fontSize: 13, fontWeight: '600' },
+  loadMoreRetryText: { color: '#1D4ED8', fontSize: 13, fontWeight: '700' },
+  errorBanner: {
+    marginHorizontal: SPACING.MEDIUM,
+    marginBottom: SPACING.SMALL,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEE2E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
+  errorBannerText: { color: '#B91C1C', flex: 1, fontSize: 13 },
   fabButton: {
     position: 'absolute',
     right: SPACING.LARGE,
-    bottom: SPACING.LARGE + 4,
-    width: 120,
-    height: 52,
-    borderRadius: 26,
+    bottom: SPACING.LARGE,
+    width: 116,
+    height: 50,
+    borderRadius: 25,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#1D4ED8',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
     elevation: 8,
   },
-  fabButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
+  fabButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginLeft: 6 },
+  disabled: { opacity: 0.56 },
 });
 
 export default CommunityScreen;

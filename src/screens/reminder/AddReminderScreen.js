@@ -23,6 +23,7 @@ import reminderApi from '../../services/api/reminderApi';
 import { isNetworkConnected } from '../../services/network/networkService';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import { addLocalReminder, refreshUnsyncedCount } from '../../redux/slices/reminderSlice';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
@@ -38,6 +39,7 @@ const AddReminderScreen = ({ route, navigation }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
   const [showRepeatEndPicker, setShowRepeatEndPicker] = useState(false);
+  const createState = saving ? 'busy' : 'ready';
   const [reminder, setReminder] = useState({
     title: '',
     description: '',
@@ -146,6 +148,7 @@ const AddReminderScreen = ({ route, navigation }) => {
     );
   }
   const handleCreate = async () => {
+    if (saving) {return;}
     Keyboard.dismiss();
 
     if (Platform.OS === 'android') {
@@ -216,6 +219,7 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
 
   const handleCreateWithFallback = async () => {
+    if (saving) {return;}
     Keyboard.dismiss();
 
     if (Platform.OS === 'android') {
@@ -249,6 +253,10 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
   // 处理日期选择
   const handleDateChange = (event, selectedDate) => {
+    if (saving) {
+      setShowDatePicker(false);
+      return;
+    }
     try {
       // 如果没有选择日期，直接返回
       if (!selectedDate) {return;}
@@ -295,6 +303,7 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   // 显示日期选择器
   const showDateTimePicker = () => {
+    if (saving) {return;}
     // 确保在显示新的选择器之前，先关闭任何可能已经打开的选择器
     setShowDatePicker(false);
 
@@ -307,6 +316,10 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   // 处理重复结束日期选择
   const handleRepeatEndChange = (event, selectedDate) => {
+    if (saving) {
+      setShowRepeatEndPicker(false);
+      return;
+    }
     try {
       if (!selectedDate) {return;}
       const endDate = new Date(selectedDate);
@@ -320,6 +333,16 @@ const AddReminderScreen = ({ route, navigation }) => {
     } finally {
       setShowRepeatEndPicker(false);
     }
+  };
+
+  const openRepeatEndPicker = () => {
+    if (saving) {return;}
+    setShowRepeatEndPicker(true);
+  };
+
+  const handleBackPress = () => {
+    if (saving) {return;}
+    navigation.goBack();
   };
 
   // 获取优先级颜色
@@ -396,17 +419,17 @@ const AddReminderScreen = ({ route, navigation }) => {
       keyboardVerticalOffset={statusBarInset + 12}
       testID="screen.reminder"
     >
+      <View testID={`state.reminder.create.state.${createState}`} />
+      <View testID={`state.reminder.create.saving.visibility.${saving ? 'visible' : 'hidden'}`} />
+      <View testID={`state.reminder.create.datePicker.visibility.${showDatePicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.reminder.create.repeatEndPicker.visibility.${showRepeatEndPicker ? 'visible' : 'hidden'}`} />
       {/* 顶部导航栏（统一返回按钮样式） */}
       <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.colors.primary + '15' }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        <ScreenHeaderBackButton
+          onPress={handleBackPress}
           testID="action.reminder.back"
-        >
-          <Icon name="arrow-back" size={22} color={theme.colors.primary} />
-        </TouchableOpacity>
+          style={styles.backButton}
+        />
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>添加提醒</Text>
         <View style={styles.headerRight} />
       </View>
@@ -537,6 +560,8 @@ const AddReminderScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={styles.dateTimeButton}
             onPress={showDateTimePicker}
+            disabled={saving}
+            activeOpacity={saving ? 1 : 0.7}
             testID="action.reminder.pickDateTime"
           >
             <Icon name="event" size={24} color={theme.colors.primary} style={styles.dateTimeIcon} />
@@ -571,6 +596,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, priority })}
+                disabled={saving}
+                activeOpacity={saving ? 1 : 0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 testID={`option.reminder.priority.${priority}`}
               >
@@ -616,6 +643,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, category })}
+                disabled={saving}
+                activeOpacity={saving ? 1 : 0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 testID={`option.reminder.category.${category}`}
               >
@@ -661,6 +690,8 @@ const AddReminderScreen = ({ route, navigation }) => {
                   },
                 ]}
                 onPress={() => setReminder({ ...reminder, frequency })}
+                disabled={saving}
+                activeOpacity={saving ? 1 : 0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 testID={`option.reminder.frequency.${frequency}`}
               >
@@ -687,7 +718,9 @@ const AddReminderScreen = ({ route, navigation }) => {
               </Text>
               <TouchableOpacity
                 style={styles.repeatEndButton}
-                onPress={() => setShowRepeatEndPicker(true)}
+                onPress={openRepeatEndPicker}
+                disabled={saving}
+                activeOpacity={saving ? 1 : 0.7}
                 testID="action.reminder.pickRepeatEnd"
               >
                 <Text style={[styles.repeatEndText, { color: theme.colors.text }]}>
@@ -736,8 +769,9 @@ const AddReminderScreen = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-            onPress={() => navigateToReminderList()}
+            onPress={navigateToReminderList}
             disabled={saving}
+            activeOpacity={saving ? 1 : 0.75}
             testID="action.reminder.cancel"
           >
             <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>取消</Text>
@@ -801,11 +835,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
   },
   headerTitle: {
@@ -874,10 +903,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   sectionTitle: {
     fontSize: 14,

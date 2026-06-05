@@ -1,40 +1,40 @@
 /**
  * 创建社区帖子页面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Image,
   ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  Image,
-  Alert,
-  ActivityIndicator,
-  FlatList,
+  View,
 } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from 'react-native';
-import { Button, GradientButton } from '../../components/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import * as Haptics from '../../utils/haptics';
 import { launchImageLibrary } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
+import { useTheme } from '../../context/ThemeContext';
+import { Button } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import * as Haptics from '../../utils/haptics';
 import { createPost } from '../../redux/slices/communitySlice';
 import { fetchCategories } from '../../redux/slices/notesSlice';
-import { fetchTags } from '../../redux/slices/tagsSlice';
-import networkErrorService from '../../services/networkErrorService';
+import { fetchTags, selectAllTags } from '../../redux/slices/tagsSlice';
+
+const EMPTY_ARRAY = [];
 
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
-  const user = useSelector(state => state.auth.user);
-  const categories = useSelector(state => state.notes.categories);
-  const tags = useSelector(state => state.notes.tags);
-  const isLoading = useSelector(state => state.community.isLoading);
 
-  // 表单状态
+  const categories = useSelector((state) => state.notes.categories) ?? EMPTY_ARRAY;
+  const availableTags = useSelector(selectAllTags) ?? EMPTY_ARRAY;
+  const communityLoading = useSelector((state) => state.community.isLoading);
+
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState(null);
@@ -45,677 +45,292 @@ const CreatePostScreen = ({ navigation }) => {
   const [allowComments, setAllowComments] = useState(true);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 加载分类和标签
+  const publishBusy = communityLoading || isSubmitting;
+  const pageState = publishBusy ? 'busy' : 'ready';
+
   useEffect(() => {
-    loadCategoriesAndTags();
+    dispatch(fetchCategories());
+    dispatch(fetchTags());
   }, [dispatch]);
 
-  // 加载分类和标签数据
-  const loadCategoriesAndTags = async () => {
-    try {
-      // 尝试从API加载分类和标签
-      const categoriesResult = await dispatch(fetchCategories()).unwrap();
-      const tagsResult = await dispatch(fetchTags()).unwrap();
-
-      // 更新本地状态
-      setAvailableCategories(categoriesResult || []);
-      setAvailableTags(tagsResult || []);
-    } catch (error) {
-      console.error('加载分类和标签失败:', error);
-
-      if (networkErrorService.isNetworkError(error)) {
-        networkErrorService.handleApiError(error, {
-          context: '加载分类和标签',
-          customMessage: '网络连接失败，无法加载分类和标签',
-        });
-      }
-
-      // 设置默认分类和标签
-      const defaultCategories = [
-        { id: '1', name: '笔记模板' },
-        { id: '2', name: '学习资料' },
-        { id: '3', name: '使用技巧' },
-        { id: '4', name: '知识图谱' },
-      ];
-
-      const defaultTags = [
-        { id: '1', name: '效率提升' },
-        { id: '2', name: '笔记技巧' },
-        { id: '3', name: '知识管理' },
-        { id: '4', name: '学习方法' },
-        { id: '5', name: '案例分享' },
-      ];
-
-      setAvailableCategories(defaultCategories);
-      setAvailableTags(defaultTags);
+  const selectedCategoryName = useMemo(() => {
+    if (!selectedCategory) {
+      return '未选择分类';
     }
-  };
+    const matched = categories.find((c) => String(c.id) === String(selectedCategory));
+    return matched?.name || '未选择分类';
+  }, [categories, selectedCategory]);
 
-  // 本地分类和标签状态
-  const [availableCategories, setAvailableCategories] = useState([]);
-  const [availableTags, setAvailableTags] = useState([]);
-
-  // 选择封面图片
-  const handleSelectCoverImage = async () => {
-    try {
-      Haptics.lightFeedback();
-
-      const result = await launchImageLibrary({
-        mediaType: 'photo',
-        quality: 0.8,
-        maxWidth: 1000,
-        maxHeight: 1000,
-      });
-
-      if (result.didCancel) {return;}
-
-      if (result.errorCode) {
-        Alert.alert('错误', '选择图片失败: ' + result.errorMessage);
-        return;
-      }
-
-      if (result.assets && result.assets.length > 0) {
-        const selectedImage = result.assets[0];
-        setCoverImage({
-          uri: selectedImage.uri,
-          type: selectedImage.type,
-          name: selectedImage.fileName || 'cover.jpg',
-        });
-      }
-    } catch (err) {
-      Alert.alert('错误', err.message || '选择图片失败');
+  const selectedTagsText = useMemo(() => {
+    if (selectedTags.length === 0) {
+      return '未选择标签';
     }
-  };
+    const names = selectedTags
+      .map((tagId) => availableTags.find((t) => String(t.id) === String(tagId))?.name)
+      .filter(Boolean);
+    return names.join('、') || '未选择标签';
+  }, [availableTags, selectedTags]);
 
-  // 选择附件
-  const handleSelectAttachments = async () => {
-    try {
-      Haptics.lightFeedback();
-
-      // 显示文件类型选择
-      Alert.alert(
-        '选择文件类型',
-        '请选择要上传的文件类型',
-        [
-          {
-            text: '文档 (PDF/DOC/DOCX)',
-            onPress: () => pickDocument(['pdf', 'doc', 'docx']),
-          },
-          {
-            text: '图片 (JPG/PNG)',
-            onPress: () => pickDocument(['jpg', 'jpeg', 'png']),
-          },
-          {
-            text: '压缩文件 (ZIP/RAR)',
-            onPress: () => pickDocument(['zip', 'rar']),
-          },
-          {
-            text: '其他文件',
-            onPress: () => pickDocument([]),
-          },
-          {
-            text: '取消',
-            style: 'cancel',
-          },
-        ]
-      );
-    } catch (err) {
-      Alert.alert('错误', err.message || '选择文件失败');
+  const getReadableFileSize = (size = 0) => {
+    if (size < 1024) {
+      return `${size} B`;
     }
-  };
-
-  // 选择文档
-  const pickDocument = async (fileTypes) => {
-    try {
-      const results = await DocumentPicker.pick({
-        type: fileTypes.length > 0
-          ? fileTypes.map(type => DocumentPicker.types[type] || `application/${type}`)
-          : [DocumentPicker.types.allFiles],
-        allowMultiSelection: true,
-      });
-
-      // 检查文件大小限制 (10MB)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-      const validFiles = results.filter(file => file.size <= MAX_FILE_SIZE);
-
-      if (validFiles.length < results.length) {
-        Alert.alert('警告', '部分文件超过10MB大小限制，已被过滤');
-      }
-
-      // 添加到附件列表
-      const newAttachments = validFiles.map(file => ({
-        uri: file.uri,
-        type: file.type,
-        name: file.name,
-        size: file.size,
-      }));
-
-      setAttachments([...attachments, ...newAttachments]);
-    } catch (err) {
-      if (err.code === 'DOCUMENT_PICKER_CANCELED') {
-        // 用户取消选择
-        return;
-      }
-      Alert.alert('错误', err.message || '选择文件失败');
+    if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(1)} KB`;
     }
-  };
-
-  // 移除附件
-  const handleRemoveAttachment = (index) => {
-    const newAttachments = [...attachments];
-    newAttachments.splice(index, 1);
-    setAttachments(newAttachments);
-  };
-
-  // 处理发布帖子
-  const handlePublishPost = async () => {
-    if (!title.trim()) {
-      Alert.alert('提示', '请输入帖子标题');
-      return;
-    }
-
-    if (!content.trim()) {
-      Alert.alert('提示', '请输入帖子内容');
-      return;
-    }
-
-    try {
-      Haptics.mediumFeedback();
-
-      // 检查是否有文件需要上传
-      const hasFiles = coverImage || attachments.length > 0;
-
-      // 构建帖子数据
-      let postData;
-
-      if (hasFiles) {
-        // 使用FormData处理文件上传
-        postData = new FormData();
-
-        // 添加基本字段
-        postData.append('title', title.trim());
-        postData.append('content', content.trim());
-        postData.append('excerpt', content.trim().substring(0, 100) + (content.length > 100 ? '...' : ''));
-
-        if (selectedCategory) {
-          postData.append('category_id', selectedCategory);
-        }
-
-        // 添加标签
-        if (selectedTags.length > 0) {
-          selectedTags.forEach(tag => {
-            postData.append('tags', tag);
-          });
-        }
-
-        // 添加其他字段
-        postData.append('is_public', isPublic ? 'true' : 'false');
-        postData.append('allow_comments', allowComments ? 'true' : 'false');
-
-        // 添加封面图片
-        if (coverImage) {
-          postData.append('cover_image', coverImage);
-        }
-
-        // 添加附件
-        if (attachments.length > 0) {
-          // 创建附件数组
-          const attachmentsArray = [];
-
-          // 添加每个附件
-          attachments.forEach((attachment, index) => {
-            // 添加附件文件
-            postData.append(`file_${index}`, attachment);
-
-            // 添加附件元数据到数组
-            attachmentsArray.push({
-              name: attachment.name,
-              type: attachment.type,
-              size: attachment.size,
-              index: index,
-            });
-          });
-
-          // 添加附件元数据JSON
-          postData.append('attachments_meta', JSON.stringify(attachmentsArray));
-
-          // 添加附件数量
-          postData.append('attachment_count', attachments.length.toString());
-        }
-      } else {
-        // 无文件上传，使用普通JSON
-        postData = {
-          title: title.trim(),
-          content: content.trim(),
-          excerpt: content.trim().substring(0, 100) + (content.length > 100 ? '...' : ''),
-          category_id: selectedCategory,
-          tags: selectedTags,
-          is_public: isPublic,
-          allow_comments: allowComments,
-        };
-      }
-
-      // 发布帖子
-      const resultAction = await dispatch(createPost(postData));
-
-      if (createPost.fulfilled.match(resultAction)) {
-        // 发布成功
-        Alert.alert('成功', '帖子发布成功');
-        navigation.goBack();
-      } else {
-        // 发布失败
-        Alert.alert('错误', resultAction.error?.message || '发布帖子失败');
-      }
-    } catch (err) {
-      console.error('发布帖子错误:', err);
-      Alert.alert('错误', err.message || '发布帖子失败');
-    }
-  };
-
-  // 处理选择分类
-  const handleSelectCategory = (categoryId) => {
-    setSelectedCategory(categoryId);
-    setShowCategoryPicker(false);
-  };
-
-  // 处理选择标签
-  const handleToggleTag = (tagId) => {
-    if (selectedTags.includes(tagId)) {
-      setSelectedTags(selectedTags.filter(id => id !== tagId));
-    } else {
-      setSelectedTags([...selectedTags, tagId]);
-    }
-  };
-
-  // 渲染分类选择器
-  const renderCategoryPicker = () => {
-    if (!showCategoryPicker) {return null;}
-
-    return (
-      <View style={[
-        styles.pickerContainer,
-        { backgroundColor: colors.card },
-      ]}>
-        <Text
-          variant="body"
-          size="medium"
-          bold
-          style={styles.pickerTitle}
-        >
-          选择分类
-        </Text>
-
-        <ScrollView style={styles.pickerScrollView}>
-          {availableCategories.length > 0 ? (
-            availableCategories.map(category => (
-              <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.categoryItem,
-                  selectedCategory === category.id && styles.categoryItemSelected,
-                  selectedCategory === category.id && { backgroundColor: colors.primary },
-                ]}
-                onPress={() => handleSelectCategory(category.id)}
-              >
-                <Text
-                  variant="body"
-                  size="medium"
-                  color={selectedCategory === category.id ? 'card' : undefined}
-                >
-                  {category.name}
-                </Text>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text
-                variant="body"
-                size="medium"
-                color="hint"
-                center
-              >
-                暂无分类
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        <Button
-          title="关闭"
-          onPress={() => setShowCategoryPicker(false)}
-          type="outline"
-          style={styles.pickerCloseButton}
-        />
-      </View>
-    );
-  };
-
-  // 渲染标签选择器
-  const renderTagPicker = () => {
-    if (!showTagPicker) {return null;}
-
-    return (
-      <View style={[
-        styles.pickerContainer,
-        { backgroundColor: colors.card },
-      ]}>
-        <Text
-          variant="body"
-          size="medium"
-          bold
-          style={styles.pickerTitle}
-        >
-          选择标签
-        </Text>
-
-        <ScrollView style={styles.pickerScrollView}>
-          <View style={styles.tagsContainer}>
-            {availableTags.length > 0 ? (
-              availableTags.map(tag => (
-                <TouchableOpacity
-                  key={tag.id}
-                  style={[
-                    styles.tagItem,
-                    selectedTags.includes(tag.id) && styles.tagItemSelected,
-                    selectedTags.includes(tag.id) && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => handleToggleTag(tag.id)}
-                >
-                  <Text
-                    variant="body"
-                    size="small"
-                    color={selectedTags.includes(tag.id) ? 'card' : undefined}
-                  >
-                    {tag.name}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text
-                  variant="body"
-                  size="medium"
-                  color="hint"
-                  center
-                >
-                  暂无标签
-                </Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-
-        <Button
-          title="关闭"
-          onPress={() => setShowTagPicker(false)}
-          type="outline"
-          style={styles.pickerCloseButton}
-        />
-      </View>
-    );
-  };
-
-  // 获取当前选中的分类名称
-  const getSelectedCategoryName = () => {
-    if (!selectedCategory) {return '无分类';}
-    const category = availableCategories.find(c => c.id === selectedCategory);
-    return category ? category.name : '无分类';
-  };
-
-  // 获取当前选中的标签名称
-  const getSelectedTagsText = () => {
-    if (selectedTags.length === 0) {return '无标签';}
-    const selectedTagNames = selectedTags.map(tagId => {
-      const tag = availableTags.find(t => t.id === tagId);
-      return tag ? tag.name : '';
-    }).filter(Boolean);
-    return selectedTagNames.join(', ');
-  };
-
-  // 获取文件大小的可读格式
-  const getReadableFileSize = (size) => {
-    if (size < 1024) {return `${size} B`;}
-    if (size < 1024 * 1024) {return `${(size / 1024).toFixed(1)} KB`;}
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // 获取文件图标
   const getFileIcon = (fileName) => {
-    if (!fileName) {return 'insert-drive-file';}
-
+    if (!fileName) {
+      return 'insert-drive-file';
+    }
     const extension = fileName.split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
+      return 'image';
+    }
+    if (['pdf'].includes(extension)) {
+      return 'picture-as-pdf';
+    }
+    if (['doc', 'docx'].includes(extension)) {
+      return 'description';
+    }
+    if (['xls', 'xlsx'].includes(extension)) {
+      return 'table-chart';
+    }
+    if (['ppt', 'pptx'].includes(extension)) {
+      return 'slideshow';
+    }
+    if (['zip', 'rar', '7z'].includes(extension)) {
+      return 'archive';
+    }
+    return 'insert-drive-file';
+  };
 
-    switch (extension) {
-      case 'pdf':
-        return 'picture-as-pdf';
-      case 'doc':
-      case 'docx':
-        return 'description';
-      case 'xls':
-      case 'xlsx':
-        return 'table-chart';
-      case 'ppt':
-      case 'pptx':
-        return 'slideshow';
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return 'image';
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return 'videocam';
-      case 'mp3':
-      case 'wav':
-        return 'audiotrack';
-      case 'zip':
-      case 'rar':
-        return 'archive';
-      default:
-        return 'insert-drive-file';
+  const handleSelectCoverImage = async () => {
+    try {
+      Haptics.lightFeedback();
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.82,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      });
+
+      if (result.didCancel) {
+        return;
+      }
+      if (result.errorCode) {
+        Alert.alert('选择失败', result.errorMessage || '图片选择失败');
+        return;
+      }
+      const selected = result.assets?.[0];
+      if (!selected?.uri) {
+        return;
+      }
+
+      setCoverImage({
+        uri: selected.uri,
+        type: selected.type || 'image/jpeg',
+        name: selected.fileName || `cover_${Date.now()}.jpg`,
+      });
+    } catch (error) {
+      Alert.alert('选择失败', error?.message || '图片选择失败');
     }
   };
 
-  // 渲染附件列表
-  const renderAttachmentsList = () => {
-    if (attachments.length === 0) {return null;}
+  const handleSelectAttachments = async () => {
+    try {
+      Haptics.lightFeedback();
+      const picked = await DocumentPicker.pick({
+        type: [DocumentPicker.types.allFiles],
+        allowMultiSelection: true,
+      });
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
+      const valid = picked.filter((file) => (file.size || 0) <= MAX_FILE_SIZE);
+      if (valid.length < picked.length) {
+        Alert.alert('部分文件未添加', '超过 10MB 的文件已被自动过滤。');
+      }
+      const normalized = valid.map((file) => ({
+        uri: file.uri,
+        type: file.type || 'application/octet-stream',
+        name: file.name || `file_${Date.now()}`,
+        size: file.size || 0,
+      }));
+      setAttachments((prev) => [...prev, ...normalized]);
+    } catch (error) {
+      if (DocumentPicker.isCancel(error)) {
+        return;
+      }
+      Alert.alert('选择失败', error?.message || '附件选择失败');
+    }
+  };
 
-    return (
-      <View style={styles.attachmentsContainer}>
-        <Text
-          variant="body"
-          size="medium"
-          bold
-          style={styles.attachmentsTitle}
-        >
-          附件 ({attachments.length})
-        </Text>
+  const handleRemoveAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
-        {attachments.map((file, index) => (
-          <View
-            key={`${file.name}-${index}`}
-            style={[styles.attachmentItem, { borderColor: colors.border }]}
-          >
-            <Icon
-              name={getFileIcon(file.name)}
-              size={24}
-              color={colors.primary}
-              style={styles.attachmentIcon}
-            />
-            <View style={styles.attachmentInfo}>
-              <Text
-                variant="body"
-                size="medium"
-                numberOfLines={1}
-                style={styles.attachmentName}
-              >
-                {file.name}
-              </Text>
-              <Text
-                variant="body"
-                size="small"
-                color="hint"
-              >
-                {getReadableFileSize(file.size)}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => handleRemoveAttachment(index)}
-              style={styles.attachmentRemove}
-            >
-              <Icon name="close" size={20} color={colors.error} />
-            </TouchableOpacity>
-          </View>
-        ))}
-      </View>
-    );
+  const handleToggleTag = (tagId) => {
+    setSelectedTags((prev) => {
+      if (prev.includes(tagId)) {
+        return prev.filter((id) => id !== tagId);
+      }
+      return [...prev, tagId];
+    });
+  };
+
+  const handlePublishPost = async () => {
+    if (publishBusy) {
+      return;
+    }
+    if (!title.trim()) {
+      Alert.alert('发布失败', '请输入帖子标题');
+      return;
+    }
+    if (!content.trim()) {
+      Alert.alert('发布失败', '请输入帖子内容');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      Haptics.mediumFeedback();
+
+      const payload = {
+        title: title.trim(),
+        content: content.trim(),
+        excerpt: content.trim().slice(0, 100) + (content.trim().length > 100 ? '...' : ''),
+        category_id: selectedCategory || undefined,
+        tags: selectedTags,
+        is_public: isPublic,
+        allow_comments: allowComments,
+      };
+
+      if (coverImage) {
+        payload.cover_image = coverImage;
+      }
+      if (attachments.length > 0) {
+        payload.attachments = attachments;
+      }
+
+      const result = await dispatch(createPost(payload));
+      if (createPost.fulfilled.match(result)) {
+        Alert.alert('发布成功', '帖子已成功发布');
+        navigation.goBack();
+      } else {
+        Alert.alert('发布失败', result.error?.message || '创建帖子失败，请重试');
+      }
+    } catch (error) {
+      Alert.alert('发布失败', error?.message || '创建帖子失败，请重试');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.card }]}>
+      <View testID={`state.community.createPost.state.${pageState}`} />
+      <View testID={`state.community.createPost.publishBusy.visibility.${publishBusy ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.createPost.categoryPicker.visibility.${showCategoryPicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.createPost.tagPicker.visibility.${showTagPicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.createPost.attachments.visibility.${attachments.length > 0 ? 'visible' : 'hidden'}`} />
+
+      <View style={styles.header}>
+        <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.backFromCreatePost" style={styles.backButton} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>创建帖子</Text>
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text
-          variant="heading"
-          level="h6"
-          style={styles.headerTitle}
-        >
-          创建帖子
-        </Text>
-        <TouchableOpacity
-          style={[styles.publishButton, { backgroundColor: colors.primary }]}
+          style={[styles.publishButton, { backgroundColor: colors.primary }, publishBusy && styles.disabledButton]}
           onPress={handlePublishPost}
-          disabled={isLoading}
+          disabled={publishBusy}
+          testID="action.community.publishPost"
         >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text
-              variant="body"
-              size="medium"
-              color="card"
-            >
-              发布
-            </Text>
-          )}
+          {publishBusy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.publishText}>发布</Text>}
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <TextInput
-          style={[
-            styles.titleInput,
-            { color: colors.text, borderBottomColor: colors.border },
-          ]}
+          style={[styles.titleInput, { color: colors.text, borderBottomColor: colors.border }]}
           value={title}
           onChangeText={setTitle}
-          placeholder="请输入标题..."
+          placeholder="请输入帖子标题"
           placeholderTextColor={colors.textHint}
           maxLength={100}
+          testID="input.community.createPost.title"
         />
 
-        <TouchableOpacity
-          style={[styles.coverImageContainer, { borderColor: colors.border }]}
-          onPress={handleSelectCoverImage}
-        >
+        <TouchableOpacity style={[styles.coverImageContainer, { borderColor: colors.border }]} onPress={handleSelectCoverImage} disabled={publishBusy} testID="action.community.selectCoverImage">
           {coverImage ? (
-            <Image
-              source={{ uri: coverImage.uri }}
-              style={styles.coverImage}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: coverImage.uri }} style={styles.coverImage} resizeMode="cover" />
           ) : (
             <View style={styles.coverImagePlaceholder}>
-              <Icon name="image" size={48} color={colors.textHint} />
-              <Text
-                variant="body"
-                size="medium"
-                color="hint"
-                style={styles.coverImageText}
-              >
-                点击添加封面图片
-              </Text>
+              <Icon name="image" size={44} color={colors.textHint} />
+              <Text style={[styles.coverImageText, { color: colors.textHint }]}>点击添加封面图片</Text>
             </View>
           )}
         </TouchableOpacity>
 
         <TextInput
-          style={[
-            styles.contentInput,
-            { color: colors.text, backgroundColor: colors.background },
-          ]}
+          style={[styles.contentInput, { color: colors.text }]}
           value={content}
           onChangeText={setContent}
-          placeholder="请输入帖子内容..."
+          placeholder="请输入帖子内容"
           placeholderTextColor={colors.textHint}
           multiline
           textAlignVertical="top"
+          testID="input.community.createPost.content"
         />
 
-        {/* 附件上传按钮 */}
-        <TouchableOpacity
-          style={[styles.attachButton, { borderColor: colors.border }]}
-          onPress={handleSelectAttachments}
-        >
-          <Icon name="attach-file" size={24} color={colors.primary} />
-          <Text
-            variant="body"
-            size="medium"
-            style={styles.attachButtonText}
-          >
-            添加附件
-          </Text>
+        <TouchableOpacity style={[styles.attachButton, { borderColor: colors.border }]} onPress={handleSelectAttachments} disabled={publishBusy} testID="action.community.selectAttachments">
+          <Icon name="attach-file" size={22} color={colors.primary} />
+          <Text style={[styles.attachButtonText, { color: colors.text }]}>添加附件</Text>
         </TouchableOpacity>
 
-        {/* 附件列表 */}
-        {renderAttachmentsList()}
+        {attachments.length > 0 ? (
+          <View style={styles.attachmentsContainer}>
+            <Text style={[styles.attachmentsTitle, { color: colors.text }]}>附件（{attachments.length}）</Text>
+            {attachments.map((file, index) => (
+              <View key={`${file.name}-${index}`} style={[styles.attachmentItem, { borderColor: colors.border }]}>
+                <Icon name={getFileIcon(file.name)} size={22} color={colors.primary} style={styles.attachmentIcon} />
+                <View style={styles.attachmentInfo}>
+                  <Text style={[styles.attachmentName, { color: colors.text }]} numberOfLines={1}>
+                    {file.name}
+                  </Text>
+                  <Text style={[styles.attachmentSize, { color: colors.textHint }]}>{getReadableFileSize(file.size)}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleRemoveAttachment(index)} style={styles.attachmentRemove} testID={`action.community.removeAttachment.${index}`}>
+                  <Icon name="close" size={19} color={colors.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.metadataContainer}>
           <TouchableOpacity
-            style={[
-              styles.metadataButton,
-              { borderColor: colors.border },
-            ]}
+            style={[styles.metadataButton, { borderColor: colors.border }]}
             onPress={() => setShowCategoryPicker(true)}
+            disabled={publishBusy}
+            testID="action.community.openCategoryPicker"
           >
-            <Icon name="folder" size={20} color={colors.primary} />
-            <Text
-              variant="body"
-              size="medium"
-              style={styles.metadataText}
-              numberOfLines={1}
-            >
-              {getSelectedCategoryName()}
+            <Icon name="folder" size={19} color={colors.primary} />
+            <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
+              {selectedCategoryName}
             </Text>
             <Icon name="arrow-drop-down" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.metadataButton,
-              { borderColor: colors.border },
-            ]}
+            style={[styles.metadataButton, { borderColor: colors.border }]}
             onPress={() => setShowTagPicker(true)}
+            disabled={publishBusy}
+            testID="action.community.openTagPicker"
           >
-            <Icon name="local-offer" size={20} color={colors.primary} />
-            <Text
-              variant="body"
-              size="medium"
-              style={styles.metadataText}
-              numberOfLines={1}
-            >
-              {getSelectedTagsText()}
+            <Icon name="local-offer" size={19} color={colors.primary} />
+            <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
+              {selectedTagsText}
             </Text>
             <Icon name="arrow-drop-down" size={20} color={colors.text} />
           </TouchableOpacity>
@@ -723,222 +338,157 @@ const CreatePostScreen = ({ navigation }) => {
 
         <View style={styles.optionsContainer}>
           <View style={styles.optionItem}>
-            <Text
-              variant="body"
-              size="medium"
-            >
-              公开帖子
-            </Text>
+            <Text style={[styles.optionLabel, { color: colors.text }]}>公开帖子</Text>
             <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                { backgroundColor: isPublic ? colors.primary : colors.border },
-              ]}
-              onPress={() => setIsPublic(!isPublic)}
+              style={[styles.toggleButton, { backgroundColor: isPublic ? colors.primary : colors.border }]}
+              onPress={() => setIsPublic((prev) => !prev)}
+              disabled={publishBusy}
+              testID="action.community.togglePublic"
             >
-              <View
-                style={[
-                  styles.toggleIndicator,
-                  { backgroundColor: colors.card, left: isPublic ? 20 : 2 },
-                ]}
-              />
+              <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: isPublic ? 20 : 2 }]} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.optionItem}>
-            <Text
-              variant="body"
-              size="medium"
-            >
-              允许评论
-            </Text>
+            <Text style={[styles.optionLabel, { color: colors.text }]}>允许评论</Text>
             <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                { backgroundColor: allowComments ? colors.primary : colors.border },
-              ]}
-              onPress={() => setAllowComments(!allowComments)}
+              style={[styles.toggleButton, { backgroundColor: allowComments ? colors.primary : colors.border }]}
+              onPress={() => setAllowComments((prev) => !prev)}
+              disabled={publishBusy}
+              testID="action.community.toggleComments"
             >
-              <View
-                style={[
-                  styles.toggleIndicator,
-                  { backgroundColor: colors.card, left: allowComments ? 20 : 2 },
-                ]}
-              />
+              <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: allowComments ? 20 : 2 }]} />
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
 
-      {renderCategoryPicker()}
-      {renderTagPicker()}
+      {showCategoryPicker ? (
+        <View style={[styles.pickerContainer, { backgroundColor: colors.card }]} testID="panel.community.categoryPicker">
+          <Text style={[styles.pickerTitle, { color: colors.text }]}>选择分类</Text>
+          <ScrollView style={styles.pickerScrollView}>
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <TouchableOpacity
+                  key={String(category.id)}
+                  style={[
+                    styles.categoryItem,
+                    selectedCategory === category.id ? { backgroundColor: colors.primary } : null,
+                  ]}
+                  onPress={() => {
+                    setSelectedCategory(category.id);
+                    setShowCategoryPicker(false);
+                  }}
+                  testID={`action.community.selectCategory.${category.id}`}
+                >
+                  <Text style={{ color: selectedCategory === category.id ? '#fff' : colors.text }}>{category.name}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyPicker}>
+                <Text style={{ color: colors.textHint }}>暂无分类</Text>
+              </View>
+            )}
+          </ScrollView>
+          <Button title="关闭" onPress={() => setShowCategoryPicker(false)} type="outline" />
+        </View>
+      ) : null}
+
+      {showTagPicker ? (
+        <View style={[styles.pickerContainer, { backgroundColor: colors.card }]} testID="panel.community.tagPicker">
+          <Text style={[styles.pickerTitle, { color: colors.text }]}>选择标签</Text>
+          <ScrollView style={styles.pickerScrollView}>
+            <View style={styles.tagsWrap}>
+              {availableTags.length > 0 ? (
+                availableTags.map((tag) => (
+                  <TouchableOpacity
+                    key={String(tag.id)}
+                    style={[styles.tagItem, selectedTags.includes(tag.id) ? { backgroundColor: colors.primary } : null]}
+                    onPress={() => handleToggleTag(tag.id)}
+                    testID={`action.community.toggleTag.${tag.id}`}
+                  >
+                    <Text style={{ color: selectedTags.includes(tag.id) ? '#fff' : colors.text }}>{tag.name}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyPicker}>
+                  <Text style={{ color: colors.textHint }}>暂无标签</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+          <Button title="完成" onPress={() => setShowTagPicker(false)} type="outline" />
+        </View>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    elevation: 2,
-    shadowColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(33,150,243,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-  },
+  backButton: { width: 40 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700' },
   publishButton: {
-    paddingHorizontal: 16,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
+  publishText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  disabledButton: { opacity: 0.62 },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 28 },
   titleInput: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '700',
+    paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
+    borderRadius: 10,
     marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.78)',
   },
   coverImageContainer: {
-    height: 200,
+    height: 196,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 16,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.70)',
   },
-  coverImage: {
-    width: '100%',
-    height: '100%',
-  },
-  coverImagePlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coverImageText: {
-    marginTop: 8,
-  },
+  coverImage: { width: '100%', height: '100%' },
+  coverImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  coverImageText: { marginTop: 8, fontSize: 13 },
   contentInput: {
     minHeight: 200,
-    fontSize: 16,
-    lineHeight: 24,
-    padding: 0,
+    padding: 12,
     marginBottom: 16,
-    textAlignVertical: 'top',
-  },
-  metadataContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  metadataButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-  },
-  metadataText: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  optionsContainer: {
-    marginBottom: 24,
-  },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  toggleButton: {
-    width: 40,
-    height: 22,
-    borderRadius: 11,
-    position: 'relative',
-  },
-  toggleIndicator: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    position: 'absolute',
-    top: 2,
-  },
-  pickerContainer: {
-    position: 'absolute',
-    top: 80,
-    left: 20,
-    right: 20,
-    bottom: 80,
+    borderColor: 'rgba(33,150,243,0.14)',
     borderRadius: 12,
-    padding: 16,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  pickerTitle: {
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  pickerScrollView: {
-    flex: 1,
-    marginBottom: 16,
-  },
-  categoryItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  categoryItemSelected: {
-    fontWeight: 'bold',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tagItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  tagItemSelected: {
-    fontWeight: 'bold',
-  },
-  pickerCloseButton: {
-    alignSelf: 'center',
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 15,
+    lineHeight: 22,
+    backgroundColor: 'rgba(255,255,255,0.80)',
   },
   attachButton: {
     flexDirection: 'row',
@@ -946,38 +496,94 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 10,
     marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.74)',
   },
-  attachButtonText: {
-    marginLeft: 8,
-  },
-  attachmentsContainer: {
-    marginBottom: 16,
-  },
-  attachmentsTitle: {
-    marginBottom: 8,
-  },
+  attachButtonText: { marginLeft: 8, fontSize: 14, fontWeight: '600' },
+  attachmentsContainer: { marginBottom: 16 },
+  attachmentsTitle: { marginBottom: 8, fontSize: 14, fontWeight: '700' },
   attachmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.84)',
   },
-  attachmentIcon: {
-    marginRight: 12,
-  },
-  attachmentInfo: {
+  attachmentIcon: { marginRight: 10 },
+  attachmentInfo: { flex: 1 },
+  attachmentName: { fontSize: 14, fontWeight: '600' },
+  attachmentSize: { marginTop: 2, fontSize: 12 },
+  attachmentRemove: { padding: 4 },
+  metadataContainer: { flexDirection: 'row', marginBottom: 16 },
+  metadataButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginRight: 8,
+    backgroundColor: 'rgba(255,255,255,0.78)',
   },
-  attachmentName: {
-    marginBottom: 4,
+  metadataText: { flex: 1, marginHorizontal: 8, fontSize: 13 },
+  optionsContainer: { marginBottom: 18 },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.70)',
   },
-  attachmentRemove: {
-    padding: 4,
+  optionLabel: { fontSize: 14, fontWeight: '600' },
+  toggleButton: { width: 40, height: 22, borderRadius: 11, position: 'relative' },
+  toggleIndicator: { width: 18, height: 18, borderRadius: 9, position: 'absolute', top: 2 },
+  pickerContainer: {
+    position: 'absolute',
+    top: 80,
+    left: 20,
+    right: 20,
+    bottom: 80,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.24)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
+  pickerTitle: { marginBottom: 12, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  pickerScrollView: { flex: 1, marginBottom: 12 },
+  categoryItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.84)',
+  },
+  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap' },
+  tagItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.84)',
+  },
+  emptyPicker: { padding: 20, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default CreatePostScreen;
