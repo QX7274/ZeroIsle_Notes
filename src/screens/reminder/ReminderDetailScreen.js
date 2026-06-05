@@ -361,7 +361,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
     setShowDatePicker(true);
   }, [saving]);
 
-  const handleRescheduleConfirm = async (selectedDate) => {
+  const handleRescheduleConfirm = useCallback(async (selectedDate) => {
     if (saving) {
       return;
     }
@@ -393,7 +393,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [dispatch, getErrorMessage, id, notifyNonBlocking, reminder, saving]);
 
   const handleRescheduleChange = useCallback((event, selectedDate) => {
     if (saving) {

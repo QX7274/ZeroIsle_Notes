@@ -1,7 +1,5 @@
-/**
- * 知识库列表屏幕
- * @description 显示用户拥有和参与的知识库列表，并提供创建新知识库的入口。
- */
+﻿/**
+ * 鐭ヨ瘑搴撳垪琛ㄥ睆骞? * @description 鏄剧ず鐢ㄦ埛鎷ユ湁鍜屽弬涓庣殑鐭ヨ瘑搴撳垪琛紝骞舵彁渚涘垱寤烘柊鐭ヨ瘑搴撶殑鍏ュ彛銆? */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   SafeAreaView,
@@ -22,6 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { EmptyState, Card } from '../../components/common';
 import { SkeletonListCards } from '../../components/common/Skeleton';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import { UnifiedSearchBar } from '../../components/search';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, spacing } from '../../utils/constants/dimensions';
 import { fetchKnowledgeBases, deleteKnowledgeBase } from '../../redux/slices/knowledgeBaseSlice';
@@ -78,9 +77,26 @@ const KnowledgeBaseListScreen = () => {
     }
   };
 
-  const handleLongPress = (item) => {
+  const openActionMenu = (item) => {
     setActiveItem(item);
     setShowActionMenu(true);
+  };
+
+  const handleGoBack = () => {
+    navigation.goBack();
+  };
+
+  const closeActionMenu = () => {
+    setShowActionMenu(false);
+  };
+
+  const openDeleteConfirm = () => {
+    closeActionMenu();
+    setShowDeleteConfirm(true);
+  };
+
+  const closeDeleteConfirm = () => {
+    setShowDeleteConfirm(false);
   };
 
   const filteredKnowledgeBases = useMemo(() => {
@@ -100,9 +116,44 @@ const KnowledgeBaseListScreen = () => {
     navigation.navigate('KnowledgeBaseEdit');
   };
 
+  const openKnowledgeBaseDetail = (id) => {
+    if (!id) {return;}
+    navigation.navigate('KnowledgeBaseDetail', { id });
+  };
+
+  const openKnowledgeBaseEdit = (kbId) => {
+    if (!kbId) {return;}
+    navigation.navigate('KnowledgeBaseEdit', { kbId });
+  };
+
+  const handleOpenActiveItem = () => {
+    closeActionMenu();
+    openKnowledgeBaseDetail(activeItem?.id);
+  };
+
+  const handleEditActiveItem = () => {
+    closeActionMenu();
+    openKnowledgeBaseEdit(activeItem?.id);
+  };
+
+  const handleShareActiveItem = () => {
+    closeActionMenu();
+    if (activeItem) {
+      handleShare(activeItem);
+    }
+  };
+
+  const handleConfirmDeleteActiveItem = async () => {
+    const item = activeItem;
+    closeDeleteConfirm();
+    if (item) {
+      await handleDelete(item);
+    }
+  };
+
   const renderKnowledgeBaseCard = ({ item }) => (
-    <Card style={[styles.kbCard, { borderColor: theme.colors.border }]} onLongPress={() => handleLongPress(item)}>
-      <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('KnowledgeBaseDetail', { id: item.id })}>
+    <Card style={[styles.kbCard, { borderColor: theme.colors.border }]} onLongPress={() => openActionMenu(item)}>
+      <TouchableOpacity activeOpacity={0.8} onPress={() => openKnowledgeBaseDetail(item.id)}>
         <View style={styles.cardHeader}>
           <View style={[styles.iconBadge, { backgroundColor: (item.color || theme.colors.primary) + '22' }]}>
             <Icon name={item.icon || 'auto-stories'} size={20} color={item.color || theme.colors.primary} />
@@ -137,15 +188,13 @@ const KnowledgeBaseListScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
-      {/* 顶部导航栏（统一返回按钮样式） */}
+      {/* 椤堕儴瀵艰埅鏍忥紙缁熶竴杩斿洖鎸夐挳鏍峰紡锛?*/}
       <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.colors.primary + '15' }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-back" size={22} color={theme.colors.primary} />
-        </TouchableOpacity>
+        <ScreenHeaderBackButton
+          onPress={handleGoBack}
+          testID="action.knowledgeBaseList.back"
+          style={styles.backButton}
+        />
         <Text style={styles.headerTitle}>知识库</Text>
         <View style={styles.headerRight} />
       </View>
@@ -162,7 +211,7 @@ const KnowledgeBaseListScreen = () => {
           renderItem={renderKnowledgeBaseCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={<EmptyState message="还没有知识库，快创建一个吧！" icon="auto-stories" />}
+          ListEmptyComponent={<EmptyState message="还没有知识库，快创建一个吧" icon="auto-stories" />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} tintColor={theme.colors.primary} />}
         />
       )}
@@ -174,60 +223,44 @@ const KnowledgeBaseListScreen = () => {
         transparent
         animationType="fade"
         visible={showActionMenu}
-        onRequestClose={() => setShowActionMenu(false)}
+        onRequestClose={closeActionMenu}
       >
         <TouchableOpacity
           style={styles.modalMask}
           activeOpacity={1}
-          onPress={() => setShowActionMenu(false)}
+          onPress={closeActionMenu}
         >
           <View style={styles.actionSheet}>
             <Text style={styles.actionSheetTitle}>{activeItem?.name || '请选择操作'}</Text>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => {
-                setShowActionMenu(false);
-                if (activeItem?.id) {
-                  navigation.navigate('KnowledgeBaseDetail', { id: activeItem.id });
-                }
-              }}
+              onPress={handleOpenActiveItem}
             >
               <Text style={styles.actionButtonText}>打开</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => {
-                setShowActionMenu(false);
-                if (activeItem?.id) {
-                  navigation.navigate('KnowledgeBaseEdit', { kbId: activeItem.id });
-                }
-              }}
+              onPress={handleEditActiveItem}
             >
               <Text style={styles.actionButtonText}>编辑</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => {
-                setShowActionMenu(false);
-                if (activeItem) {
-                  handleShare(activeItem);
-                }
-              }}
+              onPress={handleShareActiveItem}
             >
               <Text style={styles.actionButtonText}>分享</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
-                setShowActionMenu(false);
-                setShowDeleteConfirm(true);
+                openDeleteConfirm();
               }}
             >
               <Text style={styles.actionDangerText}>删除</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionCancel]}
-              onPress={() => setShowActionMenu(false)}
+              onPress={closeActionMenu}
             >
               <Text style={styles.actionButtonText}>取消</Text>
             </TouchableOpacity>
@@ -239,12 +272,12 @@ const KnowledgeBaseListScreen = () => {
         transparent
         animationType="fade"
         visible={showDeleteConfirm}
-        onRequestClose={() => setShowDeleteConfirm(false)}
+        onRequestClose={closeDeleteConfirm}
       >
         <TouchableOpacity
           style={styles.modalMask}
           activeOpacity={1}
-          onPress={() => setShowDeleteConfirm(false)}
+          onPress={closeDeleteConfirm}
         >
           <View style={styles.confirmDialog}>
             <Text style={styles.confirmTitle}>删除知识库</Text>
@@ -254,19 +287,13 @@ const KnowledgeBaseListScreen = () => {
             <View style={styles.confirmActions}>
               <TouchableOpacity
                 style={[styles.confirmButton, styles.confirmCancelButton]}
-                onPress={() => setShowDeleteConfirm(false)}
+                onPress={closeDeleteConfirm}
               >
                 <Text style={styles.actionButtonText}>取消</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.confirmButton, styles.confirmDeleteButton]}
-                onPress={async () => {
-                  const item = activeItem;
-                  setShowDeleteConfirm(false);
-                  if (item) {
-                    await handleDelete(item);
-                  }
-                }}
+                onPress={handleConfirmDeleteActiveItem}
               >
                 <Text style={styles.confirmDeleteText}>删除</Text>
               </TouchableOpacity>
@@ -294,17 +321,18 @@ const getStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.MEDIUM,
-    paddingVertical: 12,
-    paddingTop: 24,
+    paddingVertical: 10,
+    paddingTop: 16,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.primary + '1C',
+    backgroundColor: theme.colors.card + 'E8',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
   },
   headerTitle: {
@@ -322,19 +350,20 @@ const getStyles = (theme) => StyleSheet.create({
   },
   listContainer: {
     padding: spacing.medium,
+    paddingBottom: SPACING.XXLARGE,
   },
   kbCard: {
     marginBottom: spacing.medium,
     padding: spacing.medium,
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.MEDIUM,
-    backgroundColor: theme.colors.card,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card + 'EE',
+    elevation: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    borderColor: theme.colors.primary + '20',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -378,10 +407,10 @@ const getStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.primary + '1A',
     paddingTop: spacing.medium,
     marginTop: spacing.medium,
-    backgroundColor: theme.colors.background + '30',
+    backgroundColor: theme.colors.background + '7A',
     marginHorizontal: -spacing.medium,
     marginBottom: -spacing.medium,
     paddingHorizontal: spacing.medium,
@@ -394,9 +423,10 @@ const getStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.small,
     paddingVertical: spacing.extraSmall,
-    backgroundColor: theme.colors.card,
-    borderRadius: 6,
-    paddingHorizontal: spacing.small,
+    backgroundColor: theme.colors.card + 'E5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '18',
   },
   statText: {
     marginLeft: spacing.extraSmall,
@@ -415,23 +445,30 @@ const getStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.onPrimary + '26',
   },
   modalMask: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.32)',
     justifyContent: 'flex-end',
   },
   actionSheet: {
-    backgroundColor: theme.colors.card,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: theme.colors.card + 'F2',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: spacing.medium,
     borderTopWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.primary + '26',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 8,
   },
   actionSheetTitle: {
     fontSize: FONT_SIZES.medium,
@@ -439,7 +476,8 @@ const getStyles = (theme) => StyleSheet.create({
     marginBottom: spacing.small,
   },
   actionButton: {
-    paddingVertical: 12,
+    paddingVertical: 13,
+    borderRadius: 10,
   },
   actionButtonText: {
     fontSize: FONT_SIZES.medium,
@@ -453,16 +491,21 @@ const getStyles = (theme) => StyleSheet.create({
   },
   actionCancel: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.primary + '1A',
     marginTop: 4,
   },
   confirmDialog: {
     margin: 24,
     padding: spacing.medium,
-    borderRadius: 14,
-    backgroundColor: theme.colors.card,
+    borderRadius: 18,
+    backgroundColor: theme.colors.card + 'F2',
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.primary + '24',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 9,
   },
   confirmTitle: {
     fontSize: FONT_SIZES.large,

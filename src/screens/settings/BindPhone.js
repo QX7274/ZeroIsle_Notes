@@ -1,6 +1,3 @@
-/**
- * 手机绑定页面
- */
 import React, { useState } from 'react';
 import {
   View,
@@ -13,16 +10,18 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from 'react-native';
+import { Text } from '../../components/common/Typography';
 import { Input, GradientButton } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import { userApi } from '../../services/api';
+import { setUserInfo } from '../../redux/slices/authSlice';
 
 const BindPhone = ({ navigation }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
-  const user = useSelector(state => state.auth.user);
+  const user = useSelector((state) => state.auth.user);
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -30,25 +29,20 @@ const BindPhone = ({ navigation }) => {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
+  const pageState = isLoading || isSendingCode ? 'busy' : 'ready';
 
-  // 发送验证码
   const handleSendCode = async () => {
     if (!phone || phone.length < 11) {
       setError('请输入有效的手机号');
       return;
     }
-
     try {
       setIsSendingCode(true);
       Haptics.lightFeedback();
-
-      // 调用发送验证码API
       await userApi.sendVerificationCode({ phone, type: 'bind' });
-
-      // 开始倒计时
       setCountdown(60);
       const timer = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
             return 0;
@@ -56,7 +50,6 @@ const BindPhone = ({ navigation }) => {
           return prev - 1;
         });
       }, 1000);
-
       setError('');
     } catch (err) {
       setError(err.message || '发送验证码失败，请稍后重试');
@@ -65,29 +58,20 @@ const BindPhone = ({ navigation }) => {
     }
   };
 
-  // 绑定手机号
   const handleBindPhone = async () => {
     if (!phone || phone.length < 11) {
       setError('请输入有效的手机号');
       return;
     }
-
     if (!code || code.length < 4) {
       setError('请输入有效的验证码');
       return;
     }
-
     try {
       setIsLoading(true);
       Haptics.mediumFeedback();
-
-      // 调用绑定手机号API
-      const response = await userApi.bindPhone({ phone, code });
-
-      // 更新用户信息
-      dispatch({ type: 'UPDATE_USER', payload: { phone } });
-
-      // 返回上一页
+      await userApi.bindPhone({ phone, code });
+      dispatch(setUserInfo({ ...user, phone }));
       navigation.goBack();
     } catch (err) {
       setError(err.message || '绑定手机号失败，请稍后重试');
@@ -99,113 +83,88 @@ const BindPhone = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.page, { backgroundColor: '#F3F8FF' }]}
+      testID={`state.settings.bindPhone.state.${pageState}`}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
+      <View testID="state.settings.bindPhone.visibility.visible" />
+      <View testID={`state.settings.bindPhone.sendingCode.visibility.${isSendingCode ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.bindPhone.countdown.visibility.${countdown > 0 ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.bindPhone.error.visibility.${error ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.bindPhone.current.visibility.${user?.phone ? 'visible' : 'hidden'}`} />
+
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="list.settings.bindPhone.sections">
+        <View style={[styles.header, styles.glassCard]}>
+          <ScreenHeaderBackButton
             onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text
-            variant="h2"
-            size="large"
-            style={styles.headerTitle}
-          >
-            手机绑定
-          </Text>
+            testID="action.settings.bindPhone.back"
+            style={styles.backButton}
+          />
+          <Text variant="h2" size="large">手机号绑定</Text>
         </View>
 
-        <View style={styles.content}>
-          <Text
-            variant="body"
-            size="medium"
-            color="textSecondary"
-            style={styles.description}
-          >
-            绑定手机号可以提高账号安全性，并用于接收重要通知
+        <View style={[styles.contentCard, styles.glassCard]}>
+          <Text variant="body" size="medium" color="hint" style={styles.description}>
+            绑定手机号可提升账户安全性，并用于找回账户和接收通知。
           </Text>
 
-          {user?.phone && (
-            <View style={[styles.currentInfo, { backgroundColor: colors.card }]}>
-              <Icon name="info" size={20} color={colors.primary} />
-              <Text
-                variant="body"
-                size="medium"
-                style={styles.currentInfoText}
-              >
-                当前已绑定手机号: {user.phone}
+          {user?.phone ? (
+            <View style={[styles.currentInfo, { borderColor: 'rgba(76,141,255,0.22)' }]}>
+              <Icon name="verified-user" size={18} color={colors.primary} />
+              <Text variant="body" size="medium" style={styles.currentInfoText}>
+                当前已绑定手机号：{user.phone}
               </Text>
             </View>
-          )}
+          ) : null}
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
+          <Input
+            label="手机号"
+            placeholder="请输入手机号"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            maxLength={11}
+            testID="input.settings.bindPhone.phone"
+          />
+
+          <View style={styles.codeRow}>
+            <View style={styles.codeInput}>
               <Input
-                label="手机号"
-                placeholder="请输入手机号"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                maxLength={11}
+                label="验证码"
+                placeholder="请输入验证码"
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                testID="input.settings.bindPhone.code"
               />
             </View>
-
-            <View style={styles.codeContainer}>
-              <View style={styles.codeInput}>
-                <Input
-                  label="验证码"
-                  placeholder="请输入验证码"
-                  value={code}
-                  onChangeText={setCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.sendCodeButton,
-                  { backgroundColor: countdown > 0 ? colors.border : colors.primary },
-                ]}
-                onPress={handleSendCode}
-                disabled={countdown > 0 || isSendingCode}
-              >
-                {isSendingCode ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text
-                    variant="button"
-                    color="card"
-                  >
-                    {countdown > 0 ? `${countdown}秒` : '获取验证码'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {error ? (
-              <Text
-                variant="caption"
-                color="error"
-                style={styles.errorText}
-              >
-                {error}
-              </Text>
-            ) : null}
-
-            <GradientButton
-              title="绑定手机号"
-              onPress={handleBindPhone}
-              loading={isLoading}
-              style={styles.submitButton}
-            />
+            <TouchableOpacity
+              style={[styles.sendBtn, { backgroundColor: countdown > 0 ? '#B9CBE6' : colors.primary }]}
+              onPress={handleSendCode}
+              disabled={countdown > 0 || isSendingCode}
+              testID="action.settings.bindPhone.sendCode"
+            >
+              {isSendingCode ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text variant="button" color="card">{countdown > 0 ? `${countdown}s` : '获取验证码'}</Text>
+              )}
+            </TouchableOpacity>
           </View>
+
+          {error ? (
+            <Text variant="caption" color="error" style={styles.errorText} testID="state.settings.bindPhone.errorText">
+              {error}
+            </Text>
+          ) : null}
+
+          <GradientButton
+            title="绑定手机号"
+            onPress={handleBindPhone}
+            loading={isLoading}
+            style={styles.submitButton}
+            testID="action.settings.bindPhone.submit"
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -213,68 +172,66 @@ const BindPhone = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 16,
+  page: { flex: 1 },
+  scrollContent: { flexGrow: 1, padding: 16 },
+  glassCard: {
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    borderRadius: 16,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
   },
   header: {
+    padding: 14,
+    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'space-between',
   },
-  backButton: {
-    padding: 8,
-    marginRight: 16,
-  },
-  headerTitle: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
+  contentCard: {
+    padding: 14,
   },
   description: {
-    marginBottom: 24,
+    marginBottom: 16,
+    lineHeight: 20,
   },
   currentInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 24,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
   currentInfoText: {
     marginLeft: 8,
   },
-  form: {
-    marginBottom: 24,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  codeContainer: {
+  codeRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 24,
+    marginTop: 2,
   },
   codeInput: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
   },
-  sendCodeButton: {
+  sendBtn: {
     height: 48,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 10,
+    paddingHorizontal: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorText: {
-    marginBottom: 16,
+    marginTop: 10,
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: 14,
   },
 });
 
