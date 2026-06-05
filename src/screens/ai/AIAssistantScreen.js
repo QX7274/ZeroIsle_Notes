@@ -12,6 +12,7 @@ import {
   PermissionsAndroid,
   Modal,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // 使用MongoDB替代AsyncStorage
 import realmService from '../../services/database/realmService';
 import tokenService from '../../services/auth/tokenService';
@@ -58,6 +59,7 @@ const STORAGE_KEYS = {
 const AIAssistantScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   // 从Redux获取状态
@@ -77,6 +79,7 @@ const AIAssistantScreen = ({ navigation }) => {
   const [showAISelector, setShowAISelector] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(Date.now().toString());
+  const aiState = isLoading ? 'busy' : error ? 'error' : messages.length === 0 ? 'empty' : 'ready';
 
   // AI引擎选项
   const aiEngineOptions = [
@@ -148,6 +151,7 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 处理发送消息
   const handleSendMessage = async (text) => {
+    if (isLoading) {return;}
     if (!text.trim()) {return;}
 
     const isOnline = await networkService.checkConnection();
@@ -208,6 +212,7 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 创建新对话
   const handleCreateNewChat = () => {
+    if (isLoading) {return;}
     // 创建新会话ID
     const newSessionId = Date.now().toString();
     setCurrentSessionId(newSessionId);
@@ -218,6 +223,34 @@ const AIAssistantScreen = ({ navigation }) => {
     dispatch(clearMessages());
     // 保存聊天历史
     dispatch(saveChatHistory(newSessionId));
+  };
+
+  const toggleHistorySidebar = () => {
+    if (isLoading) {return;}
+    setShowHistorySidebar(prev => !prev);
+  };
+
+  const openAISelector = () => {
+    if (isLoading) {return;}
+    setShowAISelector(true);
+  };
+
+  const closeAISelector = () => {
+    if (isLoading) {return;}
+    setShowAISelector(false);
+  };
+
+  const closeHistorySidebar = () => {
+    if (isLoading) {return;}
+    setShowHistorySidebar(false);
+  };
+
+  const handleHistoryMaskPress = () => {
+    closeHistorySidebar();
+  };
+
+  const handleHistorySidebarClose = () => {
+    closeHistorySidebar();
   };
 
   // 处理消息复制
@@ -403,8 +436,9 @@ const AIAssistantScreen = ({ navigation }) => {
 
   // 选择AI引擎
   const handleSelectEngine = (engine) => {
+    if (isLoading) {return;}
     dispatch(setAiEngine(engine));
-    setShowAISelector(false);
+    closeAISelector();
 
     // 根据引擎设置默认模型
     switch (engine) {
@@ -436,12 +470,12 @@ const AIAssistantScreen = ({ navigation }) => {
         visible={showAISelector}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowAISelector(false)}
+        onRequestClose={closeAISelector}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowAISelector(false)}
+          onPress={closeAISelector}
         >
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={{
@@ -477,6 +511,7 @@ const AIAssistantScreen = ({ navigation }) => {
                     },
                   ]}
                   onPress={() => handleSelectEngine(item.id)}
+                  disabled={isLoading}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{
@@ -525,215 +560,234 @@ const AIAssistantScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      testID="screen.ai"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <View style={[styles.header, {
-        borderBottomColor: colors.border,
-        paddingTop: 24, // 增加顶部内边距，使标题往下移
-      }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: `${colors.primary}15`,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginRight: 12,
-          }}>
-            <Icon name="psychology" size={20} color={colors.primary} />
-          </View>
-          <Text
-            variant="heading"
-            level="h4"
-            style={styles.headerTitle}
-          >
-            AI助手
-          </Text>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={[
-              styles.headerButton,
-              {
-                backgroundColor: showHistorySidebar ? colors.primary : '#ffffff',
-                flexDirection: 'row',
-                paddingHorizontal: 0,
-                width: 80,
-                height: 36,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: colors.primary,
-                elevation: 3,
-                shadowColor: colors.primary,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 3,
-                justifyContent: 'center',
-                alignItems: 'center',
-                paddingBottom: 2, // 向上微调文字位置
-              },
-            ]}
-            onPress={() => setShowHistorySidebar(!showHistorySidebar)}
-            activeOpacity={0.7}
-          >
-            <Text
-              variant="body"
-              size="small"
-              color={showHistorySidebar ? 'card' : 'primary'}
-              style={{
-                fontWeight: '600',
-                lineHeight: 18, // 调整行高
-                marginTop: -7, // 向上移动文字
-              }}
-            >
-              历史记录
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {renderAISelector()}
-
-      {/* AI引擎选择器 - 放在顶部 */}
-      <View style={[
-        styles.aiSelectorContainer,
-        {
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} testID="screen.ai">
+      <KeyboardAvoidingView
+        style={styles.flexFill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View testID={`state.ai.state.${aiState}`} />
+        <View testID={`state.ai.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+        <View testID={`state.ai.error.visibility.${error ? 'visible' : 'hidden'}`} />
+        <View testID={`state.ai.recording.visibility.${isRecording ? 'visible' : 'hidden'}`} />
+        <View testID={`state.ai.transcribing.visibility.${isTranscribing ? 'visible' : 'hidden'}`} />
+        <View testID={`state.ai.selector.visibility.${showAISelector ? 'visible' : 'hidden'}`} />
+        <View testID={`state.ai.historySidebar.visibility.${showHistorySidebar ? 'visible' : 'hidden'}`} />
+        <View style={[styles.header, {
           borderBottomColor: colors.border,
-          backgroundColor: colors.background,
-          paddingHorizontal: 20,
-          paddingVertical: 8, // 减少垂直内边距
-        },
-      ]}>
-
-        <TouchableOpacity
-          style={[
-            styles.aiSelectorButton,
-            {
-              borderColor: colors.primary,
-              borderWidth: 1,
-              backgroundColor: '#ffffff',
-              marginTop: 4, // 减少顶部边距
-              elevation: 3,
-              shadowColor: colors.primary,
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.15,
-              shadowRadius: 4,
-              borderRadius: 24,
-            },
-          ]}
-          onPress={() => setShowAISelector(true)}
-          activeOpacity={0.7}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          paddingTop: Math.max(insets.top, 12),
+        }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
-              backgroundColor: '#ffffff',
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: `${colors.primary}15`,
               justifyContent: 'center',
               alignItems: 'center',
               marginRight: 12,
-              borderWidth: 1,
-              borderColor: colors.primary,
             }}>
-              <Icon name="smart-toy" size={16} color={colors.primary} />
+              <Icon name="psychology" size={20} color={colors.primary} />
             </View>
             <Text
-              variant="body"
-              size="medium"
-              color="text"
-              style={[styles.aiSelectorText, { fontWeight: '600' }]}
+              variant="heading"
+              level="h4"
+              style={styles.headerTitle}
             >
-              {aiEngineOptions.find(option => option.id === aiEngine)?.name || '选择AI引擎'}
+              AI助手
             </Text>
           </View>
-          <Icon name="keyboard-arrow-down" size={24} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {error && (
-        <View style={[styles.errorBanner, { backgroundColor: colors.errorLight }]}>
-          <Text
-            variant="body"
-            size="small"
-            color="error"
-            center
-          >
-            {error}
-          </Text>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={[
+                styles.headerButton,
+                {
+                  backgroundColor: showHistorySidebar ? colors.primary : `${colors.card}F2`,
+                  flexDirection: 'row',
+                  paddingHorizontal: 0,
+                  width: 80,
+                  height: 36,
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: colors.primary,
+                  elevation: 3,
+                  shadowColor: colors.primary,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 3,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingBottom: 2, // 向上微调文字位置
+                },
+              ]}
+              onPress={toggleHistorySidebar}
+              disabled={isLoading}
+              activeOpacity={0.7}
+              testID="action.ai.toggleHistorySidebar"
+            >
+              <Text
+                variant="body"
+                size="small"
+                color={showHistorySidebar ? 'card' : 'primary'}
+                style={{
+                  fontWeight: '600',
+                  lineHeight: 18, // 调整行高
+                  marginTop: -7, // 向上移动文字
+                }}
+              >
+                历史记录
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessageItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
+        {renderAISelector()}
+
+        {/* AI引擎选择器 - 放在顶部 */}
+        <View style={[
+          styles.aiSelectorContainer,
+          {
+            borderBottomColor: colors.border,
+            backgroundColor: colors.background,
+            paddingHorizontal: 20,
+            paddingVertical: 8, // 减少垂直内边距
+          },
+        ]}>
+
+          <TouchableOpacity
+            style={[
+              styles.aiSelectorButton,
+              {
+                borderColor: colors.primary,
+                borderWidth: 1,
+                backgroundColor: `${colors.card}F2`,
+                marginTop: 4, // 减少顶部边距
+                elevation: 3,
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.15,
+                shadowRadius: 4,
+                borderRadius: 24,
+              },
+            ]}
+            onPress={openAISelector}
+            disabled={isLoading}
+            activeOpacity={0.7}
+            testID="action.ai.openSelector"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: `${colors.card}F2`,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 12,
+                borderWidth: 1,
+                borderColor: colors.primary,
+              }}>
+                <Icon name="smart-toy" size={16} color={colors.primary} />
+              </View>
+              <Text
+                variant="body"
+                size="medium"
+                color="text"
+                style={[styles.aiSelectorText, { fontWeight: '600' }]}
+              >
+                {aiEngineOptions.find(option => option.id === aiEngine)?.name || '选择AI引擎'}
+              </Text>
+            </View>
+            <Icon name="keyboard-arrow-down" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {error && (
+          <View style={[styles.errorBanner, { backgroundColor: colors.errorLight }]}>
             <Text
               variant="body"
-              size="medium"
-              color="hint"
+              size="small"
+              color="error"
               center
             >
-              开始与AI助手对话吧
+              {error}
             </Text>
           </View>
-        }
-      />
+        )}
 
-      <ChatInput
-        onSend={handleSendMessage}
-        isLoading={isLoading}
-        voiceEnabled={voiceEnabled}
-        onStartVoice={startVoiceInput}
-        onStopVoice={stopVoiceInput}
-        isRecording={isRecording}
-        onCancel={handleCancel}
-      />
-
-      {/* 历史记录侧边栏遮罩层 */}
-      {showHistorySidebar && (
-        <TouchableOpacity
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            zIndex: 999,
-          }}
-          activeOpacity={1}
-          onPress={() => setShowHistorySidebar(false)}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessageItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesList}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text
+                variant="body"
+                size="medium"
+                color="hint"
+                center
+              >
+                开始与AI助手对话吧
+              </Text>
+            </View>
+          }
         />
-      )}
 
-      {/* 历史记录侧边栏 */}
-      <ChatHistorySidebar
-        visible={showHistorySidebar}
-        onClose={() => setShowHistorySidebar(false)}
-        onSelectSession={(sessionId) => {
-          setCurrentSessionId(sessionId);
-          dispatch(loadChatHistory(sessionId));
-          setShowHistorySidebar(false);
-        }}
-        colors={colors}
-        currentSessionId={currentSessionId}
-      />
-    </KeyboardAvoidingView>
+        <ChatInput
+          onSend={handleSendMessage}
+          isLoading={isLoading}
+          voiceEnabled={voiceEnabled}
+          onStartVoice={startVoiceInput}
+          onStopVoice={stopVoiceInput}
+          isRecording={isRecording}
+          onCancel={handleCancel}
+        />
+
+        {/* 历史记录侧边栏遮罩层 */}
+        {showHistorySidebar && (
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 999,
+            }}
+            activeOpacity={1}
+            onPress={handleHistoryMaskPress}
+          />
+        )}
+
+        {/* 历史记录侧边栏 */}
+        <ChatHistorySidebar
+          visible={showHistorySidebar}
+          onClose={handleHistorySidebarClose}
+          onSelectSession={(sessionId) => {
+            if (isLoading) {
+              return;
+            }
+            setCurrentSessionId(sessionId);
+            dispatch(loadChatHistory(sessionId));
+            closeHistorySidebar();
+          }}
+          colors={colors}
+          currentSessionId={currentSessionId}
+          interactionDisabled={isLoading}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  flexFill: {
     flex: 1,
   },
   header: {
@@ -745,10 +799,10 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 8,
   },
   headerTitle: {
     marginLeft: 10,
@@ -768,10 +822,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 8,
   },
   errorBanner: {
     padding: 16,
@@ -825,10 +879,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowRadius: 8,
     backgroundColor: '#ffffff',
   },
   aiSelectorIcon: {
@@ -851,10 +905,10 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
     elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
@@ -876,10 +930,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#ffffff',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 3,
+    shadowRadius: 8,
   },
 });
 

@@ -85,7 +85,7 @@ const KnowledgeGraphNavigator = () => (
 
 // AI助手导航堆栈
 const AINavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: true }}>
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AIAssistantMain" component={AIAssistantScreen} options={{ title: 'AI助手' }} />
   </Stack.Navigator>
 );
