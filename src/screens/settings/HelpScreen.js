@@ -11,219 +11,181 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useSelector } from 'react-redux';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
 import { analyticsService } from '../../services/analytics/analyticsService';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
-const HelpScreen = () => {
+const FAQ_LIST = [
+  {
+    id: 1,
+    question: '如何创建笔记？',
+    answer:
+      '在首页点击右下角“+”按钮，选择“新建笔记”即可创建。编辑器支持格式化、插图和链接。',
+  },
+  {
+    id: 2,
+    question: '如何使用知识图谱功能？',
+    answer:
+      '进入“知识图谱”后可新增节点并建立关系。点击“+”创建节点，拖拽连线创建关系，点节点查看详情。',
+  },
+  {
+    id: 3,
+    question: '如何备份我的数据？',
+    answer:
+      '在设置中进入“备份与恢复”，点击“创建备份”即可生成包含笔记和配置的备份文件，并可导出保存。',
+  },
+  {
+    id: 4,
+    question: '离线模式支持哪些能力？',
+    answer:
+      '离线状态下可新建与编辑笔记、使用基础知识图谱、查看已缓存内容。联网后会自动同步离线期间变更。',
+  },
+  {
+    id: 5,
+    question: '如何使用手写识别功能？',
+    answer:
+      '在笔记编辑页点击“手写”进入手写模式，书写后系统会自动识别并转为文本。可在设置中调整识别参数。',
+  },
+];
+
+const FEEDBACK_TYPES = [
+  { value: 'bug', label: '问题反馈', icon: 'bug-report' },
+  { value: 'feature', label: '功能建议', icon: 'lightbulb' },
+  { value: 'question', label: '使用咨询', icon: 'help' },
+  { value: 'other', label: '其他', icon: 'more-horiz' },
+];
+
+const HelpScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  const { colors } = theme;
+  const insets = useSafeAreaInsets();
+  const user = useSelector((state) => state.auth.user);
 
-  // 从Redux获取用户信息
-  const user = useSelector(state => state.auth.user);
-
-  // 本地状�?
   const [feedbackType, setFeedbackType] = useState('bug');
   const [feedbackContent, setFeedbackContent] = useState('');
   const [contactInfo, setContactInfo] = useState(user?.email || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState(null);
 
-  // 常见问题列表
-  const faqList = [
-    {
-      id: 1,
-      question: '如何创建笔记？',
-      answer: '在主页点击右下角的"+"按钮，选择"新建笔记"，即可创建一个新笔记。您可以使用富文本编辑器编辑笔记内容，支持文本格式化、插入图片、添加链接等功能。',
-    },
-    {
-      id: 2,
-      question: '如何使用知识图谱功能？',
-      answer: '在主菜单中选择"知识图谱"，您可以创建概念节点并建立它们之间的关系。点击"+"按钮添加新节点，拖动节点之间连线建立关系。您还可以通过点击节点查看详细信息和编辑属性。',
-    },
-    {
-      id: 3,
-      question: '如何备份我的笔记？',
-      answer: '在设置中选择"备份与恢复"，点击"创建备份"按钮即可创建一个包含所有笔记和设置的备份文件。您可以将备份文件导出到其他应用或云存储服务进行保存。',
-    },
-    {
-      id: 4,
-      question: '离线模式下可以使用哪些功能？',
-      answer: '在离线模式下，您可以创建和编辑笔记、使用基本的知识图谱功能、查看已缓存的内容等。部分需要网络连接的功能（如同步、社区功能等）在离线模式下不可用。当网络恢复后，应用会自动同步您在离线期间的更改。',
-    },
-    {
-      id: 5,
-      question: '如何使用手写识别功能？',
-      answer: '在笔记编辑界面，点击工具栏中的"手写"按钮，进入手写模式。在手写区域书写内容后，系统会自动识别并转换为文本。您可以在设置中调整手写识别的灵敏度和识别模式。',
-    },
-  ];
+  const pageState = isSubmitting ? 'busy' : 'ready';
+  const canSubmit = Boolean(feedbackContent.trim()) && !isSubmitting;
 
-  // 反馈类型选项
-  const feedbackTypes = [
-    { value: 'bug', label: '问题反馈', icon: 'bug-report' },
-    { value: 'feature', label: '功能建议', icon: 'lightbulb' },
-    { value: 'question', label: '使用咨询', icon: 'help' },
-    { value: 'other', label: '其他', icon: 'more-horiz' },
-  ];
-
-  // 提交反馈
   const submitFeedback = async () => {
-    // 验证输入
     if (!feedbackContent.trim()) {
       Alert.alert('提示', '请输入反馈内容');
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // 这里可以添加实际的反馈提交逻辑
-      // 例如：await api.submitFeedback({ type: feedbackType, content: feedbackContent, contactInfo });
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // 模拟提交延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // 记录分析事件
       analyticsService.trackEvent('feedback_submitted', {
         type: feedbackType,
-        has_contact_info: !!contactInfo,
+        has_contact_info: Boolean(contactInfo),
       });
 
-      // 重置表单
       setFeedbackContent('');
-
-      // 显示成功提示
-      Alert.alert('提交成功', '感谢您的反馈，我们会尽快处理');
+      Alert.alert('提交成功', '感谢你的反馈，我们会尽快处理');
     } catch (error) {
       console.error('提交反馈失败:', error);
       Alert.alert('提交失败', '请稍后重试');
-
-      // 记录错误
       analyticsService.trackError(error, { operation: 'submit_feedback' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 打开链接
-  const openLink = (url) => {
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        console.error('无法打开链接:', url);
-      }
-    });
+  const openLink = async (url) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      Linking.openURL(url);
+      return;
+    }
+    console.error('无法打开链接:', url);
   };
 
-  // 发送邮�?
   const sendEmail = () => {
-    const url = 'mailto:support@zeroislenotes.com?subject=零屿笔记使用咨询';
-    openLink(url);
+    openLink('mailto:support@zeroislenotes.com?subject=ZeroIsle%20Notes%20支持咨询');
   };
 
-  // 切换FAQ展开状�?
   const toggleFaq = (id) => {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
-  // 渲染FAQ�?
-  const renderFaqItem = ({ id, question, answer }) => {
-    const isExpanded = expandedFaq === id;
-
-    return (
-      <TouchableOpacity
-        key={id}
-        style={[
-          styles.faqItem,
-          { backgroundColor: colors.card },
-          isExpanded && styles.faqItemExpanded,
-        ]}
-        onPress={() => toggleFaq(id)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.faqQuestion}>
-          <Text
-            variant="body"
-            size="medium"
-            bold={isExpanded}
-            style={styles.faqQuestionText}
-          >
-            {question}
-          </Text>
-          <Icon
-            name={isExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-            size={24}
-            color={colors.text}
-          />
-        </View>
-
-        {isExpanded && (
-          <View style={styles.faqAnswer}>
-            <Text
-              variant="body"
-              size="medium"
-              color="text"
-            >
-              {answer}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+  const glassCard = {
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderColor: '#CEE3FF',
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.content}>
-        {/* 常见问题 */}
-        <View style={styles.section}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            常见问题
-          </Text>
+    <SafeAreaView style={styles.container} testID={`state.settings.help.state.${pageState}`}>
+      <View testID="state.settings.help.visibility.visible" />
+      <View testID={`state.settings.help.submit.visibility.${isSubmitting ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.help.submit.enabled.${canSubmit ? 'yes' : 'no'}`} />
+      <View testID={`state.settings.help.faqExpanded.visibility.${expandedFaq ? 'visible' : 'hidden'}`} />
 
-          <View style={styles.faqList}>
-            {faqList.map(renderFaqItem)}
-          </View>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation?.goBack?.()}
+          testID="action.settings.help.back"
+          style={styles.backButton}
+        />
+        <Text style={[styles.pageTitle, { color: colors.text }]}>帮助与反馈</Text>
+      </View>
+
+      <ScrollView style={styles.content} testID="list.settings.help.sections">
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>常见问题</Text>
+          {FAQ_LIST.map((item) => {
+            const isExpanded = expandedFaq === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.card, glassCard, isExpanded && styles.cardExpanded]}
+                onPress={() => toggleFaq(item.id)}
+                activeOpacity={0.86}
+                testID={`entry.settings.help.faq.${item.id}`}
+              >
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.questionText, { color: colors.text }]}>
+                    {item.question}
+                  </Text>
+                  <Icon
+                    name={isExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                    size={24}
+                    color={colors.text}
+                  />
+                </View>
+                {isExpanded ? (
+                  <Text style={[styles.answerText, { color: colors.textSecondary || colors.text }]}>
+                    {item.answer}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* 联系我们 */}
         <View style={styles.section}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            联系我们
-          </Text>
-
-          <View style={[styles.contactCard, { backgroundColor: colors.card }]}>
-            <Text
-              variant="body"
-              size="medium"
-              style={styles.contactText}
-            >
-              如果您有任何问题或需要帮助，可以通过以下方式联系我们：
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>联系我们</Text>
+          <View style={[styles.card, glassCard]}>
+            <Text style={[styles.bodyText, { color: colors.textSecondary || colors.text }]}>
+              如果你在使用中遇到问题，欢迎通过以下方式联系我们：
             </Text>
 
             <TouchableOpacity
               style={styles.contactItem}
               onPress={sendEmail}
+              testID="action.settings.help.contactEmail"
             >
               <Icon name="email" size={20} color={colors.primary} />
-              <Text
-                variant="body"
-                size="medium"
-                color="primary"
-                style={styles.contactItemText}
-              >
+              <Text style={[styles.contactText, { color: colors.primary }]}>
                 support@zeroislenotes.com
               </Text>
             </TouchableOpacity>
@@ -231,150 +193,112 @@ const HelpScreen = () => {
             <TouchableOpacity
               style={styles.contactItem}
               onPress={() => openLink('https://zeroislenotes.com/help')}
+              testID="action.settings.help.openHelpCenter"
             >
               <Icon name="language" size={20} color={colors.primary} />
-              <Text
-                variant="body"
-                size="medium"
-                color="primary"
-                style={styles.contactItemText}
-              >
-                帮助中心
-              </Text>
+              <Text style={[styles.contactText, { color: colors.primary }]}>帮助中心</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* 反馈表单 */}
         <View style={styles.section}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            提交反馈
-          </Text>
-
-          <View style={[styles.feedbackCard, { backgroundColor: colors.card }]}>
-            {/* 反馈类型 */}
-            <Text
-              variant="body"
-              size="medium"
-              bold
-              style={styles.feedbackLabel}
-            >
-              反馈类型
-            </Text>
-
-            <View style={styles.feedbackTypes}>
-              {feedbackTypes.map(type => (
-                <TouchableOpacity
-                  key={type.value}
-                  style={[
-                    styles.feedbackTypeButton,
-                    {
-                      backgroundColor: feedbackType === type.value
-                        ? colors.primary
-                        : colors.background,
-                    },
-                  ]}
-                  onPress={() => setFeedbackType(type.value)}
-                >
-                  <Icon
-                    name={type.icon}
-                    size={20}
-                    color={feedbackType === type.value ? '#FFFFFF' : colors.text}
-                  />
-                  <Text
-                    variant="caption"
-                    color={feedbackType === type.value ? 'card' : 'text'}
-                    style={styles.feedbackTypeText}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>提交反馈</Text>
+          <View style={[styles.card, glassCard]}>
+            <Text style={[styles.label, { color: colors.text }]}>反馈类型</Text>
+            <View style={styles.typeWrap}>
+              {FEEDBACK_TYPES.map((type) => {
+                const selected = feedbackType === type.value;
+                return (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.typeButton,
+                      {
+                        backgroundColor: selected ? '#1D4ED8' : 'rgba(255,255,255,0.92)',
+                        borderColor: selected ? '#1D4ED8' : '#BDD7FF',
+                      },
+                    ]}
+                    onPress={() => setFeedbackType(type.value)}
+                    testID={`action.settings.help.feedbackType.${type.value}`}
                   >
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Icon name={type.icon} size={18} color={selected ? '#FFFFFF' : colors.text} />
+                    <Text
+                      style={[
+                        styles.typeText,
+                        { color: selected ? '#FFFFFF' : colors.text },
+                      ]}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            {/* 反馈内容 */}
-            <Text
-              variant="body"
-              size="medium"
-              bold
-              style={styles.feedbackLabel}
-            >
-              反馈内容
-            </Text>
-
+            <Text style={[styles.label, { color: colors.text }]}>反馈内容</Text>
             <TextInput
-              style={[
-                styles.feedbackInput,
-                {
-                  color: colors.text,
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                },
-              ]}
-              placeholder="请详细描述您的问题或建议..."
+              style={[styles.input, styles.multiInput, { color: colors.text }]}
+              placeholder="请详细描述你遇到的问题或建议..."
               placeholderTextColor={colors.textSecondary}
               value={feedbackContent}
               onChangeText={setFeedbackContent}
               multiline
               numberOfLines={5}
               textAlignVertical="top"
+              testID="input.settings.help.feedbackContent"
             />
 
-            {/* 联系方式 */}
-            <Text
-              variant="body"
-              size="medium"
-              bold
-              style={styles.feedbackLabel}
-            >
-              联系方式 (选填)
-            </Text>
-
+            <Text style={[styles.label, { color: colors.text }]}>联系方式（选填）</Text>
             <TextInput
-              style={[
-                styles.contactInput,
-                {
-                  color: colors.text,
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                },
-              ]}
+              style={[styles.input, { color: colors.text }]}
               placeholder="邮箱或其他联系方式"
               placeholderTextColor={colors.textSecondary}
               value={contactInfo}
               onChangeText={setContactInfo}
+              testID="input.settings.help.contactInfo"
             />
-
-            <Text
-              variant="caption"
-              color="hint"
-              style={styles.contactHint}
-            >
-              提供联系方式有助于我们更好地解决您的问题
+            <Text style={[styles.hint, { color: colors.textSecondary || colors.text }]}>
+              提供联系方式有助于我们更快跟进你的问题。
             </Text>
 
-            {/* 提交按钮 */}
             <Button
               title="提交反馈"
               onPress={submitFeedback}
-              style={styles.submitButton}
-              disabled={isSubmitting || !feedbackContent.trim()}
+              disabled={!canSubmit}
               loading={isSubmitting}
+              style={styles.submitButton}
+              testID="action.settings.help.submitFeedback"
             />
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F4F8FF',
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  pageTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
   },
   content: {
     flex: 1,
@@ -384,109 +308,103 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    marginBottom: 16,
-    marginLeft: 8,
+    marginBottom: 12,
+    marginLeft: 6,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  faqList: {
-    marginBottom: 8,
+  card: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#4B8CFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  faqItem: {
-    borderRadius: 8,
-    marginBottom: 8,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+  cardExpanded: {
+    marginBottom: 14,
   },
-  faqItemExpanded: {
-    marginBottom: 16,
-  },
-  faqQuestion: {
+  rowBetween: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
   },
-  faqQuestionText: {
+  questionText: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
   },
-  faqAnswer: {
-    padding: 16,
-    paddingTop: 0,
-    paddingBottom: 16,
+  answerText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 22,
   },
-  contactCard: {
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-  },
-  contactText: {
-    marginBottom: 16,
+  bodyText: {
+    lineHeight: 22,
+    marginBottom: 12,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 8,
   },
-  contactItemText: {
-    marginLeft: 12,
+  contactText: {
+    marginLeft: 10,
+    fontSize: 15,
+    fontWeight: '600',
   },
-  feedbackCard: {
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+  label: {
+    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '700',
   },
-  feedbackLabel: {
-    marginBottom: 12,
-  },
-  feedbackTypes: {
+  typeWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 16,
   },
-  feedbackTypeButton: {
+  typeButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
     marginRight: 8,
     marginBottom: 8,
   },
-  feedbackTypeText: {
-    marginLeft: 4,
+  typeText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '600',
   },
-  feedbackInput: {
+  input: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderColor: '#BDD7FF',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  multiInput: {
     minHeight: 120,
+    paddingTop: 12,
   },
-  contactInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  contactHint: {
-    marginBottom: 16,
+  hint: {
+    fontSize: 12,
+    marginBottom: 14,
+    lineHeight: 18,
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: 4,
   },
 });
 
 export default HelpScreen;
-

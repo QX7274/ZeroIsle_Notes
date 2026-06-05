@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
@@ -20,6 +21,7 @@ import { setUserInfo } from '../../redux/slices/authSlice';
 
 const BindPhone = ({ navigation }) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
 
@@ -81,31 +83,28 @@ const BindPhone = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.page, { backgroundColor: '#F3F8FF' }]}
-      testID={`state.settings.bindPhone.state.${pageState}`}
-    >
-      <View testID="state.settings.bindPhone.visibility.visible" />
-      <View testID={`state.settings.bindPhone.sendingCode.visibility.${isSendingCode ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindPhone.countdown.visibility.${countdown > 0 ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindPhone.error.visibility.${error ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindPhone.current.visibility.${user?.phone ? 'visible' : 'hidden'}`} />
+    <SafeAreaView style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.settings.bindPhone.state.${pageState}`}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <View testID="state.settings.bindPhone.visibility.visible" />
+        <View testID={`state.settings.bindPhone.sendingCode.visibility.${isSendingCode ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindPhone.countdown.visibility.${countdown > 0 ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindPhone.error.visibility.${error ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindPhone.current.visibility.${user?.phone ? 'visible' : 'hidden'}`} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="list.settings.bindPhone.sections">
-        <View style={[styles.header, styles.glassCard]}>
+        <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
           <ScreenHeaderBackButton
             onPress={() => navigation.goBack()}
             testID="action.settings.bindPhone.back"
             style={styles.backButton}
           />
-          <Text variant="h2" size="large">手机号绑定</Text>
+          <Text variant="h2" size="large" style={styles.pageTitle}>手机号绑定</Text>
         </View>
 
-        <View style={[styles.contentCard, styles.glassCard]}>
-          <Text variant="body" size="medium" color="hint" style={styles.description}>
-            绑定手机号可提升账户安全性，并用于找回账户和接收通知。
-          </Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="list.settings.bindPhone.sections">
+          <View style={[styles.contentCard, styles.glassCard]}>
+            <Text variant="body" size="medium" color="hint" style={styles.description}>
+              绑定手机号可提升账户安全性，并用于找回账户和接收通知。
+            </Text>
 
           {user?.phone ? (
             <View style={[styles.currentInfo, { borderColor: 'rgba(76,141,255,0.22)' }]}>
@@ -116,63 +115,82 @@ const BindPhone = ({ navigation }) => {
             </View>
           ) : null}
 
-          <Input
-            label="手机号"
-            placeholder="请输入手机号"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            maxLength={11}
-            testID="input.settings.bindPhone.phone"
-          />
+            <Input
+              label="手机号"
+              placeholder="请输入手机号"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              maxLength={11}
+              testID="input.settings.bindPhone.phone"
+            />
 
-          <View style={styles.codeRow}>
-            <View style={styles.codeInput}>
-              <Input
-                label="验证码"
-                placeholder="请输入验证码"
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                testID="input.settings.bindPhone.code"
-              />
+            <View style={styles.codeRow}>
+              <View style={styles.codeInput}>
+                <Input
+                  label="验证码"
+                  placeholder="请输入验证码"
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  testID="input.settings.bindPhone.code"
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.sendBtn, { backgroundColor: countdown > 0 ? '#B9CBE6' : colors.primary }]}
+                onPress={handleSendCode}
+                disabled={countdown > 0 || isSendingCode}
+                testID="action.settings.bindPhone.sendCode"
+              >
+                {isSendingCode ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text variant="button" color="card">{countdown > 0 ? `${countdown}s` : '获取验证码'}</Text>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: countdown > 0 ? '#B9CBE6' : colors.primary }]}
-              onPress={handleSendCode}
-              disabled={countdown > 0 || isSendingCode}
-              testID="action.settings.bindPhone.sendCode"
-            >
-              {isSendingCode ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text variant="button" color="card">{countdown > 0 ? `${countdown}s` : '获取验证码'}</Text>
-              )}
-            </TouchableOpacity>
+
+            {error ? (
+              <Text variant="caption" color="error" style={styles.errorText} testID="state.settings.bindPhone.errorText">
+                {error}
+              </Text>
+            ) : null}
+
+            <GradientButton
+              title="绑定手机号"
+              onPress={handleBindPhone}
+              loading={isLoading}
+              style={styles.submitButton}
+              testID="action.settings.bindPhone.submit"
+            />
           </View>
-
-          {error ? (
-            <Text variant="caption" color="error" style={styles.errorText} testID="state.settings.bindPhone.errorText">
-              {error}
-            </Text>
-          ) : null}
-
-          <GradientButton
-            title="绑定手机号"
-            onPress={handleBindPhone}
-            loading={isLoading}
-            style={styles.submitButton}
-            testID="action.settings.bindPhone.submit"
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
+  flex: { flex: 1 },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  pageTitle: {
+    flex: 1,
+  },
   scrollContent: { flexGrow: 1, padding: 16 },
   glassCard: {
     backgroundColor: 'rgba(255,255,255,0.88)',

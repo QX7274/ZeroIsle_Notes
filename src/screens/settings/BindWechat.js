@@ -1,6 +1,3 @@
-/**
- * 微信绑定屏幕
- */
 import React, { useState } from 'react';
 import {
   View,
@@ -9,186 +6,188 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { userApi } from '../../services/api';
 import { setUserInfo } from '../../redux/slices/authSlice';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const BindWechat = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors } = theme;
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const user = useSelector(state => state.auth.user);
+  const user = useSelector((state) => state.auth.user);
   const [loading, setLoading] = useState(false);
+  const isBound = Boolean(user?.wechat_openid);
+  const pageState = loading ? 'busy' : 'ready';
 
-  // 绑定微信
   const handleBindWechat = async () => {
-    try {
-      setLoading(true);
-
-      // 这里应该调用微信SDK获取授权码
-      // 由于我们没有实际的微信SDK，这里只是模拟
-      Alert.alert(
-        '提示',
-        '微信绑定功能需要微信SDK支持，当前为模拟操作',
-        [
-          {
-            text: '取消',
-            style: 'cancel',
-            onPress: () => setLoading(false),
-          },
-          {
-            text: '继续',
-            onPress: async () => {
-              try {
-                // 模拟获取授权码
-                const code = 'mock_wechat_code_' + Date.now();
-
-                // 调用绑定API
-                const response = await userApi.bindWechat({ code });
-
-                if (response.success) {
-                  // 更新用户信息
-                  dispatch(setUserInfo(response.data.user));
-                  Alert.alert('成功', '微信绑定成功');
-                  navigation.goBack();
-                } else {
-                  Alert.alert('错误', response.message || '绑定失败');
-                }
-              } catch (error) {
-                Alert.alert('错误', error.message || '绑定失败');
-              } finally {
-                setLoading(false);
+    setLoading(true);
+    Alert.alert(
+      '提示',
+      '微信绑定功能需要微信 SDK 支持，当前为模拟流程。',
+      [
+        { text: '取消', style: 'cancel', onPress: () => setLoading(false) },
+        {
+          text: '继续',
+          onPress: async () => {
+            try {
+              const code = `mock_wechat_code_${Date.now()}`;
+              const response = await userApi.bindWechat({ code });
+              if (response.success) {
+                dispatch(setUserInfo(response.data.user));
+                Alert.alert('成功', '微信绑定成功');
+                navigation.goBack();
+              } else {
+                Alert.alert('错误', response.message || '绑定失败');
               }
-            },
+            } catch (error) {
+              Alert.alert('错误', error.message || '绑定失败');
+            } finally {
+              setLoading(false);
+            }
           },
-        ]
-      );
-    } catch (error) {
-      Alert.alert('错误', error.message || '绑定失败');
-      setLoading(false);
-    }
+        },
+      ]
+    );
   };
 
-  // 解绑微信
   const handleUnbindWechat = async () => {
-    try {
-      Alert.alert(
-        '确认解绑',
-        '确定要解除微信绑定吗？',
-        [
-          {
-            text: '取消',
-            style: 'cancel',
-          },
-          {
-            text: '解绑',
-            style: 'destructive',
-            onPress: async () => {
-              setLoading(true);
-              try {
-                const response = await userApi.unbindWechat();
-
-                if (response.success) {
-                  // 更新用户信息
-                  dispatch(setUserInfo(response.data.user));
-                  Alert.alert('成功', '微信解绑成功');
-                } else {
-                  Alert.alert('错误', response.message || '解绑失败');
-                }
-              } catch (error) {
-                Alert.alert('错误', error.message || '解绑失败');
-              } finally {
-                setLoading(false);
+    Alert.alert(
+      '确认解绑',
+      '确定要解除微信绑定吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '解绑',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const response = await userApi.unbindWechat();
+              if (response.success) {
+                dispatch(setUserInfo(response.data.user));
+                Alert.alert('成功', '微信解绑成功');
+              } else {
+                Alert.alert('错误', response.message || '解绑失败');
               }
-            },
+            } catch (error) {
+              Alert.alert('错误', error.message || '解绑失败');
+            } finally {
+              setLoading(false);
+            }
           },
-        ]
-      );
-    } catch (error) {
-      Alert.alert('错误', error.message || '解绑失败');
-    }
+        },
+      ]
+    );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <View style={styles.header}>
+    <SafeAreaView style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.settings.bindWechat.state.${pageState}`}>
+      <View testID="state.settings.bindWechat.visibility.visible" />
+      <View testID={`state.settings.bindWechat.loading.visibility.${loading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.bindWechat.bound.${isBound ? 'yes' : 'no'}`} />
+
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation.goBack()}
+          testID="action.settings.bindWechat.back"
+          style={styles.backButton}
+        />
+        <Text variant="heading" level="h5" style={styles.pageTitle}>微信账号绑定</Text>
+      </View>
+
+      <View style={[styles.card, styles.glassCard]}>
+        <View style={styles.cardHeader}>
           <Icon name="wechat" size={36} color="#09BB07" />
-          <Text
-            variant="heading"
-            level="h5"
-            style={styles.title}
-          >
-            微信账号绑定
-          </Text>
+          <View style={styles.cardHeaderTextWrap}>
+            <Text variant="heading" level="h5">微信账号绑定</Text>
+            <Text variant="body" color="hint" style={styles.cardSubTitle}>绑定后可用于快捷登录</Text>
+          </View>
         </View>
 
-        <Text
-          variant="body"
-          style={styles.description}
-        >
-          {user?.wechat_openid
-            ? '您已绑定微信账号，可以使用微信快速登录'
-            : '绑定微信账号后，可以使用微信快速登录'}
+        <Text variant="body" style={styles.description} testID="state.settings.bindWechat.description">
+          {isBound
+            ? '你已绑定微信账号，可使用微信快捷登录。'
+            : '绑定微信账号后，可使用微信快捷登录。'}
         </Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
         ) : (
           <TouchableOpacity
-            style={[
-              styles.button,
-              {
-                backgroundColor: user?.wechat_openid ? colors.error + '20' : colors.primary,
-              },
-            ]}
-            onPress={user?.wechat_openid ? handleUnbindWechat : handleBindWechat}
+            style={[styles.button, { backgroundColor: isBound ? '#FEE2E2' : colors.primary }]}
+            onPress={isBound ? handleUnbindWechat : handleBindWechat}
+            testID={isBound ? 'action.settings.bindWechat.unbind' : 'action.settings.bindWechat.bind'}
           >
-            <Text
-              variant="button"
-              color={user?.wechat_openid ? 'error' : 'white'}
-            >
-              {user?.wechat_openid ? '解除绑定' : '绑定微信'}
+            <Text variant="button" color={isBound ? 'error' : 'card'}>
+              {isBound ? '解除绑定' : '绑定微信'}
             </Text>
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  page: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  card: {
-    borderRadius: 16,
-    padding: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  header: {
+  pageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  title: {
-    marginLeft: 16,
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  pageTitle: {
+    flex: 1,
+  },
+  glassCard: {
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    borderRadius: 16,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  card: {
+    padding: 24,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardHeaderTextWrap: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  cardSubTitle: {
+    marginTop: 4,
   },
   description: {
-    marginBottom: 30,
+    marginBottom: 24,
     lineHeight: 22,
   },
   button: {
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },

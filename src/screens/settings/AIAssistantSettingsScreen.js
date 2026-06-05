@@ -10,65 +10,57 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import AIAssistantModule from '../../native/AIAssistantModule';
-// 使用MongoDB替代AsyncStorage
 import realmService from '../../services/database/realmService';
-
-// 存储键
-const STORAGE_KEYS = {
-  AI_ENGINE: 'ai_engine',
-  BAIDU_API_KEY: 'baidu_api_key',
-  BAIDU_SECRET_KEY: 'baidu_secret_key',
-};
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const AIAssistantSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const colors = theme.colors || theme;
+  const insets = useSafeAreaInsets();
   const [aiEngine, setAiEngine] = useState(AIAssistantModule.ENGINE_BAIDU);
   const [baiduApiKey, setBaiduApiKey] = useState('');
   const [baiduSecretKey, setBaiduSecretKey] = useState('');
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [configStatus, setConfigStatus] = useState('');
+  const pageState = isLoading || isConfiguring ? 'busy' : 'ready';
+  const hasKeys = Boolean(baiduApiKey && baiduSecretKey);
+  const configStatusState = configStatus
+    ? (configStatus.includes('失败') ? 'error' : 'success')
+    : 'idle';
 
-  // 加载设置
   useEffect(() => {
     loadSettings();
   }, []);
 
-  // 加载保存的设置
   const loadSettings = async () => {
+    setIsLoading(true);
     try {
-      // 从MongoDB获取AI助手设置
       const aiSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-
-      if (aiSettings) {
-        if (aiSettings.engine) {
-          setAiEngine(aiSettings.engine);
-        }
-
-        if (aiSettings.baidu_api_key) {
-          setBaiduApiKey(aiSettings.baidu_api_key);
-        }
-
-        if (aiSettings.baidu_secret_key) {
-          setBaiduSecretKey(aiSettings.baidu_secret_key);
-        }
+      if (aiSettings?.engine) {
+        setAiEngine(aiSettings.engine);
+      }
+      if (aiSettings?.baidu_api_key) {
+        setBaiduApiKey(aiSettings.baidu_api_key);
+      }
+      if (aiSettings?.baidu_secret_key) {
+        setBaiduSecretKey(aiSettings.baidu_secret_key);
       }
     } catch (error) {
-      console.error('加载AI助手设置失败:', error);
+      console.error('加载 AI 助手设置失败:', error);
+      setConfigStatus('加载配置失败，请稍后重试');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 保存设置
   const saveSettings = async () => {
     try {
-      // 保存到MongoDB
-      // 查找现有设置
       const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-
       if (existingSettings) {
-        // 更新现有设置
         await realmService.update('ai_settings', existingSettings._id, {
           engine: aiEngine,
           baidu_api_key: baiduApiKey,
@@ -76,7 +68,6 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           updated_at: new Date(),
         });
       } else {
-        // 创建新设置
         await realmService.create('ai_settings', {
           _id: realmService.createObjectId(),
           type: 'assistant_config',
@@ -87,45 +78,37 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           updated_at: new Date(),
         });
       }
-
       Alert.alert('成功', '设置已保存');
     } catch (error) {
-      console.error('保存AI助手设置失败:', error);
+      console.error('保存 AI 助手设置失败:', error);
       Alert.alert('错误', '保存设置失败');
     }
   };
 
-  // 配置百度AI
   const configureBaiduAI = async () => {
-    if (!baiduApiKey || !baiduSecretKey) {
-      Alert.alert('错误', '请输入百度AI的API密钥和Secret密钥');
+    if (!hasKeys) {
+      Alert.alert('错误', '请先填写百度 AI 的 API Key 和 Secret Key');
       return;
     }
 
     setIsConfiguring(true);
-    setConfigStatus('正在配置百度AI...');
+    setConfigStatus('正在配置百度 AI...');
 
     try {
-      const result = await AIAssistantModule.configureBaiduAI({
+      await AIAssistantModule.configureBaiduAI({
         apiKey: baiduApiKey,
         secretKey: baiduSecretKey,
       });
-
-      setConfigStatus('配置成功！访问令牌已获取。');
+      setConfigStatus('配置成功，访问令牌已获取');
       setAiEngine(AIAssistantModule.ENGINE_BAIDU);
 
-      // 更新Realm中的引擎设置
-      // 查找现有设置
       const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-
       if (existingSettings) {
-        // 更新现有设置
         await realmService.update('ai_settings', existingSettings._id, {
           engine: AIAssistantModule.ENGINE_BAIDU,
           updated_at: new Date(),
         });
       } else {
-        // 创建新设置
         await realmService.create('ai_settings', {
           _id: realmService.createObjectId(),
           type: 'assistant_config',
@@ -135,145 +118,215 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
         });
       }
 
-      Alert.alert('成功', '百度AI配置成功');
+      Alert.alert('成功', '百度 AI 配置成功');
     } catch (error) {
-      console.error('配置百度AI失败:', error);
-      setConfigStatus(`配置失败: ${error.message}`);
-      Alert.alert('错误', `配置百度AI失败: ${error.message}`);
+      console.error('配置百度 AI 失败:', error);
+      const message = error?.message || '未知错误';
+      setConfigStatus(`配置失败: ${message}`);
+      Alert.alert('错误', `配置百度 AI 失败: ${message}`);
     } finally {
       setIsConfiguring(false);
     }
   };
 
-  // 测试AI助手
   const testAIAssistant = async () => {
     try {
       const result = await AIAssistantModule.sendMessage('你好，请介绍一下你自己', aiEngine);
-      Alert.alert('AI助手回复', result.text);
+      Alert.alert('AI 助手回复', result.text);
     } catch (error) {
-      console.error('测试AI助手失败:', error);
-      Alert.alert('错误', `测试AI助手失败: ${error.message}`);
+      console.error('测试 AI 助手失败:', error);
+      Alert.alert('错误', `测试 AI 助手失败: ${error?.message || '未知错误'}`);
     }
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>AI助手设置</Text>
+    <SafeAreaView style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.settings.aiAssistant.state.${pageState}`}>
+      <View testID="state.settings.aiAssistant.visibility.visible" />
+      <View testID={`state.settings.aiAssistant.configuring.visibility.${isConfiguring ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.aiAssistant.engine.${aiEngine === AIAssistantModule.ENGINE_BAIDU ? 'baidu' : 'other'}`} />
+      <View testID={`state.settings.aiAssistant.keys.visibility.${hasKeys ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.aiAssistant.status.${configStatusState}`} />
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>AI引擎选择</Text>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation?.goBack?.()}
+          testID="action.settings.aiAssistant.back"
+          style={styles.backButton}
+        />
+        <Text style={[styles.pageTitle, { color: colors.text }]}>AI 助手设置</Text>
+      </View>
 
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} testID="list.settings.aiAssistant.sections">
+        <Text style={[styles.title, { color: colors.text }]}>AI 助手设置</Text>
 
-
-        <View style={styles.option}>
-          <Text style={[styles.optionText, { color: theme.colors.text }]}>使用百度AI引擎</Text>
-          <Switch
-            value={aiEngine === AIAssistantModule.ENGINE_BAIDU}
-            onValueChange={(value) => {
-              if (value) {
-                if (!baiduApiKey || !baiduSecretKey) {
-                  Alert.alert('提示', '请先配置百度AI密钥');
+        <View style={[styles.section, styles.glassCard]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>AI 引擎选择</Text>
+          <View style={styles.option}>
+            <Text style={[styles.optionText, { color: colors.text }]}>使用百度 AI 引擎</Text>
+            <Switch
+              value={aiEngine === AIAssistantModule.ENGINE_BAIDU}
+              onValueChange={(value) => {
+                if (!value) {
+                  return;
+                }
+                if (!hasKeys) {
+                  Alert.alert('提示', '请先配置百度 AI 密钥');
                   return;
                 }
                 setAiEngine(AIAssistantModule.ENGINE_BAIDU);
-              }
-            }}
-            trackColor={{ false: '#767577', true: theme.colors.primary }}
-          />
+              }}
+              trackColor={{ false: '#BED0EA', true: colors.primary }}
+              testID="action.settings.aiAssistant.toggleBaiduEngine"
+            />
+          </View>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>百度AI配置</Text>
+        <View style={[styles.section, styles.glassCard]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>百度 AI 配置</Text>
 
-        <Text style={[styles.label, { color: theme.colors.text }]}>API密钥</Text>
-        <TextInput
-          style={[styles.input, {
-            color: theme.colors.text,
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-          }]}
-          value={baiduApiKey}
-          onChangeText={setBaiduApiKey}
-          placeholder="输入百度AI的API密钥"
-          placeholderTextColor={theme.colors.text + '80'}
-        />
+          <Text style={[styles.label, { color: colors.text }]}>API Key</Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                backgroundColor: 'rgba(255,255,255,0.92)',
+                borderColor: 'rgba(76,141,255,0.24)',
+              },
+            ]}
+            value={baiduApiKey}
+            onChangeText={setBaiduApiKey}
+            placeholder="输入百度 AI 的 API Key"
+            placeholderTextColor={(colors.text || '#1F2A37') + '66'}
+            testID="input.settings.aiAssistant.baiduApiKey"
+          />
 
-        <Text style={[styles.label, { color: theme.colors.text }]}>Secret密钥</Text>
-        <TextInput
-          style={[styles.input, {
-            color: theme.colors.text,
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-          }]}
-          value={baiduSecretKey}
-          onChangeText={setBaiduSecretKey}
-          placeholder="输入百度AI的Secret密钥"
-          placeholderTextColor={theme.colors.text + '80'}
-          secureTextEntry
-        />
+          <Text style={[styles.label, { color: colors.text }]}>Secret Key</Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                backgroundColor: 'rgba(255,255,255,0.92)',
+                borderColor: 'rgba(76,141,255,0.24)',
+              },
+            ]}
+            value={baiduSecretKey}
+            onChangeText={setBaiduSecretKey}
+            placeholder="输入百度 AI 的 Secret Key"
+            placeholderTextColor={(colors.text || '#1F2A37') + '66'}
+            secureTextEntry
+            testID="input.settings.aiAssistant.baiduSecretKey"
+          />
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
-          onPress={configureBaiduAI}
-          disabled={isConfiguring}
-        >
-          {isConfiguring ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.buttonText}>配置百度AI</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary }]}
+            onPress={configureBaiduAI}
+            disabled={isConfiguring}
+            testID="action.settings.aiAssistant.configureBaidu"
+          >
+            {isConfiguring ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>配置百度 AI</Text>
+            )}
+          </TouchableOpacity>
 
-        {configStatus ? (
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>
-            {configStatus}
+          {configStatus ? (
+            <Text
+              style={[
+                styles.statusText,
+                { color: configStatusState === 'error' ? '#D32F2F' : '#1976D2' },
+              ]}
+              testID="state.settings.aiAssistant.statusText"
+            >
+              {configStatus}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={[styles.section, styles.glassCard]}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary }]}
+            onPress={testAIAssistant}
+            testID="action.settings.aiAssistant.test"
+          >
+            <Text style={styles.buttonText}>测试 AI 助手</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary, marginTop: 12 }]}
+            onPress={saveSettings}
+            testID="action.settings.aiAssistant.save"
+          >
+            <Text style={styles.buttonText}>保存设置</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.section, styles.glassCard]}>
+          <Text style={[styles.note, { color: colors.text }]}>
+            注意：百度 AI 引擎提供对话能力，需要网络连接与有效密钥。
           </Text>
-        ) : null}
-      </View>
-
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
-          onPress={testAIAssistant}
-        >
-          <Text style={styles.buttonText}>测试AI助手</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary, marginTop: 10 }]}
-          onPress={saveSettings}
-        >
-          <Text style={styles.buttonText}>保存设置</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.note, { color: theme.colors.text }]}>
-          注意：百度AI引擎提供高级的对话能力，需要网络连接和API密钥。
-        </Text>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  pageTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  content: {
     padding: 16,
+    paddingBottom: 28,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    fontWeight: '700',
+    marginBottom: 16,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+  },
+  glassCard: {
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 10,
   },
   option: {
     flexDirection: 'row',
@@ -282,38 +335,39 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   optionText: {
-    fontSize: 16,
+    fontSize: 15,
   },
   label: {
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 14,
+    marginBottom: 6,
   },
   input: {
     height: 48,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    marginBottom: 16,
-    fontSize: 16,
+    marginBottom: 14,
+    fontSize: 15,
   },
   button: {
-    height: 48,
-    borderRadius: 8,
+    height: 46,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
   },
   statusText: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 14,
+    lineHeight: 20,
   },
   note: {
-    fontSize: 14,
-    fontStyle: 'italic',
+    fontSize: 13,
+    lineHeight: 20,
   },
 });
 

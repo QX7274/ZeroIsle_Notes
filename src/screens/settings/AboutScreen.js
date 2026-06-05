@@ -10,24 +10,26 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DeviceInfo from 'react-native-device-info';
 import { APP_VERSION } from '../../utils/constants/config';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
-const AboutScreen = () => {
+const AboutScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  const { colors } = theme;
+  const insets = useSafeAreaInsets();
 
-  // 本地状态
   const [appInfo, setAppInfo] = useState({
     version: APP_VERSION,
     buildNumber: '',
     deviceId: '',
   });
+  const [infoLoadError, setInfoLoadError] = useState('');
 
-  // 获取应用信息
   useEffect(() => {
     const getAppInfo = async () => {
       try {
@@ -42,15 +44,15 @@ const AboutScreen = () => {
         });
       } catch (error) {
         console.error('获取应用信息失败:', error);
+        setInfoLoadError(error?.message || 'load-failed');
       }
     };
 
     getAppInfo();
   }, []);
 
-  // 打开链接
   const openLink = (url) => {
-    Linking.canOpenURL(url).then(supported => {
+    Linking.canOpenURL(url).then((supported) => {
       if (supported) {
         Linking.openURL(url);
       } else {
@@ -59,28 +61,34 @@ const AboutScreen = () => {
     });
   };
 
-  // 渲染链接项
+  const infoReady = Boolean(appInfo.version && appInfo.buildNumber && appInfo.deviceId);
+  const pageState = infoReady ? 'ready' : (infoLoadError ? 'error' : 'loading');
+
   const renderLinkItem = ({ icon, title, url }) => (
     <TouchableOpacity
       style={[styles.linkItem, { backgroundColor: colors.card }]}
       onPress={() => openLink(url)}
+      testID={`action.settings.about.link.${title}`}
     >
       <Icon name={icon} size={24} color={colors.primary} />
-      <Text
-        variant="body"
-        size="medium"
-        style={styles.linkTitle}
-      >
-        {title}
-      </Text>
+      <Text style={styles.linkTitle}>{title}</Text>
       <Icon name="open-in-new" size={20} color={colors.textSecondary} />
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.content}>
-        {/* 应用信息 */}
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F6FAFF' }]} testID={`state.settings.about.state.${pageState}`}>
+      <View testID={`state.settings.about.info.visibility.${infoReady ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.about.error.visibility.${infoLoadError ? 'visible' : 'hidden'}`} />
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, { backgroundColor: colors.card }]}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation?.goBack?.()}
+          testID="action.settings.about.back"
+          style={styles.backButton}
+        />
+        <Text style={[styles.pageTitle, { color: colors.text }]}>关于</Text>
+      </View>
+      <ScrollView style={styles.content} testID="list.settings.about.sections">
         <View style={styles.appInfoContainer}>
           <Image
             source={require('../../assets/images/logo.png')}
@@ -88,54 +96,25 @@ const AboutScreen = () => {
             resizeMode="contain"
           />
 
-          <Text
-            variant="heading"
-            level="h5"
-            center
-            style={styles.appName}
-          >
-            零屿笔记
-          </Text>
+          <Text style={[styles.appName, { color: colors.text }]}>零屿笔记</Text>
 
-          <Text
-            variant="body"
-            size="medium"
-            color="hint"
-            center
-          >
+          <Text style={[styles.versionText, { color: colors.textSecondary }]}>
             版本 {appInfo.version} ({appInfo.buildNumber})
           </Text>
 
-          <Text
-            variant="caption"
-            color="hint"
-            center
-            style={styles.copyright}
-          >
-            © 2025 零屿笔记团队. 保留所有权利.
+          <Text style={[styles.copyright, { color: colors.textSecondary }]}>
+            © 2025 零屿笔记团队. 保留所有权利
           </Text>
         </View>
 
-        {/* 应用描述 */}
         <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <Text
-            variant="body"
-            size="medium"
-            style={styles.description}
-          >
+          <Text style={[styles.description, { color: colors.text }]}>
             零屿笔记是一款功能强大的笔记应用，集成了知识图谱、手写识别、语音识别等多种智能功能，帮助您更高效地记录和管理知识。
           </Text>
         </View>
 
-        {/* 链接 */}
         <View style={styles.linksContainer}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            相关链接
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>相关链接</Text>
 
           {renderLinkItem({
             icon: 'language',
@@ -162,142 +141,101 @@ const AboutScreen = () => {
           })}
         </View>
 
-        {/* 开发者信息 */}
         <View style={styles.developerContainer}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            开发者信息
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>开发者信息</Text>
 
           <View style={[styles.developerCard, { backgroundColor: colors.card }]}>
-            <Text
-              variant="body"
-              size="medium"
-              bold
-            >
-              零屿笔记团队
-            </Text>
+            <Text style={[styles.developerName, { color: colors.text }]}>零屿笔记团队</Text>
 
-            <Text
-              variant="body"
-              size="small"
-              color="hint"
-              style={styles.developerInfo}
-            >
+            <Text style={[styles.developerInfo, { color: colors.textSecondary }]}>
               邮箱: contact@zeroislenotes.com
             </Text>
 
-            <Text
-              variant="body"
-              size="small"
-              color="hint"
-              style={styles.developerInfo}
-            >
+            <Text style={[styles.developerInfo, { color: colors.textSecondary }]}>
               地址: 中国
             </Text>
           </View>
         </View>
 
-        {/* 技术信息 */}
         <View style={styles.techInfoContainer}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            技术信息
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>技术信息</Text>
 
           <View style={[styles.techInfoCard, { backgroundColor: colors.card }]}>
             <View style={styles.techInfoItem}>
-              <Text
-                variant="body"
-                size="small"
-                color="hint"
-              >
-                设备ID:
-              </Text>
-              <Text
-                variant="body"
-                size="small"
-              >
-                {appInfo.deviceId}
-              </Text>
+              <Text style={[styles.techLabel, { color: colors.textSecondary }]}>设备ID:</Text>
+              <Text style={[styles.techValue, { color: colors.text }]}>{appInfo.deviceId}</Text>
             </View>
 
             <View style={styles.techInfoItem}>
-              <Text
-                variant="body"
-                size="small"
-                color="hint"
-              >
-                React Native 版本:
-              </Text>
-              <Text
-                variant="body"
-                size="small"
-              >
-                0.71.8
-              </Text>
+              <Text style={[styles.techLabel, { color: colors.textSecondary }]}>React Native 版本:</Text>
+              <Text style={[styles.techValue, { color: colors.text }]}>0.71.8</Text>
             </View>
 
             <View style={styles.techInfoItem}>
-              <Text
-                variant="body"
-                size="small"
-                color="hint"
-              >
-                数据库版本:
-              </Text>
-              <Text
-                variant="body"
-                size="small"
-              >
-                1.0.0
-              </Text>
+              <Text style={[styles.techLabel, { color: colors.textSecondary }]}>数据库版本:</Text>
+              <Text style={[styles.techValue, { color: colors.text }]}>1.0.0</Text>
             </View>
           </View>
         </View>
 
-        {/* 致谢 */}
         <View style={styles.acknowledgementsContainer}>
-          <Text
-            variant="heading"
-            level="h6"
-            style={styles.sectionTitle}
-          >
-            致谢
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>致谢</Text>
 
           <View style={[styles.acknowledgementsCard, { backgroundColor: colors.card }]}>
-            <Text
-              variant="body"
-              size="small"
-              style={styles.acknowledgementsText}
-            >
+            <Text style={[styles.acknowledgementsText, { color: colors.text }]}>
               感谢所有为零屿笔记做出贡献的开发者和用户。
             </Text>
 
-            <Text
-              variant="body"
-              size="small"
-              style={styles.acknowledgementsText}
-            >
+            <Text style={[styles.acknowledgementsText, { color: colors.text }]}>
               本应用使用了多个开源项目，包括但不限于 React Native、Redux、React Navigation 等。
             </Text>
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
+};
+
+const cardCommon = {
+  borderRadius: 14,
+  elevation: 2,
+  shadowColor: '#4C8DFF',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  borderWidth: 1,
+  borderColor: '#CFE1FF',
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  pageTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
   },
   content: {
     flex: 1,
@@ -314,26 +252,30 @@ const styles = StyleSheet.create({
   },
   appName: {
     marginBottom: 8,
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  versionText: {
+    fontSize: 15,
   },
   copyright: {
     marginTop: 8,
+    fontSize: 13,
   },
   section: {
     padding: 16,
-    borderRadius: 8,
     marginBottom: 24,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...cardCommon,
   },
   description: {
     lineHeight: 22,
+    fontSize: 15,
   },
   sectionTitle: {
     marginBottom: 12,
     marginLeft: 8,
+    fontSize: 18,
+    fontWeight: '700',
   },
   linksContainer: {
     marginBottom: 24,
@@ -342,65 +284,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 8,
     marginBottom: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...cardCommon,
   },
   linkTitle: {
     flex: 1,
     marginLeft: 16,
+    fontSize: 15,
+    fontWeight: '600',
   },
   developerContainer: {
     marginBottom: 24,
   },
   developerCard: {
     padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...cardCommon,
+  },
+  developerName: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   developerInfo: {
     marginTop: 8,
+    fontSize: 14,
   },
   techInfoContainer: {
     marginBottom: 24,
   },
   techInfoCard: {
     padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...cardCommon,
   },
   techInfoItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+    gap: 10,
+  },
+  techLabel: {
+    fontSize: 13,
+  },
+  techValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 13,
   },
   acknowledgementsContainer: {
     marginBottom: 32,
   },
   acknowledgementsCard: {
     padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    ...cardCommon,
   },
   acknowledgementsText: {
     marginBottom: 8,
+    fontSize: 14,
+    lineHeight: 21,
   },
 });
 
 export default AboutScreen;
+
