@@ -486,6 +486,7 @@ const HomeStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.card,
           elevation: 4,
@@ -793,6 +794,7 @@ const KnowledgeGraphStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.card,
           elevation: 4,
