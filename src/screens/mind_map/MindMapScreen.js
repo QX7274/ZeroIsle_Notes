@@ -17,10 +17,12 @@ import {
   Platform,
   ToastAndroid,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, EmptyState } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import { UnifiedSearchBar } from '../../components/search';
 import analyticsService from '../../services/analytics/analyticsService';
 import mindMapApi from '../../services/api/mindMapApi';
@@ -30,6 +32,7 @@ const { width } = Dimensions.get('window');
 const MindMapScreen = () => {
   const navigation = useNavigation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = getStyles(colors);
 
   const [mindMaps, setMindMaps] = useState([]);
@@ -163,14 +166,13 @@ const MindMapScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: `${colors.primary}15` }]}
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.headerBar, { paddingTop: insets.top + 12 }]}>
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={22} color={colors.primary} />
-        </TouchableOpacity>
+          testID="action.mindMap.back"
+          style={styles.backButton}
+        />
         <Text style={styles.headerBarTitle}>思维导图</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -275,7 +277,7 @@ const MindMapScreen = () => {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -290,16 +292,11 @@ const getStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 24,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginRight: 8,
   },
   headerBarTitle: {
     flex: 1,

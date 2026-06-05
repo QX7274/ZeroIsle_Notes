@@ -11,14 +11,17 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import personalActivityApi from '../../services/api/personalActivityApi';
 
 const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -215,15 +218,14 @@ const GoalManagerScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 头部 */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+          testID="action.goalManager.back"
+          style={styles.backButton}
+        />
         <Text variant="h2" style={styles.headerTitle}>目标管理</Text>
         <TouchableOpacity
           style={styles.addButton}
@@ -262,7 +264,7 @@ const GoalManagerScreen = ({ navigation }) => {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Text style={[styles.modalButton, { color: colors.text }]}>取消</Text>
             </TouchableOpacity>
@@ -381,7 +383,7 @@ const GoalManagerScreen = ({ navigation }) => {
           </ScrollView>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -395,10 +397,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 48,
   },
   backButton: {
-    padding: 8,
+    marginRight: 8,
   },
   headerTitle: {
     flex: 1,
@@ -496,7 +497,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 48,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },

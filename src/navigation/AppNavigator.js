@@ -528,6 +528,7 @@ const HomeStack = () => {
         component={KnowledgeGraphScreen}
         options={{
           title: '知识图谱',
+          headerShown: false,
           headerBackTitleVisible: false,
         }}
       />
@@ -536,6 +537,7 @@ const HomeStack = () => {
         component={MindMapScreen}
         options={{
           title: '思维导图',
+          headerShown: false,
           headerBackTitleVisible: false,
         }}
       />
@@ -552,6 +554,7 @@ const HomeStack = () => {
         component={MindMapTemplateScreen}
         options={{
           title: '思维导图模板',
+          headerShown: false,
           headerBackTitleVisible: false,
         }}
       />
@@ -730,6 +733,7 @@ const CategoryStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.card,
           elevation: 4,
@@ -882,6 +886,7 @@ const CommunityStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.card,
           elevation: 4,
@@ -1000,6 +1005,7 @@ const MindMapStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.card,
           elevation: 4,

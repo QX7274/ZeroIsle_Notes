@@ -11,6 +11,7 @@ import {
   PermissionsAndroid,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
@@ -29,12 +30,14 @@ import { Button, Loading, Toast } from '../../components/common';
 import { colors } from '../../utils/constants/colors';
 import { dimensions } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const { width, height } = Dimensions.get('window');
 
 const VoiceSearchScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { colors } = theme;
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   // 状态管理
@@ -247,14 +250,13 @@ const VoiceSearchScreen = ({ navigation }) => {
   const waveHeights = [12, 20, 28, 18, 24];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+          testID="action.voiceSearch.back"
+          style={styles.backButton}
+        />
         <Text style={[styles.headerTitle, { color: colors.text }]}>语音搜索</Text>
       </View>
 
@@ -354,7 +356,7 @@ const VoiceSearchScreen = ({ navigation }) => {
       {showToast && (
         <Toast message={toastMessage} />
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -370,7 +372,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   backButton: {
-    marginRight: 16,
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: 18,

@@ -18,10 +18,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Toast } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import MindMapToolbar from '../../components/mind_map/MindMapToolbar';
 import MindMapView from '../../components/mind_map/MindMapView';
 import mindMapApi from '../../services/api/mindMapApi';
@@ -42,6 +44,7 @@ const MindMapEditScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = getStyles(colors);
   const { mindMapId } = route.params || {};
 
@@ -331,15 +334,14 @@ const MindMapEditScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.backButton}
+          <ScreenHeaderBackButton
             onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
+            testID="action.mindMapEdit.back"
+            style={styles.backButton}
+          />
 
           <TextInput
             style={styles.titleInput}
@@ -627,7 +629,7 @@ const MindMapEditScreen = () => {
       </Modal>
 
       {showToast ? <Toast message={toastMessage} /> : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -650,7 +652,7 @@ const getStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   backButton: {
-    marginRight: 16,
+    marginRight: 12,
   },
   titleInput: {
     flex: 1,

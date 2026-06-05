@@ -173,7 +173,7 @@ const ProfileNavigator = () => {
       <Stack.Screen
         name="MindMapTemplate"
         component={MindMapTemplateScreen}
-        options={{ title: '思维导图模板' }}
+        options={{ title: '思维导图模板', headerShown: false }}
       />
       <Stack.Screen
         name="KnowledgeGraph"

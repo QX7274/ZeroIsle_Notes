@@ -61,9 +61,9 @@ const NotesNavigator = () => (
 // 思维导图导航堆栈
 const MindMapNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen name="MindMapList" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="MindMapList" component={MindMapScreen} options={{ title: '思维导图', headerShown: false }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
-    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板', headerShown: false }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
@@ -71,14 +71,14 @@ const MindMapNavigator = () => (
 // 知识图谱导航堆栈
 const KnowledgeGraphNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
+    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱', headerShown: false }} />
     <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
     <Stack.Screen name="KnowledgeAnalysis" component={KnowledgeAnalysisScreen} options={{ title: '知识图谱分析' }} />
     <Stack.Screen name="VoiceToText" component={VoiceToTextScreen} options={{ title: '语音转文本', headerShown: false }} />
     <Stack.Screen name="Search" component={SearchScreen} options={{ title: '搜索', headerShown: false }} />
-    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
+    <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图', headerShown: false }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
-    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板', headerShown: false }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
   </Stack.Navigator>
 );
@@ -93,7 +93,7 @@ const AINavigator = () => (
 // 社区导航堆栈
 const CommunityNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen name="CommunityMain" component={CommunityScreen} options={{ title: '社区' }} />
+    <Stack.Screen name="CommunityMain" component={CommunityScreen} options={{ title: '社区', headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -108,8 +108,8 @@ const ProfileNavigator = () => (
     <Stack.Screen name="SyncSettings" component={SyncSettingsScreen} options={{ title: '同步设置' }} />
     <Stack.Screen name="MindMap" component={MindMapScreen} options={{ title: '思维导图' }} />
     <Stack.Screen name="MindMapEdit" component={MindMapEditScreen} options={{ title: '编辑思维导图', headerShown: false }} />
-    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板' }} />
-    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱' }} />
+    <Stack.Screen name="MindMapTemplate" component={MindMapTemplateScreen} options={{ title: '思维导图模板', headerShown: false }} />
+    <Stack.Screen name="KnowledgeGraph" component={KnowledgeGraphScreen} options={{ title: '知识图谱', headerShown: false }} />
     <Stack.Screen name="NodeDetail" component={NodeDetailScreen} options={{ title: '节点详情' }} />
     <Stack.Screen name="FileViewer" component={FileViewerScreen} options={{ title: '文件查看器', headerShown: false }} />
     <Stack.Screen name="TemplateManager" component={TemplateManagerScreen} options={{ title: '模板管理' }} />

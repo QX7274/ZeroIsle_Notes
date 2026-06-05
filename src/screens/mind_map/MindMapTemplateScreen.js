@@ -16,10 +16,12 @@ import {
   Platform,
   ToastAndroid,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, EmptyState } from '../../components/common';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import analyticsService from '../../services/analytics/analyticsService';
 import mindMapTemplateApi from '../../services/api/mindMapTemplateApi';
 
@@ -29,6 +31,7 @@ const TEMPLATE_WIDTH = (width - 48) / 2;
 const MindMapTemplateScreen = () => {
   const navigation = useNavigation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = getStyles(colors);
 
   const [templates, setTemplates] = useState([]);
@@ -175,12 +178,14 @@ const MindMapTemplateScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <ScreenHeaderBackButton
+            onPress={() => navigation.goBack()}
+            testID="action.mindMapTemplate.back"
+            style={styles.backButton}
+          />
           <Text style={styles.headerTitle}>思维导图模板</Text>
         </View>
 
@@ -220,7 +225,7 @@ const MindMapTemplateScreen = () => {
           <Button title="重试" onPress={loadTemplates} />
         </View>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -240,7 +245,7 @@ const getStyles = (colors) => StyleSheet.create({
     marginBottom: 16,
   },
   backButton: {
-    marginRight: 16,
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: 20,
