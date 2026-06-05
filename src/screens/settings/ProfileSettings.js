@@ -6,6 +6,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
@@ -161,24 +162,33 @@ const ProfileSettings = ({ navigation }) => {
         </View>
 
         <View style={[styles.functionCard, styles.glassCard]}>
-          <Text variant="h3">功能中心</Text>
+          <View style={styles.sectionHead}>
+            <Text variant="h3">功能中心</Text>
+            <Text variant="caption" style={{ color: colors.textSecondary }}>常用功能入口</Text>
+          </View>
           <View style={styles.grid}>
             {functionEntries.map((entry) => (
-              <TouchableOpacity
+              <Pressable
                 key={entry.key}
-                style={styles.itemBtn}
+                style={({ pressed }) => [
+                  styles.itemBtn,
+                  {
+                    backgroundColor: pressed ? 'rgba(244,250,255,0.98)' : 'rgba(255,255,255,0.97)',
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
+                  },
+                ]}
                 onPress={() => navigateWithGuard(entry.key)}
                 disabled={interactionBusy}
                 testID={`entry.${entry.key === 'Groups' ? 'group' : entry.key === 'MindMap' ? 'mindMap' : entry.key === 'KnowledgeGraph' ? 'knowledgeGraph' : entry.key === 'PersonalActivity' ? 'activity' : entry.key === 'KnowledgeBase' ? 'knowledgeBase' : 'reminder'}.profile`}
               >
-                <View style={[styles.itemIconWrap, { backgroundColor: `${colors.primary}14` }]}>
+                <View style={[styles.itemIconWrap, { backgroundColor: `${colors.primary}16` }]}>
                   <Icon name={entry.icon} size={20} color={colors.primary} />
                 </View>
-                <Text style={[styles.itemTitle, { color: colors.text }]}>{entry.label}</Text>
-                <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={1}>
+                <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>{entry.label}</Text>
+                <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={2}>
                   {entry.hint}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -220,35 +230,38 @@ const styles = StyleSheet.create({
   formCard: { padding: 14, marginBottom: 14 },
   bioInput: { height: 100, textAlignVertical: 'top' },
   functionCard: { padding: 14, marginBottom: 14 },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
   itemBtn: {
     width: '48%',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(76,141,255,0.20)',
+    borderColor: 'rgba(76,141,255,0.18)',
     shadowColor: '#4C8DFF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 3,
     alignItems: 'flex-start',
+    minHeight: 106,
+    justifyContent: 'space-between',
   },
   itemIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(76,141,255,0.12)',
   },
-  itemTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  itemHint: { fontSize: 12, lineHeight: 16 },
+  itemTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  itemHint: { fontSize: 12, lineHeight: 17 },
   actionRow: { padding: 10, flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { width: '48%', minHeight: 42, justifyContent: 'center', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(76,141,255,0.22)', backgroundColor: 'rgba(255,255,255,0.94)' },
 });
