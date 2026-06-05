@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Svg, G, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { PanGestureHandler, PinchGestureHandler, State } from 'react-native-gesture-handler';
@@ -65,6 +66,7 @@ const { width, height } = Dimensions.get('window');
  */
 const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: propEmbedded = false }) => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
 
   // 获取主题颜色
   const { colors } = useTheme();
@@ -571,74 +573,10 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
     }
   };
 
-  // 渲染加载状态
-
-
-  if (isLoading && (!nodes || nodes.length === 0)) {
-    return <Loading text="加载知识图谱中..." />;
-  }
-
-  // 渲染错误状态（仅非网络错误展示阻断失败页）
-  if (error && (!nodes || nodes.length === 0)) {
-    return (
-      <View style={styles.errorContainer} testID="state.knowledgeGraph.error">
-        <Icon name="error-outline" size={50} color={colors.error} />
-        <Text style={styles.errorText}>加载失败: {error}</Text>
-        <Button title="重试" onPress={loadKnowledgeGraph} testID="action.knowledgeGraph.retry" />
-      </View>
-    );
-  }
-
-  if (authRequired && (!nodes || nodes.length === 0)) {
-    return (
-      <View style={styles.emptyContainer} testID="state.knowledgeGraph.authRequired">
-        <Icon name="lock-outline" size={80} color={colors.warning} />
-        <Text style={styles.emptyText}>登录状态已失效</Text>
-        <Text style={styles.emptySubText}>{authMessage || '请重新登录后再查看知识图谱'}</Text>
-        <Button
-          title="前往我的"
-          onPress={openProfile}
-          style={styles.createButton}
-          testID="action.knowledgeGraph.goProfile"
-          disabled={isLoading}
-        />
-      </View>
-    );
-  }
-
-  // 渲染空状态（包含弱网离线空图提示）
-  if (!nodes || nodes.length === 0) {
-    return (
-      <View style={styles.emptyContainer} testID="state.knowledgeGraph.empty">
-        <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
-        <Text style={styles.emptyText}>暂无知识图谱数据</Text>
-        <Text style={styles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
-        {networkFallbackMessage ? (
-          <Text style={styles.networkHintText} testID="state.knowledgeGraph.networkFallback">{networkFallbackMessage}</Text>
-        ) : null}
-        <Button
-          title="创建笔记"
-          onPress={openNoteEdit}
-          style={styles.createButton}
-          testID="action.knowledgeGraph.createNote"
-          disabled={isLoading}
-        />
-        <Button
-          title="分析"
-          onPress={openKnowledgeAnalysisFromEmpty}
-          style={styles.createButton}
-          testID="action.knowledgeGraph.analysis"
-          disabled={isLoading}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container} testID="screen.knowledgeGraph">
-      {/* 顶部导航栏（统一返回按钮样式） */}
+  const renderTopChrome = () => (
+    <>
       {!isEmbedded && (
-        <View style={styles.headerBar}>
+        <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 8) }]}>
           <ScreenHeaderBackButton
             onPress={handleGoBack}
             testID="action.knowledgeGraph.back"
@@ -649,7 +587,6 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
         </View>
       )}
 
-      {/* 顶部工具栏 */}
       <View style={styles.toolbar}>
         {showLayoutOptions ? (
           <View testID="state.knowledgeGraph.layoutPanel.open" />
@@ -720,7 +657,6 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
         </TouchableOpacity>
       </View>
 
-      {/* 布局选项 */}
       <View testID={`state.knowledgeGraph.layout.current.${layout || 'unknown'}`} />
       <View style={styles.layoutStateBanner} testID="state.knowledgeGraph.layout.currentText">
         <Icon name="view-module" size={13} color="#1D4ED8" />
@@ -753,13 +689,6 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
         </View>
       )}
 
-      {/* 过滤选项 */}
-      <View testID={`state.knowledgeGraph.filters.nodeTypes.${(filters?.nodeTypes || []).join('_') || 'none'}`} />
-      <View style={styles.filterStateBanner} testID="state.knowledgeGraph.filters.nodeTypesText">
-        <Icon name="tune" size={13} color="#1D4ED8" />
-        <Text style={styles.filterStateBannerText}>{filterSummaryLabel}</Text>
-      </View>
-
       {showFilters && (
         <View style={styles.filtersContainer} testID="panel.knowledgeGraph.filters">
           <Text style={styles.filterTitle}>节点类型</Text>
@@ -782,8 +711,92 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
           </ScrollView>
         </View>
       )}
+    </>
+  );
 
-      {/* 知识图谱可视化区域（使用裁剪后的 renderNodes/renderEdges 以保护性能） */}
+  // 渲染加载状态
+
+
+  if (isLoading && (!nodes || nodes.length === 0)) {
+    return (
+      <SafeAreaView style={styles.container} testID="screen.knowledgeGraph">
+        {renderTopChrome()}
+        <View style={styles.errorContainer}>
+          <Loading text="加载知识图谱中..." />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // 渲染错误状态（仅非网络错误展示阻断失败页）
+  if (error && (!nodes || nodes.length === 0)) {
+    return (
+      <SafeAreaView style={styles.container} testID="screen.knowledgeGraph">
+        {renderTopChrome()}
+        <View style={styles.errorContainer} testID="state.knowledgeGraph.error">
+          <Icon name="error-outline" size={50} color={colors.error} />
+          <Text style={styles.errorText}>加载失败: {error}</Text>
+          <Button title="重试" onPress={loadKnowledgeGraph} testID="action.knowledgeGraph.retry" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (authRequired && (!nodes || nodes.length === 0)) {
+    return (
+      <SafeAreaView style={styles.container} testID="screen.knowledgeGraph">
+        {renderTopChrome()}
+        <View style={styles.emptyContainer} testID="state.knowledgeGraph.authRequired">
+          <Icon name="lock-outline" size={80} color={colors.warning} />
+          <Text style={styles.emptyText}>登录状态已失效</Text>
+          <Text style={styles.emptySubText}>{authMessage || '请重新登录后再查看知识图谱'}</Text>
+          <Button
+            title="前往我的"
+            onPress={openProfile}
+            style={styles.createButton}
+            testID="action.knowledgeGraph.goProfile"
+            disabled={isLoading}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // 渲染空状态（包含弱网离线空图提示）
+  if (!nodes || nodes.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} testID="screen.knowledgeGraph">
+        {renderTopChrome()}
+        <View style={styles.emptyContainer} testID="state.knowledgeGraph.empty">
+          <Icon name="bubble-chart" size={80} color={colors.textSecondary} />
+          <Text style={styles.emptyText}>暂无知识图谱数据</Text>
+          <Text style={styles.emptySubText}>创建更多笔记和连接，构建您的知识网络</Text>
+          {networkFallbackMessage ? (
+            <Text style={styles.networkHintText} testID="state.knowledgeGraph.networkFallback">{networkFallbackMessage}</Text>
+          ) : null}
+          <Button
+            title="创建笔记"
+            onPress={openNoteEdit}
+            style={styles.createButton}
+            testID="action.knowledgeGraph.createNote"
+            disabled={isLoading}
+          />
+          <Button
+            title="分析"
+            onPress={openKnowledgeAnalysisFromEmpty}
+            style={styles.createButton}
+            testID="action.knowledgeGraph.analysis"
+            disabled={isLoading}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} testID="screen.knowledgeGraph">
+      {renderTopChrome()}
+
       <GraphVisualization
         nodes={renderNodes}
         edges={renderEdges}
@@ -792,7 +805,6 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
         onNodeLongPress={handleNodeDoubleTap}
       />
 
-      {/* 底部信息栏 - 显示选中节点信息 */}
       {selectedNode && (
         <View style={styles.nodeInfoContainer} testID="panel.knowledgeGraph.nodeInfo">
           <View testID={`state.knowledgeGraph.selectedNode.type.${selectedNode.type || 'unknown'}`} />
@@ -1032,7 +1044,6 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
         </View>
       )}
 
-      {/* Toast消息 */}
       {toastMessage ? (
         <Toast
           message={toastMessage}
@@ -1040,7 +1051,7 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
           type={isErrorToastMessage(toastMessage) ? 'error' : 'success'}
         />
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 

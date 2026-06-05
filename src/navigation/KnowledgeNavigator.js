@@ -19,9 +19,7 @@ const KnowledgeNavigator = () => {
     <KnowledgeStack.Navigator
       initialRouteName="KnowledgeBaseList"
       screenOptions={{
-        headerShown: true,
-        headerTitleAlign: 'center',
-        // 在这里可以定义统一的头部样式
+        headerShown: false,
       }}
     >
       <KnowledgeStack.Screen
@@ -33,7 +31,6 @@ const KnowledgeNavigator = () => {
         name="KnowledgeBaseDetail"
         component={KnowledgeBaseDetailScreen}
         initialParams={{ hideTabBar: true }}
-      // 标题将在详情页内动态设置
       />
       <KnowledgeStack.Screen
         name="KnowledgeBaseEdit"
@@ -45,16 +42,14 @@ const KnowledgeNavigator = () => {
         name="KnowledgeNodeEdit"
         component={KnowledgeNodeEditScreen}
         initialParams={{ hideTabBar: true }}
-      // 标题在屏幕内动态设置
       />
       <KnowledgeStack.Screen
         name="KnowledgeBaseSearch"
         component={KnowledgeBaseSearchScreen}
-        options={{ headerShown: false }} // 搜索页通常自定义头部
+        options={{ headerShown: false }}
       />
     </KnowledgeStack.Navigator>
   );
 };
 
 export default KnowledgeNavigator;
-
