@@ -110,6 +110,18 @@ const HomeScreen = ({ navigation }) => {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingMessage, setProcessingMessage] = useState('');
   const [processingStage, setProcessingStage] = useState('preparing');
+  const [isNavigatingQuickEntry, setIsNavigatingQuickEntry] = useState(false);
+  const homeState = isLoading ? 'loading' : validNotes.length === 0 ? 'empty' : 'ready';
+  const guardQuickNavigate = useCallback((target, params) => {
+    if (isNavigatingQuickEntry) {
+      return;
+    }
+    setIsNavigatingQuickEntry(true);
+    navigation.navigate(target, params);
+    setTimeout(() => {
+      setIsNavigatingQuickEntry(false);
+    }, 300);
+  }, [isNavigatingQuickEntry, navigation]);
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
@@ -512,6 +524,7 @@ const HomeScreen = ({ navigation }) => {
 
   // 创建无限画布
   const createCanvas = () => {
+    if (isNavigatingQuickEntry) {return;}
     setShowCreateOptions(false);
     setShowCanvasStyleModal(true);
   };
@@ -534,12 +547,14 @@ const HomeScreen = ({ navigation }) => {
 
   // 创建新建笔记
   const createNote = () => {
+    if (isNavigatingQuickEntry) {return;}
     setShowCreateOptions(false);
     setShowNoteStyleModal(true);
   };
 
   // 显示卡片类型选择
   const createCardNote = () => {
+    if (isNavigatingQuickEntry) {return;}
     console.log('HomeScreen: 创建卡片笔记，显示类型选择器');
     console.log('HomeScreen: 当前showCardTypeModal状态:', showCardTypeModal);
     setShowCreateOptions(false);
@@ -547,8 +562,44 @@ const HomeScreen = ({ navigation }) => {
     console.log('HomeScreen: 设置showCardTypeModal为true');
   };
 
+  const openTemplatePicker = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowTemplatePicker(true);
+  };
+
+  const closeCreateOptions = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowCreateOptions(false);
+  };
+
+  const openCreateOptions = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowCreateOptions(true);
+  };
+
+  const closeCardTypeModal = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowCardTypeModal(false);
+  };
+
+  const closeTemplatePicker = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowTemplatePicker(false);
+  };
+
+  const closeCanvasStyleModal = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowCanvasStyleModal(false);
+  };
+
+  const closeNoteStyleModal = () => {
+    if (isNavigatingQuickEntry) {return;}
+    setShowNoteStyleModal(false);
+  };
+
   // 处理模板选择
   const handleSelectTemplate = async (template) => {
+    if (isNavigatingQuickEntry) {return;}
     setShowTemplatePicker(false);
     if (!template) {return;}
 
@@ -569,7 +620,10 @@ const HomeScreen = ({ navigation }) => {
     });
 
     if (newNote) {
-      navigation.navigate('NoteEditor', { noteId: newNote._id });
+      navigation.navigate('CardNote', {
+        noteId: newNote._id,
+        title: newNote.title || '新建笔记',
+      });
     }
   };
 
@@ -2588,7 +2642,8 @@ Week 4: □□□□□□□
         </Text>
         <TouchableOpacity
           style={[styles.aiAssistantButton, { backgroundColor: colors.secondary || '#388E3C' }]}
-          onPress={() => navigation.navigate('AIAssistant')}
+          onPress={() => guardQuickNavigate('AIAssistant')}
+          disabled={isNavigatingQuickEntry}
           testID="entry.ai"
         >
           <Text style={[styles.aiAssistantButtonText, { color: colors.onSecondary || '#FFFFFF' }]}>立即体验</Text>
@@ -2606,7 +2661,8 @@ Week 4: □□□□□□□
         </Text>
         <TouchableOpacity
           style={[styles.aiAssistantButton, { backgroundColor: colors.secondary || '#388E3C' }]}
-          onPress={() => navigation.navigate('KnowledgeGraph')}
+          onPress={() => guardQuickNavigate('KnowledgeGraph')}
+          disabled={isNavigatingQuickEntry}
           testID="entry.knowledgeGraph.home"
         >
           <Text style={[styles.aiAssistantButtonText, { color: colors.onSecondary || '#FFFFFF' }]}>查看图谱</Text>
@@ -2629,18 +2685,27 @@ Week 4: □□□□□□□
   };
 
   // 处理搜索结果
-  const handleSearch = (results) => {
-    // 导航到搜索结果页面
-    if (results && results.length > 0) {
-      navigation.navigate('SearchResults', { results });
+  const handleSearch = useCallback((results) => {
+    if (!results || results.length === 0 || isNavigatingQuickEntry) {
+      return;
     }
-  };
+    setIsNavigatingQuickEntry(true);
+    navigation.navigate('SearchResults', { results });
+    setTimeout(() => {
+      setIsNavigatingQuickEntry(false);
+    }, 300);
+  }, [isNavigatingQuickEntry, navigation]);
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
       testID="screen.home"
     >
+      <View testID={`state.home.state.${homeState}`} />
+      <View testID={`state.home.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.home.createOptions.visibility.${showCreateOptions ? 'visible' : 'hidden'}`} />
+      <View testID={`state.home.processingProgress.visibility.${showProcessingProgress ? 'visible' : 'hidden'}`} />
+      <View testID={`state.home.quickNavigation.visibility.${isNavigatingQuickEntry ? 'visible' : 'hidden'}`} />
       {renderLoader()}
 
       {/* 头部区域 - 固定在顶部 */}
@@ -2698,7 +2763,8 @@ Week 4: □□□□□□□
             styles.categoryButton,
             { backgroundColor: colors.card, borderColor: `${colors.border}80` },
           ]}
-          onPress={() => navigation.navigate('Category')}
+          onPress={() => guardQuickNavigate('Category')}
+          disabled={isNavigatingQuickEntry}
         >
           <View style={{
             width: 30,
@@ -2801,10 +2867,8 @@ Week 4: □□□□□□□
               borderRadius: 30,
             },
           ]}
-          onPress={() => {
-            // 显示创建选项
-            setShowCreateOptions(true);
-          }}
+          onPress={openCreateOptions}
+          disabled={isNavigatingQuickEntry}
           testID="action.home.create"
         >
           <View style={styles.addButtonInner}>
@@ -2816,10 +2880,10 @@ Week 4: □□□□□□□
         {/* 创建内容弹窗 */}
         <CreateContentModal
           visible={showCreateOptions}
-          onClose={() => setShowCreateOptions(false)}
+          onClose={closeCreateOptions}
           onCreateNote={createNote}
           onCreateCardNote={createCardNote}
-          onCreateFromTemplate={() => setShowTemplatePicker(true)}
+          onCreateFromTemplate={openTemplatePicker}
           onCreateLinedNote={() => Alert.alert('提示', '普通笔记功能已移除，请使用Markdown导入')}
           onImportMarkdown={importMarkdown}
           onImportPDF={importPDF}
@@ -2832,21 +2896,21 @@ Week 4: □□□□□□□
         {/* 卡片类型选择弹窗 */}
         <CardTypeModal
           visible={showCardTypeModal}
-          onClose={() => setShowCardTypeModal(false)}
+          onClose={closeCardTypeModal}
           onSelectType={handleCardTypeSelect}
         />
 
         {/* 模板选择弹窗 */}
         <TemplatePickerModal
           visible={showTemplatePicker}
-          onClose={() => setShowTemplatePicker(false)}
+          onClose={closeTemplatePicker}
           onSelectTemplate={handleSelectTemplate}
         />
 
         {/* 画布样式选择弹窗 */}
         <CanvasStyleModal
           visible={showCanvasStyleModal}
-          onClose={() => setShowCanvasStyleModal(false)}
+          onClose={closeCanvasStyleModal}
           onSelect={handleCanvasStyleSelect}
         />
 
@@ -2862,7 +2926,7 @@ Week 4: □□□□□□□
         {/* 笔记样式选择弹窗 */}
         <NoteStyleModal
           visible={showNoteStyleModal}
-          onClose={() => setShowNoteStyleModal(false)}
+          onClose={closeNoteStyleModal}
           onSelect={handleNoteStyleSelect}
         />
       </View>
@@ -2959,12 +3023,12 @@ const getStyles = (colors) => StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: 'rgba(33,150,243,0.16)',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.95)', // 添加背景色，确保内容滚动时头部不透明
     zIndex: 10, // 确保头部在其他内容之上
   },
@@ -2988,13 +3052,13 @@ const getStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
     minHeight: 180,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 8,
     margin: 0,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(33,150,243,0.16)',
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
   noteItemPlaceholder: {

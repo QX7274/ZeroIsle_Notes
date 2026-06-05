@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  SafeAreaView,
   View,
   TextInput,
   FlatList,
@@ -12,6 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -22,6 +24,7 @@ import { searchTopSnippets } from '../../services/kbLocalIndex';
 import Highlighter from '../../components/common/Highlighter';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import noteService from '../../services/notes/noteService';
+import { navigationRef } from '../../navigation/navigationRef';
 
 const SEARCHING_INDICATOR_STYLE = { marginTop: 20 };
 
@@ -29,6 +32,7 @@ const KnowledgeBaseSearchScreen = ({ route, navigation }) => {
   const { kbId } = route.params || {};
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -154,11 +158,17 @@ const KnowledgeBaseSearchScreen = ({ route, navigation }) => {
     try {
       const noteTitle = `来自 ${item.source.title} 的笔记`;
       const noteContent = `> 来源: ${item.source.title} (${item.source.anchor || 'N/A'})\n\n${item.text}`;
-      await noteService.createNote({
+      const newNote = await noteService.createNote({
         title: noteTitle,
         content: noteContent,
         type: 'markdown',
       });
+      if (newNote?._id && navigationRef.current?.navigate) {
+        navigationRef.current.navigate('CardNote', {
+          noteId: newNote._id,
+          title: newNote.title || noteTitle,
+        });
+      }
       notifyNonBlocking('已创建新的 Markdown 笔记');
     } catch (e) {
       notifyNonBlocking('创建笔记失败');
@@ -223,27 +233,29 @@ const KnowledgeBaseSearchScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
-      <View style={styles.header}>
-        <ScreenHeaderBackButton
-          onPress={handleGoBack}
-          testID="action.kbSearch.goBack"
-          style={styles.backButton}
-        />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="在知识库中搜索..."
-          placeholderTextColor={theme.colors.textSecondary}
-          value={query}
-          onChangeText={handleQueryChange}
-          autoFocus
-          testID="input.kbSearch.query"
-          accessibilityLabel="知识库搜索输入框"
-          accessibilityHint="输入关键词以搜索知识库片段和笔记"
-          returnKeyType="search"
-          submitBehavior="submit"
-        />
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]}>
+        <View style={styles.headerTopRow}>
+          <ScreenHeaderBackButton
+            onPress={handleGoBack}
+            testID="action.kbSearch.goBack"
+            style={styles.backButton}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="在知识库中搜索..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={query}
+            onChangeText={handleQueryChange}
+            autoFocus
+            testID="input.kbSearch.query"
+            accessibilityLabel="知识库搜索输入框"
+            accessibilityHint="输入关键词以搜索知识库片段和笔记"
+            returnKeyType="search"
+            submitBehavior="submit"
+          />
+        </View>
       </View>
 
       <View style={styles.filterContainer}>
@@ -393,74 +405,74 @@ const KnowledgeBaseSearchScreen = ({ route, navigation }) => {
                 accessibilityLabel="搜索结果操作菜单"
                 accessibilityHint="可选择创建笔记、复制内容或跳转到源"
               >
-              <Text
-                style={styles.actionSheetTitle}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                testID="text.kbSearch.actionMenuTitle"
-                accessibilityRole="header"
-                accessibilityLabel={`搜索结果操作菜单标题：${activeResult?.source?.title || '操作'}`}
-              >
-                {activeResult?.source?.title || '操作'}
-              </Text>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleCreateNoteFromActive}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="创建笔记"
-                accessibilityHint="根据当前片段创建一条新的笔记"
-                testID="action.kbSearch.createNote"
-              >
-                <Icon name="note-add" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
-                <Text style={styles.actionButtonText}>创建笔记</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleCopyActiveText}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="复制内容"
-                accessibilityHint="复制当前片段文本到剪贴板"
-                testID="action.kbSearch.copyContent"
-              >
-                <Icon name="content-copy" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
-                <Text style={styles.actionButtonText}>复制内容</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleGoToActiveSource}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="跳转到源"
-                accessibilityHint="打开当前片段对应的来源位置"
-                testID="action.kbSearch.goToSource"
-              >
-                <Icon name="open-in-new" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
-                <Text style={styles.actionButtonText}>跳转到源</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.actionCancel]}
-                onPress={closeActionMenu}
-                activeOpacity={0.9}
-                accessibilityRole="button"
-                accessibilityLabel="取消"
-                accessibilityHint="关闭操作菜单并返回搜索结果"
-                testID="action.kbSearch.cancelActionMenu"
-              >
-                <Text style={styles.actionButtonText}>取消</Text>
-              </TouchableOpacity>
+                <Text
+                  style={styles.actionSheetTitle}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  testID="text.kbSearch.actionMenuTitle"
+                  accessibilityRole="header"
+                  accessibilityLabel={`搜索结果操作菜单标题：${activeResult?.source?.title || '操作'}`}
+                >
+                  {activeResult?.source?.title || '操作'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleCreateNoteFromActive}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="创建笔记"
+                  accessibilityHint="根据当前片段创建一条新的笔记"
+                  testID="action.kbSearch.createNote"
+                >
+                  <Icon name="note-add" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
+                  <Text style={styles.actionButtonText}>创建笔记</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleCopyActiveText}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="复制内容"
+                  accessibilityHint="复制当前片段文本到剪贴板"
+                  testID="action.kbSearch.copyContent"
+                >
+                  <Icon name="content-copy" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
+                  <Text style={styles.actionButtonText}>复制内容</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleGoToActiveSource}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="跳转到源"
+                  accessibilityHint="打开当前片段对应的来源位置"
+                  testID="action.kbSearch.goToSource"
+                >
+                  <Icon name="open-in-new" size={18} color={theme.colors.text} style={styles.actionButtonIcon} />
+                  <Text style={styles.actionButtonText}>跳转到源</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.actionCancel]}
+                  onPress={closeActionMenu}
+                  activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel="取消"
+                  accessibilityHint="关闭操作菜单并返回搜索结果"
+                  testID="action.kbSearch.cancelActionMenu"
+                >
+                  <Text style={styles.actionButtonText}>取消</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
         </TouchableOpacity>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
-    container: {
+  container: {
         flex: 1,
         backgroundColor: theme.colors.background,
     },
@@ -471,12 +483,15 @@ const getStyles = (theme) => StyleSheet.create({
         fontSize: 13,
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingHorizontal: 12,
-        paddingVertical: 10,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
+        paddingBottom: 10,
+        backgroundColor: theme.colors.background,
+    },
+    headerTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     backButton: {
         flexShrink: 0,

@@ -33,6 +33,7 @@ import autoClassificationApi from '../../services/api/autoClassificationApi';
 
 // 瀵煎叆甯搁噺鍜屽伐鍏峰嚱鏁?
 import { useTheme } from '../../context/ThemeContext';
+import { navigationRef } from '../../navigation/navigationRef';
 import { SPACING, TYPOGRAPHY } from '../../styles/constants';
 
 // 瀵煎叆缁勪欢
@@ -98,7 +99,19 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const isErrorToastMessage = (message) => message.includes('失败');
 
   const navigateToNoteEdit = () => {
-    navigation.navigate('Notes', { screen: 'NoteEdit' });
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate('CardNote', {
+        createNew: true,
+        title: '新建笔记',
+        content: '',
+      });
+      return;
+    }
+    navigation.navigate('CardNote', {
+      createNew: true,
+      title: '新建笔记',
+      content: '',
+    });
   };
 
   const handleNodePickerItemPress = (node) => {
@@ -224,6 +237,10 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
 
   // 澶勭悊鑺傜偣鐐瑰嚮
   const handleNodePress = (node) => {
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate('NodeDetail', { nodeId: node.id });
+      return;
+    }
     navigation.navigate('NodeDetail', { nodeId: node.id });
   };
   const handleGoBack = () => navigation.goBack();
@@ -260,39 +277,45 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const handleTagsSelected = (tags) => {
     // 瀵艰埅鍒扮瑪璁扮紪杈戦〉闈紝骞朵紶閫掗€変腑鐨勬爣绛?
     // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁扮紪杈戝睆骞?
-    navigation.navigate('Notes', {
-      screen: 'NoteEdit',
-      params: {
-        noteId,
-        selectedTags: tags,
-      },
-    });
+    const params = {
+      noteId,
+      selectedTags: tags,
+    };
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate('CardNote', params);
+      return;
+    }
+    navigation.navigate('CardNote', params);
   };
 
   // 澶勭悊鍒嗙被閫夋嫨
   const handleCategorySelected = (category) => {
     // 瀵艰埅鍒扮瑪璁扮紪杈戦〉闈紝骞朵紶閫掗€変腑鐨勫垎绫?
     // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁扮紪杈戝睆骞?
-    navigation.navigate('Notes', {
-      screen: 'NoteEdit',
-      params: {
-        noteId,
-        selectedCategory: category,
-      },
-    });
+    const params = {
+      noteId,
+      selectedCategory: category,
+    };
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate('CardNote', params);
+      return;
+    }
+    navigation.navigate('CardNote', params);
   };
 
   // 澶勭悊绗旇閫夋嫨
   const handleNoteSelected = (note) => {
     // 瀵艰埅鍒扮瑪璁拌鎯呴〉闈?
     // 浣跨敤宓屽瀵艰埅锛岀‘淇濆鑸埌姝ｇ‘鐨勭瑪璁拌鎯呭睆骞?
-    navigation.navigate('Notes', {
-      screen: 'NotesList',
-      params: {
-        initialNoteId: note.id,
-        title: note.title,
-      },
-    });
+    const params = {
+      noteId: note?.id,
+      title: note?.title,
+    };
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate('CardNote', params);
+      return;
+    }
+    navigation.navigate('CardNote', params);
   };
 
   // 娓叉煋鍔犺浇鐘舵€?

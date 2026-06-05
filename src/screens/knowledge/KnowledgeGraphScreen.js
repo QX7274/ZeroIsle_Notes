@@ -52,6 +52,7 @@ import { dimensions } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
 
 import networkErrorService from '../../services/networkErrorService';
+import { navigationRef } from '../../navigation/navigationRef';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
@@ -331,7 +332,7 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
   // 处理节点双击 - 导航到笔记详情
   const handleNodeDoubleTap = (node) => {
     if (node.type === 'note' && node.id) {
-      navigation.navigate('NoteEditor', { noteId: node.id });
+      navigateToRoot('CardNote', { noteId: node.id, title: node.title || '卡片笔记' });
     }
   };
 
@@ -400,12 +401,12 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
 
   const openKnowledgeAnalysis = () => {
     if (isLoading) {return;}
-    navigation.navigate('KnowledgeAnalysis');
+    navigateToRoot('KnowledgeAnalysis');
   };
 
   const openNodeDetail = () => {
     if (isLoading || !selectedNode) {return;}
-    navigation.navigate('NodeDetail', { nodeId: selectedNode?.id });
+    navigateToRoot('NodeDetail', { nodeId: selectedNode?.id });
   };
 
   const handleGoBack = () => {
@@ -414,15 +415,19 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
   };
 
   const openProfile = () => {
-    navigation.navigate('Profile');
+    navigateToRoot('Profile');
   };
 
   const openNoteEdit = () => {
-    navigation.navigate('NoteEdit');
+    navigateToRoot('CardNote', {
+      createNew: true,
+      title: '新建笔记',
+      content: '',
+    });
   };
 
   const openKnowledgeAnalysisFromEmpty = () => {
-    navigation.navigate('KnowledgeAnalysis');
+    navigateToRoot('KnowledgeAnalysis');
   };
 
   const clearSelectedNode = () => {
@@ -436,7 +441,15 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
       setToastMessage('当前节点不支持直接编辑');
       return;
     }
-    navigation.navigate('NoteEditor', { noteId: selectedNode.id });
+    navigateToRoot('CardNote', { noteId: selectedNode.id, title: selectedNode.title || '卡片笔记' });
+  };
+
+  const navigateToRoot = (routeName, params) => {
+    if (navigationRef.current?.navigate) {
+      navigationRef.current.navigate(routeName, params);
+      return;
+    }
+    navigation.navigate(routeName, params);
   };
 
   const openEdgeSuggestions = async () => {
