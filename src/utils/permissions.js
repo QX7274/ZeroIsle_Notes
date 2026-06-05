@@ -21,8 +21,13 @@ export const checkNotificationPermission = async () => {
     if (Platform.OS === 'android') {
       // Android 13及以上需要明确请求通知权限
       if (Platform.Version >= 33) {
-        const result = await check(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
-        return result === RESULTS.GRANTED;
+        if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+          const result = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+          return result;
+        }
+
+        // 某些运行时可能不暴露该常量，避免因为权限常量缺失阻塞通知入口
+        return true;
       }
 
       // Android 13以下默认有通知权限
@@ -58,8 +63,14 @@ export const requestNotificationPermission = async (timeout = 5000) => {
         if (Platform.OS === 'android') {
           // Android 13及以上需要明确请求通知权限
           if (Platform.Version >= 33) {
-            const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
-            resolve(result === RESULTS.GRANTED);
+            if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+              const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+              resolve(result === PermissionsAndroid.RESULTS.GRANTED);
+              return;
+            }
+
+            // 某些运行时可能不暴露该常量，避免请求阶段触发原生异常
+            resolve(true);
             return;
           }
 

@@ -1,47 +1,56 @@
 /**
  * 通知设置屏幕
  */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  StyleSheet,
+  Alert,
+  Linking,
+  Platform,
   ScrollView,
+  StyleSheet,
   Switch,
   TouchableOpacity,
-  Alert,
-  Platform,
-  Linking,
+  View,
 } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Text } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 import { updateSettings } from '../../redux/slices/settingsSlice';
-import { requestNotificationPermission } from '../../utils/permissions';
-import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
+import {
+  checkNotificationPermission as checkNotificationPermissionUtil,
+  requestNotificationPermission,
+} from '../../utils/permissions';
+import { BORDER, ELEVATION, RADIUS, SIZE, SPACING } from '../../theme/tokens';
 
 const NotificationSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  // Ensure we have the correct color object
   const colors = theme.colors || theme;
   const dispatch = useDispatch();
+  const settings = useSelector((state) => state.settings || {});
 
-  // 从Redux获取设置
-  const settings = useSelector(state => state.settings);
-
-  // 本地状态
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const pageState = isLoading ? 'busy' : 'ready';
 
-  // 检查通知权限
+  // 兼容旧字段 notifications 与新字段 notificationEnabled
+  const masterEnabled = useMemo(() => {
+    if (typeof settings.notificationEnabled === 'boolean') {
+      return settings.notificationEnabled;
+    }
+    if (typeof settings.notifications === 'boolean') {
+      return settings.notifications;
+    }
+    return false;
+  }, [settings.notificationEnabled, settings.notifications]);
+
   useEffect(() => {
-    checkNotificationPermission();
+    loadNotificationPermission();
   }, []);
 
-  // 检查通知权限
-  const checkNotificationPermission = async () => {
+  const loadNotificationPermission = async () => {
     try {
-      const permission = await requestNotificationPermission(false);
+      const permission = await checkNotificationPermissionUtil();
       setHasPermission(permission);
     } catch (error) {
       console.error('检查通知权限失败:', error);
@@ -49,347 +58,259 @@ const NotificationSettingsScreen = ({ navigation }) => {
     }
   };
 
-  // 请求通知权限
+  const setSettingsPatch = (patch) => {
+    dispatch(updateSettings(patch));
+  };
+
+  const updateNotificationSetting = (key, value) => {
+    if ((key === 'notificationEnabled' || key === 'notifications') && value && !hasPermission) {
+      requestPermission();
+      return;
+    }
+
+    if (key === 'notificationEnabled' || key === 'notifications') {
+      setSettingsPatch({ notificationEnabled: value, notifications: value });
+      return;
+    }
+
+    setSettingsPatch({ [key]: value });
+  };
+
   const requestPermission = async () => {
     setIsLoading(true);
     try {
-      const permission = await requestNotificationPermission(true);
+      const permission = await requestNotificationPermission(5000);
       setHasPermission(permission);
 
       if (permission) {
-        // 如果获得权限，启用通知
         updateNotificationSetting('notificationEnabled', true);
       } else {
-        // 如果没有获得权限，显示提示
-        Alert.alert(
-          '通知权限',
-          '无法获取通知权限。请在设备设置中手动启用通知权限。',
-          [
-            {
-              text: '稍后再说',
-              style: 'cancel',
+        Alert.alert('通知权限', '无法获取通知权限，请在系统设置中手动开启。', [
+          { text: '稍后再说', style: 'cancel' },
+          {
+            text: '去设置',
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
             },
-            {
-              text: '去设置',
-              onPress: () => {
-                // 打开应用设置
-                if (Platform.OS === 'ios') {
-                  Linking.openURL('app-settings:');
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ]
-        );
+          },
+        ]);
       }
     } catch (error) {
       console.error('请求通知权限失败:', error);
-      Alert.alert('错误', '请求通知权限失败');
+      Alert.alert('错误', '请求通知权限失败，请稍后重试。');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 更新通知设置
-  const updateNotificationSetting = (key, value) => {
-    // 如果要启用通知，但没有权限，则请求权限
-    if (key === 'notificationEnabled' && value && !hasPermission) {
-      requestPermission();
-      return;
-    }
+  const baseDisabled = !hasPermission || !masterEnabled;
 
-    const newSettings = { ...settings, [key]: value };
-    dispatch(updateSettings(newSettings));
-  };
-
-  // 渲染设置项
-  const renderSettingItem = ({ icon, title, description, key, disabled = false }) => (
-    <View style={[styles.settingItem, { borderBottomColor: colors.border || '#f0f0f0' }]}>
+  const renderSwitchItem = ({ icon, title, description, key, disabled = false }) => (
+    <View style={[styles.settingItem, { borderBottomColor: colors.border || '#D4E5FF' }]}>
       <View style={styles.settingInfo}>
         <View style={styles.settingHeader}>
           <Icon name={icon} size={SIZE.icon.sm} color={disabled ? colors.textSecondary : colors.text} />
-          <Text
-            style={[
-              styles.settingTitle,
-              { color: disabled ? colors.textSecondary : colors.text },
-            ]}
-          >
+          <Text style={[styles.settingTitle, { color: disabled ? colors.textSecondary : colors.text }]}>
             {title}
           </Text>
         </View>
-
-        {description && (
-          <Text
-            style={[
-              styles.settingDescription,
-              { color: colors.textSecondary, fontSize: 12 },
-            ]}
-          >
-            {description}
-          </Text>
-        )}
+        <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+          {description}
+        </Text>
       </View>
-
       <Switch
-        value={settings[key]}
+        value={settings[key] ?? false}
         onValueChange={(value) => updateNotificationSetting(key, value)}
-        trackColor={{ false: colors.border, true: (colors.primary || '#007AFF') + '80' }}
-        thumbColor={settings[key] ? (colors.primary || '#007AFF') : (colors.card || '#FFFFFF')}
+        trackColor={{ false: '#C9DDFB', true: '#7CB2FF' }}
+        thumbColor={(settings[key] ?? false) ? '#1D4ED8' : '#F7FAFF'}
         disabled={disabled}
       />
     </View>
   );
 
+  const renderPriorityItem = (value, icon, label, color) => (
+    <TouchableOpacity
+      style={[styles.priorityItem, { borderBottomColor: colors.border || '#D4E5FF' }]}
+      onPress={() => updateNotificationSetting('notificationPriority', value)}
+      disabled={baseDisabled}
+      testID={`action.settings.notification.priority.${value}`}
+    >
+      <View style={styles.priorityInfo}>
+        <Icon name={icon} size={SIZE.icon.sm} color={color} />
+        <Text style={[styles.priorityText, { color: baseDisabled ? colors.textSecondary : colors.text }]}>
+          {label}
+        </Text>
+      </View>
+      <View style={styles.priorityCheck}>
+        {settings.notificationPriority === value ? (
+          <Icon name="check" size={SIZE.icon.sm} color={colors.primary || '#1D4ED8'} />
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.content}>
-        {/* 通知权限状态 */}
-        <View style={[styles.permissionCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+    <View style={styles.container} testID={`state.settings.notification.state.${pageState}`}>
+      <View testID="state.settings.notification.visibility.visible" />
+      <View testID={`state.settings.notification.permission.visibility.${hasPermission ? 'granted' : 'denied'}`} />
+      <View testID={`state.settings.notification.requestBusy.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.notification.masterSwitch.${masterEnabled ? 'on' : 'off'}`} />
+      <View testID={`state.settings.notification.priority.${settings.notificationPriority || 'unknown'}`} />
+
+      <ScrollView style={styles.content} testID="list.settings.notification.sections">
+        <View style={[styles.card, styles.permissionCard]}>
           <View style={styles.permissionHeader}>
             <Icon
               name={hasPermission ? 'notifications-active' : 'notifications-off'}
               size={SIZE.icon.md}
-              color={hasPermission ? colors.success : colors.error}
+              color={hasPermission ? '#16A34A' : '#DC2626'}
             />
-            <Text
-              style={[
-                styles.permissionTitle,
-                { fontWeight: 'bold', color: colors.text },
-              ]}
-            >
-              {hasPermission ? '通知已启用' : '通知已禁用'}
+            <Text style={[styles.permissionTitle, { color: colors.text }]}>
+              {hasPermission ? '通知权限已启用' : '通知权限未启用'}
             </Text>
           </View>
-
-          <Text
-            style={[
-              styles.permissionDescription,
-              { color: colors.textSecondary, fontSize: 13 },
-            ]}
-          >
+          <Text style={[styles.permissionDescription, { color: colors.textSecondary }]}>
             {hasPermission
-              ? '您已授予应用发送通知的权限'
-              : '您需要授予应用发送通知的权限才能接收提醒和更新'}
+              ? '系统已允许应用发送通知。你可以按需配置提醒类型与优先级。'
+              : '请先授予系统通知权限，否则将无法接收提醒、同步和更新通知。'}
           </Text>
-
-          {!hasPermission && (
+          {!hasPermission ? (
             <TouchableOpacity
-              style={[styles.permissionButton, { backgroundColor: colors.primary || '#007AFF' }]}
+              style={[styles.permissionButton, { backgroundColor: colors.primary || '#1D4ED8' }]}
               onPress={requestPermission}
               disabled={isLoading}
+              testID="action.settings.notification.requestPermission"
             >
-              <Text
-                style={[
-                  { color: colors.card || '#FFFFFF', fontSize: 13 },
-                ]}
-              >
-                {isLoading ? '请求中...' : '授予权限'}
-              </Text>
+              <Text style={styles.permissionButtonText}>{isLoading ? '请求中...' : '授权通知权限'}</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
-        {/* 通知设置 */}
-        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
-          {renderSettingItem({
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>通知类型</Text>
+        <View style={styles.card}>
+          {renderSwitchItem({
             icon: 'notifications',
             title: '启用通知',
-            description: '接收应用的通知和提醒',
+            description: '统一控制应用通知总开关。',
             key: 'notificationEnabled',
             disabled: !hasPermission,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'event-note',
             title: '提醒通知',
-            description: '接收笔记提醒和待办事项通知',
+            description: '接收日程与待办提醒。',
             key: 'reminderNotification',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'sync',
             title: '同步通知',
-            description: '接收数据同步状态的通知',
+            description: '接收同步成功或失败状态提醒。',
             key: 'syncNotification',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'forum',
             title: '社区通知',
-            description: '接收评论、回复和点赞通知',
+            description: '接收评论、回复与互动提醒。',
             key: 'communityNotification',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'update',
             title: '更新通知',
-            description: '接收应用更新和新功能通知',
+            description: '接收版本更新与新功能信息。',
             key: 'updateNotification',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
         </View>
 
-        {/* 通知时间设置 */}
-        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>通知时间</Text>
+        <View style={styles.card}>
           <TouchableOpacity
             style={styles.timeSettingItem}
             onPress={() => navigation.navigate('NotificationTimeSettings')}
-            disabled={!hasPermission || !settings.notificationEnabled}
+            disabled={baseDisabled}
+            testID="entry.settings.notification.timeWindow"
           >
             <View style={styles.settingInfo}>
               <View style={styles.settingHeader}>
-                <Icon
-                  name="access-time"
-                  size={SIZE.icon.sm}
-                  color={!hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text}
-                />
-                <Text
-                  style={[
-                    styles.settingTitle,
-                    { color: !hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text },
-                  ]}
-                >
-                  免打扰时间
+                <Icon name="access-time" size={SIZE.icon.sm} color={baseDisabled ? colors.textSecondary : colors.text} />
+                <Text style={[styles.settingTitle, { color: baseDisabled ? colors.textSecondary : colors.text }]}>
+                  免打扰时段
                 </Text>
               </View>
-
-              <Text
-                style={[
-                  styles.settingDescription,
-                  { color: colors.textSecondary, fontSize: 12 },
-                ]}
-              >
-                设置不接收通知的时间段
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                设置不接收通知的时间范围。
               </Text>
             </View>
-
-            <Icon
-              name="chevron-right"
-              size={SIZE.icon.md}
-              color={!hasPermission || !settings.notificationEnabled ? colors.textSecondary : colors.text}
-            />
+            <Icon name="chevron-right" size={SIZE.icon.md} color={baseDisabled ? colors.textSecondary : colors.text} />
           </TouchableOpacity>
         </View>
 
-        {/* 多渠道通知配置 */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>通知渠道</Text>
-        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
-          {renderSettingItem({
+        <View style={styles.card}>
+          {renderSwitchItem({
             icon: 'smartphone',
             title: '推送通知',
-            description: '通过系统推送接收通知',
+            description: '通过系统推送接收通知。',
             key: 'pushNotificationEnabled',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'email',
             title: '邮件通知',
-            description: '通过邮件接收重要通知摘要',
+            description: '通过邮件接收重要通知摘要。',
             key: 'emailNotificationEnabled',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'inbox',
             title: '应用内通知',
-            description: '在应用内显示通知徽章和弹窗',
+            description: '在应用内显示提醒与消息。',
             key: 'inAppNotificationEnabled',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
         </View>
 
-        {/* 通知优先级 */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>通知优先级</Text>
-        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
-          <TouchableOpacity
-            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
-            onPress={() => updateNotificationSetting('notificationPriority', 'high')}
-            disabled={!hasPermission || !settings.notificationEnabled}
-          >
-            <View style={styles.priorityInfo}>
-              <Icon name="priority-high" size={SIZE.icon.sm} color={colors.error} />
-              <Text style={[styles.priorityText, { color: colors.text }]}>高优先级</Text>
-            </View>
-            <View style={styles.priorityCheck}>
-              {settings.notificationPriority === 'high' && (
-                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
-              )}
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
-            onPress={() => updateNotificationSetting('notificationPriority', 'medium')}
-            disabled={!hasPermission || !settings.notificationEnabled}
-          >
-            <View style={styles.priorityInfo}>
-              <Icon name="notifications" size={SIZE.icon.sm} color={colors.warning} />
-              <Text style={[styles.priorityText, { color: colors.text }]}>中优先级</Text>
-            </View>
-            <View style={styles.priorityCheck}>
-              {settings.notificationPriority === 'medium' && (
-                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
-              )}
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.priorityItem, { borderBottomColor: colors.border || '#f0f0f0' }]}
-            onPress={() => updateNotificationSetting('notificationPriority', 'low')}
-            disabled={!hasPermission || !settings.notificationEnabled}
-          >
-            <View style={styles.priorityInfo}>
-              <Icon name="notifications-none" size={SIZE.icon.sm} color={colors.textSecondary} />
-              <Text style={[styles.priorityText, { color: colors.text }]}>低优先级</Text>
-            </View>
-            <View style={styles.priorityCheck}>
-              {settings.notificationPriority === 'low' && (
-                <Icon name="check" size={SIZE.icon.sm} color={colors.primary} />
-              )}
-            </View>
-          </TouchableOpacity>
+        <View style={styles.card}>
+          {renderPriorityItem('high', 'priority-high', '高优先级', '#DC2626')}
+          {renderPriorityItem('medium', 'notifications', '中优先级', '#F59E0B')}
+          {renderPriorityItem('low', 'notifications-none', '低优先级', '#94A3B8')}
         </View>
 
-        {/* 声音和振动 */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>声音和振动</Text>
-        <View style={[styles.settingsCard, { backgroundColor: colors.card || '#FFFFFF' }]}>
-          {renderSettingItem({
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>声音与振动</Text>
+        <View style={styles.card}>
+          {renderSwitchItem({
             icon: 'volume-up',
             title: '通知声音',
-            description: '播放通知提示音',
+            description: '收到通知时播放提示音。',
             key: 'notificationSound',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'vibration',
-            title: '振动',
-            description: '收到通知时振动',
+            title: '振动提醒',
+            description: '收到通知时进行振动。',
             key: 'notificationVibration',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
-
-          {renderSettingItem({
+          {renderSwitchItem({
             icon: 'flash-on',
-            title: 'LED指示灯',
-            description: '有未读通知时闪烁LED灯',
+            title: 'LED 指示灯',
+            description: '未读通知时闪烁提示灯（设备支持时）。',
             key: 'notificationLED',
-            disabled: !hasPermission || !settings.notificationEnabled,
+            disabled: baseDisabled,
           })}
         </View>
 
-        <Text
-          style={[
-            styles.note,
-            { color: colors.textSecondary, fontSize: 12 },
-          ]}
-        >
-          注意：即使启用了通知，您也可能需要在设备设置中允许应用发送通知
+        <Text style={[styles.note, { color: colors.textSecondary }]}>
+          提示：即使已在应用内开启通知，也请在系统设置中确认通知权限和渠道配置已允许。
         </Text>
       </ScrollView>
     </View>
@@ -399,16 +320,30 @@ const NotificationSettingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F4F8FF',
   },
   content: {
     flex: 1,
     padding: SPACING.md,
   },
-  permissionCard: {
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
+    marginLeft: 2,
+  },
+  card: {
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
     marginBottom: SPACING.md,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: '#D4E5FF',
+    overflow: 'hidden',
     ...ELEVATION.sm,
+  },
+  permissionCard: {
+    padding: SPACING.md,
   },
   permissionHeader: {
     flexDirection: 'row',
@@ -417,21 +352,24 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     marginLeft: SPACING.sm,
+    fontSize: 16,
+    fontWeight: '700',
   },
   permissionDescription: {
-    marginBottom: SPACING.md,
+    fontSize: 13,
+    lineHeight: 20,
   },
   permissionButton: {
+    marginTop: SPACING.md,
     alignSelf: 'flex-start',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.sm,
   },
-  settingsCard: {
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.md,
-    overflow: 'hidden',
-    ...ELEVATION.sm,
+  permissionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   settingItem: {
     flexDirection: 'row',
@@ -450,26 +388,18 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     marginLeft: SPACING.sm,
+    fontSize: 14,
+    fontWeight: '600',
   },
   settingDescription: {
-    marginLeft: 28, // Icon size + margin
+    marginLeft: 28,
+    fontSize: 12,
+    lineHeight: 18,
   },
   timeSettingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
-  },
-  note: {
-    textAlign: 'center',
-    marginBottom: SPACING.xl,
-    marginTop: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: SPACING.sm,
-    marginTop: SPACING.sm,
-    paddingHorizontal: 4,
   },
   priorityItem: {
     flexDirection: 'row',
@@ -491,6 +421,13 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  note: {
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xl,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });
 
