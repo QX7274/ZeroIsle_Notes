@@ -1,21 +1,19 @@
 /**
  * 数据分析界面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
   ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import personalActivityApi from '../../services/api/personalActivityApi';
-
-const { width } = Dimensions.get('window');
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const AnalyticsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -25,11 +23,7 @@ const AnalyticsScreen = ({ navigation }) => {
   const [insights, setInsights] = useState([]);
   const [trends, setTrends] = useState(null);
 
-  useEffect(() => {
-    loadAnalyticsData();
-  }, [activeTab]);
-
-  const loadAnalyticsData = async () => {
+  const loadAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'reports') {
@@ -47,7 +41,11 @@ const AnalyticsScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [loadAnalyticsData]);
 
   const renderTabBar = () => {
     const tabs = [
@@ -271,12 +269,12 @@ const AnalyticsScreen = ({ navigation }) => {
     }
   };
 
-  const getInsightColor = (type, colors) => {
+  const getInsightColor = (type, palette) => {
     switch (type) {
-      case 'pattern': return colors.info;
-      case 'recommendation': return colors.success;
-      case 'warning': return colors.warning;
-      default: return colors.primary;
+      case 'pattern': return palette.info;
+      case 'recommendation': return palette.success;
+      case 'warning': return palette.warning;
+      default: return palette.primary;
     }
   };
 
@@ -302,12 +300,7 @@ const AnalyticsScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 头部 */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.analytics.back" style={styles.backButton} />
         <Text variant="h2" style={styles.headerTitle}>数据分析</Text>
         <View style={styles.placeholder} />
       </View>
@@ -349,7 +342,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   backButton: {
-    padding: 8,
+    flexShrink: 0,
   },
   headerTitle: {
     flex: 1,

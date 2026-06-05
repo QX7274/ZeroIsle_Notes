@@ -9,14 +9,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { UnifiedSearchBar } from '../../components/search';
 import SearchFilters from '../../components/search/SearchFilters';
 import SearchHistory from '../../components/search/SearchHistory';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const SearchResultsScreen = ({ navigation, route }) => {
   const themeContext = useTheme();
@@ -87,13 +89,13 @@ const SearchResultsScreen = ({ navigation, route }) => {
 
         setResults(newResults);
         applyFilters(newResults, filters);
-      } catch (error) {
+      } catch {
         setError('刷新搜索结果失败');
       } finally {
         setIsRefreshing(false);
       }
     }
-  }, [currentQuery, initialSearchMode, filters, dispatch]);
+  }, [currentQuery, initialSearchMode, filters, dispatch, applyFilters]);
 
   // 应用过滤器
   const applyFilters = useCallback((resultsToFilter, currentFilters) => {
@@ -199,8 +201,8 @@ const SearchResultsScreen = ({ navigation, route }) => {
           handleSearch(action.payload, history.query);
         }
       })
-      .catch(err => {
-        setError('搜索失败: ' + err.message);
+      .catch(searchErr => {
+        setError('搜索失败: ' + searchErr.message);
       })
       .finally(() => {
         setIsLoading(false);
@@ -283,8 +285,8 @@ const SearchResultsScreen = ({ navigation, route }) => {
           });
           break;
       }
-    } catch (error) {
-      console.error('搜索结果跳转失败:', error);
+    } catch (navigationError) {
+      console.error('搜索结果跳转失败:', navigationError);
       Alert.alert('跳转失败', '无法打开该文件，请稍后重试');
     }
   };
@@ -373,12 +375,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.searchResults.back" style={styles.backButton} />
         <Text
           variant="heading"
           level="h6"
@@ -503,8 +500,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backButton: {
-    padding: 8,
     marginRight: 8,
+    flexShrink: 0,
   },
   headerTitle: {
     flex: 1,
