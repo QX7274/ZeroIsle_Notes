@@ -279,3 +279,32 @@ Expected: 新增或修改的回归用例通过。
 ```md
 - 重点关注：知识库搜索页顶部留白、个人主页功能中心层次感、返回按钮一致性
 ```
+
+### Task 7: 收口群组邀请链路的网络错误展示
+
+**Files:**
+- Modify: `src/redux/slices/groupsSlice.js`
+- Modify: `src/screens/groups/GroupsScreen.js`
+- Modify: `src/screens/groups/InvitationsScreen.js`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+
+- [ ] **Step 1: 让群组邀请/列表在离线无缓存时优先走统一网络错误处理**
+
+```md
+- 目标：避免底部错误条破坏页面一致性
+- 约束：不重做群组页顶部和成熟卡片样式
+```
+
+- [ ] **Step 2: 复测群组页与邀请页，确认错误展示不再回退到原始提示条**
+
+```md
+- 目标：网络问题只能走统一弹窗或静默降级
+- 约束：如果出现错误，必须明确是全局网络弹窗还是页面内业务失败
+```
+
+- [ ] **Step 3: 把群组网络错误收口结果写回进度文档**
+
+```md
+- 需要记录：根因、修改范围、真机复测结果
+- 需要记录：顶部结构和返回按钮未被这次修改影响
+```

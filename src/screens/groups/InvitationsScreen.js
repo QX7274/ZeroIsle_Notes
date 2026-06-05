@@ -1,10 +1,10 @@
 /**
  * 群组邀请列表屏幕
  */
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   fetchGroupInvitations,
@@ -13,19 +13,32 @@ import {
   selectGroupInvitations,
   selectGroupsLoading,
 } from '../../redux/slices/groupsSlice';
-import { useTheme } from '../../context/ThemeContext';
 import { COLORS } from '../../utils/constants/colors';
 
 const InvitationsScreen = () => {
   const dispatch = useDispatch();
-  const { theme } = useTheme();
   const invitations = useSelector(selectGroupInvitations) || [];
   const isLoading = useSelector(selectGroupsLoading);
   const groupsError = useSelector((state) => state.groups.error);
+  const [pendingInvitationId, setPendingInvitationId] = useState(null);
+  const [pendingActionType, setPendingActionType] = useState(null);
+
   const isNetworkFallback = useMemo(() => {
     const message = groupsError || '';
-    return message.includes('网络') || message.includes('Network Error');
+    return (
+      message.toLowerCase().includes('network error') ||
+      message.includes('网络') ||
+      message.includes('离线') ||
+      message.includes('无缓存') ||
+      message.includes('offline')
+    );
   }, [groupsError]);
+
+  const hasInvitations = invitations.length > 0;
+  const pageState = isLoading ? 'loading' : hasInvitations ? 'ready' : 'empty';
+  const busyVisible = Boolean(pendingInvitationId);
+  const errorVisible = Boolean(groupsError) && !isNetworkFallback;
+  const networkFallbackVisible = Boolean(isNetworkFallback);
 
   const loadInvitations = useCallback(() => {
     dispatch(fetchGroupInvitations());
@@ -35,34 +48,66 @@ const InvitationsScreen = () => {
     loadInvitations();
   }, [loadInvitations]);
 
-  const handleAccept = (invitationId) => {
-    dispatch(acceptGroupInvitation(invitationId)).then(() => {
+  const handleAccept = async (invitationId) => {
+    if (!invitationId) {
+      return;
+    }
+    setPendingInvitationId(invitationId);
+    setPendingActionType('accept');
+    try {
+      await dispatch(acceptGroupInvitation(invitationId));
       loadInvitations();
-    });
+    } finally {
+      setPendingInvitationId(null);
+      setPendingActionType(null);
+    }
   };
 
-  const handleReject = (invitationId) => {
-    dispatch(rejectGroupInvitation(invitationId)).then(() => {
+  const handleReject = async (invitationId) => {
+    if (!invitationId) {
+      return;
+    }
+    setPendingInvitationId(invitationId);
+    setPendingActionType('reject');
+    try {
+      await dispatch(rejectGroupInvitation(invitationId));
       loadInvitations();
-    });
+    } finally {
+      setPendingInvitationId(null);
+      setPendingActionType(null);
+    }
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
+    <View style={styles.card} testID={`state.group.invitations.item.${item.id}`}>
       <View style={styles.row}>
-        <Icon name="account-group" size={20} color={COLORS.TEXT_SECONDARY} />
-        <Text style={styles.title} numberOfLines={1}>{item.group?.name || '群组'}</Text>
+        <Icon name="account-group" size={20} color={COLORS.PRIMARY} />
+        <Text style={styles.title} numberOfLines={1}>
+          {item.group?.name || '未命名群组'}
+        </Text>
       </View>
       <Text style={styles.message} numberOfLines={2}>
-        {item.inviter?.username ? `${item.inviter.username} 邀请你加入` : '你收到一个群组邀请'}
+        {item.inviter?.username
+          ? `${item.inviter.username} 邀请你加入群组`
+          : '你收到一条新的群组邀请'}
       </Text>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={[styles.btn, styles.accept]} onPress={() => handleAccept(item.id)}>
+        <TouchableOpacity
+          style={[styles.btn, styles.accept, busyVisible && styles.btnDisabled]}
+          onPress={() => handleAccept(item.id)}
+          disabled={busyVisible}
+          testID={`action.group.invitations.accept.${item.id}`}
+        >
           <Icon name="check" size={18} color="#fff" />
           <Text style={styles.btnText}>接受</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.reject]} onPress={() => handleReject(item.id)}>
+        <TouchableOpacity
+          style={[styles.btn, styles.reject, busyVisible && styles.btnDisabled]}
+          onPress={() => handleReject(item.id)}
+          disabled={busyVisible}
+          testID={`action.group.invitations.reject.${item.id}`}
+        >
           <Icon name="close" size={18} color="#fff" />
           <Text style={styles.btnText}>拒绝</Text>
         </TouchableOpacity>
@@ -72,24 +117,67 @@ const InvitationsScreen = () => {
 
   const renderEmpty = () => (
     <View style={styles.empty}>
-      <Icon name="inbox" size={32} color={COLORS.TEXT_SECONDARY} />
-      <Text style={styles.emptyText}>暂无邀请</Text>
-      {isNetworkFallback && (
-        <Text style={styles.hintText}>当前网络不可用，已显示离线空列表</Text>
-      )}
+      <Icon name="inbox" size={34} color={COLORS.TEXT_SECONDARY} />
+      <Text style={styles.emptyText}>当前没有待处理邀请</Text>
+      {isNetworkFallback ? (
+        <Text
+          style={styles.hintText}
+          testID={`state.group.invitations.networkFallback.visibility.${networkFallbackVisible ? 'visible' : 'hidden'}`}
+        >
+          当前网络不可用，已显示离线空列表
+        </Text>
+      ) : null}
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID={`state.group.invitations.state.${pageState}`}>
+      <View style={styles.headerCard} testID="panel.group.invitations.header">
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>群组邀请</Text>
+          <Text style={styles.headerMeta}>待处理：{invitations.length}</Text>
+        </View>
+        <Button
+          compact
+          mode="outlined"
+          onPress={loadInvitations}
+          loading={isLoading}
+          disabled={isLoading || busyVisible}
+          testID="action.group.invitations.refresh"
+        >
+          刷新
+        </Button>
+      </View>
+
+      <Text style={styles.stateAnchorText} testID={`state.group.invitations.loading.visibility.${isLoading ? 'visible' : 'hidden'}`}>
+        loading:{isLoading ? 'visible' : 'hidden'}
+      </Text>
+      <Text style={styles.stateAnchorText} testID={`state.group.invitations.busy.visibility.${busyVisible ? 'visible' : 'hidden'}`}>
+        busy:{busyVisible ? 'visible' : 'hidden'}:{pendingActionType || 'idle'}
+      </Text>
+      <Text style={styles.stateAnchorText} testID={`state.group.invitations.error.visibility.${errorVisible ? 'visible' : 'hidden'}`}>
+        error:{errorVisible ? 'visible' : 'hidden'}
+      </Text>
+      <Text style={styles.stateAnchorText} testID={`state.group.invitations.networkFallback.visibility.${networkFallbackVisible ? 'visible' : 'hidden'}`}>
+        networkFallback:{networkFallbackVisible ? 'visible' : 'hidden'}
+      </Text>
+
+      {errorVisible ? (
+        <View style={styles.errorCard} testID="state.group.invitations.error">
+          <Icon name="alert-circle-outline" size={18} color={COLORS.ERROR} />
+          <Text style={styles.errorText}>{groupsError}</Text>
+        </View>
+      ) : null}
+
       <FlatList
         data={invitations}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
         contentContainerStyle={invitations.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={renderEmpty}
         refreshing={isLoading}
         onRefresh={loadInvitations}
+        testID="list.group.invitations"
       />
     </View>
   );
@@ -98,7 +186,66 @@ const InvitationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: '#F6FAFF',
+  },
+  headerCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.11,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  headerTitleRow: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+  },
+  headerMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: COLORS.TEXT_SECONDARY,
+  },
+  stateAnchorText: {
+    marginTop: 6,
+    marginHorizontal: 16,
+    fontSize: 11,
+    color: '#6B7280',
+    lineHeight: 14,
+  },
+  errorCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: 'rgba(254,242,242,0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    color: COLORS.ERROR,
+    flex: 1,
+    lineHeight: 19,
   },
   emptyContainer: {
     flexGrow: 1,
@@ -109,23 +256,32 @@ const styles = StyleSheet.create({
   empty: {
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 18,
   },
   emptyText: {
     marginTop: 8,
     color: COLORS.TEXT_SECONDARY,
+    fontSize: 14,
   },
   hintText: {
     marginTop: 6,
     fontSize: 12,
     color: COLORS.TEXT_SECONDARY,
+    textAlign: 'center',
   },
   card: {
     marginHorizontal: 16,
     marginVertical: 8,
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    elevation: 2,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 3,
   },
   row: {
     flexDirection: 'row',
@@ -140,6 +296,7 @@ const styles = StyleSheet.create({
   message: {
     marginTop: 8,
     color: COLORS.TEXT_SECONDARY,
+    lineHeight: 20,
   },
   actions: {
     marginTop: 12,
@@ -151,14 +308,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
     marginRight: 10,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  btnDisabled: {
+    opacity: 0.65,
   },
   accept: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2563EB',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   reject: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#DC2626',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   btnText: {
     color: '#fff',
@@ -168,5 +337,3 @@ const styles = StyleSheet.create({
 });
 
 export default InvitationsScreen;
-
-

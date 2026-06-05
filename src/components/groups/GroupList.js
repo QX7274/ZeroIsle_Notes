@@ -3,55 +3,96 @@
  */
 import React, { useEffect } from 'react';
 import {
-  View,
+  ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
+  View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { fetchGroups, selectGroups, selectGroupsLoading, selectGroupsError } from '../../redux/slices/groupsSlice';
+import { fetchGroups, selectGroups, selectGroupsError, selectGroupsLoading } from '../../redux/slices/groupsSlice';
 import { useTheme } from '../../context/ThemeContext';
-import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
 import { EmptyState, ErrorState } from '../../components/common';
+import { BORDER, ELEVATION, RADIUS, SIZE, SPACING } from '../../theme/tokens';
+
+const isNetworkLikeError = (value) => {
+  const message = String(value || '');
+  return (
+    message.includes('Network Error') ||
+    message.includes('network error') ||
+    message.includes('网络') ||
+    message.includes('离线') ||
+    message.includes('无缓存') ||
+    message.includes('offline')
+  );
+};
 
 const GroupList = () => {
   const { theme } = useTheme();
-  // Ensure correct color references
   const colors = theme.colors || theme;
-
   const dispatch = useDispatch();
   const navigation = useNavigation();
+
   const groups = useSelector(selectGroups) || [];
   const isLoading = useSelector(selectGroupsLoading);
   const error = useSelector(selectGroupsError);
+  const showErrorState = Boolean(error) && !isNetworkLikeError(error);
 
-  useEffect(() => {
-    loadGroups();
-  }, []);
+  const groupCount = groups.length;
+  const listState = isLoading ? 'loading' : showErrorState ? 'error' : groupCount === 0 ? 'empty' : 'ready';
+  const refreshingVisible = isLoading && groupCount > 0;
+  const busyVisible = Boolean(isLoading);
+  const errorVisible = showErrorState;
+  const emptyVisible = !isLoading && !showErrorState && groupCount === 0;
 
   const loadGroups = async () => {
+    if (isLoading) {
+      return;
+    }
     try {
       await dispatch(fetchGroups()).unwrap();
-    } catch (error) {
-      console.error('加载群组列表失败:', error);
-      // 无网时由 slice 回退为空数组，这里不再触发全局网络弹窗
+    } catch (fetchError) {
+      console.warn('Load groups failed:', fetchError?.message || fetchError);
     }
   };
 
+  useEffect(() => {
+    loadGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGroupPress = (group) => {
+    if (isLoading) {
+      return;
+    }
     navigation.navigate('GroupDetail', { groupId: group.id });
+  };
+
+  const handleCreateGroup = () => {
+    if (isLoading) {
+      return;
+    }
+    navigation.navigate('CreateGroup');
+  };
+
+  const handleJoinGroup = () => {
+    if (isLoading) {
+      return;
+    }
+    navigation.navigate('JoinGroup');
   };
 
   const renderGroupItem = ({ item }) => (
     <TouchableOpacity
-      style={[styles.groupCard, { backgroundColor: colors.card || colors.surface }]}
+      style={[styles.groupCard, { backgroundColor: `${(colors.card || colors.surface)}E0` }]}
       onPress={() => handleGroupPress(item)}
-      activeOpacity={0.7}
+      disabled={isLoading}
+      activeOpacity={0.75}
+      testID={`item.group.list.${item.id}`}
     >
       <View style={styles.groupHeader}>
         <Text style={[styles.groupName, { color: colors.text }]}>{item.name}</Text>
@@ -69,7 +110,7 @@ const GroupList = () => {
 
       <View style={styles.groupFooter}>
         <Text style={[styles.createdAt, { color: colors.textTertiary || colors.textDescription }]}>
-          创建于 {new Date(item.created_at).toLocaleDateString()}
+          创建于：{new Date(item.created_at).toLocaleDateString()}
         </Text>
       </View>
     </TouchableOpacity>
@@ -84,44 +125,49 @@ const GroupList = () => {
       );
     }
 
-    if (error) {
-      return (
-        <ErrorState
-          message={error}
-          onRetry={loadGroups}
-        />
-      );
+    if (showErrorState) {
+      return <ErrorState message={error} onRetry={loadGroups} />;
     }
 
     return (
       <EmptyState
         icon="account-group"
         title="暂无群组"
-        message="您还没有加入任何群组，点击下方按钮创建或加入群组"
+        message="你还没有加入任何群组，点击下方按钮创建或加入群组。"
         buttonTitle="创建群组"
-        onButtonPress={() => navigation.navigate('CreateGroup')}
+        buttonTestID="action.group.emptyCreate"
+        onButtonPress={handleCreateGroup}
         secondaryButtonTitle="加入群组"
-        onSecondaryButtonPress={() => navigation.navigate('JoinGroup')}
+        secondaryButtonTestID="action.group.emptyJoin"
+        onSecondaryButtonPress={handleJoinGroup}
       />
     );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View testID={`state.groups.list.state.${listState}`} />
+      <View testID={`state.groups.list.count.${groupCount}`} />
+      <View testID={`state.groups.list.refreshing.visibility.${refreshingVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.list.busy.visibility.${busyVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.list.error.visibility.${errorVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.list.empty.visibility.${emptyVisible ? 'visible' : 'hidden'}`} />
+
       <FlatList
         data={groups}
         renderItem={renderGroupItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmptyComponent}
-        refreshControl={
+        refreshControl={(
           <RefreshControl
-            refreshing={isLoading && (groups && groups.length > 0)}
+            refreshing={refreshingVisible}
             onRefresh={loadGroups}
             colors={[colors.primary]}
             tintColor={colors.primary}
+            testID="action.group.list.refresh"
           />
-        }
+        )}
       />
     </View>
   );
@@ -142,7 +188,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     ...ELEVATION.sm,
     borderWidth: BORDER.width.thin,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#CFE1FF',
+    shadowColor: '#4C8DFF',
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   groupHeader: {
     flexDirection: 'row',
@@ -158,10 +208,12 @@ const styles = StyleSheet.create({
   memberCount: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: '#EAF2FF',
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: '#CFE1FF',
   },
   memberCountText: {
     fontSize: 14,
@@ -178,7 +230,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: SPACING.sm,
     borderTopWidth: BORDER.width.thin,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: '#DBEAFE',
   },
   createdAt: {
     fontSize: 12,
