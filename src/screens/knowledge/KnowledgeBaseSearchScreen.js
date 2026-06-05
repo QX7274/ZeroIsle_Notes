@@ -24,7 +24,7 @@ import { searchTopSnippets } from '../../services/kbLocalIndex';
 import Highlighter from '../../components/common/Highlighter';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import noteService from '../../services/notes/noteService';
-import { navigationRef } from '../../navigation/navigationRef';
+import { navigationRef, navigateHomeStackScreen } from '../../navigation/navigationRef';
 
 const SEARCHING_INDICATOR_STYLE = { marginTop: 20 };
 
@@ -163,8 +163,8 @@ const KnowledgeBaseSearchScreen = ({ route, navigation }) => {
         content: noteContent,
         type: 'markdown',
       });
-      if (newNote?._id && navigationRef.current?.navigate) {
-        navigationRef.current.navigate('CardNote', {
+      if (newNote?._id) {
+        navigateHomeStackScreen('CardNote', {
           noteId: newNote._id,
           title: newNote.title || noteTitle,
         });

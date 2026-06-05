@@ -52,7 +52,7 @@ import { dimensions } from '../../utils/constants/dimensions';
 import { useTheme } from '../../context/ThemeContext';
 
 import networkErrorService from '../../services/networkErrorService';
-import { navigationRef } from '../../navigation/navigationRef';
+import { navigationRef, navigateHomeStackScreen } from '../../navigation/navigationRef';
 
 // 导入组件
 import { Button, Loading, Toast } from '../../components/common';
@@ -419,7 +419,7 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
   };
 
   const openNoteEdit = () => {
-    navigateToRoot('CardNote', {
+    navigateHomeStackScreen('CardNote', {
       createNew: true,
       title: '新建笔记',
       content: '',
@@ -441,7 +441,7 @@ const KnowledgeGraphScreen = ({ navigation, route, kbId: propKbId, embedded: pro
       setToastMessage('当前节点不支持直接编辑');
       return;
     }
-    navigateToRoot('CardNote', { noteId: selectedNode.id, title: selectedNode.title || '卡片笔记' });
+    navigateHomeStackScreen('CardNote', { noteId: selectedNode.id, title: selectedNode.title || '卡片笔记' });
   };
 
   const navigateToRoot = (routeName, params) => {

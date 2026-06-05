@@ -33,7 +33,7 @@ import autoClassificationApi from '../../services/api/autoClassificationApi';
 
 // 瀵煎叆甯搁噺鍜屽伐鍏峰嚱鏁?
 import { useTheme } from '../../context/ThemeContext';
-import { navigationRef } from '../../navigation/navigationRef';
+import { navigationRef, navigateHomeStackScreen } from '../../navigation/navigationRef';
 import { SPACING, TYPOGRAPHY } from '../../styles/constants';
 
 // 瀵煎叆缁勪欢
@@ -99,15 +99,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
   const isErrorToastMessage = (message) => message.includes('失败');
 
   const navigateToNoteEdit = () => {
-    if (navigationRef.current?.navigate) {
-      navigationRef.current.navigate('CardNote', {
-        createNew: true,
-        title: '新建笔记',
-        content: '',
-      });
-      return;
-    }
-    navigation.navigate('CardNote', {
+    navigateHomeStackScreen('CardNote', {
       createNew: true,
       title: '新建笔记',
       content: '',
@@ -281,11 +273,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
       noteId,
       selectedTags: tags,
     };
-    if (navigationRef.current?.navigate) {
-      navigationRef.current.navigate('CardNote', params);
-      return;
-    }
-    navigation.navigate('CardNote', params);
+    navigateHomeStackScreen('CardNote', params);
   };
 
   // 澶勭悊鍒嗙被閫夋嫨
@@ -296,11 +284,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
       noteId,
       selectedCategory: category,
     };
-    if (navigationRef.current?.navigate) {
-      navigationRef.current.navigate('CardNote', params);
-      return;
-    }
-    navigation.navigate('CardNote', params);
+    navigateHomeStackScreen('CardNote', params);
   };
 
   // 澶勭悊绗旇閫夋嫨
@@ -311,11 +295,7 @@ const KnowledgeAnalysisScreen = ({ navigation, route }) => {
       noteId: note?.id,
       title: note?.title,
     };
-    if (navigationRef.current?.navigate) {
-      navigationRef.current.navigate('CardNote', params);
-      return;
-    }
-    navigation.navigate('CardNote', params);
+    navigateHomeStackScreen('CardNote', params);
   };
 
   // 娓叉煋鍔犺浇鐘舵€?

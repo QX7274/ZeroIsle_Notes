@@ -67,6 +67,30 @@ export function navigate(name, params, options = {}) {
 }
 
 /**
+ * 导航到主标签页里的首页堆栈屏幕
+ * 适用于 CardNote 这类只在 HomeStack 中注册的屏幕
+ */
+export function navigateHomeStackScreen(name, params) {
+  if (navigationRef.current) {
+    try {
+      navigationRef.current.navigate('MainTabs', {
+        screen: 'HomeStack',
+        params: {
+          screen: name,
+          params,
+        },
+      });
+      return;
+    } catch (error) {
+      console.error(`导航到主标签页屏幕 ${name} 失败:`, error);
+    }
+  }
+
+  // 兜底：保留原始行为，至少不让调用方直接崩
+  navigate(name, params);
+}
+
+/**
  * 返回上一屏幕
  */
 export function goBack() {
