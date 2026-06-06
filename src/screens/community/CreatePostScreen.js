@@ -4,8 +4,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -30,6 +31,7 @@ const EMPTY_ARRAY = [];
 
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   useHideMainTabBar();
@@ -49,9 +51,38 @@ const CreatePostScreen = ({ navigation }) => {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dialogState, setDialogState] = useState({
+    visible: false,
+    tone: 'warning',
+    title: '',
+    message: '',
+    primaryText: '确定',
+    secondaryText: '',
+    onPrimary: null,
+  });
 
   const publishBusy = communityLoading || isSubmitting;
   const pageState = publishBusy ? 'busy' : 'ready';
+
+  const closeDialog = () => {
+    setDialogState((current) => ({
+      ...current,
+      visible: false,
+      onPrimary: null,
+    }));
+  };
+
+  const openDialog = (nextDialog) => {
+    setDialogState({
+      visible: true,
+      tone: nextDialog.tone || 'warning',
+      title: nextDialog.title || '',
+      message: nextDialog.message || '',
+      primaryText: nextDialog.primaryText || '确定',
+      secondaryText: nextDialog.secondaryText || '',
+      onPrimary: nextDialog.onPrimary || null,
+    });
+  };
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -126,7 +157,12 @@ const CreatePostScreen = ({ navigation }) => {
         return;
       }
       if (result.errorCode) {
-        Alert.alert('选择失败', result.errorMessage || '图片选择失败');
+        openDialog({
+          tone: 'error',
+          title: '选择失败',
+          message: result.errorMessage || '图片选择失败',
+          primaryText: '知道了',
+        });
         return;
       }
       const selected = result.assets?.[0];
@@ -140,7 +176,12 @@ const CreatePostScreen = ({ navigation }) => {
         name: selected.fileName || `cover_${Date.now()}.jpg`,
       });
     } catch (error) {
-      Alert.alert('选择失败', error?.message || '图片选择失败');
+      openDialog({
+        tone: 'error',
+        title: '选择失败',
+        message: error?.message || '图片选择失败',
+        primaryText: '知道了',
+      });
     }
   };
 
@@ -154,7 +195,12 @@ const CreatePostScreen = ({ navigation }) => {
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       const valid = picked.filter((file) => (file.size || 0) <= MAX_FILE_SIZE);
       if (valid.length < picked.length) {
-        Alert.alert('部分文件未添加', '超过 10MB 的文件已被自动过滤。');
+        openDialog({
+          tone: 'warning',
+          title: '部分文件未添加',
+          message: '超过 10MB 的文件已被自动过滤。',
+          primaryText: '知道了',
+        });
       }
       const normalized = valid.map((file) => ({
         uri: file.uri,
@@ -167,7 +213,12 @@ const CreatePostScreen = ({ navigation }) => {
       if (DocumentPicker.isCancel(error)) {
         return;
       }
-      Alert.alert('选择失败', error?.message || '附件选择失败');
+      openDialog({
+        tone: 'error',
+        title: '选择失败',
+        message: error?.message || '附件选择失败',
+        primaryText: '知道了',
+      });
     }
   };
 
@@ -189,11 +240,21 @@ const CreatePostScreen = ({ navigation }) => {
       return;
     }
     if (!title.trim()) {
-      Alert.alert('发布失败', '请输入帖子标题');
+      openDialog({
+        tone: 'warning',
+        title: '发布失败',
+        message: '请输入帖子标题',
+        primaryText: '知道了',
+      });
       return;
     }
     if (!content.trim()) {
-      Alert.alert('发布失败', '请输入帖子内容');
+      openDialog({
+        tone: 'warning',
+        title: '发布失败',
+        message: '请输入帖子内容',
+        primaryText: '知道了',
+      });
       return;
     }
 
@@ -220,20 +281,86 @@ const CreatePostScreen = ({ navigation }) => {
 
       const result = await dispatch(createPost(payload));
       if (createPost.fulfilled.match(result)) {
-        Alert.alert('发布成功', '帖子已成功发布');
-        navigation.goBack();
+        openDialog({
+          tone: 'success',
+          title: '发布成功',
+          message: '帖子已成功发布。',
+          primaryText: '返回社区',
+          onPrimary: () => navigation.goBack(),
+        });
       } else {
-        Alert.alert('发布失败', result.error?.message || '创建帖子失败，请重试');
+        openDialog({
+          tone: 'error',
+          title: '发布失败',
+          message: result.error?.message || '创建帖子失败，请重试',
+          primaryText: '知道了',
+        });
       }
     } catch (error) {
-      Alert.alert('发布失败', error?.message || '创建帖子失败，请重试');
+      openDialog({
+        tone: 'error',
+        title: '发布失败',
+        message: error?.message || '创建帖子失败，请重试',
+        primaryText: '知道了',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const renderDialog = () => {
+    const tone = dialogState.tone;
+    const accentColor = tone === 'error' ? '#DC2626' : tone === 'success' ? '#16A34A' : '#D97706';
+    const iconName = tone === 'error'
+      ? 'error-outline'
+      : tone === 'success'
+        ? 'check-circle-outline'
+        : 'info-outline';
+
+    return (
+      <Modal visible={dialogState.visible} transparent animationType="fade" onRequestClose={closeDialog}>
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={[styles.dialogIconWrap, { backgroundColor: `${accentColor}14` }]}>
+              <Icon name={iconName} size={30} color={accentColor} />
+            </View>
+            <Text style={styles.dialogTitle}>{dialogState.title}</Text>
+            <Text style={styles.dialogMessage}>{dialogState.message}</Text>
+            <View style={styles.dialogButtonRow}>
+              {dialogState.secondaryText ? (
+                <TouchableOpacity style={styles.dialogSecondaryButton} onPress={closeDialog}>
+                  <Text style={styles.dialogSecondaryText}>{dialogState.secondaryText}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.dialogPrimaryButton, { backgroundColor: accentColor }]}
+                onPress={async () => {
+                  const handler = dialogState.onPrimary;
+                  closeDialog();
+                  if (handler) {
+                    await handler();
+                  }
+                }}
+              >
+                <Text style={styles.dialogPrimaryText}>{dialogState.primaryText}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 12),
+        },
+      ]}
+    >
       <View testID={`state.community.createPost.state.${pageState}`} />
       <View testID={`state.community.createPost.publishBusy.visibility.${publishBusy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.createPost.categoryPicker.visibility.${showCategoryPicker ? 'visible' : 'hidden'}`} />
@@ -365,6 +492,7 @@ const CreatePostScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+      {renderDialog()}
 
       {showCategoryPicker ? (
         <View style={[styles.pickerContainer, { backgroundColor: colors.card }]} testID="panel.community.categoryPicker">
@@ -434,7 +562,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(33,150,243,0.18)',
     backgroundColor: 'rgba(255,255,255,0.90)',
@@ -459,7 +588,7 @@ const styles = StyleSheet.create({
   publishText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   disabledButton: { opacity: 0.62 },
   scrollView: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 28 },
+  scrollContent: { padding: 16, paddingBottom: 18 },
   titleInput: {
     fontSize: 19,
     fontWeight: '700',
@@ -483,7 +612,7 @@ const styles = StyleSheet.create({
   coverImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   coverImageText: { marginTop: 8, fontSize: 13 },
   contentInput: {
-    minHeight: 200,
+    minHeight: 180,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
@@ -587,6 +716,83 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.84)',
   },
   emptyPicker: { padding: 20, alignItems: 'center', justifyContent: 'center' },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(191, 219, 254, 0.9)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  dialogIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  dialogMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#475569',
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 22,
+  },
+  dialogSecondaryButton: {
+    minWidth: 84,
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  dialogSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  dialogPrimaryButton: {
+    minWidth: 98,
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogPrimaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
 });
 
 export default CreatePostScreen;

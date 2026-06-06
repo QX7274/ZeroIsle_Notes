@@ -16,11 +16,11 @@ import {
   PermissionsAndroid,
   Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  search,
   localSearch,
   setSearchMode,
   selectSearchMode,
@@ -35,6 +35,7 @@ import nativeAudioService from '../../services/audio/nativeAudioService';
 import RNFS from 'react-native-fs';
 import SearchSuggestions from './SearchSuggestions';
 import SearchHistory from './SearchHistory';
+import ScreenHeaderBackButton from '../common/ScreenHeaderBackButton';
 
 /**
  * 多模态搜索组件
@@ -52,7 +53,8 @@ const MultiModalSearch = ({
   searchScope = 'home',
 }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  const { colors } = theme;
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   // 从Redux获取状态
@@ -70,8 +72,8 @@ const MultiModalSearch = ({
   const [showHistory, setShowHistory] = useState(true);
 
   // 语音录制和播放状态
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingUri, setRecordingUri] = useState(null);
+  const [, setIsRecording] = useState(false);
+  const [recordingUri] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioPlayer, setAudioPlayer] = useState(null);
@@ -93,8 +95,8 @@ const MultiModalSearch = ({
         } else {
           setSearchHistory([]);
         }
-      } catch (error) {
-        console.error('加载搜索历史失败:', error);
+      } catch (loadHistoryError) {
+        console.error('加载搜索历史失败:', loadHistoryError);
         setSearchHistory([]);
       }
     };
@@ -103,31 +105,6 @@ const MultiModalSearch = ({
   }, []);
 
   // 保存搜索历史
-  const saveSearchHistory = async (query) => {
-    try {
-      const historyKey = 'search_history';
-      const storedHistory = await AsyncStorage.getItem(historyKey);
-      let history = storedHistory ? JSON.parse(storedHistory) : [];
-
-      // 移除重复项
-      history = history.filter(item => item.query !== query);
-
-      // 添加新的搜索记录到开头
-      history.unshift({
-        query,
-        timestamp: Date.now(),
-      });
-
-      // 限制历史记录数量
-      history = history.slice(0, 20);
-
-      await AsyncStorage.setItem(historyKey, JSON.stringify(history));
-      setSearchHistory(history.slice(0, 10));
-    } catch (error) {
-      console.error('保存搜索历史失败:', error);
-    }
-  };
-
   // 引用
   const searchInputRef = useRef(null);
 
@@ -135,28 +112,6 @@ const MultiModalSearch = ({
   const error = localError || reduxError;
 
   // 权限检查
-  const checkAudioPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
-            title: '麦克风权限申请',
-            message: '需要访问您的麦克风以进行语音搜索',
-            buttonNeutral: '稍后询问',
-            buttonNegative: '取消',
-            buttonPositive: '确定',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.error(err);
-        return false;
-      }
-    }
-    return true;
-  };
-
   // 初始化聚焦
   useEffect(() => {
     if (reduxSearchMode === 'text' && searchInputRef.current) {
@@ -169,9 +124,9 @@ const MultiModalSearch = ({
     // 添加语音识别事件监听器
     nativeAudioService.addListener('speechResults', (e) => {
       if (e.value && e.value.length > 0) {
-        const recognizedText = e.value[0];
-        setRecognizedText(recognizedText);
-        setSearchQuery(recognizedText); // 直接设置到搜索框
+        const recognizedValue = e.value[0];
+        setRecognizedText(recognizedValue);
+        setSearchQuery(recognizedValue); // 直接设置到搜索框
         setIsListening(false);
 
         // 自动执行搜索
@@ -194,6 +149,7 @@ const MultiModalSearch = ({
     return () => {
       nativeAudioService.destroy();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 清理资源
@@ -225,11 +181,11 @@ const MultiModalSearch = ({
       // 保存计时器引用
       setAudioPlayer({ timer });
 
-    } catch (error) {
-      console.error('开始语音识别失败:', error);
+    } catch (startSpeechError) {
+      console.error('开始语音识别失败:', startSpeechError);
       setIsListening(false);
       setIsRecording(false);
-      setLocalError('语音识别启动失败: ' + error.message);
+      setLocalError('语音识别启动失败: ' + startSpeechError.message);
     }
   };
 
@@ -245,8 +201,8 @@ const MultiModalSearch = ({
         clearInterval(audioPlayer.timer);
       }
 
-    } catch (error) {
-      console.error('停止语音识别失败:', error);
+    } catch (stopSpeechError) {
+      console.error('停止语音识别失败:', stopSpeechError);
       setIsListening(false);
       setIsRecording(false);
     }
@@ -466,9 +422,9 @@ const MultiModalSearch = ({
 
       // 关闭搜索界面
       onCancel?.();
-    } catch (error) {
-      console.error('文件跳转失败:', error);
-      Alert.alert('跳转失败', '无法打开该文件，请稍后重试');
+    } catch (navigationError) {
+      console.error('文件跳转失败:', navigationError);
+      setLocalError('无法打开该文件，请稍后重试');
     }
   };
 
@@ -580,6 +536,43 @@ const MultiModalSearch = ({
         return '搜索...';
     }
   };
+
+  function getScopeMeta() {
+    switch (searchScope) {
+      case 'community':
+        return {
+          title: '社区搜索',
+          subtitle: '搜索帖子、用户和标签',
+          badge: '社区',
+        };
+      case 'category':
+        return {
+          title: '分类搜索',
+          subtitle: '搜索分类、标签和相关内容',
+          badge: '分类',
+        };
+      case 'mind_map':
+        return {
+          title: '思维导图搜索',
+          subtitle: '搜索导图主题和节点内容',
+          badge: '导图',
+        };
+      case 'knowledge_graph':
+        return {
+          title: '知识图谱搜索',
+          subtitle: '搜索节点、关系和图谱内容',
+          badge: '图谱',
+        };
+      default:
+        return {
+          title: '搜索',
+          subtitle: '输入关键词快速查找内容',
+          badge: '全部',
+        };
+    }
+  }
+
+  const scopeMeta = getScopeMeta();
 
   // 渲染文本搜索
   const renderTextSearch = () => (
@@ -702,7 +695,7 @@ const MultiModalSearch = ({
             />
           </TouchableOpacity>
 
-          <View style={styles.recordingInfo}>
+          <View style={styles.recordingInfoMeta}>
             <Text style={[styles.recordingDuration, { color: colors.text }]}>
               {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
             </Text>
@@ -804,16 +797,31 @@ const MultiModalSearch = ({
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: Math.max(insets.top, 12),
+          paddingBottom: Math.max(insets.bottom, 12),
+        },
+      ]}
+    >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancel}
-          disabled={isLoading}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <ScreenHeaderBackButton onPress={handleCancel} testID="action.search.modal.back" />
 
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{scopeMeta.title}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{scopeMeta.subtitle}</Text>
+        </View>
+
+        <View style={[styles.scopeBadge, { borderColor: `${colors.primary}24`, backgroundColor: `${colors.primary}12` }]}>
+          <Icon name="travel-explore" size={16} color={colors.primary} />
+          <Text style={[styles.scopeBadgeText, { color: colors.primary }]}>{scopeMeta.badge}</Text>
+        </View>
+      </View>
+
+      <View style={styles.modeBar}>
         <View style={styles.searchModeButtons}>
           {['text', 'voice', 'image'].map((mode) => (
             <TouchableOpacity
@@ -849,6 +857,20 @@ const MultiModalSearch = ({
         {reduxSearchMode === 'text' && renderTextSearch()}
         {reduxSearchMode === 'voice' && renderVoiceSearch()}
         {reduxSearchMode === 'image' && renderImageSearch()}
+
+        {reduxSearchMode === 'text' && !searchQuery && (
+          <View style={[styles.helperCard, { backgroundColor: colors.card, borderColor: `${colors.primary}18` }]}>
+            <View style={[styles.helperIcon, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}24` }]}>
+              <Icon name="manage-search" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.helperCopy}>
+              <Text style={[styles.helperTitle, { color: colors.text }]}>从这里开始搜索</Text>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                可直接输入关键词，也可以切换语音或图片搜索；返回按钮已统一为淡蓝色方形样式。
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* 快速搜索历史 - 在输入框下方显示 */}
         {reduxSearchMode === 'text' && !searchQuery && searchHistory.length > 0 && (
@@ -912,6 +934,7 @@ const MultiModalSearch = ({
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     borderRadius: 20,
     overflow: 'visible', // 改为visible，避免遮挡点击事件
     elevation: 8,
@@ -924,7 +947,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#2196F3',
     elevation: 4,
@@ -933,29 +957,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 4,
     backgroundColor: '#ffffff',
-    minHeight: 60, // 减小高度
+    minHeight: 72,
   },
-  cancelButton: {
-    padding: 10,
-    borderRadius: 20,
-    width: 42,
-    height: 42,
-    justifyContent: 'center',
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  scopeBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
     borderWidth: 1,
-    borderColor: '#2196F3',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  scopeBadgeText: {
+    marginLeft: 5,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modeBar: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
   searchModeButtons: {
-    flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    paddingVertical: 8,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
   },
   searchModeButton: {
     paddingHorizontal: 12,
@@ -982,7 +1028,10 @@ const styles = StyleSheet.create({
     borderColor: '#2196F3',
   },
   searchContainer: {
-    padding: 24,
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     pointerEvents: 'auto', // 确保可以接收点击事件
   },
   textSearchContainer: {
@@ -1077,7 +1126,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  recordingInfo: {
+  recordingInfoMeta: {
     flex: 1,
   },
   recordingDuration: {
@@ -1182,7 +1231,7 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
   },
   historyContainer: {
-    marginTop: 8,
+    marginTop: 10,
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -1193,6 +1242,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     shadowRadius: 0,
     maxHeight: 220,
+  },
+  helperCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  helperIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  helperCopy: {
+    flex: 1,
+  },
+  helperTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 20,
   },
   recognizedTextContainer: {
     marginTop: 8,

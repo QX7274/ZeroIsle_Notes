@@ -1082,3 +1082,90 @@ Expected: 新增或修改的回归用例通过。
   - 网络问题继续使用项目内统一优美样式弹窗，不回退默认安卓弹窗
   - 不再处理用户已明确排除的底部调试黑框
 ```
+
+### Task 24: 收口社区搜索真实入口与创建帖子原生弹窗
+
+**Files:**
+- Modify: `src/components/search/MultiModalSearch.js`
+- Modify: `src/screens/community/CreatePostScreen.js`
+- Modify: `src/screens/community/CommunitySearchScreen.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 先纠正社区搜索真实入口，避免继续修错页面**
+
+```md
+- 真机重新从 `社区` 首页点击搜索框后，实际弹出的不是先前猜测的 `CommunitySearchScreen`，而是 `UnifiedSearchBar` 打开的 `MultiModalSearch` 全屏模态
+- 因此这轮必须把“搜索真实入口”写进文档，避免把 `CommunitySearchScreen` 的局部调整误记成主命中修复
+- 同时继续坚持既有验收口径：
+  - 顶部完整露出，不能被平板状态栏遮挡
+  - 返回按钮统一使用项目内已有淡蓝色方形带箭头样式
+  - 布局合理，不出现异常留白
+  - 网络或校验失败继续只使用项目内统一优美样式弹窗
+```
+
+- [x] **Step 2: 在真实搜索入口补齐统一头部与首屏说明**
+
+```md
+- 在 `src/components/search/MultiModalSearch.js` 为社区搜索范围补入统一头部元信息：
+  - 标题：`社区搜索`
+  - 副标题：`搜索帖子、用户和标签`
+  - 右侧 scope badge：`社区`
+- 将真实搜索模态的返回入口统一替换为淡蓝色方形返回按钮
+- 增加首屏 helper 卡片，收口“页面过空、看起来偏原始”的问题，但不去重做已经成熟的输入区和模式切换区
+- `CommunitySearchScreen.js` 保留同步风格补齐，但文档中明确注明：本轮真机主命中入口不是它
+```
+
+- [x] **Step 3: 把创建帖子页的原生 `Alert` 改成统一自绘弹窗，并做最小布局收口**
+
+```md
+- 在 `src/screens/community/CreatePostScreen.js` 用页面内 `dialogState + Modal` 替换原生 `Alert.alert`
+- 覆盖真实使用链路中的以下场景：
+  - 选封面失败
+  - 选附件失败
+  - 附件超过 10MB
+  - 标题为空
+  - 内容为空
+  - 发布成功
+  - 发布失败
+- 同时只做最小幅度布局收口：
+  - 顶部按安全区补齐，保证标题、返回按钮和发布按钮完整露出
+  - 页头内边距微调
+  - 滚动区底部留白轻微上收
+  - 内容输入框最小高度轻微收口
+- 目标是不破坏当前成熟结构，只把仍显原始或不统一的部分收掉
+```
+
+- [x] **Step 4: 用真机把“搜索真实入口”和“发帖统一弹窗”都补成截图级证据**
+
+```md
+- 路径一：`首页 -> 社区 -> 搜索框`
+  - 真机已确认真实命中入口为 `MultiModalSearch`
+  - 顶部淡蓝色方形返回按钮、标题“社区搜索”、副标题“搜索帖子、用户和标签”与右侧 `社区` badge 已完整露出
+  - helper 卡片已出现，首屏不再像之前那样过空、过原始
+  - 证据：`.local/android-mcp-server/round302_search_modal.png/.xml`
+
+- 路径二：`首页 -> 社区 -> 发布 -> 直接点发布`
+  - 真机已确认 `创建帖子` 页顶部完整露出，返回按钮已统一为淡蓝色方形样式
+  - 空提交后出现的是页面内统一自绘弹窗，文案为“发布失败 / 请输入帖子标题 / 知道了”
+  - XML 中未命中系统原生 `AlertDialog` 结构，可与原生安卓弹窗区分
+  - 证据：`.local/android-mcp-server/round302_create_post.png/.xml`、`.local/android-mcp-server/round302_create_post_empty_submit.png/.xml`
+```
+
+- [x] **Step 5: 把本轮边界继续写实，避免错误外推**
+
+```md
+- 本轮可以明确确认：
+  - 社区搜索真实入口是 `MultiModalSearch`，不是先前假设的 `CommunitySearchScreen`
+  - 创建帖子页的空校验失败链路已不再回退到原生安卓弹窗
+- 本轮仍不能外推成：
+  - `帖子详情 / 关注 / 粉丝` 等剩余社区深层页已经全部完成验收
+  - `CommunitySearchScreen` 在所有链路里都不再可能被命中
+- 后续仍需继续逐页复测社区剩余深层链路，同时保持：
+  - 顶部完整露出
+  - 返回按钮统一
+  - 布局无异常留白
+  - 网络与失败反馈继续使用项目内统一优美样式弹窗
+  - 不把用户已明确排除的底部调试黑框重新记成产品缺陷
+```
