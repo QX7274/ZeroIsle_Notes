@@ -11,7 +11,7 @@
  * showToast.warning('警告信息');
  */
 
-import { store } from '../../redux/store';
+import store from '../../redux/store';
 
 // 检查uiSlice是否存在并包含showToast action
 let showToastAction = null;

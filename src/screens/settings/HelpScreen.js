@@ -19,6 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
 import { analyticsService } from '../../services/analytics/analyticsService';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
 
 const FAQ_LIST = [
   {
@@ -102,12 +103,17 @@ const HelpScreen = ({ navigation }) => {
   };
 
   const openLink = async (url) => {
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      Linking.openURL(url);
-      return;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('unsupported-link');
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.warn('无法打开链接:', url, error?.message || error);
+      showToast.error('当前链接暂时无法打开，请稍后重试');
     }
-    console.error('无法打开链接:', url);
   };
 
   const sendEmail = () => {

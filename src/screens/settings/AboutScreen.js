@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DeviceInfo from 'react-native-device-info';
 import { APP_VERSION } from '../../utils/constants/config';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
 
 const AboutScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -51,14 +52,18 @@ const AboutScreen = ({ navigation }) => {
     getAppInfo();
   }, []);
 
-  const openLink = (url) => {
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        console.error('无法打开链接:', url);
+  const openLink = async (url) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('unsupported-link');
       }
-    });
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.warn('无法打开链接:', url, error?.message || error);
+      showToast.error('当前链接暂时无法打开，请稍后重试');
+    }
   };
 
   const infoReady = Boolean(appInfo.version && appInfo.buildNumber && appInfo.deviceId);
