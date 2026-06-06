@@ -6,12 +6,15 @@
 import { Platform } from 'react-native';
 
 // API配置 - 开发环境优先指向业务后端(8000)
-// 如需切换可通过环境变量覆盖：ZEROISLE_API_HOST / ZEROISLE_API_PORT
+// 如需切换可通过环境变量覆盖：
+// 1. ZEROISLE_API_URL 直接覆盖完整基地址
+// 2. ZEROISLE_API_HOST / ZEROISLE_API_PORT 覆盖主机与端口
+const DEV_API_URL_OVERRIDE = process.env.ZEROISLE_API_URL;
 const DEV_API_HOST = process.env.ZEROISLE_API_HOST || '127.0.0.1';
 const DEV_API_PORT = process.env.ZEROISLE_API_PORT || '8000';
 
 export const API_URL = __DEV__
-  ? `http://${DEV_API_HOST}:${DEV_API_PORT}`
+  ? (DEV_API_URL_OVERRIDE || `http://${DEV_API_HOST}:${DEV_API_PORT}`)
   : 'https://api.zeroislenotes.com';
 
 // 调试信息（仅开发环境）

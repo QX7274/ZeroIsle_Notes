@@ -175,10 +175,12 @@ const PostDetailScreen = ({ route, navigation }) => {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]} testID="state.community.postDetail.empty">
         {renderHeader()}
-        <View style={styles.errorContainer}>
-          <Icon name="error" size={64} color={theme.error} />
-          <Text style={[styles.errorText, { color: theme.text }]}>帖子不存在或已被删除</Text>
-          <Button title="返回" onPress={() => navigation.goBack()} type="primary" style={styles.backButton} />
+        <View style={styles.emptyStateContainer}>
+          <View style={[styles.emptyStateCard, styles.glassBlock, { borderColor: `${theme.primary}18` }]}>
+            <Icon name="error" size={64} color={theme.error} />
+            <Text style={[styles.errorText, { color: theme.text }]}>帖子不存在或已被删除</Text>
+            <Button title="返回" onPress={() => navigation.goBack()} type="primary" style={styles.backButton} />
+          </View>
         </View>
       </View>
     );
@@ -324,6 +326,21 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: SPACING.MEDIUM, fontSize: 16 },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.LARGE },
+  emptyStateContainer: {
+    flex: 1,
+    paddingHorizontal: SPACING.LARGE,
+    paddingTop: SPACING.XLARGE,
+    alignItems: 'center',
+  },
+  emptyStateCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.XLARGE,
+    paddingVertical: SPACING.XLARGE,
+    alignItems: 'center',
+  },
   errorText: { fontSize: 18, textAlign: 'center', marginTop: SPACING.MEDIUM, marginBottom: SPACING.LARGE },
   backButton: { marginTop: SPACING.MEDIUM },
   header: {

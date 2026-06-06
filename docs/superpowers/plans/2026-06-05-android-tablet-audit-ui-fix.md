@@ -1339,3 +1339,73 @@ Expected: 新增或修改的回归用例通过。
 - 即使本轮把空态页头和联调转发路径补齐，也不能外推成帖子详情页已完成
 - 只有后端依赖恢复、真机拿到真实帖子内容并完成同口径验收后，才能关闭该链路
 ```
+
+### Task 29: 收口帖子详情空态异常留白并校准 ZeroIsle 环境执行口径
+
+**Files:**
+- Modify: `src/screens/community/PostDetailScreen.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 继续收口帖子详情空态布局，只改明显原始的留白**
+
+```md
+- 问题态：空态虽然已经恢复统一页头，但主体内容仍整页垂直居中，页头下方留白过大
+- 修复目标：
+  - 空态内容改为顶部展开
+  - 用轻量卡片承载错误图标、文案和返回按钮
+  - 不改正常帖子详情内容区
+```
+
+- [x] **Step 2: 将 ZeroIsle 后端命令口径按 PowerShell 兼容链路重新校准**
+
+```md
+- shell 仍保持工作区要求的 `pwsh`
+- 但涉及 ZeroIsle/Conda 环境时，优先记录 PowerShell 5 / Conda 兼容链路，不再把 `pwsh` 下的异常直接当成项目代码问题
+- 本轮已确认：
+  - `D:\anaconda\Scripts\conda.exe` 在当前线程内直接执行会返回访问拒绝
+  - 通过临时 `.ps1` 脚本走 PowerShell 5 调 `D:\anaconda\envs\ZeroIsle\python.exe` 时，`manage.py check` 当前退出码为 `-1073741790`
+```
+
+- [x] **Step 3: 继续把环境阻断和产品问题拆开记录**
+
+```md
+- 当前不能把 `ZeroIsle` 环境命令失败误记成社区页面缺陷
+- 当前也不能据此断言 MongoDB 已是唯一阻断，至少还要继续确认该环境自身依赖和启动链是否完整
+- 但 Android 新包安装已成功，可继续推进不依赖后端的真机页面验收
+```
+
+### Task 30: 打通平板与电脑后端/生产环境通讯口径
+
+**Files:**
+- Modify: `src/config/index.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 先核对当前真实网络状态，不凭印象写结论**
+
+```md
+- 电脑热点 IPv4：`192.168.137.1`
+- 当前本机仅确认 `8081` 的 Metro 在监听，`8000` 后端尚未监听
+- 生产域名 `https://api.zeroislenotes.com/api/v1/` 当前从本机测试仍存在 TLS 握手异常
+```
+
+- [x] **Step 2: 给开发包补一个完整 API 地址覆盖口，便于切真实后端**
+
+```md
+- 现状：开发环境默认只认 `ZEROISLE_API_HOST / ZEROISLE_API_PORT`，且默认指向 `127.0.0.1:8000`
+- 问题：这会把真机开发包锁死在本机回环地址，不利于切到热点局域网地址或真实生产环境域名
+- 做法：新增 `ZEROISLE_API_URL`，允许直接覆盖完整 API 基地址
+- 目标：后续既可指向 `http://192.168.137.1:8000`，也可切到真实生产域名，而不必改代码多处拼接逻辑
+```
+
+- [x] **Step 3: 继续把后端阻断与前端通讯能力分开记录**
+
+```md
+- 当前主目标是让平板直连电脑本地后端；生产域名未部署，不是本轮主路径
+- 当前生产域名握手异常只作为旁证记录，不应误写成前端 UI 缺陷
+- 当前本机 MongoDB 未监听、后端 `8000` 未起，不应误写成平板网络本身有问题
+- 当前前端已具备“完整 API 基地址可切换”的能力，后续只需把真实后端服务拉起或填入真实可用生产地址即可继续真机联调
+```
