@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -53,16 +54,16 @@ const CommunityScreen = ({ navigation }) => {
         border: colors.border || FALLBACK_THEME.border,
       };
     }
-  } catch (error) {
-    console.warn('CommunityScreen theme fallback:', error?.message || error);
+  } catch (themeError) {
+    console.warn('CommunityScreen theme fallback:', themeError?.message || themeError);
   }
+  const insets = useSafeAreaInsets();
 
   const dispatch = useDispatch();
   const requestInFlightRef = useRef(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
-  const [loadState, setLoadState] = useState('idle');
   const [activeCategory, setActiveCategory] = useState('all');
   const [loadMoreError, setLoadMoreError] = useState('');
   const [actionSource, setActionSource] = useState('');
@@ -85,13 +86,11 @@ const CommunityScreen = ({ navigation }) => {
       requestInFlightRef.current = true;
       const isOnline = await networkService.checkConnection();
       if (!isOnline) {
-        setLoadState('offline');
         requestInFlightRef.current = false;
         return;
       }
 
       try {
-        setLoadState('loading');
         const resolvedCategory = categoryOverride !== undefined
           ? categoryOverride
           : activeCategory === 'all'
@@ -105,9 +104,7 @@ const CommunityScreen = ({ navigation }) => {
             category: resolvedCategory,
           })
         ).unwrap();
-        setLoadState('ready');
       } catch (requestError) {
-        setLoadState('error');
         console.warn('CommunityScreen load failed:', requestError?.message || requestError);
       } finally {
         requestInFlightRef.current = false;
@@ -127,7 +124,6 @@ const CommunityScreen = ({ navigation }) => {
         requestInFlightRef.current = false;
         setRefreshing(false);
         setPage(1);
-        setLoadState('idle');
         setActionSource('');
         resetTransient();
       };
@@ -151,7 +147,6 @@ const CommunityScreen = ({ navigation }) => {
     }
     requestInFlightRef.current = true;
     setActionSource(loadMoreError ? 'retryLoadMore' : 'loadMore');
-    setLoadState('loading');
     const nextPage = page + 1;
     const category = activeCategory === 'all' ? undefined : activeCategory;
     dispatch(
@@ -165,7 +160,6 @@ const CommunityScreen = ({ navigation }) => {
       .unwrap()
       .then(() => {
         setPage(nextPage);
-        setLoadState('ready');
         setLoadMoreError('');
       })
       .catch((requestError) => {
@@ -321,7 +315,17 @@ const CommunityScreen = ({ navigation }) => {
   const pageState = isLoading && posts.length === 0 ? 'loading' : error ? 'error' : posts.length === 0 ? 'empty' : 'ready';
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.background }]} testID={`state.community.pageState.${pageState}`}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: palette.background,
+          paddingTop: Math.max(insets.top, 12),
+          paddingBottom: Math.max(insets.bottom, SPACING.SMALL),
+        },
+      ]}
+      testID={`state.community.pageState.${pageState}`}
+    >
       <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.activeCategory.${activeCategory}`} />
@@ -444,7 +448,14 @@ const CommunityScreen = ({ navigation }) => {
       )}
 
       <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: palette.primary }, interactionBusy ? styles.disabled : null]}
+        style={[
+          styles.fabButton,
+          {
+            backgroundColor: palette.primary,
+            bottom: Math.max(insets.bottom, SPACING.LARGE),
+          },
+          interactionBusy ? styles.disabled : null,
+        ]}
         onPress={() => {
           if (interactionBusy) {
             return;
@@ -641,7 +652,6 @@ const styles = StyleSheet.create({
   fabButton: {
     position: 'absolute',
     right: SPACING.LARGE,
-    bottom: SPACING.LARGE,
     width: 116,
     height: 50,
     borderRadius: 25,

@@ -39,6 +39,8 @@ const InvitationsScreen = () => {
   }, [groupsError]);
 
   const hasInvitations = invitations.length > 0;
+  const topInset = Math.max(insets.top, 16);
+  const bottomInset = Math.max(insets.bottom, 12);
   const pageState = isLoading ? 'loading' : hasInvitations ? 'ready' : 'empty';
   const busyVisible = Boolean(pendingInvitationId);
   const errorVisible = Boolean(groupsError) && !isNetworkFallback;
@@ -147,7 +149,7 @@ const InvitationsScreen = () => {
   );
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={`state.group.invitations.state.${pageState}`}>
+    <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]} testID={`state.group.invitations.state.${pageState}`}>
       <View style={styles.headerCard} testID="panel.group.invitations.header">
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>群组邀请</Text>

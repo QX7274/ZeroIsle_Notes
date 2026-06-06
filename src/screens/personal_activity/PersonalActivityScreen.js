@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
@@ -28,7 +29,8 @@ import {
 } from '../../redux/slices/personalActivitySlice';
 
 const PersonalActivityScreen = ({ navigation }) => {
-  const { colors, theme } = useTheme();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   const { activities, loading } = useSelector(state => state.personalActivity);
@@ -37,6 +39,7 @@ const PersonalActivityScreen = ({ navigation }) => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+  const pulse = useRef(new Animated.Value(0)).current;
 
   // 设置导航栏
   useEffect(() => {
@@ -45,15 +48,19 @@ const PersonalActivityScreen = ({ navigation }) => {
     });
   }, [navigation]);
 
-  useFocusEffect(useCallback(() => { loadInitialData(); }, []));
-
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       await dispatch(fetchActivities()).unwrap();
     } catch (err) {
       console.error('加载数据失败:', err);
     }
-  };
+  }, [dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadInitialData();
+    }, [loadInitialData])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -87,23 +94,27 @@ const PersonalActivityScreen = ({ navigation }) => {
     setViewerInitialIndex(0);
   };
 
-  const renderHeader = () => {
-    const pulse = useRef(new Animated.Value(0)).current;
-    useEffect(() => {
-      const loop = Animated.loop(
-        Animated.timing(pulse, { toValue: 1, duration: 10000, easing: Easing.linear, useNativeDriver: true })
-      );
-      loop.start();
-      return () => loop.stop();
-    }, [pulse]);
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 10000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
 
+  const header = useCallback(() => {
     const rotate = pulse.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
     const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.1, 1] });
     const opacity = pulse.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0.3, 0.7, 0.7, 0.3] });
 
     return (
       <View>
-        <View style={[styles.topBar, { backgroundColor: colors.background }]}>
+        <View style={[styles.topBar, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) }]}>
           <Text variant="h2" style={{ color: colors.text }}>零屿空间</Text>
         </View>
         <View style={[styles.hero, { backgroundColor: colors.card }]}>
@@ -113,11 +124,11 @@ const PersonalActivityScreen = ({ navigation }) => {
           <Animated.View style={{ transform: [{ scale }] }}>
             <Icon name="auto-awesome" size={32} color={colors.primary} />
           </Animated.View>
-          <Text style={[styles.heroSub, { color: colors.text + '90', marginTop: 16 }]}>记录生活点滴</Text>
+          <Text style={[styles.heroSub, { color: colors.text + '90' }]}>记录生活点滴</Text>
         </View>
       </View>
     );
-  };
+  }, [colors.background, colors.card, colors.primary, colors.text, insets.top, pulse]);
 
 
 
@@ -132,7 +143,7 @@ const PersonalActivityScreen = ({ navigation }) => {
         onImagePress={handleImagePress}
         onRefresh={onRefresh}
         refreshing={refreshing}
-        ListHeaderComponent={renderHeader()}
+        ListHeaderComponent={header}
       />
       <QuickAddButton onPress={() => navigateToActivityForm(null)} />
       <ImageViewer visible={imageViewerVisible} images={viewerImages} initialIndex={viewerInitialIndex} onClose={closeImageViewer} />
@@ -150,7 +161,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 48, // Adjust for status bar
   },
   hero: {
     height: 220, // Increased height
@@ -173,6 +183,7 @@ const styles = StyleSheet.create({
   heroSub: {
     fontSize: 16,
     letterSpacing: 1,
+    marginTop: 16,
   },
 });
 

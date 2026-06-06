@@ -36,6 +36,8 @@ const GroupsScreen = () => {
   const invitationCount = invitations.length;
   const invitationBadgeVisible = invitationCount > 0;
   const invitationLabel = `邀请${invitationCount ? `(${invitationCount})` : ''}`;
+  const topInset = Math.max(insets.top, 16);
+  const bottomInset = Math.max(insets.bottom, 12);
   const isNetworkLikeError = useMemo(() => {
     const message = String(groupsError || '');
     return (
@@ -78,7 +80,7 @@ const GroupsScreen = () => {
   }, [groupsError, isNetworkLikeError]);
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={`state.groups.screen.state.${pageState}`}>
+    <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]} testID={`state.groups.screen.state.${pageState}`}>
       <View testID="state.groups.screen.visibility.visible" />
       <View testID={`state.groups.screen.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.groups.screen.error.visibility.${showErrorCard ? 'visible' : 'hidden'}`} />

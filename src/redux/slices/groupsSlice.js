@@ -164,6 +164,27 @@ const normalizeGroupError = (value) => (
   isNetworkLikeMessage(value) ? null : value
 );
 
+const normalizeInvitationFetchError = (value) => {
+  if (isNetworkLikeMessage(value)) {
+    return null;
+  }
+
+  const message = String(value || '');
+  if (!message) {
+    return null;
+  }
+
+  if (
+    message.includes('获取群组邀请失败')
+    || message.includes('群组邀请失败')
+    || message.includes('邀请失败')
+  ) {
+    return null;
+  }
+
+  return value;
+};
+
 // 初始状态
 const initialState = {
   groups: [],
@@ -769,7 +790,7 @@ const groupsSlice = createSlice({
       })
       .addCase(fetchGroupInvitations.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.error = normalizeInvitationFetchError(action.payload);
       })
 
       // 接受群组邀请

@@ -7,6 +7,35 @@ import { Platform, ToastAndroid } from 'react-native';
 // 全局消息回调函数
 let globalMessageCallback = null;
 
+const NOISY_MESSAGE_PATTERNS = [
+  '获取群组邀请失败',
+  '群组邀请失败',
+  '获取群组列表失败',
+  '获取群组详情失败',
+  '获取群组成员失败',
+  '创建群组失败',
+  '加入群组失败',
+  '邀请用户失败',
+  '删除群组失败',
+  '网络错误且无缓存',
+  '离线状态下无法完成请求',
+  '无法完成请求',
+  '网络连接失败',
+  '请求已保存到离线队列',
+];
+
+const isNoisyMessage = (message) => {
+  const normalized = String(message || '').toLowerCase().replace(/\s+/g, '');
+  if (!normalized) {
+    return true;
+  }
+
+  return NOISY_MESSAGE_PATTERNS.some((pattern) => normalized.includes(String(pattern).toLowerCase().replace(/\s+/g, '')))
+    || /error[:：]/.test(normalized)
+    || /群组.*失败/.test(normalized)
+    || /邀请.*失败/.test(normalized);
+};
+
 /**
  * 设置全局消息回调函数
  * 用于在不同UI框架中显示消息
@@ -26,6 +55,10 @@ export const setMessageCallback = (callback) => {
  */
 export const showMessage = (message, type = 'info', duration = 2000) => {
   if (!message) {return;}
+
+  if (isNoisyMessage(message)) {
+    return;
+  }
 
   // 如果有全局回调，使用全局回调
   if (globalMessageCallback) {
