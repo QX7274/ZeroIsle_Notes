@@ -3,7 +3,7 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
-  Alert,
+  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { userApi } from '../../services/api';
 import { setUserInfo } from '../../redux/slices/authSlice';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
 
 const BindWechat = ({ navigation }) => {
   const { theme } = useTheme();
@@ -22,68 +23,63 @@ const BindWechat = ({ navigation }) => {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const [loading, setLoading] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [confirmMode, setConfirmMode] = useState('bind');
   const isBound = Boolean(user?.wechat_openid);
   const pageState = loading ? 'busy' : 'ready';
 
-  const handleBindWechat = async () => {
+  const closeConfirm = () => {
+    if (!loading) {
+      setConfirmVisible(false);
+    }
+  };
+
+  const runBindWechat = async () => {
     setLoading(true);
-    Alert.alert(
-      '提示',
-      '微信绑定功能需要微信 SDK 支持，当前为模拟流程。',
-      [
-        { text: '取消', style: 'cancel', onPress: () => setLoading(false) },
-        {
-          text: '继续',
-          onPress: async () => {
-            try {
-              const code = `mock_wechat_code_${Date.now()}`;
-              const response = await userApi.bindWechat({ code });
-              if (response.success) {
-                dispatch(setUserInfo(response.data.user));
-                Alert.alert('成功', '微信绑定成功');
-                navigation.goBack();
-              } else {
-                Alert.alert('错误', response.message || '绑定失败');
-              }
-            } catch (error) {
-              Alert.alert('错误', error.message || '绑定失败');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setConfirmVisible(false);
+    try {
+      const code = `mock_wechat_code_${Date.now()}`;
+      const response = await userApi.bindWechat({ code });
+      if (response.success) {
+        dispatch(setUserInfo(response.data.user));
+        showToast.success('微信绑定成功');
+        navigation.goBack();
+      } else {
+        showToast.error(response.message || '绑定失败');
+      }
+    } catch (error) {
+      showToast.error(error.message || '绑定失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runUnbindWechat = async () => {
+    setLoading(true);
+    setConfirmVisible(false);
+    try {
+      const response = await userApi.unbindWechat();
+      if (response.success) {
+        dispatch(setUserInfo(response.data.user));
+        showToast.success('微信解绑成功');
+      } else {
+        showToast.error(response.message || '解绑失败');
+      }
+    } catch (error) {
+      showToast.error(error.message || '解绑失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBindWechat = async () => {
+    setConfirmMode('bind');
+    setConfirmVisible(true);
   };
 
   const handleUnbindWechat = async () => {
-    Alert.alert(
-      '确认解绑',
-      '确定要解除微信绑定吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '解绑',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              const response = await userApi.unbindWechat();
-              if (response.success) {
-                dispatch(setUserInfo(response.data.user));
-                Alert.alert('成功', '微信解绑成功');
-              } else {
-                Alert.alert('错误', response.message || '解绑失败');
-              }
-            } catch (error) {
-              Alert.alert('错误', error.message || '解绑失败');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setConfirmMode('unbind');
+    setConfirmVisible(true);
   };
 
   return (
@@ -130,6 +126,48 @@ const BindWechat = ({ navigation }) => {
           </TouchableOpacity>
         )}
       </View>
+
+      <Modal
+        visible={confirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeConfirm}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.confirmCard, styles.glassCard]}>
+            <Text variant="heading" level="h5" style={styles.confirmTitle}>
+              {confirmMode === 'bind' ? '微信绑定确认' : '确认解绑微信'}
+            </Text>
+            <Text variant="body" color="hint" style={styles.confirmMessage}>
+              {confirmMode === 'bind'
+                ? '微信绑定功能需要微信 SDK 支持，当前为模拟流程。是否继续？'
+                : '确定要解除微信绑定吗？解除后将无法使用微信快捷登录。'}
+            </Text>
+            <View style={styles.confirmButtonRow}>
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.confirmCancelButton]}
+                onPress={closeConfirm}
+                disabled={loading}
+              >
+                <Text style={styles.confirmCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmButton, confirmMode === 'bind' ? styles.confirmPrimaryButton : styles.confirmDangerButton]}
+                onPress={confirmMode === 'bind' ? runBindWechat : runUnbindWechat}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmPrimaryText}>
+                    {confirmMode === 'bind' ? '继续' : '解绑'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -193,6 +231,57 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginVertical: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(8,28,56,0.34)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 420,
+    padding: 24,
+  },
+  confirmTitle: {
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  confirmMessage: {
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  confirmButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  confirmButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelButton: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.22)',
+  },
+  confirmPrimaryButton: {
+    backgroundColor: '#1D4ED8',
+  },
+  confirmDangerButton: {
+    backgroundColor: '#DC2626',
+  },
+  confirmCancelText: {
+    color: '#1F5FBF',
+    fontWeight: '600',
+  },
+  confirmPrimaryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
 
