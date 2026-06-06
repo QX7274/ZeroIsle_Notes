@@ -6,6 +6,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import defaultAvatar from '../../assets/images/logo.png';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,6 +19,15 @@ import userApi from '../../services/api/userApi';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { setUserInfo } from '../../redux/slices/authSlice';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+
+const ENTRY_PALETTE_MAP = {
+  Reminder: { tint: 'rgba(76,141,255,0.10)', accent: 'rgba(76,141,255,0.22)', iconBg: 'rgba(76,141,255,0.14)', shadow: '#4C8DFF', label: '#1F5FBF' },
+  Groups: { tint: 'rgba(155,89,255,0.10)', accent: 'rgba(155,89,255,0.22)', iconBg: 'rgba(155,89,255,0.14)', shadow: '#9B59FF', label: '#6A35D3' },
+  MindMap: { tint: 'rgba(17,170,144,0.10)', accent: 'rgba(17,170,144,0.22)', iconBg: 'rgba(17,170,144,0.14)', shadow: '#11AA90', label: '#0B7D67' },
+  KnowledgeGraph: { tint: 'rgba(245,158,11,0.10)', accent: 'rgba(245,158,11,0.22)', iconBg: 'rgba(245,158,11,0.14)', shadow: '#F59E0B', label: '#B26A00' },
+  PersonalActivity: { tint: 'rgba(59,130,246,0.10)', accent: 'rgba(59,130,246,0.22)', iconBg: 'rgba(59,130,246,0.14)', shadow: '#3B82F6', label: '#2456B5' },
+  KnowledgeBase: { tint: 'rgba(236,72,153,0.10)', accent: 'rgba(236,72,153,0.22)', iconBg: 'rgba(236,72,153,0.14)', shadow: '#EC4899', label: '#B91C5A' },
+};
 
 const ProfileSettings = ({ navigation }) => {
   const { colors } = useTheme();
@@ -35,7 +45,9 @@ const ProfileSettings = ({ navigation }) => {
   const profileState = interactionBusy ? 'busy' : 'ready';
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     setUsername(user.username || '');
     setBio(user.bio || '');
     setAvatar(user.avatar || null);
@@ -50,12 +62,16 @@ const ProfileSettings = ({ navigation }) => {
         maxWidth: 500,
         maxHeight: 500,
       });
-      if (result.didCancel) return;
+      if (result.didCancel) {
+        return;
+      }
       if (result.errorCode) {
         setError(`选择图片失败: ${result.errorMessage}`);
         return;
       }
-      if (!result.assets?.length) return;
+      if (!result.assets?.length) {
+        return;
+      }
       const selectedImage = result.assets[0];
       setIsUploading(true);
 
@@ -71,7 +87,9 @@ const ProfileSettings = ({ navigation }) => {
       });
 
       userApi.uploadAvatar(formData).then((response) => {
-        if (!response.success) return;
+        if (!response.success) {
+          return;
+        }
         const avatarUrl = response.data.avatar_url || response.data.avatar;
         setAvatar(avatarUrl);
         dispatch(setUserInfo({ ...user, avatar: avatarUrl, avatarLocal: null }));
@@ -87,7 +105,9 @@ const ProfileSettings = ({ navigation }) => {
   };
 
   const handleSaveProfile = async () => {
-    if (interactionBusy) return;
+    if (interactionBusy) {
+      return;
+    }
     if (!username.trim()) {
       setError('用户名不能为空');
       return;
@@ -109,8 +129,11 @@ const ProfileSettings = ({ navigation }) => {
   };
 
   const navigateWithGuard = useCallback((routeName) => {
-    if (interactionBusy) return;
+    if (interactionBusy) {
+      return;
+    }
     Haptics.lightFeedback();
+    console.log('[ProfileSettings] navigateWithGuard', routeName);
     navigation.navigate(routeName);
   }, [interactionBusy, navigation]);
 
@@ -123,8 +146,50 @@ const ProfileSettings = ({ navigation }) => {
     { key: 'KnowledgeBase', label: '知识库', icon: 'library-books', hint: '资料沉淀' },
   ];
 
+  const renderFunctionEntry = useCallback((entry) => {
+    const palette = ENTRY_PALETTE_MAP[entry.key] || {
+      tint: 'rgba(76,141,255,0.10)',
+      accent: 'rgba(76,141,255,0.22)',
+      iconBg: 'rgba(76,141,255,0.14)',
+      shadow: '#4C8DFF',
+      label: colors.text,
+    };
+
+    return (
+      <Pressable
+        key={entry.key}
+        style={({ pressed }) => [
+          styles.itemBtn,
+          {
+            backgroundColor: pressed ? 'rgba(255,255,255,0.98)' : palette.tint,
+            borderColor: palette.accent,
+            shadowColor: palette.shadow,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+        onPress={() => navigateWithGuard(entry.key)}
+        disabled={interactionBusy}
+        testID={`entry.${entry.key === 'Groups' ? 'group' : entry.key === 'MindMap' ? 'mindMap' : entry.key === 'KnowledgeGraph' ? 'knowledgeGraph' : entry.key === 'PersonalActivity' ? 'activity' : entry.key === 'KnowledgeBase' ? 'knowledgeBase' : 'reminder'}.profile`}
+      >
+        <View style={[styles.itemAccentBar, { backgroundColor: palette.label }]} />
+        <View style={styles.itemTopRow}>
+          <View style={[styles.itemIconWrap, { backgroundColor: palette.iconBg, borderColor: palette.accent }]}>
+            <Icon name={entry.icon} size={20} color={palette.label} />
+          </View>
+          <Icon name="chevron-right" size={18} color={palette.label} />
+        </View>
+        <View style={styles.itemTextWrap}>
+          <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>{entry.label}</Text>
+          <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={2}>
+            {entry.hint}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }, [colors.text, colors.textSecondary, interactionBusy, navigateWithGuard]);
+
   return (
-    <View style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.profile.state.${profileState}`}>
+    <View style={[styles.page, styles.pageBackground]} testID={`state.profile.state.${profileState}`}>
       <View testID="state.profile.visibility.visible" />
       <View testID={`state.profile.interactionBusy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
       <View testID={`state.profile.uploading.visibility.${isUploading ? 'visible' : 'hidden'}`} />
@@ -161,25 +226,12 @@ const ProfileSettings = ({ navigation }) => {
         </View>
 
         <View style={[styles.functionCard, styles.glassCard]}>
-          <Text variant="h3">功能中心</Text>
+          <View style={styles.sectionHead}>
+            <Text variant="h3">功能中心</Text>
+            <Text variant="caption" style={{ color: colors.textSecondary }}>常用功能入口</Text>
+          </View>
           <View style={styles.grid}>
-            {functionEntries.map((entry) => (
-              <TouchableOpacity
-                key={entry.key}
-                style={styles.itemBtn}
-                onPress={() => navigateWithGuard(entry.key)}
-                disabled={interactionBusy}
-                testID={`entry.${entry.key === 'Groups' ? 'group' : entry.key === 'MindMap' ? 'mindMap' : entry.key === 'KnowledgeGraph' ? 'knowledgeGraph' : entry.key === 'PersonalActivity' ? 'activity' : entry.key === 'KnowledgeBase' ? 'knowledgeBase' : 'reminder'}.profile`}
-              >
-                <View style={[styles.itemIconWrap, { backgroundColor: `${colors.primary}14` }]}>
-                  <Icon name={entry.icon} size={20} color={colors.primary} />
-                </View>
-                <Text style={[styles.itemTitle, { color: colors.text }]}>{entry.label}</Text>
-                <Text style={[styles.itemHint, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {entry.hint}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {functionEntries.map((entry) => renderFunctionEntry(entry))}
           </View>
         </View>
 
@@ -198,6 +250,7 @@ const ProfileSettings = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
+  pageBackground: { backgroundColor: '#F3F8FF' },
   scrollContent: { padding: 16, paddingBottom: 28 },
   glassCard: {
     backgroundColor: 'rgba(255,255,255,0.88)',
@@ -220,22 +273,25 @@ const styles = StyleSheet.create({
   formCard: { padding: 14, marginBottom: 14 },
   bioInput: { height: 100, textAlignVertical: 'top' },
   functionCard: { padding: 14, marginBottom: 14 },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
   itemBtn: {
     width: '48%',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.95)',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(76,141,255,0.20)',
+    borderColor: 'rgba(76,141,255,0.18)',
     shadowColor: '#4C8DFF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 3,
     alignItems: 'flex-start',
+    minHeight: 106,
+    justifyContent: 'space-between',
   },
   itemIconWrap: {
     width: 38,
@@ -247,6 +303,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(76,141,255,0.12)',
   },
+  itemAccentBar: { height: 4, borderRadius: 999, marginBottom: 10, opacity: 0.92 },
+  itemTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  itemTextWrap: { flex: 1 },
   itemTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
   itemHint: { fontSize: 12, lineHeight: 17 },
   actionRow: { padding: 10, flexDirection: 'row', justifyContent: 'space-between' },
