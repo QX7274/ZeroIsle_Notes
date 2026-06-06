@@ -8,7 +8,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -78,7 +77,7 @@ const HelpScreen = ({ navigation }) => {
 
   const submitFeedback = async () => {
     if (!feedbackContent.trim()) {
-      Alert.alert('提示', '请输入反馈内容');
+      showToast.warning('请输入反馈内容');
       return;
     }
 
@@ -92,10 +91,10 @@ const HelpScreen = ({ navigation }) => {
       });
 
       setFeedbackContent('');
-      Alert.alert('提交成功', '感谢你的反馈，我们会尽快处理');
+      showToast.success('感谢你的反馈，我们会尽快处理');
     } catch (error) {
       console.error('提交反馈失败:', error);
-      Alert.alert('提交失败', '请稍后重试');
+      showToast.error('提交失败，请稍后重试');
       analyticsService.trackError(error, { operation: 'submit_feedback' });
     } finally {
       setIsSubmitting(false);
@@ -111,7 +110,7 @@ const HelpScreen = ({ navigation }) => {
 
       await Linking.openURL(url);
     } catch (error) {
-      console.warn('无法打开链接:', url, error?.message || error);
+      console.log('无法打开链接:', url, error?.message || error);
       showToast.error('当前链接暂时无法打开，请稍后重试');
     }
   };
