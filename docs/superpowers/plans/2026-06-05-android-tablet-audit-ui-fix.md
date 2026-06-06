@@ -688,3 +688,35 @@ Expected: 新增或修改的回归用例通过。
 - 其他功能页仍需继续逐页观察顶部完整露出、异常留白和统一网络弹窗
 - 底部黑框已明确属于调试态现象，本轮不再作为产品缺陷处理
 ```
+
+### Task 14: 收口群组详情页成员列表的虚拟列表嵌套警告
+
+**Files:**
+- Modify: `src/components/groups/MemberList.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 用真机离线创建链路确认本地详情页已可进入**
+
+```md
+- 路径：群组空态 -> 创建群组 -> 填写测试数据 -> 提交 -> 关闭统一网络弹窗
+- 结果：已进入本地草稿详情页，说明离线详情兜底链路仍然有效
+- 证据：`tmp_group_create_after_dismiss.png/.xml`
+```
+
+- [x] **Step 2: 收口群组详情页底部开发态警告条**
+
+```md
+- 现象：详情页底部出现 `VirtualizedLists should never be nested inside plain ScrollViews...` 警告条
+- 根因：`GroupDetail` 外层是 `ScrollView`，`MemberList` 内层仍使用 `FlatList`
+- 做法：成员列表改为普通映射渲染，避免在小规模成员区继续嵌套虚拟列表
+- 约束：不重做详情页成熟卡片、顶部壳层、返回按钮或操作区布局
+```
+
+- [x] **Step 3: 继续沿同一条真机链路复测**
+
+```md
+- 重点：群组详情页顶部完整露出、离线草稿详情仍可进入、统一网络弹窗保留、开发态虚拟列表警告不再干扰验收
+- 说明：这次收口的是开发态验收噪声，不把它误写成产品底部黑框问题
+```
