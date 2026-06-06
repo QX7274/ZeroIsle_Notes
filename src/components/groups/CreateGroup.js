@@ -56,6 +56,7 @@ const CreateGroup = () => {
       created_at: nowIso,
       updated_at: nowIso,
       local_only: true,
+      can_invite: false,
       can_generate_join_code: false,
     };
   };

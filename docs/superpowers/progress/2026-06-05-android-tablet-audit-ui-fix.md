@@ -972,3 +972,32 @@
   - 顶部标题和淡蓝色方形返回按钮继续完整露出；
   - 统一网络弹窗策略仍然成立；
   - 本轮只新增收口成员列表虚拟列表嵌套警告，不把它误记成产品底部黑框问题。
+
+### 2026-06-06 第八十三轮：本地离线草稿群组详情页联网入口误导收口
+
+- 本轮继续沿同一条安卓平板 `HGR3Y9MA` 真机链路复测群组详情页，把注意力集中在上轮尚未验透的 `菜单 / 刷新 / 屏幕共享` 入口上，不把单页正常外推成群组链路已全部完成。
+- 真机证据先确认了当前详情页真实状态：离线创建后的 `TestGroupRound258 / OfflineDraft258` 本地草稿详情页仍可进入，顶部标题、淡蓝色方形返回按钮和主体卡片完整露出，见 `tmp_round283_groupdetail_start.png/.xml`。
+- 继续点右上角菜单后，截图 `tmp_round283_menu_open.png` 说明菜单本身可以正常展开，当前可见项是“邀请成员”和“离开群组”；这一步没有崩溃，也没有原生弹窗回退，说明菜单层样式本身是成熟的。
+- 本轮新的真实问题出在“本地草稿态与正式群组态边界”上：
+  - 当前本地草稿详情页仍暴露“邀请成员”“屏幕共享”“刷新”等远端群组才应该开放的入口；
+  - 其中“刷新”在真机上稳定触发项目内统一网络弹窗，证据为 `tmp_round283_after_refresh_tap.png/.xml/.log`；
+  - 这说明虽然统一网络弹窗链路本身没坏，但页面把离线草稿误表现成了可以联网操作的正式群组，属于真实的交互误导问题。
+- 根因已明确收敛到两处：
+  - `src/redux/slices/groupsSlice.js` 的 `upsertLocalGroup` 仍把本地草稿默认标成 `can_invite: true`、`can_generate_join_code: true`；
+  - `src/components/groups/CreateGroup.js` 的离线草稿构造也没有显式收窄这些能力，导致 `GroupDetail` 会把草稿群组当成近似正式群组来展示操作入口。
+- 已实施最小修复，且只动本地草稿态，不动成熟远端详情布局：
+  - `src/redux/slices/groupsSlice.js`：本地草稿默认改为 `can_invite: false`、`can_generate_join_code: false`；
+  - `src/components/groups/CreateGroup.js`：离线草稿 fallback 同步写入 `can_invite: false`；
+  - `src/components/groups/GroupDetail.js`：本地草稿态不再显示“屏幕共享”，不再暴露“邀请成员 / 生成加入码”，`刷新` 改为仅展示草稿状态说明，并在页头补充“本地离线草稿”说明文案；
+  - 同时“离开群组”在草稿态下改为更贴近实际语义的“删除草稿”，避免继续误导用户以为自己已经在远端群组内。
+- 代码验证已完成：
+  - `npx jest src/redux/slices/__tests__/groupsSlice.localFallback.test.js --runInBand` 通过，8/8 用例通过；
+  - `npx eslint src/redux/slices/groupsSlice.js src/components/groups/CreateGroup.js src/components/groups/GroupDetail.js` 通过，无新增 error。
+- 真机过程补充说明也单独留痕，避免误判：
+  - 修复后复测期间，一度因为系统照片选择器残留和应用重启过渡页，分别落到了系统界面与首页启动恢复过程；
+  - 这些现象已经被固化为 `tmp_round283_after_fix_back.png`、`tmp_round283_after_relaunch.png`、`tmp_round283_after_relaunch_wait6.png/.xml/.log`；
+  - 它们不计入本轮群组详情产品缺陷，只作为联调过程证据保留。
+- 本轮结论：
+  - 群组本地离线草稿详情页的真实问题不是统一网络弹窗样式，而是“错误暴露了联网群组入口”；
+  - 这轮已经按最小范围把草稿态与正式群组态拆开；
+  - 后续再回到真机时，应继续从“本地草稿详情 -> 菜单 -> 删除草稿 / 正式群组详情 -> 邀请成员 / 屏幕共享”两条分支分别复测，不把其中一条的结果外推成整条群组详情链路完全完成。

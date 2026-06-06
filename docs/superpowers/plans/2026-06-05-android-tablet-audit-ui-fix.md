@@ -720,3 +720,37 @@ Expected: 新增或修改的回归用例通过。
 - 重点：群组详情页顶部完整露出、离线草稿详情仍可进入、统一网络弹窗保留、开发态虚拟列表警告不再干扰验收
 - 说明：这次收口的是开发态验收噪声，不把它误写成产品底部黑框问题
 ```
+
+### Task 15: 收口本地离线草稿群组详情页的误导性联网入口
+
+**Files:**
+- Modify: `src/redux/slices/groupsSlice.js`
+- Modify: `src/components/groups/CreateGroup.js`
+- Modify: `src/components/groups/GroupDetail.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 用真机确认本地草稿详情页仍暴露远端群组入口**
+
+```md
+- 路径：群组空态 -> 创建群组 -> 离线提交 -> 关闭统一网络弹窗 -> 进入本地草稿详情页
+- 现象：本地草稿详情页仍显示“邀请成员 / 屏幕共享 / 刷新”等远端群组入口
+- 证据：`tmp_round283_menu_open.png`、`tmp_round283_after_refresh_tap.png/.xml/.log`
+```
+
+- [x] **Step 2: 按本地草稿态与正式群组态拆分可操作项**
+
+```md
+- 根因：`upsertLocalGroup` 与 `CreateGroup` 的离线草稿默认能力过宽，详情页继续把草稿当成可联网群组处理
+- 做法：本地草稿默认关闭邀请成员 / 生成加入码能力；详情页本地草稿态隐藏屏幕共享入口，并把刷新改为只展示草稿状态说明
+- 约束：不重做成熟详情卡片、顶部壳层、返回按钮和正常远端群组的既有交互
+```
+
+- [x] **Step 3: 保留统一网络弹窗标准，但避免草稿态误导点击**
+
+```md
+- 目标：网络问题仍统一走项目内优美样式弹窗
+- 目标：本地草稿页不再主动暴露会稳定触发网络错误的联网操作入口
+- 说明：这轮修的是离线草稿态边界，不把启动过渡页、系统照片选择器或联调波动误记成群组详情产品缺陷
+```

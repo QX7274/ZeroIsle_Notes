@@ -71,7 +71,12 @@ const GroupDetail = ({ groupId }) => {
   };
   const showErrorState = Boolean(error) && !group && !isNetworkLikeError(error);
   const showNetworkFallback = Boolean(error) && !group && isNetworkLikeError(error);
-  const localGroup = groups.find((item) => String(item?.id) === String(groupId) && item?.local_only);
+  const localGroupFromList = groups.find((item) => String(item?.id) === String(groupId) && item?.local_only);
+  const localGroup = localGroupFromList || (
+    String(group?.id || '') === String(groupId || '') && group?.local_only
+      ? group
+      : null
+  );
   const isLocalGroup = Boolean(localGroup);
 
   useEffect(() => {
@@ -108,6 +113,8 @@ const GroupDetail = ({ groupId }) => {
 
     if (isLocalGroup) {
       dispatch(setCurrentGroup(localGroup));
+      setInlineStatus('当前是本地离线草稿，联网后再刷新即可同步远端群组数据');
+      setInlineStatusTone('info');
       return;
     }
 
@@ -236,8 +243,11 @@ const GroupDetail = ({ groupId }) => {
     setLeaveDialogVisible(true);
   };
 
-  const canGenerateJoinCode = Boolean(group?.can_generate_join_code);
-  const canInviteMembers = Boolean(group?.can_invite);
+  const canGenerateJoinCode = !isLocalGroup && Boolean(group?.can_generate_join_code);
+  const canInviteMembers = !isLocalGroup && Boolean(group?.can_invite);
+  const shouldShowShareAction = !isLocalGroup;
+  const refreshButtonLabel = isLocalGroup ? '查看草稿状态' : '刷新';
+  const draftStatusText = isLocalGroup ? '本地离线草稿，当前仅保留详情浏览与删除草稿操作。' : '';
 
   const closeJoinCodeDialog = () => {
     if (isSharingJoinCode) {
@@ -331,6 +341,11 @@ const GroupDetail = ({ groupId }) => {
           <View style={styles.headerContent}>
             <Text style={styles.groupName}>{group.name}</Text>
             <Text style={styles.memberCount}>{group.member_count} 位成员</Text>
+            {draftStatusText ? (
+              <Text style={styles.draftBadge} testID="state.group.detail.localDraftHint">
+                {draftStatusText}
+              </Text>
+            ) : null}
           </View>
 
           <Menu
@@ -369,7 +384,7 @@ const GroupDetail = ({ groupId }) => {
             {canGenerateJoinCode || canInviteMembers ? <Divider /> : null}
             <Menu.Item
               onPress={handleOpenLeaveDialog}
-              title="离开群组"
+              title={isLocalGroup ? '删除草稿' : '离开群组'}
               leadingIcon="exit-to-app"
               titleStyle={{ color: COLORS.ERROR }}
               testID="action.group.menu.leaveGroup"
@@ -386,20 +401,22 @@ const GroupDetail = ({ groupId }) => {
         ) : null}
 
         <View style={styles.actionsContainer}>
-          <Button mode="contained" icon="monitor-share" style={styles.actionButton} onPress={handleStartScreenShare} testID="action.group.startShare" loading={isStartingShare} disabled={isStartingShare || isLeavingGroup || isRefreshingGroup}>
-            屏幕共享
-          </Button>
+          {shouldShowShareAction ? (
+            <Button mode="contained" icon="monitor-share" style={styles.actionButton} onPress={handleStartScreenShare} testID="action.group.startShare" loading={isStartingShare} disabled={isStartingShare || isLeavingGroup || isRefreshingGroup}>
+              屏幕共享
+            </Button>
+          ) : null}
 
           <Button
             mode="outlined"
             icon="refresh"
-            style={styles.actionButton}
+            style={[styles.actionButton, !shouldShowShareAction ? styles.singleActionButton : null]}
             onPress={loadGroupData}
             loading={isLoading || isRefreshingGroup}
             testID="action.group.refresh"
             disabled={isLoading || isRefreshingGroup || isLeavingGroup || isGeneratingJoinCode || isSharingJoinCode}
           >
-            刷新
+            {refreshButtonLabel}
           </Button>
         </View>
 
@@ -543,6 +560,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.TEXT_SECONDARY,
   },
+  draftBadge: {
+    marginTop: SPACING.SMALL,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#4B5563',
+  },
   menuButton: {
     padding: SPACING.SMALL,
     marginLeft: SPACING.MEDIUM,
@@ -584,6 +607,9 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: SPACING.XSMALL,
     borderRadius: 16,
+  },
+  singleActionButton: {
+    marginHorizontal: 0,
   },
   membersContainer: {
     backgroundColor: 'rgba(255,255,255,0.88)',

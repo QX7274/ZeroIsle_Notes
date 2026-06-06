@@ -615,8 +615,8 @@ const groupsSlice = createSlice({
     upsertLocalGroup: (state, action) => {
       const localGroup = {
         member_count: 1,
-        can_invite: true,
-        can_generate_join_code: true,
+        can_invite: false,
+        can_generate_join_code: false,
         ...action.payload,
         local_only: true,
       };
