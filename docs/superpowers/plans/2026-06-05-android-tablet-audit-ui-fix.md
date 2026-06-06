@@ -936,3 +936,47 @@ Expected: 新增或修改的回归用例通过。
 - 这些现象继续单独记录，不计为群组产品页布局缺陷；下一轮要在恢复真实页面态后，优先补抓群组创建页/邀请页/加入页的修后终态截图与 XML
 - 证据：`tmp_round294_relaunch_after_tabfix.png/.xml`、`tmp_round294_after_wait8.png/.xml`、`tmp_round294_relaunch_after_tabfix2.png/.xml`
 ```
+
+### Task 21: 用真机终态证据补完群组深层页主标签栏隐藏验收
+
+**Files:**
+- Modify: `src/navigation/GroupsNavigator.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 继续以真机真实入口确认上一轮静态隐藏规则未完全命中**
+
+```md
+- 路径：首页 / 我的 -> 个人资料 -> 功能中心 -> 群组
+- 现象：群组主页已弹统一网络错误弹窗，但底部仍可见 `首页 / AI / 社区 / 我的` 主标签栏
+- 判定：说明仅在 `AppNavigator` 做静态路由名判断还不够，真实运行时父导航层级仍有漏口
+- 证据：`tmp_round296_group.png/.xml`
+```
+
+- [x] **Step 2: 改为在 `GroupsNavigator` 运行时沿父导航链逐层隐藏 tabBar**
+
+```md
+- 根因：`SettingsNavigator -> GroupsNavigator` 进入后，真实生效的 tab navigator 层级并不稳定，固定写 `getParent()?.getParent?.()` 容易漏到更外层父导航
+- 做法：在 `GroupsNavigator` 使用 `useFocusEffect` 沿 `navigation.getParent()` 链逐层收集父导航，并在群组流聚焦时统一 `setOptions({ tabBarStyle: { display: 'none' } })`
+- 离开群组流时逐层恢复 `tabBarStyle: undefined`
+- 约束：只修群组链路主标签栏显隐，不重做群组成熟页头、统一网络弹窗、返回按钮和既有表单布局
+```
+
+- [x] **Step 3: 逐页真机复核群组首页、邀请、加入、创建四个页面**
+
+```md
+- 群组主页：关闭统一网络弹窗后，底部主标签栏已消失，XML 中不再出现 `nav.tab.home/nav.tab.ai/nav.tab.community/nav.tab.profile`
+- 邀请页：`群组邀请` 顶部完整露出，统一网络弹窗仍保留，底部主标签栏未回流
+- 加入页：顶部淡蓝色方形返回按钮与标题完整露出，输入卡片布局正常，底部主标签栏未回流
+- 创建页：页头、表单和按钮保持当前成熟样式，底部主标签栏未回流
+- 证据：`tmp_round296_group_after_fix.png/.xml`、`tmp_round296_invitations.png/.xml`、`tmp_round296_join.png/.xml`、`tmp_round296_create.png/.xml`
+```
+
+- [x] **Step 4: 将“顶部完整露出、布局合理、底部调试黑框不再处理”的边界继续写入文档**
+
+```md
+- 本轮继续按真机可视区验收：页面高度不能按整块平板尺寸直接铺满，必须同时考虑顶部状态栏安全区
+- 本轮确认群组四个页面顶部标题、返回按钮和操作区都完整露出，没有被状态栏或原生头遮挡
+- 用户已明确底部黑框属于调试噪声，本轮及后续不再把它作为产品侧缺陷处理；但功能深层页误露出的主标签栏仍必须逐页验收
+```

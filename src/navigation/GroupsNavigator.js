@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import GroupsScreen from '../screens/groups/GroupsScreen';
 import GroupDetailScreen from '../screens/groups/GroupDetailScreen';
 import CreateGroupScreen from '../screens/groups/CreateGroupScreen';
@@ -18,6 +19,37 @@ const Stack = createStackNavigator();
  * 包含群组列表、群组详情、创建群组、加入群组、屏幕共享等功能
  */
 const GroupsNavigator = () => {
+  const navigation = useNavigation();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const parentNavigations = [];
+      let currentNavigation = navigation;
+
+      while (currentNavigation?.getParent?.()) {
+        currentNavigation = currentNavigation.getParent();
+        if (!currentNavigation) {
+          break;
+        }
+        parentNavigations.push(currentNavigation);
+      }
+
+      parentNavigations.forEach(parentNavigation => {
+        parentNavigation?.setOptions?.({
+          tabBarStyle: { display: 'none' },
+        });
+      });
+
+      return () => {
+        parentNavigations.forEach(parentNavigation => {
+          parentNavigation?.setOptions?.({
+            tabBarStyle: undefined,
+          });
+        });
+      };
+    }, [navigation])
+  );
+
   return (
     <Stack.Navigator
       initialRouteName="GroupsList"
