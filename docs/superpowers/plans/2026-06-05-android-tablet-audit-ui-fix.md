@@ -865,3 +865,37 @@ Expected: 新增或修改的回归用例通过。
 - 本轮测试中出现过一次应用被切回桌面、一次启动过渡页短暂停留，这两者都作为联调/系统层噪声单独记录，不计为本轮邀请页 UI 缺陷
 - 证据：`tmp_round291_invitation_after_fix.png/.xml`、`tmp_round291_invite_tap_wait.png/.xml`、`tmp_round291_relaunch_screen.png/.xml`
 ```
+
+### Task 19: 收口创建群组页外层整块玻璃壳导致的平板异常留白
+
+**Files:**
+- Modify: `src/screens/groups/CreateGroupScreen.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 真机确认创建群组页主体外仍有大块无效留白**
+
+```md
+- 路径：个人资料 -> 功能中心 -> 群组 -> 创建群组
+- 现象：页头、返回按钮和表单本身都正常，但表单卡片外层还被包进一整块铺满余高的玻璃壳，导致卡片下方出现非常突兀的大块空白
+- 判定：这不是状态栏遮挡，不是底部系统栏，也不是提交流程问题，而是创建页外层容器设计不合理
+- 证据：`tmp_round292_create_entry.png/.xml`
+```
+
+- [x] **Step 2: 仅移除外层撑满高度的装饰壳，保留成熟表单内容**
+
+```md
+- 根因：`CreateGroupScreen` 用了 `flex: 1` 的 `glassShell` 把 `CreateGroup` 整体再次包裹，平板上形成“大容器 + 小表单卡片”的原始留白感
+- 做法：移除这层额外玻璃壳的装饰属性，只保留普通内容承载容器，让表单卡片按自身内容高度呈现
+- 保留：统一页头、淡蓝色方形返回按钮、创建表单结构、离线本地草稿 fallback、统一网络弹窗、既有 testID
+```
+
+- [x] **Step 3: 记录真机联调噪声，避免把重装后桌面/加载态误记成页面缺陷**
+
+```md
+- 代码修改后 `npx eslint src/screens/groups/CreateGroupScreen.js` 通过，`./gradlew.bat :app:installDebug` 成功安装到平板
+- 安装后再次出现应用被系统切回桌面、重新拉起后短暂停在 `Loading from localhost:8081...` 的联调现象
+- 这些现象本轮继续单独记录，不计为“创建群组页布局缺陷”，避免把运行时联调波动和实际页面问题混淆
+- 证据：`tmp_round292_create_after_fix.png/.xml`、`tmp_round292_relaunch_after_fix.png/.xml`
+```

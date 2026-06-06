@@ -24,7 +24,7 @@ const CreateGroupScreen = () => {
         <Text style={styles.headerTitle}>创建群组</Text>
         <View style={styles.headerRight} />
       </View>
-      <View style={styles.glassShell}>
+      <View style={styles.contentShell}>
         <CreateGroup />
       </View>
     </View>
@@ -65,21 +65,8 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 40,
   },
-  glassShell: {
+  contentShell: {
     flex: 1,
-    marginHorizontal: 8,
-    marginTop: 8,
-    marginBottom: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(33,150,243,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.68)',
-    shadowColor: '#4C8DFF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
-    overflow: 'hidden',
   },
 });
 
