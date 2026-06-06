@@ -191,7 +191,7 @@ class NetworkErrorService {
       }
 
       // 记录错误日志
-      console.error('API网络错误:', {
+      console.warn('API网络错误:', {
         context: options.context || 'API调用',
         error: error?.message || error,
         timestamp: new Date().toISOString(),

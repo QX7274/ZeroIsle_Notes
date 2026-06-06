@@ -60,6 +60,7 @@ const DEV_SUPPRESSED_LOG_PREFIXES = [
   '刷新令牌失败或超时，清除认证状态',
   'DEV_SKIP_LOGIN: 刷新令牌失败，继续以未认证状态请求:',
   'NetworkErrorService:',
+  'API网络错误:',
   '网络错误请求URL:',
   '网络错误请求方法:',
   '网络错误请求头:',
