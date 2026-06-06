@@ -4,19 +4,46 @@
 import instance from './apiClient';
 import { API_ENDPOINTS } from '../../config/api';
 
+const isExpectedGroupNetworkError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.isNetworkError === true
+    || error?.isOfflineError === true
+    || message.includes('network error')
+    || message.includes('网络')
+    || message.includes('离线')
+    || message.includes('无缓存')
+    || message.includes('无法完成请求')
+    || message.includes('offline')
+  );
+};
+
+const logGroupApiFailure = (label, error) => {
+  if (isExpectedGroupNetworkError(error)) {
+    console.warn(`${label}:`, error);
+    return;
+  }
+
+  console.error(`${label}:`, error);
+};
+
 /**
  * 获取用户的群组列表
  * @returns {Promise} 群组列表
  */
-export const getUserGroups = async () => {
+export const getUserGroups = async (requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.GROUPS.BASE);
+    const response = await instance.get(API_ENDPOINTS.GROUPS.BASE, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data || [],
     };
   } catch (error) {
-    console.error('获取群组列表失败:', error);
+    logGroupApiFailure('获取群组列表失败', error);
 
     // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
     if (error.response?.status === 401 && error.isIgnorableAuthError) {
@@ -33,15 +60,19 @@ export const getUserGroups = async () => {
  * @param {string} groupId 群组ID
  * @returns {Promise} 群组详情
  */
-export const getGroupDetail = async (groupId) => {
+export const getGroupDetail = async (groupId, requestOptions = {}) => {
   try {
-    const response = await instance.get(`${API_ENDPOINTS.GROUPS.DETAIL(groupId)}`);
+    const response = await instance.get(`${API_ENDPOINTS.GROUPS.DETAIL(groupId)}`, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('获取群组详情失败:', error);
+    logGroupApiFailure('获取群组详情失败', error);
 
     // 如果是401错误且被标记为可忽略的认证错误，不要触发登出
     if (error.response?.status === 401 && error.isIgnorableAuthError) {
@@ -58,15 +89,19 @@ export const getGroupDetail = async (groupId) => {
  * @param {object} groupData 群组数据
  * @returns {Promise} 创建结果
  */
-export const createGroup = async (groupData) => {
+export const createGroup = async (groupData, requestOptions = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.GROUPS.BASE, groupData);
+    const response = await instance.post(API_ENDPOINTS.GROUPS.BASE, groupData, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('创建群组失败:', error);
+    logGroupApiFailure('创建群组失败', error);
     throw error;
   }
 };
@@ -88,7 +123,7 @@ export const updateGroup = async (groupId, groupData) => {
       data: response.data,
     };
   } catch (error) {
-    console.error('更新群组失败:', error);
+    logGroupApiFailure('更新群组失败', error);
     throw error;
   }
 };
@@ -105,7 +140,7 @@ export const deleteGroup = async (groupId) => {
       success: true,
     };
   } catch (error) {
-    console.error('删除群组失败:', error);
+    logGroupApiFailure('删除群组失败', error);
     throw error;
   }
 };
@@ -116,18 +151,23 @@ export const deleteGroup = async (groupId) => {
  * @param {number} expiresIn 过期时间（分钟）
  * @returns {Promise} 加入码
  */
-export const generateJoinCode = async (groupId, expiresIn = 30) => {
+export const generateJoinCode = async (groupId, expiresIn = 30, requestOptions = {}) => {
   try {
     const response = await instance.post(
       API_ENDPOINTS.GROUPS.GENERATE_JOIN_CODE(groupId),
-      { expires_in: expiresIn }
+      { expires_in: expiresIn },
+      {
+        metadata: {
+          suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+        },
+      }
     );
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('生成加入码失败:', error);
+    logGroupApiFailure('生成加入码失败', error);
     throw error;
   }
 };
@@ -148,7 +188,7 @@ export const joinGroupByCode = async (joinCode) => {
       data: response.data,
     };
   } catch (error) {
-    console.error('加入群组失败:', error);
+    logGroupApiFailure('加入群组失败', error);
     throw error;
   }
 };
@@ -170,7 +210,7 @@ export const inviteUserToGroup = async (groupId, userId) => {
       data: response.data,
     };
   } catch (error) {
-    console.error('邀请用户失败:', error);
+    logGroupApiFailure('邀请用户失败', error);
     throw error;
   }
 };
@@ -191,20 +231,24 @@ export const searchGroupInviteCandidates = async (groupId, keyword) => {
       data: response.data || [],
     };
   } catch (error) {
-    console.error('搜索群组邀请候选失败:', error);
+    logGroupApiFailure('搜索群组邀请候选失败', error);
     throw error;
   }
 };
 
-export const getGroupMembers = async (groupId) => {
+export const getGroupMembers = async (groupId, requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId));
+    const response = await instance.get(API_ENDPOINTS.GROUPS.MEMBERS(groupId), {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('获取群组成员失败:', error);
+    logGroupApiFailure('获取群组成员失败', error);
     throw error;
   }
 };
@@ -214,15 +258,19 @@ export const getGroupMembers = async (groupId) => {
  * @param {string} groupId 群组ID
  * @returns {Promise} 离开结果
  */
-export const leaveGroup = async (groupId) => {
+export const leaveGroup = async (groupId, requestOptions = {}) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.GROUPS.LEAVE(groupId));
+    const response = await instance.post(API_ENDPOINTS.GROUPS.LEAVE(groupId), null, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('离开群组失败:', error);
+    logGroupApiFailure('离开群组失败', error);
     throw error;
   }
 };
@@ -231,15 +279,19 @@ export const leaveGroup = async (groupId) => {
  * 获取用户收到的群组邀请
  * @returns {Promise} 邀请列表
  */
-export const getGroupInvitations = async () => {
+export const getGroupInvitations = async (requestOptions = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.GROUPS.INVITATIONS);
+    const response = await instance.get(API_ENDPOINTS.GROUPS.INVITATIONS, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('获取群组邀请失败:', error);
+    logGroupApiFailure('获取群组邀请失败', error);
     throw error;
   }
 };
@@ -259,7 +311,7 @@ export const acceptGroupInvitation = async (invitationId) => {
       data: response.data,
     };
   } catch (error) {
-    console.error('接受邀请失败:', error);
+    logGroupApiFailure('接受邀请失败', error);
     throw error;
   }
 };
@@ -279,7 +331,7 @@ export const rejectGroupInvitation = async (invitationId) => {
       data: response.data,
     };
   } catch (error) {
-    console.error('拒绝邀请失败:', error);
+    logGroupApiFailure('拒绝邀请失败', error);
     throw error;
   }
 };

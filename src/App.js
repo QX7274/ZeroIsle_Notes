@@ -69,6 +69,20 @@ const DEV_SUPPRESSED_LOG_PREFIXES = [
   '从服务器加载提醒数据失败:',
   'GET /reminder/reminders/ 失败:',
   '获取知识图谱数据异常:',
+  '获取群组列表失败:',
+  '获取群组详情失败:',
+  '获取群组成员失败:',
+  '获取群组邀请失败:',
+  '搜索群组邀请候选失败:',
+  '邀请用户失败:',
+  '创建群组失败:',
+  '更新群组失败:',
+  '删除群组失败:',
+  '生成加入码失败:',
+  '加入群组失败:',
+  '离开群组失败:',
+  '接受邀请失败:',
+  '拒绝邀请失败:',
   '网络连接失败:',
   '网络错误，使用离线模式处理',
   'API_URL:',
@@ -333,7 +347,7 @@ const AppContainer = () => {
         <StatusBar
           barStyle="dark-content"
           backgroundColor="#FFFFFF"
-          translucent
+          translucent={false}
         />
         <SplashScreen onComplete={handleSplashComplete} />
       </View>
@@ -346,7 +360,7 @@ const AppContainer = () => {
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.colors.background}
-        translucent
+        translucent={false}
       />
       <NavigationContainer
         ref={navigationRef}
