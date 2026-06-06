@@ -1169,3 +1169,48 @@ Expected: 新增或修改的回归用例通过。
   - 网络与失败反馈继续使用项目内统一优美样式弹窗
   - 不把用户已明确排除的底部调试黑框重新记成产品缺陷
 ```
+### Task 25: 补齐社区剩余深层页验证入口并统一粉丝关注页头
+
+**Files:**
+- Modify: `src/screens/community/CommunityScreen.js`
+- Modify: `src/screens/community/FollowersScreen.js`
+- Modify: `src/screens/community/FollowingScreen.js`
+- Modify: `src/services/api/communityApi.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 在社区空态补一个仅开发态可见的剩余深层页验证入口**
+
+```md
+- 入口位置：`社区` 首页空态卡片内
+- 命中目标：`帖子详情 / 粉丝列表 / 关注列表`
+- 限制条件：仅 `__DEV__` 显示，不作为正式用户链路改版
+- 目标：让平板真机能稳定命中剩余社区深层页，不再因首页空态而卡住验收
+```
+
+- [x] **Step 2: 将粉丝 / 关注页头统一到现有深层页规范**
+
+```md
+- 返回按钮统一使用淡蓝色方形带箭头样式
+- 顶部必须完整露出，继续按平板状态栏安全区计算
+- 页头说明只补明显原始区域，不重做成熟列表卡片
+- 深层页进入后不应露出主标签栏
+```
+
+- [x] **Step 3: 修复社区关注链路阻断真机验收的接口运行时错误**
+
+```md
+- 真机问题：进入 `粉丝列表 / 关注列表` 后出现 `config.url.includes is not a function`
+- 根因：`communityApi` 把函数型端点 `FOLLOW / FOLLOWERS / FOLLOWING` 当作字符串直接传给 `axios`
+- 做法：改回正确函数调用，恢复这三条请求的真实 URL
+```
+
+- [x] **Step 4: 真机补证据时继续写清边界，不把单点结果外推成全社区完成**
+
+```md
+- `社区` 空态页：已出现开发态验证面板，说明剩余深层页的真机可达性已补齐
+- `帖子详情`：当前示例 `postId=1` 命中“帖子不存在或已被删除”，只说明入口已打通，不能记成详情页功能完成
+- `粉丝列表 / 关注列表`：页头、返回按钮、安全区、布局和主标签栏隐藏必须单独以真机截图验收
+- 接口修复后若仍离线，应继续只出现项目内统一优美样式网络弹窗，不回退原生安卓弹窗
+```

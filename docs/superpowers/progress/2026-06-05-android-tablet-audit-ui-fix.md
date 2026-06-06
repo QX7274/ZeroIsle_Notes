@@ -1411,3 +1411,63 @@
   - 布局合理，没有异常留白；
   - 网络或失败反馈继续只使用项目内统一优美样式弹窗；
   - 用户已明确排除的底部调试黑框不再作为产品缺陷处理。
+
+### 2026-06-06 第九十四轮：社区剩余深层页验证入口、粉丝关注页头与接口错误收口
+
+- 这轮继续沿社区剩余深层链路推进，没有去动成熟帖子卡片或社区首页结构，只处理三个当前最阻塞真机验收的问题：
+  - 社区空态下没有稳定入口可持续命中 `帖子详情 / 粉丝列表 / 关注列表`；
+  - `粉丝列表 / 关注列表` 页头仍然比现有深层页明显更原始；
+  - 两个页面真机打开后会冒出 `config.url.includes is not a function`，属于真实运行时错误。
+- 先在 `src/screens/community/CommunityScreen.js` 的空态卡片里补了一个仅 `__DEV__` 可见的“社区深层页验证入口”面板：
+  - 只提供 `帖子详情 / 粉丝列表 / 关注列表` 三个按钮；
+  - 明确限制在开发态联调可见，不作为正式用户链路改版；
+  - 样式继续沿用当前社区页蓝白体系，避免为了验收入口破坏成熟首页。
+- 再把 `src/screens/community/FollowersScreen.js` 与 `src/screens/community/FollowingScreen.js` 的页头统一到现有深层页规范：
+  - 返回按钮改成项目内既有淡蓝色方形带箭头样式；
+  - 补上 `useSafeAreaInsets()`，让顶部继续按平板状态栏安全区计算；
+  - 页头改为“返回按钮 + 标题/副信息 + 刷新按钮”的统一结构；
+  - 只收口明显原始的页头区域，没有动列表卡片和成熟内容结构。
+- 静态检查结果：
+  - `npx eslint src/screens/community/CommunityScreen.js src/screens/community/FollowersScreen.js src/screens/community/FollowingScreen.js` 通过；
+  - 中途顺手去掉了两处新增内联字重告警，避免把这轮小瑕疵留到后面。
+- 第一轮真机补证据结果如下：
+  - 社区首页真实空态页已出现新的开发态验证面板，说明剩余深层页现在可以稳定命中；
+  - `帖子详情` 按当前示例 `postId=1` 打开后命中“帖子不存在或已被删除”空态；
+  - 这说明入口已打通，但示例数据本身不稳定，因此本轮只把它记为“可达性补齐”，不误写成“帖子详情页已完成验收”；
+  - 证据：`.local/android-mcp-server/round303_community_home.png/.xml`、`.local/android-mcp-server/round303_post_detail.png/.xml`。
+- `粉丝列表 / 关注列表` 第一轮真机结果很关键：
+  - 页头已按目标统一，淡蓝色方形返回按钮、标题、数量信息和刷新按钮都完整露出；
+  - 顶部没有被平板状态栏遮挡；
+  - 深层页内已经不再露出主标签栏；
+  - 但两页底部都同时暴露出同一条真实运行时错误：`请求错误: config.url.includes is not a function (it is undefined)`；
+  - 证据：`.local/android-mcp-server/round303_followers.png/.xml`、`.local/android-mcp-server/round303_following.png/.xml`。
+- 随后把问题根因继续收敛到接口层，而不是误判成 UI 问题：
+  - `src/services/api/communityApi.js` 中，`toggleFollow / getUserFollowers / getUserFollowing` 把 `API_ENDPOINTS.COMMUNITY.FOLLOW / FOLLOWERS / FOLLOWING` 这些函数型端点当成了字符串直接传给 `axios`；
+  - 请求拦截器里会执行 `config.url.includes(...)`，因此在这三条链路里稳定触发运行时错误；
+  - 这是社区关注链路的真实功能性 bug，不是联调噪声。
+- 这轮最小修复如下：
+  - `API_ENDPOINTS.COMMUNITY.FOLLOW(userId)`
+  - `API_ENDPOINTS.COMMUNITY.FOLLOWERS(userId)`
+  - `API_ENDPOINTS.COMMUNITY.FOLLOWING(userId)`
+  - 只改回正确函数调用，不扩大到其他社区接口。
+- 修复后再次执行：
+  - `npx eslint src/screens/community/CommunityScreen.js src/screens/community/FollowersScreen.js src/screens/community/FollowingScreen.js src/services/api/communityApi.js` 通过；
+  - `./gradlew.bat :app:installDebug --console=plain` 成功重新安装到安卓平板 `HGR3Y9MA`。
+- 第二轮真机复测结果如下：
+  - 重新进入 `粉丝列表` 后，底部不再出现 `config.url.includes is not a function` 这条运行时错误；
+  - 当前改为在离线环境下弹出项目内统一优美样式网络弹窗，标题为“网络连接问题”，并带有统一的“重试 / 确定”操作；
+  - 这正符合此前已经持续写进文档的要求：网络问题使用项目内统一弹窗，不回退默认安卓弹窗；
+  - 证据：`.local/android-mcp-server/round303_followers_after_api_fix.png/.xml`。
+- 本轮需要明确写死的结论与边界：
+  - 已完成：
+    - 社区空态下剩余深层页的开发态真机验收入口补齐；
+    - `粉丝列表 / 关注列表` 页头统一到现有深层页标准；
+    - 社区关注链路 `config.url.includes is not a function` 运行时错误已修复；
+    - 修复后离线场景继续只走项目内统一优美样式网络弹窗。
+  - 仍不能外推成：
+    - `帖子详情` 页面本体已经通过完整真机验收；
+    - 社区所有剩余深层页都已经全部完成。
+- 下一步仍需继续逐页推进：
+  - 为 `帖子详情` 换成稳定可用的示例帖子 ID，再补真实内容页证据；
+  - 继续补 `粉丝列表 / 关注列表` 在联网或可返回数据场景下的列表态证据；
+  - 持续坚持“顶部完整露出、返回按钮统一、布局无异常留白、网络问题统一优美样式弹窗”的验收口径。

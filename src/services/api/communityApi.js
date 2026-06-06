@@ -130,7 +130,7 @@ export const toggleCommentLike = async (id) => {
  */
 export const toggleFollow = async (userId) => {
   try {
-    const response = await instance.post(API_ENDPOINTS.COMMUNITY.FOLLOW, {
+    const response = await instance.post(API_ENDPOINTS.COMMUNITY.FOLLOW(userId), {
       content_type: 'User',
       object_id: userId,
     });
@@ -151,7 +151,7 @@ export const toggleFollow = async (userId) => {
  */
 export const getUserFollowers = async (userId, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWERS, {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWERS(userId), {
       params: {
         ...params,
         content_type: 'User',
@@ -175,7 +175,7 @@ export const getUserFollowers = async (userId, params = {}) => {
  */
 export const getUserFollowing = async (userId, params = {}) => {
   try {
-    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWING, {
+    const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWING(userId), {
       params: {
         ...params,
         user_id: userId,

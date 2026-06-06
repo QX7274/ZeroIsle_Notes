@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import {
   fetchFollowers,
   selectFollowers,
@@ -29,6 +31,7 @@ const FollowersScreen = ({ route, navigation }) => {
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -103,7 +106,7 @@ const FollowersScreen = ({ route, navigation }) => {
         onPress={handleRefresh}
         testID="action.community.followers.retryEmpty"
       >
-        <Text style={{ color: theme.colors?.primary || '#2196F3', fontWeight: '600' }}>刷新</Text>
+        <Text style={[styles.retryButtonText, { color: theme.colors?.primary || '#2196F3' }]}>刷新</Text>
       </TouchableOpacity>
     </View>
   );
@@ -130,7 +133,16 @@ const FollowersScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors?.background || '#F2F7FB' }]} testID="screen.community.followers">
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors?.background || '#F2F7FB',
+          paddingTop: Math.max(insets.top, 12),
+        },
+      ]}
+      testID="screen.community.followers"
+    >
       <View testID={`state.community.followers.state.${pageState}`} />
       <View testID={`state.community.followers.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.followers.refreshing.visibility.${refreshing ? 'visible' : 'hidden'}`} />
@@ -138,22 +150,28 @@ const FollowersScreen = ({ route, navigation }) => {
       <View testID={`state.community.followers.count.${followers.length}`} />
 
       <View style={styles.headerCard} testID="panel.community.followers.header">
-        <View>
-          <Text style={[styles.headerTitle, { color: theme.colors?.text || '#102A43' }]}>粉丝列表</Text>
-          <Text style={[styles.headerMeta, { color: theme.colors?.textSecondary || '#5B7083' }]}>共 {followers.length} 位</Text>
+        <View style={styles.headerRow}>
+          <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.followers.back" style={styles.backButton} />
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitle, { color: theme.colors?.text || '#102A43' }]}>粉丝列表</Text>
+            <Text style={[styles.headerMeta, { color: theme.colors?.textSecondary || '#5B7083' }]}>共 {followers.length} 位</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.iconBtn, { borderColor: `${theme.colors?.primary || '#2196F3'}44` }]}
+            onPress={handleRefresh}
+            disabled={isLoading || refreshing}
+            testID="action.community.followers.refresh"
+          >
+            {isLoading || refreshing ? (
+              <ActivityIndicator size="small" color={theme.colors?.primary || '#2196F3'} />
+            ) : (
+              <Icon name="refresh" size={18} color={theme.colors?.primary || '#2196F3'} />
+            )}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.refreshAction, { borderColor: `${theme.colors?.primary || '#2196F3'}44` }]}
-          onPress={handleRefresh}
-          disabled={isLoading || refreshing}
-          testID="action.community.followers.refresh"
-        >
-          {isLoading || refreshing ? (
-            <ActivityIndicator size="small" color={theme.colors?.primary || '#2196F3'} />
-          ) : (
-            <Icon name="refresh" size={18} color={theme.colors?.primary || '#2196F3'} />
-          )}
-        </TouchableOpacity>
+        <Text style={[styles.headerHint, { color: theme.colors?.textSecondary || '#5B7083' }]}>
+          点击成员卡片可继续进入对应个人主页。
+        </Text>
       </View>
 
       <FlatList
@@ -183,7 +201,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerCard: {
     marginHorizontal: 14,
-    marginTop: 12,
+    marginTop: 0,
     marginBottom: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -191,9 +209,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(33,150,243,0.20)',
     backgroundColor: 'rgba(255,255,255,0.84)',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
@@ -208,14 +223,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 12,
   },
-  refreshAction: {
-    width: 34,
-    height: 34,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitleWrap: { flex: 1, marginHorizontal: 8 },
+  backButton: { width: 40 },
+  iconBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 17,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.86)',
+  },
+  headerHint: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
   },
   listContent: {
     paddingHorizontal: 14,
@@ -282,6 +309,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     backgroundColor: 'rgba(255,255,255,0.82)',
+  },
+  retryButtonText: {
+    fontWeight: '600',
   },
   footerWrap: {
     flexDirection: 'row',

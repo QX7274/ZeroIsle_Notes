@@ -38,6 +38,8 @@ const CATEGORY_OPTIONS = [
   { key: 'tips', label: '使用技巧' },
   { key: 'knowledge_graph', label: '知识图谱' },
 ];
+const DEV_COMMUNITY_QA_USER_ID = '1';
+const DEV_COMMUNITY_QA_POST_ID = '1';
 
 const CommunityScreen = ({ navigation }) => {
   let palette = FALLBACK_THEME;
@@ -286,6 +288,40 @@ const CommunityScreen = ({ navigation }) => {
       <Button mode="contained" onPress={handleRefresh} testID="action.community.refreshEmpty">
         立即刷新
       </Button>
+      {__DEV__ ? (
+        <View style={styles.devQaPanel} testID="panel.community.devQa">
+          <View style={styles.devQaHead}>
+            <Icon name="science" size={16} color={palette.primary} />
+            <Text style={[styles.devQaTitle, { color: palette.text }]}>社区深层页验证入口</Text>
+          </View>
+          <Text style={[styles.devQaText, { color: palette.textSecondary }]}>
+            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表与关注列表。
+          </Text>
+          <View style={styles.devQaActions}>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={() => navigation.navigate('PostDetail', { postId: DEV_COMMUNITY_QA_POST_ID })}
+              testID="action.community.devQa.postDetail"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>帖子详情</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={() => navigation.navigate('Followers', { userId: DEV_COMMUNITY_QA_USER_ID })}
+              testID="action.community.devQa.followers"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>粉丝列表</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={() => navigation.navigate('Following', { userId: DEV_COMMUNITY_QA_USER_ID })}
+              testID="action.community.devQa.following"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>关注列表</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -620,6 +656,49 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.SMALL },
   emptyText: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: SPACING.MEDIUM },
+  devQaPanel: {
+    width: '100%',
+    marginTop: SPACING.LARGE,
+    paddingTop: SPACING.MEDIUM,
+    borderTopWidth: 1,
+    borderTopColor: '#E1EEF9',
+  },
+  devQaHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  devQaTitle: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  devQaText: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  devQaActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: SPACING.MEDIUM,
+  },
+  devQaButton: {
+    minWidth: 88,
+    marginHorizontal: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  devQaButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   loadMoreErrorBanner: {
     marginHorizontal: SPACING.MEDIUM,
     marginTop: SPACING.SMALL,
