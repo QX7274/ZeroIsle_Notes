@@ -5,12 +5,14 @@ import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button, Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   fetchGroupInvitations,
   acceptGroupInvitation,
   rejectGroupInvitation,
   selectGroupInvitations,
+  selectGroupsError,
   selectGroupsLoading,
 } from '../../redux/slices/groupsSlice';
 import { COLORS } from '../../utils/constants/colors';
@@ -18,9 +20,10 @@ import networkErrorService from '../../services/networkErrorService';
 
 const InvitationsScreen = () => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const invitations = useSelector(selectGroupInvitations) || [];
   const isLoading = useSelector(selectGroupsLoading);
-  const groupsError = useSelector((state) => state.groups.error);
+  const groupsError = useSelector(selectGroupsError);
   const [pendingInvitationId, setPendingInvitationId] = useState(null);
   const [pendingActionType, setPendingActionType] = useState(null);
 
@@ -144,7 +147,7 @@ const InvitationsScreen = () => {
   );
 
   return (
-    <View style={styles.container} testID={`state.group.invitations.state.${pageState}`}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={`state.group.invitations.state.${pageState}`}>
       <View style={styles.headerCard} testID="panel.group.invitations.header">
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>群组邀请</Text>
@@ -203,7 +206,7 @@ const styles = StyleSheet.create({
   },
   headerCard: {
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 10,
     marginBottom: 6,
     paddingHorizontal: 14,
     paddingVertical: 12,

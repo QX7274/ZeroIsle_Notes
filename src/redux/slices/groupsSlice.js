@@ -137,6 +137,33 @@ const isLikelyNetworkError = (error) => {
   );
 };
 
+const isNetworkLikeMessage = (value) => {
+  const message = String(value || '');
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('network error')
+    || normalized.includes('network connection failed')
+    || normalized.includes('request timed out')
+    || normalized.includes('no internet')
+    || normalized.includes('offline')
+    || normalized.includes('网络错误')
+    || normalized.includes('网络连接失败')
+    || normalized.includes('请求超时')
+    || normalized.includes('无网络连接')
+    || normalized.includes('网络错误且无缓存')
+    || normalized.includes('无法完成请求')
+    || normalized.includes('离线状态下无法完成请求')
+  );
+};
+
+const normalizeGroupError = (value) => (
+  isNetworkLikeMessage(value) ? null : value
+);
+
 // 初始状态
 const initialState = {
   groups: [],
@@ -989,7 +1016,7 @@ export const selectLastInvitation = (state) => state.groups.lastInvitation;
 export const selectScreenShareLoading = (state) => state.groups.screenShareLoading;
 export const selectScreenShareError = (state) => state.groups.screenShareError;
 export const selectGroupsLoading = (state) => state.groups.isLoading;
-export const selectGroupsError = (state) => state.groups.error;
+export const selectGroupsError = (state) => normalizeGroupError(state.groups.error);
 export const selectJoinCode = (state) => state.groups.joinCode;
 export const selectJoinCodeExpiresAt = (state) => state.groups.joinCodeExpiresAt;
 

@@ -8,6 +8,7 @@ import { Text } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MIIcon from 'react-native-vector-icons/MaterialIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import networkErrorService from '../../services/networkErrorService';
 
@@ -24,6 +25,7 @@ import { COLORS } from '../../utils/constants/colors';
 const GroupsScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const invitations = useSelector(selectGroupInvitations) || [];
   const isLoading = useSelector(selectGroupsLoading);
   const groupsError = useSelector(selectGroupsError);
@@ -76,7 +78,7 @@ const GroupsScreen = () => {
   }, [groupsError, isNetworkLikeError]);
 
   return (
-    <View style={styles.container} testID={`state.groups.screen.state.${pageState}`}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={`state.groups.screen.state.${pageState}`}>
       <View testID="state.groups.screen.visibility.visible" />
       <View testID={`state.groups.screen.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.groups.screen.error.visibility.${showErrorCard ? 'visible' : 'hidden'}`} />
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingTop: 16,
+    paddingTop: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#CFE1FF',
     backgroundColor: 'rgba(255,255,255,0.90)',
