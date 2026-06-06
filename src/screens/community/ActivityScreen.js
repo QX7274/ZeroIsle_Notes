@@ -18,14 +18,18 @@ import {
   selectIsLoading,
   selectError,
 } from '../../redux/slices/communitySlice';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import useHideMainTabBar from './useHideMainTabBar';
 
-const ActivityScreen = () => {
+const ActivityScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const activity = useSelector(selectActivity) || [];
   const pagination = useSelector(selectActivityPagination) || {};
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
   const { theme } = useTheme();
+
+  useHideMainTabBar();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -126,22 +130,27 @@ const ActivityScreen = () => {
       <View testID={`state.community.activity.refreshing.visibility.${refreshing ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.activity.hasMore.${hasMore ? 'true' : 'false'}`} />
       <View style={styles.headerCard} testID="panel.community.activity.header">
-        <View>
-          <Text style={[styles.headerTitle, { color: theme.colors?.text || '#102A43' }]}>活动动态</Text>
-          <Text style={[styles.headerMeta, { color: theme.colors?.textSecondary || '#5B7083' }]}>共 {activity.length} 条</Text>
+        <View style={styles.headerMainRow}>
+          <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.activity.back" style={styles.backButton} />
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitle, { color: theme.colors?.text || '#102A43' }]}>活动动态</Text>
+            <Text style={[styles.headerMeta, { color: theme.colors?.textSecondary || '#5B7083' }]}>共 {activity.length} 条</Text>
+          </View>
         </View>
-        <TouchableOpacity
-          style={[styles.refreshAction, { borderColor: `${theme.colors?.primary || '#2196F3'}44` }]}
-          onPress={handleRefresh}
-          disabled={isLoading || refreshing}
-          testID="action.community.activity.refresh"
-        >
-          {isLoading || refreshing ? (
-            <ActivityIndicator size="small" color={theme.colors?.primary || '#2196F3'} />
-          ) : (
-            <Icon name="refresh" size={18} color={theme.colors?.primary || '#2196F3'} />
-          )}
-        </TouchableOpacity>
+        <View>
+          <TouchableOpacity
+            style={[styles.refreshAction, { borderColor: `${theme.colors?.primary || '#2196F3'}44` }]}
+            onPress={handleRefresh}
+            disabled={isLoading || refreshing}
+            testID="action.community.activity.refresh"
+          >
+            {isLoading || refreshing ? (
+              <ActivityIndicator size="small" color={theme.colors?.primary || '#2196F3'} />
+            ) : (
+              <Icon name="refresh" size={18} color={theme.colors?.primary || '#2196F3'} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -179,9 +188,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(33,150,243,0.20)',
     backgroundColor: 'rgba(255,255,255,0.84)',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
@@ -192,18 +198,31 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
+  headerMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 8,
+  },
   headerMeta: {
     marginTop: 2,
     fontSize: 12,
   },
+  backButton: {
+    width: 40,
+  },
   refreshAction: {
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 40,
     borderRadius: 17,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.86)',
+    alignSelf: 'flex-end',
   },
   listContent: {
     paddingHorizontal: 14,

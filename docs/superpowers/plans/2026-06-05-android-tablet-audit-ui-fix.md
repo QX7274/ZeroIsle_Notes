@@ -1021,3 +1021,64 @@ Expected: 新增或修改的回归用例通过。
 - 不能据此直接外推成社区全部深层页、乃至全站所有深层页都已彻底完成同类验收
 - 后续仍需继续逐页复测社区搜索、帖子详情、发帖、关注/粉丝等链路，同时持续确认顶部完整露出、返回按钮一致和布局没有异常留白
 ```
+
+### Task 23: 用真机截图补完社区深层页主标签栏隐藏的终态证据
+
+**Files:**
+- Modify: `src/navigation/AppNavigator.js`
+- Add: `src/screens/community/useHideMainTabBar.js`
+- Modify: `src/screens/community/ActivityScreen.js`
+- Modify: `src/screens/community/NotificationsScreen.js`
+- Modify: `src/screens/community/PostDetailScreen.js`
+- Modify: `src/screens/community/CreatePostScreen.js`
+- Modify: `src/screens/community/ApiTest.js`
+- Modify: `src/screens/community/CommunitySearchScreen.js`
+- Modify: `src/screens/community/FollowersScreen.js`
+- Modify: `src/screens/community/FollowingScreen.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 承认上一轮社区深层页“已修好”的结论不够硬**
+
+```md
+- 重新真机复测时，`活动动态` 页在统一网络弹窗出现的同时，底部主标签栏仍然可见
+- 这说明仅靠 `AppNavigator` 里的静态路由名判断和局部 listeners，不足以形成稳定终态
+- 本轮必须以截图为主、XML 为辅，不再只凭 `uiautomator` 搜不到 `nav.tab.*` 就直接入账
+```
+
+- [x] **Step 2: 把社区深层页的主标签栏隐藏职责下沉到页面自身**
+
+```md
+- 根因：`CommunityStack` 里混写的 listeners / 参数透传 / 静态路由名判断会被真实运行时层级和重渲染覆盖，链路不够稳
+- 做法：
+  - 新增 `src/screens/community/useHideMainTabBar.js`
+  - 在 `Activity / Notifications / PostDetail / CreatePost / ApiTest / CommunitySearch / Followers / Following` 这些深层页聚焦时，沿父导航链逐层隐藏主标签栏
+  - 同时移除 `AppNavigator` 里社区栈那套不稳定的逐页 listeners，避免双重控制互相覆盖
+- 目标：社区首页继续保留一级 tab，社区深层页自己负责在聚焦时稳定收口主标签栏
+```
+
+- [x] **Step 3: 真机优先复测 `活动动态` 与 `通知消息` 两条最容易暴露问题的链路**
+
+```md
+- 路径一：`首页 -> 社区 -> 活动动态`
+- 结果一：统一网络弹窗出现时，底部已不再出现 `首页 / AI / 社区 / 我的`
+- 结果二：关闭统一网络弹窗后，`活动动态` 页空态、页头和返回按钮仍正常，底部主标签栏继续保持隐藏
+- 证据：`tmp_round300_activity.png`、`tmp_round300_activity_after_dismiss.png`
+
+- 路径二：`首页 -> 社区 -> 通知消息`
+- 结果：统一网络弹窗出现时，底部同样未再露出主标签栏；页头、返回按钮与“全部标记已读”操作区仍完整露出
+- 证据：`tmp_round300_notifications_real.png`
+```
+
+- [x] **Step 4: 把本轮边界继续写死，避免夸大完成度**
+
+```md
+- 本轮已经能确认：社区深层页中的 `活动动态` 与 `通知消息` 两条真机链路，主标签栏误露出问题已完成截图级终态闭环
+- 本轮还不能外推成 `社区搜索 / 帖子详情 / 发帖 / 关注 / 粉丝` 等所有社区深层页都自动完成验收
+- 本轮继续保持：
+  - 顶部标题、返回按钮、操作区完整露出
+  - 返回按钮统一使用淡蓝色方形带箭头样式
+  - 网络问题继续使用项目内统一优美样式弹窗，不回退默认安卓弹窗
+  - 不再处理用户已明确排除的底部调试黑框
+```

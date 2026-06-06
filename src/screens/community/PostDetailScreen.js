@@ -28,6 +28,7 @@ import {
   toggleCommentLike,
 } from '../../redux/slices/communitySlice';
 import networkErrorService from '../../services/networkErrorService';
+import useHideMainTabBar from './useHideMainTabBar';
 
 /**
  * 社区帖子详情屏幕
@@ -39,6 +40,8 @@ const PostDetailScreen = ({ route, navigation }) => {
   const dispatch = useDispatch();
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  useHideMainTabBar();
 
   const {
     currentPost: post,

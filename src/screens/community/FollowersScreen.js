@@ -19,6 +19,7 @@ import {
   selectIsLoading,
   selectError,
 } from '../../redux/slices/communitySlice';
+import useHideMainTabBar from './useHideMainTabBar';
 
 const FollowersScreen = ({ route, navigation }) => {
   const { userId } = route.params || {};
@@ -32,6 +33,8 @@ const FollowersScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
+
+  useHideMainTabBar();
 
   const hasData = followers.length > 0;
   const hasMore = Number(pagination?.page || page) < Number(pagination?.totalPages || 1);

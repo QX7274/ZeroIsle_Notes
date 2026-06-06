@@ -24,12 +24,15 @@ import * as Haptics from '../../utils/haptics';
 import { createPost } from '../../redux/slices/communitySlice';
 import { fetchCategories } from '../../redux/slices/notesSlice';
 import { fetchTags, selectAllTags } from '../../redux/slices/tagsSlice';
+import useHideMainTabBar from './useHideMainTabBar';
 
 const EMPTY_ARRAY = [];
 
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
+
+  useHideMainTabBar();
 
   const categories = useSelector((state) => state.notes.categories) ?? EMPTY_ARRAY;
   const availableTags = useSelector(selectAllTags) ?? EMPTY_ARRAY;

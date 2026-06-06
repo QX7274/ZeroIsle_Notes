@@ -954,21 +954,25 @@ const CommunityStack = () => {
       <Stack.Screen
         name="Followers"
         component={FollowersScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '关注者' }}
       />
       <Stack.Screen
         name="Following"
         component={FollowingScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '关注中' }}
       />
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '通知' }}
       />
       <Stack.Screen
         name="Activity"
         component={ActivityScreen}
+        initialParams={{ hideTabBar: true }}
         options={{ title: '动态' }}
       />
       <Stack.Screen
@@ -983,6 +987,7 @@ const CommunityStack = () => {
       <Stack.Screen
         name="ApiTest"
         component={ApiTest}
+        initialParams={{ hideTabBar: true }}
         options={{
           title: 'API测试',
           headerBackTitleVisible: false,

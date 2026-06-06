@@ -7,10 +7,13 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { ApiTestComponent } from '../../components/common';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import useHideMainTabBar from './useHideMainTabBar';
 
 const ApiTest = () => {
   const navigation = useNavigation();
   const { colors } = useTheme();
+
+  useHideMainTabBar();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} testID="state.community.apiTest.state.ready">
