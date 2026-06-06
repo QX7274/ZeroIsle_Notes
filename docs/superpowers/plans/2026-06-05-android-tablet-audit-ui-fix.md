@@ -1409,3 +1409,41 @@ Expected: 新增或修改的回归用例通过。
 - 当前本机 MongoDB 未监听、后端 `8000` 未起，不应误写成平板网络本身有问题
 - 当前前端已具备“完整 API 基地址可切换”的能力，后续只需把真实后端服务拉起或填入真实可用生产地址即可继续真机联调
 ```
+
+### Task 31: 恢复本地后端监听并校准真机联通路径
+
+**Files:**
+- Modify: `backend/notes/serializers/annotation.py`
+- Modify: `backend/voice_recognition/serializers/transcription.py`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 先把本机后端真正拉起到 0.0.0.0:8000**
+
+```md
+- 目标：不要只停在“地址可切换”，而要让电脑本机真正提供可访问 API
+- 验证：
+  - `Get-NetTCPConnection` 看到 `0.0.0.0:8000`
+  - `http://127.0.0.1:8000/health/` 返回 200
+```
+
+- [x] **Step 2: 处理阻断 runserver 的导入期 Mongo 查询**
+
+```md
+- 根因：部分 serializer 在模块导入阶段直接写 `queryset=Model.objects.all()`，会在 URL include 时立即触发 Mongo 连接
+- 做法：把这些关系字段改成延迟绑定，避免在 import 阶段就撞 `127.0.0.1:27017`
+- 约束：只收口导入期阻断，不重写业务查询逻辑
+```
+
+- [x] **Step 3: 分清“热点直连失败”和“USB reverse 已打通”**
+
+```md
+- 真机当前 `wlan0` 地址是 `10.137.128.87/14`，不在电脑热点 `192.168.137.1/24` 网段
+- 结论：当前无法把 `192.168.137.1:8000` 不通误记成后端未启动，它首先是“设备未接入电脑热点”
+- 同时执行 `adb reverse tcp:8000 tcp:8000` 与 `adb reverse tcp:8081 tcp:8081`
+- `adb reverse --list` 已返回：
+  - `UsbFfs tcp:8000 tcp:8000`
+  - `UsbFfs tcp:8081 tcp:8081`
+- 结论：真机到电脑本地后端的 USB 联调链路已恢复，可优先沿这条链路继续页面级联网复测
+```

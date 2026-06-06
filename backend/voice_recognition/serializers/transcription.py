@@ -70,7 +70,7 @@ class TranscriptionDetailSerializer(serializers.ModelSerializer):
 class TranscriptionCreateSerializer(serializers.ModelSerializer):
     """转录创建序列化器"""
     audio_file_id = serializers.PrimaryKeyRelatedField(
-        queryset=AudioFile.objects.all(),
+        queryset=None,
         source='audio_file',
         write_only=True
     )
@@ -81,6 +81,10 @@ class TranscriptionCreateSerializer(serializers.ModelSerializer):
         fields = [
             'audio_file_id', 'language_code', 'model'
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['audio_file_id'].queryset = AudioFile.objects.all()
     
     def validate_audio_file_id(self, value):
         """验证音频文件ID"""

@@ -11,7 +11,7 @@ class AnnotationSerializer(serializers.Serializer):
     注释序列化器
     """
     id = serializers.UUIDField(read_only=True)
-    note = serializers.PrimaryKeyRelatedField(queryset=Note.objects.all())
+    note = serializers.PrimaryKeyRelatedField(queryset=None)
     user = UserSerializer(read_only=True)
     page = serializers.IntegerField(required=True)
     type = serializers.ChoiceField(choices=('text', 'drawing', 'highlight', 'shape'), required=True)
@@ -22,6 +22,10 @@ class AnnotationSerializer(serializers.Serializer):
     stroke_width = serializers.IntegerField(required=False)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['note'].queryset = Note.objects.all()
     
     def create(self, validated_data):
         """
