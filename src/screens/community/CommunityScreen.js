@@ -20,6 +20,7 @@ import { UnifiedSearchBar } from '../../components/search';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import networkService from '../../services/network/networkService';
 import networkErrorService from '../../services/networkErrorService';
+import realmService from '../../services/database/realmService';
 import { SPACING } from '../../utils/constants/dimensions';
 
 const FALLBACK_THEME = {
@@ -69,6 +70,7 @@ const CommunityScreen = ({ navigation }) => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [loadMoreError, setLoadMoreError] = useState('');
   const [actionSource, setActionSource] = useState('');
+  const [devQaResolvingPost, setDevQaResolvingPost] = useState(false);
 
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
   const hasMore = pagination.page < pagination.totalPages;
@@ -200,6 +202,55 @@ const CommunityScreen = ({ navigation }) => {
     [dispatch, interactionBusy]
   );
 
+  const handleOpenDevQaPostDetail = useCallback(async () => {
+    if (interactionBusy || devQaResolvingPost) {
+      return;
+    }
+
+    const openPostDetail = (resolvedPostId) => {
+      setActionSource(`openDevQaPost.${resolvedPostId}`);
+      navigation.navigate('PostDetail', { postId: resolvedPostId });
+    };
+
+    const existingPostId = posts?.[0]?.id;
+    if (existingPostId) {
+      openPostDetail(existingPostId);
+      return;
+    }
+
+    setDevQaResolvingPost(true);
+    try {
+      try {
+        const realm = await realmService.getRealm();
+        const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+        const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value || '[]') : [];
+        const cachedPostId = Array.isArray(cachedPosts) ? cachedPosts?.[0]?.id : null;
+        if (cachedPostId) {
+          openPostDetail(cachedPostId);
+          return;
+        }
+      } catch (cacheReadError) {
+        console.log('CommunityScreen dev QA cache lookup skipped:', cacheReadError?.message || cacheReadError);
+      }
+
+      const result = await dispatch(
+        fetchPosts({
+          page: 1,
+          pageSize: 1,
+          suppressGlobalErrorUI: false,
+          category: activeCategory === 'all' ? undefined : activeCategory,
+        })
+      ).unwrap();
+
+      const resolvedPostId = result?.posts?.[0]?.id || DEV_COMMUNITY_QA_POST_ID;
+      openPostDetail(resolvedPostId);
+    } catch (requestError) {
+      openPostDetail(DEV_COMMUNITY_QA_POST_ID);
+    } finally {
+      setDevQaResolvingPost(false);
+    }
+  }, [activeCategory, devQaResolvingPost, dispatch, interactionBusy, navigation, posts]);
+
   const renderPostItem = useCallback(
     ({ item }) => (
       <Card style={[styles.postCard, { backgroundColor: `${palette.card}EE`, borderColor: `${palette.primary}20` }]}>
@@ -300,10 +351,13 @@ const CommunityScreen = ({ navigation }) => {
           <View style={styles.devQaActions}>
             <TouchableOpacity
               style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={() => navigation.navigate('PostDetail', { postId: DEV_COMMUNITY_QA_POST_ID })}
+              onPress={handleOpenDevQaPostDetail}
+              disabled={devQaResolvingPost}
               testID="action.community.devQa.postDetail"
             >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>帖子详情</Text>
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
+                {devQaResolvingPost ? '解析中…' : '帖子详情'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}

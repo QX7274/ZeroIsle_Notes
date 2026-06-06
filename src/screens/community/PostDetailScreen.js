@@ -13,6 +13,7 @@ import {
   Share,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Button } from '../../components/common';
@@ -38,6 +39,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const { postId } = route.params;
   const { theme } = useTheme();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
@@ -162,7 +164,16 @@ const PostDetailScreen = ({ route, navigation }) => {
       <View testID={`state.community.postDetail.state.${pageState}`} />
       <View testID={`state.community.postDetail.busy.visibility.${busy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
-      <View style={[styles.header, styles.glassBlock, { borderBottomColor: `${theme.primary}22` }]}>
+      <View
+        style={[
+          styles.header,
+          styles.glassBlock,
+          {
+            borderBottomColor: `${theme.primary}22`,
+            paddingTop: Math.max(insets.top, SPACING.MEDIUM),
+          },
+        ]}
+      >
         <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
         <Text style={[styles.headerTitle, { color: theme.text }]}>帖子详情</Text>
         <View style={styles.headerRight}>

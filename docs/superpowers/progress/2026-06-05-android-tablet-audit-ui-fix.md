@@ -1471,3 +1471,62 @@
   - 为 `帖子详情` 换成稳定可用的示例帖子 ID，再补真实内容页证据；
   - 继续补 `粉丝列表 / 关注列表` 在联网或可返回数据场景下的列表态证据；
   - 持续坚持“顶部完整露出、返回按钮统一、布局无异常留白、网络问题统一优美样式弹窗”的验收口径。
+
+### 2026-06-06 第九十五轮：帖子详情开发态入口真实帖子解析与顶部安全区补强
+
+- 这轮继续沿社区剩余深层链路推进，没有去碰成熟帖子卡片或正式用户路径，只收口两个直接影响真机验收稳定性的点：
+  - `帖子详情` 开发态验证入口继续写死 `postId=1`，导致真机上只能命中“帖子不存在或已被删除”；
+  - `帖子详情` 页头虽然已自绘，但还没有显式按平板顶部安全区再兜一层，后续一旦命中真实内容态，仍存在顶部被状态栏压住的风险。
+- 代码侧本轮实际改动如下：
+  - `src/screens/community/CommunityScreen.js`
+    - 开发态“帖子详情”按钮改为 `handleOpenDevQaPostDetail`；
+    - 优先取当前 Redux `posts` 里的第一条真实帖子；
+    - 若当前列表为空，再优先尝试从本地 `community_posts` 缓存里解析第一条真实帖子；
+    - 再不行时，才回退到开发态默认 `postId`；
+    - 同时给按钮补了 `解析中…` 状态，避免重复点击。
+  - `src/screens/community/PostDetailScreen.js`
+    - 新增 `useSafeAreaInsets()`；
+    - 页头顶部改为 `paddingTop: Math.max(insets.top, SPACING.MEDIUM)`；
+    - 目标是保证后续命中真实帖子内容态时，标题、返回按钮和右侧收藏/分享操作区继续完整露出。
+- 静态检查结果：
+  - `npx eslint src/screens/community/CommunityScreen.js src/screens/community/PostDetailScreen.js` 通过；
+  - 后续在补本地缓存兜底后再次执行同一条 `eslint`，依然通过，没有新增语法或 lint 错误。
+- 第一轮真机复测路径与结果：
+  - 重新安装调试包后，应用先短时停在空白根视图；
+  - 等待后恢复回首页真实页面态；
+  - 这次现象已单独记录为联调环境噪声，不计为社区产品页缺陷；
+  - 证据：`.local/android-mcp-server/round304_launch.png/.xml`、`.local/android-mcp-server/round304_wait8.png/.xml`。
+- 恢复到首页后继续进入 `社区` 空态页，当前边界仍然正确：
+  - 社区首页顶部标题、副标题、搜索框、分类条和开发态深层页验证面板都完整露出；
+  - 一级 tab 页底部主标签栏继续正常保留；
+  - 证据：`.local/android-mcp-server/round304_community_home.png/.xml`。
+- 接着点开发态 `帖子详情` 按钮，真机抓到了一条新的、必须如实记录的问题：
+  - 离线且当前没有可用社区帖子缓存时，入口会先弹项目内统一优美样式网络弹窗；
+  - 但底部同时还冒出一条黑色调试提示条：
+    - `CommunityScreen dev QA post resolve failed: 网络错误且无缓存，无法完成请求`
+  - 这说明“统一网络弹窗”虽然还在，但开发态解析失败日志被额外露到了页面底部，不符合当前验收链路的 UI 要求；
+  - 证据：`.local/android-mcp-server/round304_post_detail_after_resolve.png/.xml`。
+- 因此这轮中途又追加了一次最小代码收口：
+  - `src/screens/community/CommunityScreen.js`
+    - 先读本地 `community_posts` 缓存拿帖子 ID；
+    - 去掉 `console.warn('CommunityScreen dev QA post resolve failed: ...')` 这条会在真机底部额外暴露的调试提示；
+    - 保留统一网络弹窗与最终 fallback 导航，不改正式用户路径。
+- 补丁后的静态检查再次通过：
+  - `npx eslint src/screens/community/CommunityScreen.js src/screens/community/PostDetailScreen.js` 通过。
+- 第二轮装机后又出现了和前面类似的联调环境波动：
+  - 重装成功，但在再次回退重进时，应用重新落在 `Loading from localhost:8081...` 白屏；
+  - 这次没能在同一轮里稳定恢复到社区页继续补抓“底部调试提示条已消失”的终态图；
+  - 证据：`.local/android-mcp-server/round304_after_back.png/.xml`。
+- 本轮可以明确确认、也必须严格控边界的结论如下：
+  - 已完成：
+    - 开发态 `帖子详情` 入口现在不再只依赖写死的 `postId=1`，而是优先解析当前真实帖子或本地缓存帖子；
+    - `帖子详情` 页头已补平板顶部安全区兜底；
+    - 开发态解析失败时，不再额外向页面底部发出那条原始调试提示文案。
+  - 当前仍不能写成“帖子详情页已完成”：
+    - 因为离线且无缓存时，真机仍只能验证到统一网络弹窗态；
+    - 重装后的联调白屏噪声也打断了本轮继续补抓内容态证据；
+    - 所以这轮只能记作“入口稳定性和顶部安全区进一步收口”，不能夸大成内容页闭环完成。
+- 下一步仍应继续按真实边界推进：
+  - 优先在应用恢复稳定页面态后，重新进入社区空态页点 `帖子详情`，验证底部调试提示条确已消失；
+  - 若设备当时在线或已有真实社区缓存，再继续争取拿到帖子详情内容态证据；
+  - 全程继续坚持：顶部完整露出、返回按钮统一、主标签栏不回流、网络问题只保留项目内统一优美样式弹窗。
