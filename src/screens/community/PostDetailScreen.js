@@ -129,6 +129,36 @@ const PostDetailScreen = ({ route, navigation }) => {
     console.log('下载附件:', attachment);
   };
 
+  const renderHeader = () => (
+    <View
+      style={[
+        styles.header,
+        styles.glassBlock,
+        {
+          borderBottomColor: `${theme.primary}22`,
+          paddingTop: Math.max(insets.top, SPACING.MEDIUM),
+        },
+      ]}
+    >
+      <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
+      <Text style={[styles.headerTitle, { color: theme.text }]}>帖子详情</Text>
+      <View style={styles.headerRight}>
+        {post ? (
+          <>
+            <TouchableOpacity onPress={handleBookmark} style={styles.headerButton} testID="action.community.postDetail.bookmark">
+              <Icon name={bookmarked ? 'bookmark' : 'bookmark-border'} size={22} color={bookmarked ? theme.primary : theme.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleShare} style={styles.headerButton} testID="action.community.postDetail.share">
+              <Icon name="share" size={22} color={theme.text} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.headerPlaceholder} />
+        )}
+      </View>
+    </View>
+  );
+
   if (isLoading && !post) {
     return (
       <View
@@ -143,13 +173,13 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   if (!post) {
     return (
-      <View
-        style={[styles.errorContainer, { backgroundColor: theme.background }]}
-        testID="state.community.postDetail.empty"
-      >
-        <Icon name="error" size={64} color={theme.error} />
-        <Text style={[styles.errorText, { color: theme.text }]}>帖子不存在或已被删除</Text>
-        <Button title="返回" onPress={() => navigation.goBack()} type="primary" style={styles.backButton} />
+      <View style={[styles.container, { backgroundColor: theme.background }]} testID="state.community.postDetail.empty">
+        {renderHeader()}
+        <View style={styles.errorContainer}>
+          <Icon name="error" size={64} color={theme.error} />
+          <Text style={[styles.errorText, { color: theme.text }]}>帖子不存在或已被删除</Text>
+          <Button title="返回" onPress={() => navigation.goBack()} type="primary" style={styles.backButton} />
+        </View>
       </View>
     );
   }
@@ -164,27 +194,7 @@ const PostDetailScreen = ({ route, navigation }) => {
       <View testID={`state.community.postDetail.state.${pageState}`} />
       <View testID={`state.community.postDetail.busy.visibility.${busy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
-      <View
-        style={[
-          styles.header,
-          styles.glassBlock,
-          {
-            borderBottomColor: `${theme.primary}22`,
-            paddingTop: Math.max(insets.top, SPACING.MEDIUM),
-          },
-        ]}
-      >
-        <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
-        <Text style={[styles.headerTitle, { color: theme.text }]}>帖子详情</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={handleBookmark} style={styles.headerButton} testID="action.community.postDetail.bookmark">
-            <Icon name={bookmarked ? 'bookmark' : 'bookmark-border'} size={22} color={bookmarked ? theme.primary : theme.text} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleShare} style={styles.headerButton} testID="action.community.postDetail.share">
-            <Icon name="share" size={22} color={theme.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {renderHeader()}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
@@ -328,6 +338,7 @@ const styles = StyleSheet.create({
   backIconBtn: { width: 40 },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   headerRight: { flexDirection: 'row' },
+  headerPlaceholder: { width: 72 },
   headerButton: { padding: SPACING.SMALL, marginLeft: SPACING.SMALL },
   scrollView: { flex: 1 },
   scrollContent: { padding: SPACING.MEDIUM, paddingBottom: SPACING.XLARGE },
