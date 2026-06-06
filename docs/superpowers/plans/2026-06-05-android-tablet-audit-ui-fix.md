@@ -1527,3 +1527,36 @@ Expected: 新增或修改的回归用例通过。
   - 验证首页/社区主内容是否终于挂载出来
   - 若仍为空白，再继续拆 `Splash / Notification / Provider / 原生模块` 链路
 ```
+
+- [x] **Step 7: 复核“本地后端联通 / Metro 可产出 bundle / 真机仍白屏”的分界线**
+
+```md
+- 本轮必须把三个判断彻底拆开记录，避免后续又把启动白屏误写成网络问题：
+  - 本地 Django 健康检查：`http://127.0.0.1:8000/health/` 持续返回 `200`
+  - 真机 USB reverse：`tcp:8000` 与 `tcp:8081` 持续存在
+  - Metro 状态：`http://127.0.0.1:8081/status` 返回 `packager-status:running`
+- 进一步验证到：
+  - Metro 已可直接返回 `index.bundle?platform=android&dev=true&minify=false`
+  - 返回头中 `Content-Length` 约 39MB，说明不再停在 `Failed to start watch mode`
+  - 真机应用进程 `com.zeroisle_notes` 存活，前台 `MainActivity` 也确已拉起
+- 但 UI 树仍是空白根 `FrameLayout`
+- 日志出现关键新证据：
+  - `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+- 这说明本轮后续排查重点应继续前移到：
+  - JS bundle 实例附着链路
+  - ReactContext / CatalystInstance 创建与附着过程
+  - 是否存在原生包、桥接脚本或开发包装载路径拦截
+```
+
+- [ ] **Step 8: 沿 Catalyst / Bundle 注入链路继续拆首屏白屏，而不是回到“网络未通”叙事**
+
+```md
+- 下一轮优先动作：
+  - 精抓 `ReactInstanceManager / createReactContext / JS bundle attach` 日志
+  - 校验是否存在项目自定义原生包或桥接 bundle 装载逻辑影响首屏
+  - 若确认是开发包附着链路，再决定是否需要补原生日志、改启动容错或调整 Debug bundle 策略
+- 继续约束：
+  - 顶部布局、安全区、返回按钮、异常留白等 UI 规范仍要持续遵守并记录
+  - 网络问题统一走项目内优美弹窗，不允许回退默认安卓弹窗
+  - 成熟页面先不乱动，优先解决当前阻断主流程使用与测试的根问题
+```

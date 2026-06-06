@@ -1858,3 +1858,58 @@
   - 继续验证 Metro bundle 是否真正恢复
   - 一旦主内容恢复到首页/社区，再继续回到逐模块真机联调
   - 当前仍不能把本轮结果外推成“冷启动白屏已完全修复”
+
+### 2026-06-07 第一百零三轮：确认本地联通与 Metro bundle 已恢复，白屏继续收敛到 Catalyst 附着链路
+
+- 这轮目标不是再泛泛而谈“网络问题”，而是把当前状态切得更准：
+  - 本地后端是否通
+  - Metro 是否真能产出 bundle
+  - APP 真机白屏是否已经变成 RN JS 实例附着问题
+- 先复核本地联通链路，结果都稳定：
+  - `curl http://127.0.0.1:8000/health/` 返回 `200`
+  - `adb reverse --list` 仍包含：
+    - `tcp:8000 -> tcp:8000`
+    - `tcp:8081 -> tcp:8081`
+  - `http://127.0.0.1:8081/status` 返回 `packager-status:running`
+- 这轮继续验证 Metro 是否还会停在旧的 watcher 秒挂状态：
+  - 本地 `node -e "require('./metro.config.js')"` 通过
+  - 继续请求：
+    - `http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false`
+  - 已拿到 `HTTP/1.1 200 OK`
+  - 响应头 `Content-Length` 约 `39189826`
+  - 说明 Metro 现在不只是“配置能加载”，而是已经能真实提供大体量开发 bundle
+- 真机侧这轮做了新一轮冷启动、抓 UI 树、抓 logcat：
+  - 前台任务确认是：
+    - `TASK com.zeroisle_notes`
+    - `ACTIVITY com.zeroisle_notes/.MainActivity pid=6020`
+  - 进程也还活着：
+    - `com.zeroisle_notes pid=6020`
+  - 但 [ui_after_round277.xml](D:/ZeroIsle_Notes/.codex-tmp/ui_after_round277.xml) 依旧只抓到空白根 `FrameLayout`
+- 这轮拿到的最关键新证据来自日志：
+  - [logcat_after_round277.txt](D:/ZeroIsle_Notes/.codex-tmp/logcat_after_round277.txt)
+  - 持续出现：
+    - `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+- 这条证据非常重要，因为它把问题进一步从“业务页面没渲染”前移为：
+  - React Native 的 JS 运行实例没有成功附着到根视图
+  - 至少在当前时间窗里，不是普通页面级接口报错，也不是单纯社区页样式问题
+- 这轮还顺手确认了两点旁证：
+  - 应用私有目录里存在 `BridgeReactNativeDevBundle.js`
+  - 说明设备侧确实已经拿到开发 bundle 文件，不像是“完全没拉到脚本”
+  - 与此同时，日志里没有抓到新的明确 `FATAL EXCEPTION` 直接把进程打死
+- 因此本轮阶段性结论要写得非常明确：
+  - 已确认不成立的方向：
+    - “电脑本地后端没通”
+    - “Metro 没起来”
+    - “Metro 仍停在 Failed to start watch mode”
+  - 当前最可疑的新主线：
+    - Debug bundle 已可提供，但 RN 的 `CatalystInstance / ReactContext` 附着链路没有完成
+    - 后续优先拆 `ReactInstanceManager / createReactContext / bundle attach / 自定义原生包`
+- 这轮没有贸然继续改 UI，因为成熟区域和已有统一风格要求仍然有效：
+  - 返回按钮仍要统一沿用已有淡蓝色方形箭头
+  - 顶部仍必须考虑平板系统状态栏安全区，避免遮挡
+  - 网络问题仍必须统一项目内优美样式弹窗
+  - 在首屏主链路恢复前，不应该为了“看起来有进度”去乱改成熟页面
+- 下一步：
+  - 抓更精确的 `ReactInstanceManager / createReactContextInBackground / JS bundle attach` 日志
+  - 排查是否是 `ZeroIsleNotesPackage`、桥接 bundle 文件或开发包注入链路导致 JS 实例未附着
+  - 等首屏真正恢复后，再继续做社区、功能中心、个人主页等真实功能页面联调与 UI 收口
