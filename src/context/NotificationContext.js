@@ -24,23 +24,30 @@ export const NotificationProvider = ({ children }) => {
         }
 
         const normalized = String(message).toLowerCase();
-        const networkKeywords = [
-            'api网络错误',
-            '网络连接失败',
-            '请求超时',
-            '网络错误',
-            '无网络连接',
+        const networkErrorPhrases = [
+            '获取群组邀请失败',
+            '网络错误且无缓存',
+            '无法完成请求',
+            '离线状态下无法完成请求',
             'network error',
             'network connection failed',
             'request timed out',
             'no internet',
             'offline',
         ];
+        const networkKeywords = [
+            'api网络错误',
+            '网络连接失败',
+            '请求超时',
+            '网络错误',
+            '无网络连接',
+        ];
 
         // 只屏蔽明确的网络错误提示，避免误伤普通通知内容。
         const looksLikeNetworkError = networkKeywords.some(keyword => normalized.includes(keyword.toLowerCase()));
+        const looksLikeRawNetworkFailure = networkErrorPhrases.some(keyword => normalized.includes(keyword.toLowerCase()));
         const explicitlyMarkedNetworkError = normalized.includes('networkerror') || normalized.includes('isnetworkerror');
-        return looksLikeNetworkError || explicitlyMarkedNetworkError;
+        return looksLikeNetworkError || looksLikeRawNetworkFailure || explicitlyMarkedNetworkError;
     };
 
     // Show snackbar when a new notification arrives
