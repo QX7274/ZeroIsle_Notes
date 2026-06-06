@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { StatusBar, Platform, LogBox, View, Text, TouchableOpacity, Alert } from 'react-native';
+import { StatusBar, Platform, LogBox, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -533,23 +533,128 @@ const LoadingComponent = () => {
   );
 };
 
-// 持久化错误组件
-const PersistError = ({ error }) => {
-  console.error('Redux持久化错误:', error);
+const PERSIST_BOOT_TIMEOUT_MS = 8000;
 
-  // 安全地获取错误信息
-  const errorMessage = (error && error.message) ? String(error.message) : '未知错误，请重启应用';
-  const errorCode = (error && error.code) ? String(error.code) : 'UNKNOWN';
+const PersistBootstrapGate = ({ children }) => {
+  const [isBootstrapped, setIsBootstrapped] = useState(() => {
+    try {
+      return Boolean(persistor?.getState?.().bootstrapped);
+    } catch (error) {
+      console.error('PersistBootstrapGate: 读取初始持久化状态失败:', error);
+      return false;
+    }
+  });
+  const [didTimeout, setDidTimeout] = useState(false);
+  const [persistError, setPersistError] = useState(null);
 
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }}>
-      <Text style={{ fontSize: 18, color: 'red', marginBottom: 10 }}>数据加载失败</Text>
-      <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginHorizontal: 20 }}>
-        {errorMessage}
-      </Text>
-      <Text style={{ fontSize: 12, color: '#999', marginTop: 20 }}>错误代码: {errorCode}</Text>
-    </View>
-  );
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe = null;
+
+    const markBootstrapped = (reason) => {
+      if (!isMounted) {
+        return;
+      }
+      setIsBootstrapped(true);
+      if (reason) {
+        console.log(`PersistBootstrapGate: ${reason}`);
+      }
+    };
+
+    try {
+      unsubscribe = persistor.subscribe(() => {
+        try {
+          const state = persistor.getState();
+          if (state?.bootstrapped) {
+            markBootstrapped('持久化数据恢复完成，继续启动应用');
+          }
+        } catch (error) {
+          console.error('PersistBootstrapGate: 监听持久化状态失败:', error);
+          setPersistError(error);
+          markBootstrapped('持久化状态监听失败，已降级放行');
+        }
+      });
+    } catch (error) {
+      console.error('PersistBootstrapGate: 订阅持久化状态失败:', error);
+      setPersistError(error);
+      markBootstrapped('持久化状态订阅失败，已降级放行');
+    }
+
+    const timeoutId = setTimeout(() => {
+      if (!isMounted || isBootstrapped) {
+        return;
+      }
+      console.warn(`PersistBootstrapGate: 持久化恢复超过 ${PERSIST_BOOT_TIMEOUT_MS}ms，跳过阻塞以避免白屏`);
+      setDidTimeout(true);
+      markBootstrapped('持久化恢复超时，已跳过门禁阻塞');
+    }, PERSIST_BOOT_TIMEOUT_MS);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [isBootstrapped]);
+
+  if (!isBootstrapped) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: '#F8FBFF',
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 32,
+        }}
+      >
+        <View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 24,
+            backgroundColor: '#EAF4FF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 24,
+          }}
+        >
+          <ActivityIndicator size="large" color="#4DA3FF" />
+        </View>
+        <Text
+          style={{
+            fontSize: 22,
+            fontWeight: '700',
+            color: '#17324D',
+            marginBottom: 8,
+          }}
+        >
+          正在恢复本地数据
+        </Text>
+        <Text
+          style={{
+            fontSize: 14,
+            lineHeight: 22,
+            textAlign: 'center',
+            color: '#5C6F82',
+            maxWidth: 360,
+          }}
+        >
+          如果本地缓存恢复较慢，系统会在数秒后自动放行进入主界面，避免启动后长时间白屏。
+        </Text>
+      </View>
+    );
+  }
+
+  if (didTimeout || persistError) {
+    console.warn('PersistBootstrapGate: 当前以降级模式继续启动', {
+      didTimeout,
+      error: persistError?.message || null,
+    });
+  }
+
+  return children;
 };
 
 // 应用入口
@@ -575,33 +680,31 @@ const App = () => {
       <ErrorBoundary>
         <View style={{ flex: 1 }}>
           <Provider store={store}>
-            <PersistGate
-              loading={<LoadingComponent />}
-              persistor={persistor}
-              onBeforeLift={() => {
-                console.log('PersistGate: 数据恢复完成，准备渲染应用...');
-              }}
-              renderError={error => <PersistError error={error} />}
-              onError={(error) => {
-                console.error('PersistGate: 数据恢复失败:', error);
-              }}
-            >
-              <SafeAreaProvider>
-                <ThemeProvider>
-                  <FontSizeProvider>
-                    <AccessibilityProvider>
-                      <RealmProvider>
-                        <NotificationProvider>
-                          <GestureHandlerRootView style={{ flex: 1 }}>
-                            <AppContainer />
-                          </GestureHandlerRootView>
-                        </NotificationProvider>
-                      </RealmProvider>
-                    </AccessibilityProvider>
-                  </FontSizeProvider>
-                </ThemeProvider>
-              </SafeAreaProvider>
-            </PersistGate>
+            <PersistBootstrapGate>
+              <PersistGate
+                loading={<LoadingComponent />}
+                persistor={persistor}
+                onBeforeLift={() => {
+                  console.log('PersistGate: 数据恢复完成，准备渲染应用...');
+                }}
+              >
+                <SafeAreaProvider>
+                  <ThemeProvider>
+                    <FontSizeProvider>
+                      <AccessibilityProvider>
+                        <RealmProvider>
+                          <NotificationProvider>
+                            <GestureHandlerRootView style={{ flex: 1 }}>
+                              <AppContainer />
+                            </GestureHandlerRootView>
+                          </NotificationProvider>
+                        </RealmProvider>
+                      </AccessibilityProvider>
+                    </FontSizeProvider>
+                  </ThemeProvider>
+                </SafeAreaProvider>
+              </PersistGate>
+            </PersistBootstrapGate>
           </Provider>
         </View>
       </ErrorBoundary>
