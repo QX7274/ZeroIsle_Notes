@@ -39,10 +39,20 @@ const excludedRoots = [
   '模块功能-核查与优化记录',
   '模块功能核查与优化记录',
 ];
+const escapeForRegex = value => value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
+const projectRootPattern = escapeForRegex(__dirname);
 const excludedRootPatterns = excludedRoots.map(name => {
-  const escaped = name.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
-  return new RegExp(`^${escaped}(?:\\\\|/)`);
+  const escaped = escapeForRegex(name);
+  return new RegExp(`^${projectRootPattern}[\\\\/]${escaped}(?:[\\\\/].*)?$`);
 });
+const excludedFilePatterns = [
+  /^.*[\\/](?:tmp_|dump_).*\.(?:png|jpe?g|xml|log)$/i,
+  /^.*[\\/]community_followup\.(?:png|xml)$/i,
+  /^.*[\\/]current_followup\.(?:png|xml)$/i,
+  /^.*[\\/]group_followup\.(?:png|xml)$/i,
+  /^.*[\\/]profile_followup\.(?:png|xml)$/i,
+  /^.*[\\/]after_back_from_notification\.(?:png|xml)$/i,
+];
 
 // 自定义配置
 const config = {
@@ -50,7 +60,7 @@ const config = {
   resolver: {
     assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
-    blockList: exclusionList(excludedRootPatterns),
+    blockList: exclusionList([...excludedRootPatterns, ...excludedFilePatterns]),
     alias: {
       fs: false,
       path: require.resolve('path-browserify'),

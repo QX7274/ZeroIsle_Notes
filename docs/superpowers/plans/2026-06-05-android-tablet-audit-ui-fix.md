@@ -1447,3 +1447,56 @@ Expected: 新增或修改的回归用例通过。
   - `UsbFfs tcp:8081 tcp:8081`
 - 结论：真机到电脑本地后端的 USB 联调链路已恢复，可优先沿这条链路继续页面级联网复测
 ```
+
+### Task 32: 收口冷启动空白根视图并继续维持本地联通口径
+
+**Files:**
+- Modify: `metro.config.js`
+- Modify: `src/App.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 先把“网络未通”和“应用冷启动白屏”彻底拆开**
+
+```md
+- 当前本机后端健康页 `http://127.0.0.1:8000/health/` 返回 200
+- 真机经 `adb reverse` 访问 `127.0.0.1:8000/health/` 与 `127.0.0.1:8081/status` 也都返回 200
+- 结论：本轮主阻断已不再是“电脑和平板后端不通”，而是 APP 冷启动后根视图空白，无法继续逐模块真机操作
+```
+
+- [x] **Step 2: 先收口 Metro 对工作区巨量临时证据文件的误扫描**
+
+```md
+- 现象：`/status` 正常，但请求 `index.bundle?platform=android` 会长期卡住
+- 排查：仓库根目录堆积了大量 `tmp_*.png/xml`、`dump_*.xml`、followup 证据图和文档目录
+- 根因：`metro.config.js` 里原先 `blockList` 主要按相对路径写正则，Metro 实际遍历的是绝对路径，导致排除规则失效
+- 修复：
+  - 让目录级排除规则改按绝对路径命中
+  - 额外屏蔽 `tmp_*/dump_*` 这类真机证据文件
+- 目标：避免 Metro/Bundle 阶段被大量无关文件拖慢，继续污染真机启动判定
+```
+
+- [x] **Step 3: 给启动屏补初始化兜底放行，避免再次卡死在空白根视图**
+
+```md
+- 现象：日志显示 Redux store / Persist / Realm 已开始运行，但真机 UI 树仍只有空的 `FrameLayout`
+- 风险：即使 JS 部分已起来，只要 Splash 完成回调或初始化门禁某一步没顺利落到 `setIsAppReady(true)`，真机就会继续表现为空白
+- 修复：
+  - 在 `src/App.js` 给初始化流程加单次防重入
+  - 增加 `SplashScreen` 超时兜底触发初始化
+- 约束：只补启动门禁兜底，不重做成熟导航结构
+```
+
+- [ ] **Step 4: 继续确认真正的白屏剩余根因，不把本轮修复外推成启动问题已闭环**
+
+```md
+- 当前真机证据仍显示：
+  - `ReactNativeJS` 已执行到 store / persist / Realm
+  - 但 UIAutomator 抓到的仍是空根视图
+- 这说明本轮只是把“网络未通”和“启动空白”拆清，并补了两个低风险收口点
+- 下一轮仍要继续查：
+  - Splash 动画回调是否在真机上稳定完成
+  - 是否有初始化噪声或原生模块把首屏渲染继续拦住
+  - 真正进入首页/社区后再继续逐模块联网测试
+```

@@ -4,7 +4,7 @@
  * 统一的启动屏幕管理所有初始化阶段，但保留必要的服务检测
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar, Platform, LogBox, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -294,6 +294,7 @@ const AppContainer = () => {
   // 统一的应用准备状态
   const [isAppReady, setIsAppReady] = useState(false);
   const [initResult, setInitResult] = useState(null);
+  const initStartedRef = useRef(false);
 
   // 使用初始化hook
   const { initializeApp } = useAppInitialization();
@@ -314,9 +315,14 @@ const AppContainer = () => {
     isDarkMode = false;
   }
 
-  // 处理SplashScreen完成
-  const handleSplashComplete = async () => {
-    console.log('SplashScreen动画完成，开始应用初始化...');
+  const beginInitialization = async (trigger = 'splashComplete') => {
+    if (initStartedRef.current) {
+      console.log(`应用初始化已开始，忽略重复触发: ${trigger}`);
+      return;
+    }
+
+    initStartedRef.current = true;
+    console.log(`开始应用初始化，触发源: ${trigger}`);
 
     // 执行所有初始化逻辑
     const result = await initializeApp();
@@ -337,6 +343,27 @@ const AppContainer = () => {
       console.log('应用准备就绪，显示主界面');
     }
   };
+
+  // 处理SplashScreen完成
+  const handleSplashComplete = async () => {
+    console.log('SplashScreen动画完成，开始应用初始化...');
+    await beginInitialization('splashComplete');
+  };
+
+  useEffect(() => {
+    if (isAppReady) {
+      return undefined;
+    }
+
+    const splashFallbackTimer = setTimeout(() => {
+      console.warn('SplashScreen 超时未完成，触发初始化兜底放行');
+      beginInitialization('splashTimeoutFallback').catch(error => {
+        console.error('SplashScreen 兜底初始化失败:', error);
+      });
+    }, 4500);
+
+    return () => clearTimeout(splashFallbackTimer);
+  }, [isAppReady]);
 
   // 创建 Paper 主题
   const paperTheme = isDarkMode ? createPaperDarkTheme(theme) : createPaperLightTheme(theme);
