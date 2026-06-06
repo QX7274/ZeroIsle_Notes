@@ -1,14 +1,9 @@
-/**
- * 邀请成员页面
- */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   StyleSheet,
   TextInput,
-  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -27,15 +22,16 @@ import {
   selectLastInvitation,
 } from '../../redux/slices/groupsSlice';
 import { COLORS } from '../../utils/constants/colors';
+import networkErrorService from '../../services/networkErrorService';
 
 const MIN_KEYWORD_LENGTH = 2;
 
 const InviteMembersScreen = () => {
   const route = useRoute();
   const dispatch = useDispatch();
-  const { groupId } = route.params;
+  const { groupId } = route.params || {};
 
-  const inviteCandidates = useSelector(selectInviteCandidates);
+  const inviteCandidates = useSelector(selectInviteCandidates) || [];
   const inviteCandidatesLoading = useSelector(selectInviteCandidatesLoading);
   const inviteCandidatesError = useSelector(selectInviteCandidatesError);
   const inviteActionLoading = useSelector(selectInviteActionLoading);
@@ -46,15 +42,18 @@ const InviteMembersScreen = () => {
 
   const trimmedKeyword = keyword.trim();
   const canSearch = trimmedKeyword.length >= MIN_KEYWORD_LENGTH;
+  const isSearchingVisible = Boolean(inviteCandidatesLoading);
+  const isActionBusyVisible = Boolean(inviteActionLoading);
+  const isErrorVisible = Boolean(inviteCandidatesError);
+  const searchStateLabel = !trimmedKeyword
+    ? 'idle'
+    : canSearch
+      ? 'ready'
+      : 'keyword-too-short';
 
   const notifyNonBlocking = (message) => {
-    if (!message) {
-      return;
-    }
-    setInlineHint(message);
-    if (Platform.OS === 'android') {
-      ToastAndroid.show(message, ToastAndroid.SHORT);
-    }
+    if (!message) {return;}
+    setInlineHint(String(message));
   };
 
   useEffect(() => {
@@ -83,7 +82,15 @@ const InviteMembersScreen = () => {
         ).unwrap();
         setInlineHint(`已搜索“${trimmedKeyword}”相关用户`);
       } catch (error) {
-        notifyNonBlocking(error || '搜索失败，请稍后重试');
+        if (networkErrorService.isNetworkError(error)) {
+          networkErrorService.handleApiError(error, {
+            context: '搜索群组邀请候选',
+            customMessage: '网络连接失败，无法搜索候选用户',
+          });
+          setInlineHint('网络连接失败，无法搜索候选用户');
+        } else {
+          notifyNonBlocking(error || '搜索失败，请稍后重试');
+        }
       }
     }, 250);
 
@@ -92,9 +99,7 @@ const InviteMembersScreen = () => {
 
   const invitationSummary = useMemo(() => {
     const invitee = lastInvitation?.invitee;
-    if (!invitee) {
-      return null;
-    }
+    if (!invitee) {return null;}
     const displayName = invitee.nickname || invitee.username || invitee.id;
     return {
       title: `已向 ${displayName} 发送邀请`,
@@ -107,7 +112,6 @@ const InviteMembersScreen = () => {
       notifyNonBlocking(candidate?.invite_block_reason || '该用户当前不可邀请');
       return;
     }
-
     try {
       const invitation = await dispatch(
         inviteUserToGroup({ groupId, userId: candidate.id })
@@ -117,7 +121,15 @@ const InviteMembersScreen = () => {
         invitee?.nickname || invitee?.username || candidate.nickname || candidate.username || candidate.id;
       notifyNonBlocking(`已向 ${displayName} 发送邀请`);
     } catch (error) {
-      notifyNonBlocking(error || '邀请失败，请稍后重试');
+      if (networkErrorService.isNetworkError(error)) {
+        networkErrorService.handleApiError(error, {
+          context: '邀请成员',
+          customMessage: '网络连接失败，无法发送邀请',
+        });
+        setInlineHint('网络连接失败，无法发送邀请');
+      } else {
+        notifyNonBlocking(error || '邀请失败，请稍后重试');
+      }
     }
   };
 
@@ -128,9 +140,8 @@ const InviteMembersScreen = () => {
       : item.username
         ? `@${item.username}`
         : item.id;
-
     return (
-      <View style={styles.card}>
+      <View style={styles.card} testID={`entry.group.invite.candidate.${item.id}`}>
         <View style={styles.cardText}>
           <Text style={styles.cardTitle}>{displayName}</Text>
           <Text style={styles.cardSubtitle}>{secondaryText}</Text>
@@ -144,6 +155,7 @@ const InviteMembersScreen = () => {
           disabled={!item.can_invite || inviteActionLoading}
           loading={inviteActionLoading}
           onPress={() => handleInvite(item)}
+          testID={`action.group.invite.send.${item.id}`}
         >
           {item.can_invite ? '发送邀请' : '不可邀请'}
         </Button>
@@ -152,47 +164,48 @@ const InviteMembersScreen = () => {
   };
 
   const renderEmpty = () => {
-    if (inviteCandidatesLoading) {
-      return null;
-    }
-
+    if (inviteCandidatesLoading) {return null;}
     if (!trimmedKeyword) {
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>先搜索，再邀请</Text>
           <Text style={styles.emptyText}>
-            支持按用户名、昵称或邮箱关键词搜索，系统会自动标记已是成员、已有待处理邀请或你自己。
+            支持按用户名、昵称或邮箱关键词搜索，系统会自动标记已是成员、已存在待处理邀请或你自己。
           </Text>
         </View>
       );
     }
-
     if (!canSearch) {
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>关键词过短</Text>
-          <Text style={styles.emptyText}>
-            请至少输入 2 个字符，以便返回更稳定的候选结果。
-          </Text>
+          <Text style={styles.emptyText}>请至少输入 2 个字符，以返回更稳定的候选结果。</Text>
         </View>
       );
     }
-
     return (
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>没有找到可展示的候选用户</Text>
         <Text style={styles.emptyText}>
-          你可以尝试更换关键词，或确认对方是否已经是群成员/已有待处理邀请。
+          你可以尝试更换关键词，或确认对方是否已是群成员、已存在待处理邀请。
         </Text>
       </View>
     );
   };
 
+  const isSuccessVisible = Boolean(invitationSummary);
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID={`state.group.invite.state.${searchStateLabel}`}>
+      <View testID="state.group.invite.visibility.visible" />
+      <View testID={`state.group.invite.searching.visibility.${isSearchingVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.group.invite.actionBusy.visibility.${isActionBusyVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.group.invite.error.visibility.${isErrorVisible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.group.invite.success.visibility.${isSuccessVisible ? 'visible' : 'hidden'}`} />
+
       <Text style={styles.pageTitle}>邀请成员</Text>
       <Text style={styles.pageDescription}>
-        仅群主或管理员可以邀请成员。输入用户名、昵称或邮箱关键词搜索后，直接选择候选人发送邀请。
+        仅群主或管理员可邀请成员。输入用户名、昵称或邮箱关键词搜索后，选择候选人发送邀请。
       </Text>
 
       <View style={styles.searchBox}>
@@ -203,19 +216,16 @@ const InviteMembersScreen = () => {
           onChangeText={setKeyword}
           autoCapitalize="none"
           autoCorrect={false}
+          testID="input.group.invite.keyword"
         />
-        {inviteCandidatesLoading ? (
-          <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-        ) : null}
+        {inviteCandidatesLoading ? <ActivityIndicator size="small" color={COLORS.PRIMARY} /> : null}
       </View>
 
-      {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
-      {inviteCandidatesError ? (
-        <Text style={styles.errorText}>{inviteCandidatesError}</Text>
-      ) : null}
+      {inlineHint ? <Text style={styles.hintText} testID="state.group.invite.inlineHint">{inlineHint}</Text> : null}
+      {inviteCandidatesError ? <Text style={styles.errorText}>{inviteCandidatesError}</Text> : null}
 
       {invitationSummary ? (
-        <View style={styles.successCard}>
+        <View style={styles.successCard} testID="state.group.invite.successCard">
           <Text style={styles.successTitle}>{invitationSummary.title}</Text>
           <Text style={styles.successText}>{invitationSummary.detail}</Text>
         </View>
@@ -228,6 +238,7 @@ const InviteMembersScreen = () => {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={inviteCandidates.length ? styles.listContent : styles.emptyContent}
+        testID="list.group.invite.candidates"
       />
 
       <TouchableOpacity
@@ -238,6 +249,7 @@ const InviteMembersScreen = () => {
           dispatch(clearInviteCandidates());
           dispatch(clearLastInvitation());
         }}
+        testID="action.group.invite.reset"
       >
         <Text style={styles.resetButtonText}>清空搜索与结果</Text>
       </TouchableOpacity>
@@ -269,12 +281,17 @@ const styles = StyleSheet.create({
     minHeight: 54,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.BORDER || '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#BFD8FF',
+    backgroundColor: 'rgba(255,255,255,0.86)',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
   },
   input: {
     flex: 1,
@@ -297,9 +314,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     borderRadius: 14,
     padding: 14,
-    backgroundColor: '#EEF8F1',
+    backgroundColor: 'rgba(239,248,255,0.92)',
     borderWidth: 1,
-    borderColor: '#B9E3C3',
+    borderColor: '#BFD8FF',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 3,
   },
   successTitle: {
     fontSize: 15,
@@ -326,11 +348,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.BORDER || '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     padding: 14,
     marginBottom: 10,
     gap: 12,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardText: {
     flex: 1,
