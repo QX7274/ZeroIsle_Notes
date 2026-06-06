@@ -934,3 +934,20 @@
   - 当前修的是启动层阻塞，不是页面视觉层；
   - “底部黑框”依旧不纳入产品缺陷；
   - 后续可以恢复群组、社区、知识图谱、设置等模块的逐页真机验收，但每个功能页仍要继续单独观察顶部安全区、异常留白和统一网络弹窗。
+
+### 2026-06-06 第八十一轮：个人资料页群组入口误触头像选择器收口
+
+- 本轮回到安卓平板 `HGR3Y9MA` 的真实页面态后，重新从“我的 -> 个人资料 -> 功能中心”精确点击“群组”卡片，稳定复现到一个新的真实交互问题：系统没有进入群组页，而是误拉起了系统照片选择器。
+- 修复前证据已固化为 `D:\ZeroIsle_Notes\.local\android-mcp-server\round268_after_precise_group_tap.png` 与 `D:\ZeroIsle_Notes\.local\android-mcp-server\round268_after_precise_group_tap.xml`；这次问题不是顶部留白，也不是底部系统栏，而是个人资料页内部触控热区冲突。
+- 进一步结合页面结构与真机命中表现判断，根因更接近“头像入口整块可点击，热区过大”，它会和下方功能中心入口在平板实际触摸时形成误触干扰；继续保留整块头像卡片可点并不稳妥。
+- 已对 `src/screens/settings/ProfileSettings.js` 做最小修复：
+  - 头像图片区改为纯展示，不再整块触发图片选择；
+  - 新增独立的“更换头像”按钮 `action.profile.changeAvatar`，作为唯一头像选择入口；
+  - 不重做成熟的表单区、功能中心卡片区和底部操作区，只收紧真实有问题的触发热区。
+- 修复后真机再次复测时，个人资料页布局已重新下移并稳定分层，修复后布局证据为 `D:\ZeroIsle_Notes\.local\android-mcp-server\round273_after_fix_profile_tab.png` 与 `D:\ZeroIsle_Notes\.local\android-mcp-server\round273_after_fix_profile_tab.xml`。
+- 按修复后新的群组卡片中心点再次精确点击，现已稳定进入群组页，不再拉起系统照片选择器；成功证据为 `D:\ZeroIsle_Notes\.local\android-mcp-server\round275_after_fix_precise_group_tap.png`、`D:\ZeroIsle_Notes\.local\android-mcp-server\round275_after_fix_precise_group_tap.xml` 与 `D:\ZeroIsle_Notes\.local\android-mcp-server\round275_after_fix_precise_group_tap.log`。
+- 这次日志里可以确认点击群组卡片后已经走到正确导航链路，而不是头像选择链路，因此本轮修复结论是明确的：问题已从“入口误触”收口到“群组页正常进入”。
+- 同轮真机观察也继续满足既定 UI/UX 约束：
+  - 群组页顶部标题和淡蓝色方形返回按钮完整露出，没有被状态栏遮挡；
+  - 网络失败仍只出现项目内统一优美样式弹窗，没有回退成默认安卓弹窗；
+  - 本轮没有把这一个入口修复外推成全站完成，其他页面仍需继续逐页观察顶部完整露出、异常留白和统一网络弹窗。

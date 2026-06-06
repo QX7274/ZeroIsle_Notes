@@ -133,7 +133,6 @@ const ProfileSettings = ({ navigation }) => {
       return;
     }
     Haptics.lightFeedback();
-    console.log('[ProfileSettings] navigateWithGuard', routeName);
     navigation.navigate(routeName);
   }, [interactionBusy, navigation]);
 
@@ -209,12 +208,21 @@ const ProfileSettings = ({ navigation }) => {
         </View>
 
         <View style={[styles.avatarContainer, styles.glassCard]}>
-          <TouchableOpacity onPress={handleSelectAvatar} disabled={interactionBusy} testID="action.profile.selectAvatar">
+          <View testID="action.profile.selectAvatar">
             {isUploading ? (
               <ActivityIndicator size="large" color={colors.primary} />
             ) : (
               <Image source={avatar ? { uri: avatar } : defaultAvatar} style={styles.avatar} />
             )}
+          </View>
+          <TouchableOpacity
+            style={styles.avatarActionBtn}
+            onPress={handleSelectAvatar}
+            disabled={interactionBusy}
+            testID="action.profile.changeAvatar"
+          >
+            <Icon name="photo-camera" size={16} color={colors.primary} />
+            <Text style={[styles.avatarActionText, { color: colors.primary }]}>更换头像</Text>
           </TouchableOpacity>
         </View>
 
@@ -270,6 +278,23 @@ const styles = StyleSheet.create({
   },
   avatarContainer: { alignItems: 'center', padding: 16, marginBottom: 14 },
   avatar: { width: 120, height: 120, borderRadius: 60 },
+  avatarActionBtn: {
+    marginTop: 14,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarActionText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   formCard: { padding: 14, marginBottom: 14 },
   bioInput: { height: 100, textAlignVertical: 'top' },
   functionCard: { padding: 14, marginBottom: 14 },
