@@ -109,62 +109,64 @@ const JoinGroup = () => {
           ]}
           testID="list.group.join.sections"
         >
-          <View style={styles.headerContainer}>
-            <Icon name="account-group" size={48} color="#2563EB" />
-            <Text style={styles.title}>加入群组</Text>
-            <Text style={styles.subtitle}>输入 4 位数字加入码加入群组</Text>
-          </View>
-
-          <View
-            style={[styles.joinStateBanner, joinBusy ? styles.joinStateBannerBusy : styles.joinStateBannerIdle]}
-            testID={`state.group.join.submit.visibility.${joinBusy ? 'visible' : 'hidden'}`}
-          >
-            <Icon name={joinBusy ? 'progress-clock' : 'information-outline'} size={16} color={joinBusy ? '#1D4ED8' : '#2563EB'} />
-            <Text
-              style={[styles.joinStateText, joinBusy ? styles.joinStateTextBusy : styles.joinStateTextIdle]}
-              testID="state.group.join.submitText"
-            >
-              {joinStateText}
-            </Text>
-          </View>
-
-          <View style={styles.codeContainer}>
-            {code.map((digit, index) => (
-              <View key={index} style={styles.digitContainer}>
-                <RNTextInput
-                  ref={inputRefs[index]}
-                  style={styles.digitInput}
-                  value={digit}
-                  onChangeText={(text) => handleCodeChange(text, index)}
-                  onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  selectTextOnFocus
-                  editable={!joinBusy}
-                  testID={`input.group.joinCode.${index + 1}`}
-                />
-              </View>
-            ))}
-          </View>
-
-          {error ? (
-            <View style={styles.errorContainer} testID="state.group.join.error">
-              <Icon name="alert-circle" size={20} color={COLORS.ERROR} />
-              <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formCard}>
+            <View style={styles.headerContainer}>
+              <Icon name="account-group" size={48} color="#2563EB" />
+              <Text style={styles.title}>加入群组</Text>
+              <Text style={styles.subtitle}>输入 4 位数字加入码加入群组</Text>
             </View>
-          ) : null}
-          <View testID={`state.group.join.error.visibility.${error ? 'visible' : 'hidden'}`} />
 
-          <Button
-            mode="contained"
-            onPress={handleJoinGroup}
-            style={styles.button}
-            loading={joinBusy}
-            disabled={!canSubmit}
-            testID="action.group.submitJoin"
-          >
-            加入群组
-          </Button>
+            <View
+              style={[styles.joinStateBanner, joinBusy ? styles.joinStateBannerBusy : styles.joinStateBannerIdle]}
+              testID={`state.group.join.submit.visibility.${joinBusy ? 'visible' : 'hidden'}`}
+            >
+              <Icon name={joinBusy ? 'progress-clock' : 'information-outline'} size={16} color={joinBusy ? '#1D4ED8' : '#2563EB'} />
+              <Text
+                style={[styles.joinStateText, joinBusy ? styles.joinStateTextBusy : styles.joinStateTextIdle]}
+                testID="state.group.join.submitText"
+              >
+                {joinStateText}
+              </Text>
+            </View>
+
+            <View style={styles.codeContainer}>
+              {code.map((digit, index) => (
+                <View key={index} style={styles.digitContainer}>
+                  <RNTextInput
+                    ref={inputRefs[index]}
+                    style={styles.digitInput}
+                    value={digit}
+                    onChangeText={(text) => handleCodeChange(text, index)}
+                    onKeyPress={(e) => handleKeyPress(e, index)}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    selectTextOnFocus
+                    editable={!joinBusy}
+                    testID={`input.group.joinCode.${index + 1}`}
+                  />
+                </View>
+              ))}
+            </View>
+
+            {error ? (
+              <View style={styles.errorContainer} testID="state.group.join.error">
+                <Icon name="alert-circle" size={20} color={COLORS.ERROR} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+            <View testID={`state.group.join.error.visibility.${error ? 'visible' : 'hidden'}`} />
+
+            <Button
+              mode="contained"
+              onPress={handleJoinGroup}
+              style={styles.button}
+              loading={joinBusy}
+              disabled={!canSubmit}
+              testID="action.group.submitJoin"
+            >
+              加入群组
+            </Button>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -181,16 +183,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6FAFF',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: SPACING.LARGE,
-    justifyContent: 'center',
+    alignItems: 'center',
   },
   contentSpacing: {
-    paddingTop: 16,
+    paddingTop: 24,
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: SPACING.XLARGE,
+    marginBottom: SPACING.LARGE,
+    width: '100%',
+  },
+  formCard: {
+    width: '100%',
+    maxWidth: 720,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 24,
+    paddingHorizontal: SPACING.LARGE,
+    paddingTop: SPACING.XLARGE,
+    paddingBottom: SPACING.LARGE,
+    borderWidth: 1,
+    borderColor: '#CFE1FF',
+    elevation: 4,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
   },
   title: {
     fontSize: 24,
@@ -238,8 +257,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.LARGE,
   },
   digitContainer: {
-    width: 64,
-    height: 64,
+    width: 120,
+    height: 96,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.90)',
     justifyContent: 'center',
