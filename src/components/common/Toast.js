@@ -9,6 +9,34 @@ import { selectToast, hideToast } from '../../redux/slices/uiSlice';
 import token, { SPACING, RADIUS, ELEVATION, ANIMATION, COMPONENT, Z_INDEX, OPACITY } from '../../theme/tokens';
 import { useTheme } from '../../context/ThemeContext';
 
+const NOISY_TOAST_PATTERNS = [
+  '获取群组邀请失败',
+  '群组邀请失败',
+  '获取群组列表失败',
+  '获取群组详情失败',
+  '获取群组成员失败',
+  '获取群组通知失败',
+  '获取群组消息失败',
+  '创建群组失败',
+  '加入群组失败',
+  '邀请用户失败',
+  '删除群组失败',
+  '网络错误且无缓存',
+  '离线状态下无法完成请求',
+  '无法完成请求',
+  '网络连接失败',
+  '请求已保存到离线队列',
+];
+
+const shouldSuppressToast = (value) => {
+  const message = String(value || '').toLowerCase();
+  if (!message) {
+    return true;
+  }
+
+  return NOISY_TOAST_PATTERNS.some((pattern) => message.includes(pattern.toLowerCase()));
+};
+
 /**
  * 通用Toast提示组件
  * 自动连接到Redux状态，显示全局Toast消息
@@ -20,6 +48,12 @@ const Toast = () => {
   const { colors } = useTheme();
   // 获取动态样式
   const dynamicStyles = getStyles(colors);
+
+  useEffect(() => {
+    if (toast.visible && shouldSuppressToast(toast.message)) {
+      dispatch(hideToast());
+    }
+  }, [dispatch, toast.message, toast.visible]);
 
   useEffect(() => {
     if (toast.visible) {
@@ -47,7 +81,7 @@ const Toast = () => {
     }
   }, [toast.visible, fadeAnim, dispatch]);
 
-  if (!toast.visible) {
+  if (!toast.visible || shouldSuppressToast(toast.message)) {
     return null;
   }
 
