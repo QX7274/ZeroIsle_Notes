@@ -16,8 +16,13 @@ export const isTablet = width > 600; // 简单判断是否为平板
 export const SCREEN_WIDTH = width;
 export const SCREEN_HEIGHT = height;
 
-// 状态栏高度
+// 旧版状态栏高度兼容值
+// 注意：仅用于兼容历史逻辑，不应用于新页面的高度/顶部留白计算。
+// 新页面请优先使用 react-native-safe-area-context 的 insets.top 来处理平板顶部安全区。
 export const STATUS_BAR_HEIGHT = isIOS ? 44 : StatusBar.currentHeight;
+
+// 供新布局使用的顶部安全区参考值，避免把平板系统顶部栏当作整屏高度的一部分。
+export const SAFE_AREA_TOP = isIOS ? 44 : 24;
 
 // 导航栏高度
 export const HEADER_HEIGHT = isIOS ? 44 : 56;
