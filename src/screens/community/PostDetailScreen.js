@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -57,15 +57,6 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const busy = isLoading || submittingComment;
   const pageState = isLoading && !post ? 'loading' : post ? 'ready' : error ? 'error' : 'empty';
-
-  const friendlyError = useMemo(() => {
-    if (!error) {return '';}
-    const raw = String(error);
-    if (raw.includes('Network Error') || raw.includes('网络')) {
-      return '网络连接异常，请稍后重试';
-    }
-    return raw;
-  }, [error]);
 
   const loadPostData = useCallback(async () => {
     try {
@@ -167,7 +158,6 @@ const PostDetailScreen = ({ route, navigation }) => {
     >
       <View testID={`state.community.postDetail.state.${pageState}`} />
       <View testID={`state.community.postDetail.busy.visibility.${busy ? 'visible' : 'hidden'}`} />
-      <View testID={`state.community.postDetail.error.visibility.${friendlyError ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
       <View style={[styles.header, styles.glassBlock, { borderBottomColor: `${theme.primary}22` }]}>
         <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
@@ -181,13 +171,6 @@ const PostDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
-
-      {friendlyError ? (
-        <View style={styles.inlineErrorCard} testID="state.community.postDetail.inlineError">
-          <Icon name="error-outline" size={15} color="#B91C1C" />
-          <Text style={styles.inlineErrorText}>{friendlyError}</Text>
-        </View>
-      ) : null}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
@@ -420,24 +403,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: SPACING.SMALL,
-  },
-  inlineErrorCard: {
-    marginHorizontal: SPACING.MEDIUM,
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: 'rgba(254,242,242,0.92)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  inlineErrorText: {
-    color: '#B91C1C',
-    fontSize: 12,
-    flex: 1,
   },
   glassBlock: {
     backgroundColor: 'rgba(255,255,255,0.84)',

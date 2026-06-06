@@ -90,15 +90,6 @@ const NotificationsScreen = () => {
     [notifications]
   );
 
-  const friendlyError = useMemo(() => {
-    if (!error) {return '';}
-    const raw = String(error);
-    if (raw.includes('Network Error') || raw.includes('网络')) {
-      return '网络连接异常，请稍后重试';
-    }
-    return raw;
-  }, [error]);
-
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={[
@@ -166,7 +157,6 @@ const NotificationsScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors?.background || '#F2F7FB' }]} testID="screen.community.notifications">
       <View testID={`state.community.notifications.state.${pageState}`} />
-      <View testID={`state.community.notifications.error.visibility.${friendlyError ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.notifications.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.notifications.refreshing.visibility.${refreshing ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.notifications.markAllBusy.visibility.${markAllBusy ? 'visible' : 'hidden'}`} />
@@ -206,13 +196,6 @@ const NotificationsScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-
-      {friendlyError ? (
-        <View style={styles.errorCard} testID="state.community.notifications.error">
-          <Icon name="error-outline" size={16} color="#B91C1C" />
-          <Text style={styles.errorText}>{friendlyError}</Text>
-        </View>
-      ) : null}
 
       <FlatList
         data={notifications}
@@ -287,25 +270,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'rgba(255,255,255,0.82)',
     alignItems: 'center',
-  },
-  errorCard: {
-    marginHorizontal: 14,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: 'rgba(254,242,242,0.92)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  errorText: {
-    color: '#B91C1C',
-    flex: 1,
-    lineHeight: 18,
-    fontSize: 13,
   },
   listContent: {
     paddingHorizontal: 14,

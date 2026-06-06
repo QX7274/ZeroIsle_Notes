@@ -18,6 +18,7 @@ import { Button, Card, Skeleton } from '../../components/common';
 import { UnifiedSearchBar } from '../../components/search';
 import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import networkService from '../../services/network/networkService';
+import networkErrorService from '../../services/networkErrorService';
 import { SPACING } from '../../utils/constants/dimensions';
 
 const FALLBACK_THEME = {
@@ -168,6 +169,12 @@ const CommunityScreen = ({ navigation }) => {
         setLoadMoreError('');
       })
       .catch((requestError) => {
+        if (networkErrorService.isNetworkError(requestError)) {
+          networkErrorService.handleApiError(requestError, {
+            context: '加载更多社区帖子',
+          });
+          return;
+        }
         setLoadMoreError(requestError?.message || '加载更多失败，请重试');
       })
       .finally(() => {
@@ -316,7 +323,6 @@ const CommunityScreen = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: palette.background }]} testID={`state.community.pageState.${pageState}`}>
       <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
-      <View testID={`state.community.error.visibility.${error ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.activeCategory.${activeCategory}`} />
 
@@ -436,13 +442,6 @@ const CommunityScreen = ({ navigation }) => {
           testID="list.community.posts"
         />
       )}
-
-      {error ? (
-        <View style={styles.errorBanner} testID="state.community.error">
-          <Icon name="error-outline" size={16} color="#B91C1C" />
-          <Text style={styles.errorBannerText}>{error}</Text>
-        </View>
-      ) : null}
 
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: palette.primary }, interactionBusy ? styles.disabled : null]}
