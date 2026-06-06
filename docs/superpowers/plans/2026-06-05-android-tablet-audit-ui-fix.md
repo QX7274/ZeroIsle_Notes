@@ -605,3 +605,42 @@ Expected: 新增或修改的回归用例通过。
 - 做法：在 `JoinGroupScreen` / `CreateGroupScreen` 增加统一页头，并让内容区避开重复安全区占位
 - 验收：安卓平板真机确认“加入群组 / 创建群组”页顶部标题完整露出，返回按钮位置和样式与群组主页一致
 ```
+
+### Task 12: 群组离线草稿链路补齐与真机阻塞留痕
+
+**Files:**
+- Modify: `src/redux/slices/groupsSlice.js`
+- Modify: `src/components/groups/GroupDetail.js`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 补齐本地群组草稿 reducer 与列表合并逻辑**
+
+```md
+- 根因：`CreateGroup` 在离线时已调用 `upsertLocalGroup(localGroup)`，但 `groupsSlice` 实际未导出该 reducer，导致本地草稿链路不完整
+- 做法：补齐 `upsertLocalGroup`，并把本地草稿与远端群组在 `fetchGroups.fulfilled`、`createGroup.fulfilled`、`fetchGroupDetail.fulfilled` 中统一按 `id` 合并
+- 约束：不改群组成熟列表样式，不重做现有群组主页结构
+```
+
+- [x] **Step 2: 让本地草稿详情页优先读取本地数据，避免离线请求打断详情链路**
+
+```md
+- 根因：创建本地草稿后虽然导航到了 `GroupDetail`，但详情页仍会继续请求远端详情，离线时会把页面打回错误态或统一网络弹窗
+- 做法：`GroupDetail` 遇到 `local_only` 群组时优先 `setCurrentGroup(localGroup)`，刷新时也先走本地数据，不再继续请求远端详情
+- 目标：为后续“创建群组 -> 详情 -> 邀请成员”真机验收补齐离线兜底基础能力
+```
+
+- [x] **Step 3: 真机记录本轮新的稳定阻塞，不把空白根视图误写成页面 UI 问题**
+
+```md
+- 现象：重新安装调试包后，安卓平板 `HGR3Y9MA` 上应用可拉起进程，但多次进入 `com.zeroisle_notes` 后停在空白根视图
+- 证据：`round259_after_reinstall_launch.xml/.png`、`round260_open_app_after_reinstall.xml/.png`
+- 说明：这不是群组详情页、邀请页或返回按钮样式问题，而是当前真机调试态的新阻塞，需要单独继续排查
+```
+
+- [ ] **Step 4: 下一轮从“空白根视图/高占用”阻塞恢复后继续补完群组详情与邀请成员真机闭环**
+
+```md
+- 下一步：优先确认空白根视图是否由 Hermes / Realm / 本地数据初始化链路触发，再回到群组创建后详情页与邀请成员页
+- 继续验收：顶部完整露出、淡蓝色返回按钮一致、异常留白、统一网络弹窗、离线草稿详情链路
+```

@@ -8,8 +8,9 @@ import {
   View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Button, Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   clearInviteCandidates,
   clearLastInvitation,
@@ -23,12 +24,15 @@ import {
 } from '../../redux/slices/groupsSlice';
 import { COLORS } from '../../utils/constants/colors';
 import networkErrorService from '../../services/networkErrorService';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const MIN_KEYWORD_LENGTH = 2;
 
 const InviteMembersScreen = () => {
   const route = useRoute();
+  const navigation = useNavigation();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const { groupId } = route.params || {};
 
   const inviteCandidates = useSelector(selectInviteCandidates) || [];
@@ -194,19 +198,33 @@ const InviteMembersScreen = () => {
   };
 
   const isSuccessVisible = Boolean(invitationSummary);
+  const topInset = Math.max(insets.top, 8);
+  const bottomInset = Math.max(insets.bottom, 12);
 
   return (
-    <View style={styles.container} testID={`state.group.invite.state.${searchStateLabel}`}>
+    <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]} testID={`state.group.invite.state.${searchStateLabel}`}>
       <View testID="state.group.invite.visibility.visible" />
       <View testID={`state.group.invite.searching.visibility.${isSearchingVisible ? 'visible' : 'hidden'}`} />
       <View testID={`state.group.invite.actionBusy.visibility.${isActionBusyVisible ? 'visible' : 'hidden'}`} />
       <View testID={`state.group.invite.error.visibility.${isErrorVisible ? 'visible' : 'hidden'}`} />
       <View testID={`state.group.invite.success.visibility.${isSuccessVisible ? 'visible' : 'hidden'}`} />
 
-      <Text style={styles.pageTitle}>邀请成员</Text>
-      <Text style={styles.pageDescription}>
-        仅群主或管理员可邀请成员。输入用户名、昵称或邮箱关键词搜索后，选择候选人发送邀请。
-      </Text>
+      <View style={styles.headerBar}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation.goBack()}
+          testID="action.group.invite.back"
+          style={styles.backButton}
+        />
+        <Text style={styles.headerBarTitle}>邀请成员</Text>
+        <View style={styles.headerRight} />
+      </View>
+
+      <View style={styles.heroCard}>
+        <Text style={styles.pageTitle}>邀请成员</Text>
+        <Text style={styles.pageDescription}>
+          仅群主或管理员可邀请成员。输入用户名、昵称或邮箱关键词搜索后，选择候选人发送邀请。
+        </Text>
+      </View>
 
       <View style={styles.searchBox}>
         <TextInput
@@ -262,14 +280,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 12,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingTop: 16,
+    marginHorizontal: -16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.11,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  backButton: {
+    marginLeft: 12,
+  },
+  headerBarTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 18,
+    color: COLORS.TEXT,
+  },
+  headerRight: {
+    width: 56,
+  },
+  heroCard: {
+    marginTop: 12,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
   },
   pageTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY || '#111827',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   pageDescription: {
     fontSize: 14,

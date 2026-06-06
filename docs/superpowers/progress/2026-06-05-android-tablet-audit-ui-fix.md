@@ -871,3 +871,37 @@
   - 两个子页现在都已补齐统一顶部标题和淡蓝色方形返回按钮；
   - 当前群组相关真实缺陷已从“功能阻断”收口到“风格与页头一致性补齐”，且本轮已完成代码与真机闭环。
 - 这轮仍然保持克制，不改群组成熟按钮层级、不重做空态结构、不扩散到群组详情或其他成熟页面，只修真实缺陷与明显原始页头问题。
+
+### 2026-06-06 第七十九轮：群组离线草稿链路补齐与真机空白根视图阻塞留痕
+
+- 本轮继续沿上一轮真机链路，从安卓平板 `HGR3Y9MA` 的“创建群组”页面直接复测“创建群组 -> 详情 -> 邀请成员”闭环，先抓到当前页状态 `round257_current_group_create.png/.xml`，确认页面仍停留在已填好 `TestGroup / LocalDraft` 的创建页，按钮可点击。
+- 真实点击“创建群组”按钮后，真机首先出现的是项目内统一网络弹窗“网络连接问题”，证据为 `round257_after_create_tap_wait3.png/.xml`；这说明点击链路本身已经生效，阻塞点不在按钮命中区域，而在离线后的后续详情链路。
+- 随后回查代码发现，`src/components/groups/CreateGroup.js` 在离线场景下会调用 `dispatch(upsertLocalGroup(localGroup))` 并导航到 `GroupDetail`，但 `src/redux/slices/groupsSlice.js` 当前实际没有完整导出这个 reducer，也没有把本地草稿和远端群组做稳定合并，因此本地草稿链路本身不完整。
+- 已在 `src/redux/slices/groupsSlice.js` 补齐 `upsertLocalGroup`，并新增本地/远端群组合并与按 `id` upsert 的基础逻辑：
+  - `fetchGroups.fulfilled` 现在会保留 `local_only` 草稿，不再被远端空列表直接覆盖；
+  - `createGroup.fulfilled` 与 `fetchGroupDetail.fulfilled` 改为按 `id` 合并，不再重复插入相同群组；
+  - 本地草稿写入时会同步设为 `currentGroup`，并默认补足 `member_count / can_invite / can_generate_join_code` 的基础字段。
+- 已在 `src/components/groups/GroupDetail.js` 增加本地草稿详情兜底：
+  - 如果 `groupId` 对应的是 `local_only` 群组，则优先 `setCurrentGroup(localGroup)`；
+  - 本地草稿详情刷新时不再继续发起会失败的远端详情请求；
+  - 这样可以为后续“创建群组 -> 本地详情 -> 邀请成员”真机闭环补齐基础能力，而不去改成熟的详情布局。
+- 代码验证已完成：
+  - `npx jest src/redux/slices/__tests__/groupsSlice.localFallback.test.js --runInBand` 通过，8/8 用例通过；
+  - `npx eslint src/redux/slices/groupsSlice.js src/components/groups/GroupDetail.js src/screens/groups/InvitationsScreen.js src/screens/groups/InviteMembersScreen.js src/components/groups/CreateGroup.js` 通过，无新增 error。
+- 本轮同时把前面已改但尚未入账的两个群组原始页面一并并入当前记录：
+  - `src/screens/groups/InvitationsScreen.js` 已补齐统一页头与淡蓝色返回按钮，并将 `loading / busy / error / networkFallback` 这些仅用于自动化识别的锚点改成不可见 `View`，不再把调试状态文案直接露在页面上；
+  - `src/screens/groups/InviteMembersScreen.js` 已补齐统一页头与淡蓝色返回按钮，并加入顶部说明卡片 `heroCard`，让该页不再显得像原始输入页。
+- 真机新阻塞也已经稳定记录下来，避免后续排查断层：
+  - 重新安装当前调试包后，应用曾出现 Hermes / Realm 相关旧崩溃栈，随后重装 `:app:installDebug` 成功；
+  - 但重新从桌面进入 `零屿笔记` 后，当前多次抓到的是 `com.zeroisle_notes` 空白根视图，证据为 `round260_open_app_after_reinstall.png/.xml`；
+  - 同时 logcat 显示应用进程高占用运行，但 UI 树只有空白根容器，这说明当前新的真机阻塞已经从群组页面问题，切换成了“应用启动后空白根视图”问题。
+- 这一阻塞必须和页面 UI 缺陷分开看待：
+  - 它不是群组邀请页头部样式问题；
+  - 不是返回按钮不一致问题；
+  - 也不是顶部被状态栏遮挡或页面留白问题；
+  - 当前更像运行时初始化或调试态稳定性问题，需要下一轮单独恢复真实页面态后，再继续群组详情与邀请成员页的真机闭环。
+- 本轮结论：
+  - 群组离线草稿 reducer 与详情兜底能力已经补齐；
+  - 邀请页与邀请成员页的统一头部修复已经纳入本轮记录；
+  - 但真机当前被新的“空白根视图”阻塞，无法继续完成邀请成员页最终截图闭环；
+  - 因此本轮以“代码补齐 + 证据固化 + 阻塞留痕”收口，不把空白根视图误记成页面布局问题。

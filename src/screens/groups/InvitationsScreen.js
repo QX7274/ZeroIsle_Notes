@@ -4,6 +4,7 @@
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import { Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,9 +18,11 @@ import {
 } from '../../redux/slices/groupsSlice';
 import { COLORS } from '../../utils/constants/colors';
 import networkErrorService from '../../services/networkErrorService';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const InvitationsScreen = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const invitations = useSelector(selectGroupInvitations) || [];
   const isLoading = useSelector(selectGroupsLoading);
@@ -39,7 +42,7 @@ const InvitationsScreen = () => {
   }, [groupsError]);
 
   const hasInvitations = invitations.length > 0;
-  const topInset = Math.max(insets.top, 16);
+  const topInset = Math.max(insets.top, 8);
   const bottomInset = Math.max(insets.bottom, 12);
   const pageState = isLoading ? 'loading' : hasInvitations ? 'ready' : 'empty';
   const busyVisible = Boolean(pendingInvitationId);
@@ -150,6 +153,16 @@ const InvitationsScreen = () => {
 
   return (
     <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]} testID={`state.group.invitations.state.${pageState}`}>
+      <View style={styles.headerBar}>
+        <ScreenHeaderBackButton
+          onPress={() => navigation.goBack()}
+          testID="action.group.invitations.back"
+          style={styles.backButton}
+        />
+        <Text style={styles.headerBarTitle}>群组邀请</Text>
+        <View style={styles.headerRight} />
+      </View>
+
       <View style={styles.headerCard} testID="panel.group.invitations.header">
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>群组邀请</Text>
@@ -167,18 +180,11 @@ const InvitationsScreen = () => {
         </Button>
       </View>
 
-      <Text style={styles.stateAnchorText} testID={`state.group.invitations.loading.visibility.${isLoading ? 'visible' : 'hidden'}`}>
-        loading:{isLoading ? 'visible' : 'hidden'}
-      </Text>
-      <Text style={styles.stateAnchorText} testID={`state.group.invitations.busy.visibility.${busyVisible ? 'visible' : 'hidden'}`}>
-        busy:{busyVisible ? 'visible' : 'hidden'}:{pendingActionType || 'idle'}
-      </Text>
-      <Text style={styles.stateAnchorText} testID={`state.group.invitations.error.visibility.${errorVisible ? 'visible' : 'hidden'}`}>
-        error:{errorVisible ? 'visible' : 'hidden'}
-      </Text>
-      <Text style={styles.stateAnchorText} testID={`state.group.invitations.networkFallback.visibility.${networkFallbackVisible ? 'visible' : 'hidden'}`}>
-        networkFallback:{networkFallbackVisible ? 'visible' : 'hidden'}
-      </Text>
+      <View style={styles.stateAnchor} testID={`state.group.invitations.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View style={styles.stateAnchor} testID={`state.group.invitations.busy.visibility.${busyVisible ? 'visible' : 'hidden'}`} />
+      <View style={styles.stateAnchor} testID={`state.group.invitations.busyAction.${pendingActionType || 'idle'}`} />
+      <View style={styles.stateAnchor} testID={`state.group.invitations.error.visibility.${errorVisible ? 'visible' : 'hidden'}`} />
+      <View style={styles.stateAnchor} testID={`state.group.invitations.networkFallback.visibility.${networkFallbackVisible ? 'visible' : 'hidden'}`} />
 
       {errorVisible ? (
         <View style={styles.errorCard} testID="state.group.invitations.error">
@@ -205,6 +211,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6FAFF',
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingTop: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CFE1FF',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.11,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  backButton: {
+    marginLeft: -4,
+  },
+  headerBarTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 18,
+    color: COLORS.TEXT,
+  },
+  headerRight: {
+    width: 40,
   },
   headerCard: {
     marginHorizontal: 16,
@@ -239,12 +274,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.TEXT_SECONDARY,
   },
-  stateAnchorText: {
-    marginTop: 6,
-    marginHorizontal: 16,
-    fontSize: 11,
-    color: '#6B7280',
-    lineHeight: 14,
+  stateAnchor: {
+    width: 0,
+    height: 0,
+    opacity: 0,
   },
   errorCard: {
     marginHorizontal: 16,

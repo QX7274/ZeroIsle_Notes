@@ -185,6 +185,42 @@ const normalizeInvitationFetchError = (value) => {
   return value;
 };
 
+const isLocalOnlyGroup = (group) => Boolean(group?.local_only);
+
+const upsertGroupRecord = (groups, group) => {
+  if (!group?.id) {
+    return groups;
+  }
+
+  const list = Array.isArray(groups) ? groups : [];
+  const index = list.findIndex((item) => String(item?.id) === String(group.id));
+
+  if (index === -1) {
+    list.push(group);
+    return list;
+  }
+
+  list[index] = {
+    ...list[index],
+    ...group,
+  };
+  return list;
+};
+
+const mergeRemoteAndLocalGroups = (remoteGroups, existingGroups) => {
+  const nextRemoteGroups = Array.isArray(remoteGroups) ? remoteGroups : [];
+  const localGroups = (Array.isArray(existingGroups) ? existingGroups : []).filter(isLocalOnlyGroup);
+  const merged = [...nextRemoteGroups];
+
+  localGroups.forEach((group) => {
+    if (!merged.some((item) => String(item?.id) === String(group.id))) {
+      merged.push(group);
+    }
+  });
+
+  return merged;
+};
+
 // 初始状态
 const initialState = {
   groups: [],
@@ -576,6 +612,18 @@ const groupsSlice = createSlice({
     setCurrentGroup: (state, action) => {
       state.currentGroup = action.payload;
     },
+    upsertLocalGroup: (state, action) => {
+      const localGroup = {
+        member_count: 1,
+        can_invite: true,
+        can_generate_join_code: true,
+        ...action.payload,
+        local_only: true,
+      };
+      upsertGroupRecord(state.groups, localGroup);
+      state.currentGroup = localGroup;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -586,7 +634,7 @@ const groupsSlice = createSlice({
       })
       .addCase(fetchGroups.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.groups = action.payload || [];
+        state.groups = mergeRemoteAndLocalGroups(action.payload, state.groups);
       })
       .addCase(fetchGroups.rejected, (state, action) => {
         state.isLoading = false;
@@ -601,6 +649,7 @@ const groupsSlice = createSlice({
       .addCase(fetchGroupDetail.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentGroup = action.payload;
+        upsertGroupRecord(state.groups, action.payload);
 
         // 如果有加入码，更新加入码信息
         if (action.payload.join_code) {
@@ -620,7 +669,7 @@ const groupsSlice = createSlice({
       })
       .addCase(createGroup.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.groups.push(action.payload);
+        upsertGroupRecord(state.groups, action.payload);
         state.currentGroup = action.payload;
       })
       .addCase(createGroup.rejected, (state, action) => {
@@ -1020,6 +1069,7 @@ export const {
   patchActiveScreenShareSession,
   setActiveScreenShareSession,
   setCurrentGroup,
+  upsertLocalGroup,
 } = groupsSlice.actions;
 
 // 导出Selectors
