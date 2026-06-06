@@ -197,7 +197,7 @@ const InvitationsScreen = () => {
         data={invitations}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
-        contentContainerStyle={invitations.length === 0 ? styles.emptyContainer : undefined}
+        contentContainerStyle={invitations.length === 0 ? styles.emptyContainer : styles.listContent}
         ListEmptyComponent={renderEmpty}
         refreshing={isLoading}
         onRefresh={loadInvitations}
@@ -300,25 +300,34 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 120,
+    paddingBottom: 32,
   },
   empty: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 18,
+    width: '100%',
+    maxWidth: 420,
   },
   emptyText: {
     marginTop: 8,
     color: COLORS.TEXT_SECONDARY,
     fontSize: 14,
+    textAlign: 'center',
   },
   hintText: {
     marginTop: 6,
     fontSize: 12,
     color: COLORS.TEXT_SECONDARY,
     textAlign: 'center',
+  },
+  listContent: {
+    paddingTop: 6,
+    paddingBottom: 18,
   },
   card: {
     marginHorizontal: 16,

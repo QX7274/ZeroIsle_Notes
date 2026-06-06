@@ -831,3 +831,37 @@ Expected: 新增或修改的回归用例通过。
 - 离线点击提交后，页面继续只出现项目内统一优美样式网络弹窗，没有回退默认安卓弹窗，也没有再冒出底部原始错误条
 - 证据：`tmp_round289_join_entry.png/.xml`、`tmp_round289_after_input_1234.png/.xml`、`tmp_round289_after_backspace_once.png/.xml`、`tmp_round289_after_submit.png/.xml`
 ```
+
+### Task 18: 收口群组邀请页空态过度下沉的平板留白
+
+**Files:**
+- Modify: `src/screens/groups/InvitationsScreen.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 真机确认邀请页已经能进入，但空态仍有明显下沉**
+
+```md
+- 路径：个人资料 -> 功能中心 -> 群组 -> 顶部“邀请”
+- 现象：关闭统一网络弹窗后，页面实际已经成功进入“群组邀请”页，顶部标题与淡蓝色方形返回按钮都完整露出
+- 但空态图标与文案仍被放在屏幕中下部，平板页头下方形成很大一片视觉空区，属于页面自身布局节奏不合理，不是状态栏遮挡
+- 证据：`tmp_round290_after_dismiss.png/.xml`
+```
+
+- [x] **Step 2: 只改邀请页空态容器的纵向分布，不动成熟头部与网络弹窗链路**
+
+```md
+- 根因：`InvitationsScreen` 在空态时把 `FlatList` 内容容器做成了 `justifyContent: 'center'`，导致整个空态块被强行压到大屏中部
+- 做法：空态列表容器改为顶部展开，并增加适中的 `paddingTop`、`paddingBottom` 与限宽空态块，让页头信息卡之后的内容自然向下展开
+- 保留：统一页头、淡蓝色方形返回按钮、邀请页头卡片、统一网络错误弹窗、现有 testID 与成熟配色
+```
+
+- [x] **Step 3: 真机复核邀请页离线反馈仍统一，且记录联调噪声边界**
+
+```md
+- 关闭统一网络弹窗后，邀请页空态仍可稳定停留在页面内，没有回退默认安卓弹窗
+- 再次点击“刷新”或从群组主页重新点击“邀请”时，离线环境下继续只出现项目内统一优美样式网络弹窗
+- 本轮测试中出现过一次应用被切回桌面、一次启动过渡页短暂停留，这两者都作为联调/系统层噪声单独记录，不计为本轮邀请页 UI 缺陷
+- 证据：`tmp_round291_invitation_after_fix.png/.xml`、`tmp_round291_invite_tap_wait.png/.xml`、`tmp_round291_relaunch_screen.png/.xml`
+```
