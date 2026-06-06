@@ -1,7 +1,7 @@
 /**
  * 群组屏幕
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Text } from 'react-native-paper';
@@ -9,6 +9,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MIIcon from 'react-native-vector-icons/MaterialIcons';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import networkErrorService from '../../services/networkErrorService';
 
 import {
   selectGroupInvitations,
@@ -28,10 +29,22 @@ const GroupsScreen = () => {
   const groupsError = useSelector(selectGroupsError);
   const { theme } = useTheme();
   const primary = theme?.primary || '#2563EB';
+  const lastNetworkErrorRef = useRef('');
 
   const invitationCount = invitations.length;
   const invitationBadgeVisible = invitationCount > 0;
   const invitationLabel = `邀请${invitationCount ? `(${invitationCount})` : ''}`;
+  const isNetworkLikeError = useMemo(() => {
+    const message = String(groupsError || '');
+    return (
+      message.toLowerCase().includes('network error')
+      || message.includes('网络')
+      || message.includes('离线')
+      || message.includes('无缓存')
+      || message.includes('offline')
+    );
+  }, [groupsError]);
+  const showErrorCard = Boolean(groupsError) && !isNetworkLikeError;
   const pageState = isLoading
     ? 'loading'
     : groupsError
@@ -44,11 +57,29 @@ const GroupsScreen = () => {
     dispatch(fetchGroupInvitations());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!isNetworkLikeError || !groupsError) {
+      lastNetworkErrorRef.current = '';
+      return;
+    }
+
+    const resolvedMessage = String(groupsError);
+    if (lastNetworkErrorRef.current === resolvedMessage) {
+      return;
+    }
+
+    lastNetworkErrorRef.current = resolvedMessage;
+    networkErrorService.handleApiError(new Error(resolvedMessage), {
+      context: '加载群组邀请',
+      customMessage: '网络连接失败，无法加载群组邀请',
+    });
+  }, [groupsError, isNetworkLikeError]);
+
   return (
     <View style={styles.container} testID={`state.groups.screen.state.${pageState}`}>
       <View testID="state.groups.screen.visibility.visible" />
       <View testID={`state.groups.screen.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
-      <View testID={`state.groups.screen.error.visibility.${groupsError ? 'visible' : 'hidden'}`} />
+      <View testID={`state.groups.screen.error.visibility.${showErrorCard ? 'visible' : 'hidden'}`} />
       <View testID={`state.groups.invitations.count.${invitationCount}`} />
       <View testID={`state.groups.invitations.badge.visibility.${invitationBadgeVisible ? 'visible' : 'hidden'}`} />
       <View testID={`state.groups.invitations.label.visibility.${invitationLabel ? 'visible' : 'hidden'}`} />
@@ -93,7 +124,7 @@ const GroupsScreen = () => {
         </View>
       </View>
 
-      {groupsError ? (
+      {showErrorCard ? (
         <View style={styles.errorCard} testID="state.groups.screen.errorCard">
           <MIIcon name="error-outline" size={16} color="#B91C1C" />
           <Text style={styles.errorText}>{String(groupsError)}</Text>
@@ -122,8 +153,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 24,
+    paddingVertical: 10,
+    paddingTop: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#CFE1FF',
     backgroundColor: 'rgba(255,255,255,0.90)',

@@ -14,6 +14,7 @@ import {
   selectGroupsLoading,
 } from '../../redux/slices/groupsSlice';
 import { COLORS } from '../../utils/constants/colors';
+import networkErrorService from '../../services/networkErrorService';
 
 const InvitationsScreen = () => {
   const dispatch = useDispatch();
@@ -39,6 +40,7 @@ const InvitationsScreen = () => {
   const busyVisible = Boolean(pendingInvitationId);
   const errorVisible = Boolean(groupsError) && !isNetworkFallback;
   const networkFallbackVisible = Boolean(isNetworkFallback);
+  const isNetworkError = Boolean(groupsError) && isNetworkFallback;
 
   const loadInvitations = useCallback(() => {
     dispatch(fetchGroupInvitations());
@@ -47,6 +49,17 @@ const InvitationsScreen = () => {
   useEffect(() => {
     loadInvitations();
   }, [loadInvitations]);
+
+  useEffect(() => {
+    if (!isNetworkError || !groupsError) {
+      return;
+    }
+
+    networkErrorService.handleApiError(new Error(String(groupsError)), {
+      context: '加载群组邀请',
+      customMessage: '网络连接失败，无法加载群组邀请',
+    });
+  }, [groupsError, isNetworkError]);
 
   const handleAccept = async (invitationId) => {
     if (!invitationId) {
