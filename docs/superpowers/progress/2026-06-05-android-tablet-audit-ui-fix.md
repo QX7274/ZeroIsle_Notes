@@ -1807,3 +1807,54 @@
   - 继续围绕冷启动白屏抓日志和启动链路
   - 只有恢复到稳定首页/社区主流程后，才继续推进逐模块真机联网测试
   - 当前不能把“本地联通已通 + 已补两处兜底”外推成“启动问题已完全解决”
+
+### 2026-06-07 第一百零二轮：通知启动副作用后移与 Metro watcher 真阻断拆因
+
+- 这轮继续围绕冷启动空白根视图往前收根因，不再回头把问题写成“后端不通”。
+- 先复核了启动期噪声来源，发现一个更可疑的点：
+  - [src/services/notification/notificationService.js](D:/ZeroIsle_Notes/src/services/notification/notificationService.js)
+  - 这个服务在模块加载时就会 `new NotificationService()`，而构造函数里立刻跑 `initialize()`
+  - 初始化中又会串起：
+    - `initializeFirebase()`
+    - `PushNotification.configure()`
+    - Android 通知渠道创建
+    - 权限检查
+  - 启动日志里同时存在 `RNPushNotification` / Firebase / Alarm 权限 / 平板系统侧证书噪声，说明它非常可能在污染首屏关键路径
+- 所以这轮先做了第一处更精确的收口：
+  - 修改 [src/services/notification/notificationService.js](D:/ZeroIsle_Notes/src/services/notification/notificationService.js)
+    - 去掉构造函数里的“导入即初始化”
+    - 改成显式 `initialize()`，加 `initPromise` 和 `isInitialized`，避免重复初始化
+  - 修改 [src/context/NotificationContext.js](D:/ZeroIsle_Notes/src/context/NotificationContext.js)
+    - 改为 `NotificationProvider` 挂载后延迟约 1.2 秒再后台触发通知初始化
+    - 初始化失败仍只记日志，不阻塞应用
+- 这轮同时继续追 Metro 侧证据，并拿到一个很关键的新事实：
+  - 本地 `react-native bundle` 此前真正的失败不是语法报错，而是：
+    - `Failed to start watch mode`
+  - 继续读 Metro 源码后确认：
+    - 真正决定 watcher 路径的是 `resolver.useWatchman`
+    - 不是我上一轮写在 `watcher.watchman` 那个字段
+- 因此这轮又做了第二处关键收口：
+  - 修改 [metro.config.js](D:/ZeroIsle_Notes/metro.config.js)
+    - 显式加入 `resolver.useWatchman = false`
+    - 继续保留大体量临时证据文件排除逻辑
+  - 随后本地继续复测 bundle，结果表明：
+    - `require('./metro.config.js')` 已能成功通过
+    - `Failed to start watch mode` 这条硬错误已不再是当前第一个阻断
+- 在这个过程中还暴露出一个 Windows 路径兼容问题，也已经顺手收口：
+  - 先前为 `blockList` 写的绝对路径 `RegExp` 在 Windows 下会被 `exclusionList()` 二次处理，导致字符类炸裂
+  - 本轮已把这段逻辑改成更稳的字符串模式，避免继续被 Windows 路径转义坑住
+- 真机侧这轮依然要如实记录：
+  - 重新冷启动后，`uiautomator dump` 仍抓到空的根 `FrameLayout`
+  - 说明“通知初始化后移 + Metro watcher 真开关修复”虽然都是真实进展，但还不能直接宣称白屏已经闭环
+- 这轮阶段性结论：
+  - 已明确收口：
+    - 通知服务导入即副作用
+    - Metro `Failed to start watch mode` 这条前置硬阻断
+    - Metro 配置在 Windows 路径下的 `blockList` 正则炸裂问题
+  - 仍待继续确认：
+    - Metro 在更长时间窗口内能否完整产出 bundle
+    - 首屏主内容为什么仍未挂进空白根视图
+- 下一步：
+  - 继续验证 Metro bundle 是否真正恢复
+  - 一旦主内容恢复到首页/社区，再继续回到逐模块真机联调
+  - 当前仍不能把本轮结果外推成“冷启动白屏已完全修复”

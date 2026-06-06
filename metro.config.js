@@ -39,19 +39,14 @@ const excludedRoots = [
   '模块功能-核查与优化记录',
   '模块功能核查与优化记录',
 ];
-const escapeForRegex = value => value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
-const projectRootPattern = escapeForRegex(__dirname);
-const excludedRootPatterns = excludedRoots.map(name => {
-  const escaped = escapeForRegex(name);
-  return new RegExp(`^${projectRootPattern}[\\\\/]${escaped}(?:[\\\\/].*)?$`);
-});
+const excludedRootPatterns = excludedRoots.map(name => path.join(__dirname, name, '.*'));
 const excludedFilePatterns = [
-  /^.*[\\/](?:tmp_|dump_).*\.(?:png|jpe?g|xml|log)$/i,
-  /^.*[\\/]community_followup\.(?:png|xml)$/i,
-  /^.*[\\/]current_followup\.(?:png|xml)$/i,
-  /^.*[\\/]group_followup\.(?:png|xml)$/i,
-  /^.*[\\/]profile_followup\.(?:png|xml)$/i,
-  /^.*[\\/]after_back_from_notification\.(?:png|xml)$/i,
+  String.raw`.*[\\/](?:tmp_|dump_).*\.(?:png|jpe?g|xml|log)$`,
+  String.raw`.*[\\/]community_followup\.(?:png|xml)$`,
+  String.raw`.*[\\/]current_followup\.(?:png|xml)$`,
+  String.raw`.*[\\/]group_followup\.(?:png|xml)$`,
+  String.raw`.*[\\/]profile_followup\.(?:png|xml)$`,
+  String.raw`.*[\\/]after_back_from_notification\.(?:png|xml)$`,
 ];
 
 // 自定义配置
@@ -61,6 +56,7 @@ const config = {
     assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
     blockList: exclusionList([...excludedRootPatterns, ...excludedFilePatterns]),
+    useWatchman: false,
     alias: {
       fs: false,
       path: require.resolve('path-browserify'),
@@ -97,7 +93,6 @@ const config = {
     healthCheck: {
       enabled: false,
     },
-    watchman: false,
   },
   transformer: {
     babelTransformerPath: require.resolve('react-native-svg-transformer'),

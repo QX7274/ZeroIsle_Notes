@@ -1500,3 +1500,30 @@ Expected: 新增或修改的回归用例通过。
   - 是否有初始化噪声或原生模块把首屏渲染继续拦住
   - 真正进入首页/社区后再继续逐模块联网测试
 ```
+
+- [x] **Step 5: 把启动阶段导入即副作用和 Metro watcher 硬阻断单独收口**
+
+```md
+- 通知服务原先在模块加载时就 `new NotificationService()` 并立即 `initialize()`，会把 Firebase / RNPushNotification / Alarm 权限噪声提前塞进首屏关键路径
+- 修复：
+  - `src/services/notification/notificationService.js` 改为显式初始化，增加 `initPromise / isInitialized`
+  - `src/context/NotificationContext.js` 改为 Provider 挂载后延迟触发通知初始化
+- Metro 进一步排查结果：
+  - 本地 `react-native bundle` 先前不是普通语法错误，而是 `Failed to start watch mode`
+  - 已确认真正控制点是 `resolver.useWatchman`
+  - 本轮已把 `metro.config.js` 改为 `useWatchman: false`
+  - 同时把排除大体量临时证据文件的逻辑改成更稳的字符串模式，避免 Windows 路径下正则再次炸裂
+```
+
+- [ ] **Step 6: 继续验证 Metro/首屏链路是否已经从“秒挂”进入“真实打包/真实渲染”阶段**
+
+```md
+- 当前已确认：
+  - `require('./metro.config.js')` 可成功加载
+  - `Failed to start watch mode` 这条硬错误已不再是当前首个报错
+- 但真机冷启动后 UI 树仍可能停在空白根视图
+- 下一轮继续：
+  - 验证 Metro bundle 是否能在更长时间窗口内产出
+  - 验证首页/社区主内容是否终于挂载出来
+  - 若仍为空白，再继续拆 `Splash / Notification / Provider / 原生模块` 链路
+```

@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNotification } from '../hooks/useNotification';
 import { StyleSheet } from 'react-native';
 import { Snackbar } from 'react-native-paper';
+import notificationService from '../services/notification/notificationService';
 
 const NotificationContext = createContext({
     notifications: [],
@@ -138,6 +139,16 @@ export const NotificationProvider = ({ children }) => {
     const { notifications, unreadCount, isConnected, markAsRead } = useNotification();
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [latestMessage, setLatestMessage] = useState('');
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            notificationService.initialize().catch(error => {
+                console.error('NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）:', error);
+            });
+        }, 1200);
+
+        return () => clearTimeout(timer);
+    }, []);
 
     const shouldSuppressSnackbar = (notification) => {
         const message = buildNotificationText(notification);

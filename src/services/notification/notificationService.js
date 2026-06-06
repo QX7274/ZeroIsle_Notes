@@ -7,14 +7,24 @@ import { checkAndRequestNotificationPermission } from '../../utils/permissions';
 class NotificationService {
   constructor() {
     this.lastId = 0;
-    // 启动阶段不阻塞应用：在构造时触发初始化，并在边界处捕获异常
-    this.initialize().catch(error => {
-      console.error('通知服务启动初始化失败（已捕获，不阻塞应用）:', error);
-      analyticsService.trackError(error, { action: 'notification_service_constructor_init' });
-    });
+    this.initPromise = null;
+    this.isInitialized = false;
   }
 
   async initialize() {
+    if (this.isInitialized) {
+      return true;
+    }
+
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this._initializeInternal();
+    return this.initPromise;
+  }
+
+  async _initializeInternal() {
     try {
       console.log('开始初始化通知服务...');
 
@@ -136,6 +146,7 @@ class NotificationService {
         console.warn('提醒通知服务初始化部分失败，但应用将继续运行');
       }
 
+      this.isInitialized = true;
       analyticsService.trackEvent('notification_service_initialized', initResult);
       return initResult.overallSuccess;
     } catch (error) {
@@ -143,6 +154,10 @@ class NotificationService {
       console.error('错误堆栈:', error.stack);
       analyticsService.trackError(error, { action: 'init_notification_service' });
       throw error;
+    } finally {
+      if (!this.isInitialized) {
+        this.initPromise = null;
+      }
     }
   }
 
