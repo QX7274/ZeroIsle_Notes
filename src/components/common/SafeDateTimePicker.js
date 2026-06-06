@@ -41,10 +41,22 @@ const SafeDateTimePicker = ({
   const [fallbackVisible, setFallbackVisible] = useState(false);
   const [dateTimePickerError, setDateTimePickerError] = useState(false);
   const [selectedValue, setSelectedValue] = useState(value || new Date());
+  const [draftValue, setDraftValue] = useState(value || new Date());
+
+  const clampTime = (candidate) => {
+    const next = candidate instanceof Date ? new Date(candidate) : new Date();
+    if (Number.isNaN(next.getTime())) {
+      return new Date();
+    }
+    return next;
+  };
 
   // 同步外部visible状态
   useEffect(() => {
     try {
+      const nextValue = clampTime(value || new Date());
+      setSelectedValue(nextValue);
+      setDraftValue(nextValue);
       setInternalVisible(visible);
 
       // 如果原生选择器出错，则显示备用UI
@@ -129,6 +141,12 @@ const SafeDateTimePicker = ({
     }
   };
 
+  const adjustDraftTime = (deltaMinutes) => {
+    const next = clampTime(draftValue);
+    next.setMinutes(next.getMinutes() + deltaMinutes);
+    setDraftValue(next);
+  };
+
   // 如果不可见，则不渲染任何内容
   if (!internalVisible && !fallbackVisible) {
     return null;
@@ -171,6 +189,102 @@ const SafeDateTimePicker = ({
               <TouchableOpacity
                 style={[styles.button, styles.confirmButton]}
                 onPress={handleFallbackConfirm}
+                testID="action.dateTimePickerFallback.confirm"
+              >
+                <Text style={styles.confirmButtonText}>确定</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (Platform.OS === 'android' && mode === 'time') {
+    return (
+      <Modal
+        transparent
+        visible={internalVisible}
+        animationType="fade"
+        onRequestClose={handleFallbackCancel}
+        testID="modal.dateTimePickerFallback"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {mode === 'date' ? '选择日期' : mode === 'time' ? '选择时间' : '选择日期和时间'}
+            </Text>
+
+            <Text style={styles.dateDisplay}>
+              {format(draftValue, 'HH:mm', { locale: zhCN })}
+            </Text>
+
+            <View style={styles.timePickerShell}>
+              <View style={styles.timeColumn}>
+                <Text style={styles.timeColumnLabel}>小时</Text>
+                <View style={styles.timeStepperRow}>
+                  <TouchableOpacity
+                    style={styles.timeStepperButton}
+                    onPress={() => adjustDraftTime(-60)}
+                  >
+                    <Text style={styles.timeStepperButtonText}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeStepperValue}>
+                    {String(clampTime(draftValue).getHours()).padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.timeStepperButton}
+                    onPress={() => adjustDraftTime(60)}
+                  >
+                    <Text style={styles.timeStepperButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.timeDivider} />
+              <View style={styles.timeColumn}>
+                <Text style={styles.timeColumnLabel}>分钟</Text>
+                <View style={styles.timeStepperRow}>
+                  <TouchableOpacity
+                    style={styles.timeStepperButton}
+                    onPress={() => adjustDraftTime(-10)}
+                  >
+                    <Text style={styles.timeStepperButtonText}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeStepperValue}>
+                    {String(clampTime(draftValue).getMinutes()).padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.timeStepperButton}
+                    onPress={() => adjustDraftTime(10)}
+                  >
+                    <Text style={styles.timeStepperButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleFallbackCancel}
+                testID="action.dateTimePickerFallback.cancel"
+              >
+                <Text style={styles.buttonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.confirmButton]}
+                onPress={() => {
+                  const event = { type: 'set', nativeEvent: { timestamp: draftValue.getTime() } };
+                  setSelectedValue(new Date(draftValue));
+                  if (onChange) {
+                    onChange(event, new Date(draftValue));
+                  }
+                  if (onClose) {
+                    onClose();
+                  }
+                  setInternalVisible(false);
+                  setFallbackVisible(false);
+                }}
                 testID="action.dateTimePickerFallback.confirm"
               >
                 <Text style={styles.confirmButtonText}>确定</Text>
@@ -287,6 +401,60 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 16,
     color: 'white',
+  },
+  timePickerShell: {
+    width: '100%',
+    minHeight: 148,
+    borderRadius: 12,
+    marginBottom: 20,
+    backgroundColor: '#F6FAFF',
+    borderWidth: 1,
+    borderColor: '#D4E5FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 18,
+  },
+  timeColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timeColumnLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  timeStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeStepperButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EAF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeStepperButtonText: {
+    fontSize: 22,
+    lineHeight: 24,
+    color: '#1D4ED8',
+    fontWeight: '700',
+  },
+  timeStepperValue: {
+    minWidth: 76,
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  timeDivider: {
+    width: 1,
+    height: 72,
+    backgroundColor: '#D4E5FF',
   },
 });
 
