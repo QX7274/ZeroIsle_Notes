@@ -35,6 +35,8 @@ const getNormalizedNotificationText = (notification) => {
     return String(text || '').toLowerCase().replace(/\s+/g, '');
 };
 
+const normalizeMessageText = (value) => String(value || '').toLowerCase().replace(/\s+/g, '');
+
 const NETWORK_FAILURE_SIGNATURES = [
     '获取群组邀请失败',
     '群组邀请失败',
@@ -85,19 +87,31 @@ const NETWORK_KEYWORDS = [
     '无网络连接',
 ];
 
+const isSuppressedMessageText = (value) => {
+    const normalized = normalizeMessageText(value);
+    if (!normalized) {
+        return false;
+    }
+
+    const hasSignature = NETWORK_FAILURE_SIGNATURES.some(
+        (phrase) => normalized.includes(String(phrase).toLowerCase().replace(/\s+/g, ''))
+    );
+    const hasKeyword = NETWORK_KEYWORDS.some(
+        (keyword) => normalized.includes(String(keyword).toLowerCase())
+    );
+    const hasGroupFailurePattern = /群组.*失败|获取群组.*失败|邀请.*失败|加入.*失败|创建群组.*失败|更新群组.*失败|删除群组.*失败/.test(normalized);
+    const hasRawErrorPattern = /error[:：]|网络错误|网络连接失败|无法完成请求|离线状态下无法完成请求|网络错误且无缓存|请求已保存到离线队列|syncinfo has no property type|syncinfo.*has no property.*type/.test(normalized);
+
+    return hasSignature || hasKeyword || hasGroupFailurePattern || hasRawErrorPattern;
+};
+
 const isSuppressedNetworkNotification = (notification) => {
     const normalized = getNormalizedNotificationText(notification);
     if (!normalized) {
         return false;
     }
 
-    const compact = normalized.replace(/\s+/g, '');
-    const hasSignature = NETWORK_FAILURE_SIGNATURES.some((phrase) => compact.includes(String(phrase).toLowerCase().replace(/\s+/g, '')));
-    const hasKeyword = NETWORK_KEYWORDS.some((keyword) => normalized.includes(String(keyword).toLowerCase()));
-    const hasGroupFailurePattern = /群组.*失败|获取群组.*失败|邀请.*失败|加入.*失败|创建群组.*失败|更新群组.*失败|删除群组.*失败/.test(normalized);
-    const hasRawErrorPattern = /error[:：]|网络错误|网络连接失败|无法完成请求|离线状态下无法完成请求|网络错误且无缓存|请求已保存到离线队列|syncinfo has no property type|syncinfo.*has no property.*type/.test(normalized);
-
-    return hasSignature || hasKeyword || hasGroupFailurePattern || hasRawErrorPattern;
+    return isSuppressedMessageText(normalized);
 };
 
 const isGroupNetworkNotification = (notification) => {
@@ -127,7 +141,7 @@ export const NotificationProvider = ({ children }) => {
 
     const shouldSuppressSnackbar = (notification) => {
         const message = buildNotificationText(notification);
-        return !message || isSuppressedNetworkNotification(notification);
+        return !message || isSuppressedNetworkNotification(notification) || isSuppressedMessageText(message);
     };
 
     const shouldDisplaySnackbar = (notification) => {
@@ -146,10 +160,28 @@ export const NotificationProvider = ({ children }) => {
                 return;
             }
             const message = newest.message || newest.title || newest.body || newest.description || 'New Notification';
+            if (isSuppressedMessageText(message)) {
+                console.log('NotificationContext: 已按消息文本屏蔽通知 Snackbar:', message);
+                setSnackbarVisible(false);
+                setLatestMessage('');
+                return;
+            }
             setLatestMessage(message);
             setSnackbarVisible(true);
         }
     }, [notifications]);
+
+    useEffect(() => {
+        if (!snackbarVisible) {
+            return;
+        }
+
+        if (isSuppressedMessageText(latestMessage)) {
+            console.log('NotificationContext: 已收口历史消息 Snackbar:', latestMessage);
+            setSnackbarVisible(false);
+            setLatestMessage('');
+        }
+    }, [latestMessage, snackbarVisible]);
 
     const onDismissSnackbar = () => setSnackbarVisible(false);
 
