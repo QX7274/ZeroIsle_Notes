@@ -980,3 +980,44 @@ Expected: 新增或修改的回归用例通过。
 - 本轮确认群组四个页面顶部标题、返回按钮和操作区都完整露出，没有被状态栏或原生头遮挡
 - 用户已明确底部黑框属于调试噪声，本轮及后续不再把它作为产品侧缺陷处理；但功能深层页误露出的主标签栏仍必须逐页验收
 ```
+
+### Task 22: 收口社区深层功能页误露出主标签栏的问题
+
+**Files:**
+- Modify: `src/navigation/AppNavigator.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 继续以真机真实链路确认社区首页与社区深层页的边界**
+
+```md
+- 社区首页作为一级 tab 页面，底部主标签栏应正常保留，不能为了“全隐藏”破坏一级导航
+- 通知消息、动态、帖子详情、发帖、关注/粉丝、社区搜索这类深层页进入后，不应再露出 `首页 / AI / 社区 / 我的`
+- 重点继续确认顶部完整露出、布局合理无异常留白、统一网络弹窗保留，不把底部调试黑框重新记成产品缺陷
+```
+
+- [x] **Step 2: 在主导航层把社区深层页纳入统一隐藏规则**
+
+```md
+- 根因：社区栈此前只对群组等已知深层路由做了主标签栏隐藏判断，`Notifications / Activity / Followers / Following / ApiTest / PostDetail / CreatePost / CommunitySearch` 仍未纳入统一规则
+- 做法：在 `src/navigation/AppNavigator.js` 的 `nestedFlowScreens` 中补入上述社区深层页路由名
+- 目标：不动成熟社区首页布局，只收口社区子页误露出主标签栏这一类导航层真实问题
+```
+
+- [x] **Step 3: 真机逐页复核至少两个社区深层页**
+
+```md
+- 社区首页：顶部完整露出，搜索条、分类条、空态与发布按钮保持原样，底部主标签栏作为一级页正常保留
+- 通知消息：进入后虽然离线环境会先出现项目内统一优美样式网络弹窗，但 XML 中已不再出现任何 `nav.tab.*` 主标签栏节点
+- 动态：进入后同样只剩统一网络弹窗，不再出现主标签栏节点
+- 证据：`tmp_round298_community.png/.xml`、`tmp_round298_notifications_after_fix.png/.xml`、`tmp_round298_activity_after_fix.png/.xml`
+```
+
+- [x] **Step 4: 将“不要把单点修复外推成全站完成”继续写入文档**
+
+```md
+- 本轮只确认社区深层页里的 `通知消息` 与 `动态` 两条真实子链路已收口
+- 不能据此直接外推成社区全部深层页、乃至全站所有深层页都已彻底完成同类验收
+- 后续仍需继续逐页复测社区搜索、帖子详情、发帖、关注/粉丝等链路，同时持续确认顶部完整露出、返回按钮一致和布局没有异常留白
+```

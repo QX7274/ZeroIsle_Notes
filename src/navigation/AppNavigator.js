@@ -122,6 +122,14 @@ const getTabBarStyle = (route, colors) => {
     'Invitations',
     'ScreenShare',
     'InviteMembers',
+    'Followers',
+    'Following',
+    'Notifications',
+    'Activity',
+    'ApiTest',
+    'PostDetail',
+    'CreatePost',
+    'CommunitySearch',
   ];
 
   // 仅对“笔记编辑/查看”相关全屏页面隐藏底部栏
