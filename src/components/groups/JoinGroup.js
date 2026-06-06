@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
-  useSafeAreaInsets,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   TextInput as RNTextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Button, Text } from 'react-native-paper';
