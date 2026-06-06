@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -91,7 +90,7 @@ const JoinGroup = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} testID={`state.group.join.state.${pageState}`}>
+    <View style={styles.safeArea} testID={`state.group.join.state.${pageState}`}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -102,7 +101,14 @@ const JoinGroup = () => {
         <View testID={`state.group.join.codeComplete.visibility.${filledDigits === 4 ? 'visible' : 'hidden'}`} />
         <View testID={`state.group.join.filledDigits.${filledDigits}`} />
 
-        <View style={[styles.content, { paddingTop: Math.max(insets.top, 16) }]} testID="list.group.join.sections">
+        <View
+          style={[
+            styles.content,
+            styles.contentSpacing,
+            { paddingBottom: Math.max(insets.bottom, SPACING.LARGE) },
+          ]}
+          testID="list.group.join.sections"
+        >
           <View style={styles.headerContainer}>
             <Icon name="account-group" size={48} color="#2563EB" />
             <Text style={styles.title}>加入群组</Text>
@@ -161,7 +167,7 @@ const JoinGroup = () => {
           </Button>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -177,8 +183,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: SPACING.LARGE,
-    paddingBottom: SPACING.LARGE,
     justifyContent: 'center',
+  },
+  contentSpacing: {
+    paddingTop: 16,
   },
   headerContainer: {
     alignItems: 'center',

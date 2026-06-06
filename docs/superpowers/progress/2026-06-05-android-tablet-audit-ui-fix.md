@@ -849,3 +849,25 @@
 - `npx eslint src/components/groups/JoinGroup.js` 已通过。本轮代码层缺陷已经修正，源码确认无误。
 - 真机回归过程中还出现了一段联调环境波动：设备一度继续吃旧 bundle，随后又短暂出现首页白屏；补做 `adb reverse tcp:8081 tcp:8081` 并重新拉起应用后，首页已恢复正常。这里判定为开发联调态问题，不计入产品页面缺陷，不写成 UI/UX 问题。
 - 结论上，这轮已经明确三点：一，群组页头“邀请”链路当前可进入目标页；二，之前“群组页头入口会回首页”的说法在本轮证据下未复现为当前事实；三，真正需要修的产品缺陷是 `JoinGroup` 的错误导入，现已完成代码修复，后续还需在稳定 bundle 下继续补完“加入 / 创建”两条真机回归。
+
+### 2026-06-06 第七十八轮：群组加入/创建子页统一头部补齐与真机回归
+
+- 已继续在安卓平板 `HGR3Y9MA` 上按“个人资料 -> 功能中心 -> 群组”稳定路径逐步取证，先确认当前真实停留在个人资料页，再重新进入群组主页，避免继续被桌面截图、旧 bundle 或误触路径带偏。
+- 真机重新确认后，群组主页当前可以稳定进入；页面顶部标题“群组”、淡蓝色方形返回按钮、右上角“邀请 / 加入 / 创建”按钮组和空态内容都完整露出，顶部没有再被平板状态栏遮挡。
+- 修复后的 `JoinGroup` 入口已经完成真实回归：点击群组空态区“加入群组”后，不再出现 `useSafeAreaInsets is not a function` 运行时错误，说明上一轮的错误导入修复已经在真机链路中生效。
+- 本轮新确认的真实 UI 问题是：`加入群组` 与 `创建群组` 子页虽然都能进入，但最初页面顶部缺少统一页头，返回入口不明显，和群组主页现有样式不一致，也会让平板页首显得过于原始。
+- 已对 `src/screens/groups/JoinGroupScreen.js` 与 `src/screens/groups/CreateGroupScreen.js` 做最小补齐，统一增加与群组主页同一套顶部结构和现有淡蓝色方形返回按钮；同时在 `src/components/groups/JoinGroup.js` 与 `src/components/groups/CreateGroup.js` 去掉重复的顶部安全区占位，避免补了页头后内容再次被往下多挤出一段留白。
+- 代码验收已完成：`npx eslint src/screens/groups/JoinGroupScreen.js src/screens/groups/CreateGroupScreen.js src/components/groups/JoinGroup.js src/components/groups/CreateGroup.js` 通过，无新增 error。
+- 真机回归证据已经补齐：
+  - 群组主页重新进入并出现统一网络弹窗：`round253_group_home_recheck.png/.xml`
+  - 关闭统一网络弹窗后的群组空态页：`round253_group_after_dialog_dismiss.png/.xml`
+  - 修复后 `加入群组` 页面可真实进入：`round253_group_join_from_empty.png/.xml`
+  - 修复后 `创建群组` 页面可真实进入：`round253_group_create_from_empty.png/.xml`
+  - 补齐统一头部后的 `创建群组` 页面：`round254_create_after_header_fix.png/.xml`
+  - 补齐统一头部后的 `加入群组` 页面：`round254_join_after_header_fix_final.png/.xml`
+- 真机最终结论：
+  - `加入群组` 功能页已不再崩溃；
+  - `创建群组` 功能页可进入；
+  - 两个子页现在都已补齐统一顶部标题和淡蓝色方形返回按钮；
+  - 当前群组相关真实缺陷已从“功能阻断”收口到“风格与页头一致性补齐”，且本轮已完成代码与真机闭环。
+- 这轮仍然保持克制，不改群组成熟按钮层级、不重做空态结构、不扩散到群组详情或其他成熟页面，只修真实缺陷与明显原始页头问题。

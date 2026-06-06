@@ -123,7 +123,14 @@ const CreateGroup = () => {
       <View testID={`state.group.create.busy.visibility.${submitBusy ? 'visible' : 'hidden'}`} />
       <View testID={`state.group.create.nameError.visibility.${nameError ? 'visible' : 'hidden'}`} />
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16) }]} testID="list.group.create.sections">
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          styles.scrollContentSpacing,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
+        testID="list.group.create.sections"
+      >
         <View style={styles.formContainer}>
           <View
             style={[styles.submitStateBanner, submitBusy ? styles.submitStateBannerBusy : styles.submitStateBannerIdle]}
@@ -202,7 +209,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: SPACING.MEDIUM,
+    paddingHorizontal: SPACING.MEDIUM,
+  },
+  scrollContentSpacing: {
+    paddingTop: 16,
   },
   formContainer: {
     backgroundColor: 'rgba(255,255,255,0.90)',
