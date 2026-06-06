@@ -899,3 +899,40 @@ Expected: 新增或修改的回归用例通过。
 - 这些现象本轮继续单独记录，不计为“创建群组页布局缺陷”，避免把运行时联调波动和实际页面问题混淆
 - 证据：`tmp_round292_create_after_fix.png/.xml`、`tmp_round292_relaunch_after_fix.png/.xml`
 ```
+
+### Task 20: 收口群组深层功能页仍暴露主标签栏的导航层问题
+
+**Files:**
+- Modify: `src/navigation/AppNavigator.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 真机确认群组深层页仍露出底部主标签栏**
+
+```md
+- 路径：个人资料 -> 功能中心 -> 群组 -> 创建群组 / 邀请 / 加入
+- 现象：群组已属于从“我的”进入的深层功能链路，但真机截图里底部仍能看到 `首页 / AI / 社区 / 我的` 主标签栏
+- 判定：这不是用户已明确忽略的调试黑框，也不是系统导航条，而是应用主导航没有对该子链路稳定隐藏 tabBar
+- 证据：`tmp_round294_create_after_fix.png`、`tmp_round294_group_entry_after_tabfix.png/.xml`
+```
+
+- [x] **Step 2: 在主导航层统一收口深层子链路的 tabBar 显隐**
+
+```md
+- 根因：`AppNavigator` 的 `getTabBarStyle` 只对少数全屏页面和最深层 `hideTabBar` 参数做判断；而 `SettingsNavigator -> GroupsNavigator` 这类嵌套链路并不会在每一层都稳定透传该参数
+- 做法：
+  - 新增 `hasHideTabBarInFocusedChain`，递归检查当前聚焦路由链上是否已声明 `hideTabBar`
+  - 对 `Groups / GroupsList / GroupDetail / CreateGroup / JoinGroup / Invitations / ScreenShare / InviteMembers` 增加显式隐藏规则
+- 目标：让群组子页统一按软件规范进入“深层功能页不再暴露主标签栏”的状态，同时不改已有淡蓝色返回按钮、顶部风格和成熟内容区
+```
+
+- [x] **Step 3: 记录真机复测边界，避免把联调白屏混入页面缺陷**
+
+```md
+- `npx eslint src/navigation/AppNavigator.js` 通过，无新增 error；保留仓库里原有 warning
+- `./gradlew.bat :app:installDebug` 两次均成功安装到平板 `HGR3Y9MA`
+- 但安装后又反复出现 `Loading from localhost:8081...`、短时纯白页和重新回首页的联调噪声，导致本轮无法一次性拿到完全干净的“群组深层页已隐藏主标签栏”终态证据
+- 这些现象继续单独记录，不计为群组产品页布局缺陷；下一轮要在恢复真实页面态后，优先补抓群组创建页/邀请页/加入页的修后终态截图与 XML
+- 证据：`tmp_round294_relaunch_after_tabfix.png/.xml`、`tmp_round294_after_wait8.png/.xml`、`tmp_round294_relaunch_after_tabfix2.png/.xml`
+```

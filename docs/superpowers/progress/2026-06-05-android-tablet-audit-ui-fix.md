@@ -1190,3 +1190,37 @@
   - `创建群组` 页在平板上此前的异常感，并不只来自表单自身，而是外层整块玻璃壳把页面高度无意义地撑满了；
   - 当前已经按最小范围把这层外壳收掉，后续待应用回到稳定真机页面态时继续补抓修后现场；
   - 本轮没有动成熟的创建流程、离线草稿 fallback、统一网络弹窗和统一返回按钮。
+
+### 2026-06-06 第八十九轮：群组深层页底部主标签栏导航层收口
+
+- 本轮继续沿群组主链路推进，没有转去别的模块，而是补抓上一轮创建页修后现场时，顺手确认到了一个更底层、更值得统一收口的问题：
+  - `创建群组` 页虽然外层整块玻璃壳已经去掉；
+  - 但页面底部仍持续露出主标签栏 `首页 / AI / 社区 / 我的`；
+  - 群组作为从“我的 -> 功能中心”进入的深层功能链路，这种表现不符合前面已经反复写进文档的页面规范。
+- 这轮先把真实证据抓实：
+  - 群组主页空态与顶部 `邀请 / 加入 / 创建` 入口继续正常；
+  - 创建页修后主体留白已经明显收敛，外层整块玻璃壳确实不在了；
+  - 但创建页截图下方仍可见主标签栏，说明问题不在单页样式，而在导航层；
+  - 证据：`tmp_round294_group_after_dialog.png/.xml`、`tmp_round294_create_after_fix.png/.xml`。
+- 代码根因这轮已收敛到 `src/navigation/AppNavigator.js`：
+  - 真实生效的底部导航不是旧的 `MainNavigator`，而是 `AppNavigator` 里的 `MainTabs`；
+  - `getTabBarStyle` 原本只对少数全屏页面名，以及“最深层路由 params.hideTabBar === true”做隐藏；
+  - 但 `SettingsNavigator -> GroupsNavigator` 这种嵌套功能链路里，深层页并不会稳定带着该参数，导致群组子页仍被当成普通 tab 页面渲染底栏。
+- 本轮已做的最小修复如下：
+  - `src/navigation/AppNavigator.js`
+    - 新增 `hasHideTabBarInFocusedChain`，递归检查当前聚焦路由链上是否有任何一层显式声明了 `hideTabBar`；
+    - 在 `getTabBarStyle` 中把这条链路判断前置，避免只看最深层参数；
+    - 再补一层显式群组子路由名隐藏规则：`Groups / GroupsList / GroupDetail / CreateGroup / JoinGroup / Invitations / ScreenShare / InviteMembers`，防止部分嵌套路由因为参数未透传而漏出底栏。
+- 这轮基础校验已完成：
+  - `npx eslint src/navigation/AppNavigator.js` 两次都通过，无新增 error；
+  - 当前文件仍有一批仓库既有 warning，本轮没有额外扩大处理范围；
+  - `./gradlew.bat :app:installDebug` 两次都成功安装到安卓平板 `HGR3Y9MA`。
+- 真机复测边界也需要如实记录，避免误判：
+  - 安装后再次出现 `Loading from localhost:8081...`、纯白页、重新回首页等联调噪声；
+  - 这些现象和前几轮一样，仍然更像开发联调/Metro 恢复波动，不属于群组页面产品层缺陷；
+  - 由于这个噪声反复打断，本轮虽然已经把导航层修法落地，但还没拿到一张完全干净的“群组深层页底部主标签栏已消失”的终态证据图；
+  - 证据：`tmp_round294_relaunch_after_tabfix.png/.xml`、`tmp_round294_after_wait8.png/.xml`、`tmp_round294_relaunch_after_tabfix2.png/.xml`。
+- 因此本轮结论需要写得非常实：
+  - 已确认群组深层页露出主标签栏是导航层真实问题，不是页面局部样式问题；
+  - 已在主导航层补上更稳的统一隐藏逻辑，方向正确且代码校验、安装都已通过；
+  - 但真机安装后联调白屏/加载态噪声仍在干扰最终页面验收，下一轮必须在恢复真实页面态后优先补抓群组创建页、邀请页、加入页的修后终态证据，再决定是否继续扩到本地草稿详情或邀请成员分支。

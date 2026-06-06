@@ -83,6 +83,24 @@ const getFocusedRouteParams = (route) => {
   return deepestRoute?.params || {};
 };
 
+// 递归检查当前聚焦路由链上是否显式声明隐藏底部栏
+const hasHideTabBarInFocusedChain = (route) => {
+  if (!route) {
+    return false;
+  }
+
+  if (route.params?.hideTabBar === true) {
+    return true;
+  }
+
+  const state = route.state;
+  if (!state || state.index === undefined || !state.routes?.[state.index]) {
+    return false;
+  }
+
+  return hasHideTabBarInFocusedChain(state.routes[state.index]);
+};
+
 // 获取最深层聚焦路由名称
 const getFocusedRouteNameDeep = (route) => {
   const deepestRoute = getDeepestFocusedRoute(route);
@@ -94,6 +112,17 @@ const getTabBarStyle = (route, colors) => {
   // 获取最深层路由的参数与名称
   const params = getFocusedRouteParams(route);
   const routeName = getFocusedRouteNameDeep(route) || getFocusedRouteNameFromRoute(route) || 'Home';
+  const shouldHideTabBar = hasHideTabBarInFocusedChain(route);
+  const nestedFlowScreens = [
+    'Groups',
+    'GroupsList',
+    'GroupDetail',
+    'CreateGroup',
+    'JoinGroup',
+    'Invitations',
+    'ScreenShare',
+    'InviteMembers',
+  ];
 
   // 仅对“笔记编辑/查看”相关全屏页面隐藏底部栏
   const fullscreenScreens = [
@@ -114,7 +143,7 @@ const getTabBarStyle = (route, colors) => {
     'Home';
 
   // 显式参数优先：某页面声明 hideTabBar=true 则直接隐藏
-  if (params.hideTabBar === true) {
+  if (params.hideTabBar === true || shouldHideTabBar) {
     return { display: 'none' };
   }
 
@@ -124,6 +153,10 @@ const getTabBarStyle = (route, colors) => {
   }
 
   if (fullscreenScreens.includes(routeName)) {
+    return { display: 'none' };
+  }
+
+  if (nestedFlowScreens.includes(routeName)) {
     return { display: 'none' };
   }
 
