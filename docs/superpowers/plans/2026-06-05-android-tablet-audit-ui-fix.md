@@ -754,3 +754,38 @@ Expected: 新增或修改的回归用例通过。
 - 目标：本地草稿页不再主动暴露会稳定触发网络错误的联网操作入口
 - 说明：这轮修的是离线草稿态边界，不把启动过渡页、系统照片选择器或联调波动误记成群组详情产品缺陷
 ```
+
+### Task 16: 修复创建群组页离线提交未自动落本地草稿的问题
+
+**Files:**
+- Modify: `src/components/groups/CreateGroup.js`
+- Modify: `src/redux/slices/groupsSlice.js`
+- Modify: `src/redux/slices/__tests__/groupsSlice.localFallback.test.js`
+- Modify: `docs/superpowers/plans/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/superpowers/progress/2026-06-05-android-tablet-audit-ui-fix.md`
+- Modify: `docs/全系统优化执行总台账.md`
+
+- [x] **Step 1: 用真机确认“创建群组”首击与离线提交链路仍有断点**
+
+```md
+- 路径：群组空态 -> 创建群组 -> 输入群组名称 -> 点击“创建群组”
+- 现象一：输入框仍聚焦时，首次点提交容易被键盘/焦点层吞掉，页面停留在创建页
+- 现象二：再次点击后虽然真正发起请求，但会直接弹统一网络错误弹窗，没有自动进入本地草稿详情
+- 证据：`tmp_round285_after_create_tap.png/.xml`、`tmp_round285_after_submit.png/.xml`、`tmp_round285_after_second_submit.png/.xml/.log`
+```
+
+- [x] **Step 2: 保留网络错误标记并禁止创建群组请求重复弹全局网络窗**
+
+```md
+- 根因：`groupsSlice.createGroup` 在 reject 时只回传字符串，丢失了 `isNetworkError` 标记，`CreateGroup` 组件无法识别为离线失败并进入本地草稿 fallback
+- 做法：`createGroup` thunk 调用 `groupApi.createGroup(..., { suppressGlobalErrorUI: true })`，并在 rejectWithValue 中保留 `message + isNetworkError`
+- 补充：`selectGroupsError` 改为兼容对象型错误，并继续对网络型错误返回 `null`，避免又把网络失败渲染成页面内错误块
+```
+
+- [x] **Step 3: 修复平板端创建页提交触控体验**
+
+```md
+- 做法：`CreateGroup` 提交前主动 `Keyboard.dismiss()`，并给 `ScrollView` 增加 `keyboardShouldPersistTaps="handled"`
+- 目标：让平板端在输入名称后第一次点“创建群组”就能稳定触发提交，不再要求用户先额外点空白处收起焦点
+- 约束：不重做成熟表单样式，只修真实阻断交互
+```

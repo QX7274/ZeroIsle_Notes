@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -79,6 +80,9 @@ const CreateGroup = () => {
     if (isSubmitting || isLoading) {
       return;
     }
+
+    Keyboard.dismiss();
+
     if (!validateForm()) {
       return;
     }
@@ -130,6 +134,7 @@ const CreateGroup = () => {
           styles.scrollContentSpacing,
           { paddingBottom: Math.max(insets.bottom, 16) },
         ]}
+        keyboardShouldPersistTaps="handled"
         testID="list.group.create.sections"
       >
         <View style={styles.formContainer}>

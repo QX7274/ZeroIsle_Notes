@@ -138,7 +138,7 @@ const isLikelyNetworkError = (error) => {
 };
 
 const isNetworkLikeMessage = (value) => {
-  const message = String(value || '');
+  const message = String(value?.message || value || '');
   if (!message) {
     return false;
   }
@@ -160,9 +160,29 @@ const isNetworkLikeMessage = (value) => {
   );
 };
 
-const normalizeGroupError = (value) => (
-  isNetworkLikeMessage(value) ? null : value
-);
+const getGroupErrorMessage = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value?.message === 'string') {
+    return value.message;
+  }
+
+  return String(value);
+};
+
+const normalizeGroupError = (value) => {
+  if (isNetworkLikeMessage(value)) {
+    return null;
+  }
+
+  return getGroupErrorMessage(value);
+};
 
 const normalizeInvitationFetchError = (value) => {
   if (isNetworkLikeMessage(value)) {
@@ -282,13 +302,18 @@ export const createGroup = createAsyncThunk(
   'groups/createGroup',
   async (groupData, { rejectWithValue }) => {
     try {
-      const response = await groupApi.createGroup(groupData);
+      const response = await groupApi.createGroup(groupData, {
+        suppressGlobalErrorUI: true,
+      });
       if (!response.success) {
         return rejectWithValue(response.message || '创建群组失败');
       }
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || '创建群组失败');
+      return rejectWithValue({
+        message: error?.message || '创建群组失败',
+        isNetworkError: Boolean(error?.isNetworkError || isLikelyNetworkError(error)),
+      });
     }
   }
 );
