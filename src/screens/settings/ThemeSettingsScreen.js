@@ -117,6 +117,22 @@ const ThemeSettingsScreen = ({ navigation }) => {
           选择应用的主题外观。
         </Text>
         <View style={styles.themeOptions}>{themeOptions.map(renderThemeOption)}</View>
+        <TouchableOpacity
+          style={[styles.customThemeEntry, styles.glassCard]}
+          onPress={() => navigation.navigate('ThemeCustomization')}
+          testID="entry.settings.theme.customization"
+        >
+          <View style={styles.customThemeIconWrap}>
+            <Icon name="palette" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.customThemeInfo}>
+            <Text variant="body" size="medium" style={styles.customThemeTitle}>自定义主题</Text>
+            <Text variant="caption" color="hint">
+              继续使用当前主题框架，自定义主要颜色、状态颜色与辅助颜色。
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={22} color={colors.text} />
+        </TouchableOpacity>
         <Text variant="caption" color="hint" style={styles.note} testID="state.settings.theme.note">
           选择“跟随系统”会根据设备深浅色模式自动切换。
         </Text>
@@ -204,6 +220,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  customThemeEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  customThemeIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    backgroundColor: 'rgba(76,141,255,0.12)',
+  },
+  customThemeInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  customThemeTitle: {
+    marginBottom: 4,
+    fontWeight: '700',
   },
 });
 
