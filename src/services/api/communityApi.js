@@ -420,7 +420,20 @@ export const createPost = async (postData) => {
       data: response,
     };
   } catch (error) {
-    console.error('创建帖子失败:', error);
+    const errorMessage = String(error?.message || '');
+    const isHandledCreatePostFailure =
+      error?.isOfflineError
+      || error?.isNetworkError
+      || errorMessage.includes('离线模式下无法创建帖子')
+      || errorMessage.includes('网络错误')
+      || errorMessage.includes('Network Error')
+      || errorMessage.includes('Request failed with status code');
+
+    if (isHandledCreatePostFailure) {
+      console.log('创建帖子失败（已交由界面统一提示）:', errorMessage);
+    } else {
+      console.error('创建帖子失败:', error);
+    }
     throw error;
   }
 };
