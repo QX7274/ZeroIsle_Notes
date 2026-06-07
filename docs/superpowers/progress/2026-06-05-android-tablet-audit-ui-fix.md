@@ -2560,3 +2560,71 @@
   - 优先核对 RN 0.75.5 开发态下是否存在旧 bundle、预载 bundle 或恢复态代码路径混入
   - 必要时把探针继续前移到搜索入口路由层或更稳定的文件级副作用
   - 在出现上述三条更早阶段日志之前，不再继续猜搜索业务根因
+
+### 2026-06-07 第一百一十五轮：round293 在 bundle 已更新前提下补零尺寸 UI 探针，但该证据仍不足以证明代码执行与否
+
+- 这轮继续延续“只做最小诊断收口、不扩散改成熟页面”的原则，没有去动现有搜索交互和页面结构。
+- 本轮代码仍只收敛在一个文件：
+  - [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js)
+    - 在开发态补了一个零尺寸 `View` 探针，给它增加 `testID`
+    - 目的不是改 UI，而是想验证 `MultiModalSearch` 这条链路里更靠前的开发态标记是否能直接出现在 `uiautomator dump` 中
+- 这轮必须先写死两个不会再回退的前提：
+  - 第一，本机后端与 Metro 联通继续正常，不能再把主问题写成“生产域名没部署”或“后端没通”：
+    - `http://127.0.0.1:8000/health/` 已确认返回 `200`
+    - `http://127.0.0.1:8081/status` 已确认返回 `200`
+    - `adb reverse --list` 继续稳定包含 `tcp:8000` 与 `tcp:8081`
+  - 第二，当前搜索页真实挂载仍然成立：
+    - [round293_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round293_launch_ui.xml) 继续能抓到
+      - `action.search.modal.back`
+      - `搜索`
+      - `搜索笔记、标签、内容...`
+      - `从这里开始搜索`
+- 本轮低风险核对结果需要如实拆开写：
+  - 已确认本机 Metro 当前 bundle 已包含 round293 新增的开发态 UI 探针字符串
+  - [round293_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round293_launch_logcat.txt) 中 `DebugLogModule` 构造 / `getName()` 继续正常打印
+  - `ReactNativeJS` 初始化链继续正常可见，说明“JS 日志链路完全不可见”不再是当前准确前提
+  - 但 [round293_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round293_launch_ui.xml) 里没有抓到这个零尺寸 `View testID` 探针
+- 这里必须明确避免误写：
+  - round293 只能得出“零尺寸节点可能被 UI 树裁掉”
+  - 不能直接写成“因为 UI 树没看到探针，所以 `MultiModalSearch` 新代码肯定没执行”
+  - 当前更准确的判断仍然是：这条 UI 探针方案本身证据强度不够
+- 本轮结论更新为：
+  - 已确认：
+    - 后端与 Metro 联通正常，不是网络问题
+    - 搜索页真实挂载仍成立
+    - round293 新探针已进入当前 bundle
+  - 尚未确认：
+    - `MultiModalSearch` 新代码是否真实执行到了这枚 UI 探针
+    - 当前 UI 树未看到探针，到底是执行链未到达，还是零尺寸节点被系统 UI 树裁掉
+- 下一步：
+  - 放弃继续依赖完全不可见的零尺寸 `View` 作为主证据
+  - 把探针改成更容易被 `uiautomator` 抓到的文本型标记，再做下一轮真机验证
+
+### 2026-06-07 第一百一十六轮：round294 将探针改为 `RNText + accessibilityLabel` 后，现场再次被 system ANR 弹窗污染
+
+- 这轮继续只做诊断探针强化，没有改搜索逻辑、没有回滚成熟 UI，也没有把启动链问题误写成页面布局问题。
+- 本轮对 [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js) 做的唯一实质补强是：
+  - 新增 `Text as RNText`
+  - 让开发态渲染一个极小透明文本探针，并附带：
+    - `accessibilityLabel=\`debug.multimodal.signature.round294.scope...\``
+    - `testID=\`debug.multimodal.signature.round294.scope...\``
+  - 同时把 `NativeModules.DebugLogModule` 可用性快照前移到更靠近模块级位置，便于后续继续收口 JS -> Native 执行链
+- 这轮必须写实的证据边界如下：
+  - 已确认本机 Metro 当前 bundle 已包含 round294 的 `debug.multimodal.signature.round294...` 标记字符串
+  - [round294_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round294_launch_logcat.txt) 继续出现：
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `mqt_js` 慢分发进一步升高到约 `3099ms / 3094ms / 3214ms`
+  - 但抓取 [round294_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round294_launch_ui.xml) 时，前台命中的是系统 `Application Not Responding: system` 弹窗，而不是纯应用内容树
+- 因而这轮必须坚决避免的误写有两条：
+  - 不能因为 round294 的 UI 树里没看到 `debug.multimodal.signature.round294...`，就直接写成“代码没执行”
+  - 也不能因为当前继续出现 ANR 污染，就回头把问题重新写成“网络没通”
+- 本轮最准确的判断必须继续收紧为：
+  - 后端与 Metro 联通正常，这不是当前主阻断
+  - 搜索页真实挂载仍然成立
+  - round294 的文本型探针已进入当前 bundle
+  - 但该轮 UI 树证据已经被 `system` ANR 弹窗污染，不能再用它判断应用内容树里是否出现了该探针
+  - 当前现场仍同时受 `system` ANR、`mqt_js` 慢分发，以及 `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached` / `before the dispatcher is available` 这类启动附着异常影响
+- 下一步：
+  - 下一轮若再次出现系统 ANR，先在平板上点“等待”，再立刻抓 UI 树和 `logcat`
+  - 后续开发态探针不再走“完全不可见”路线，改成可被 `uiautomator` 稳定抓到的可见小字标签
+  - 在没有拿到更强执行链证据前，不把搜索模态业务根因写成已完成定位

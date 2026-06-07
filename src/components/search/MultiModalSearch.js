@@ -16,6 +16,7 @@ import {
   PermissionsAndroid,
   Animated,
   NativeModules,
+  Text as RNText,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -93,6 +94,9 @@ const MultiModalSearch = ({
 
   // 搜索历史状态
   const [searchHistory, setSearchHistory] = useState([]);
+  const nativeDebugModule = NativeModules?.DebugLogModule;
+  const nativeDebugLogType = typeof nativeDebugModule?.log;
+  const hasNativeDebugModule = !!nativeDebugModule;
 
   // 加载搜索历史
   useEffect(() => {
@@ -145,18 +149,17 @@ const MultiModalSearch = ({
 
     reportDebugLogBridgeState();
 
-    const nativeDebugModule = NativeModules?.DebugLogModule;
     const nativeModuleKeys = Object.keys(NativeModules || {}).filter(name =>
       name.toLowerCase().includes('debug'));
 
     console.log('[MultiModalSearch] native debug module snapshot', {
-      hasDebugLogModule: !!nativeDebugModule,
+      hasDebugLogModule: hasNativeDebugModule,
       nativeDebugModuleType: typeof nativeDebugModule,
-      nativeDebugLogType: typeof nativeDebugModule?.log,
+      nativeDebugLogType,
       nativeModuleKeys,
     });
 
-    if (typeof nativeDebugModule?.log === 'function') {
+    if (nativeDebugLogType === 'function') {
       try {
         nativeDebugModule.log('info', 'DebugLogModule', JSON.stringify({
           event: 'direct-native-log-from-multimodalsearch',
@@ -875,6 +878,16 @@ const MultiModalSearch = ({
         },
       ]}
     >
+      {__DEV__ && (
+        <RNText
+          accessibilityLabel={`debug.multimodal.signature.round294.scope.${searchScope || 'unknown'}.module.${hasNativeDebugModule ? 'present' : 'missing'}.log.${nativeDebugLogType || 'undefined'}`}
+          style={styles.debugProbeText}
+          testID={`debug.multimodal.signature.round294.scope.${searchScope || 'unknown'}`}
+        >
+          debug.multimodal.signature.round294
+        </RNText>
+      )}
+
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <ScreenHeaderBackButton onPress={handleCancel} testID="action.search.modal.back" />
 
@@ -1382,6 +1395,15 @@ const styles = StyleSheet.create({
   quickHistoryChipText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  debugProbeText: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    fontSize: 1,
+    lineHeight: 1,
+    color: 'transparent',
+    opacity: 0.01,
   },
 });
 

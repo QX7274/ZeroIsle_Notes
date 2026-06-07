@@ -1788,3 +1788,39 @@ Expected: 新增或修改的回归用例通过。
   - 必要时把探针再前移到更稳定的文件级副作用或搜索入口路由层
   - 在出现上述三条更早阶段日志之前，不再继续猜搜索业务根因
 ```
+
+- [ ] **Step 20: 若 bundle 已含开发态 UI 诊断探针，但 UI 树证据仍不足，则把结论收紧为“执行链未证实且现场受 system ANR 污染”**
+
+```md
+- 已确认的新边界：
+  - 本机后端与 Metro 联通继续正常，不能再把当前主问题写成“生产域名没部署”或“后端网络错误”：
+    - `http://127.0.0.1:8000/health/` 已返回 `200`
+    - `http://127.0.0.1:8081/status` 已返回 `200`
+    - `adb reverse --list` 持续包含 `tcp:8000` 与 `tcp:8081`
+  - `MultiModalSearch` / `UnifiedSearchBar` 新诊断代码已确认进入当前 Metro bundle
+  - 真机前台搜索页仍可稳定抓到：
+    - `action.search.modal.back`
+    - `搜索`
+    - `搜索笔记、标签、内容...`
+    - `从这里开始搜索`
+- round293 必须写实记录：
+  - 在 `src/components/search/MultiModalSearch.js` 增加了开发态零尺寸 `View testID` 诊断探针
+  - 当前 bundle 已确认包含该探针字符串
+  - 但 `round293_launch_ui.xml` 中没有抓到该零尺寸节点
+  - 这个结果只能说明“零尺寸节点可能被 UI 树裁掉”，不能反推为“代码一定没有执行”
+  - 同轮中 `DebugLogModule` 构造 / `getName()` 与 `ReactNativeJS` 初始化日志继续正常可见，搜索页也仍真实挂载
+- round294 必须写实记录：
+  - 把探针改成极小透明 `RNText + accessibilityLabel + testID`，并确认 bundle 中已包含 `debug.multimodal.signature.round294...`
+  - 但本轮抓取 `round294_launch_ui.xml` 时，前台命中的是系统 `Application Not Responding: system` 弹窗
+  - 因而该轮 UI 树证据已经被系统弹窗污染，不能再拿这份 UI 树判断应用内容树里是否出现了诊断标记
+  - 同轮 `ReactNativeJS: Running "ZeroIsle_Notes" with {"rootTag":11}` 继续出现，`mqt_js` 慢分发进一步升高到约 `3099ms / 3094ms / 3214ms`
+- 因而当前最准确的技术判断必须继续收紧为：
+  - 不能再写成后端联通问题
+  - 也不能仅凭“UI 树里没看到 round293/294 诊断标记”就认定 `MultiModalSearch` 新代码没有执行
+  - 当前现场同时受 `system` ANR 弹窗、`mqt_js` 慢分发、`ReactRootView` 未附着提示污染
+  - 搜索页真实挂载已经确定，但 JS -> Native 方法调用链和更细的运行时执行链仍未被证实打通
+- 下一步动作：
+  - 下一轮优先规避系统 `ANR` 弹窗污染：若再出现弹窗，先在平板上点“等待”，再立即抓 UI 树与 `logcat`
+  - 不再继续使用“完全不可见”的开发态探针，改为可被 `uiautomator` 稳定抓到的小型可见文案或标签
+  - 在拿到更强证据前，不把当前问题写成网络故障，也不把搜索业务根因写成已完成定位
+```
