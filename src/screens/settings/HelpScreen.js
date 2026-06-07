@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   TextInput,
   Linking,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -71,9 +72,33 @@ const HelpScreen = ({ navigation }) => {
   const [contactInfo, setContactInfo] = useState(user?.email || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [dialogState, setDialogState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    primaryText: '知道了',
+    secondaryText: '',
+  });
 
   const pageState = isSubmitting ? 'busy' : 'ready';
   const canSubmit = Boolean(feedbackContent.trim()) && !isSubmitting;
+
+  const closeDialog = () => {
+    setDialogState((current) => ({
+      ...current,
+      visible: false,
+    }));
+  };
+
+  const openDialog = ({ title, message, primaryText = '知道了', secondaryText = '' }) => {
+    setDialogState({
+      visible: true,
+      title,
+      message,
+      primaryText,
+      secondaryText,
+    });
+  };
 
   const submitFeedback = async () => {
     if (!feedbackContent.trim()) {
@@ -102,6 +127,14 @@ const HelpScreen = ({ navigation }) => {
   };
 
   const openLink = async (url) => {
+    if (url.startsWith('https://zeroislenotes.com')) {
+      openDialog({
+        title: '帮助中心暂未上线',
+        message: '当前生产域名尚未部署，帮助中心网页暂时无法访问。你可以先使用本页反馈表单，或通过支持邮箱联系我们。',
+      });
+      return;
+    }
+
     try {
       const supported = await Linking.canOpenURL(url);
       if (!supported) {
@@ -134,6 +167,7 @@ const HelpScreen = ({ navigation }) => {
       <View testID={`state.settings.help.submit.visibility.${isSubmitting ? 'visible' : 'hidden'}`} />
       <View testID={`state.settings.help.submit.enabled.${canSubmit ? 'yes' : 'no'}`} />
       <View testID={`state.settings.help.faqExpanded.visibility.${expandedFaq ? 'visible' : 'hidden'}`} />
+      <View testID={`state.settings.help.linkDialog.visibility.${dialogState.visible ? 'visible' : 'hidden'}`} />
 
       <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
         <ScreenHeaderBackButton
@@ -277,6 +311,37 @@ const HelpScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={dialogState.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDialog}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={styles.dialogIconWrap}>
+              <Icon name="info-outline" size={28} color="#1D4ED8" />
+            </View>
+            <Text style={styles.dialogTitle}>{dialogState.title}</Text>
+            <Text style={styles.dialogMessage}>{dialogState.message}</Text>
+            <View style={styles.dialogButtonRow}>
+              {dialogState.secondaryText ? (
+                <TouchableOpacity style={styles.dialogSecondaryButton} onPress={closeDialog}>
+                  <Text style={styles.dialogSecondaryText}>{dialogState.secondaryText}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={styles.dialogPrimaryButton}
+                onPress={closeDialog}
+                testID="action.settings.help.linkDialog.close"
+              >
+                <Text style={styles.dialogPrimaryText}>{dialogState.primaryText}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -409,6 +474,83 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 4,
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    shadowColor: '#4B8CFF',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  dialogIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    backgroundColor: 'rgba(29,78,216,0.10)',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#102A43',
+  },
+  dialogMessage: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#486581',
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+  },
+  dialogSecondaryButton: {
+    minWidth: 92,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginRight: 10,
+    backgroundColor: 'rgba(148,163,184,0.14)',
+  },
+  dialogSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  dialogPrimaryButton: {
+    minWidth: 110,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: '#1D4ED8',
+  },
+  dialogPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 
