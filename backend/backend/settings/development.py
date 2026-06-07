@@ -33,8 +33,10 @@ except Exception:
     MIDDLEWARE.append('common.middleware.dev_auth_middleware.DevAuthMiddleware')
 
 # MongoDB Realm配置
-# 直接使用PyMongo客户端进行原生操作
+# 开发环境必须与 base.py 保持同一数据库口径，避免 PyMongo / MongoEngine 分别落到不同库
 mongo_uri = os.environ.get('MONGO_URI')
+mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
+
 if mongo_uri and 'mongodb+srv' in mongo_uri:
     MONGO_CLIENT = MongoClient(
         mongo_uri,
@@ -50,18 +52,20 @@ else:
         password=os.environ.get('MONGO_PASSWORD', ''),
         authSource='admin'
     )
-MONGO_DB = MONGO_CLIENT['ZeroIsle_Notes']
+
+MONGO_DB = MONGO_CLIENT[mongo_db_name]
 
 # 断开所有现有连接并重新连接
 mongoengine.disconnect_all()
 if mongo_uri and 'mongodb+srv' in mongo_uri:
     mongoengine.connect(
+        db=mongo_db_name,
         host=mongo_uri,
         alias='default'
     )
 else:
     mongoengine.connect(
-        db='ZeroIsle_Notes',
+        db=mongo_db_name,
         host=os.environ.get('MONGO_HOST', 'localhost'),
         port=int(os.environ.get('MONGO_PORT', 27017)),
         username=os.environ.get('MONGO_USER', ''),

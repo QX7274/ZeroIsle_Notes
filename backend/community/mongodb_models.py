@@ -135,8 +135,12 @@ class Post(Document):
         import bleach
 
         if self.content:
-            allowed_tags = bleach.sanitizer.ALLOWED_TAGS + ['p', 'h1', 'h2', 'h3', 'br', 'span', 'div', 'img']
-            allowed_attrs = {**bleach.sanitizer.ALLOWED_ATTRIBUTES, '*': ['style', 'class'], 'img': ['src', 'alt', 'title']}
+            allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['p', 'h1', 'h2', 'h3', 'br', 'span', 'div', 'img']
+            allowed_attrs = {
+                **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+                '*': ['style', 'class'],
+                'img': ['src', 'alt', 'title'],
+            }
             self.content = bleach.clean(self.content, tags=allowed_tags, attributes=allowed_attrs)
 
         # 如果没有摘要，自动生成
@@ -211,7 +215,7 @@ class Comment(Document):
         is_new = self.id is None
 
         if self.content:
-            allowed_tags = bleach.sanitizer.ALLOWED_TAGS + ['p', 'br', 'span']
+            allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['p', 'br', 'span']
             allowed_attrs = {**bleach.sanitizer.ALLOWED_ATTRIBUTES, '*': ['style', 'class']}
             self.content = bleach.clean(self.content, tags=allowed_tags, attributes=allowed_attrs)
         
