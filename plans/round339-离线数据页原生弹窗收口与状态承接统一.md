@@ -72,3 +72,68 @@
   - `隐私政策`
   - 其他仍残留原生 `Alert` 的设置深层页
 - 继续只处理明显原始的提示/承接方式，不随意改成熟页面骨架
+
+## round340 真机补证结论（2026-06-08）
+
+### 1. 真机进入链路已闭环
+- 实际路径：
+  - `我的 -> 个人资料 -> 应用设置 -> 离线数据`
+- 有效证据：
+  - `tmp_round340_profile_tab.png/.xml`
+  - `tmp_round340_settings_entry.png/.xml`
+  - `tmp_round340_offline_entry.png/.xml`
+
+### 2. 顶部安全区与返回按钮规范通过
+- `tmp_round340_offline_entry.xml` 已稳定命中：
+  - `state.settings.offline.state.ready`
+  - `action.settings.offline.back`
+  - `list.settings.offline.sections`
+- 现场确认：
+  - 页面顶部内容位于系统状态栏下方，没有被平板顶部状态栏遮挡；
+  - 返回按钮继续使用统一的淡蓝色方形箭头；
+  - 页头与内容区之间没有出现新的异常留白。
+
+### 3. 深层页主 Tab 隐藏通过
+- `tmp_round340_offline_entry.xml` 中未出现：
+  - `nav.tab.home`
+  - `nav.tab.ai`
+  - `nav.tab.community`
+  - `nav.tab.profile`
+- 结论：
+  - `离线数据` 作为设置深层页，当前真机已不再露出主底部 Tab；
+  - 页面结构符合此前统一规范。
+
+### 4. 自定义确认弹层已真机通过
+- `重建搜索索引` 弹层有效证据：
+  - `tmp_round340_offline_rebuild_dialog.png/.xml`
+- `清除离线数据` 弹层有效证据：
+  - `tmp_round340_offline_clear_dialog.png/.xml`
+- 两组现场共同确认：
+  - 都是项目内自定义圆角弹层，不是默认安卓 `Alert`；
+  - 弹层内按钮文案、层级、样式统一；
+  - 危险动作仍保留明确确认分支，没有因为去原生弹窗而丢失防误触保护。
+
+### 5. 网络状态现场未再误判离线
+- `tmp_round340_offline_entry.xml` 中：
+  - `网络状态` 文本为 `在线`
+- 这说明：
+  - 在当前平板与电脑后端链路已经打通的前提下，`离线数据` 页现场没有再把网络误判成离线；
+  - 本轮没有观察到因“电脑和平板不在同一局域网”导致的错误网络提示回归。
+
+### 6. 本页当前已完成的真机验收项
+- `offline-data-confirm-dialog-style-flow`：通过
+- `offline-data-result-toast-flow`：代码已完成，本轮未强行制造脏数据，仅保留代码通过结论
+- `offline-data-inline-status-card-flow`：代码已完成，本轮未强行制造脏数据，仅保留代码通过结论
+- `offline-data-top-safe-area-flow`：通过
+- `offline-data-back-button-consistency-flow`：通过
+- `offline-data-main-tab-hide-flow`：通过
+
+### 7. 后续仍应继续抽查的点
+- 在后续真实同步队列不为 0 的场景下，再补一轮：
+  - `立即同步` 成功态/失败态
+  - `statusCard` 真机落地状态
+- 但本轮已经可以确认：
+  - 原生弹窗收口成立
+  - 顶部安全区正常
+  - 返回按钮统一
+  - 深层页主 Tab 已隐藏
