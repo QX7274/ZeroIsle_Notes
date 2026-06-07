@@ -879,13 +879,16 @@ const MultiModalSearch = ({
       ]}
     >
       {__DEV__ && (
-        <RNText
-          accessibilityLabel={`debug.multimodal.signature.round294.scope.${searchScope || 'unknown'}.module.${hasNativeDebugModule ? 'present' : 'missing'}.log.${nativeDebugLogType || 'undefined'}`}
-          style={styles.debugProbeText}
-          testID={`debug.multimodal.signature.round294.scope.${searchScope || 'unknown'}`}
+        <View
+          accessible
+          accessibilityLabel={`debug.multimodal.signature.round295.scope.${searchScope || 'unknown'}.module.${hasNativeDebugModule ? 'present' : 'missing'}.log.${nativeDebugLogType || 'undefined'}`}
+          style={styles.debugProbeBanner}
+          testID={`debug.multimodal.signature.round295.scope.${searchScope || 'unknown'}`}
         >
-          debug.multimodal.signature.round294
-        </RNText>
+          <RNText style={styles.debugProbeText}>
+            {`debug round295 | scope:${searchScope || 'unknown'} | module:${hasNativeDebugModule ? 'present' : 'missing'} | log:${nativeDebugLogType || 'undefined'}`}
+          </RNText>
+        </View>
       )}
 
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -1396,14 +1399,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
+  debugProbeBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#E8F4FF',
+    borderWidth: 1,
+    borderColor: '#B7DCFF',
+    alignSelf: 'flex-start',
+  },
   debugProbeText: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    fontSize: 1,
-    lineHeight: 1,
-    color: 'transparent',
-    opacity: 0.01,
+    fontSize: 10,
+    lineHeight: 14,
+    color: '#4A6B8A',
   },
 });
 

@@ -1824,3 +1824,45 @@ Expected: 新增或修改的回归用例通过。
   - 不再继续使用“完全不可见”的开发态探针，改为可被 `uiautomator` 稳定抓到的小型可见文案或标签
   - 在拿到更强证据前，不把当前问题写成网络故障，也不把搜索业务根因写成已完成定位
 ```
+
+- [ ] **Step 21: 若可见 UI 探针仍未进入内容树，且冷启动前台落到空白根容器，则把主线继续收紧为 RN 附着前白屏**
+
+```md
+- 已确认的新边界：
+  - 本机后端与 Metro 联通继续正常：
+    - `http://127.0.0.1:8000/health/` 返回 `200`
+    - `http://127.0.0.1:8081/status` 返回 `200`
+    - `adb -s HGR3Y9MA reverse --list` 继续包含 `tcp:8000` 与 `tcp:8081`
+  - 真机 `HGR3Y9MA` 上重新安装 debug 包成功
+- 本轮诊断动作：
+  - 将 `src/components/search/MultiModalSearch.js` 中的 round294 极小透明文本探针升级为 round295 可见小标签：
+    - `View + accessibilityLabel + testID`
+    - 标签文案包含 `scope / module / log` 三个关键信息
+  - 目的不是改业务 UI，而是让 `uiautomator` 在应用内容树真实挂载时一定能抓到该探针
+- round295 必须写实记录：
+  - 冷启动约 8 秒后抓到的 [round295_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round295_launch_ui.xml) 不是搜索页，也不是 `system ANR` 弹窗，而是 `com.zeroisle_notes` 自身空白根容器
+  - [round295_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round295_launch.png) 同步呈现整屏白底，仅残留右侧浮动铅笔按钮与顶部指示点
+  - UI 树中没有出现 round295 可见探针，也没有出现：
+    - `action.search.modal.back`
+    - `搜索笔记、标签、内容...`
+  - [round295_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round295_launch_logcat.txt) 中继续出现：
+    - `ZeroIsleNotesPackage: createNativeModules: start/success`
+    - `DebugLogModule: constructor: initialized`
+    - `DebugLogModule: getName -> DebugLogModule`
+    - 大量 `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+    - 后续 `before the dispatcher is available`
+  - 但本轮仍没有出现：
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `DebugLogModule: log invoked`
+    - `js-bridge-detected`
+    - `MultiModalSearch` 相关诊断日志
+- 因而当前最准确的技术判断必须继续收紧为：
+  - 当前主阻断不是网络，也不是“探针又被裁掉了”
+  - 在 round295 这一时间窗里，应用内容树本身尚未真正起来，前台先落到了 RN 附着前的空白根容器白屏
+  - 原生日志桥模块注册继续正常，但 JS 运行时与内容树挂载尚未被证明完成
+  - `system ANR` 仍是并行噪声，但在这一轮里更强主证据已经变成 APP 自身白屏，而不是 system 弹窗
+- 下一步动作：
+  - 优先继续抓更长时间窗证据，确认白屏之后是否会转入搜索页、首页或 system ANR
+  - 必要时把启动附着链继续前移到 `App.js` / 根导航层做最小探针
+  - 在 `Running "ZeroIsle_Notes"` 与可见内容树重新出现前，不把问题误写成搜索业务层故障
+```

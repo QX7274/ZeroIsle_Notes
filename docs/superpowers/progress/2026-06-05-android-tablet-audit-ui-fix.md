@@ -2628,3 +2628,60 @@
   - 下一轮若再次出现系统 ANR，先在平板上点“等待”，再立刻抓 UI 树和 `logcat`
   - 后续开发态探针不再走“完全不可见”路线，改成可被 `uiautomator` 稳定抓到的可见小字标签
   - 在没有拿到更强执行链证据前，不把搜索模态业务根因写成已完成定位
+
+### 2026-06-07 第一百一十七轮：round295 把探针改成可见小标签后，冷启动 8 秒主证据收紧为应用自身空白根容器白屏
+
+- 这轮继续围绕真机启动链收口，没有去改成熟业务页，也没有把问题重新写回网络或 UI 美化分支。
+- 本轮代码仍只改一个文件：
+  - [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js)
+    - 把 round294 的极小透明文本探针升级为 round295 可见小标签
+    - 从原来的 `RNText` 透明文案改成：
+      - `View + accessibilityLabel + testID`
+      - 页面内可见的小型浅蓝标签
+      - 标签内容带 `scope / module / log` 三个字段
+    - 这样做的目的不是改搜索页视觉，而是确保只要 `MultiModalSearch` 内容树真正挂载，`uiautomator dump` 就应该能稳定抓到这枚探针
+- 这轮先复核了联通前提，避免再误写：
+  - `http://127.0.0.1:8000/health/` 返回 `200`
+  - `http://127.0.0.1:8081/status` 返回 `200`
+  - `adb -s HGR3Y9MA reverse --list` 继续稳定为：
+    - `UsbFfs tcp:8000 tcp:8000`
+    - `UsbFfs tcp:8081 tcp:8081`
+  - `android\\gradlew.bat :app:installDebug --console=plain` 再次成功安装到 `HGR3Y9MA`
+- round295 真机冷启动证据必须拆开写：
+  - [round295_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round295_launch_ui.xml) 中，前台不再是搜索页，也不是 `system ANR` 弹窗，而是 `com.zeroisle_notes` 自身空白根容器：
+    - `android:id/content` 下仅剩空的 `FrameLayout`
+    - 顶部状态栏背景与底部导航背景仍在
+  - [round295_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round295_launch.png) 同步显示整屏白底，只残留：
+    - 顶部三个黑点指示
+    - 右侧浮动铅笔按钮
+    - 底部系统导航条
+  - UI 树和截图里都没有出现：
+    - round295 可见探针
+    - `action.search.modal.back`
+    - `搜索笔记、标签、内容...`
+  - 这轮因此不再适合继续写成“探针可能又被裁掉”，而应写成“内容树本身尚未起来”
+- 同轮日志侧证据也要单列，不与 UI 结论混写：
+  - [round295_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round295_launch_logcat.txt) 中继续能看到：
+    - `ZeroIsleNotesPackage: createNativeModules: start`
+    - `DebugLogModule: constructor: initialized, hasActiveCatalystInstance=false`
+    - `ZeroIsleNotesPackage: createNativeModules: success, total=17`
+    - `DebugLogModule: getName -> DebugLogModule`
+  - 说明原生日志桥模块注册和实例初始化仍然正常
+  - 但同一时间窗里继续大量出现：
+    - `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+    - `ReactRootView: Unable to dispatch touch to JS before the dispatcher is available`
+  - 而且本轮仍没有出现：
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `DebugLogModule: log invoked`
+    - `js-bridge-detected`
+    - `MultiModalSearch` 相关开发态日志
+- 因而这轮最准确的判断必须继续收紧为：
+  - 后端与 Metro 联通正常，这不是当前主阻断
+  - round295 可见探针没有进入 UI 树，不再优先解释为“探针方案太弱”
+  - 更强主证据已经变成：冷启动 8 秒后应用前台先落在 RN 附着前的空白根容器白屏
+  - 原生日志桥模块注册继续正常，但 JS 运行时、内容树挂载和搜索链路执行仍未被证实完成
+  - `system ANR` 仍是并行噪声，但这轮更强直接证据已经不是 system 弹窗，而是 APP 自身白屏
+- 下一步：
+  - 下一轮优先抓更长时间窗，确认白屏之后是否会转入首页、搜索页或 system ANR
+  - 必要时把最小探针前移到 `App.js` 或根导航层，而不是继续只放在 `MultiModalSearch`
+  - 在 `Running "ZeroIsle_Notes"` 与可见内容树重新出现前，不把问题误写成搜索业务层缺陷
