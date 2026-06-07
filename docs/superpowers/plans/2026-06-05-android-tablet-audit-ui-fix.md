@@ -1647,3 +1647,19 @@ Expected: 新增或修改的回归用例通过。
   - 再判断它与 `mqt_js` 慢分发、`Loading from localhost:8081...`、系统 `ANR` 的时序关系
   - 在拿到更强证据前，不把“搜索模态页默认打开”写成已确认根因
 ```
+
+- [ ] **Step 14: 用新包与 round283 日志继续确认搜索模态是否会冷启动自动打开**
+
+```md
+- 已确认：
+  - `android\\gradlew.bat :app:installDebug --console=plain` 必须在 `android` 目录执行，且新 debug 包已成功进入真机
+  - `round283_full_logcat.txt` 里继续出现 `mqt_js` 慢分发
+  - `round283.png` / `round283_ui.xml` 再次证明系统 `ANR` 弹窗会盖住首页基底
+- 本轮新口径：
+  - 还没有在冷启动时间窗里抓到 `UnifiedSearchBar` 诊断日志，不能反向脑补成“搜索模态一定自动打开”
+  - 在没有 `[UnifiedSearchBar] open modal requested`、`[UnifiedSearchBar] visibility changed` 直接证据前，搜索模态默认打开只能继续作为待证实分支
+- 下一步动作：
+  - 更早清空 logcat 后立即冷启动再抓更短时间窗
+  - 如仍无日志，再手动点击首页搜索栏一次，验证诊断日志链路本身是否工作
+  - 若手动点击有日志而冷启动无日志，则把主线进一步收紧为“system ANR 持续遮挡 + `mqt_js` 慢分发”，而不是继续把搜索模态写成首要根因
+```

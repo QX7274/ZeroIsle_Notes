@@ -2150,3 +2150,46 @@
   - 重装带诊断日志的新包，重新抓一轮真机 `logcat`
   - 优先查看 `[UnifiedSearchBar] open modal requested` 与 `[UnifiedSearchBar] visibility changed` 是否在无人工点击时出现
   - 在拿到更强证据前，不再把“搜索模态页”写成当前唯一稳定首屏终态
+
+### 2026-06-07 第一百零八轮：round283 继续校准搜索模态判断，并把主线收紧到 system ANR 与 JS 慢分发
+
+- 这轮没有再去动成熟页面 UI，也没有把问题重新写成“后端没通”；重点是承接上一轮新增诊断日志后的真机现场，继续确认搜索模态是否真的会在冷启动时自动打开。
+- 先复核了当前可用事实：
+  - 本地 Django 健康检查 `http://127.0.0.1:8000/health/` 仍已在前序轮次确认返回 `200`
+  - 本地 Metro `http://127.0.0.1:8081/status` 仍已在前序轮次确认返回 `200`
+  - 新 debug 包这轮已通过 `android\\gradlew.bat :app:installDebug --console=plain` 成功重新安装到真机 `HGR3Y9MA`
+- 本轮新增现场证据：
+  - [round283.png](D:/ZeroIsle_Notes/.codex-tmp/round283.png)
+  - [round283_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round283_ui.xml)
+  - [round283_full_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round283_full_logcat.txt)
+- 新现场继续支持两条更强结论：
+  - 系统 `进程“system”没有响应` 弹窗仍会盖住前台，不能把当前画面直接当成应用自身稳定终态
+  - `mqt_js` 慢分发仍然持续，`round283_full_logcat.txt` 里继续出现：
+    - `Slow dispatch took 2959ms mqt_js`
+    - `Slow delivery took 2944ms mqt_js`
+    - `Slow dispatch took 2926ms mqt_js`
+    - `Slow dispatch took 1530ms mqt_js`
+- 这轮最关键的纠偏是：
+  - 重新检索 `round283_full_logcat.txt` 后，当前没有搜到 `UnifiedSearchBar` 诊断日志
+  - 这并不能直接证明“搜索模态绝不会自动打开”，但同样也不能继续把“搜索模态默认打开”写成已确认根因
+  - 在没有 `[UnifiedSearchBar] open modal requested`、`[UnifiedSearchBar] visibility changed` 这类直接日志前，搜索模态只能继续作为待证实分支
+- 因此这轮要把主线收得更准：
+  - 已确认：
+    - 新包已安装进真机
+    - 首页可以作为系统弹窗遮挡下的稳定基底页
+    - system ANR 弹窗仍在前台污染现场
+    - JS 线程仍有明显 `mqt_js` 慢分发
+  - 尚未确认：
+    - 搜索模态是否会在无人工点击时自动打开
+    - `UnifiedSearchBar` 诊断日志是未触发，还是被当前抓取窗口与系统噪声淹没
+- 这轮代码层没有新增功能修复，只保留了上一轮已加入但尚未提交的低风险诊断代码：
+  - [src/components/search/UnifiedSearchBar.js](D:/ZeroIsle_Notes/src/components/search/UnifiedSearchBar.js)
+  - 其中保留了挂载、显隐变化、请求打开模态和搜索完成关闭模态的开发态日志
+- 静态检查补充：
+  - `npx eslint src/components/search/UnifiedSearchBar.js`
+  - 本轮命令在当前时间窗里超时，没有拿到新的完整终端结果
+  - 但上一轮已确认该文件无 error，仅剩既有样式 warning；这轮未再改动该文件逻辑
+- 下一步：
+  - 更早清空 `logcat` 后立即冷启动并抓更短时间窗
+  - 若仍无 `UnifiedSearchBar` 日志，再手动点击首页搜索栏一次，验证日志链路本身是否工作
+  - 若手动点击有日志而冷启动无日志，就把“搜索模态默认打开”从主线继续降级，优先围绕 `system` ANR 与 `mqt_js` 慢分发推进
