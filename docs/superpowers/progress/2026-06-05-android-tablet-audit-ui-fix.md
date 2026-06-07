@@ -1913,3 +1913,56 @@
   - 抓更精确的 `ReactInstanceManager / createReactContextInBackground / JS bundle attach` 日志
   - 排查是否是 `ZeroIsleNotesPackage`、桥接 bundle 文件或开发包注入链路导致 JS 实例未附着
   - 等首屏真正恢复后，再继续做社区、功能中心、个人主页等真实功能页面联调与 UI 收口
+
+### 2026-06-07 第一百零四轮：补原生入口与根组件诊断，继续把白屏与网络问题彻底拆开
+
+- 这轮没有再去碰成熟页面 UI，也没有回头把问题写成“后端还没通”；主目标是继续把冷启动白屏收敛到更靠前的 RN 附着链路。
+- 先补了两组最小诊断改动，目的都很明确：
+  - [index.js](D:/ZeroIsle_Notes/index.js)
+    - 不再顶层静态 `import App`
+    - 改为 `AppRegistry.registerComponent('ZeroIsle_Notes', resolveRootComponent)`
+    - `resolveRootComponent()` 内部运行时 `require('./src/App')`
+    - 如果根组件导入阶段直接抛错，则切到 `RootImportErrorFallback`
+  - [android/app/src/main/java/com/zeroisle_notes/MainActivity.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/MainActivity.java)
+    - 新增 `onCreate`、`getMainComponentName`、`createReactActivityDelegate` 原生日志
+  - [android/app/src/main/java/com/zeroisle_notes/MainApplication.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/MainApplication.java)
+    - 新增 `attachBaseContext`、`onCreate`、`getUseDeveloperSupport`、`getPackages`、`getJSMainModuleName` 原生日志
+- 这组改动的定位不是“修好白屏”，而是先回答两个关键问题：
+  - 如果 `src/App` 导入阶段就炸，真机是否至少会出现可见诊断页，而不是继续白屏？
+  - `MainActivity / MainApplication` 是否真的走到了 React 容器创建前后的关键阶段？
+- 当前证据把方向收得更窄了：
+  - 真机仍然是空白根视图
+  - 没有看到 `RootImportErrorFallback` 这张兜底诊断页
+  - 真实应用进程日志仍然以 `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached` 为关键线索
+  - 设备私有目录里的 `BridgeReactNativeDevBundle.js` 仍存在并会刷新，说明开发 bundle 已经下发到设备
+- 这意味着当前最合理的判断是：
+  - 问题大概率不只是 `src/App` 的同步导入异常
+  - 更像是 RN `ReactContext / CatalystInstance / attachRootView` 这段链路没有完成
+  - 因此不能再把这类白屏误写成“没网络”或“生产域名没部署”
+- 这轮还把 release 验证链路与 debug 主线彻底拆开了，避免互相污染判断：
+  - 为了验证“是否只有 debug 装载链路异常”，尝试推进 release 安装
+  - 但 release 路径被 Gradle/JVM 原生内存崩溃挡住，关键日志在：
+    - [hs_err_pid27812.log](D:/ZeroIsle_Notes/android/hs_err_pid27812.log)
+    - [hs_err_pid30052.log](D:/ZeroIsle_Notes/android/hs_err_pid30052.log)
+  - 本轮对 [android/gradle.properties](D:/ZeroIsle_Notes/android/gradle.properties) 做了最小收口：
+    - `org.gradle.jvmargs` 调整为 `-Xmx4096m -XX:MaxMetaspaceSize=1024m ... -XX:HeapBaseMinAddress=2g`
+    - 新增 `org.gradle.workers.max=4`
+  - 结果是：
+    - release 仍未成功安装
+    - 但第二次 JVM 原生崩溃申请失败的内存量已经从更高值下降到约 `302MB` 量级，说明收口方向有效，但还没真正打通
+- 这轮必须继续写死的边界：
+  - 已确认：
+    - 本地 Django 健康检查正常
+    - `adb reverse` 仍正常
+    - Metro 正常
+    - 开发 bundle 已到设备
+  - 尚未确认：
+    - `MainActivity / MainApplication` 新增原生日志是否已经完整进入真机当前安装包
+    - `ReactInstanceManager / ReactContext / attachRootView` 到底卡在何处
+  - 仍未完成：
+    - 真机恢复到可继续逐模块联网测试的首页/社区页面态
+    - release 验证链路恢复可用
+- 下一步：
+  - 先最小提交本轮代码与中文文档，避免这组关键诊断改动继续漂在工作区
+  - 随后重新安装 debug 包并精抓真实 app pid 下的 `ZeroIsleMainApplication / ZeroIsleMainActivity / ReactRootView / ReactNativeJS` 日志
+  - release 侧继续单独围绕 Gradle/JVM 崩溃做构建稳定性收口，不把它混写成业务页问题

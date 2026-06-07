@@ -1560,3 +1560,34 @@ Expected: 新增或修改的回归用例通过。
   - 网络问题统一走项目内优美弹窗，不允许回退默认安卓弹窗
   - 成熟页面先不乱动，优先解决当前阻断主流程使用与测试的根问题
 ```
+
+- [x] **Step 9: 补原生入口日志与 JS 根组件导入兜底，确认白屏不是单纯根组件导入异常**
+
+```md
+- 代码收口：
+  - `index.js` 改为运行时 `require('./src/App')`，若根组件导入阶段直接抛错，则显示启动诊断兜底页 `RootImportErrorFallback`
+  - `android/app/src/main/java/com/zeroisle_notes/MainActivity.java` 增加 `onCreate / getMainComponentName / createReactActivityDelegate` 原生日志
+  - `android/app/src/main/java/com/zeroisle_notes/MainApplication.java` 增加 `attachBaseContext / onCreate / getUseDeveloperSupport / getPackages / getJSMainModuleName` 原生日志
+- 目标：
+  - 先排除“`src/App` 导入阶段直接炸掉”这种会让真机只剩白屏但又缺少可视诊断页的情况
+  - 同时补齐原生入口阶段证据，确认 `MainActivity / MainApplication` 是否真的走到了 React 容器创建前后
+- 当前边界：
+  - 真机仍是空白根视图，且没有看到根组件导入失败兜底页
+  - 这进一步支持“问题不只是 JS 根组件同步导入异常”，而是更前面的 RN 容器附着/上下文建立链路
+```
+
+- [x] **Step 10: 将 release 验证链路与 debug 白屏主线拆开记录，避免互相污染判断**
+
+```md
+- 本轮尝试用 release 包验证“是否仅 debug 装载链路异常”，但被 Gradle/JVM 原生内存崩溃阻断
+- 已在 `android/gradle.properties` 收口：
+  - `org.gradle.jvmargs` 从更高内存回调为 `-Xmx4096m -XX:MaxMetaspaceSize=1024m ... -XX:HeapBaseMinAddress=2g`
+  - 新增 `org.gradle.workers.max=4`
+- 目的：
+  - 降低 Gradle daemon 在当前机器上的原生内存申请压力，争取先让 `installRelease` 至少能继续向前跑
+- 当前边界：
+  - release 构建验证仍未打通，`hs_err_pid27812.log` 与 `hs_err_pid30052.log` 说明当前是 Gradle/JVM 原生崩溃，不应误写成业务页面或后端网络问题
+  - 因此后续要维持两条主线并行记录：
+    1. `debug` 白屏继续沿 `CatalystInstance / ReactContext / attachRootView` 排查
+    2. `release` 仅作为构建稳定性旁线，单独收口 Gradle/JVM 崩溃
+```

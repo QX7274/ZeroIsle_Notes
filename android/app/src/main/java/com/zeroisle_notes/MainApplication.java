@@ -3,6 +3,7 @@ package com.zeroisle_notes;
 import android.content.res.Configuration;
 import android.app.Application;
 import android.content.Context;
+import android.util.Log;
 import androidx.multidex.MultiDex;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactNativeHost;
@@ -41,9 +42,12 @@ import com.zeroislenotes.HandwritingRecognitionPackage;
 // import com.reactnativecommunity.permissions.RNPermissionsPackage;
 
 public class MainApplication extends Application implements ReactApplication {
+    private static final String TAG = "ZeroIsleMainApplication";
+
     private final ReactNativeHost mReactNativeHost = new ReactNativeHost(this) {
         @Override
         public boolean getUseDeveloperSupport() {
+            Log.i(TAG, "getUseDeveloperSupport -> " + BuildConfig.DEBUG);
             return BuildConfig.DEBUG;
         }
 
@@ -55,11 +59,13 @@ public class MainApplication extends Application implements ReactApplication {
             // 注册手写识别模块包（com.zeroislenotes）
             packages.add(new HandwritingRecognitionPackage());
             // 其他包均由 PackageList 自动管理
+            Log.i(TAG, "getPackages: total=" + packages.size());
             return packages;
         }
 
         @Override
         protected String getJSMainModuleName() {
+            Log.i(TAG, "getJSMainModuleName -> index");
             return "index";
         }
     };
@@ -72,17 +78,21 @@ public class MainApplication extends Application implements ReactApplication {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.i(TAG, "onCreate: start");
         SoLoader.init(this, /* native exopackage */ false);
+        Log.i(TAG, "onCreate: SoLoader initialized");
     }
 
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
+        Log.i(TAG, "attachBaseContext");
         MultiDex.install(this);
     }
 
   @Override
   public void onConfigurationChanged(Configuration newConfig) {
     super.onConfigurationChanged(newConfig);
+    Log.i(TAG, "onConfigurationChanged");
   }
 }
