@@ -10,6 +10,7 @@ import FollowersScreen from './FollowersScreen';
 import FollowingScreen from './FollowingScreen';
 import NotificationsScreen from './NotificationsScreen';
 import ActivityScreen from './ActivityScreen';
+import UserProfileScreen from './UserProfileScreen';
 
 export {
   CommunityScreen,
@@ -19,4 +20,5 @@ export {
   FollowingScreen,
   NotificationsScreen,
   ActivityScreen,
+  UserProfileScreen,
 };

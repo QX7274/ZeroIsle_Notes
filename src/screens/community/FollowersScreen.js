@@ -78,7 +78,15 @@ const FollowersScreen = ({ route, navigation }) => {
         styles.itemCard,
         { borderColor: `${theme.colors?.primary || '#2196F3'}24` },
       ]}
-      onPress={() => navigation?.navigate?.('UserProfile', { userId: item.id })}
+      onPress={() => navigation?.navigate?.('UserProfile', {
+        userId: item.userId || item.id,
+        initialUser: {
+          id: item.userId || item.id,
+          username: item.nickname,
+          nickname: item.nickname,
+          avatar: item.avatar,
+        },
+      })}
       testID={`item.community.followers.${item.id}`}
     >
       <Image source={{ uri: item.avatar }} style={styles.avatar} />

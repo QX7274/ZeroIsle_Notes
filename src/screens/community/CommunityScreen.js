@@ -78,6 +78,7 @@ const CommunityScreen = ({ navigation }) => {
   });
 
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
+  const currentUser = useSelector((state) => state.auth?.user);
   const hasMore = pagination.page < pagination.totalPages;
   const interactionBusy = isLoading || refreshing || requestInFlightRef.current;
   const currentCategoryLabel = CATEGORY_OPTIONS.find((i) => i.key === activeCategory)?.label || '全部';
@@ -401,7 +402,7 @@ const CommunityScreen = ({ navigation }) => {
             <Text style={[styles.devQaTitle, { color: palette.text }]}>社区深层页验证入口</Text>
           </View>
           <Text style={[styles.devQaText, { color: palette.textSecondary }]}>
-            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表与关注列表。
+            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表、关注列表与个人主页。
           </Text>
           <View style={styles.devQaActions}>
             <TouchableOpacity
@@ -427,6 +428,16 @@ const CommunityScreen = ({ navigation }) => {
               testID="action.community.devQa.following"
             >
               <Text style={[styles.devQaButtonText, { color: palette.primary }]}>关注列表</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={() => navigation.navigate('UserProfile', {
+                userId: currentUser?.id || DEV_COMMUNITY_QA_USER_ID,
+                initialUser: currentUser || { id: DEV_COMMUNITY_QA_USER_ID, username: '开发联调用户' },
+              })}
+              testID="action.community.devQa.userProfile"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>个人主页</Text>
             </TouchableOpacity>
           </View>
         </View>

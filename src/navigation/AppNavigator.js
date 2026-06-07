@@ -43,7 +43,7 @@ import CardNoteScreen from '../screens/note/CardNoteScreen';
 import { CategoryScreen } from '../screens/category';
 import { AIAssistantScreen } from '../screens/ai';
 import { SearchResultsScreen } from '../screens/search';
-import { CommunityScreen, PostDetailScreen, CreatePostScreen, FollowersScreen, FollowingScreen, NotificationsScreen, ActivityScreen } from '../screens/community';
+import { CommunityScreen, PostDetailScreen, CreatePostScreen, FollowersScreen, FollowingScreen, NotificationsScreen, ActivityScreen, UserProfileScreen } from '../screens/community';
 import ApiTest from '../screens/community/ApiTest';
 import CommunitySearchScreen from '../screens/community/CommunitySearchScreen';
 // 导入知识图谱相关组件（避免通过 barrel 导出导致的 undefined）
@@ -974,6 +974,12 @@ const CommunityStack = () => {
         component={ActivityScreen}
         initialParams={{ hideTabBar: true }}
         options={{ title: '动态' }}
+      />
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '个人主页' }}
       />
       <Stack.Screen
         name="PostDetail"

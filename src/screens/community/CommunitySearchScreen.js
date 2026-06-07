@@ -73,7 +73,17 @@ const CommunitySearchScreen = ({ navigation, route }) => {
     if (item.type === 'post') {
       navigation.navigate('PostDetail', { postId: item.id, title: item.title });
     } else if (item.type === 'user') {
-      navigation.navigate('UserProfile', { userId: item.id });
+      navigation.navigate('UserProfile', {
+        userId: item.id,
+        initialUser: {
+          id: item.id,
+          username: item.nickname || item.username || item.displayTitle || item.name,
+          nickname: item.nickname || item.username || item.displayTitle || item.name,
+          avatar: item.avatar || item.authorAvatar || '',
+          bio: item.displayContent || '',
+          isFollowing: item.isFollowing || item.is_following || false,
+        },
+      });
     } else if (item.type === 'tag') {
       navigation.navigate('Community', { tag: item.name });
     }

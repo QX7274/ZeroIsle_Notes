@@ -3,28 +3,16 @@
  */
 import React from 'react';
 import {
-  View,
-  StyleSheet,
   Image,
-  TouchableOpacity,
   ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../common/Typography';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Button } from '../common';
 
-/**
- * 社区用户资料组件
- * @param {Object} user - 用户对象
- * @param {boolean} isCurrentUser - 是否为当前用户
- * @param {boolean} isFollowing - 是否已关注
- * @param {Function} onFollow - 关注回调
- * @param {Function} onUnfollow - 取消关注回调
- * @param {Function} onMessage - 发送消息回调
- * @param {Function} onEditProfile - 编辑资料回调
- * @param {Function} onPostPress - 帖子点击回调
- */
 const UserProfile = ({
   user,
   isCurrentUser = false,
@@ -36,10 +24,10 @@ const UserProfile = ({
   onPostPress,
 }) => {
   const { theme } = useTheme();
-  const { colors, dimensions } = theme;
+  const { colors } = theme;
 
-  // 提取用户信息
   const {
+    id,
     username,
     avatar,
     bio,
@@ -52,35 +40,34 @@ const UserProfile = ({
     recent_posts = [],
   } = user || {};
 
-  // 格式化日期
-  const formatDate = (dateString) => {
-    if (!dateString) {return '';}
+  const userId = String(id || 'unknown');
+  const displayName = username || '匿名用户';
 
+  const formatDate = (dateString) => {
+    if (!dateString) {
+      return '';
+    }
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
     return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
   };
 
-  // 渲染徽章
   const renderBadges = () => {
-    if (!badges || badges.length === 0) {return null;}
-
+    if (!Array.isArray(badges) || badges.length === 0) {
+      return null;
+    }
     return (
-      <View style={styles.badgesContainer}>
+      <View style={styles.badgesContainer} testID={`state.community.userProfile.badges.${userId}.visible`}>
         {badges.map((badge, index) => (
           <View
-            key={`badge-${index}`}
-            style={[
-              styles.badgeItem,
-              { backgroundColor: badge.color || colors.primary },
-            ]}
+            key={`badge-${userId}-${index}`}
+            style={[styles.badgeItem, { backgroundColor: badge?.color || colors.primary }]}
           >
-            <Icon name={badge.icon || 'star'} size={12} color="#FFFFFF" />
-            <Text
-              variant="caption"
-              color="card"
-              style={styles.badgeText}
-            >
-              {badge.name}
+            <Icon name={badge?.icon || 'star'} size={12} color="#FFFFFF" />
+            <Text variant="caption" color="card" style={styles.badgeText}>
+              {badge?.name || '徽章'}
             </Text>
           </View>
         ))}
@@ -88,64 +75,47 @@ const UserProfile = ({
     );
   };
 
-  // 渲染最近帖子
   const renderRecentPosts = () => {
-    if (!recent_posts || recent_posts.length === 0) {return null;}
+    if (!Array.isArray(recent_posts) || recent_posts.length === 0) {
+      return (
+        <View style={[styles.sectionCard, { borderColor: `${colors.primary || '#2196F3'}16` }]}>
+          <Text variant="heading" level="h6" style={[styles.sectionTitle, { color: colors.text }]}>
+            最近发布
+          </Text>
+          <Text variant="body" size="medium" style={[styles.emptySectionText, { color: colors.textSecondary }]}>
+            当前还没有可展示的最近发布内容。
+          </Text>
+        </View>
+      );
+    }
 
     return (
-      <View style={styles.recentPostsContainer}>
-        <Text
-          variant="heading"
-          level="h6"
-          style={styles.sectionTitle}
-        >
+      <View style={[styles.sectionCard, { borderColor: `${colors.primary || '#2196F3'}16` }]}>
+        <Text variant="heading" level="h6" style={[styles.sectionTitle, { color: colors.text }]}>
           最近发布
         </Text>
-
         {recent_posts.map((post, index) => (
           <TouchableOpacity
-            key={`post-${index}`}
-            style={[
-              styles.postItem,
-              { backgroundColor: colors.card },
-            ]}
+            key={`post-${userId}-${post?.id || index}`}
+            style={[styles.postItem, { backgroundColor: 'rgba(248,250,252,0.96)', borderColor: `${colors.primary || '#2196F3'}14` }]}
             onPress={() => onPostPress && onPostPress(post)}
+            testID={`action.community.userProfile.openPost.${post?.id || index}`}
           >
-            <Text
-              variant="body"
-              size="medium"
-              bold
-              numberOfLines={1}
-              style={styles.postTitle}
-            >
-              {post.title}
+            <Text variant="body" size="medium" bold numberOfLines={1} style={[styles.postTitle, { color: colors.text }]}>
+              {post?.title || '未命名帖子'}
             </Text>
-
             <View style={styles.postMeta}>
-              <Text
-                variant="caption"
-                color="hint"
-              >
-                {formatDate(post.created_at)}
+              <Text variant="caption" color="hint">
+                {formatDate(post?.created_at)}
               </Text>
-
               <View style={styles.postStats}>
                 <Icon name="favorite" size={12} color={colors.textSecondary} />
-                <Text
-                  variant="caption"
-                  color="hint"
-                  style={styles.postStatText}
-                >
-                  {post.like_count || 0}
+                <Text variant="caption" color="hint" style={styles.postStatText}>
+                  {post?.like_count || 0}
                 </Text>
-
                 <Icon name="comment" size={12} color={colors.textSecondary} style={styles.postStatIcon} />
-                <Text
-                  variant="caption"
-                  color="hint"
-                  style={styles.postStatText}
-                >
-                  {post.comment_count || 0}
+                <Text variant="caption" color="hint" style={styles.postStatText}>
+                  {post?.comment_count || 0}
                 </Text>
               </View>
             </View>
@@ -156,158 +126,126 @@ const UserProfile = ({
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={[styles.header, { backgroundColor: colors.primary }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background || '#F2F7FB' }]}
+      contentContainerStyle={styles.contentContainer}
+      testID={`state.community.userProfile.state.${userId}`}
+    >
+      <View testID={`state.community.userProfile.isCurrentUser.${isCurrentUser ? 'on' : 'off'}`} />
+      <View testID={`state.community.userProfile.isFollowing.${isFollowing ? 'on' : 'off'}`} />
+
+      <View
+        style={[
+          styles.heroCard,
+          {
+            borderColor: `${colors.primary || '#2196F3'}20`,
+            backgroundColor: 'rgba(255,255,255,0.88)',
+          },
+        ]}
+      >
         <View style={styles.headerContent}>
           <Image
-            source={
-              avatar
-                ? { uri: avatar }
-                : require('../../assets/images/default-avatar.png')
-            }
+            source={avatar ? { uri: avatar } : require('../../assets/images/default_avatar.png')}
             style={styles.avatar}
           />
-
           <View style={styles.userInfo}>
-            <Text
-              variant="heading"
-              level="h5"
-              color="card"
-              style={styles.username}
-            >
-              {username || '匿名用户'}
+            <Text variant="heading" level="h5" style={[styles.username, { color: colors.text }]}>
+              {displayName}
             </Text>
-
-            <View style={styles.levelContainer}>
-              <Icon name="military-tech" size={16} color="#FFD700" />
-              <Text
-                variant="caption"
-                color="card"
-                style={styles.levelText}
-              >
-                Lv.{level || 1}
-              </Text>
+            <View style={styles.metaChips}>
+              <View style={[styles.metaChip, { borderColor: `${colors.primary || '#2196F3'}24`, backgroundColor: `${colors.primary || '#2196F3'}10` }]}>
+                <Icon name="military-tech" size={14} color={colors.primary || '#2196F3'} />
+                <Text variant="caption" style={[styles.metaChipText, { color: colors.primary || '#2196F3' }]}>
+                  Lv.{level || 1}
+                </Text>
+              </View>
+              <View style={[styles.metaChip, { borderColor: 'rgba(148,163,184,0.22)', backgroundColor: 'rgba(248,250,252,0.96)' }]}>
+                <Icon name="event" size={14} color={colors.textSecondary} />
+                <Text variant="caption" style={[styles.metaChipText, { color: colors.textSecondary }]}>
+                  {join_date ? `加入于 ${formatDate(join_date)}` : '社区新成员'}
+                </Text>
+              </View>
             </View>
+            <Text variant="body" size="medium" style={[styles.heroBio, { color: colors.textSecondary }]}>
+              {bio || '这个人还没有补充个人简介。'}
+            </Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.statsContainer}>
+      <View style={[styles.statsContainer, { borderColor: `${colors.primary || '#2196F3'}18` }]}>
         <View style={styles.statItem}>
-          <Text
-            variant="heading"
-            level="h6"
-            center
-          >
-            {post_count || 0}
-          </Text>
-          <Text
-            variant="caption"
-            color="hint"
-            center
-          >
-            帖子
-          </Text>
+          <Text variant="heading" level="h6" center style={[styles.statValue, { color: colors.text }]}>{post_count || 0}</Text>
+          <Text variant="caption" color="hint" center style={styles.statLabel}>帖子</Text>
         </View>
-
         <View style={styles.statDivider} />
-
         <View style={styles.statItem}>
-          <Text
-            variant="heading"
-            level="h6"
-            center
-          >
-            {follower_count || 0}
-          </Text>
-          <Text
-            variant="caption"
-            color="hint"
-            center
-          >
-            粉丝
-          </Text>
+          <Text variant="heading" level="h6" center style={[styles.statValue, { color: colors.text }]}>{follower_count || 0}</Text>
+          <Text variant="caption" color="hint" center style={styles.statLabel}>粉丝</Text>
         </View>
-
         <View style={styles.statDivider} />
-
         <View style={styles.statItem}>
-          <Text
-            variant="heading"
-            level="h6"
-            center
-          >
-            {following_count || 0}
-          </Text>
-          <Text
-            variant="caption"
-            color="hint"
-            center
-          >
-            关注
-          </Text>
+          <Text variant="heading" level="h6" center style={[styles.statValue, { color: colors.text }]}>{following_count || 0}</Text>
+          <Text variant="caption" color="hint" center style={styles.statLabel}>关注</Text>
         </View>
       </View>
 
-      <View style={styles.actionsContainer}>
+      <View style={styles.actionsContainer} testID="panel.community.userProfile.actions">
         {isCurrentUser ? (
-          <Button
-            title="编辑资料"
+          <TouchableOpacity
+            style={[styles.primaryActionButton, { backgroundColor: colors.primary || '#2196F3' }]}
             onPress={onEditProfile}
-            type="outline"
-            icon="edit"
-            style={styles.actionButton}
-          />
+            testID="action.community.userProfile.editProfile"
+          >
+            <Icon name="edit" size={18} color="#FFFFFF" />
+            <Text variant="body" size="medium" style={styles.primaryActionText}>
+              编辑资料
+            </Text>
+          </TouchableOpacity>
         ) : (
           <>
-            <Button
-              title={isFollowing ? '已关注' : '关注'}
+            <TouchableOpacity
+              style={[
+                isFollowing ? styles.secondaryActionButton : styles.primaryActionButton,
+                isFollowing
+                  ? { borderColor: `${colors.primary || '#2196F3'}32`, backgroundColor: 'rgba(255,255,255,0.92)' }
+                  : { backgroundColor: colors.primary || '#2196F3' },
+              ]}
               onPress={isFollowing ? onUnfollow : onFollow}
-              type={isFollowing ? 'outline' : 'solid'}
-              icon={isFollowing ? 'check' : 'add'}
-              style={styles.actionButton}
-            />
-
-            <Button
-              title="发消息"
+              testID="action.community.userProfile.followToggle"
+            >
+              <Icon name={isFollowing ? 'check' : 'person-add'} size={18} color={isFollowing ? (colors.primary || '#2196F3') : '#FFFFFF'} />
+              <Text
+                variant="body"
+                size="medium"
+                style={isFollowing ? [styles.secondaryActionText, { color: colors.primary || '#2196F3' }] : styles.primaryActionText}
+              >
+                {isFollowing ? '已关注' : '关注'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryActionButton, { borderColor: `${colors.primary || '#2196F3'}32` }]}
               onPress={onMessage}
-              type="outline"
-              icon="chat"
-              style={styles.actionButton}
-            />
+              testID="action.community.userProfile.message"
+            >
+              <Icon name="chat-bubble-outline" size={18} color={colors.primary || '#2196F3'} />
+              <Text variant="body" size="medium" style={[styles.secondaryActionText, { color: colors.primary || '#2196F3' }]}>
+                发消息
+              </Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
 
       {renderBadges()}
 
-      <View style={styles.bioContainer}>
-        <Text
-          variant="heading"
-          level="h6"
-          style={styles.sectionTitle}
-        >
+      <View style={[styles.sectionCard, { borderColor: `${colors.primary || '#2196F3'}16` }]}>
+        <Text variant="heading" level="h6" style={[styles.sectionTitle, { color: colors.text }]}>
           个人简介
         </Text>
-
-        <Text
-          variant="body"
-          size="medium"
-          style={styles.bioText}
-        >
-          {bio || '这个人很懒，什么都没有留下...'}
+        <Text variant="body" size="medium" style={[styles.bioText, { color: colors.textSecondary }]}>
+          {bio || '这个人还没有补充个人简介。'}
         </Text>
-
-        <View style={styles.joinDateContainer}>
-          <Icon name="event" size={16} color={colors.textSecondary} />
-          <Text
-            variant="caption"
-            color="hint"
-            style={styles.joinDateText}
-          >
-            {join_date ? `加入于 ${formatDate(join_date)}` : '最近加入'}
-          </Text>
-        </View>
       </View>
 
       {renderRecentPosts()}
@@ -319,71 +257,135 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 40,
-    paddingBottom: 20,
+  contentContainer: {
+    paddingHorizontal: 14,
+    paddingBottom: 24,
+  },
+  heroCard: {
+    marginTop: 2,
+    marginBottom: 10,
     paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderRadius: 22,
+    borderWidth: 1,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 28,
     borderWidth: 3,
     borderColor: '#FFFFFF',
+    backgroundColor: '#D9ECFD',
   },
   userInfo: {
     marginLeft: 16,
+    flex: 1,
   },
   username: {
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  levelContainer: {
+  metaChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  levelText: {
+  metaChipText: {
     marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroBio: {
+    marginTop: 10,
+    lineHeight: 20,
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
+  statValue: {
+    fontWeight: '700',
+  },
+  statLabel: {
+    marginTop: 2,
+  },
   statDivider: {
     width: 1,
-    height: '60%',
-    backgroundColor: '#f0f0f0',
+    height: '68%',
+    backgroundColor: '#E7EFF7',
     alignSelf: 'center',
   },
   actionsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    gap: 10,
+    marginBottom: 10,
   },
-  actionButton: {
+  primaryActionButton: {
     flex: 1,
-    marginHorizontal: 8,
+    minHeight: 48,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  primaryActionText: {
+    marginLeft: 6,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  secondaryActionText: {
+    marginLeft: 6,
+    fontSize: 15,
+    fontWeight: '700',
   },
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    marginBottom: 10,
   },
   badgeItem: {
     flexDirection: 'row',
@@ -397,38 +399,32 @@ const styles = StyleSheet.create({
   badgeText: {
     marginLeft: 4,
   },
-  bioContainer: {
+  sectionCard: {
     padding: 16,
-    borderTopWidth: 8,
-    borderTopColor: '#f0f0f0',
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    marginBottom: 10,
   },
   sectionTitle: {
     marginBottom: 8,
   },
   bioText: {
-    marginBottom: 16,
+    lineHeight: 21,
   },
-  joinDateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  joinDateText: {
-    marginLeft: 8,
-  },
-  recentPostsContainer: {
-    padding: 16,
-    borderTopWidth: 8,
-    borderTopColor: '#f0f0f0',
+  emptySectionText: {
+    lineHeight: 21,
   },
   postItem: {
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 14,
+    borderWidth: 1,
     marginTop: 8,
-    elevation: 1,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
   postTitle: {
     marginBottom: 8,
