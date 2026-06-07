@@ -890,9 +890,8 @@ const styles = StyleSheet.create({
   emptyListContainer: {
     flexGrow: 1,
     paddingHorizontal: SPACING.MEDIUM,
-    paddingTop: SPACING.MEDIUM,
+    paddingTop: SPACING.LARGE,
     paddingBottom: SPACING.XLARGE + 24,
-    justifyContent: 'center',
   },
   postCard: {
     marginBottom: SPACING.MEDIUM,
@@ -948,10 +947,10 @@ const styles = StyleSheet.create({
   footerText: { marginLeft: 8, fontSize: 13, fontWeight: '600' },
   emptyContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     marginHorizontal: 0,
     marginTop: 0,
-    minHeight: 420,
+    minHeight: 0,
     padding: SPACING.LARGE,
     borderRadius: 22,
     borderWidth: 1,
