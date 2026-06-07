@@ -16,7 +16,6 @@ import {
   PermissionsAndroid,
   Animated,
   NativeModules,
-  Text as RNText,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -878,19 +877,6 @@ const MultiModalSearch = ({
         },
       ]}
     >
-      {__DEV__ && (
-        <View
-          accessible
-          accessibilityLabel={`debug.multimodal.signature.round295.scope.${searchScope || 'unknown'}.module.${hasNativeDebugModule ? 'present' : 'missing'}.log.${nativeDebugLogType || 'undefined'}`}
-          style={styles.debugProbeBanner}
-          testID={`debug.multimodal.signature.round295.scope.${searchScope || 'unknown'}`}
-        >
-          <RNText style={styles.debugProbeText}>
-            {`debug round295 | scope:${searchScope || 'unknown'} | module:${hasNativeDebugModule ? 'present' : 'missing'} | log:${nativeDebugLogType || 'undefined'}`}
-          </RNText>
-        </View>
-      )}
-
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <ScreenHeaderBackButton onPress={handleCancel} testID="action.search.modal.back" />
 

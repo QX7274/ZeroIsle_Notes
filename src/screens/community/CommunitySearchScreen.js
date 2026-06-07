@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -42,10 +42,22 @@ const CommunitySearchScreen = ({ navigation, route }) => {
   const results = useSelector(selectSearchResults);
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
+  const routeResults = useMemo(
+    () => (Array.isArray(route.params?.results) ? route.params.results : []),
+    [route.params?.results]
+  );
 
-  const [searchPerformed, setSearchPerformed] = useState(false);
-  const [showHistory, setShowHistory] = useState(true);
+  const initialSearchPerformed = Boolean(route.params?.searchPerformed || routeResults.length > 0 || route.params?.query);
+  const [searchPerformed, setSearchPerformed] = useState(initialSearchPerformed);
+  const [showHistory, setShowHistory] = useState(!initialSearchPerformed);
   const initialQuery = route.params?.query || '';
+
+  useEffect(() => {
+    if (route.params?.searchPerformed || route.params?.query || routeResults.length > 0) {
+      setSearchPerformed(true);
+      setShowHistory(false);
+    }
+  }, [route.params?.query, route.params?.searchPerformed, routeResults.length]);
 
   useEffect(() => {
     return () => {
@@ -53,13 +65,13 @@ const CommunitySearchScreen = ({ navigation, route }) => {
     };
   }, [dispatch]);
 
-  const handleSearch = (searchResults) => {
+  const handleSearch = (_, query) => {
     setSearchPerformed(true);
     setShowHistory(false);
 
-    if (searchResults && searchResults.query) {
+    if (query) {
       dispatch(addToSearchHistory({
-        query: searchResults.query,
+        query,
         timestamp: new Date().toISOString(),
       }));
     }
@@ -101,7 +113,9 @@ const CommunitySearchScreen = ({ navigation, route }) => {
     setShowHistory(false);
   };
 
-  const communityResults = results.filter(
+  const resolvedResults = results.length > 0 ? results : routeResults;
+
+  const communityResults = resolvedResults.filter(
     (item) => item.type === 'post' || item.type === 'user' || item.type === 'tag'
   );
 
@@ -147,6 +161,7 @@ const CommunitySearchScreen = ({ navigation, route }) => {
           <UnifiedSearchBar
             searchScope="community"
             resultScreenName="CommunitySearch"
+            disableAutoNavigate
             onSearch={handleSearch}
             onCancel={handleCancel}
             initialQuery={initialQuery}

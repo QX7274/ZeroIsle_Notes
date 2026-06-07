@@ -531,12 +531,20 @@ const CommunityScreen = ({ navigation }) => {
           <UnifiedSearchBar
             searchScope="community"
             resultScreenName="CommunitySearch"
-            onSearch={(results) => {
-              if (!results || results.length === 0 || interactionBusy) {
+            disableAutoNavigate
+            onSearch={(results, query, options = {}) => {
+              if (interactionBusy) {
                 return;
               }
               setActionSource('openSearchResults');
-              navigation.navigate('CommunitySearch', { results });
+              navigation.navigate('CommunitySearch', {
+                results: Array.isArray(results) ? results : [],
+                query: query || '',
+                searchMode: options.searchMode || 'text',
+                isOfflineSearch: options.isOfflineSearch || false,
+                searchPerformed: true,
+                source: 'community',
+              });
             }}
           />
         </View>

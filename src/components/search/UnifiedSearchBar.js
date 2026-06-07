@@ -40,6 +40,7 @@ const UnifiedSearchBar = ({
   initialQuery = '',
   style,
   resultScreenName,
+  disableAutoNavigate = false,
 }) => {
   const { colors } = useTheme();
   const navigation = useNavigation();
@@ -140,14 +141,20 @@ const UnifiedSearchBar = ({
     openReasonRef.current = 'search-complete';
     onSearch?.(results, query, options);
 
-    // 如果有结果，导航到搜索结果页面
-    if (results && results.length > 0) {
+    const resolvedResultScreenName = getResultScreenName();
+    const shouldNavigate = !disableAutoNavigate && (
+      (resolvedResultScreenName === 'CommunitySearch' && Array.isArray(results))
+      || (Array.isArray(results) && results.length > 0)
+    );
+
+    if (shouldNavigate) {
       navigation.navigate(getResultScreenName(), {
-        results,
+        results: Array.isArray(results) ? results : [],
         query,
         searchMode: options.searchMode || 'text',
         isOfflineSearch: options.isOfflineSearch || false,
         source: searchScope,
+        searchPerformed: true,
       });
     }
   };

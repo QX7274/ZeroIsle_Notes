@@ -29,6 +29,7 @@ const SearchResults = ({
   const { theme } = useTheme();
   const styles = getStyles(theme);
   const [activeFilter, setActiveFilter] = useState('all');
+  const availableTypes = Array.from(new Set((results || []).map((item) => item.type).filter(Boolean)));
 
   // 过滤结果
   const filteredResults = results.filter((result) => {
@@ -69,6 +70,10 @@ const SearchResults = ({
   // 获取结果图标
   const getResultIcon = (type) => {
     switch (type) {
+      case 'post':
+        return 'article';
+      case 'user':
+        return 'person';
       case 'note':
         return 'description';
       case 'tag':
@@ -83,6 +88,10 @@ const SearchResults = ({
   // 获取结果类型标签
   const getResultTypeLabel = (type) => {
     switch (type) {
+      case 'post':
+        return '帖子';
+      case 'user':
+        return '用户';
       case 'note':
         return '笔记';
       case 'tag':
@@ -92,6 +101,20 @@ const SearchResults = ({
       default:
         return type;
     }
+  };
+
+  const getResultDateText = (item) => {
+    const rawDate = item.updatedAt || item.createdAt || item.timestamp || item.published_at || item.created_at;
+    if (!rawDate) {
+      return item.type === 'user' ? '社区用户' : '';
+    }
+
+    const parsedDate = new Date(rawDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return item.type === 'user' ? '社区用户' : '';
+    }
+
+    return parsedDate.toLocaleDateString();
   };
 
   // 渲染过滤器
@@ -118,80 +141,33 @@ const SearchResults = ({
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === 'note' && [
-              styles.activeFilterButton,
-              { backgroundColor: theme.primary },
-            ],
-          ]}
-          onPress={() => handleFilterChange('note')}
-        >
-          <Icon
-            name="description"
-            size={16}
-            color={activeFilter === 'note' ? '#FFFFFF' : theme.text}
-          />
-          <Text
+        {availableTypes.map((type) => (
+          <TouchableOpacity
+            key={type}
             style={[
-              styles.filterButtonText,
-              { color: activeFilter === 'note' ? '#FFFFFF' : theme.text },
+              styles.filterButton,
+              activeFilter === type && [
+                styles.activeFilterButton,
+                { backgroundColor: theme.primary },
+              ],
             ]}
+            onPress={() => handleFilterChange(type)}
           >
-            笔记
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === 'tag' && [
-              styles.activeFilterButton,
-              { backgroundColor: theme.primary },
-            ],
-          ]}
-          onPress={() => handleFilterChange('tag')}
-        >
-          <Icon
-            name="label"
-            size={16}
-            color={activeFilter === 'tag' ? '#FFFFFF' : theme.text}
-          />
-          <Text
-            style={[
-              styles.filterButtonText,
-              { color: activeFilter === 'tag' ? '#FFFFFF' : theme.text },
-            ]}
-          >
-            标签
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === 'knowledge' && [
-              styles.activeFilterButton,
-              { backgroundColor: theme.primary },
-            ],
-          ]}
-          onPress={() => handleFilterChange('knowledge')}
-        >
-          <Icon
-            name="bubble-chart"
-            size={16}
-            color={activeFilter === 'knowledge' ? '#FFFFFF' : theme.text}
-          />
-          <Text
-            style={[
-              styles.filterButtonText,
-              { color: activeFilter === 'knowledge' ? '#FFFFFF' : theme.text },
-            ]}
-          >
-            知识点
-          </Text>
-        </TouchableOpacity>
+            <Icon
+              name={getResultIcon(type)}
+              size={16}
+              color={activeFilter === type ? '#FFFFFF' : theme.text}
+            />
+            <Text
+              style={[
+                styles.filterButtonText,
+                { color: activeFilter === type ? '#FFFFFF' : theme.text },
+              ]}
+            >
+              {getResultTypeLabel(type)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
     </View>
   );
@@ -202,6 +178,10 @@ const SearchResults = ({
       // 简单的实现：跳转到搜索页面以查找该笔记
       navigation.push('Search', { query: title });
     };
+
+    const displayTitle = item.displayTitle || item.title || item.name || item.nickname || '未命名结果';
+    const displayContent = item.displayContent || item.content || item.bio || item.summary || '';
+    const resultDateText = getResultDateText(item);
 
     return (
       <TouchableOpacity onPress={() => handleResultPress(item)}>
@@ -214,9 +194,11 @@ const SearchResults = ({
               </Text>
             </View>
 
-            <Text style={[styles.resultDate, { color: theme.textSecondary }]}>
-              {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
-            </Text>
+            {resultDateText ? (
+              <Text style={[styles.resultDate, { color: theme.textSecondary }]}>
+                {resultDateText}
+              </Text>
+            ) : null}
           </View>
 
           {item.matchDetails?.isRelated && (
@@ -226,16 +208,16 @@ const SearchResults = ({
           )}
 
           <Text style={[styles.resultTitle, { color: theme.text }]}>
-            {item.displayTitle}
+            {displayTitle}
           </Text>
 
-          {item.displayContent && (
+          {displayContent ? (
             <AdvancedMarkdownPreview
-              content={item.displayContent}
+              content={displayContent}
               onWikiLinkPress={handleWikiLinkPress}
               style={{ height: 40 }} // 限制预览高度
             />
-          )}
+          ) : null}
 
           {item.tags && item.tags.length > 0 && (
             <View style={styles.tagsContainer}>
