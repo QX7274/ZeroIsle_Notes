@@ -1966,3 +1966,78 @@
   - 先最小提交本轮代码与中文文档，避免这组关键诊断改动继续漂在工作区
   - 随后重新安装 debug 包并精抓真实 app pid 下的 `ZeroIsleMainApplication / ZeroIsleMainActivity / ReactRootView / ReactNativeJS` 日志
   - release 侧继续单独围绕 Gradle/JVM 崩溃做构建稳定性收口，不把它混写成业务页问题
+
+### 2026-06-07 第一百零五轮：确认新包已生效，并把系统 ANR 遮挡与应用启动链路拆开
+
+- 这轮先没有继续猜测“是不是还是旧包”或者“是不是又回到网络问题”，而是先把现场重新校准干净。
+- 先确认了电脑侧本地链路仍正常：
+  - `http://127.0.0.1:8081/status` 返回 `200`
+  - `http://127.0.0.1:8000/health/` 返回 `200`
+  - 真机壳内 `curl http://127.0.0.1:8081/status` 与 `curl http://127.0.0.1:8000/health/` 也都返回 `200`
+- 随后抓到一个和上一轮不同的新现场：
+  - 真机 UI 树不再只是空根视图，而是系统弹窗
+  - 标题是：`进程“system”没有响应`
+  - 证据文件：
+    - [round280_after_reinstall_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round280_after_reinstall_ui.xml)
+    - [round280_full_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round280_full_logcat.txt)
+- 从完整 logcat 里可以把这次系统弹窗的根因切得更准：
+  - 2026-06-07 11:00:26 左右出现：
+    - `ANR in input window owned by pid=1593`
+    - `PointerEventDispatcher0 (server) is not responding`
+  - 随后：
+    - `ANR in system`
+    - `Dumping to /data/anr/anr_2026-06-07-11-00-28-071`
+  - 同一时间窗内 `system_server` CPU 持续高占用，`com.zeroisle_notes` 也有较高占用，但这次被系统明确记成 `system` 的输入分发 ANR
+- 这很重要，因为它说明：
+  - 刚才看到的“进程 system 没有响应”不是应用自己抛出的业务弹窗
+  - 当前前台视觉被系统 ANR 弹窗污染，不能直接把这个画面当成应用自身最终白屏终态
+- 这轮继续把“是否还是旧包”也彻底核掉了：
+  - 重新执行：
+    - `android\\gradlew.bat :app:installDebug --console=plain`
+  - 本次安装成功，输出明确显示：
+    - `Installed on 1 device.`
+  - 然后清空 logcat、强停 APP、重新冷启动，再抓只包含新进程的日志
+  - 终于拿到本轮新增的原生入口日志：
+    - [round280_after_reinstall_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round280_after_reinstall_logcat.txt)
+    - 其中明确出现：
+      - `ZeroIsleMainApplication: attachBaseContext`
+      - `ZeroIsleMainApplication: onCreate: start`
+      - `ZeroIsleMainApplication: onCreate: SoLoader initialized`
+      - `ZeroIsleMainActivity: createReactActivityDelegate: fabricEnabled=false`
+      - `ZeroIsleMainActivity: getMainComponentName -> ZeroIsle_Notes`
+      - `ZeroIsleMainActivity: onCreate: savedInstanceState=false`
+      - `ZeroIsleMainApplication: getJSMainModuleName -> index`
+      - `ZeroIsleMainApplication: getUseDeveloperSupport -> true`
+      - `ZeroIsleMainApplication: getPackages: total=41`
+- 这意味着一个关键不确定性已经被消掉：
+  - 新包确实已经进入设备
+  - `MainApplication / MainActivity` 原生入口确实已经执行
+  - 所以当前问题不再是“设备上跑的不是最新包”
+- 继续抓新进程 `pid=29128` 的专属日志后，又拿到一条值得继续盯的事实：
+  - [round280_pid29128_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round280_pid29128_logcat.txt)
+  - 里面没有新的 `Cannot connect to Metro`
+  - 也没有 `RootImportErrorFallback` 或“根组件导入失败”文案
+  - 但出现了多次 `mqt_js` 线程慢分发：
+    - `Slow dispatch took 3010ms mqt_js`
+    - `Slow delivery took 3000ms mqt_js`
+    - `Slow dispatch took 3069ms mqt_js`
+- 结合窗口状态看，当前可以更严谨地描述现场：
+  - `com.zeroisle_notes/.MainActivity` 窗口已经建立
+  - 但系统 `Application Not Responding: system` 弹窗仍在前台遮挡
+  - 应用自身 JS 线程同时存在明显慢分发
+  - 因此当前主阻断已经不只是“原生入口是否走通”，而是：
+    - 系统 ANR 弹窗遮挡前台
+    - 应用 `mqt_js` 线程仍有 3 秒级卡顿
+- 这轮必须继续写实的边界：
+  - 已确认：
+    - 本地后端和 Metro 联通正常
+    - 新 debug 包已成功安装
+    - 新增原生入口日志已真实进入设备并打印
+    - `MainActivity` 窗口已经建立
+  - 尚未确认：
+    - 去掉系统 ANR 弹窗遮挡后，应用自身真实可见界面到底是首页、白屏还是别的异常态
+    - `mqt_js` 慢分发背后到底是 RN 启动阶段负载过高、某个原生模块卡住，还是仍与先前 `Catalyst` 附着问题存在关联
+- 下一步：
+  - 继续抓去除系统弹窗干扰后的真实首屏状态
+  - 继续沿 `mqt_js` 慢分发和 `ReactContext / Catalyst / attachRootView` 两条线对照排查
+  - 暂不回到 UI 美化主线，先把首屏阻断恢复到能继续逐模块真机测试的状态

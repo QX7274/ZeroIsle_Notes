@@ -1591,3 +1591,23 @@ Expected: 新增或修改的回归用例通过。
     1. `debug` 白屏继续沿 `CatalystInstance / ReactContext / attachRootView` 排查
     2. `release` 仅作为构建稳定性旁线，单独收口 Gradle/JVM 崩溃
 ```
+
+- [x] **Step 11: 确认新 debug 包已真正进入设备，并把系统 ANR 遮挡与应用自身启动链路拆开**
+
+```md
+- 已执行：
+  - `android\\gradlew.bat :app:installDebug --console=plain`
+  - 清空 logcat、强停 APP、重新冷启动后重新抓启动日志
+- 新证据表明：
+  - `ZeroIsleMainApplication` 与 `ZeroIsleMainActivity` 新增原生日志已经在真机打印
+  - 说明本轮加的原生入口诊断代码已经真实进入设备，不再是旧安装包现场
+- 同时抓到两条必须拆开的事实：
+  1. 设备在 2026-06-07 11:00 左右发生的是 `system_server` 输入分发 ANR，弹出 `进程“system”没有响应`
+  2. 重新安装后的新进程 `pid=29128` 里，`MainActivity` 窗口已经建立，但前台仍被系统 `Application Not Responding: system` 弹窗遮挡
+- 因此后续排查约束要更新为：
+  - 不能再把当前可见界面误判成纯 APP 白屏终态
+  - 需要同时记录：
+    - 应用自身原生入口是否已走通
+    - 系统 ANR 弹窗是否仍在遮挡前台
+    - JS 线程是否继续出现 `mqt_js` 慢分发
+```
