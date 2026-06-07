@@ -8,7 +8,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
+  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import networkService from '../../services/network/networkService';
 import { Button } from '../../components/common';
 import { rebuildSearchIndex } from '../../services/search/searchIndexRebuildService';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
 
 const OfflineDataScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -41,7 +42,38 @@ const OfflineDataScreen = ({ navigation }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [statusCard, setStatusCard] = useState(null);
+  const [dialogState, setDialogState] = useState({
+    visible: false,
+    tone: 'info',
+    title: '',
+    message: '',
+    primaryText: '确定',
+    secondaryText: '',
+    onPrimary: null,
+  });
   const pageState = isLoading ? 'busy' : 'ready';
+  const statusCardTone = statusCard?.tone || 'info';
+  const statusCardStyles = statusCardTone === 'error'
+    ? {
+      backgroundColor: 'rgba(220,38,38,0.08)',
+      borderColor: 'rgba(220,38,38,0.18)',
+      iconColor: '#DC2626',
+      iconName: 'error-outline',
+    }
+    : statusCardTone === 'success'
+      ? {
+        backgroundColor: 'rgba(22,163,74,0.08)',
+        borderColor: 'rgba(22,163,74,0.18)',
+        iconColor: '#16A34A',
+        iconName: 'check-circle-outline',
+      }
+      : {
+        backgroundColor: 'rgba(37,99,235,0.08)',
+        borderColor: 'rgba(37,99,235,0.18)',
+        iconColor: '#2563EB',
+        iconName: 'info-outline',
+      };
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -59,6 +91,26 @@ const OfflineDataScreen = ({ navigation }) => {
     fetchStatus();
   }, []);
 
+  const closeDialog = () => {
+    setDialogState((current) => ({
+      ...current,
+      visible: false,
+      onPrimary: null,
+    }));
+  };
+
+  const openDialog = (nextDialog) => {
+    setDialogState({
+      visible: true,
+      tone: nextDialog.tone || 'info',
+      title: nextDialog.title || '',
+      message: nextDialog.message || '',
+      primaryText: nextDialog.primaryText || '确定',
+      secondaryText: nextDialog.secondaryText || '',
+      onPrimary: nextDialog.onPrimary || null,
+    });
+  };
+
   const handleOfflineModeToggle = async (value) => {
     setIsLoading(true);
     try {
@@ -68,8 +120,18 @@ const OfflineDataScreen = ({ navigation }) => {
         offlineMode: value,
         isOffline: !prev.isOnline || value,
       }));
+      setStatusCard({
+        tone: 'success',
+        message: value ? '离线模式已开启，应用会优先使用本地数据。' : '离线模式已关闭，应用会恢复优先请求远端数据。',
+      });
+      showToast.success(value ? '离线模式已开启' : '离线模式已关闭');
     } catch (error) {
       console.error('切换离线模式失败:', error);
+      setStatusCard({
+        tone: 'error',
+        message: error?.message || '切换离线模式失败，请稍后重试。',
+      });
+      showToast.error('切换离线模式失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }
@@ -87,14 +149,23 @@ const OfflineDataScreen = ({ navigation }) => {
         pendingOperationsCount: 0,
         syncError: null,
       }));
-      Alert.alert('同步成功', '数据已成功同步到云端。');
+      setStatusCard({
+        tone: 'success',
+        message: '数据已成功同步到云端，离线队列已清空。',
+      });
+      showToast.success('同步成功');
     } catch (error) {
       console.error('同步失败:', error);
-      Alert.alert('同步失败', error.message || '同步过程中发生未知错误。');
+      const errorMessage = error?.message || '同步过程中发生未知错误。';
+      setStatusCard({
+        tone: 'error',
+        message: `同步失败：${errorMessage}`,
+      });
+      showToast.error(errorMessage);
       setStatus((prev) => ({
         ...prev,
         syncStatus: 'error',
-        syncError: error.message || '未知错误',
+        syncError: errorMessage,
       }));
     } finally {
       setIsLoading(false);
@@ -102,67 +173,78 @@ const OfflineDataScreen = ({ navigation }) => {
   };
 
   const handleRebuildSearchIndex = () => {
-    Alert.alert(
-      '重建搜索索引',
-      '该操作会重新扫描本地数据并重建搜索索引，数据量大时可能需要较长时间。是否继续？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '开始',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              await rebuildSearchIndex({
-                includeNotes: true,
-                includeKnowledge: true,
-                batchSize: 200,
-              });
-              Alert.alert('完成', '搜索索引重建完成。');
-            } catch (e) {
-              Alert.alert('失败', e?.message || '搜索索引重建失败。');
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    openDialog({
+      tone: 'warning',
+      title: '重建搜索索引',
+      message: '该操作会重新扫描本地数据并重建搜索索引，数据量大时可能需要较长时间。是否继续？',
+      primaryText: '开始',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        try {
+          await rebuildSearchIndex({
+            includeNotes: true,
+            includeKnowledge: true,
+            batchSize: 200,
+          });
+          setStatusCard({
+            tone: 'success',
+            message: '搜索索引已完成重建，本地检索结果将按最新数据刷新。',
+          });
+          showToast.success('搜索索引重建完成');
+        } catch (e) {
+          const errorMessage = e?.message || '搜索索引重建失败。';
+          setStatusCard({
+            tone: 'error',
+            message: `搜索索引重建失败：${errorMessage}`,
+          });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
   };
 
   const handleClearOfflineData = () => {
-    Alert.alert(
-      '清除离线数据',
-      '确定要清除所有离线数据吗？这将删除所有未同步的更改。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '清除',
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-              setStatus((prev) => ({
-                ...prev,
-                pendingOperationsCount: 0,
-                storageUsage: {
-                  ...prev.storageUsage,
-                  current: 0,
-                  percentage: 0,
-                },
-              }));
-              Alert.alert('清除成功', '所有离线数据已清除。');
-              setRefreshKey((prev) => prev + 1);
-            } catch (error) {
-              console.error('清除离线数据失败:', error);
-              Alert.alert('清除失败', error.message || '清除过程中发生未知错误。');
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    openDialog({
+      tone: 'error',
+      title: '清除离线数据',
+      message: '确定要清除所有离线数据吗？这将删除所有未同步的更改。',
+      primaryText: '清除',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          setStatus((prev) => ({
+            ...prev,
+            pendingOperationsCount: 0,
+            storageUsage: {
+              ...prev.storageUsage,
+              current: 0,
+              percentage: 0,
+            },
+          }));
+          setStatusCard({
+            tone: 'success',
+            message: '所有离线数据已清除，未同步数据也已一并移除。',
+          });
+          showToast.success('离线数据已清除');
+          setRefreshKey((prev) => prev + 1);
+        } catch (error) {
+          console.error('清除离线数据失败:', error);
+          const errorMessage = error?.message || '清除过程中发生未知错误。';
+          setStatusCard({
+            tone: 'error',
+            message: `清除离线数据失败：${errorMessage}`,
+          });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
   };
 
   const formatLastSyncTime = () => {
@@ -175,6 +257,71 @@ const OfflineDataScreen = ({ navigation }) => {
     const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
     return `${mb(current)}MB / ${mb(limit)}MB (${percentage.toFixed(1)}%)`;
   };
+
+  const renderDialog = () => (
+    <Modal visible={dialogState.visible} transparent animationType="fade" onRequestClose={closeDialog}>
+      <View style={styles.dialogOverlay}>
+        <View style={styles.dialogCard}>
+          <View
+            style={[
+              styles.dialogIconWrap,
+              dialogState.tone === 'error'
+                ? styles.errorIconWrap
+                : dialogState.tone === 'warning'
+                  ? styles.warningIconWrap
+                  : styles.infoIconWrap,
+            ]}
+          >
+            <Icon
+              name={
+                dialogState.tone === 'error'
+                  ? 'delete-outline'
+                  : dialogState.tone === 'warning'
+                    ? 'warning-amber'
+                    : 'info-outline'
+              }
+              size={28}
+              color={
+                dialogState.tone === 'error'
+                  ? '#DC2626'
+                  : dialogState.tone === 'warning'
+                    ? '#D97706'
+                    : '#2563EB'
+              }
+            />
+          </View>
+          <Text style={styles.dialogTitle}>{dialogState.title}</Text>
+          <Text style={styles.dialogMessage}>{dialogState.message}</Text>
+          <View style={styles.dialogButtonRow}>
+            {dialogState.secondaryText ? (
+              <TouchableOpacity style={styles.dialogSecondaryButton} onPress={closeDialog}>
+                <Text style={styles.dialogSecondaryText}>{dialogState.secondaryText}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.dialogPrimaryButton,
+                dialogState.tone === 'error'
+                  ? styles.errorPrimaryButton
+                  : dialogState.tone === 'warning'
+                    ? styles.warningPrimaryButton
+                    : styles.infoPrimaryButton,
+              ]}
+              onPress={async () => {
+                const handler = dialogState.onPrimary;
+                closeDialog();
+                if (handler) {
+                  await handler();
+                }
+              }}
+            >
+              <Text style={styles.dialogPrimaryText}>{dialogState.primaryText}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#F3F8FF' }]} testID={`state.settings.offline.state.${pageState}`}>
@@ -194,6 +341,24 @@ const OfflineDataScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.content} key={refreshKey} testID="list.settings.offline.sections">
+        {statusCard ? (
+          <View
+            style={[
+              styles.statusCard,
+              {
+                backgroundColor: statusCardStyles.backgroundColor,
+                borderColor: statusCardStyles.borderColor,
+              },
+            ]}
+            testID={`state.settings.offline.status.${statusCardTone}`}
+          >
+            <Icon name={statusCardStyles.iconName} size={18} color={statusCardStyles.iconColor} />
+            <Text style={[styles.statusCardText, { color: statusCardStyles.iconColor }]}>
+              {statusCard.message}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="cloud-off" size={24} color={colors.primary} />
@@ -307,6 +472,7 @@ const OfflineDataScreen = ({ navigation }) => {
           />
         </View>
       </ScrollView>
+      {renderDialog()}
     </SafeAreaView>
   );
 };
@@ -335,6 +501,22 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+    paddingTop: 4,
+  },
+  statusCard: {
+    marginBottom: 16,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  statusCardText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   section: {
     borderRadius: 16,
@@ -408,6 +590,96 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginRight: 16,
     marginBottom: 8,
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(191, 219, 254, 0.9)',
+  },
+  dialogIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  infoIconWrap: {
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+  },
+  warningIconWrap: {
+    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+  },
+  errorIconWrap: {
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  dialogMessage: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#475569',
+    marginBottom: 18,
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  dialogSecondaryButton: {
+    minWidth: 96,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D7E6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    marginRight: 10,
+    backgroundColor: '#F8FBFF',
+  },
+  dialogSecondaryText: {
+    color: '#31507A',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dialogPrimaryButton: {
+    minWidth: 110,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  infoPrimaryButton: {
+    backgroundColor: '#2563EB',
+  },
+  warningPrimaryButton: {
+    backgroundColor: '#D97706',
+  },
+  errorPrimaryButton: {
+    backgroundColor: '#DC2626',
+  },
+  dialogPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 
