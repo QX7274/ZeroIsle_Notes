@@ -6,15 +6,21 @@ import {
   Switch,
   TextInput,
   TouchableOpacity,
-  Alert,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import AIAssistantModule from '../../native/AIAssistantModule';
 import realmService from '../../services/database/realmService';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
+
+const STORAGE_KEYS = {
+  AI_ENGINE: 'ai_engine',
+  BAIDU_CONFIG: 'ai_baidu_config',
+};
 
 const AIAssistantSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -31,23 +37,71 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   const configStatusState = configStatus
     ? (configStatus.includes('失败') ? 'error' : 'success')
     : 'idle';
+  const statusToneStyles = configStatusState === 'error'
+    ? {
+      backgroundColor: 'rgba(220,38,38,0.08)',
+      borderColor: 'rgba(220,38,38,0.18)',
+      iconColor: '#DC2626',
+      iconName: 'error-outline',
+    }
+    : {
+      backgroundColor: 'rgba(37,99,235,0.08)',
+      borderColor: 'rgba(37,99,235,0.18)',
+      iconColor: '#2563EB',
+      iconName: 'info-outline',
+    };
 
   useEffect(() => {
     loadSettings();
   }, []);
 
+  const readStorageItem = async (key) => {
+    const item = await realmService.findOne('StorageItem', { key });
+    return item?.value ?? null;
+  };
+
+  const upsertStorageItem = async (key, value) => {
+    const now = new Date();
+    const existingItem = await realmService.findOne('StorageItem', { key });
+
+    if (existingItem) {
+      await realmService.update('StorageItem', key, {
+        value,
+        updated_at: now,
+      });
+      return;
+    }
+
+    await realmService.create('StorageItem', {
+      key,
+      value,
+      created_at: now,
+      updated_at: now,
+    });
+  };
+
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const aiSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-      if (aiSettings?.engine) {
-        setAiEngine(aiSettings.engine);
+      const savedEngine = await readStorageItem(STORAGE_KEYS.AI_ENGINE);
+      if (savedEngine) {
+        setAiEngine(savedEngine);
       }
-      if (aiSettings?.baidu_api_key) {
-        setBaiduApiKey(aiSettings.baidu_api_key);
-      }
-      if (aiSettings?.baidu_secret_key) {
-        setBaiduSecretKey(aiSettings.baidu_secret_key);
+
+      const rawBaiduConfig = await readStorageItem(STORAGE_KEYS.BAIDU_CONFIG);
+      if (rawBaiduConfig) {
+        try {
+          const parsedConfig = JSON.parse(rawBaiduConfig);
+          if (parsedConfig?.apiKey) {
+            setBaiduApiKey(parsedConfig.apiKey);
+          }
+          if (parsedConfig?.secretKey) {
+            setBaiduSecretKey(parsedConfig.secretKey);
+          }
+        } catch (parseError) {
+          console.warn('解析 AI 助手本地配置失败:', parseError);
+          setConfigStatus('本地配置已损坏，请重新填写百度 AI 密钥');
+        }
       }
     } catch (error) {
       console.error('加载 AI 助手设置失败:', error);
@@ -59,35 +113,25 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
 
   const saveSettings = async () => {
     try {
-      const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-      if (existingSettings) {
-        await realmService.update('ai_settings', existingSettings._id, {
-          engine: aiEngine,
-          baidu_api_key: baiduApiKey,
-          baidu_secret_key: baiduSecretKey,
-          updated_at: new Date(),
-        });
-      } else {
-        await realmService.create('ai_settings', {
-          _id: realmService.createObjectId(),
-          type: 'assistant_config',
-          engine: aiEngine,
-          baidu_api_key: baiduApiKey,
-          baidu_secret_key: baiduSecretKey,
-          created_at: new Date(),
-          updated_at: new Date(),
-        });
-      }
-      Alert.alert('成功', '设置已保存');
+      await upsertStorageItem(STORAGE_KEYS.AI_ENGINE, aiEngine);
+      await upsertStorageItem(
+        STORAGE_KEYS.BAIDU_CONFIG,
+        JSON.stringify({
+          apiKey: baiduApiKey.trim(),
+          secretKey: baiduSecretKey.trim(),
+        })
+      );
+      setConfigStatus('设置已保存，可继续配置或测试 AI 助手');
+      showToast.success('设置已保存');
     } catch (error) {
       console.error('保存 AI 助手设置失败:', error);
-      Alert.alert('错误', '保存设置失败');
+      showToast.error('保存设置失败，请稍后重试');
     }
   };
 
   const configureBaiduAI = async () => {
     if (!hasKeys) {
-      Alert.alert('错误', '请先填写百度 AI 的 API Key 和 Secret Key');
+      showToast.warning('请先填写百度 AI 的 API Key 和 Secret Key');
       return;
     }
 
@@ -101,29 +145,21 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       });
       setConfigStatus('配置成功，访问令牌已获取');
       setAiEngine(AIAssistantModule.ENGINE_BAIDU);
+      await upsertStorageItem(STORAGE_KEYS.AI_ENGINE, AIAssistantModule.ENGINE_BAIDU);
+      await upsertStorageItem(
+        STORAGE_KEYS.BAIDU_CONFIG,
+        JSON.stringify({
+          apiKey: baiduApiKey.trim(),
+          secretKey: baiduSecretKey.trim(),
+        })
+      );
 
-      const existingSettings = await realmService.findOne('ai_settings', { type: 'assistant_config' });
-      if (existingSettings) {
-        await realmService.update('ai_settings', existingSettings._id, {
-          engine: AIAssistantModule.ENGINE_BAIDU,
-          updated_at: new Date(),
-        });
-      } else {
-        await realmService.create('ai_settings', {
-          _id: realmService.createObjectId(),
-          type: 'assistant_config',
-          engine: AIAssistantModule.ENGINE_BAIDU,
-          created_at: new Date(),
-          updated_at: new Date(),
-        });
-      }
-
-      Alert.alert('成功', '百度 AI 配置成功');
+      showToast.success('百度 AI 配置成功');
     } catch (error) {
       console.error('配置百度 AI 失败:', error);
       const message = error?.message || '未知错误';
       setConfigStatus(`配置失败: ${message}`);
-      Alert.alert('错误', `配置百度 AI 失败: ${message}`);
+      showToast.error(`配置百度 AI 失败: ${message}`);
     } finally {
       setIsConfiguring(false);
     }
@@ -132,10 +168,10 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
   const testAIAssistant = async () => {
     try {
       const result = await AIAssistantModule.sendMessage('你好，请介绍一下你自己', aiEngine);
-      Alert.alert('AI 助手回复', result.text);
+      showToast.success(result?.text ? `测试成功：${result.text}` : 'AI 助手测试成功');
     } catch (error) {
       console.error('测试 AI 助手失败:', error);
-      Alert.alert('错误', `测试 AI 助手失败: ${error?.message || '未知错误'}`);
+      showToast.error(`测试 AI 助手失败: ${error?.message || '未知错误'}`);
     }
   };
 
@@ -157,7 +193,6 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} testID="list.settings.aiAssistant.sections">
-        <Text style={[styles.title, { color: colors.text }]}>AI 助手设置</Text>
 
         <View style={[styles.section, styles.glassCard]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>AI 引擎选择</Text>
@@ -170,7 +205,7 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
                   return;
                 }
                 if (!hasKeys) {
-                  Alert.alert('提示', '请先配置百度 AI 密钥');
+                  showToast.info('请先配置百度 AI 密钥');
                   return;
                 }
                 setAiEngine(AIAssistantModule.ENGINE_BAIDU);
@@ -233,15 +268,27 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           {configStatus ? (
-            <Text
+            <View
               style={[
-                styles.statusText,
-                { color: configStatusState === 'error' ? '#D32F2F' : '#1976D2' },
+                styles.statusCard,
+                {
+                  backgroundColor: statusToneStyles.backgroundColor,
+                  borderColor: statusToneStyles.borderColor,
+                },
               ]}
-              testID="state.settings.aiAssistant.statusText"
+              testID="state.settings.aiAssistant.statusCard"
             >
-              {configStatus}
-            </Text>
+              <Icon name={statusToneStyles.iconName} size={18} color={statusToneStyles.iconColor} />
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: statusToneStyles.iconColor },
+                ]}
+                testID="state.settings.aiAssistant.statusText"
+              >
+                {configStatus}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -285,7 +332,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 14,
+    marginBottom: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -301,12 +348,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingTop: 4,
     paddingBottom: 28,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
   },
   section: {
     marginBottom: 16,
@@ -361,9 +404,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statusText: {
-    marginTop: 10,
     fontSize: 14,
     lineHeight: 20,
+    flex: 1,
+  },
+  statusCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   note: {
     fontSize: 13,
