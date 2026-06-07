@@ -521,80 +521,84 @@ const CommunityScreen = ({ navigation }) => {
     return null;
   }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length]);
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer} testID="state.community.empty">
-      <View style={styles.emptyIconShell}>
-        <Icon name="forum" size={28} color={palette.primary} />
+  const renderDevQaPanel = () => (
+    <View style={styles.devQaPanel} testID="panel.community.devQa">
+      <View style={styles.devQaHead}>
+        <Icon name="science" size={16} color={palette.primary} />
+        <Text style={[styles.devQaTitle, { color: palette.text }]}>社区深层页验证入口</Text>
       </View>
-      <Text style={[styles.emptyTitle, { color: palette.text }]}>暂无社区内容</Text>
-      <Text style={[styles.emptyText, { color: palette.textSecondary }]}>可下拉刷新，或切换分类后再试。</Text>
-      <Button mode="contained" onPress={handleRefresh} testID="action.community.refreshEmpty">
-        立即刷新
-      </Button>
-      {__DEV__ ? (
-        <View style={styles.devQaPanel} testID="panel.community.devQa">
-          <View style={styles.devQaHead}>
-            <Icon name="science" size={16} color={palette.primary} />
-            <Text style={[styles.devQaTitle, { color: palette.text }]}>社区深层页验证入口</Text>
-          </View>
-          <Text style={[styles.devQaText, { color: palette.textSecondary }]}>
-            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表、关注列表、个人主页与社区搜索结果内容态。
+      <Text style={[styles.devQaText, { color: palette.textSecondary }]}>
+        仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表、关注列表、个人主页与社区搜索结果内容态。
+      </Text>
+      <View style={styles.devQaActions}>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={handleOpenDevQaPostDetail}
+          disabled={devQaResolvingPost}
+          testID="action.community.devQa.postDetail"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
+            {devQaResolvingPost ? '解析中…' : '帖子详情'}
           </Text>
-          <View style={styles.devQaActions}>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={handleOpenDevQaPostDetail}
-              disabled={devQaResolvingPost}
-              testID="action.community.devQa.postDetail"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
-                {devQaResolvingPost ? '解析中…' : '帖子详情'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={() => navigation.navigate('Followers', { userId: DEV_COMMUNITY_QA_USER_ID })}
-              testID="action.community.devQa.followers"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>粉丝列表</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={() => navigation.navigate('Following', { userId: DEV_COMMUNITY_QA_USER_ID })}
-              testID="action.community.devQa.following"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>关注列表</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={() => navigation.navigate('UserProfile', {
-                userId: currentUser?.id || DEV_COMMUNITY_QA_USER_ID,
-                initialUser: currentUser || { id: DEV_COMMUNITY_QA_USER_ID, username: '开发联调用户' },
-              })}
-              testID="action.community.devQa.userProfile"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>个人主页</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={handleOpenDevQaSearchUserResult}
-              testID="action.community.devQa.searchUserResult"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>搜索用户结果</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
-              onPress={handleOpenDevQaSearchPostResult}
-              disabled={devQaResolvingPost}
-              testID="action.community.devQa.searchPostResult"
-            >
-              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
-                {devQaResolvingPost ? '解析中…' : '搜索帖子结果'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={() => navigation.navigate('Followers', { userId: DEV_COMMUNITY_QA_USER_ID })}
+          testID="action.community.devQa.followers"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>粉丝列表</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={() => navigation.navigate('Following', { userId: DEV_COMMUNITY_QA_USER_ID })}
+          testID="action.community.devQa.following"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>关注列表</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={() => navigation.navigate('UserProfile', {
+            userId: currentUser?.id || DEV_COMMUNITY_QA_USER_ID,
+            initialUser: currentUser || { id: DEV_COMMUNITY_QA_USER_ID, username: '开发联调用户' },
+          })}
+          testID="action.community.devQa.userProfile"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>个人主页</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={handleOpenDevQaSearchUserResult}
+          testID="action.community.devQa.searchUserResult"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>搜索用户结果</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+          onPress={handleOpenDevQaSearchPostResult}
+          disabled={devQaResolvingPost}
+          testID="action.community.devQa.searchPostResult"
+        >
+          <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
+            {devQaResolvingPost ? '解析中…' : '搜索帖子结果'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderEmpty = () => (
+    <View>
+      <View style={styles.emptyContainer} testID="state.community.empty">
+        <View style={styles.emptyIconShell}>
+          <Icon name="forum" size={28} color={palette.primary} />
         </View>
-      ) : null}
+        <Text style={[styles.emptyTitle, { color: palette.text }]}>暂无社区内容</Text>
+        <Text style={[styles.emptyText, { color: palette.textSecondary }]}>可下拉刷新，或切换分类后再试。</Text>
+        <Button mode="contained" onPress={handleRefresh} testID="action.community.refreshEmpty">
+          立即刷新
+        </Button>
+      </View>
+      {__DEV__ ? renderDevQaPanel() : null}
     </View>
   );
 
@@ -888,7 +892,6 @@ const styles = StyleSheet.create({
   activeHintText: { marginLeft: 6, fontSize: 12, fontWeight: '600' },
   listContainer: { padding: SPACING.MEDIUM, paddingBottom: SPACING.XLARGE + 24 },
   emptyListContainer: {
-    flexGrow: 1,
     paddingHorizontal: SPACING.MEDIUM,
     paddingTop: SPACING.LARGE,
     paddingBottom: SPACING.XLARGE + 24,
@@ -946,12 +949,11 @@ const styles = StyleSheet.create({
   },
   footerText: { marginLeft: 8, fontSize: 13, fontWeight: '600' },
   emptyContainer: {
-    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 0,
     marginTop: 0,
-    minHeight: 0,
+    minHeight: 420,
     paddingHorizontal: SPACING.LARGE,
     paddingTop: SPACING.XLARGE,
     paddingBottom: SPACING.XLARGE,
@@ -976,9 +978,13 @@ const styles = StyleSheet.create({
   devQaPanel: {
     width: '100%',
     marginTop: SPACING.LARGE,
-    paddingTop: SPACING.MEDIUM,
-    borderTopWidth: 1,
-    borderTopColor: '#E1EEF9',
+    paddingHorizontal: SPACING.LARGE,
+    paddingTop: SPACING.LARGE,
+    paddingBottom: SPACING.LARGE,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D6E9FB',
+    backgroundColor: 'rgba(255,255,255,0.82)',
   },
   devQaHead: {
     flexDirection: 'row',
