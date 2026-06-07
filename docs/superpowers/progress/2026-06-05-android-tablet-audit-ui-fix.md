@@ -2193,3 +2193,55 @@
   - 更早清空 `logcat` 后立即冷启动并抓更短时间窗
   - 若仍无 `UnifiedSearchBar` 日志，再手动点击首页搜索栏一次，验证日志链路本身是否工作
   - 若手动点击有日志而冷启动无日志，就把“搜索模态默认打开”从主线继续降级，优先围绕 `system` ANR 与 `mqt_js` 慢分发推进
+
+### 2026-06-07 第一百零九轮：round284 第一时间窗继续证明 system ANR 仍在压前台，搜索模态自动打开仍无直接日志
+
+- 这轮严格按上一轮文档里的下一步执行，没有先动页面代码，而是先做一组更短时间窗的真机冷启动证据采集。
+- 已执行的动作：
+  - `adb -s HGR3Y9MA logcat -c`
+  - `adb -s HGR3Y9MA shell am force-stop com.zeroisle_notes`
+  - 冷启动 APP 后等待约 6 秒
+  - 立即导出：
+    - [round284_short_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round284_short_logcat.txt)
+    - [round284.png](D:/ZeroIsle_Notes/.codex-tmp/round284.png)
+    - [round284_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round284_ui.xml)
+    - [round284_pid.txt](D:/ZeroIsle_Notes/.codex-tmp/round284_pid.txt)
+- 本轮新进程 pid：
+  - `31993`
+- 这组第一时间窗证据非常直接：
+  - [round284_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round284_ui.xml)
+    - 仍是系统弹窗结构
+    - 标题直接是：`进程“system”没有响应`
+  - `adb shell dumpsys window windows`
+    - 继续命中：
+      - `Application Not Responding: system`
+      - `com.zeroisle_notes/com.zeroisle_notes.MainActivity`
+    - 说明系统 ANR 弹窗和 APP 主窗口同时存在，且前台仍被系统层污染
+  - [round284.png](D:/ZeroIsle_Notes/.codex-tmp/round284.png)
+    - 继续可见系统 `ANR` 弹窗
+    - 弹窗下方还能看到应用底层界面和已弹出的键盘
+    - 这再次支持“APP 界面在跑，但被系统弹窗遮挡”，而不是单纯根视图未建立
+- 这轮对日志的意义也很明确：
+  - 重新检索 [round284_short_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round284_short_logcat.txt)
+  - 当前没有搜到：
+    - `UnifiedSearchBar`
+    - `Loading from localhost`
+    - `Unable to dispatch touch`
+    - 新的 `mqt_js` 慢分发文案
+  - 这说明在当前 6 秒冷启动时间窗里：
+    - 还没有拿到“搜索模态无点击自动打开”的直接日志
+    - 更强的直接前台污染证据仍是 system ANR 弹窗本身
+- 因此这轮结论继续收紧为：
+  - 已确认：
+    - 真机在线，`adb reverse` 仍正常
+    - 冷启动后 APP 新进程已建立，当前 pid 为 `31993`
+    - 系统 `ANR` 弹窗仍会在首个短时间窗里压在前台
+    - APP 底层界面和键盘实际存在，说明不是简单“应用完全没起来”
+  - 尚未确认：
+    - 搜索模态是否会在无人工点击时自动打开
+    - 当前没搜到 `UnifiedSearchBar` 日志，是因为确实没触发，还是因为抓取窗口仍未覆盖到
+- 这轮没有新增代码改动，只把新证据补充回文档，避免后续再次把“没有抓到搜索日志”误写成“搜索模态已被排除”，或者把“APP 底层界面在运行”误写成“前台已经恢复稳定可测”。
+- 下一步：
+  - 在系统弹窗存在的现场下，手动点击一次首页搜索栏，验证 `UnifiedSearchBar` 开发态日志链路本身是否能打出来
+  - 如果手动点击能打出日志而冷启动仍没有，就继续把“搜索模态默认打开”降级
+  - 如果手动点击也没有日志，再继续排查开发态日志输出链与抓取窗口
