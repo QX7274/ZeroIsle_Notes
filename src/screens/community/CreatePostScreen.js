@@ -110,6 +110,8 @@ const CreatePostScreen = ({ navigation }) => {
 
   const publishBusy = communityLoading || isSubmitting;
   const pageState = publishBusy ? 'busy' : 'ready';
+  const hasCategoryOptions = categories.length > 0;
+  const hasTagOptions = availableTags.length > 0;
 
   const closeDialog = () => {
     setDialogState((current) => ({
@@ -594,10 +596,17 @@ const CreatePostScreen = ({ navigation }) => {
       {renderDialog()}
 
       {showCategoryPicker ? (
-        <View style={[styles.pickerContainer, { backgroundColor: colors.card }]} testID="panel.community.categoryPicker">
+        <View
+          style={[
+            styles.pickerContainer,
+            !hasCategoryOptions ? styles.pickerContainerCompact : null,
+            { backgroundColor: colors.card },
+          ]}
+          testID="panel.community.categoryPicker"
+        >
           <Text style={[styles.pickerTitle, { color: colors.text }]}>选择分类</Text>
           <ScrollView style={styles.pickerScrollView}>
-            {categories.length > 0 ? (
+            {hasCategoryOptions ? (
               categories.map((category) => (
                 <TouchableOpacity
                   key={String(category.id)}
@@ -615,8 +624,12 @@ const CreatePostScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ))
             ) : (
-              <View style={styles.emptyPicker}>
-                <Text style={{ color: colors.textHint }}>暂无分类</Text>
+              <View style={styles.emptyPickerCard}>
+                <View style={[styles.emptyPickerIconShell, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}20` }]}>
+                  <Icon name="folder-open" size={28} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyPickerTitle, { color: colors.text }]}>暂无分类</Text>
+                <Text style={[styles.emptyPickerDescription, { color: colors.textHint }]}>当前还没有可用分类，先保持未选择状态也可以继续编辑帖子内容。</Text>
               </View>
             )}
           </ScrollView>
@@ -625,11 +638,18 @@ const CreatePostScreen = ({ navigation }) => {
       ) : null}
 
       {showTagPicker ? (
-        <View style={[styles.pickerContainer, { backgroundColor: colors.card }]} testID="panel.community.tagPicker">
+        <View
+          style={[
+            styles.pickerContainer,
+            !hasTagOptions ? styles.pickerContainerCompact : null,
+            { backgroundColor: colors.card },
+          ]}
+          testID="panel.community.tagPicker"
+        >
           <Text style={[styles.pickerTitle, { color: colors.text }]}>选择标签</Text>
           <ScrollView style={styles.pickerScrollView}>
             <View style={styles.tagsWrap}>
-              {availableTags.length > 0 ? (
+              {hasTagOptions ? (
                 availableTags.map((tag) => (
                   <TouchableOpacity
                     key={String(tag.id)}
@@ -641,8 +661,12 @@ const CreatePostScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 ))
               ) : (
-                <View style={styles.emptyPicker}>
-                  <Text style={{ color: colors.textHint }}>暂无标签</Text>
+                <View style={styles.emptyPickerCard}>
+                  <View style={[styles.emptyPickerIconShell, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}20` }]}>
+                    <Icon name="sell" size={28} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.emptyPickerTitle, { color: colors.text }]}>暂无标签</Text>
+                  <Text style={[styles.emptyPickerDescription, { color: colors.textHint }]}>当前还没有可选标签，后续补齐后再为帖子添加主题标识即可。</Text>
                 </View>
               )}
             </View>
@@ -853,6 +877,10 @@ const styles = StyleSheet.create({
     elevation: 6,
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
+  pickerContainerCompact: {
+    bottom: 'auto',
+    maxHeight: 420,
+  },
   pickerTitle: { marginBottom: 12, fontSize: 15, fontWeight: '700', textAlign: 'center' },
   pickerScrollView: { flex: 1, marginBottom: 12 },
   categoryItem: {
@@ -875,7 +903,38 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(33,150,243,0.18)',
     backgroundColor: 'rgba(255,255,255,0.84)',
   },
-  emptyPicker: { padding: 20, alignItems: 'center', justifyContent: 'center' },
+  emptyPickerCard: {
+    minHeight: 220,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.12)',
+    backgroundColor: 'rgba(248,250,252,0.92)',
+    width: '100%',
+  },
+  emptyPickerIconShell: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyPickerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyPickerDescription: {
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   dialogOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
