@@ -242,9 +242,9 @@ const styles = StyleSheet.create({
   emptyListContent: {
     flexGrow: 1,
     paddingHorizontal: 14,
-    paddingTop: 24,
+    paddingTop: 20,
     paddingBottom: 24,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   itemCard: {
     marginBottom: 10,
@@ -279,11 +279,18 @@ const styles = StyleSheet.create({
   emptyWrap: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 26,
+    paddingVertical: 28,
+    minHeight: 320,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    justifyContent: 'center',
   },
   emptyText: {
     marginTop: 8,
     fontSize: 14,
+    textAlign: 'center',
   },
   retryButton: {
     marginTop: 10,
