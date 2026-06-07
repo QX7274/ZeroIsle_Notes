@@ -2167,3 +2167,47 @@ Expected: 新增或修改的回归用例通过。
   - 网络问题与失败提示仍统一走项目内优美样式弹窗，不回退到默认安卓弹窗
   - 不把本轮 `帖子详情 / 创建帖子` 的可达性与返回链路通过外推成社区全部深层页都已完成，后续仍要继续测分类选择、附件失败链路和其他真实入口
 ```
+
+- [ ] **Step 29: 继续补齐创建帖子分类/标签选择器与基础开关链路真机回归，确认空数据态与关闭链路稳定**
+
+```md
+- round305 新确认的问题边界：
+  - 在 `round304` 补齐 `帖子详情 / 创建帖子` 返回链路后，`创建帖子` 页里仍缺少 `分类选择器 / 标签选择器 / 公开帖子 / 允许评论` 这几类常用交互的真实设备证据
+  - 这轮先按“空数据态 + 关闭链路 + 基础开关响应”验收，不贸然把当前 `暂无分类 / 暂无标签` 直接判成代码缺陷
+  - 如果弹层是项目内自绘面板、关闭链路稳定、两个开关点击后状态有真实变化，本轮就只更新文档，不强行改成熟结构
+- round305 真机验收必须写实记录：
+  - [round305_createpost_start.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_createpost_start.xml) 与 [round305_createpost_start.png](D:/ZeroIsle_Notes/.codex-tmp/round305_createpost_start.png) 先确认：
+    - 前台仍是 `创建帖子`
+    - 存在 `action.community.openCategoryPicker`
+    - 存在 `action.community.openTagPicker`
+    - 存在 `action.community.togglePublic` 与 `action.community.toggleComments`
+    - 顶部返回按钮、标题和右上角发布按钮完整露出
+  - 打开分类选择器后，[round305_category_picker_open.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_category_picker_open.xml) 与 [round305_category_picker_open.png](D:/ZeroIsle_Notes/.codex-tmp/round305_category_picker_open.png) 必须体现：
+    - 项目内面板 `panel.community.categoryPicker`
+    - 标题 `选择分类`
+    - 空数据态文案 `暂无分类`
+    - 底部关闭按钮 `关闭`
+    - 且不能出现 `android:id/alertTitle` 或 `AlertDialog`
+  - 关闭分类选择器后，[round305_category_picker_closed.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_category_picker_closed.xml) 与 [round305_category_picker_closed.png](D:/ZeroIsle_Notes/.codex-tmp/round305_category_picker_closed.png) 必须体现：
+    - 已回到 `创建帖子` 页面
+    - `panel.community.categoryPicker` 已消失
+    - `action.community.openCategoryPicker` 与 `action.community.openTagPicker` 再次可见
+  - 打开标签选择器后，[round305_tag_picker_open.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_tag_picker_open.xml) 与 [round305_tag_picker_open.png](D:/ZeroIsle_Notes/.codex-tmp/round305_tag_picker_open.png) 必须体现：
+    - 项目内面板 `panel.community.tagPicker`
+    - 标题 `选择标签`
+    - 空数据态文案 `暂无标签`
+    - 底部完成按钮 `完成`
+    - 且不能出现 `android:id/alertTitle` 或 `AlertDialog`
+  - 关闭标签选择器后，[round305_tag_picker_closed.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_tag_picker_closed.xml) 与 [round305_tag_picker_closed.png](D:/ZeroIsle_Notes/.codex-tmp/round305_tag_picker_closed.png) 必须体现：
+    - 已回到 `创建帖子` 页面
+    - `panel.community.tagPicker` 已消失
+    - `action.community.togglePublic` 与 `action.community.toggleComments` 仍可见
+  - 点击两个基础开关后，[round305_toggles_after_tap.xml](D:/ZeroIsle_Notes/.codex-tmp/round305_toggles_after_tap.xml) 与 [round305_toggles_after_tap.png](D:/ZeroIsle_Notes/.codex-tmp/round305_toggles_after_tap.png) 必须体现：
+    - `action.community.togglePublic` 与 `action.community.toggleComments` 仍然存在
+    - 两个开关内部滑块 bounds 相比点击前发生位移，证明状态有实际切换，不是点击无响应
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，创建帖子页和两个选择器弹层都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 弹层继续优先使用项目内自绘样式，不回退到默认安卓弹窗
+  - 当前 `暂无分类 / 暂无标签` 只能如实记录成当前数据态，不能直接外推成代码缺陷或功能完成，后续仍要继续补真实可选数据场景与附件失败链路
+```
