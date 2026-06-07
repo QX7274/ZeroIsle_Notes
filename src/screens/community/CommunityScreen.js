@@ -228,11 +228,6 @@ const CommunityScreen = ({ navigation }) => {
       return;
     }
 
-    const openPostDetail = (resolvedPostId) => {
-      setActionSource(`openDevQaPost.${resolvedPostId}`);
-      navigation.navigate('PostDetail', { postId: resolvedPostId });
-    };
-
     setDevQaResolvingPost(true);
     try {
       const candidateIds = [];
@@ -278,7 +273,8 @@ const CommunityScreen = ({ navigation }) => {
         try {
           const detail = await dispatch(fetchPostDetail(candidateId)).unwrap();
           if (detail?.id) {
-            openPostDetail(String(detail.id));
+            setActionSource(`openDevQaPost.${detail.id}`);
+            navigation.navigate('PostDetail', { postId: String(detail.id) });
             return;
           }
         } catch (detailError) {
@@ -306,6 +302,146 @@ const CommunityScreen = ({ navigation }) => {
       setDevQaResolvingPost(false);
     }
   }, [activeCategory, devQaResolvingPost, dispatch, interactionBusy, navigation, openDevQaDialog, posts]);
+
+  const resolveDevQaPostDetail = useCallback(async () => {
+    const candidateIds = [];
+
+    const appendCandidateId = (value) => {
+      if (value === null || value === undefined) {
+        return;
+      }
+      const normalizedId = String(value).trim();
+      if (!normalizedId || candidateIds.includes(normalizedId)) {
+        return;
+      }
+      candidateIds.push(normalizedId);
+    };
+
+    posts?.forEach((post) => appendCandidateId(post?.id));
+
+    try {
+      const realm = await realmService.getRealm();
+      const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
+      const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value || '[]') : [];
+      if (Array.isArray(cachedPosts)) {
+        cachedPosts.forEach((post) => appendCandidateId(post?.id));
+      }
+    } catch (cacheReadError) {
+      console.log('CommunityScreen dev QA cache lookup skipped:', cacheReadError?.message || cacheReadError);
+    }
+
+    if (candidateIds.length === 0) {
+      const result = await dispatch(
+        fetchPosts({
+          page: 1,
+          pageSize: 10,
+          suppressGlobalErrorUI: false,
+          category: activeCategory === 'all' ? undefined : activeCategory,
+        })
+      ).unwrap();
+
+      (result?.posts || []).forEach((post) => appendCandidateId(post?.id));
+    }
+
+    for (const candidateId of candidateIds) {
+      try {
+        const detail = await dispatch(fetchPostDetail(candidateId)).unwrap();
+        if (detail?.id) {
+          return detail;
+        }
+      } catch (detailError) {
+        console.log('CommunityScreen dev QA skipped invalid post detail candidate:', candidateId, detailError?.message || detailError);
+      }
+    }
+
+    return null;
+  }, [activeCategory, dispatch, posts]);
+
+  const handleOpenDevQaSearchUserResult = useCallback(() => {
+    if (interactionBusy) {
+      return;
+    }
+
+    const fallbackUser = {
+      id: DEV_COMMUNITY_QA_USER_ID,
+      username: '开发联调用户',
+      nickname: '开发联调用户',
+      bio: '用于社区搜索结果内容态真机联调的占位用户。',
+      avatar: '',
+    };
+    const targetUser = currentUser || fallbackUser;
+
+    setActionSource(`openDevQaSearchUser.${targetUser.id}`);
+    navigation.navigate('CommunitySearch', {
+      query: targetUser.nickname || targetUser.username || '开发联调用户',
+      searchPerformed: true,
+      source: 'community',
+      results: [
+        {
+          id: String(targetUser.id || DEV_COMMUNITY_QA_USER_ID),
+          type: 'user',
+          displayTitle: targetUser.nickname || targetUser.username || '开发联调用户',
+          name: targetUser.nickname || targetUser.username || '开发联调用户',
+          nickname: targetUser.nickname || targetUser.username || '开发联调用户',
+          username: targetUser.username || targetUser.nickname || '开发联调用户',
+          avatar: targetUser.avatar || '',
+          displayContent: targetUser.bio || '当前用于验证社区搜索结果进入个人主页链路。',
+          bio: targetUser.bio || '当前用于验证社区搜索结果进入个人主页链路。',
+          isFollowing: false,
+        },
+      ],
+    });
+  }, [currentUser, interactionBusy, navigation]);
+
+  const handleOpenDevQaSearchPostResult = useCallback(async () => {
+    if (interactionBusy || devQaResolvingPost) {
+      return;
+    }
+
+    setDevQaResolvingPost(true);
+    try {
+      const detail = await resolveDevQaPostDetail();
+      if (!detail?.id) {
+        openDevQaDialog(
+          '当前暂无可验搜索帖子',
+          '社区搜索结果内容态暂未解析到可正常打开的帖子详情。请先刷新社区列表，或稍后待后端存在有效帖子后再验收该链路。'
+        );
+        return;
+      }
+
+      setActionSource(`openDevQaSearchPost.${detail.id}`);
+      navigation.navigate('CommunitySearch', {
+        query: detail.title || '开发联调帖子',
+        searchPerformed: true,
+        source: 'community',
+        results: [
+          {
+            id: String(detail.id),
+            type: 'post',
+            title: detail.title || '未命名帖子',
+            displayTitle: detail.title || '未命名帖子',
+            displayContent: detail.content || '当前用于验证社区搜索结果进入帖子详情链路。',
+            updatedAt: detail.timestamp || '',
+            tags: Array.isArray(detail.tags) ? detail.tags : [],
+          },
+        ],
+      });
+    } catch (requestError) {
+      if (networkErrorService.isNetworkError(requestError)) {
+        networkErrorService.handleApiError(requestError, {
+          context: '解析社区搜索帖子结果联调入口',
+          customMessage: '网络连接失败，暂时无法解析可用的社区搜索帖子结果',
+        });
+      } else {
+        openDevQaDialog(
+          '搜索帖子结果入口暂不可用',
+          '社区搜索结果联调入口当前未命中可用帖子详情，已阻止进入失效结果链路。请稍后重试，或先确认后端存在有效帖子。'
+        );
+      }
+    } finally {
+      setDevQaResolvingPost(false);
+    }
+  }, [devQaResolvingPost, interactionBusy, navigation, openDevQaDialog, resolveDevQaPostDetail]);
 
   const renderPostItem = useCallback(
     ({ item }) => (
@@ -402,7 +538,7 @@ const CommunityScreen = ({ navigation }) => {
             <Text style={[styles.devQaTitle, { color: palette.text }]}>社区深层页验证入口</Text>
           </View>
           <Text style={[styles.devQaText, { color: palette.textSecondary }]}>
-            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表、关注列表与个人主页。
+            仅开发联调可见，用于平板真机快速命中帖子详情、粉丝列表、关注列表、个人主页与社区搜索结果内容态。
           </Text>
           <View style={styles.devQaActions}>
             <TouchableOpacity
@@ -438,6 +574,23 @@ const CommunityScreen = ({ navigation }) => {
               testID="action.community.devQa.userProfile"
             >
               <Text style={[styles.devQaButtonText, { color: palette.primary }]}>个人主页</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={handleOpenDevQaSearchUserResult}
+              testID="action.community.devQa.searchUserResult"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>搜索用户结果</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devQaButton, { borderColor: `${palette.primary}33`, backgroundColor: `${palette.primary}12` }]}
+              onPress={handleOpenDevQaSearchPostResult}
+              disabled={devQaResolvingPost}
+              testID="action.community.devQa.searchPostResult"
+            >
+              <Text style={[styles.devQaButtonText, { color: palette.primary }]}>
+                {devQaResolvingPost ? '解析中…' : '搜索帖子结果'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
