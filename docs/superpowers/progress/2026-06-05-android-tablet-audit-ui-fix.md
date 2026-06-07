@@ -2095,3 +2095,58 @@
   - 继续围绕“为什么冷启动后落在搜索模态页”加低风险日志，不先盲改搜索组件
   - 继续按新进程 pid 精抓 `logcat`，对照 `mqt_js` 慢分发与 `Loading from localhost:8081...` 的时间关系
   - 在首屏真正恢复前，不把这轮进展写成“网络问题已全清”或“真实生产联调已完成”
+
+### 2026-06-07 第一百零七轮：补搜索模态诊断日志，并确认当前稳定基底页其实是首页
+
+- 这轮继续沿启动主阻断推进，但没有直接去改成熟页面布局，也没有先动搜索页视觉结构。
+- 先重新校准了当前真机事实：
+  - 进程仍是 `com.zeroisle_notes`，当前 pid 为 `10357`
+  - [round282_pid10357_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round282_pid10357_logcat.txt) 里继续出现：
+    - `Slow dispatch took 3138ms mqt_js`
+    - `Slow delivery took 3131ms mqt_js`
+    - `Slow dispatch took 3310ms mqt_js`
+  - 说明启动期 JS 线程慢分发仍然持续存在
+- 这轮最关键的新证据来自系统弹窗遮挡下的真实基底页复核：
+  - [round282_after_wait.png](D:/ZeroIsle_Notes/.codex-tmp/round282_after_wait.png)
+    - 可见系统 `进程“system”没有响应` 弹窗下方，应用真实基底页其实是首页，不是搜索模态页
+    - 首页标题、搜索栏、分类按钮、排序按钮、空态主文案、首页卡片和底部键盘都已经渲染出来
+  - [round282_after_wait_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round282_after_wait_ui.xml)
+    - 这次 UI 树仍只抓到系统 `ANR` 弹窗本体，说明系统层会继续盖住前台控件树
+  - `adb shell dumpsys activity top`
+    - 明确显示：
+      - `TASK 10273:com.zeroisle_notes`
+      - `ACTIVITY com.zeroisle_notes/.MainActivity pid=10357`
+      - `mResumed=true`
+    - 说明 APP 前台主 activity 实际仍处于 resumed 状态，只是被系统弹窗反复遮挡
+- 因此这轮要把上一轮结论进一步收紧：
+  - 上一轮抓到的“搜索”模态页，当前还不能直接定义成“稳定首屏终态”
+  - 更准确的说法应该是：
+    - 系统 `ANR` 弹窗会反复盖住前台
+    - 在部分时间窗内可见搜索模态页
+    - 但当前重新抓到的稳定基底页其实是首页
+    - 因而“搜索模态页默认打开”仍是待证实问题，不能直接当成已确认根因写死
+- 为了继续定位这条线，这轮只做了低风险诊断代码：
+  - [src/components/search/UnifiedSearchBar.js](D:/ZeroIsle_Notes/src/components/search/UnifiedSearchBar.js)
+    - 新增开发态日志，记录：
+      - 组件挂载
+      - `showSearch` 显隐变化
+      - 搜索模态请求打开时的当前路由、scope、挂载后经过时间
+      - 搜索完成关闭模态时的结果数量和模式
+    - 目标是下一轮用真机 `logcat` 回答：搜索模态到底是被用户/系统误触触发、状态恢复触发，还是代码主动打开
+- 这轮静态校验结果：
+  - `npx eslint src/components/search/UnifiedSearchBar.js`
+  - 当前无 error，仅保留既有内联样式 warning
+- 这轮必须写实的边界：
+  - 已确认：
+    - 本地后端和 Metro 联通仍正常
+    - 系统 `ANR` 弹窗会持续反复盖住前台
+    - 当前稳定基底页可以是首页，而不是搜索模态页
+    - `UnifiedSearchBar` 已补充启动期诊断日志，方便下一轮继续抓因
+  - 尚未确认：
+    - 搜索模态页是否会在某条启动链路里被自动打开
+    - `mqt_js` 慢分发和系统 `ANR` 之间的具体因果关系
+    - `Loading from localhost:8081...` 与搜索模态/首页切换之间是否存在直接关联
+- 下一步：
+  - 重装带诊断日志的新包，重新抓一轮真机 `logcat`
+  - 优先查看 `[UnifiedSearchBar] open modal requested` 与 `[UnifiedSearchBar] visibility changed` 是否在无人工点击时出现
+  - 在拿到更强证据前，不再把“搜索模态页”写成当前唯一稳定首屏终态

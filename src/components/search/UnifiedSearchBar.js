@@ -2,13 +2,12 @@
  * 统一搜索栏组件
  * 整合了HomeSearchBar、CategorySearchBar和CommunitySearchBar的功能
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Dimensions,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +15,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common/Typography';
 import MultiModalSearch from './MultiModalSearch';
 import useOrientation from '../../utils/hooks/useOrientation';
+import { getCurrentRouteName } from '../../navigation/navigationRef';
 
 /**
  * 统一搜索栏组件
@@ -42,6 +42,9 @@ const UnifiedSearchBar = ({
   const { colors } = useTheme();
   const navigation = useNavigation();
   const [showSearch, setShowSearch] = useState(false);
+  const mountAtRef = useRef(Date.now());
+  const openReasonRef = useRef('idle');
+  const debugScopeLabel = `${searchScope || 'unknown'}:${resultScreenName || 'default'}`;
 
   // 获取屏幕方向信息
   const { isLandscape } = useOrientation();
@@ -88,7 +91,18 @@ const UnifiedSearchBar = ({
 
   // 处理搜索结果
   const handleSearchResult = (results, query, options = {}) => {
+    if (__DEV__) {
+      console.log('[UnifiedSearchBar] handleSearchResult -> close modal', {
+        scope: debugScopeLabel,
+        currentRoute: getCurrentRouteName(),
+        resultsCount: Array.isArray(results) ? results.length : 0,
+        query,
+        mode: options.searchMode || 'text',
+      });
+    }
+
     setShowSearch(false);
+    openReasonRef.current = 'search-complete';
     onSearch?.(results, query, options);
 
     // 如果有结果，导航到搜索结果页面
@@ -102,6 +116,29 @@ const UnifiedSearchBar = ({
       });
     }
   };
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[UnifiedSearchBar] mounted', {
+        scope: debugScopeLabel,
+        currentRoute: getCurrentRouteName(),
+        initialQuery,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[UnifiedSearchBar] visibility changed', {
+        scope: debugScopeLabel,
+        visible: showSearch,
+        reason: openReasonRef.current,
+        currentRoute: getCurrentRouteName(),
+        elapsedMsSinceMount: Date.now() - mountAtRef.current,
+      });
+    }
+  }, [showSearch, debugScopeLabel]);
 
   return (
     <>
@@ -121,6 +158,17 @@ const UnifiedSearchBar = ({
           style,
         ]}
         onPress={() => {
+          openReasonRef.current = 'touchable-press';
+
+          if (__DEV__) {
+            console.log('[UnifiedSearchBar] open modal requested', {
+              scope: debugScopeLabel,
+              currentRoute: getCurrentRouteName(),
+              elapsedMsSinceMount: Date.now() - mountAtRef.current,
+              initialQuery,
+            });
+          }
+
           setShowSearch(true);
           onFocus?.();
         }}
@@ -151,13 +199,17 @@ const UnifiedSearchBar = ({
         visible={showSearch}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => setShowSearch(false)}
+        onRequestClose={() => {
+          openReasonRef.current = 'request-close';
+          setShowSearch(false);
+        }}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <MultiModalSearch
             navigation={navigation}
             onSearch={handleSearchResult}
             onCancel={() => {
+              openReasonRef.current = 'cancel';
               setShowSearch(false);
               onCancel?.();
             }}
