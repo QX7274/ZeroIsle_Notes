@@ -26,6 +26,7 @@ import {
 } from '../../utils/permissions';
 import { BORDER, ELEVATION, RADIUS, SIZE, SPACING } from '../../theme/tokens';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import useHideMainTabBar from '../community/useHideMainTabBar';
 
 const NotificationSettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -33,6 +34,8 @@ const NotificationSettingsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const settings = useSelector((state) => state.settings || {});
+
+  useHideMainTabBar();
 
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
