@@ -91,6 +91,9 @@ const DEV_SUPPRESSED_LOG_PREFIXES = [
   'API基础URL构建过程:',
   '后端API路径示例:',
   'API_BASE_URL:',
+  '创建通知渠道超时，但应用将继续运行',
+  '通知渠道创建超时，已创建',
+  'NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）:',
 ];
 
 const shouldSuppressDevConsoleMessage = (args = []) => {

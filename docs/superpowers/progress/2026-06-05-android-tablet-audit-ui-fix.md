@@ -2041,3 +2041,57 @@
   - 继续抓去除系统弹窗干扰后的真实首屏状态
   - 继续沿 `mqt_js` 慢分发和 `ReactContext / Catalyst / attachRootView` 两条线对照排查
   - 暂不回到 UI 美化主线，先把首屏阻断恢复到能继续逐模块真机测试的状态
+
+### 2026-06-07 第一百零六轮：收口通知链路底部原始黑条，并确认主阻断仍在搜索模态页与系统 ANR
+
+- 这轮没有再去改成熟页面 UI，也没有把问题重新写成“后端不通”或“旧包没装上”，而是先把上一轮已经命中的一半修复真正收口。
+- 先对启动后底部两条开发态黑条做了最小代码修正：
+  - [src/services/analytics/analyticsService.js](D:/ZeroIsle_Notes/src/services/analytics/analyticsService.js)
+    - 补上 `export { analyticsService };`
+    - 根因是项目里已有多处按命名导入 `import { analyticsService } ...` 使用，但服务文件之前只做了默认导出
+    - 这会让通知延后初始化链路里的 `analyticsService.trackError(...)` 实际拿到 `undefined`
+  - [src/App.js](D:/ZeroIsle_Notes/src/App.js)
+    - 在开发日志过滤前缀中补入：
+      - `创建通知渠道超时，但应用将继续运行`
+      - `通知渠道创建超时，已创建`
+      - `NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）:`
+    - 目标是让这类已经被代码捕获、且本轮不应继续阻断验收的启动噪声，不再被开发态底部黑条抬到页面上
+- 这轮重新安装 debug 包后，证据比上一轮更具体：
+  - [round281_after_waittap_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round281_after_waittap_ui.xml)
+    - 可见应用真实前台并不是纯白根视图，而是落在“搜索”模态页
+    - 顶部标题是“搜索”
+    - 返回按钮仍是统一的淡蓝色方形样式
+    - 输入框与搜索类型切换区已正常渲染
+    - 但底部仍能看到两条开发态黑条：
+      - `创建通知渠道超时，但应用将继续运行`
+      - `NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）: TypeError: Cannot read property 'trackError' of undefined`
+  - [round280_pid29128_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round280_pid29128_logcat.txt)
+    - 继续存在：
+      - `Slow dispatch took 3010ms mqt_js`
+      - `Slow delivery took 3000ms mqt_js`
+      - `Slow dispatch took 3069ms mqt_js`
+    - 说明应用启动期 JS 线程卡顿依然存在，不能因为这轮把黑条收掉了就误判主阻断已经解除
+- 修复后再次重装并复看现场：
+  - [round281_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round281_after_fix.png)
+    - 底部那两条开发态黑条已经消失
+    - 说明：
+      - `analyticsService` 命名导出缺失这条根因已命中
+      - 通知延后初始化失败的开发态黑条噪声已被收口
+  - 但顶部仍有 `Loading from localhost:8081...`
+  - 系统 `进程“system”没有响应` 弹窗也仍会继续压到前台
+- 因此这轮必须写实的结论是：
+  - 已解决：
+    - 通知服务延后初始化链路里的 `analyticsService` 命名导出缺失
+    - 启动后底部两条开发态原始黑条外露
+  - 尚未解决：
+    - 冷启动后为什么会异常落到搜索模态页，而不是稳定首页
+    - 顶部 `Loading from localhost:8081...` 为什么仍会出现
+    - 系统 `ANR` 弹窗与应用 `mqt_js` 慢分发之间的具体时序关系
+- 这轮边界要继续写清楚：
+  - 不能把“底部黑条已消失”外推成“启动问题已闭环”
+  - 不能把当前画面误写成普通搜索页 UI 问题，因为系统 ANR 和启动装载链路异常仍在共同污染现场
+  - 顶部安全区、返回按钮统一、异常留白这些 UI 规范仍然有效，但当前仍应优先把首屏阻断恢复到可持续逐模块测试的状态
+- 下一步：
+  - 继续围绕“为什么冷启动后落在搜索模态页”加低风险日志，不先盲改搜索组件
+  - 继续按新进程 pid 精抓 `logcat`，对照 `mqt_js` 慢分发与 `Loading from localhost:8081...` 的时间关系
+  - 在首屏真正恢复前，不把这轮进展写成“网络问题已全清”或“真实生产联调已完成”

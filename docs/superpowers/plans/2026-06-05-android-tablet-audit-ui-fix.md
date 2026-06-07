@@ -1611,3 +1611,24 @@ Expected: 新增或修改的回归用例通过。
     - 系统 ANR 弹窗是否仍在遮挡前台
     - JS 线程是否继续出现 `mqt_js` 慢分发
 ```
+
+- [x] **Step 12: 收口通知链路底部原始黑条，并把“黑条已消失”与“首屏已恢复”明确拆开**
+
+```md
+- 代码收口：
+  - `src/services/analytics/analyticsService.js` 补 `export { analyticsService };`
+  - `src/App.js` 的开发日志过滤前缀补入通知渠道超时与 `NotificationProvider` 延后初始化失败文案
+- 已确认命中的现象：
+  - 启动后底部两条开发态黑条已经消失
+  - 其中一条根因就是 `analyticsService` 命名导出缺失，导致 `trackError` 调用链拿到 `undefined`
+- 但边界必须写清楚：
+  - 顶部 `Loading from localhost:8081...` 仍在
+  - 系统 `ANR` 弹窗仍在
+  - 应用真实前台会落在“搜索”模态页，而不是稳定首页
+- 因此后续仍要继续沿：
+  - 搜索模态页默认落地根因
+  - `mqt_js` 慢分发
+  - `Loading from localhost:8081...`
+  - 系统 `ANR`
+  四条证据并行推进
+```

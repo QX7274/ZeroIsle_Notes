@@ -221,4 +221,5 @@ if (global) {
   global.analyticsService = analyticsService;
 }
 
+export { analyticsService };
 export default analyticsService;
