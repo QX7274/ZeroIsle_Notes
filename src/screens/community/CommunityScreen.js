@@ -583,7 +583,7 @@ const CommunityScreen = ({ navigation }) => {
             data={posts}
             renderItem={renderPostItem}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={posts.length > 0 ? styles.listContainer : styles.emptyListContainer}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[palette.primary]} tintColor={palette.primary} />}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
@@ -715,6 +715,13 @@ const styles = StyleSheet.create({
   },
   activeHintText: { marginLeft: 6, fontSize: 12, fontWeight: '600' },
   listContainer: { padding: SPACING.MEDIUM, paddingBottom: SPACING.XLARGE + 24 },
+  emptyListContainer: {
+    flexGrow: 1,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingTop: SPACING.MEDIUM,
+    paddingBottom: SPACING.XLARGE + 24,
+    justifyContent: 'center',
+  },
   postCard: {
     marginBottom: SPACING.MEDIUM,
     padding: SPACING.MEDIUM,
@@ -770,8 +777,9 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: SPACING.MEDIUM,
-    marginTop: SPACING.XLARGE,
+    marginHorizontal: 0,
+    marginTop: 0,
+    minHeight: 420,
     padding: SPACING.LARGE,
     borderRadius: 22,
     borderWidth: 1,
