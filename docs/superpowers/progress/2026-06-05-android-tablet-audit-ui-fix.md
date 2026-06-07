@@ -3089,3 +3089,43 @@
   - 附件入口正常拉起系统文件选择器，选择超过 10MB 文件后会回到应用内统一提示 `部分文件未添加 / 超过 10MB 的文件已被自动过滤`
   - 该提示不是原生安卓 `AlertDialog`，关闭后也能稳定回到发帖页
   - 后续仍需继续补小文件成功添加链路，以及封面真实选择后的承接态证据
+
+### 2026-06-07 第一百二十七轮：round307 创建帖子附件成功态与封面真实选择承接态真机回归
+
+- 这轮继续沿 `创建帖子` 页做真实成功链路补证，不把“入口能打开”“失败提示正常”误记成上传交互已经完全闭环。重点是把“小文件成功添加附件”和“选择封面后回页承接态”两条证据补完整。
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先以 [round307_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_current.xml) 与 [round307_current.png](D:/ZeroIsle_Notes/.codex-tmp/round307_current.png) 确认当前起点仍是 `创建帖子`
+    - 页面内继续可见 `action.community.selectCoverImage`
+    - 页面内继续可见 `action.community.selectAttachments`
+    - 说明本轮是沿上一轮发帖现场继续验收，不是重新猜测页面状态
+  - 重新打开附件系统文件选择器后，抓取 [round307_picker_live.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_picker_live.xml) 与 [round307_picker_live.png](D:/ZeroIsle_Notes/.codex-tmp/round307_picker_live.png)
+    - 前台包名为 `com.android.documentsui`
+    - 页面标题为 `下载`
+    - 本轮现场可见多个小于 10MB 的可用文件，其中 `高质量C++编程指南.pdf` 大小为 `334 kB`
+    - 该文件卡片 bounds 为 `[891,1254][1164,1598]`
+    - 说明这次可以直接使用稳定的小文件样本补“成功添加附件”证据，不必继续停留在超限失败链路
+  - 选中 `高质量C++编程指南.pdf` 后，抓取 [round307_attachment_small_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_attachment_small_selected.xml) 与 [round307_attachment_small_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round307_attachment_small_selected.png)
+    - 前台已回到应用包 `com.zeroisle_notes`
+    - 页面继续是 `创建帖子`
+    - 附件区域出现 `附件（1）`
+    - 列表项显示 `高质量C++编程指南.pdf`
+    - 文件大小显示为 `326.1 KB`
+    - 同时存在删除入口 `action.community.removeAttachment.0`
+    - 说明小文件附件当前能够真实成功回页，不是只弹提示或静默失败
+  - 再打开封面系统照片选择器后，抓取 [round307_cover_picker_open.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_picker_open.xml) 与 [round307_cover_picker_open.png](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_picker_open.png)
+    - 前台包名为 `com.android.providers.media.module`
+    - 顶部继续存在 `取消`
+    - 面板中可见 `照片 / 影集 / 最近`
+    - 说明封面入口这轮继续稳定拉起系统照片选择器，没有出现新的权限弹窗、异常弹层或返回失败
+  - 选中第一张最近照片并回页后，抓取 [round307_cover_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_selected.xml) 与 [round307_cover_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_selected.png)
+    - 前台已回到应用包 `com.zeroisle_notes`
+    - 页面继续是 `创建帖子`
+    - `action.community.selectCoverImage` 仍可点击
+    - 原本的占位文案 `点击添加封面图片` 已消失
+    - 封面区域内部变成图片节点承载，不再是原先的图标+文案占位态
+    - 结合回页截图可判断：封面真实选择后的承接态当前已经生效
+- 本轮结论：
+  - 本轮没有发现必须继续改代码的新真实缺陷
+  - 小文件附件成功链路当前已补齐真实证据，回页后能看到附件计数、文件名、大小和删除入口
+  - 封面真实选择后的回页承接态当前也已补齐真实证据，占位文案消失并切换为图片承载区域
+  - 这轮仍不能外推成“创建帖子全链路已经完成”，后续还要继续补分类/标签非空选择态、真实发帖提交、帖子详情内容态与更多网络场景

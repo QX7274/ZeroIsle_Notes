@@ -2253,3 +2253,44 @@ Expected: 新增或修改的回归用例通过。
   - 应用内失败提示继续统一走项目内自绘样式，不回退到默认安卓弹窗
   - 系统照片/文件选择器属于平台组件，本轮只能如实记录其拉起与取消/返回链路正常，后续仍需继续补小文件成功添加与封面真实选择态
 ```
+
+- [ ] **Step 31: 继续补齐创建帖子小文件附件成功态与封面真实选择承接态真机回归，确认回页预览与附件列表稳定**
+
+```md
+- round307 新确认的问题边界：
+  - `round306` 已确认封面/附件入口与超限失败提示都正常，但还缺“成功态”证据，不能只凭入口可达和失败提示就外推成上传交互已完整闭环
+  - 这轮重点不是继续改 UI，而是补齐“小文件成功添加附件”与“真实选择封面后回页承接态”两条真机证据
+  - 如果附件成功回页后能出现附件计数、文件名、大小和删除入口，而封面回页后占位文案消失并变为图片承载态，本轮就只记录真实链路，不强行动成熟布局
+- round307 真机验收必须写实记录：
+  - [round307_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_current.xml) 与 [round307_current.png](D:/ZeroIsle_Notes/.codex-tmp/round307_current.png) 先确认：
+    - 前台仍是 `创建帖子`
+    - 存在 `action.community.selectCoverImage`
+    - 存在 `action.community.selectAttachments`
+  - 重新打开附件系统文件选择器后，[round307_picker_live.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_picker_live.xml) 与 [round307_picker_live.png](D:/ZeroIsle_Notes/.codex-tmp/round307_picker_live.png) 必须体现：
+    - 前台包名为 `com.android.documentsui`
+    - 页面标题为 `下载`
+    - 本轮现场可用小文件至少包含 `高质量C++编程指南.pdf 334 kB`
+    - 该文件卡片 bounds 为 `[891,1254][1164,1598]`，可作为稳定的小文件成功态样本
+  - 选中该小文件后，[round307_attachment_small_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_attachment_small_selected.xml) 与 [round307_attachment_small_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round307_attachment_small_selected.png) 必须体现：
+    - 已回到应用包 `com.zeroisle_notes`
+    - 页面继续是 `创建帖子`
+    - 出现 `附件（1）`
+    - 列表项显示 `高质量C++编程指南.pdf`
+    - 同时显示大小 `326.1 KB`
+    - 存在删除入口 `action.community.removeAttachment.0`
+  - 再打开封面系统照片选择器后，[round307_cover_picker_open.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_picker_open.xml) 与 [round307_cover_picker_open.png](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_picker_open.png) 必须体现：
+    - 前台包名为 `com.android.providers.media.module`
+    - 可见 `取消 / 照片 / 影集 / 最近`
+    - 说明封面入口继续稳定走系统照片选择器
+  - 选中第一张最近照片并回页后，[round307_cover_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_selected.xml) 与 [round307_cover_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round307_cover_selected.png) 必须体现：
+    - 已回到应用包 `com.zeroisle_notes`
+    - 页面继续是 `创建帖子`
+    - `action.community.selectCoverImage` 仍可点击
+    - 原占位文案 `点击添加封面图片` 已消失
+    - 封面区域内部不再是图标+文案占位，而是纯图片承载节点，说明封面已进入真实预览承接态
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，创建帖子页头、成功回页后的附件区域和封面区域都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 应用内失败提示继续统一走项目内自绘样式，不回退到默认安卓弹窗
+  - 系统照片/文件选择器仍属于平台组件，本轮只能如实确认成功选择后的回页承接态，后续仍需继续补真实发帖提交、分类标签非空选择态等更深链路
+```
