@@ -1724,3 +1724,20 @@ Expected: 新增或修改的回归用例通过。
   - 再次真机冷启动并抓 `DebugLogModule: log invoked`、`js-bridge-detected`、`UnifiedSearchBar`
   - 在拿到 `log invoked` 之前，不把搜索模态时序问题写成业务层已定位完成
 ```
+
+- [ ] **Step 18: 若搜索页已挂载且直连 `NativeModules.DebugLogModule.log(...)` 仍无日志，则把主线转向 RN -> Native 调用链本身**
+
+```md
+- 已确认的新边界：
+  - `MultiModalSearch` 页面已真实挂载并显示在真机前台
+  - 搜索页顶部、输入框、说明卡与统一提示条都能稳定抓到 UI 树
+  - 即使在 `MultiModalSearch` 挂载点直接调用 `NativeModules.DebugLogModule.log(...)`，仍没有出现 `DebugLogModule: log invoked`
+- 因而当前更准确的技术判断应为：
+  - 问题已经不再是“搜索页有没有挂载”
+  - 也不再是“`debugLog.js` 封装有没有走到”
+  - 而是 React Native JS 到该原生模块方法调用这一层本身还没有被证明打通
+- 下一步动作：
+  - 优先检查当前 RN 版本下该原生模块导出方式是否存在兼容性问题
+  - 继续增加更底层、可直接比对的模块可用性探针
+  - 在确认 `DebugLogModule.log(...)` 真的可从 JS 命中前，不再继续猜搜索模态业务根因
+```

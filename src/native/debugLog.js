@@ -15,27 +15,33 @@ const safeSerialize = payload => {
   }
 };
 
+export const reportDebugLogBridgeState = () => {
+  if (!__DEV__ || hasReportedBridgeState) {
+    return;
+  }
+
+  hasReportedBridgeState = true;
+
+  if (DebugLogModule?.log) {
+    DebugLogModule.log('info', 'DebugLogModule', safeSerialize({
+      event: 'js-bridge-detected',
+      nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
+        name.toLowerCase().includes('debug')),
+    }));
+  } else {
+    console.warn('[debugLog] DebugLogModule unavailable', {
+      nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
+        name.toLowerCase().includes('debug')),
+    });
+  }
+};
+
 export const debugLog = (level = 'info', tag = 'ZeroIsleDebug', payload = '') => {
   if (!__DEV__) {
     return;
   }
 
-  if (!hasReportedBridgeState) {
-    hasReportedBridgeState = true;
-
-    if (DebugLogModule?.log) {
-      DebugLogModule.log('info', 'DebugLogModule', safeSerialize({
-        event: 'js-bridge-detected',
-        nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
-          name.toLowerCase().includes('debug')),
-      }));
-    } else {
-      console.warn('[debugLog] DebugLogModule unavailable', {
-        nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
-          name.toLowerCase().includes('debug')),
-      });
-    }
-  }
+  reportDebugLogBridgeState();
 
   if (DebugLogModule?.log) {
     DebugLogModule.log(level, tag, safeSerialize(payload));

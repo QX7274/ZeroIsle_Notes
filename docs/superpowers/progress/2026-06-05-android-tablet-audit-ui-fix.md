@@ -2381,3 +2381,68 @@
   - 继续给 `debugLog.js` 或搜索页显式交互点补更贴近调用入口的低风险探针
   - 下一轮优先抓 `DebugLogModule: log invoked`
   - 在拿到 `log invoked` 之前，不把这条问题写成“搜索模态业务根因已锁定”
+
+### 2026-06-07 第一百一十二轮：确认搜索页已挂载，但连直连 `NativeModules.DebugLogModule.log(...)` 也未命中原生方法
+
+- 这轮继续沿“先证实调用链，再谈业务根因”推进，没有去改成熟 UI，也没有先去碰搜索业务状态机。
+- 本轮先把探针再前移一层：
+  - [src/native/debugLog.js](D:/ZeroIsle_Notes/src/native/debugLog.js)
+    - 把一次性桥接探针拆成 `reportDebugLogBridgeState()`
+    - 让它可以被别的组件在更早时机显式调用
+  - [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js)
+    - 挂载时先显式调用 `reportDebugLogBridgeState()`
+    - 再补一条更硬的切割探针：
+      - 直接绕过 `debugLog.js`
+      - 在 `useEffect` 里调用 `NativeModules.DebugLogModule.log(...)`
+    - 同时保留原本的 `debugLog('info', 'MultiModalSearch', ...)`
+- 这样做的目的很明确：
+  - 如果之后出现 `DebugLogModule: log invoked`
+    - 说明问题只在 `debugLog.js` 封装层
+  - 如果连直连 `NativeModules.DebugLogModule.log(...)` 都没有任何日志
+    - 说明问题已经前移到 RN JS -> Native Module 方法调用本身
+- 真机重装与冷启动结果：
+  - 两次 `android\\gradlew.bat :app:installDebug --console=plain` 都成功安装到 `HGR3Y9MA`
+  - 关键证据：
+    - [round289_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round289_launch_logcat.txt)
+    - [round289_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round289_launch_ui.xml)
+    - [round290_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round290_launch_logcat.txt)
+    - [round290_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round290_launch_ui.xml)
+    - [round290_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round290_launch.png)
+- 本轮必须拆开的关键事实：
+  - 第一，搜索页挂载是确定事实，不再是假设：
+    - `round289_launch_ui.xml` 与 `round290_launch_ui.xml` 都稳定抓到：
+      - `action.search.modal.back`
+      - `搜索`
+      - `搜索笔记、标签、内容...`
+      - `从这里开始搜索`
+    - 这说明 `MultiModalSearch` 页面本身已经真实挂载并展示在真机前台
+  - 第二，`ReactNativeJS` 日志链路继续正常可见：
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - 后续初始化日志持续打印
+  - 第三，原生模块实例化仍然正常：
+    - `DebugLogModule: constructor: initialized, hasActiveCatalystInstance=false`
+    - `DebugLogModule: getName -> DebugLogModule`
+  - 第四，也是这轮最关键的新结论：
+    - 无论是通过 `debugLog.js` 封装触发
+    - 还是在 `MultiModalSearch` 挂载点直接调用 `NativeModules.DebugLogModule.log(...)`
+    - 当前都没有抓到：
+      - `DebugLogModule: log invoked`
+      - `js-bridge-detected`
+      - `direct-native-log-from-multimodalsearch`
+      - `MultiModalSearch`
+- 因而这轮结论必须进一步收紧为：
+  - 已确认：
+    - 搜索页已经真实挂载，不是“页面没出来”
+    - `debugLog.js` 不是唯一嫌疑层，因为直连 `NativeModules.DebugLogModule.log(...)` 也没有命中原生日志
+    - 当前更像是 RN JS -> Native Module 方法调用本身没有真正打通
+  - 尚未确认：
+    - 是 RN 0.75 当前桥接方式、模块导出方式、Turbo/旧桥兼容性，还是别的模块注册细节导致方法调用无效
+    - 搜索模态为何在冷启动后前置显示，这条业务问题仍不适合在本轮继续猜
+- 同时保留一个并行现场事实：
+  - [round290_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round290_launch.png)
+    - 仍能看到统一提示条 `通知权限请求超时(5000ms)`
+    - 说明通知权限链路噪声仍在持续污染启动现场，但这不是本轮日志桥主问题的替代解释
+- 下一步：
+  - 主线转向“为什么 JS 无法真正调用到 `DebugLogModule.log(...)`”
+  - 优先检查 RN 0.75 下该原生模块的导出与调用兼容性
+  - 在没拿到 `log invoked` 之前，不再把搜索模态时序写成业务层已定位

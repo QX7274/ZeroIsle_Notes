@@ -15,6 +15,7 @@ import {
   ScrollView,
   PermissionsAndroid,
   Animated,
+  NativeModules,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,6 +37,7 @@ import RNFS from 'react-native-fs';
 import SearchSuggestions from './SearchSuggestions';
 import SearchHistory from './SearchHistory';
 import ScreenHeaderBackButton from '../common/ScreenHeaderBackButton';
+import debugLog, { reportDebugLogBridgeState } from '../../native/debugLog';
 
 /**
  * 多模态搜索组件
@@ -118,6 +120,38 @@ const MultiModalSearch = ({
       setTimeout(() => searchInputRef.current?.focus(), 100);
     }
   }, [reduxSearchMode]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    reportDebugLogBridgeState();
+
+    const nativeDebugModule = NativeModules?.DebugLogModule;
+
+    if (nativeDebugModule?.log) {
+      nativeDebugModule.log('info', 'DebugLogModule', JSON.stringify({
+        event: 'direct-native-log-from-multimodalsearch',
+        searchScope,
+        initialQuery,
+        searchMode: reduxSearchMode,
+      }));
+    } else {
+      console.warn('[MultiModalSearch] DebugLogModule missing at mount', {
+        nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
+          name.toLowerCase().includes('debug')),
+      });
+    }
+
+    debugLog('info', 'MultiModalSearch', {
+      event: 'mounted',
+      searchScope,
+      initialQuery,
+      searchMode: reduxSearchMode,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 初始化语音识别服务
   useEffect(() => {
