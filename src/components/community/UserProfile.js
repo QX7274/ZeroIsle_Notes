@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -25,6 +26,8 @@ const UserProfile = ({
 }) => {
   const { theme } = useTheme();
   const { colors } = theme;
+  const { width } = useWindowDimensions();
+  const isTabletLayout = width >= 900;
 
   const {
     id,
@@ -42,6 +45,7 @@ const UserProfile = ({
 
   const userId = String(id || 'unknown');
   const displayName = username || '匿名用户';
+  const hasRecentPosts = Array.isArray(recent_posts) && recent_posts.length > 0;
 
   const formatDate = (dateString) => {
     if (!dateString) {
@@ -76,15 +80,27 @@ const UserProfile = ({
   };
 
   const renderRecentPosts = () => {
-    if (!Array.isArray(recent_posts) || recent_posts.length === 0) {
+    if (!hasRecentPosts) {
       return (
-        <View style={[styles.sectionCard, { borderColor: `${colors.primary || '#2196F3'}16` }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            styles.emptyRecentSectionCard,
+            isTabletLayout ? styles.emptyRecentSectionCardTablet : null,
+            { borderColor: `${colors.primary || '#2196F3'}16` },
+          ]}
+        >
           <Text variant="heading" level="h6" style={[styles.sectionTitle, { color: colors.text }]}>
             最近发布
           </Text>
-          <Text variant="body" size="medium" style={[styles.emptySectionText, { color: colors.textSecondary }]}>
-            当前还没有可展示的最近发布内容。
-          </Text>
+          <View style={styles.emptyRecentBody}>
+            <View style={[styles.emptyRecentIconShell, { backgroundColor: `${colors.primary || '#2196F3'}10`, borderColor: `${colors.primary || '#2196F3'}18` }]}>
+              <Icon name="article" size={20} color={colors.primary || '#2196F3'} />
+            </View>
+            <Text variant="body" size="medium" style={[styles.emptySectionText, styles.emptyRecentText, { color: colors.textSecondary }]}>
+              当前还没有可展示的最近发布内容。
+            </Text>
+          </View>
         </View>
       );
     }
@@ -128,7 +144,7 @@ const UserProfile = ({
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background || '#F2F7FB' }]}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[styles.contentContainer, !hasRecentPosts && isTabletLayout ? styles.contentContainerTabletEmpty : null]}
       testID={`state.community.userProfile.state.${userId}`}
     >
       <View testID={`state.community.userProfile.isCurrentUser.${isCurrentUser ? 'on' : 'off'}`} />
@@ -260,6 +276,9 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 14,
     paddingBottom: 24,
+  },
+  contentContainerTabletEmpty: {
+    paddingBottom: 36,
   },
   heroCard: {
     marginTop: 2,
@@ -414,6 +433,30 @@ const styles = StyleSheet.create({
   },
   emptySectionText: {
     lineHeight: 21,
+  },
+  emptyRecentSectionCard: {
+    justifyContent: 'flex-start',
+  },
+  emptyRecentSectionCardTablet: {
+    minHeight: 280,
+  },
+  emptyRecentBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  emptyRecentIconShell: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyRecentText: {
+    textAlign: 'center',
   },
   postItem: {
     padding: 12,
