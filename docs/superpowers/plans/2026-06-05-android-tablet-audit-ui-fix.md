@@ -1702,3 +1702,25 @@ Expected: 新增或修改的回归用例通过。
   - 若原生日志桥仍没有打出 `UnifiedSearchBar`，就继续验证“搜索模态页上的显式交互”能否触发桥接
   - 在桥接链路被证明有效前，不再把“没搜到搜索日志”写成搜索模态已排除
 ```
+
+- [ ] **Step 17: 先证实原生日志桥已初始化，再区分“搜索页链路存在”与“桥接调用未落地”**
+
+```md
+- 已确认的新边界：
+  - `ZeroIsleNotesPackage.createNativeModules` 已在真机启动日志中打印
+  - `DebugLogModule` 构造函数与 `getName()` 已在真机启动日志中打印
+  - `ReactNativeJS` 在本轮冷启动日志里重新恢复可见，说明不能再继续沿用“JS 日志链路整体不可信”的旧结论
+  - 冷启动约 14 秒后前台显示的“搜索”页，已可通过文案与组件检索确认属于 `UnifiedSearchBar -> MultiModalSearch` 这一条链路，而不是另一个独立搜索页面
+- 但当前仍未确认：
+  - `DebugLogModule.log(...)` 是否真的被 JS 调用
+  - `src/native/debugLog.js` 里的一次性 `js-bridge-detected` 探针是否曾实际触发
+  - `UnifiedSearchBar.emitDebugLog(...)` 在当前搜索页现场里是否真的被命中
+- 本轮验证口径：
+  - 先把“原生模块注册成功 / 实例已创建”与“桥接调用已真正执行”分开记录
+  - 不再因为搜索页真实出现，就直接推导“搜索模态自动打开根因已确认”
+  - 也不再因为 `DebugLogModule` 构造日志已出现，就直接推导“JS 到原生日志桥调用链已经完全打通”
+- 下一步动作：
+  - 继续给 `debugLog.js` 或搜索页显式交互点补更靠近调用入口的低风险探针
+  - 再次真机冷启动并抓 `DebugLogModule: log invoked`、`js-bridge-detected`、`UnifiedSearchBar`
+  - 在拿到 `log invoked` 之前，不把搜索模态时序问题写成业务层已定位完成
+```

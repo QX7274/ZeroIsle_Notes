@@ -1,5 +1,7 @@
 package com.zeroisle_notes;
 
+import android.util.Log;
+
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -19,6 +21,8 @@ import java.util.List;
  * 用于注册所有原生模块和视图管理器
  */
 public class ZeroIsleNotesPackage implements ReactPackage {
+    private static final String TAG = "ZeroIsleNotesPackage";
+
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
         List<ViewManager> viewManagers = new ArrayList<>();
@@ -34,6 +38,7 @@ public class ZeroIsleNotesPackage implements ReactPackage {
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
         try {
+            Log.i(TAG, "createNativeModules: start");
             // 添加原生模块
             modules.add(new ZeroIsleUtilsModule(reactContext));
             modules.add(new FileSystemModule(reactContext));
@@ -54,8 +59,9 @@ public class ZeroIsleNotesPackage implements ReactPackage {
             modules.add(new NativePDFModule(reactContext));
             modules.add(new NativePagedNoteModule(reactContext));
             modules.add(new NativeInfiniteCanvasModule(reactContext));
+            Log.i(TAG, "createNativeModules: success, total=" + modules.size());
         } catch (Exception e) {
-            android.util.Log.e("ZeroIsleNotesPackage", "Error creating native modules", e);
+            Log.e(TAG, "Error creating native modules", e);
         }
         return modules;
     }

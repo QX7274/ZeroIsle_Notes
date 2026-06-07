@@ -15,14 +15,21 @@ import com.facebook.react.bridge.ReactMethod;
 public class DebugLogModule extends ReactContextBaseJavaModule {
     private static final String MODULE_NAME = "DebugLogModule";
     private static final String DEFAULT_TAG = "ZeroIsleDebug";
+    private static final String BRIDGE_TAG = "DebugLogModule";
 
     public DebugLogModule(ReactApplicationContext reactContext) {
         super(reactContext);
+        Log.i(
+            BRIDGE_TAG,
+            "constructor: initialized, hasActiveCatalystInstance=" +
+                reactContext.hasActiveCatalystInstance()
+        );
     }
 
     @NonNull
     @Override
     public String getName() {
+        Log.i(BRIDGE_TAG, "getName -> " + MODULE_NAME);
         return MODULE_NAME;
     }
 
@@ -31,6 +38,13 @@ public class DebugLogModule extends ReactContextBaseJavaModule {
         final String safeLevel = level == null ? "info" : level.trim().toLowerCase();
         final String safeTag = sanitizeTag(tag);
         final String safeMessage = message == null ? "" : message;
+
+        Log.i(
+            BRIDGE_TAG,
+            "log invoked: level=" + safeLevel +
+                ", targetTag=" + safeTag +
+                ", messageLength=" + safeMessage.length()
+        );
 
         switch (safeLevel) {
             case "error":

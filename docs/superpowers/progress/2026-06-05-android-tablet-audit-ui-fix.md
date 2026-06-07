@@ -2315,3 +2315,69 @@
 - 下一步：
   - 继续验证“搜索模态页上的显式交互”能否触发新的原生日志桥
   - 如果显式交互也打不出桥接日志，就继续把排查重心转到模块注册、桥接调用链或当前包是否仍存在旧现场混入
+
+### 2026-06-07 第一百一十一轮：确认原生日志桥已初始化，并收紧为“桥接调用未落地”而非“搜索页链路不存在”
+
+- 这轮没有先去盲改搜索业务逻辑，而是先把原生日志桥本身的可观测性补到足够明确，避免继续沿“桥没注册上”这条假设浪费轮次。
+- 本轮代码只做了最小诊断收口：
+  - [android/app/src/main/java/com/zeroisle_notes/DebugLogModule.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/DebugLogModule.java)
+    - 增加构造函数初始化日志
+    - 增加 `getName()` 日志
+    - 增加 `log(...)` 入口日志 `log invoked`
+  - [android/app/src/main/java/com/zeroisle_notes/ZeroIsleNotesPackage.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/ZeroIsleNotesPackage.java)
+    - 增加 `createNativeModules: start/success` 日志
+  - [src/native/debugLog.js](D:/ZeroIsle_Notes/src/native/debugLog.js)
+    - 增加一次性 `js-bridge-detected` 探针
+    - 若模块缺失则仅走开发态 `console.warn`，不污染用户可见 UI
+- 真机安装结果：
+  - `android\\gradlew.bat :app:installDebug --console=plain`
+  - 本轮再次成功安装到真机 `HGR3Y9MA`
+  - 构建最终为 `BUILD SUCCESSFUL`
+- 冷启动采证结果：
+  - [round288_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round288_launch_logcat.txt)
+  - [round288_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round288_launch_ui.xml)
+  - [round288_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round288_launch.png)
+  - [round288_dumpsys_windows.txt](D:/ZeroIsle_Notes/.codex-tmp/round288_dumpsys_windows.txt)
+- 这轮拿到的四条关键事实必须拆开写：
+  - 第一，原生日志桥已经真实进入当前安装包，并且原生侧成功初始化：
+    - `ZeroIsleNotesPackage: createNativeModules: start`
+    - `DebugLogModule: constructor: initialized, hasActiveCatalystInstance=false`
+    - `ZeroIsleNotesPackage: createNativeModules: success, total=17`
+    - `DebugLogModule: getName -> DebugLogModule`
+  - 第二，`ReactNativeJS` 在本轮冷启动日志里重新恢复可见：
+    - `ZeroIsle_Notes 应用已成功注册`
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - 以及后续多条初始化日志
+    - 这说明不能再继续沿用“JS 日志链路整体不可信”的旧结论
+  - 第三，当前前台显示出来的“搜索”页，不是另一个独立搜索页面，而是现有搜索组件链路本身：
+    - 代码检索确认页面文案“从这里开始搜索”、返回按钮 `action.search.modal.back` 都来自 [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js)
+    - 因而真机 [round288_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round288_launch.png) 里的页面，确实属于 `UnifiedSearchBar -> MultiModalSearch` 这一条链路
+  - 第四，尽管原生桥已初始化、搜索页链路也已确认，但本轮仍没有抓到真正证明“JS 调到了原生桥”的日志：
+    - 当前只命中了 `DebugLogModule` 构造和 `getName()`
+    - 还没有命中：
+      - `DebugLogModule: log invoked`
+      - `js-bridge-detected`
+      - `UnifiedSearchBar`
+- 同时这轮还得到两个会影响后续判断的新现场事实：
+  - [round288_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round288_launch.png)
+    - 冷启动后前台稳定显示搜索页
+    - 页面底部出现项目内统一风格提示：`通知权限请求超时(5000ms)`
+    - 说明当前“网络不通”不是前台主异常，通知权限链路噪声仍在启动期参与现场污染
+  - [round288_dumpsys_windows.txt](D:/ZeroIsle_Notes/.codex-tmp/round288_dumpsys_windows.txt)
+    - 当前应用窗口存在
+    - 但 `topApp` 仍显示为联想浏览器任务快照
+    - 说明设备窗口态还有外部任务残留，不适合把单次窗口栈直接等同于纯净业务终态
+- 这轮必须写实的结论是：
+  - 已确认：
+    - 原生日志桥不是“没注册成功”或“没进安装包”
+    - `DebugLogModule` 已被原生包创建
+    - 当前搜索页确实属于 `UnifiedSearchBar/MultiModalSearch` 链路
+    - `ReactNativeJS` 当前又能重新打印到 `logcat`
+  - 尚未确认：
+    - `debugLog.js` 的 `DebugLogModule.log(...)` 是否真实被 JS 命中
+    - 搜索页是冷启动自动打开，还是由恢复态/焦点态驱动打开
+    - 启动期“通知权限请求超时(5000ms)”与搜索页前置显示之间是否存在直接因果关系
+- 下一步：
+  - 继续给 `debugLog.js` 或搜索页显式交互点补更贴近调用入口的低风险探针
+  - 下一轮优先抓 `DebugLogModule: log invoked`
+  - 在拿到 `log invoked` 之前，不把这条问题写成“搜索模态业务根因已锁定”
