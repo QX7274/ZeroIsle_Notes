@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import {
@@ -34,6 +35,7 @@ const NotificationsScreen = () => {
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectError);
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -158,7 +160,16 @@ const NotificationsScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors?.background || '#F2F7FB' }]} testID="screen.community.notifications">
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors?.background || '#F2F7FB',
+          paddingTop: Math.max(insets.top, 12),
+        },
+      ]}
+      testID="screen.community.notifications"
+    >
       <View testID={`state.community.notifications.state.${pageState}`} />
       <View testID={`state.community.notifications.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.notifications.refreshing.visibility.${refreshing ? 'visible' : 'hidden'}`} />
@@ -227,7 +238,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerCard: {
     marginHorizontal: 14,
-    marginTop: 12,
+    marginTop: 0,
     marginBottom: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -281,8 +292,9 @@ const styles = StyleSheet.create({
   emptyListContent: {
     flexGrow: 1,
     paddingHorizontal: 14,
-    paddingTop: 72,
+    paddingTop: 24,
     paddingBottom: 24,
+    justifyContent: 'center',
   },
   itemCard: {
     marginBottom: 10,
