@@ -169,6 +169,7 @@ const UserProfileScreen = ({ navigation, route }) => {
     if (refreshing) {
       return;
     }
+    setStatusCard(null);
     setRefreshing(true);
     loadProfile(true);
   }, [loadProfile, refreshing]);
