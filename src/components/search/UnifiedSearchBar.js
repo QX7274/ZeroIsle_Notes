@@ -16,6 +16,7 @@ import { Text } from '../common/Typography';
 import MultiModalSearch from './MultiModalSearch';
 import useOrientation from '../../utils/hooks/useOrientation';
 import { getCurrentRouteName } from '../../navigation/navigationRef';
+import debugLog from '../../native/debugLog';
 
 /**
  * 统一搜索栏组件
@@ -48,6 +49,21 @@ const UnifiedSearchBar = ({
 
   // 获取屏幕方向信息
   const { isLandscape } = useOrientation();
+
+  const emitDebugLog = (event, payload = {}, level = 'info') => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const message = {
+      event,
+      scope: debugScopeLabel,
+      ...payload,
+    };
+
+    console.log(`[UnifiedSearchBar] ${event}`, message);
+    debugLog(level, 'UnifiedSearchBar', message);
+  };
 
   // 根据搜索范围获取占位文本
   const getPlaceholder = () => {
@@ -92,8 +108,7 @@ const UnifiedSearchBar = ({
   // 处理搜索结果
   const handleSearchResult = (results, query, options = {}) => {
     if (__DEV__) {
-      console.log('[UnifiedSearchBar] handleSearchResult -> close modal', {
-        scope: debugScopeLabel,
+      emitDebugLog('handleSearchResult -> close modal', {
         currentRoute: getCurrentRouteName(),
         resultsCount: Array.isArray(results) ? results.length : 0,
         query,
@@ -119,8 +134,7 @@ const UnifiedSearchBar = ({
 
   useEffect(() => {
     if (__DEV__) {
-      console.log('[UnifiedSearchBar] mounted', {
-        scope: debugScopeLabel,
+      emitDebugLog('mounted', {
         currentRoute: getCurrentRouteName(),
         initialQuery,
       });
@@ -130,8 +144,7 @@ const UnifiedSearchBar = ({
 
   useEffect(() => {
     if (__DEV__) {
-      console.log('[UnifiedSearchBar] visibility changed', {
-        scope: debugScopeLabel,
+      emitDebugLog('visibility changed', {
         visible: showSearch,
         reason: openReasonRef.current,
         currentRoute: getCurrentRouteName(),
@@ -161,8 +174,7 @@ const UnifiedSearchBar = ({
           openReasonRef.current = 'touchable-press';
 
           if (__DEV__) {
-            console.log('[UnifiedSearchBar] open modal requested', {
-              scope: debugScopeLabel,
+            emitDebugLog('open modal requested', {
               currentRoute: getCurrentRouteName(),
               elapsedMsSinceMount: Date.now() - mountAtRef.current,
               initialQuery,

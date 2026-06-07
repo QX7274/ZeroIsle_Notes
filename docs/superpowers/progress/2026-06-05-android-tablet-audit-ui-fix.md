@@ -2245,3 +2245,73 @@
   - 在系统弹窗存在的现场下，手动点击一次首页搜索栏，验证 `UnifiedSearchBar` 开发态日志链路本身是否能打出来
   - 如果手动点击能打出日志而冷启动仍没有，就继续把“搜索模态默认打开”降级
   - 如果手动点击也没有日志，再继续排查开发态日志输出链与抓取窗口
+
+### 2026-06-07 第一百一十轮：确认 JS console 链路不可信，并用原生日志桥继续推进搜索模态排查
+
+- 这轮先承接上一轮的手动现场验证，没有直接去改成熟页面 UI，而是继续追“搜索模态到底是不是冷启动自动打开”这条主线。
+- 先拿到一个关键中间证据：
+  - 在 `system` 弹窗前台时点击一次“等待”后，
+  - [round285_after_wait_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round285_after_wait_ui.xml)
+  - [round285_after_wait.png](D:/ZeroIsle_Notes/.codex-tmp/round285_after_wait.png)
+  - 都说明底层会显露完整的搜索模态页：
+    - 统一淡蓝色方形返回按钮
+    - “搜索”标题
+    - 搜索模式切换
+    - 已聚焦的 `EditText`
+    - 搜索说明卡片
+- 但这轮真正把方向纠正过来的是日志链路本身：
+  - 无论是 `round285_after_wait_logcat.txt`，还是直接 `adb logcat -d`
+  - 当前都没有搜到：
+    - `UnifiedSearchBar`
+    - `ReactNativeJS`
+    - 常规 `console.log`
+  - 这意味着当前不能再把“没搜到 `UnifiedSearchBar` 日志”直接当成业务结论
+  - 更准确的说法应该是：JS `console.log` 到 `logcat` 的链路当前并不可信
+- 为了绕开这个判断盲点，这轮做了一个最小代码收口：
+  - 新增 [DebugLogModule.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/DebugLogModule.java)
+    - 用 Android 原生 `Log` 暴露一个开发态诊断桥
+  - 修改 [ZeroIsleNotesPackage.java](D:/ZeroIsle_Notes/android/app/src/main/java/com/zeroisle_notes/ZeroIsleNotesPackage.java)
+    - 把 `DebugLogModule` 注册进原生包
+  - 新增 [debugLog.js](D:/ZeroIsle_Notes/src/native/debugLog.js)
+    - 给 JS 提供统一调用封装
+  - 修改 [UnifiedSearchBar.js](D:/ZeroIsle_Notes/src/components/search/UnifiedSearchBar.js)
+    - 让挂载、显隐变化、请求打开模态、搜索完成关闭模态这几类开发态诊断同时走：
+      - 原本的 `console.log`
+      - 新增的 Android 原生日志桥
+- 这轮真机安装验证结果：
+  - `android\\gradlew.bat :app:installDebug --console=plain`
+  - 已成功安装到真机 `HGR3Y9MA`
+  - 构建输出最终是 `BUILD SUCCESSFUL`
+- 安装新包后，这轮又拿到一组新的时序证据：
+  - 冷启动约 6 秒时：
+    - [round286_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round286_launch_ui.xml)
+    - 先抓到的是空的应用根容器
+  - 冷启动约 14 秒时：
+    - [round286_wait14_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round286_wait14_ui.xml)
+    - [round286_wait14.png](D:/ZeroIsle_Notes/.codex-tmp/round286_wait14.png)
+    - 前台又稳定回到了搜索模态页
+    - 此时 `dumpsys window windows` 里只剩 `com.zeroisle_notes/.MainActivity`，没有再次抓到 `system` ANR 弹窗
+- 同一时间窗里新的日志结论：
+  - [round286_wait14_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round286_wait14_logcat.txt)
+    - 继续出现：
+      - `Slow dispatch took 2982ms mqt_js`
+      - `Slow delivery took 2977ms mqt_js`
+      - `Slow dispatch took 2966ms mqt_js`
+      - `Slow dispatch took 1274ms mqt_js`
+  - 但即便原生日志桥已经接入，当前仍没有搜到 `UnifiedSearchBar` tag
+- 因而这轮必须写实的边界是：
+  - 已确认：
+    - `system` 弹窗前台时，点击“等待”后底层能显露完整搜索模态页
+    - 新包已成功安装
+    - 冷启动约 14 秒后，前台可以稳定落在搜索模态页
+    - `mqt_js` 慢分发仍持续存在
+    - JS `console.log -> logcat` 当前不可信
+  - 尚未确认：
+    - 为什么接入原生日志桥后，`UnifiedSearchBar` 诊断仍未出现在 `logcat`
+    - 搜索模态是冷启动自动打开，还是由后续状态恢复/焦点链路触发
+- 静态检查补充：
+  - `eslint` 在当前线程里没有在预设超时内稳定返回
+  - 这轮文档里如实记录，不把“未拿到结果”误写成“已通过”
+- 下一步：
+  - 继续验证“搜索模态页上的显式交互”能否触发新的原生日志桥
+  - 如果显式交互也打不出桥接日志，就继续把排查重心转到模块注册、桥接调用链或当前包是否仍存在旧现场混入
