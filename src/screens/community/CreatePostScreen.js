@@ -403,7 +403,6 @@ const CreatePostScreen = ({ navigation }) => {
       style={[
         styles.container,
         {
-          backgroundColor: colors.background,
           paddingTop: Math.max(insets.top, 12),
         },
       ]}
@@ -428,114 +427,167 @@ const CreatePostScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <TextInput
-          style={[styles.titleInput, { color: colors.text, borderBottomColor: colors.border }]}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="请输入帖子标题"
-          placeholderTextColor={colors.textHint}
-          maxLength={100}
-          testID="input.community.createPost.title"
-        />
-
-        <TouchableOpacity style={[styles.coverImageContainer, { borderColor: colors.border }]} onPress={handleSelectCoverImage} disabled={publishBusy} testID="action.community.selectCoverImage">
-          {coverImage ? (
-            <Image source={{ uri: coverImage.uri }} style={styles.coverImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.coverImagePlaceholder}>
-              <Icon name="image" size={44} color={colors.textHint} />
-              <Text style={[styles.coverImageText, { color: colors.textHint }]}>点击添加封面图片</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TextInput
-          style={[styles.contentInput, { color: colors.text }]}
-          value={content}
-          onChangeText={setContent}
-          placeholder="请输入帖子内容"
-          placeholderTextColor={colors.textHint}
-          multiline
-          textAlignVertical="top"
-          testID="input.community.createPost.content"
-        />
-
-        <TouchableOpacity style={[styles.attachButton, { borderColor: colors.border }]} onPress={handleSelectAttachments} disabled={publishBusy} testID="action.community.selectAttachments">
-          <Icon name="attach-file" size={22} color={colors.primary} />
-          <Text style={[styles.attachButtonText, { color: colors.text }]}>添加附件</Text>
-        </TouchableOpacity>
-
-        {attachments.length > 0 ? (
-          <View style={styles.attachmentsContainer}>
-            <Text style={[styles.attachmentsTitle, { color: colors.text }]}>附件（{attachments.length}）</Text>
-            {attachments.map((file, index) => (
-              <View key={`${file.name}-${index}`} style={[styles.attachmentItem, { borderColor: colors.border }]}>
-                <Icon name={getFileIcon(file.name)} size={22} color={colors.primary} style={styles.attachmentIcon} />
-                <View style={styles.attachmentInfo}>
-                  <Text style={[styles.attachmentName, { color: colors.text }]} numberOfLines={1}>
-                    {file.name}
-                  </Text>
-                  <Text style={[styles.attachmentSize, { color: colors.textHint }]}>{getReadableFileSize(file.size)}</Text>
-                </View>
-                <TouchableOpacity onPress={() => handleRemoveAttachment(index)} style={styles.attachmentRemove} testID={`action.community.removeAttachment.${index}`}>
-                  <Icon name="close" size={19} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            ))}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>标题</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>{title.trim().length}/100</Text>
           </View>
-        ) : null}
+          <TextInput
+            style={[styles.titleInput, { color: colors.text, borderBottomColor: colors.border }]}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="请输入帖子标题"
+            placeholderTextColor={colors.textHint}
+            maxLength={100}
+            testID="input.community.createPost.title"
+          />
+        </View>
 
-        <View style={styles.metadataContainer}>
-          <TouchableOpacity
-            style={[styles.metadataButton, { borderColor: colors.border }]}
-            onPress={() => setShowCategoryPicker(true)}
-            disabled={publishBusy}
-            testID="action.community.openCategoryPicker"
-          >
-            <Icon name="folder" size={19} color={colors.primary} />
-            <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
-              {selectedCategoryName}
-            </Text>
-            <Icon name="arrow-drop-down" size={20} color={colors.text} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.metadataButton, { borderColor: colors.border }]}
-            onPress={() => setShowTagPicker(true)}
-            disabled={publishBusy}
-            testID="action.community.openTagPicker"
-          >
-            <Icon name="local-offer" size={19} color={colors.primary} />
-            <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
-              {selectedTagsText}
-            </Text>
-            <Icon name="arrow-drop-down" size={20} color={colors.text} />
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>封面</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>建议选择一张清晰横图</Text>
+          </View>
+          <TouchableOpacity style={[styles.coverImageContainer, { borderColor: colors.border }]} onPress={handleSelectCoverImage} disabled={publishBusy} testID="action.community.selectCoverImage">
+            {coverImage ? (
+              <Image source={{ uri: coverImage.uri }} style={styles.coverImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.coverImagePlaceholder}>
+                <View style={[styles.coverIconShell, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}24` }]}>
+                  <Icon name="image" size={40} color={colors.primary} />
+                </View>
+                <Text style={[styles.coverImageText, { color: colors.text }]}>点击添加封面图片</Text>
+                <Text style={[styles.coverImageSubtext, { color: colors.textHint }]}>封面会优先展示在社区列表和详情页头部</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.optionsContainer}>
-          <View style={styles.optionItem}>
-            <Text style={[styles.optionLabel, { color: colors.text }]}>公开帖子</Text>
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>正文</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>清楚描述要分享的内容</Text>
+          </View>
+          <TextInput
+            style={[styles.contentInput, { color: colors.text }]}
+            value={content}
+            onChangeText={setContent}
+            placeholder="请输入帖子内容"
+            placeholderTextColor={colors.textHint}
+            multiline
+            textAlignVertical="top"
+            testID="input.community.createPost.content"
+          />
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>附件</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>支持补充资料、文档或图片</Text>
+          </View>
+          <TouchableOpacity style={[styles.attachButton, { borderColor: colors.border }]} onPress={handleSelectAttachments} disabled={publishBusy} testID="action.community.selectAttachments">
+            <View style={[styles.attachIconShell, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}20` }]}>
+              <Icon name="attach-file" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.attachTextWrap}>
+              <Text style={[styles.attachButtonText, { color: colors.text }]}>添加附件</Text>
+              <Text style={[styles.attachButtonSubtext, { color: colors.textHint }]}>单个文件不超过 10MB</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.textHint} />
+          </TouchableOpacity>
+
+          {attachments.length > 0 ? (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: colors.text }]}>附件（{attachments.length}）</Text>
+              {attachments.map((file, index) => (
+                <View key={`${file.name}-${index}`} style={[styles.attachmentItem, { borderColor: colors.border }]}>
+                  <Icon name={getFileIcon(file.name)} size={22} color={colors.primary} style={styles.attachmentIcon} />
+                  <View style={styles.attachmentInfo}>
+                    <Text style={[styles.attachmentName, { color: colors.text }]} numberOfLines={1}>
+                      {file.name}
+                    </Text>
+                    <Text style={[styles.attachmentSize, { color: colors.textHint }]}>{getReadableFileSize(file.size)}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => handleRemoveAttachment(index)} style={styles.attachmentRemove} testID={`action.community.removeAttachment.${index}`}>
+                    <Icon name="close" size={19} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>分类与标签</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>帮助内容被更准确地发现</Text>
+          </View>
+          <View style={styles.metadataContainer}>
             <TouchableOpacity
-              style={[styles.toggleButton, { backgroundColor: isPublic ? colors.primary : colors.border }]}
-              onPress={() => setIsPublic((prev) => !prev)}
+              style={[styles.metadataButton, { borderColor: colors.border }]}
+              onPress={() => setShowCategoryPicker(true)}
               disabled={publishBusy}
-              testID="action.community.togglePublic"
+              testID="action.community.openCategoryPicker"
             >
-              <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: isPublic ? 20 : 2 }]} />
+              <Icon name="folder" size={19} color={colors.primary} />
+              <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
+                {selectedCategoryName}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color={colors.text} />
+            </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.metadataButton, styles.metadataButtonLast, { borderColor: colors.border }]}
+            onPress={() => setShowTagPicker(true)}
+            disabled={publishBusy}
+            testID="action.community.openTagPicker"
+            >
+              <Icon name="local-offer" size={19} color={colors.primary} />
+              <Text style={[styles.metadataText, { color: colors.text }]} numberOfLines={1}>
+                {selectedTagsText}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
+        </View>
 
-          <View style={styles.optionItem}>
-            <Text style={[styles.optionLabel, { color: colors.text }]}>允许评论</Text>
-            <TouchableOpacity
-              style={[styles.toggleButton, { backgroundColor: allowComments ? colors.primary : colors.border }]}
-              onPress={() => setAllowComments((prev) => !prev)}
-              disabled={publishBusy}
-              testID="action.community.toggleComments"
-            >
-              <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: allowComments ? 20 : 2 }]} />
-            </TouchableOpacity>
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>发布设置</Text>
+            <Text style={[styles.sectionHint, { color: colors.textHint }]}>控制帖子可见性和互动方式</Text>
+          </View>
+          <View style={styles.optionsContainer}>
+            <View style={styles.optionItem}>
+              <View style={styles.optionTextWrap}>
+                <Text style={[styles.optionLabel, { color: colors.text }]}>公开帖子</Text>
+                <Text style={[styles.optionHint, { color: colors.textHint }]}>关闭后仅自己可见</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.toggleButton, { backgroundColor: isPublic ? colors.primary : colors.border }]}
+                onPress={() => setIsPublic((prev) => !prev)}
+                disabled={publishBusy}
+                testID="action.community.togglePublic"
+              >
+                <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: isPublic ? 20 : 2 }]} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.optionDivider} />
+
+            <View style={styles.optionItem}>
+              <View style={styles.optionTextWrap}>
+                <Text style={[styles.optionLabel, { color: colors.text }]}>允许评论</Text>
+                <Text style={[styles.optionHint, { color: colors.textHint }]}>关闭后其他用户无法留言</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.toggleButton, { backgroundColor: allowComments ? colors.primary : colors.border }]}
+                onPress={() => setAllowComments((prev) => !prev)}
+                disabled={publishBusy}
+                testID="action.community.toggleComments"
+              >
+                <View style={[styles.toggleIndicator, { backgroundColor: colors.card, left: allowComments ? 20 : 2 }]} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -603,21 +655,24 @@ const CreatePostScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#F2F7FB' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    marginHorizontal: 14,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingTop: 10,
     paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(33,150,243,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.90)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.84)',
     shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 3,
   },
   backButton: { width: 40 },
@@ -630,44 +685,82 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.42)',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
   },
   publishText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   disabledButton: { opacity: 0.62 },
   scrollView: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 18 },
+  scrollContent: { paddingHorizontal: 14, paddingBottom: 30 },
+  sectionCard: {
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sectionHint: {
+    fontSize: 12,
+  },
   titleInput: {
     fontSize: 19,
     fontWeight: '700',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderRadius: 10,
-    marginBottom: 16,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(248,250,252,0.9)',
   },
   coverImageContainer: {
     height: 196,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.70)',
+    backgroundColor: 'rgba(248,250,252,0.82)',
   },
   coverImage: { width: '100%', height: '100%' },
   coverImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  coverImageText: { marginTop: 8, fontSize: 13 },
+  coverIconShell: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  coverImageText: { marginTop: 2, fontSize: 14, fontWeight: '700' },
+  coverImageSubtext: { marginTop: 6, fontSize: 12 },
   contentInput: {
     minHeight: 180,
     padding: 12,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(33,150,243,0.14)',
-    borderRadius: 12,
+    borderRadius: 16,
     fontSize: 15,
     lineHeight: 22,
-    backgroundColor: 'rgba(255,255,255,0.80)',
+    backgroundColor: 'rgba(248,250,252,0.92)',
   },
   attachButton: {
     flexDirection: 'row',
@@ -675,52 +768,72 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 10,
-    marginBottom: 16,
-    backgroundColor: 'rgba(255,255,255,0.74)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(248,250,252,0.92)',
   },
-  attachButtonText: { marginLeft: 8, fontSize: 14, fontWeight: '600' },
-  attachmentsContainer: { marginBottom: 16 },
+  attachIconShell: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachTextWrap: { flex: 1, marginLeft: 10 },
+  attachButtonText: { fontSize: 14, fontWeight: '700' },
+  attachButtonSubtext: { marginTop: 2, fontSize: 12 },
+  attachmentsContainer: { marginTop: 12 },
   attachmentsTitle: { marginBottom: 8, fontSize: 14, fontWeight: '700' },
   attachmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.84)',
+    backgroundColor: 'rgba(248,250,252,0.94)',
   },
   attachmentIcon: { marginRight: 10 },
   attachmentInfo: { flex: 1 },
   attachmentName: { fontSize: 14, fontWeight: '600' },
   attachmentSize: { marginTop: 2, fontSize: 12 },
   attachmentRemove: { padding: 4 },
-  metadataContainer: { flexDirection: 'row', marginBottom: 16 },
+  metadataContainer: { flexDirection: 'row' },
   metadataButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: 10,
-    paddingVertical: 9,
+    paddingVertical: 11,
     marginRight: 8,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: 'rgba(248,250,252,0.92)',
   },
   metadataText: { flex: 1, marginHorizontal: 8, fontSize: 13 },
-  optionsContainer: { marginBottom: 18 },
+  metadataButtonLast: { marginRight: 0 },
+  optionsContainer: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(33,150,243,0.10)',
+    backgroundColor: 'rgba(248,250,252,0.9)',
+    overflow: 'hidden',
+  },
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    marginBottom: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.70)',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
+  optionTextWrap: { flex: 1, paddingRight: 12 },
   optionLabel: { fontSize: 14, fontWeight: '600' },
+  optionHint: { marginTop: 4, fontSize: 12 },
+  optionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(33,150,243,0.10)',
+    marginHorizontal: 14,
+  },
   toggleButton: { width: 40, height: 22, borderRadius: 11, position: 'relative' },
   toggleIndicator: { width: 18, height: 18, borderRadius: 9, position: 'absolute', top: 2 },
   pickerContainer: {
