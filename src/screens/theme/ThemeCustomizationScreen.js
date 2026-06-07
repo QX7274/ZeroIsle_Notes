@@ -20,15 +20,16 @@ const ThemeCustomizationScreen = ({ navigation }) => {
   const {
     colors,
     isDarkMode,
-    themeType,
     resetThemeColors,
-    getColor,
+    getThemeByMode,
   } = useTheme();
   const insets = useSafeAreaInsets();
 
   // 当前编辑的主题模式
   const [editMode, setEditMode] = useState(isDarkMode ? 'dark' : 'light');
   const pageState = editMode === 'dark' ? 'editing-dark' : 'editing-light';
+  const previewTheme = getThemeByMode(editMode);
+  const previewColors = previewTheme.colors;
 
   // 重置主题颜色
   const handleResetColors = () => {
@@ -182,45 +183,54 @@ const ThemeCustomizationScreen = ({ navigation }) => {
         <View style={styles.previewSection}>
           <Text variant="heading" level="h6" style={styles.sectionTitle}>预览</Text>
 
-          <View style={styles.previewCard} testID="state.themeCustomization.preview">
-            <Text style={[styles.previewTitle, { color: colors.text }]}>
+          <View
+            style={[
+              styles.previewCard,
+              {
+                backgroundColor: previewColors.card,
+                borderColor: previewColors.border,
+              },
+            ]}
+            testID="state.themeCustomization.preview"
+          >
+            <Text style={[styles.previewTitle, { color: previewColors.text }]}>
               主题预览
             </Text>
 
-            <Text style={[styles.previewText, { color: colors.textSecondary }]}>
+            <Text style={[styles.previewText, { color: previewColors.textSecondary }]}>
               这是一段次要文本，用于展示主题效果。
             </Text>
 
-            <View style={[styles.previewDivider, { backgroundColor: colors.divider }]} />
+            <View style={[styles.previewDivider, { backgroundColor: previewColors.divider }]} />
 
             <View style={styles.previewButtons}>
               <TouchableOpacity
-                style={[styles.previewButton, { backgroundColor: colors.primary }]}
+                style={[styles.previewButton, { backgroundColor: previewColors.primary }]}
               >
                 <Text style={styles.previewButtonText}>主要按钮</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.previewButton, { backgroundColor: colors.secondary }]}
+                style={[styles.previewButton, { backgroundColor: previewColors.secondary }]}
               >
                 <Text style={styles.previewButtonText}>次要按钮</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.previewStatus}>
-              <View style={[styles.statusItem, { backgroundColor: colors.success }]}>
+              <View style={[styles.statusItem, { backgroundColor: previewColors.success }]}>
                 <Text style={styles.statusText}>成功</Text>
               </View>
 
-              <View style={[styles.statusItem, { backgroundColor: colors.info }]}>
+              <View style={[styles.statusItem, { backgroundColor: previewColors.info }]}>
                 <Text style={styles.statusText}>信息</Text>
               </View>
 
-              <View style={[styles.statusItem, { backgroundColor: colors.warning }]}>
+              <View style={[styles.statusItem, { backgroundColor: previewColors.warning }]}>
                 <Text style={styles.statusText}>警告</Text>
               </View>
 
-              <View style={[styles.statusItem, { backgroundColor: colors.error }]}>
+              <View style={[styles.statusItem, { backgroundColor: previewColors.error }]}>
                 <Text style={styles.statusText}>错误</Text>
               </View>
             </View>

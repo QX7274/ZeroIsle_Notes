@@ -162,6 +162,8 @@ const ThemeContext = createContext({
   setThemeType: () => {},
   setThemeStyle: () => {},
   getColor: () => {},
+  getModeColor: () => {},
+  getThemeByMode: () => {},
   updateThemeColor: () => {},
   resetThemeColors: () => {},
   getThemeValue: () => {},
@@ -357,6 +359,39 @@ export const ThemeProvider = ({ children }) => {
   }, [theme.colors]);
 
   /**
+   * 获取指定主题模式对应的完整主题对象
+   * @param {string} mode - 主题模式：light, dark
+   * @returns {object} - 合并自定义颜色后的主题对象
+   */
+  const getThemeByMode = useCallback((mode = currentThemeMode) => {
+    const normalizedMode = mode === 'dark' ? 'dark' : 'light';
+    const themeSet = DEFAULT_THEMES[themeStyle] || DEFAULT_THEMES.classic;
+    const baseTheme = themeSet[normalizedMode] || DEFAULT_THEMES.classic[normalizedMode];
+    const customColors = customTheme[normalizedMode]?.colors || {};
+
+    return merge({}, baseTheme, {
+      colors: customColors,
+    });
+  }, [currentThemeMode, customTheme, themeStyle]);
+
+  /**
+   * 获取指定主题模式下的颜色值
+   * @param {string} colorKey - 颜色键名
+   * @param {string} mode - 主题模式：light, dark
+   * @param {string} fallback - 备用颜色
+   * @returns {string} - 对应的颜色值
+   */
+  const getModeColor = useCallback((colorKey, mode = currentThemeMode, fallback) => {
+    const modeTheme = getThemeByMode(mode);
+
+    if (!colorKey) {
+      return fallback || modeTheme.colors.text;
+    }
+
+    return modeTheme.colors[colorKey] || fallback || modeTheme.colors.text;
+  }, [currentThemeMode, getThemeByMode]);
+
+  /**
    * 更新主题颜色
    * @param {string} colorKey - 颜色键名
    * @param {string} value - 颜色值
@@ -466,6 +501,8 @@ export const ThemeProvider = ({ children }) => {
       setThemeType: handleSetThemeType,
       setThemeStyle: handleSetThemeStyle,
       getColor,
+      getModeColor,
+      getThemeByMode,
       updateThemeColor,
       resetThemeColors,
       getThemeValue,
@@ -480,6 +517,8 @@ export const ThemeProvider = ({ children }) => {
     handleSetThemeType,
     handleSetThemeStyle,
     getColor,
+    getModeColor,
+    getThemeByMode,
     updateThemeColor,
     resetThemeColors,
     getThemeValue,
@@ -515,6 +554,8 @@ export const useTheme = () => {
         setThemeType: () => {},
         setThemeStyle: () => {},
         getColor: () => {},
+        getModeColor: () => {},
+        getThemeByMode: () => lightTheme,
         updateThemeColor: () => {},
         resetThemeColors: () => {},
         getThemeValue: () => {},
@@ -535,6 +576,8 @@ export const useTheme = () => {
         setThemeType: () => {},
         setThemeStyle: () => {},
         getColor: () => {},
+        getModeColor: () => {},
+        getThemeByMode: () => lightTheme,
         updateThemeColor: () => {},
         resetThemeColors: () => {},
         getThemeValue: () => {},
@@ -552,6 +595,9 @@ export const useTheme = () => {
       themeStyle: 'classic',
       toggleTheme: () => {},
       setThemeType: () => {},
+      getColor: () => {},
+      getModeColor: () => {},
+      getThemeByMode: () => lightTheme,
       updateThemeColor: () => {},
       resetThemeColors: () => {},
       getThemeValue: () => {},

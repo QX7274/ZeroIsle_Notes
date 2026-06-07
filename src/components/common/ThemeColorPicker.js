@@ -2,8 +2,8 @@
  * 主题颜色选择器组件
  * 用于自定义主题颜色
  */
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from './Typography';
 import ColorPicker from './ColorPicker';
@@ -21,11 +21,14 @@ const ThemeColorPicker = ({
   onColorChange,
   mode = 'both',
 }) => {
-  const { colors, getColor, updateThemeColor } = useTheme();
+  const { colors, getModeColor, updateThemeColor } = useTheme();
   const [showPicker, setShowPicker] = useState(false);
+  const resolvedColorValue = getModeColor(colorKey, mode, '');
+  const [colorValue, setColorValue] = useState(resolvedColorValue);
 
-  // 当前颜色值
-  const [colorValue, setColorValue] = useState(getColor(colorKey, ''));
+  useEffect(() => {
+    setColorValue(resolvedColorValue);
+  }, [resolvedColorValue]);
 
   // 处理颜色变更
   const handleColorChange = (color) => {
