@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Modal,
   TextInput,
 } from 'react-native';
@@ -15,9 +14,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../../context/ThemeContext';
 import { Text } from '../../components/common/Typography';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import NetworkErrorAlert from '../../components/common/NetworkErrorAlert';
+import { showToast } from '../../components/common/ToastHelper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import personalActivityApi from '../../services/api/personalActivityApi';
+import networkErrorService from '../../services/networkErrorService';
 
 const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -25,7 +27,11 @@ const GoalManagerScreen = ({ navigation }) => {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
+  const [networkErrorVisible, setNetworkErrorVisible] = useState(false);
+  const [networkErrorState, setNetworkErrorState] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
+  const [pendingDeleteGoal, setPendingDeleteGoal] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -37,11 +43,32 @@ const GoalManagerScreen = ({ navigation }) => {
   });
 
   const goalTypes = [
-    { key: 'quantitative', label: '数量目标', icon: 'trending_up' },
+    { key: 'quantitative', label: '数量目标', icon: 'trending-up' },
     { key: 'habit', label: '习惯养成', icon: 'repeat' },
     { key: 'milestone', label: '里程碑', icon: 'flag' },
     { key: 'qualitative', label: '定性目标', icon: 'star' },
   ];
+
+  const dismissNetworkError = () => {
+    setNetworkErrorVisible(false);
+    setNetworkErrorState(null);
+    networkErrorService.clearCurrentError();
+  };
+
+  const presentNetworkError = (error, customMessage, onRetry) => {
+    if (networkErrorService.isNetworkError(error)) {
+      const enhancedError = {
+        ...error,
+        errorType: networkErrorService.getNetworkErrorType(error),
+        userMessage: customMessage,
+      };
+      setNetworkErrorState({ error: enhancedError, onRetry });
+      setNetworkErrorVisible(true);
+      return true;
+    }
+
+    return false;
+  };
 
   useEffect(() => {
     loadGoals();
@@ -53,7 +80,9 @@ const GoalManagerScreen = ({ navigation }) => {
       const response = await personalActivityApi.getGoals();
       setGoals(response.data);
     } catch (error) {
-      Alert.alert('错误', '加载目标失败');
+      if (!presentNetworkError(error, '目标数据加载失败，请确认当前设备与后端联通后重试', loadGoals)) {
+        showToast.error('加载目标失败，请稍后重试');
+      }
     } finally {
       setLoading(false);
     }
@@ -61,7 +90,7 @@ const GoalManagerScreen = ({ navigation }) => {
 
   const handleSaveGoal = async () => {
     if (!formData.title.trim()) {
-      Alert.alert('错误', '目标标题不能为空');
+      showToast.warning('目标标题不能为空');
       return;
     }
 
@@ -75,10 +104,10 @@ const GoalManagerScreen = ({ navigation }) => {
 
       if (editingGoal) {
         await personalActivityApi.updateGoal(editingGoal._id, goalData);
-        Alert.alert('成功', '目标更新成功');
+        showToast.success('目标更新成功');
       } else {
         await personalActivityApi.createGoal(goalData);
-        Alert.alert('成功', '目标创建成功');
+        showToast.success('目标创建成功');
       }
 
       setModalVisible(false);
@@ -86,7 +115,10 @@ const GoalManagerScreen = ({ navigation }) => {
       resetForm();
       loadGoals();
     } catch (error) {
-      Alert.alert('错误', editingGoal ? '更新目标失败' : '创建目标失败');
+      const actionLabel = editingGoal ? '更新' : '创建';
+      if (!presentNetworkError(error, `目标${actionLabel}失败，请确认网络与后端服务正常后重试`, handleSaveGoal)) {
+        showToast.error(`目标${actionLabel}失败，请稍后重试`);
+      }
     }
   };
 
@@ -117,26 +149,28 @@ const GoalManagerScreen = ({ navigation }) => {
   };
 
   const handleDeleteGoal = (goal) => {
-    Alert.alert(
-      '确认删除',
-      `确定要删除目标"${goal.title}"吗？`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await personalActivityApi.deleteGoal(goal._id);
-              Alert.alert('成功', '目标删除成功');
-              loadGoals();
-            } catch (error) {
-              Alert.alert('错误', '删除目标失败');
-            }
-          },
-        },
-      ]
-    );
+    setPendingDeleteGoal(goal);
+    setConfirmDialogVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteGoal?._id) {
+      setConfirmDialogVisible(false);
+      setPendingDeleteGoal(null);
+      return;
+    }
+
+    try {
+      await personalActivityApi.deleteGoal(pendingDeleteGoal._id);
+      showToast.success('目标删除成功');
+      setConfirmDialogVisible(false);
+      setPendingDeleteGoal(null);
+      loadGoals();
+    } catch (error) {
+      if (!presentNetworkError(error, '删除目标失败，请确认网络与后端服务正常后重试', handleConfirmDelete)) {
+        showToast.error('删除目标失败，请稍后重试');
+      }
+    }
   };
 
   const getStatusColor = (status) => {
@@ -383,6 +417,54 @@ const GoalManagerScreen = ({ navigation }) => {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal
+        visible={confirmDialogVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setConfirmDialogVisible(false);
+          setPendingDeleteGoal(null);
+        }}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={[styles.confirmDialog, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.confirmIconWrap, { backgroundColor: `${colors.error || '#FF6B6B'}16` }]}>
+              <Icon name="delete-outline" size={24} color={colors.error || '#FF6B6B'} />
+            </View>
+            <Text variant="h3" style={[styles.confirmTitle, { color: colors.text }]}>删除目标</Text>
+            <Text style={[styles.confirmMessage, { color: colors.textSecondary || `${colors.text}99` }]}>
+              {pendingDeleteGoal ? `确认删除“${pendingDeleteGoal.title}”吗？删除后将无法恢复。` : '确认删除当前目标吗？'}
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={[styles.confirmSecondaryButton, { borderColor: colors.border }]}
+                onPress={() => {
+                  setConfirmDialogVisible(false);
+                  setPendingDeleteGoal(null);
+                }}
+                activeOpacity={0.88}
+              >
+                <Text style={[styles.confirmSecondaryText, { color: colors.text }]}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmPrimaryButton, { backgroundColor: colors.error || '#FF6B6B' }]}
+                onPress={handleConfirmDelete}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.confirmPrimaryText}>确认删除</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <NetworkErrorAlert
+        visible={networkErrorVisible}
+        error={networkErrorState?.error}
+        onRetry={networkErrorState?.onRetry}
+        onDismiss={dismissNetworkError}
+      />
     </SafeAreaView>
   );
 };
@@ -511,6 +593,75 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 20,
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.36)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  confirmDialog: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    borderWidth: 1,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  confirmIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  confirmTitle: {
+    fontWeight: '700',
+  },
+  confirmMessage: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 10,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 22,
+  },
+  confirmSecondaryButton: {
+    minWidth: 96,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  confirmPrimaryButton: {
+    minWidth: 116,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   formGroup: {
     marginBottom: 20,

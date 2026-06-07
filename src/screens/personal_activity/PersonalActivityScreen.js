@@ -8,6 +8,7 @@ import {
   Alert,
   Animated,
   Easing,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -112,6 +113,30 @@ const PersonalActivityScreen = ({ navigation }) => {
     const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.1, 1] });
     const opacity = pulse.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0.3, 0.7, 0.7, 0.3] });
 
+    const managementEntries = [
+      {
+        key: 'GoalManager',
+        title: '目标管理',
+        description: '管理长期目标与进度',
+        icon: 'flag',
+        accent: '#3B82F6',
+      },
+      {
+        key: 'PersonalActivitySettings',
+        title: '分类管理',
+        description: '整理零屿空间分类',
+        icon: 'folder-copy',
+        accent: '#0EA5A4',
+      },
+      {
+        key: 'PersonalActivityAnalytics',
+        title: '数据分析',
+        description: '查看活动统计趋势',
+        icon: 'insights',
+        accent: '#F59E0B',
+      },
+    ];
+
     return (
       <View>
         <View style={[styles.topBar, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) }]}>
@@ -125,6 +150,37 @@ const PersonalActivityScreen = ({ navigation }) => {
             <Icon name="auto-awesome" size={32} color={colors.primary} />
           </Animated.View>
           <Text style={[styles.heroSub, { color: colors.text + '90' }]}>记录生活点滴</Text>
+        </View>
+        <View style={[styles.managementPanel, { backgroundColor: colors.card }]}>
+          <View style={styles.managementHeader}>
+            <Text variant="h3" style={{ color: colors.text }}>空间管理</Text>
+            <Text variant="caption" style={{ color: colors.textSecondary }}>让规划功能真正可达</Text>
+          </View>
+          <View style={styles.managementGrid} testID="list.personalActivity.managementEntries">
+            {managementEntries.map((entry) => (
+              <TouchableOpacity
+                key={entry.key}
+                style={[
+                  styles.managementCard,
+                  {
+                    backgroundColor: 'rgba(255,255,255,0.92)',
+                    borderColor: `${entry.accent}33`,
+                    shadowColor: entry.accent,
+                  },
+                ]}
+                onPress={() => navigation.navigate(entry.key)}
+                activeOpacity={0.88}
+                testID={`entry.personalActivity.management.${entry.key}`}
+              >
+                <View style={[styles.managementIconWrap, { backgroundColor: `${entry.accent}18` }]}>
+                  <Icon name={entry.icon} size={22} color={entry.accent} />
+                </View>
+                <Text style={[styles.managementTitle, { color: colors.text }]}>{entry.title}</Text>
+                <Text style={[styles.managementDesc, { color: colors.textSecondary }]}>{entry.description}</Text>
+                <Icon name="chevron-right" size={18} color={entry.accent} style={styles.managementArrow} />
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     );
@@ -184,6 +240,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 1,
     marginTop: 16,
+  },
+  managementPanel: {
+    marginTop: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.16)',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  managementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  managementGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  managementCard: {
+    width: '48.5%',
+    minHeight: 124,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    marginBottom: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  managementIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  managementTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  managementDesc: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    paddingRight: 18,
+  },
+  managementArrow: {
+    position: 'absolute',
+    top: 14,
+    right: 10,
   },
 });
 

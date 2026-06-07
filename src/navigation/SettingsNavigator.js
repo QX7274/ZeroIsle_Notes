@@ -30,6 +30,9 @@ import { MindMapScreen, MindMapEditScreen, MindMapTemplateScreen } from '../scre
 import { KnowledgeGraphScreen, NodeDetailScreen, EdgeEditScreen, KnowledgeAnalysisScreen, KnowledgeBaseListScreen, KnowledgeBaseDetailScreen, KnowledgeBaseEditScreen, KnowledgeNodeEditScreen } from '../screens/knowledge';
 import PersonalActivityScreen from '../screens/personal_activity/PersonalActivityScreen';
 import ActivityFormScreen from '../screens/personal_activity/ActivityFormScreen';
+import GoalManagerScreen from '../screens/personal_activity/GoalManagerScreen';
+import CategoryManagerScreen from '../screens/personal_activity/CategoryManagerScreen';
+import AnalyticsScreen from '../screens/personal_activity/AnalyticsScreen';
 
 const Stack = createStackNavigator();
 
@@ -236,6 +239,24 @@ const ProfileNavigator = () => {
         component={ActivityFormScreen}
         initialParams={{ hideTabBar: true }}
         options={{ title: '活动表单', headerShown: false }}
+      />
+      <Stack.Screen
+        name="GoalManager"
+        component={GoalManagerScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '目标管理', headerShown: false }}
+      />
+      <Stack.Screen
+        name="PersonalActivitySettings"
+        component={CategoryManagerScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '分类管理', headerShown: false }}
+      />
+      <Stack.Screen
+        name="PersonalActivityAnalytics"
+        component={AnalyticsScreen}
+        initialParams={{ hideTabBar: true }}
+        options={{ title: '数据分析', headerShown: false }}
       />
     </Stack.Navigator>
   );
