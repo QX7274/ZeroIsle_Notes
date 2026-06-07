@@ -42,9 +42,9 @@ export const login = async (loginData) => {
     // console.log('处理后的登录请求数据:', requestData); // 移除敏感日志
 
     // 检查网络连接
-    const networkState = await networkService.checkConnection();
+    const isOnline = await networkService.checkConnection();
 
-    if (!networkState?.isOnline) {
+    if (!isOnline) {
       console.log('网络未连接，尝试离线登录');
 
       // 检查是否有离线用户
@@ -191,9 +191,9 @@ export const login = async (loginData) => {
 export const register = async (userData) => {
   try {
     // 检查网络连接
-    const networkState = await networkService.checkConnection();
+    const isOnline = await networkService.checkConnection();
 
-    if (!networkState?.isOnline) {
+    if (!isOnline) {
       console.log('网络未连接，无法注册');
       throw new Error('注册失败：请连接网络后再尝试注册');
     }
@@ -287,9 +287,9 @@ export const registerWithUsername = async (userData) => {
     console.log('完整API URL:', `${API_URL}/api/v1${API_ENDPOINTS.AUTH.REGISTER_USERNAME}`);
 
     // 检查网络连接
-    const networkState = await networkService.checkConnection();
+    const isOnline = await networkService.checkConnection();
 
-    if (!networkState?.isOnline) {
+    if (!isOnline) {
       console.log('网络未连接，无法注册');
       throw new Error('注册失败：请连接网络后再尝试注册');
     }
@@ -663,9 +663,9 @@ export const registerWithPhone = async (userData) => {
     console.log('手机号注册请求数据:', userData);
 
     // 检查网络连接
-    const networkState = await networkService.checkConnection();
+    const isOnline = await networkService.checkConnection();
 
-    if (!networkState?.isOnline) {
+    if (!isOnline) {
       console.log('网络未连接，无法注册');
       throw new Error('注册失败：请连接网络后再尝试注册');
     }
@@ -712,9 +712,9 @@ export const registerWithEmail = async (userData) => {
     console.log('邮箱注册请求数据:', userData);
 
     // 检查网络连接
-    const networkState = await networkService.checkConnection();
+    const isOnline = await networkService.checkConnection();
 
-    if (!networkState?.isOnline) {
+    if (!isOnline) {
       console.log('网络未连接，无法注册');
       throw new Error('注册失败：请连接网络后再尝试注册');
     }

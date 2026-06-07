@@ -60,8 +60,8 @@ apiInstance.interceptors.response.use(
 
     // 处理网络错误
     if (!response) {
-      const networkState = await networkService.checkConnection();
-      if (!networkState?.isOnline) {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
         return Promise.reject(new Error('网络连接已断开，请检查您的网络设置'));
       }
     }
@@ -119,7 +119,7 @@ const notesApi = {
    * @returns {Promise<Object>} 网络状态对象
    */
   checkNetwork: async () => {
-    const networkState = await networkService.checkConnection();
+    const networkState = await networkService.checkConnectionState();
     return {
       isConnected: Boolean(networkState?.isOnline),
       isInternetReachable: networkState?.details?.isInternetReachable,

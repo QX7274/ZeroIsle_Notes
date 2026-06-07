@@ -18,7 +18,7 @@ const resolveNoteId = (annotationData) => annotationData?.note_id || annotationD
 export const getAnnotationsByNote = async (noteId) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：从本地存储获取
@@ -71,7 +71,7 @@ export const getAnnotationsByNote = async (noteId) => {
 export const getAnnotationsByPage = async (noteId, page) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：从本地存储获取
@@ -112,7 +112,7 @@ export const createAnnotation = async (annotationData) => {
     }
 
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：添加到待处理操作
@@ -197,7 +197,7 @@ export const updateAnnotation = async (id, annotationData, noteIdParam) => {
     }
 
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：添加到待处理操作
@@ -285,7 +285,7 @@ export const deleteAnnotation = async (id, noteId) => {
     }
 
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：添加到待处理操作
@@ -365,7 +365,7 @@ export const batchCreateAnnotations = async (annotations) => {
     }
 
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       // 离线模式：添加到待处理操作

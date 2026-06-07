@@ -202,9 +202,9 @@ const userApi = {
   registerWithUsername: async (username, password) => {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
+      const isOnline = await networkService.checkConnection();
 
-      if (!networkState?.isOnline) {
+      if (!isOnline) {
         console.log('网络未连接，无法注册');
         throw new Error('注册失败：请连接网络后再尝试注册');
       }
@@ -231,9 +231,9 @@ const userApi = {
   registerWithPhone: async (phone, password) => {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
+      const isOnline = await networkService.checkConnection();
 
-      if (!networkState?.isOnline) {
+      if (!isOnline) {
         console.log('网络未连接，无法注册');
         throw new Error('注册失败：请连接网络后再尝试注册');
       }
@@ -261,9 +261,9 @@ const userApi = {
   registerWithPhoneCode: async (phone, code, password) => {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
+      const isOnline = await networkService.checkConnection();
 
-      if (!networkState?.isOnline) {
+      if (!isOnline) {
         console.log('网络未连接，无法注册');
         throw new Error('注册失败：请连接网络后再尝试注册');
       }
@@ -291,9 +291,9 @@ const userApi = {
   registerWithEmail: async (email, password) => {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
+      const isOnline = await networkService.checkConnection();
 
-      if (!networkState?.isOnline) {
+      if (!isOnline) {
         console.log('网络未连接，无法注册');
         throw new Error('注册失败：请连接网络后再尝试注册');
       }

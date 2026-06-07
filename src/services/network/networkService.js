@@ -146,6 +146,29 @@ class NetworkService {
   }
 
   /**
+   * 统一归一网络状态，兼容旧布尔值与新状态对象两种调用方
+   * @param {boolean|object} state 网络状态
+   * @returns {{isOnline: boolean, connectionType: string, connectionQuality: string, details: object|null}}
+   */
+  resolveConnectionState(state) {
+    if (typeof state === 'boolean') {
+      return {
+        isOnline: state,
+        connectionType: this.connectionType,
+        connectionQuality: this.connectionQuality,
+        details: null,
+      };
+    }
+
+    return {
+      isOnline: Boolean(state?.isOnline),
+      connectionType: state?.connectionType || this.connectionType,
+      connectionQuality: state?.connectionQuality || this.connectionQuality,
+      details: state?.details || null,
+    };
+  }
+
+  /**
    * 是否在线
    * @returns {boolean} 是否在线
    */
@@ -201,6 +224,32 @@ class NetworkService {
     } catch (error) {
       console.error('检查网络连接失败', error);
       return false;
+    }
+  }
+
+  /**
+   * 检查网络连接并返回完整状态对象
+   * @returns {Promise<{isOnline: boolean, connectionType: string, connectionQuality: string, details: object|null}>}
+   */
+  async checkConnectionState() {
+    try {
+      const netInfo = await NetInfo.fetch();
+      this.updateNetworkState(netInfo);
+
+      return {
+        isOnline: this.isOnlineValue,
+        connectionType: this.connectionType,
+        connectionQuality: this.connectionQuality,
+        details: netInfo,
+      };
+    } catch (error) {
+      console.error('检查网络连接状态失败', error);
+      return {
+        isOnline: false,
+        connectionType: this.connectionType,
+        connectionQuality: this.connectionQuality,
+        details: null,
+      };
     }
   }
 

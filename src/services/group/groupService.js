@@ -96,8 +96,8 @@ class GroupService {
   async createGroup(name, description) {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
-      if (!networkState?.isOnline) {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
         throw new Error('网络连接失败，无法创建群组');
       }
 
@@ -220,8 +220,8 @@ class GroupService {
   async getGroups() {
     try {
       // 检查网络连接
-      const networkState = await networkService.checkConnection();
-      if (!networkState?.isOnline) {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
         console.log('群组服务: 网络未连接，返回空群组列表');
         return [];
       }

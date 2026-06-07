@@ -16,7 +16,7 @@ import networkService from '../network/networkService';
 export const getDrawingPathsByNote = async (noteId) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       throw new Error('离线模式下无法获取笔记绘图路径，请连接网络后重试');
@@ -59,7 +59,7 @@ export const getDrawingPathsByNote = async (noteId) => {
 export const getDrawingPathsByCanvas = async (canvasId) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       throw new Error('离线模式下无法获取画布绘图路径，请连接网络后重试');
@@ -84,7 +84,7 @@ export const getDrawingPathsByCanvas = async (canvasId) => {
  */
 export const createDrawingPath = async (pathData) => {
   try {
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
     if (!status?.isOnline) {
       throw new Error('离线模式下无法创建绘图路径，请连接网络后重试');
     }
@@ -129,7 +129,7 @@ export const createDrawingPath = async (pathData) => {
  */
 export const updateDrawingPath = async (id, pathData) => {
   try {
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
     if (!status?.isOnline) {
       throw new Error('离线模式下无法更新绘图路径，请连接网络后重试');
     }
@@ -176,7 +176,7 @@ export const updateDrawingPath = async (id, pathData) => {
  */
 export const deleteDrawingPath = async (id) => {
   try {
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
     if (!status?.isOnline) {
       throw new Error('离线模式下无法删除绘图路径，请连接网络后重试');
     }
@@ -199,7 +199,7 @@ export const deleteDrawingPath = async (id) => {
  */
 export const batchCreateDrawingPaths = async (paths) => {
   try {
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
     if (!status?.isOnline) {
       throw new Error('离线模式下无法批量创建绘图路径，请连接网络后重试');
     }
@@ -257,7 +257,7 @@ export const batchCreateDrawingPaths = async (paths) => {
  */
 export const batchDeleteDrawingPaths = async (pathIds) => {
   try {
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
     if (!status?.isOnline) {
       throw new Error('离线模式下无法批量删除绘图路径，请连接网络后重试');
     }

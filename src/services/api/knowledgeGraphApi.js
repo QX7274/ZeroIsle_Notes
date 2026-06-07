@@ -51,7 +51,7 @@ export const getKnowledgeGraph = async (params = {}) => {
     }
 
     // 检查网络连接
-    const netInfo = await networkService.checkConnection();
+    const netInfo = await networkService.checkConnectionState();
     if (!netInfo?.isOnline) {
       console.log('知识图谱API: 网络未连接');
       throw new Error('网络未连接，请检查网络设置');

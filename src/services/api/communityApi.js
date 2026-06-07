@@ -372,7 +372,7 @@ export const getPostDetail = async (id) => {
 export const createPost = async (postData) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       throw new Error('离线模式下无法创建帖子，请连接网络后重试');
@@ -447,7 +447,7 @@ export const createPost = async (postData) => {
 export const updatePost = async (id, postData) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       throw new Error('离线模式下无法更新帖子，请连接网络后重试');
@@ -500,7 +500,7 @@ export const updatePost = async (id, postData) => {
 export const deletePost = async (id) => {
   try {
     // 检查网络状态
-    const status = await networkService.checkConnection();
+    const status = await networkService.checkConnectionState();
 
     if (!status?.isOnline) {
       throw new Error('离线模式下无法删除帖子，请连接网络后重试');
