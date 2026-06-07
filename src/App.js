@@ -176,6 +176,14 @@ const safePaperIcon = ({ name, color, size, direction, testID }) => {
   );
 };
 
+const DebugRenderProbe = ({ name, children }) => {
+  debugLog('info', 'AppRoot', {
+    event: 'render-probe',
+    name,
+  });
+  return children;
+};
+
 // 统一的初始化逻辑（带服务检测）
 const useAppInitialization = () => {
   const dispatch = useDispatch();
@@ -772,39 +780,65 @@ const App = () => {
   console.log('Persistor状态:', persistor ? '已加载' : '未加载');
 
   try {
+    debugLog('info', 'AppRoot', {
+      event: 'app-render-start',
+      hasStore: !!store,
+      hasPersistor: !!persistor,
+    });
+
     // 使用简化的渲染结构，避免手势处理器初始化问题
     return (
       <ErrorBoundary>
         <View style={{ flex: 1 }}>
           <Provider store={store}>
-            <PersistBootstrapGate>
-              <PersistGate
-                loading={<LoadingComponent />}
-                persistor={persistor}
-                onBeforeLift={() => {
-                  console.log('PersistGate: 数据恢复完成，准备渲染应用...');
-                  debugLog('info', 'AppRoot', {
-                    event: 'persist-gate-before-lift',
-                  });
-                }}
-              >
-                <SafeAreaProvider>
-                  <ThemeProvider>
-                    <FontSizeProvider>
-                      <AccessibilityProvider>
-                        <RealmProvider>
-                          <NotificationProvider>
-                            <GestureHandlerRootView style={{ flex: 1 }}>
-                              <AppContainer />
-                            </GestureHandlerRootView>
-                          </NotificationProvider>
-                        </RealmProvider>
-                      </AccessibilityProvider>
-                    </FontSizeProvider>
-                  </ThemeProvider>
-                </SafeAreaProvider>
-              </PersistGate>
-            </PersistBootstrapGate>
+            <DebugRenderProbe name="provider-store">
+              <PersistBootstrapGate>
+                <DebugRenderProbe name="provider-persist-bootstrap-gate">
+                  <PersistGate
+                    loading={<LoadingComponent />}
+                    persistor={persistor}
+                    onBeforeLift={() => {
+                      console.log('PersistGate: 数据恢复完成，准备渲染应用...');
+                      debugLog('info', 'AppRoot', {
+                        event: 'persist-gate-before-lift',
+                      });
+                    }}
+                  >
+                    <DebugRenderProbe name="provider-persist-gate-child">
+                      <SafeAreaProvider>
+                        <DebugRenderProbe name="provider-safe-area">
+                          <ThemeProvider>
+                            <DebugRenderProbe name="provider-theme">
+                              <FontSizeProvider>
+                                <DebugRenderProbe name="provider-font-size">
+                                  <AccessibilityProvider>
+                                    <DebugRenderProbe name="provider-accessibility">
+                                      <RealmProvider>
+                                        <DebugRenderProbe name="provider-realm">
+                                          <NotificationProvider>
+                                            <DebugRenderProbe name="provider-notification">
+                                              <GestureHandlerRootView style={{ flex: 1 }}>
+                                                <DebugRenderProbe name="provider-gesture-handler">
+                                                  <AppContainer />
+                                                </DebugRenderProbe>
+                                              </GestureHandlerRootView>
+                                            </DebugRenderProbe>
+                                          </NotificationProvider>
+                                        </DebugRenderProbe>
+                                      </RealmProvider>
+                                    </DebugRenderProbe>
+                                  </AccessibilityProvider>
+                                </DebugRenderProbe>
+                              </FontSizeProvider>
+                            </DebugRenderProbe>
+                          </ThemeProvider>
+                        </DebugRenderProbe>
+                      </SafeAreaProvider>
+                    </DebugRenderProbe>
+                  </PersistGate>
+                </DebugRenderProbe>
+              </PersistBootstrapGate>
+            </DebugRenderProbe>
           </Provider>
         </View>
       </ErrorBoundary>

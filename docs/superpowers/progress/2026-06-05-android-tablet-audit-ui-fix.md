@@ -2727,3 +2727,79 @@
   - 下一轮继续核对 `index.js -> AppRegistry.registerComponent -> require('./src/App')` 这条链上是否存在更前置的中断
   - 必要时把探针前移到 `index.js` 导入边界或更原始的注册链路
   - 在 `AppRoot` 或 `Running "ZeroIsle_Notes"` 任一根层日志重新出现前，不把问题误写成业务页面缺陷
+
+### 2026-06-07 第一百一十九轮：round297/298 推翻“根入口未启动”旧判断，主线改为真机冷启动时序不稳定
+
+- 这轮先没有急着继续前移到 `index.js`，而是按系统化调试要求先抓“清空 logcat 后的干净冷启动”证据，避免被上一轮旧日志误导。
+- 本轮先确认的事实边界：
+  - 仍然不是后端联通问题：
+    - 本地后端健康检查与 Metro 状态此前已持续返回 `200`
+    - `adb reverse` 对 `8000/8081` 仍稳定存在
+  - 因此本轮继续只围绕真机启动链收口，没有转去碰成熟业务 UI
+- round297 的关键价值不是“修复了白屏”，而是推翻了上一轮过度收紧的判断：
+  - [round297_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round297_launch_ui.xml) 与 [round297_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round297_launch.png) 继续显示 `android:id/content` 下空 `FrameLayout`
+  - 前台不是权限弹窗，不是系统权限页，也不是成熟业务页，而是应用自身空白根容器
+  - 但 [round297_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round297_launch_logcat.txt) 同时已经出现：
+    - `ReactNativeJS: ZeroIsle_Notes 应用已成功注册`
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `ReactNativeJS: ZeroIsle_Notes 根组件导入成功`
+    - `DebugLogModule: log invoked`
+    - `AppRoot: {"event":"persist-gate-loading-render"}`
+    - `AppRoot: {"event":"persist-gate-before-lift"}`
+    - `AppRoot: {"event":"persist-bootstrap-marked-ready","reason":"持久化数据恢复完成，继续启动应用"}`
+  - 这说明上一轮“`index.js/AppRegistry/src/App.js` 根本没跑到”的结论已经不再成立
+  - 更准确的新结论应改为：
+    - 同一调试包下，真机冷启动存在“JS 启动链已明显执行，但前台内容树仍停在空白根容器”的时序不稳定分叉
+- 为了继续把卡点收窄，而不是散射式猜 Provider，我在 [src/App.js](D:/ZeroIsle_Notes/src/App.js) 新增了最小开发态渲染探针：
+  - 新增 `DebugRenderProbe`
+  - 仅记录以下 Provider 是否真实渲染：
+    - `provider-store`
+    - `provider-persist-bootstrap-gate`
+    - `provider-persist-gate-child`
+    - `provider-safe-area`
+    - `provider-theme`
+    - `provider-font-size`
+    - `provider-accessibility`
+    - `provider-realm`
+    - `provider-notification`
+    - `provider-gesture-handler`
+  - 同时补一条 `app-render-start`
+  - 这些探针都只走 `debugLog('info', 'AppRoot', ...)`，没有改成熟业务逻辑
+- 新包安装结果：
+  - 在 `D:\ZeroIsle_Notes\android` 执行 `.\gradlew.bat :app:installDebug --console=plain`
+  - 再次成功安装到真机 `HGR3Y9MA`
+- round298 的结果出现关键转折，必须单列写实：
+  - [round298_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round298_launch_logcat.txt) 中已出现：
+    - `AppRoot: {"event":"initialization-begin","trigger":"splashTimeoutFallback"}`
+    - `AppRoot: {"event":"app-container-render-start"}`
+    - `AppRoot: {"event":"rendering-splash-screen","initStarted":true,"initSuccess":true}`
+    - `AppRoot: {"event":"initialization-result","trigger":"splashTimeoutFallback","success":true,"hasError":false}`
+    - `AppRoot: {"event":"app-ready","trigger":"splashTimeoutFallback"}`
+    - `AppRoot: {"event":"navigation-container-ready"}`
+  - [round298_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round298_launch_ui.xml) 已不再是空白根容器，而是成功进入真实搜索页，能够看到：
+    - 淡蓝色方形返回按钮
+    - 标题 `搜索`
+    - 副文案 `输入关键词快速查找内容`
+    - 输入框 `搜索笔记、标签、内容...`
+    - 以及 round295 的可见诊断标签 `debug round295 | scope:home | module:present | log:function`
+  - 同页底部还能看到一条 `通知权限请求超时(5000ms)` Snackbar，它说明通知链仍有独立问题，但不再是启动白屏主阻断
+- 因而这轮必须把主线判断更新为：
+  - 不能再写成“应用固定卡死在 JS 根入口前”
+  - 更准确的现状是：
+    - 真机冷启动在同一调试包下存在时序波动
+    - round297 可落到空白根容器
+    - round298 又可继续推进到真实搜索页
+    - 所以当前阻断更像“启动阶段不稳定”，而不是“某个固定节点必然不执行”
+- 这轮也顺手确认了几条不该误写的点：
+  - 不是“没有网络所以才白屏”
+  - 不是“AppRegistry 还没注册”
+  - 不是“`src/App.js` 根本没加载”
+  - 也不能因为 round298 恢复到了搜索页，就草率写成“启动问题已彻底解决”
+- 下一步：
+  - 继续用 `冷启动 logcat + UI 树 + 截图` 三件套逐轮收口启动不稳定主线
+  - 在启动链稳定后，再继续恢复各功能模块的真机逐页测试
+  - 后续模块测试仍继续遵守既有 UI 规范：
+    - 顶部不被平板状态栏遮挡
+    - 返回按钮统一已有淡蓝色方形箭头
+    - 发现异常留白继续单独记录并修正
+    - 网络问题继续统一使用项目内优美弹窗，不使用默认安卓弹窗
