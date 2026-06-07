@@ -82,6 +82,26 @@
     - `trending_up -> trending-up`
     - 消除 `MaterialIcons` 无效图标名导致的开发警告
 
+### 4. 目标管理表单页内状态提示补丁
+- 文件：
+  - `src/screens/personal_activity/GoalManagerScreen.js`
+- 新发现的真实问题：
+  - 首轮把“空标题保存”改成 `showToast.warning('目标标题不能为空')` 后，源码层虽然不再弹系统 `Alert`，但真机从 `目标管理 -> 新建目标` 进入 modal 表单时，全局 Toast 在该现场不可见；
+  - 用户点击 `保存` 后会感觉“没有任何反应”，这属于真实交互缺陷，而不是单纯样式问题。
+- 本轮补丁：
+  - 新增 `formStatus` 状态；
+  - 新增 `showFormStatus / clearFormStatus`；
+  - 在表单 `ScrollView` 顶部新增页内 `formStatusCard`；
+  - 空标题校验失败时：
+    - 同时保留 `showToast.warning(...)`
+    - 并在 modal 内显示黄色页内状态条 `目标标题不能为空`
+  - 创建成功 / 更新成功：
+    - 在关闭前写入绿色页内成功状态
+  - 非网络失败：
+    - 在表单内写入红色失败状态
+  - 用户重新输入标题时：
+    - 自动清掉 warning / error 状态，避免旧提示残留。
+
 ## 本轮真机路径与证据
 
 ### 已确认通过
@@ -115,17 +135,33 @@
     - 图标命名错误已修正。
     - 页面恢复为干净状态，没有继续出现该类运行时警告条。
 
-### 本轮已落代码但未完成稳定补证
+- `目标管理 -> 新建目标 -> 空标题保存`
+  - 新增有效证据：
+    - `.local/android-mcp-server/round346c_zeroisle_open.png`
+    - `.local/android-mcp-server/round346c_goal_manager_open.png`
+    - `.local/android-mcp-server/round346c_goal_manager_open.xml`
+    - `.local/android-mcp-server/round346c_goal_modal_open.png`
+    - `.local/android-mcp-server/round346c_goal_modal_open.xml`
+    - `.local/android-mcp-server/round346c_goal_empty_save_result.png`
+    - `.local/android-mcp-server/round346c_goal_empty_save_result.xml`
+  - 结论：
+    - 真机已稳定从 `个人资料 -> 零屿空间 -> 目标管理 -> 新建目标` 进入表单 modal；
+    - 空标题点击 `保存` 后，modal 内顶部已真实出现黄色页内状态条 `目标标题不能为空`；
+    - UI 树未出现 `alertTitle`、`android:id/button1` 等系统弹窗结构；
+    - 这说明“全局 Toast 在 modal 中不可见”的真实问题已经被页内状态条补丁接住。
+
+### 本轮仍待继续补证
 - `GoalManagerScreen` 的下列行为已经完成代码收口，但真机深交互补证受现场波动阻塞：
-  - 空标题保存 Toast
   - 创建成功 Toast
   - 删除确认自定义弹层
   - 网络失败统一弹层
+  - 删除成功 / 失败结果态
 - 阻塞原因：
   - 调试菜单中途误弹出
   - 返回键将应用带回桌面
   - 开发包恢复阶段偶发空白中间态
-  - 页面在白屏容器态与首页之间来回恢复，无法稳定完成整条深交互证据链
+  - `uiautomator dump` 偶发拿不到 idle state，导致部分步骤需要改走截图兜底
+  - 页面在白屏容器态与首页之间来回恢复，难以一次性跑完更长深交互证据链
 - 处理原则：
   - 本轮只把“已稳定看到的真实结果”记为通过；
   - 对未跑稳的深交互不伪造结论，保留到下一轮继续补证。
@@ -145,10 +181,12 @@
 ## 本轮结论
 - `零屿空间` 已从“规划功能实际不可达”推进到“真实入口已补齐、目标管理已可进入”。
 - `GoalManagerScreen` 已完成原生系统弹窗向项目内统一提示体系的代码收口。
+- `GoalManagerScreen` 已进一步从“空标题无可见反馈”推进到“modal 内页内状态条可见反馈”。
 - 本轮未去重做成熟页面，而是只修复了：
   - 入口缺失
   - 导航断链
   - 原生弹窗
+  - modal 表单提示不可见
   - 图标运行时警告
 - 下一轮优先事项：
-  - 在更稳定的真机现场下补齐 `GoalManagerScreen` 的创建、空标题校验、删除确认与网络失败交互证据。
+  - 在更稳定的真机现场下补齐 `GoalManagerScreen` 的创建成功、删除确认、删除结果态与网络失败弹层证据。

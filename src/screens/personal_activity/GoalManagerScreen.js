@@ -30,6 +30,7 @@ const GoalManagerScreen = ({ navigation }) => {
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
   const [networkErrorVisible, setNetworkErrorVisible] = useState(false);
   const [networkErrorState, setNetworkErrorState] = useState(null);
+  const [formStatus, setFormStatus] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState(null);
   const [formData, setFormData] = useState({
@@ -70,6 +71,14 @@ const GoalManagerScreen = ({ navigation }) => {
     return false;
   };
 
+  const showFormStatus = (message, type = 'info') => {
+    setFormStatus({ message, type });
+  };
+
+  const clearFormStatus = () => {
+    setFormStatus(null);
+  };
+
   useEffect(() => {
     loadGoals();
   }, []);
@@ -90,9 +99,12 @@ const GoalManagerScreen = ({ navigation }) => {
 
   const handleSaveGoal = async () => {
     if (!formData.title.trim()) {
+      showFormStatus('目标标题不能为空', 'warning');
       showToast.warning('目标标题不能为空');
       return;
     }
+
+    clearFormStatus();
 
     try {
       const goalData = {
@@ -104,9 +116,11 @@ const GoalManagerScreen = ({ navigation }) => {
 
       if (editingGoal) {
         await personalActivityApi.updateGoal(editingGoal._id, goalData);
+        showFormStatus('目标更新成功', 'success');
         showToast.success('目标更新成功');
       } else {
         await personalActivityApi.createGoal(goalData);
+        showFormStatus('目标创建成功', 'success');
         showToast.success('目标创建成功');
       }
 
@@ -117,6 +131,7 @@ const GoalManagerScreen = ({ navigation }) => {
     } catch (error) {
       const actionLabel = editingGoal ? '更新' : '创建';
       if (!presentNetworkError(error, `目标${actionLabel}失败，请确认网络与后端服务正常后重试`, handleSaveGoal)) {
+        showFormStatus(`目标${actionLabel}失败，请稍后重试`, 'error');
         showToast.error(`目标${actionLabel}失败，请稍后重试`);
       }
     }
@@ -135,6 +150,7 @@ const GoalManagerScreen = ({ navigation }) => {
   };
 
   const handleEditGoal = (goal) => {
+    clearFormStatus();
     setEditingGoal(goal);
     setFormData({
       title: goal.title,
@@ -311,12 +327,81 @@ const GoalManagerScreen = ({ navigation }) => {
           </View>
 
           <ScrollView style={styles.modalContent}>
+            {formStatus ? (
+              <View
+                style={[
+                  styles.formStatusCard,
+                  {
+                    backgroundColor:
+                      formStatus.type === 'success'
+                        ? `${colors.success || '#22C55E'}14`
+                        : formStatus.type === 'warning'
+                          ? `${colors.warning || '#F59E0B'}16`
+                          : formStatus.type === 'error'
+                            ? `${colors.error || '#EF4444'}16`
+                            : `${colors.primary}14`,
+                    borderColor:
+                      formStatus.type === 'success'
+                        ? `${colors.success || '#22C55E'}36`
+                        : formStatus.type === 'warning'
+                          ? `${colors.warning || '#F59E0B'}36`
+                          : formStatus.type === 'error'
+                            ? `${colors.error || '#EF4444'}36`
+                            : `${colors.primary}30`,
+                  },
+                ]}
+              >
+                <Icon
+                  name={
+                    formStatus.type === 'success'
+                      ? 'check-circle'
+                      : formStatus.type === 'warning'
+                        ? 'error-outline'
+                        : formStatus.type === 'error'
+                          ? 'highlight-off'
+                          : 'info-outline'
+                  }
+                  size={18}
+                  color={
+                    formStatus.type === 'success'
+                      ? colors.success || '#22C55E'
+                      : formStatus.type === 'warning'
+                        ? colors.warning || '#F59E0B'
+                        : formStatus.type === 'error'
+                          ? colors.error || '#EF4444'
+                          : colors.primary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.formStatusText,
+                    {
+                      color:
+                        formStatus.type === 'success'
+                          ? colors.success || '#22C55E'
+                          : formStatus.type === 'warning'
+                            ? colors.warning || '#F59E0B'
+                            : formStatus.type === 'error'
+                              ? colors.error || '#EF4444'
+                              : colors.primary,
+                    },
+                  ]}
+                >
+                  {formStatus.message}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.formGroup}>
               <Text variant="body" style={styles.formLabel}>标题 *</Text>
               <TextInput
                 style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
                 value={formData.title}
-                onChangeText={(text) => setFormData({ ...formData, title: text })}
+                onChangeText={(text) => {
+                  if (formStatus?.type === 'warning' || formStatus?.type === 'error') {
+                    clearFormStatus();
+                  }
+                  setFormData({ ...formData, title: text });
+                }}
                 placeholder="输入目标标题"
                 placeholderTextColor={colors.text + '60'}
               />
@@ -665,6 +750,22 @@ const styles = StyleSheet.create({
   },
   formGroup: {
     marginBottom: 20,
+  },
+  formStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  formStatusText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   formRow: {
     flexDirection: 'row',
