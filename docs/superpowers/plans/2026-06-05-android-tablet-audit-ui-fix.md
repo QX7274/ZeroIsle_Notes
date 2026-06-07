@@ -1866,3 +1866,43 @@ Expected: 新增或修改的回归用例通过。
   - 必要时把启动附着链继续前移到 `App.js` / 根导航层做最小探针
   - 在 `Running "ZeroIsle_Notes"` 与可见内容树重新出现前，不把问题误写成搜索业务层故障
 ```
+
+- [ ] **Step 22: 若 `App.js` 根入口探针也未落地，且白屏现场不变，则把主线继续前移到 JS 根层未真正跑起**
+
+```md
+- 已确认的新边界：
+  - 本轮在 `src/App.js` 增加了只用于开发态诊断的原生日志探针，覆盖：
+    - `AppContainer` 首次渲染
+    - `beginInitialization(...)`
+    - `SplashScreen` 渲染分支
+    - `PersistBootstrapGate`
+    - `PersistGate.onBeforeLift`
+    - `NavigationContainer.onReady`
+  - 这些探针统一通过 `debugLog('info' | 'warn' | 'error', 'AppRoot', ...)` 走原生日志桥
+- round296 必须写实记录：
+  - 新包已成功安装到真机 `HGR3Y9MA`
+  - 冷启动约 10 秒后抓到的 [round296_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round296_launch_ui.xml) 与 [round296_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round296_launch.png) 仍和 round295 一致：
+    - 前台仍是 `com.zeroisle_notes` 自身空白根容器
+    - 整屏白底，仅残留顶部三个黑点与右侧浮动铅笔按钮
+  - [round296_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round296_launch_logcat.txt) 中继续出现：
+    - `ZeroIsleNotesPackage: createNativeModules: start/success`
+    - `DebugLogModule: constructor: initialized`
+    - `DebugLogModule: getName -> DebugLogModule`
+    - 大量 `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+    - 后续 `before the dispatcher is available`
+  - 但这轮仍完全没有出现：
+    - 任何 `AppRoot` 探针日志
+    - `PersistGate` / `PersistBootstrapGate` 新探针日志
+    - `NavigationContainer` 新探针日志
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `DebugLogModule: log invoked`
+    - `js-bridge-detected`
+- 因而当前最准确的技术判断必须继续收紧为：
+  - 当前主阻断已经不只是搜索页、导航层或持久化门禁问题
+  - 更像是 `src/App.js` 这一层 JS 根组件尚未真正跑起，或尚未进入可执行到探针的阶段
+  - 原生日志桥模块注册仍正常，但 JS 根层、内容树挂载与后续导航都还未被证实启动
+- 下一步动作：
+  - 优先继续核对 `index.js -> AppRegistry.registerComponent -> require('./src/App')` 这条链上是否存在更前置的执行中断
+  - 必要时把探针继续前移到 `index.js` 导入边界或更原始的注册链路
+  - 在 `AppRoot` 或 `Running "ZeroIsle_Notes"` 任一根层日志重新出现前，不把问题误写成业务页面故障
+```

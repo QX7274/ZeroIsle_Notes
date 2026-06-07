@@ -2685,3 +2685,45 @@
   - 下一轮优先抓更长时间窗，确认白屏之后是否会转入首页、搜索页或 system ANR
   - 必要时把最小探针前移到 `App.js` 或根导航层，而不是继续只放在 `MultiModalSearch`
   - 在 `Running "ZeroIsle_Notes"` 与可见内容树重新出现前，不把问题误写成搜索业务层缺陷
+
+### 2026-06-07 第一百一十八轮：round296 将探针前移到 `App.js` 根入口后，白屏与未附着现场仍完全不变
+
+- 这轮继续沿着启动白屏主线推进，没有转去修业务页，也没有去碰成熟 UI。
+- 本轮代码只改了一个根入口文件：
+  - [src/App.js](D:/ZeroIsle_Notes/src/App.js)
+    - 新增 `debugLog` 导入
+    - 在以下根节点补最小原生日志探针：
+      - `AppContainer` 首次渲染
+      - `beginInitialization(...)`
+      - `SplashScreen` 渲染分支
+      - `PersistBootstrapGate`
+      - `PersistGate.onBeforeLift`
+      - `NavigationContainer.onReady`
+    - 这些探针统一使用 `AppRoot` tag，目的是确认白屏是否已经进入 `App.js` 主链
+- 真机重装结果：
+  - `android\\gradlew.bat :app:installDebug --console=plain` 再次成功安装到 `HGR3Y9MA`
+- round296 冷启动证据必须写实拆开：
+  - [round296_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round296_launch_ui.xml) 与 [round296_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round296_launch.png) 继续和 round295 保持一致：
+    - 前台仍是 `com.zeroisle_notes` 自身空白根容器
+    - 整屏白底，仅残留顶部三个黑点和右侧浮动铅笔按钮
+    - 没有搜索页、没有首页、也没有 system ANR 弹窗
+  - [round296_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round296_launch_logcat.txt) 中继续能看到：
+    - `ZeroIsleNotesPackage: createNativeModules: start`
+    - `DebugLogModule: constructor: initialized, hasActiveCatalystInstance=false`
+    - `ZeroIsleNotesPackage: createNativeModules: success, total=17`
+    - `DebugLogModule: getName -> DebugLogModule`
+    - 大量 `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+    - 后续 `ReactRootView: Unable to dispatch touch to JS before the dispatcher is available`
+  - 但最关键的新结果是：
+    - 本轮新增的 `AppRoot` 探针日志仍然完全没有出现
+    - `PersistBootstrapGate` / `PersistGate` / `NavigationContainer` 新探针日志也完全没有出现
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}` 仍未出现
+    - `DebugLogModule: log invoked`、`js-bridge-detected` 仍未出现
+- 因而这轮判断必须继续收紧为：
+  - 白屏阻断已经不只是搜索页、导航层或持久化门禁问题
+  - 更像是 `src/App.js` 这一层 JS 根组件尚未真正跑起，或者还没进入可执行到这些探针的阶段
+  - 原生日志桥模块注册继续正常，但 JS 根层、内容树挂载和后续导航都还未被证实启动
+- 下一步：
+  - 下一轮继续核对 `index.js -> AppRegistry.registerComponent -> require('./src/App')` 这条链上是否存在更前置的中断
+  - 必要时把探针前移到 `index.js` 导入边界或更原始的注册链路
+  - 在 `AppRoot` 或 `Running "ZeroIsle_Notes"` 任一根层日志重新出现前，不把问题误写成业务页面缺陷

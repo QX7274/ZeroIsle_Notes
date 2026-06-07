@@ -44,6 +44,7 @@ import GlobalNetworkErrorHandler from './components/common/GlobalNetworkErrorHan
 // 导入令牌服务
 import tokenService from './services/auth/tokenService';
 import { handleUnauthorizedError } from './services/auth/authUtils';
+import debugLog from './native/debugLog';
 
 const DEV_SUPPRESSED_LOG_PREFIXES = [
   'App组件渲染中...',
@@ -293,6 +294,7 @@ const useAppInitialization = () => {
 // 主应用容器
 const AppContainer = () => {
   console.log('AppContainer组件开始渲染...');
+  debugLog('info', 'AppRoot', { event: 'app-container-render-start' });
 
   // 统一的应用准备状态
   const [isAppReady, setIsAppReady] = useState(false);
@@ -321,15 +323,29 @@ const AppContainer = () => {
   const beginInitialization = async (trigger = 'splashComplete') => {
     if (initStartedRef.current) {
       console.log(`应用初始化已开始，忽略重复触发: ${trigger}`);
+      debugLog('warn', 'AppRoot', {
+        event: 'initialization-duplicate-trigger-ignored',
+        trigger,
+      });
       return;
     }
 
     initStartedRef.current = true;
     console.log(`开始应用初始化，触发源: ${trigger}`);
+    debugLog('info', 'AppRoot', {
+      event: 'initialization-begin',
+      trigger,
+    });
 
     // 执行所有初始化逻辑
     const result = await initializeApp();
     setInitResult(result);
+    debugLog('info', 'AppRoot', {
+      event: 'initialization-result',
+      trigger,
+      success: !!result?.success,
+      hasError: !!result?.error,
+    });
 
     // 如果初始化失败，询问用户是否继续
     if (!result.success) {
@@ -338,12 +354,25 @@ const AppContainer = () => {
         '部分服务初始化失败，应用可能无法完全正常工作。是否继续？',
         [
           { text: '退出', style: 'cancel', onPress: () => { } },
-          { text: '继续', onPress: () => setIsAppReady(true) },
+          {
+            text: '继续',
+            onPress: () => {
+              debugLog('warn', 'AppRoot', {
+                event: 'initialization-continue-after-warning',
+                trigger,
+              });
+              setIsAppReady(true);
+            },
+          },
         ]
       );
     } else {
       setIsAppReady(true);
       console.log('应用准备就绪，显示主界面');
+      debugLog('info', 'AppRoot', {
+        event: 'app-ready',
+        trigger,
+      });
     }
   };
 
@@ -362,6 +391,10 @@ const AppContainer = () => {
       console.warn('SplashScreen 超时未完成，触发初始化兜底放行');
       beginInitialization('splashTimeoutFallback').catch(error => {
         console.error('SplashScreen 兜底初始化失败:', error);
+        debugLog('error', 'AppRoot', {
+          event: 'splash-timeout-fallback-failed',
+          message: error?.message || 'unknown error',
+        });
       });
     }, 4500);
 
@@ -373,6 +406,11 @@ const AppContainer = () => {
 
   // 如果应用未准备好，显示统一的启动屏幕
   if (!isAppReady) {
+    debugLog('info', 'AppRoot', {
+      event: 'rendering-splash-screen',
+      initStarted: initStartedRef.current,
+      initSuccess: initResult?.success ?? null,
+    });
     return (
       <View style={{ flex: 1 }}>
         <StatusBar
@@ -397,10 +435,17 @@ const AppContainer = () => {
         ref={navigationRef}
         onReady={() => {
           console.log('NavigationContainer已准备就绪');
+          debugLog('info', 'AppRoot', {
+            event: 'navigation-container-ready',
+          });
           try {
             processNavigationQueue();
           } catch (error) {
             console.error('处理导航队列失败:', error);
+            debugLog('error', 'AppRoot', {
+              event: 'navigation-queue-process-failed',
+              message: error?.message || 'unknown error',
+            });
           }
         }}
         onStateChange={() => {
@@ -553,6 +598,7 @@ class ErrorBoundary extends React.Component {
 // 加载组件
 const LoadingComponent = () => {
   console.log('PersistGate: 等待本地持久化数据恢复...');
+  debugLog('info', 'AppRoot', { event: 'persist-gate-loading-render' });
   return (
     <View
       style={{
@@ -588,6 +634,10 @@ const PersistBootstrapGate = ({ children }) => {
       setIsBootstrapped(true);
       if (reason) {
         console.log(`PersistBootstrapGate: ${reason}`);
+        debugLog('info', 'AppRoot', {
+          event: 'persist-bootstrap-marked-ready',
+          reason,
+        });
       }
     };
 
@@ -600,12 +650,20 @@ const PersistBootstrapGate = ({ children }) => {
           }
         } catch (error) {
           console.error('PersistBootstrapGate: 监听持久化状态失败:', error);
+          debugLog('error', 'AppRoot', {
+            event: 'persist-bootstrap-subscribe-callback-failed',
+            message: error?.message || 'unknown error',
+          });
           setPersistError(error);
           markBootstrapped('持久化状态监听失败，已降级放行');
         }
       });
     } catch (error) {
       console.error('PersistBootstrapGate: 订阅持久化状态失败:', error);
+      debugLog('error', 'AppRoot', {
+        event: 'persist-bootstrap-subscribe-failed',
+        message: error?.message || 'unknown error',
+      });
       setPersistError(error);
       markBootstrapped('持久化状态订阅失败，已降级放行');
     }
@@ -615,6 +673,10 @@ const PersistBootstrapGate = ({ children }) => {
         return;
       }
       console.warn(`PersistBootstrapGate: 持久化恢复超过 ${PERSIST_BOOT_TIMEOUT_MS}ms，跳过阻塞以避免白屏`);
+      debugLog('warn', 'AppRoot', {
+        event: 'persist-bootstrap-timeout-bypass',
+        timeoutMs: PERSIST_BOOT_TIMEOUT_MS,
+      });
       setDidTimeout(true);
       markBootstrapped('持久化恢复超时，已跳过门禁阻塞');
     }, PERSIST_BOOT_TIMEOUT_MS);
@@ -682,6 +744,11 @@ const PersistBootstrapGate = ({ children }) => {
       didTimeout,
       error: persistError?.message || null,
     });
+    debugLog('warn', 'AppRoot', {
+      event: 'persist-bootstrap-degraded-continue',
+      didTimeout,
+      error: persistError?.message || null,
+    });
   }
 
   return children;
@@ -716,6 +783,9 @@ const App = () => {
                 persistor={persistor}
                 onBeforeLift={() => {
                   console.log('PersistGate: 数据恢复完成，准备渲染应用...');
+                  debugLog('info', 'AppRoot', {
+                    event: 'persist-gate-before-lift',
+                  });
                 }}
               >
                 <SafeAreaProvider>
