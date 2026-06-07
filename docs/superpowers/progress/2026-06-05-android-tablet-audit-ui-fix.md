@@ -3048,3 +3048,44 @@
   - 当前真机命中的是 `暂无分类 / 暂无标签` 空数据态，只能如实记录为当前数据现场，不能直接记成功能完成或代码缺陷
   - 分类/标签弹层关闭链路正常，`公开帖子 / 允许评论` 两个基础开关都有真实状态变化
   - 后续仍需继续补分类/标签有真实数据时的选择态，以及封面/附件失败链路的真机证据
+
+### 2026-06-07 第一百二十六轮：round306 创建帖子封面/附件入口与超限失败链路真机回归
+
+- 这轮继续沿 `创建帖子` 页往下走真实操作链路，不停留在“入口能点”。重点是把封面入口、附件入口，以及附件超限后的应用内失败提示补成完整真机证据，确认系统选择器与项目内统一提示协同正常。
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先抓 [round306_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_current.xml) 与 [round306_current.png](D:/ZeroIsle_Notes/.codex-tmp/round306_current.png)
+    - 前台仍是 `创建帖子`
+    - `action.community.selectCoverImage` 与 `action.community.selectAttachments` 都还在
+    - 说明本轮起点是连续的发帖页现场，不是重新冷启动猜状态
+  - 点击封面入口后，抓取 [round306_cover_tap.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_cover_tap.xml) 与 [round306_cover_tap.png](D:/ZeroIsle_Notes/.codex-tmp/round306_cover_tap.png)
+    - 前台包名切到 `com.android.providers.media.module`
+    - 页面顶部可见 `取消`
+    - UI 树中存在 `照片 / 影集 / 最近`
+    - 说明封面入口当前能正常拉起系统照片选择器，不是应用内异常链路，也不是原生错误弹窗
+  - 点击系统照片选择器的 `取消` 后，抓取 [round306_after_cover_cancel.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_after_cover_cancel.xml) 与 [round306_after_cover_cancel.png](D:/ZeroIsle_Notes/.codex-tmp/round306_after_cover_cancel.png)
+    - 前台已回到 `创建帖子`
+    - `action.community.selectCoverImage` 与 `action.community.selectAttachments` 再次可见
+    - 说明封面选择器的取消返回链路当前稳定
+  - 点击附件入口后，抓取 [round306_attachment_tap.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_tap.xml) 与 [round306_attachment_tap.png](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_tap.png)
+    - 前台包名切到 `com.android.documentsui`
+    - 页面显示 `下载`
+    - 顶部存在 `显示根目录 / 搜索 / 更多选项`
+    - 说明附件入口当前能正常拉起系统文件选择器
+  - 在系统文件选择器里选中一个超过 10MB 的文件后，抓取 [round306_attachment_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_selected.xml) 与 [round306_attachment_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_selected.png)
+    - 前台已回到应用包 `com.zeroisle_notes`
+    - 应用内出现统一提示 `部分文件未添加`
+    - 提示文案为 `超过 10MB 的文件已被自动过滤。`
+    - 操作为 `知道了`
+    - 同时未命中 `android:id/alertTitle` 与 `AlertDialog`
+    - 说明附件超限链路当前没有崩溃、没有走系统错误弹窗，而是正确回到应用内统一提示
+  - 关闭该统一提示后，抓取 [round306_after_attachment_dialog_dismiss.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_after_attachment_dialog_dismiss.xml) 与 [round306_after_attachment_dialog_dismiss.png](D:/ZeroIsle_Notes/.codex-tmp/round306_after_attachment_dialog_dismiss.png)
+    - 前台继续是 `创建帖子`
+    - `部分文件未添加` 与 `超过 10MB` 文案已消失
+    - `action.community.backFromCreatePost`、`action.community.publishPost`、`action.community.selectAttachments` 继续可见
+    - 说明超限提示关闭后可稳定回到发帖页，不会卡在遮罩层
+- 本轮结论：
+  - 本轮没有发现必须继续改代码的新真实缺陷
+  - 封面入口正常拉起系统照片选择器，取消后可稳定回到发帖页
+  - 附件入口正常拉起系统文件选择器，选择超过 10MB 文件后会回到应用内统一提示 `部分文件未添加 / 超过 10MB 的文件已被自动过滤`
+  - 该提示不是原生安卓 `AlertDialog`，关闭后也能稳定回到发帖页
+  - 后续仍需继续补小文件成功添加链路，以及封面真实选择后的承接态证据

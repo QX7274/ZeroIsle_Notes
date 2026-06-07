@@ -2211,3 +2211,45 @@ Expected: 新增或修改的回归用例通过。
   - 弹层继续优先使用项目内自绘样式，不回退到默认安卓弹窗
   - 当前 `暂无分类 / 暂无标签` 只能如实记录成当前数据态，不能直接外推成代码缺陷或功能完成，后续仍要继续补真实可选数据场景与附件失败链路
 ```
+
+- [ ] **Step 30: 继续补齐创建帖子封面/附件入口与超限失败链路真机回归，确认系统选择器与统一提示协同正常**
+
+```md
+- round306 新确认的问题边界：
+  - 在 `round305` 补齐分类、标签和开关证据后，`创建帖子` 页仍缺少 `封面选择 / 附件选择 / 附件超限失败提示` 的真实设备证据
+  - 这轮既要区分“系统选择器是正常外部组件”与“应用内统一提示是项目内体验”，也要验证取消后是否能稳定回到发帖页
+  - 如果封面入口走系统照片选择器、附件入口走系统文件选择器，且附件超限后回到应用内统一提示，本轮就只记录真实链路，不强行改码
+- round306 真机验收必须写实记录：
+  - [round306_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_current.xml) 与 [round306_current.png](D:/ZeroIsle_Notes/.codex-tmp/round306_current.png) 先确认：
+    - 前台仍是 `创建帖子`
+    - 存在 `action.community.selectCoverImage`
+    - 存在 `action.community.selectAttachments`
+  - 点击封面入口后，[round306_cover_tap.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_cover_tap.xml) 与 [round306_cover_tap.png](D:/ZeroIsle_Notes/.codex-tmp/round306_cover_tap.png) 必须体现：
+    - 前台包名切到 `com.android.providers.media.module`
+    - 顶部存在 `取消`
+    - 可见 `照片 / 影集 / 最近`
+    - 说明封面入口正常拉起系统照片选择器，而不是应用异常或原生报错弹窗
+  - 点击系统照片选择器 `取消` 后，[round306_after_cover_cancel.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_after_cover_cancel.xml) 与 [round306_after_cover_cancel.png](D:/ZeroIsle_Notes/.codex-tmp/round306_after_cover_cancel.png) 必须体现：
+    - 已回到 `创建帖子`
+    - `action.community.selectCoverImage` 与 `action.community.selectAttachments` 再次可见
+  - 点击附件入口后，[round306_attachment_tap.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_tap.xml) 与 [round306_attachment_tap.png](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_tap.png) 必须体现：
+    - 前台包名切到 `com.android.documentsui`
+    - 页面显示 `下载`
+    - 顶部包含 `显示根目录 / 搜索 / 更多选项`
+    - 说明附件入口正常拉起系统文件选择器
+  - 在系统文件选择器里选中一个超过 10MB 的文件后，[round306_attachment_selected.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_selected.xml) 与 [round306_attachment_selected.png](D:/ZeroIsle_Notes/.codex-tmp/round306_attachment_selected.png) 必须体现：
+    - 已回到应用包 `com.zeroisle_notes`
+    - 应用内出现统一提示 `部分文件未添加`
+    - 提示文案包含 `超过 10MB 的文件已被自动过滤。`
+    - 底部操作为 `知道了`
+    - 且不能出现 `android:id/alertTitle` 或 `AlertDialog`
+  - 关闭该统一提示后，[round306_after_attachment_dialog_dismiss.xml](D:/ZeroIsle_Notes/.codex-tmp/round306_after_attachment_dialog_dismiss.xml) 与 [round306_after_attachment_dialog_dismiss.png](D:/ZeroIsle_Notes/.codex-tmp/round306_after_attachment_dialog_dismiss.png) 必须体现：
+    - 已回到 `创建帖子`
+    - `部分文件未添加` 与 `超过 10MB` 文案已消失
+    - `action.community.backFromCreatePost` 与 `action.community.publishPost` 继续可见
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，创建帖子页以及返回后的承接页都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 应用内失败提示继续统一走项目内自绘样式，不回退到默认安卓弹窗
+  - 系统照片/文件选择器属于平台组件，本轮只能如实记录其拉起与取消/返回链路正常，后续仍需继续补小文件成功添加与封面真实选择态
+```
