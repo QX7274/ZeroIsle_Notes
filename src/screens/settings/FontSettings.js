@@ -4,7 +4,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { updateSettings } from '../../redux/slices/settingsSlice';
 import { useFontSize } from '../../context/FontSizeContext';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { showToast } from '../../components/common/ToastHelper';
 
 const FontSettings = ({ navigation }) => {
   const { theme } = useTheme();
@@ -22,6 +23,13 @@ const FontSettings = ({ navigation }) => {
   const dispatch = useDispatch();
   const { fontSize, setFontSize } = useFontSize();
   const settings = useSelector((state) => state.settings);
+  const [dialogState, setDialogState] = React.useState({
+    visible: false,
+    title: '',
+    message: '',
+    primaryText: '知道了',
+    onPrimaryPress: null,
+  });
 
   const fontSizeOptions = [
     { value: 'small', label: '小', icon: 'format-size' },
@@ -29,15 +37,44 @@ const FontSettings = ({ navigation }) => {
     { value: 'large', label: '大', icon: 'format-size' },
   ];
 
+  const closeDialog = () => {
+    setDialogState((current) => ({
+      ...current,
+      visible: false,
+      onPrimaryPress: null,
+    }));
+  };
+
+  const openDialog = ({ title, message, primaryText = '知道了', onPrimaryPress = null }) => {
+    setDialogState({
+      visible: true,
+      title,
+      message,
+      primaryText,
+      onPrimaryPress,
+    });
+  };
+
+  const handleDialogPrimaryPress = async () => {
+    const action = dialogState.onPrimaryPress;
+    closeDialog();
+    if (action) {
+      await action();
+    }
+  };
+
   const updateFontSize = async (value) => {
     try {
       const newSettings = { ...settings, fontSize: value };
       dispatch(updateSettings(newSettings));
       await setFontSize(value);
-      Alert.alert('设置已更新', '字体大小设置已保存并立即生效。');
-      navigation.goBack();
+      openDialog({
+        title: '设置已更新',
+        message: '字体大小设置已保存并立即生效。',
+        onPrimaryPress: () => navigation.goBack(),
+      });
     } catch (error) {
-      Alert.alert('错误', '更新字体大小失败，请重试。');
+      showToast.error('更新字体大小失败，请重试。');
     }
   };
 
@@ -45,6 +82,7 @@ const FontSettings = ({ navigation }) => {
     <SafeAreaView style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID="state.settings.font.state.ready">
       <View testID="state.settings.font.visibility.visible" />
       <View testID={`state.settings.font.current.${fontSize || 'unknown'}`} />
+      <View testID={`state.settings.font.dialog.visibility.${dialogState.visible ? 'visible' : 'hidden'}`} />
       <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
         <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
@@ -107,6 +145,32 @@ const FontSettings = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={dialogState.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDialog}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={styles.dialogIconWrap}>
+              <Icon name="info-outline" size={28} color="#1D4ED8" />
+            </View>
+            <Text style={styles.dialogTitle}>{dialogState.title}</Text>
+            <Text style={styles.dialogMessage}>{dialogState.message}</Text>
+            <View style={styles.dialogButtonRow}>
+              <TouchableOpacity
+                style={styles.dialogPrimaryButton}
+                onPress={handleDialogPrimaryPress}
+                testID="action.settings.font.dialog.primary"
+              >
+                <Text style={styles.dialogPrimaryText}>{dialogState.primaryText}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -167,6 +231,68 @@ const styles = StyleSheet.create({
   },
   previewCard: {
     padding: 18,
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    shadowColor: '#4B8CFF',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  dialogIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    backgroundColor: 'rgba(29,78,216,0.10)',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#102A43',
+  },
+  dialogMessage: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#486581',
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+  },
+  dialogPrimaryButton: {
+    minWidth: 110,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: '#1D4ED8',
+  },
+  dialogPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 
