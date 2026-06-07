@@ -2116,3 +2116,54 @@ Expected: 新增或修改的回归用例通过。
   - 不把本轮返回链路通过外推成社区全链路都已完成，后续仍要继续测其他深层页与错误态
   - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
 ```
+
+- [ ] **Step 28: 继续补齐社区帖子详情与创建帖子真实链路回归，确认统一弹窗和页头返回都稳定**
+
+```md
+- round304 新确认的问题边界：
+  - 在 `round303` 把 `活动动态 / 通知消息` 返回链路补齐后，社区剩余高频深层页里，仍缺少 `帖子详情` 与 `创建帖子` 的完整真机链路证据
+  - 这轮优先做“可达性 + 统一弹窗 + 返回链路”验收，不为了凑修改去重构成熟社区首页
+  - 如果 `创建帖子` 空提交仍走项目内统一优美样式弹窗，且 `帖子详情 / 创建帖子` 的页头返回都能稳定回到社区首页，本轮就只更新文档，不强行改代码
+- round304 真机验收必须写实记录：
+  - [round304_community_home.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_community_home.xml) 先确认社区首页前台包含：
+    - `state.community.pageState.error`
+    - `action.community.createPost`
+    - `action.community.devQa.postDetail`
+    - `action.community.notifications`
+    - `action.community.activity`
+  - 从开发态入口进入 `帖子详情` 后，[round304_postdetail_entry.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_postdetail_entry.xml) 必须体现：
+    - `state.community.postDetail.empty`
+    - `帖子详情`
+    - `action.community.postDetail.back`
+    - `帖子不存在或已被删除`
+  - 点击 `帖子详情` 页头淡蓝色返回按钮后，[round304_after_postdetail_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_after_postdetail_back.xml) 必须体现：
+    - 已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - `action.community.devQa.postDetail`
+    - `action.community.createPost`
+  - 进入 `创建帖子` 后，[round304_createpost_entry.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_entry.xml) 必须确认：
+    - `action.community.backFromCreatePost`
+    - `action.community.publishPost`
+    - `帖子标题`
+    - 顶部返回按钮、标题和右上角发布按钮完整露出
+  - 在 `创建帖子` 空提交后，[round304_createpost_empty_submit.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_empty_submit.xml) 必须体现：
+    - `发布失败`
+    - `请输入帖子标题`
+    - `知道了`
+    - 且不能出现 `android:id/alertTitle` 或 `AlertDialog`
+  - 关闭统一弹窗后，[round304_createpost_after_dialog_dismiss.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_after_dialog_dismiss.xml) 必须体现：
+    - 已回到 `创建帖子` 页面
+    - 仍包含 `action.community.backFromCreatePost`
+    - 不再包含 `发布失败`
+  - 从 `创建帖子` 页头点击淡蓝色返回按钮后，[round304_after_createpost_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_after_createpost_back.xml) 与 [round304_after_createpost_back.png](D:/ZeroIsle_Notes/.codex-tmp/round304_after_createpost_back.png) 必须体现：
+    - 已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - `action.community.createPost`
+    - `action.community.devQa.postDetail`
+    - 社区首页顶部标题、副标题、`action.community.notifications`、`action.community.activity` 完整露出
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，社区首页、帖子详情、创建帖子都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 网络问题与失败提示仍统一走项目内优美样式弹窗，不回退到默认安卓弹窗
+  - 不把本轮 `帖子详情 / 创建帖子` 的可达性与返回链路通过外推成社区全部深层页都已完成，后续仍要继续测分类选择、附件失败链路和其他真实入口
+```

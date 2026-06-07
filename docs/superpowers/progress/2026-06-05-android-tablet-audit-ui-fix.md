@@ -2962,3 +2962,46 @@
   - `活动动态` 的系统返回也已稳定回到社区首页
   - `活动动态 / 通知消息` 的顶部安全区和淡蓝色方形返回按钮当前真机复核下都保持正常
   - 这轮不能外推成社区所有深层页都已完成，后续仍需继续逐页复测剩余返回链路、错误态和空态页面
+
+### 2026-06-07 第一百二十四轮：round304 社区帖子详情与创建帖子链路真机回归
+
+- 这轮继续按“只修真实复现问题，不重构成熟页面”的口径推进。重点不再是活动和通知，而是把社区剩余高频深层页里的 `帖子详情` 与 `创建帖子` 做一轮完整真机链路补验，确认页头安全区、统一弹窗和返回链路都没有回退。
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先抓 [round304_community_home.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_community_home.xml)
+    - 前台包含 `state.community.pageState.error`
+    - 同时可见 `action.community.createPost`、`action.community.devQa.postDetail`、`action.community.notifications`、`action.community.activity`
+    - 说明本轮起点仍是真实社区首页，不是从子页状态倒推
+  - 点击开发态 `帖子详情` 入口后，抓取 [round304_postdetail_entry.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_postdetail_entry.xml)
+    - 前台命中 `state.community.postDetail.empty`
+    - 顶部包含 `帖子详情` 与 `action.community.postDetail.back`
+    - 空态文案为 `帖子不存在或已被删除`
+    - 说明当前虽还没有真实帖子内容态，但 `帖子详情` 空态页头和返回按钮已稳定落地
+  - 点击 `帖子详情` 页头淡蓝色返回按钮后，抓取 [round304_after_postdetail_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_after_postdetail_back.xml)
+    - 前台重新包含 `state.community.pageState.error`
+    - `action.community.devQa.postDetail` 与 `action.community.createPost` 再次可见
+    - 说明 `帖子详情` 页头返回当前已稳定回到社区首页
+  - 进入 `创建帖子` 后，抓取 [round304_createpost_entry.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_entry.xml)
+    - 前台包含 `action.community.backFromCreatePost`
+    - 右上角存在 `action.community.publishPost`
+    - 页面输入区命中 `帖子标题`
+    - 顶部返回按钮、标题和右上角发布按钮都完整露出，没有被平板状态栏遮挡
+  - 在 `创建帖子` 页直接空提交后，抓取 [round304_createpost_empty_submit.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_empty_submit.xml)
+    - 命中 `发布失败`、`请输入帖子标题`、`知道了`
+    - 同时未命中 `android:id/alertTitle` 与 `AlertDialog`
+    - 说明空校验失败链路当前仍然走项目内统一优美样式弹窗，没有回退成默认安卓弹窗
+  - 关闭统一弹窗后，抓取 [round304_createpost_after_dialog_dismiss.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_createpost_after_dialog_dismiss.xml)
+    - 前台继续是 `创建帖子`
+    - 仍包含 `action.community.backFromCreatePost`、`action.community.publishPost` 与 `帖子标题`
+    - 不再包含 `发布失败`
+    - 说明统一弹窗关闭后能够稳定回到发帖页，不会卡死在遮罩层
+  - 从 `创建帖子` 页头点击淡蓝色返回按钮后，抓取 [round304_after_createpost_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round304_after_createpost_back.xml) 与 [round304_after_createpost_back.png](D:/ZeroIsle_Notes/.codex-tmp/round304_after_createpost_back.png)
+    - 前台再次包含 `state.community.pageState.error`
+    - `action.community.createPost`、`action.community.devQa.postDetail`、`action.community.notifications`、`action.community.activity` 都重新可见
+    - 社区首页顶部标题、副标题和页头入口按钮完整露出
+    - 说明 `创建帖子` 的页头返回链路当前也已稳定回到社区首页
+- 本轮结论：
+  - 本轮没有发现必须继续改代码的新真实缺陷
+  - `帖子详情` 空态页头、空态文案和页头返回链路当前真机复核下都正常
+  - `创建帖子` 空提交失败链路继续走项目内统一优美样式弹窗，未回退成原生安卓 `AlertDialog`
+  - 统一弹窗关闭后可稳定回到发帖页，发帖页头返回也可稳定回到社区首页
+  - 这轮不能外推成 `帖子详情` 内容态、发帖分类选择器、附件上传失败链路等都已完成，后续仍需继续沿真实入口逐项补证
