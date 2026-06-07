@@ -29,6 +29,53 @@ import useHideMainTabBar from './useHideMainTabBar';
 
 const EMPTY_ARRAY = [];
 
+const normalizeCreatePostErrorMessage = (message) => {
+  const normalized = typeof message === 'string' ? message.trim() : '';
+
+  if (!normalized || normalized === 'Rejected') {
+    return '创建帖子失败，请稍后重试';
+  }
+
+  if (normalized === 'Request failed with status code 400') {
+    return '提交内容未通过校验，请检查标题、正文、分类、标签或附件后重试';
+  }
+
+  if (normalized === 'Request failed with status code 401') {
+    return '登录状态已失效，请重新登录后再试';
+  }
+
+  if (normalized === 'Request failed with status code 403') {
+    return '当前账号暂无发帖权限，或本次发布内容被服务器拒绝，请检查后重试';
+  }
+
+  if (normalized === 'Request failed with status code 413') {
+    return '上传内容过大，请压缩封面或附件后重试';
+  }
+
+  if (normalized === 'Request failed with status code 500') {
+    return '服务器暂时不可用，请稍后重试';
+  }
+
+  return normalized;
+};
+
+const resolveCreatePostThunkErrorMessage = (result) => {
+  const payload = result?.payload;
+
+  if (typeof payload === 'string' && payload.trim()) {
+    return normalizeCreatePostErrorMessage(payload);
+  }
+
+  if (payload && typeof payload === 'object') {
+    const nestedMessage = payload.message || payload.detail || payload.error;
+    if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      return normalizeCreatePostErrorMessage(nestedMessage);
+    }
+  }
+
+  return normalizeCreatePostErrorMessage(result?.error?.message);
+};
+
 const CreatePostScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -292,7 +339,7 @@ const CreatePostScreen = ({ navigation }) => {
         openDialog({
           tone: 'error',
           title: '发布失败',
-          message: result.error?.message || '创建帖子失败，请重试',
+          message: resolveCreatePostThunkErrorMessage(result),
           primaryText: '知道了',
         });
       }
@@ -300,7 +347,7 @@ const CreatePostScreen = ({ navigation }) => {
       openDialog({
         tone: 'error',
         title: '发布失败',
-        message: error?.message || '创建帖子失败，请重试',
+        message: normalizeCreatePostErrorMessage(error?.message),
         primaryText: '知道了',
       });
     } finally {

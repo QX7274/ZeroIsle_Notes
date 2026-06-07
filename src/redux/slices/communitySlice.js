@@ -5,6 +5,46 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import communityApi from '../../services/api/communityApi';
 
+const resolveCommunityErrorMessage = (error, fallbackMessage) => {
+  const responseData = error?.response?.data;
+  const responseStatus = error?.response?.status;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData.trim();
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const nestedMessage = responseData.message
+      || responseData.detail
+      || responseData.error
+      || responseData.non_field_errors?.[0]
+      || responseData.title?.[0]
+      || responseData.content?.[0];
+
+    if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      return nestedMessage.trim();
+    }
+  }
+
+  if (responseStatus === 401) {
+    return '登录状态已失效，请重新登录后再试';
+  }
+
+  if (responseStatus === 403) {
+    return '当前账号暂无发帖权限，或本次发布内容被服务器拒绝，请检查后重试';
+  }
+
+  if (responseStatus === 400) {
+    return '提交内容未通过校验，请检查标题、正文、分类、标签或附件后重试';
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim() && error.message !== 'Rejected') {
+    return error.message.trim();
+  }
+
+  return fallbackMessage;
+};
+
 // 异步Action: 获取社区帖子列表
 export const fetchPosts = createAsyncThunk(
   'community/fetchPosts',
@@ -246,12 +286,12 @@ export const createPost = createAsyncThunk(
       const response = await communityApi.createPost(formData || postData);
 
       if (!response.success) {
-        return rejectWithValue(response.message || '创建帖子失败');
+        return rejectWithValue(response.message || '创建帖子失败，请重试');
       }
 
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.message || '创建帖子失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '创建帖子失败，请重试'));
     }
   }
 );

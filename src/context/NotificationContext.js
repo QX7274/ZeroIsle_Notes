@@ -53,6 +53,7 @@ const NETWORK_FAILURE_SIGNATURES = [
     '邀请成员失败',
     '邀请用户失败',
     '创建群组失败',
+    '创建帖子失败',
     '更新群组失败',
     '删除群组失败',
     '加入群组失败',
@@ -72,6 +73,8 @@ const NETWORK_FAILURE_SIGNATURES = [
     '网络连接失败，无法加载群组成员',
     '网络连接失败，无法加入群组',
     '网络连接失败，无法创建群组',
+    '离线模式下无法创建帖子',
+    '当前账号暂无发帖权限',
     "error:'syncinfo'hasnoproperty'type'",
     'syncinfohasnopropertytype',
 ];
