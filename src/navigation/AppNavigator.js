@@ -111,7 +111,8 @@ const getFocusedRouteNameDeep = (route) => {
 const getTabBarStyle = (route, colors) => {
   // 获取最深层路由的参数与名称
   const params = getFocusedRouteParams(route);
-  const routeName = getFocusedRouteNameDeep(route) || getFocusedRouteNameFromRoute(route) || 'Home';
+  const topFocusedRouteName = getFocusedRouteNameFromRoute(route);
+  const routeName = getFocusedRouteNameDeep(route) || topFocusedRouteName || 'Home';
   const shouldHideTabBar = hasHideTabBarInFocusedChain(route);
   const nestedFlowScreens = [
     'Groups',
@@ -180,6 +181,16 @@ const getTabBarStyle = (route, colors) => {
 
   // 显式参数优先：某页面声明 hideTabBar=true 则直接隐藏
   if (params.hideTabBar === true || shouldHideTabBar) {
+    return { display: 'none' };
+  }
+
+  // “我的”主页保留底栏，但从个人主页进入的任意深层页都要隐藏主 Tab，
+  // 避免设置、帮助、关于等页面与底部导航叠在同一层。
+  if (
+    route.name === 'Profile' &&
+    topFocusedRouteName &&
+    topFocusedRouteName !== 'ProfileMain'
+  ) {
     return { display: 'none' };
   }
 
