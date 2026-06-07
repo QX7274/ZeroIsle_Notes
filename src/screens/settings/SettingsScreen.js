@@ -8,11 +8,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
   Linking,
   Animated,
   Pressable,
   InteractionManager,
+  Modal,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
@@ -99,6 +99,16 @@ const SettingsScreen = ({ navigation }) => {
   const [appVersion, setAppVersion] = useState('');
   const [cacheSize, setCacheSize] = useState('0 MB');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [dialogState, setDialogState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    primaryText: '知道了',
+    secondaryText: '',
+    primaryVariant: 'primary',
+    onPrimaryPress: null,
+    onSecondaryPress: null,
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -122,6 +132,52 @@ const SettingsScreen = ({ navigation }) => {
     dispatch(updateSettings({ ...settings, [key]: value }));
     if (key === 'theme') setThemeType(value);
   }, [dispatch, settings, setThemeType]);
+
+  const closeDialog = useCallback(() => {
+    setDialogState((current) => ({
+      ...current,
+      visible: false,
+      onPrimaryPress: null,
+      onSecondaryPress: null,
+    }));
+  }, []);
+
+  const openDialog = useCallback(({
+    title,
+    message,
+    primaryText = '知道了',
+    secondaryText = '',
+    primaryVariant = 'primary',
+    onPrimaryPress = null,
+    onSecondaryPress = null,
+  }) => {
+    setDialogState({
+      visible: true,
+      title,
+      message,
+      primaryText,
+      secondaryText,
+      primaryVariant,
+      onPrimaryPress,
+      onSecondaryPress,
+    });
+  }, []);
+
+  const handleDialogPrimaryPress = useCallback(async () => {
+    const action = dialogState.onPrimaryPress;
+    closeDialog();
+    if (action) {
+      await action();
+    }
+  }, [closeDialog, dialogState.onPrimaryPress]);
+
+  const handleDialogSecondaryPress = useCallback(async () => {
+    const action = dialogState.onSecondaryPress;
+    closeDialog();
+    if (action) {
+      await action();
+    }
+  }, [closeDialog, dialogState.onSecondaryPress]);
 
   const navigateTo = useCallback((name) => navigation.navigate(name), [navigation]);
   const handleLoginEntryPress = useCallback(() => {
@@ -158,70 +214,87 @@ const SettingsScreen = ({ navigation }) => {
   const handleAutoSaveToggle = useCallback((value) => updateSetting('autoSave', value), [updateSetting]);
 
   const handleClearCache = useCallback(async () => {
-    Alert.alert('清理缓存', '确定要清理应用缓存吗？不会影响笔记数据。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '清理',
-        onPress: async () => {
-          const ok = await cacheService.clearCache();
-          if (ok) {
-            const size = await cacheService.getCacheSize();
-            setCacheSize(`${(size / (1024 * 1024)).toFixed(1)} MB`);
-            Alert.alert('成功', '缓存已清理');
-          } else {
-            Alert.alert('失败', '清理缓存失败，请稍后重试');
-          }
-        },
+    openDialog({
+      title: '清理缓存',
+      message: '确定要清理应用缓存吗？不会影响笔记数据。',
+      primaryText: '清理',
+      secondaryText: '取消',
+      onPrimaryPress: async () => {
+        const ok = await cacheService.clearCache();
+        if (ok) {
+          const size = await cacheService.getCacheSize();
+          setCacheSize(`${(size / (1024 * 1024)).toFixed(1)} MB`);
+          showToast.success('缓存已清理');
+        } else {
+          showToast.error('清理缓存失败，请稍后重试');
+        }
       },
-    ]);
-  }, []);
+    });
+  }, [openDialog]);
 
   const handleCheckUpdate = useCallback(async () => {
     setIsCheckingUpdate(true);
     try {
       const info = await cacheService.checkForUpdates();
       if (info.hasUpdate) {
-        Alert.alert('发现新版本', `检测到新版本 ${info.version}，是否前往更新？`, [
-          { text: '取消', style: 'cancel' },
-          { text: '更新', onPress: () => Linking.openURL(info.url) },
-        ]);
+        openDialog({
+          title: '发现新版本',
+          message: `检测到新版本 ${info.version}，是否前往更新？`,
+          primaryText: '前往更新',
+          secondaryText: '稍后再说',
+          onPrimaryPress: async () => {
+            try {
+              await Linking.openURL(info.url);
+            } catch (openError) {
+              showToast.error('更新链接暂时无法打开，请稍后重试');
+            }
+          },
+        });
       } else {
-        Alert.alert('检查更新', '当前已是最新版本');
+        openDialog({
+          title: '检查更新',
+          message: '当前已是最新版本。',
+        });
       }
     } catch (error) {
       if (networkErrorService.isNetworkError(error)) {
         networkErrorService.handleApiError(error, { context: '检查更新', customMessage: '网络异常，无法检查更新' });
       } else {
-        Alert.alert('错误', '检查更新失败，请稍后重试');
+        showToast.error('检查更新失败，请稍后重试');
       }
     } finally {
       setIsCheckingUpdate(false);
     }
-  }, []);
+  }, [openDialog]);
 
   const handleResetSettings = useCallback(() => {
-    Alert.alert('重置设置', '确定将所有设置恢复为默认值吗？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '重置',
-        style: 'destructive',
-        onPress: () => {
+    openDialog({
+      title: '重置设置',
+      message: '确定将所有设置恢复为默认值吗？',
+      primaryText: '重置',
+      secondaryText: '取消',
+      primaryVariant: 'danger',
+      onPrimaryPress: async () => {
           dispatch(updateSettings(DEFAULT_SETTINGS));
           setThemeType(DEFAULT_SETTINGS.theme);
-        },
+          showToast.success('设置已恢复默认值');
       },
-    ]);
-  }, [dispatch, setThemeType]);
+    });
+  }, [dispatch, openDialog, setThemeType]);
 
   const handleLogout = useCallback(() => {
-    Alert.alert('退出登录', '确定退出当前账号吗？', [
-      { text: '取消', style: 'cancel' },
-      { text: '退出', style: 'destructive', onPress: () => {
+    openDialog({
+      title: '退出登录',
+      message: '确定退出当前账号吗？',
+      primaryText: '退出登录',
+      secondaryText: '取消',
+      primaryVariant: 'danger',
+      onPrimaryPress: async () => {
         dispatch(logout());
-        Alert.alert('提示', '已退出登录');
-      } },
-    ]);
-  }, [dispatch]);
+        showToast.info('已退出当前账号');
+      },
+    });
+  }, [dispatch, openDialog]);
 
   const getIconColor = useCallback((iconName) => {
     const map = {
@@ -237,6 +310,7 @@ const SettingsScreen = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: '#F3F8FF' }]} testID="state.settings.main.state.ready">
       <View testID="state.settings.main.visibility.visible" />
+      <View testID={`state.settings.main.dialog.visibility.${dialogState.visible ? 'visible' : 'hidden'}`} />
 
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <ScreenHeaderBackButton
@@ -331,6 +405,51 @@ const SettingsScreen = ({ navigation }) => {
           <Text variant="body" size="small" color="error" style={styles.resetButtonText}>重置所有设置</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={dialogState.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDialog}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={[
+              styles.dialogIconWrap,
+              dialogState.primaryVariant === 'danger' ? styles.dialogIconWrapDanger : null,
+            ]}>
+              <Icon
+                name={dialogState.primaryVariant === 'danger' ? 'warning-amber' : 'info-outline'}
+                size={28}
+                color={dialogState.primaryVariant === 'danger' ? '#DC2626' : '#1D4ED8'}
+              />
+            </View>
+            <Text style={styles.dialogTitle}>{dialogState.title}</Text>
+            <Text style={styles.dialogMessage}>{dialogState.message}</Text>
+            <View style={styles.dialogButtonRow}>
+              {dialogState.secondaryText ? (
+                <TouchableOpacity
+                  style={styles.dialogSecondaryButton}
+                  onPress={handleDialogSecondaryPress}
+                  testID="action.settings.main.dialog.secondary"
+                >
+                  <Text style={styles.dialogSecondaryText}>{dialogState.secondaryText}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[
+                  styles.dialogPrimaryButton,
+                  dialogState.primaryVariant === 'danger' ? styles.dialogPrimaryButtonDanger : null,
+                ]}
+                onPress={handleDialogPrimaryPress}
+                testID="action.settings.main.dialog.primary"
+              >
+                <Text style={styles.dialogPrimaryText}>{dialogState.primaryText}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -363,6 +482,89 @@ const styles = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginBottom: 40, marginTop: 12, marginHorizontal: 60, borderWidth: 1.5,
   },
   resetButtonText: { marginLeft: 8, fontWeight: '500', fontSize: 14, letterSpacing: 0.3 },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(76,141,255,0.18)',
+    shadowColor: '#4B8CFF',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  dialogIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    backgroundColor: 'rgba(29,78,216,0.10)',
+  },
+  dialogIconWrapDanger: {
+    backgroundColor: 'rgba(220,38,38,0.10)',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#102A43',
+  },
+  dialogMessage: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#486581',
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+  },
+  dialogSecondaryButton: {
+    minWidth: 92,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginRight: 10,
+    backgroundColor: 'rgba(148,163,184,0.14)',
+  },
+  dialogSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  dialogPrimaryButton: {
+    minWidth: 110,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: '#1D4ED8',
+  },
+  dialogPrimaryButtonDanger: {
+    backgroundColor: '#DC2626',
+  },
+  dialogPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
 });
 
 export default SettingsScreen;
