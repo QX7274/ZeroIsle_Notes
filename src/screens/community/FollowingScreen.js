@@ -261,9 +261,9 @@ const styles = StyleSheet.create({
   },
   emptyListContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingHorizontal: 14,
-    paddingBottom: 18,
+    paddingTop: 72,
+    paddingBottom: 24,
   },
   itemCard: {
     marginBottom: 10,
@@ -299,7 +299,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   emptyWrap: {
-    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 26,

@@ -2837,3 +2837,46 @@
   - 若冷启动先弹系统通知权限框，应记为系统权限流程，不误写成业务页原生弹窗回退
   - 网络问题继续只允许走项目内统一优美弹窗，不回退到默认安卓对话框
   - 任何顶部被遮挡、异常留白或返回按钮风格分裂，都要继续按页面单独记录，不把本轮结果外推成全站完成
+
+### 2026-06-07 第一百二十一轮：round301 社区粉丝与关注列表空态留白收口
+
+- 这轮继续按“只修真实复现问题，不重构成熟页面”的口径推进。先在真机上复核社区首页与帖子详情子页，确认它们当前顶部安全区都正常，再只对 `粉丝列表 / 关注列表` 的异常留白做最小收口。
+- 本轮代码只改两个文件：
+  - [src/screens/community/FollowersScreen.js](D:/ZeroIsle_Notes/src/screens/community/FollowersScreen.js)
+    - 去掉 `emptyListContent` 的整屏 `justifyContent: 'center'`
+    - 将空态列表容器改为 `paddingTop: 72`、`paddingBottom: 24`
+    - 去掉 `emptyWrap` 的垂直居中，让空态自然贴近页头下方展开
+  - [src/screens/community/FollowingScreen.js](D:/ZeroIsle_Notes/src/screens/community/FollowingScreen.js)
+    - 与 `FollowersScreen` 做同口径最小调整，保证两页风格一致
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先抓 [round301_community.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community.xml)
+    - 前台命中 `state.community.pageState.empty`
+    - 顶部 `社区` 标题、副标题、搜索条、分类条和右下角 `发布` 按钮都完整露出
+    - 说明社区首页当前没有新的顶部遮挡或异常留白需要插手
+  - 再抓 [round301_community_postdetail.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_postdetail.xml)
+    - 前台命中 `state.community.postDetail.empty`
+    - 顶部 `action.community.postDetail.back` 与标题 `帖子详情` 完整露出
+    - 说明帖子详情子页当前也没有新的顶部安全区问题
+  - 修复前的 [round301_community_followers.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_followers.xml)
+    - 前台命中 `screen.community.followers`
+    - 顶部 `action.community.followers.back`、标题 `粉丝列表` 正常
+    - 空态 `state.community.followers.empty` bounds 为 `[21,964][1179,1199]`
+    - 这说明空态被压到页面中下部，页头下方留白异常大，属于平板端明显偏原始的布局问题
+  - 修复后的 [round301_followers_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_followers_after_fix.xml) 与 [round301_followers_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round301_followers_after_fix.png)
+    - 仍命中 `screen.community.followers`
+    - 空态 `state.community.followers.empty` bounds 变为 `[21,320][1179,555]`
+    - 说明空态已明显上移到页头下方的合理区域，异常留白已被收下
+  - 修复后的 [round301_community_following_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_following_after_fix.xml) 与 [round301_community_following_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round301_community_following_after_fix.png)
+    - 命中 `screen.community.following`
+    - 顶部 `action.community.following.back`、标题 `关注列表` 正常
+    - 空态 `state.community.following.empty` bounds 同样为 `[21,320][1179,555]`
+    - 说明关注列表也已和粉丝列表保持一致，不再一页收口、一页继续漂在中下部
+- 本轮验证结果：
+  - `npx eslint src/screens/community/FollowersScreen.js src/screens/community/FollowingScreen.js`
+    - 已通过，未引入新的 lint 错误
+- 这轮需要特别写清楚的结论与边界：
+  - 本轮修的是 `粉丝列表 / 关注列表` 的空态布局留白，不是社区首页、帖子详情或其他深层页的通用重构
+  - 社区首页和帖子详情当前复核下顶部都在安全区内，因此这轮没有额外去动它们
+  - 返回按钮样式继续保持现有淡蓝色方形箭头，没有引入新的页头样式分叉
+  - 网络问题口径不变，后续如果社区子页再出现错误态，仍必须统一走项目内优美弹窗，不回退到默认安卓弹窗
+  - 这轮不能外推成社区深层页全部完成，后续仍要继续逐页复测 `活动 / 通知 / 关注返回链路 / 其他空态或错误态`

@@ -1993,3 +1993,45 @@ Expected: 新增或修改的回归用例通过。
   - 网络问题仍统一走项目内优美弹窗；若出现系统通知权限弹窗，应单列记为系统权限流程，不误写成业务页原生弹窗回退
   - 不把这次搜索返回修复外推成全站返回链路已全部完成，后续各模块仍要逐页继续验收
 ```
+
+- [ ] **Step 25: 继续逐页收口社区关注/粉丝列表空态异常留白，保持顶部安全区与返回按钮统一**
+
+```md
+- round301 新确认的问题边界：
+  - 社区首页与帖子详情子页当前真机复核下，顶部标题、说明区与淡蓝色方形返回按钮都处在安全区内，没有新的状态栏遮挡问题
+  - 但 `粉丝列表` 空态在平板上被整屏垂直居中压到中下部，页头下方形成明显异常留白，观感很原始
+  - `关注列表` 使用了同类空态布局模式，因此需要一并收口，避免两个深层页风格继续分叉
+- 本轮代码最小修复口径：
+  - 只修改 `src/screens/community/FollowersScreen.js` 与 `src/screens/community/FollowingScreen.js`
+  - 去掉空态列表容器的整屏垂直居中
+  - 将空态内容调整为页头下方更合理的上对齐展示，并补 `paddingTop: 72` 与 `paddingBottom: 24`
+  - 不改顶部壳层、返回按钮、数据逻辑、刷新逻辑、普通列表项和成熟社区首页样式
+- round301 真机验收必须写实记录：
+  - [round301_community.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community.xml) 先确认社区首页当前前台正常，包含：
+    - `state.community.pageState.empty`
+    - 顶部 `社区` 标题、副标题、搜索条、分类条
+    - 右下角 `发布` 按钮
+  - [round301_community_postdetail.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_postdetail.xml) 复核帖子详情子页顶部仍完整露出，包含：
+    - `action.community.postDetail.back`
+    - `帖子详情`
+    - `state.community.postDetail.empty`
+  - 修复前的 [round301_community_followers.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_followers.xml) 必须保留：
+    - `screen.community.followers`
+    - `action.community.followers.back`
+    - `粉丝列表`
+    - 空态 `state.community.followers.empty` bounds 为 `[21,964][1179,1199]`，证明空态被压到页面中下部
+  - 修复后的 [round301_followers_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_followers_after_fix.xml) 与 [round301_followers_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round301_followers_after_fix.png) 必须体现：
+    - `screen.community.followers`
+    - 空态 `state.community.followers.empty` bounds 变为 `[21,320][1179,555]`
+    - 说明异常留白已明显收下
+  - 修复后的 [round301_community_following_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round301_community_following_after_fix.xml) 与 [round301_community_following_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round301_community_following_after_fix.png) 必须体现：
+    - `screen.community.following`
+    - `action.community.following.back`
+    - `关注列表`
+    - 空态 `state.community.following.empty` bounds 为 `[21,320][1179,555]`
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，社区首页、帖子详情、粉丝列表、关注列表都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 不合理留白继续逐页记录，本轮只收口 `粉丝列表 / 关注列表` 空态，不把结果外推成社区全链路都已完成
+  - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
+```
