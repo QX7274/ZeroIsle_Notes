@@ -2880,3 +2880,48 @@
   - 返回按钮样式继续保持现有淡蓝色方形箭头，没有引入新的页头样式分叉
   - 网络问题口径不变，后续如果社区子页再出现错误态，仍必须统一走项目内优美弹窗，不回退到默认安卓弹窗
   - 这轮不能外推成社区深层页全部完成，后续仍要继续逐页复测 `活动 / 通知 / 关注返回链路 / 其他空态或错误态`
+
+### 2026-06-07 第一百二十二轮：round302 社区活动与通知空态留白收口
+
+- 这轮继续沿社区深层页做真机验收，不回头改成熟区域。先复核 `关注列表` 的返回链路，再逐页进入 `活动动态` 和 `通知消息`，确认是否还有上一轮同类的平板空态大留白漏口。
+- 本轮代码只改两个文件：
+  - [src/screens/community/ActivityScreen.js](D:/ZeroIsle_Notes/src/screens/community/ActivityScreen.js)
+    - 去掉 `emptyListContent` 的整屏 `justifyContent: 'center'`
+    - 将空态列表容器改为 `paddingTop: 72`、`paddingBottom: 24`
+    - 去掉 `emptyWrap` 的垂直居中，让空态自然贴近页头下方展开
+  - [src/screens/community/NotificationsScreen.js](D:/ZeroIsle_Notes/src/screens/community/NotificationsScreen.js)
+    - 与 `ActivityScreen` 做同口径最小调整，保证社区两条深层页风格一致
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先抓 [round302_after_following_keyback_full.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_after_following_keyback_full.xml)
+    - 当前系统返回从 `关注列表` 已正确回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - 顶部 `社区` 标题、副标题、搜索条、`action.community.notifications` 与 `action.community.activity` 都完整露出
+    - 说明上一轮 `关注列表` 的系统返回链路当前仍然稳定，没有回退
+  - 修复前的 [round302_activity.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_activity.xml) 与 [round302_activity.png](D:/ZeroIsle_Notes/.codex-tmp/round302_activity.png)
+    - 命中 `screen.community.activity`
+    - 顶部 `action.community.activity.back`、标题 `活动动态` 完整露出
+    - 空态 `state.community.activity.empty` bounds 为 `[21,978][1179,1213]`
+    - 说明空态被压到了页面中下部，页头下方留白非常大
+  - 修复前的 [round302_notifications.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications.xml) 与 [round302_notifications.png](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications.png)
+    - 命中 `screen.community.notifications`
+    - 顶部 `action.community.notifications.back`、标题 `通知消息` 完整露出
+    - 空态 `state.community.notifications.empty` bounds 为 `[21,974][1179,1209]`
+    - 说明通知页也存在同类空态下沉问题
+  - 修复后的 [round302_activity_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_activity_after_fix.xml) 与 [round302_activity_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round302_activity_after_fix.png)
+    - 仍命中 `screen.community.activity`
+    - 空态 `state.community.activity.empty` bounds 变为 `[21,348][1179,583]`
+    - 说明活动页空态已经明显上移到页头下方的合理区域
+  - 修复后的 [round302_notifications_after_fix_stable.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications_after_fix_stable.xml) 与 [round302_notifications_after_fix_stable.png](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications_after_fix_stable.png)
+    - 命中 `screen.community.notifications`
+    - 顶部 `action.community.notifications.back`、标题 `通知消息` 正常
+    - 空态 `state.community.notifications.empty` bounds 变为 `[21,340][1179,575]`
+    - 说明通知页空态也已经同步收口
+- 本轮验证结果：
+  - `npx eslint src/screens/community/ActivityScreen.js src/screens/community/NotificationsScreen.js`
+    - 无 error，仅保留既有 `react-native/no-inline-styles` warning
+- 这轮需要特别写清楚的结论与边界：
+  - 本轮修的是 `活动动态 / 通知消息` 的空态布局留白，不是社区首页或其他深层页的通用重构
+  - 返回按钮样式继续保持现有淡蓝色方形箭头，没有引入新的页头样式分叉
+  - `关注列表` 的系统返回到社区首页当前真机复核下仍然稳定
+  - 网络问题口径不变，后续如果社区子页再出现错误态，仍必须统一走项目内优美弹窗，不回退到默认安卓弹窗
+  - 这轮不能外推成社区深层页全部完成，后续仍要继续逐页复测 `活动 / 通知` 的返回链路、其他空态/错误态和剩余深层页

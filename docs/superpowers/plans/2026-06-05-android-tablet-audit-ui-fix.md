@@ -2035,3 +2035,44 @@ Expected: 新增或修改的回归用例通过。
   - 不合理留白继续逐页记录，本轮只收口 `粉丝列表 / 关注列表` 空态，不把结果外推成社区全链路都已完成
   - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
 ```
+
+- [ ] **Step 26: 继续逐页收口社区活动与通知空态异常留白，补强社区深层页返回链路验收**
+
+```md
+- round302 新确认的问题边界：
+  - `关注列表` 当前系统返回已可正确回到社区首页，说明上一轮修复后该返回链路在真机上仍然稳定
+  - 但 `活动动态` 与 `通知消息` 的空态在平板上仍被整屏垂直居中压到中下部，页头下方留白非常大，和上一轮 `粉丝列表 / 关注列表` 是同类漏口
+  - 这轮要继续只修 `活动动态 / 通知消息` 的空态容器，不去动社区首页、搜索条、分类条、发布按钮和成熟页头结构
+- 本轮代码最小修复口径：
+  - 只修改 `src/screens/community/ActivityScreen.js` 与 `src/screens/community/NotificationsScreen.js`
+  - 去掉空态列表容器的整屏垂直居中
+  - 将空态内容调整为页头下方更合理的上对齐展示，并补 `paddingTop: 72` 与 `paddingBottom: 24`
+  - 不改顶部壳层、淡蓝色方形返回按钮、刷新逻辑、列表项逻辑和通知“全部标记已读”行为
+- round302 真机验收必须写实记录：
+  - [round302_after_following_keyback_full.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_after_following_keyback_full.xml) 先确认：
+    - 系统返回从 `关注列表` 已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - 顶部 `社区` 标题、副标题、`action.community.notifications`、`action.community.activity` 完整露出
+  - 修复前的 [round302_activity.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_activity.xml) 与 [round302_activity.png](D:/ZeroIsle_Notes/.codex-tmp/round302_activity.png) 必须保留：
+    - `screen.community.activity`
+    - `action.community.activity.back`
+    - `活动动态`
+    - 空态 `state.community.activity.empty` bounds 为 `[21,978][1179,1213]`
+  - 修复前的 [round302_notifications.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications.xml) 与 [round302_notifications.png](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications.png) 必须保留：
+    - `screen.community.notifications`
+    - `action.community.notifications.back`
+    - `通知消息`
+    - 空态 `state.community.notifications.empty` bounds 为 `[21,974][1179,1209]`
+  - 修复后的 [round302_activity_after_fix.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_activity_after_fix.xml) 与 [round302_activity_after_fix.png](D:/ZeroIsle_Notes/.codex-tmp/round302_activity_after_fix.png) 必须体现：
+    - `screen.community.activity`
+    - 空态 `state.community.activity.empty` bounds 变为 `[21,348][1179,583]`
+  - 修复后的 [round302_notifications_after_fix_stable.xml](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications_after_fix_stable.xml) 与 [round302_notifications_after_fix_stable.png](D:/ZeroIsle_Notes/.codex-tmp/round302_notifications_after_fix_stable.png) 必须体现：
+    - `screen.community.notifications`
+    - `action.community.notifications.back`
+    - 空态 `state.community.notifications.empty` bounds 变为 `[21,340][1179,575]`
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，社区首页、活动动态、通知消息都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 不合理留白继续逐页记录，本轮只收口 `活动动态 / 通知消息` 空态，不把结果外推成社区全链路都已完成
+  - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
+```
