@@ -2076,3 +2076,43 @@ Expected: 新增或修改的回归用例通过。
   - 不合理留白继续逐页记录，本轮只收口 `活动动态 / 通知消息` 空态，不把结果外推成社区全链路都已完成
   - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
 ```
+
+- [ ] **Step 27: 继续补齐社区活动与通知返回链路真机回归，确认页头返回与系统返回都稳定回到社区首页**
+
+```md
+- round303 新确认的问题边界：
+  - 在 `round302` 收口空态留白后，本轮优先补社区深层页的返回链路真机回归，不急着再改代码
+  - 重点验收 `通知消息` 与 `活动动态` 的系统返回，以及 `通知消息` 的页头淡蓝色方形返回按钮
+  - 如果返回链路已稳定，就不为了“凑修改”去动成熟页面
+- round303 真机验收必须写实记录：
+  - [round303_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_current.xml) 与 [round303_current.png](D:/ZeroIsle_Notes/.codex-tmp/round303_current.png) 先确认前台起点是：
+    - `screen.community.notifications`
+    - `通知消息`
+    - `action.community.notifications.back`
+  - 从 `通知消息` 按系统返回后，[round303_after_notifications_keyback.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_keyback.xml) 与 [round303_after_notifications_keyback.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_keyback.png) 必须体现：
+    - 已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - 顶部 `社区` 标题、副标题、`action.community.notifications`、`action.community.activity` 完整露出
+  - 再次进入 `活动动态` 后，[round303_activity_recheck.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_activity_recheck.xml) 与 [round303_activity_recheck.png](D:/ZeroIsle_Notes/.codex-tmp/round303_activity_recheck.png) 必须确认：
+    - `screen.community.activity`
+    - `活动动态`
+    - `action.community.activity.back`
+    - 修后的空态仍保持在合理上方区域
+  - 从 `活动动态` 按系统返回后，[round303_after_activity_keyback.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_activity_keyback.xml) 与 [round303_after_activity_keyback.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_activity_keyback.png) 必须体现：
+    - 已回到社区首页
+    - 前台仍包含 `state.community.pageState.error`
+    - 社区首页页头和两个入口按钮完整露出
+  - 再次进入 `通知消息` 后，[round303_notifications_reenter.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_notifications_reenter.xml) 与 [round303_notifications_reenter.png](D:/ZeroIsle_Notes/.codex-tmp/round303_notifications_reenter.png) 必须确认：
+    - `screen.community.notifications`
+    - `通知消息`
+    - `action.community.notifications.back`
+  - 点击页头淡蓝色返回按钮后，[round303_after_notifications_header_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_header_back.xml) 与 [round303_after_notifications_header_back.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_header_back.png) 必须体现：
+    - 已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - 社区首页顶部元素和页头按钮完整露出
+- 本轮写文档时必须继续保留的约束：
+  - 顶部不得被平板状态栏遮挡，社区首页、活动动态、通知消息都要继续逐页验收
+  - 返回按钮仍统一使用现有淡蓝色方形箭头，不另起新样式
+  - 不把本轮返回链路通过外推成社区全链路都已完成，后续仍要继续测其他深层页与错误态
+  - 网络问题仍统一走项目内优美弹窗，不回退到默认安卓弹窗
+```

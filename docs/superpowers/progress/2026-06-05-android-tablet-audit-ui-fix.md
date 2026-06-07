@@ -2925,3 +2925,40 @@
   - `关注列表` 的系统返回到社区首页当前真机复核下仍然稳定
   - 网络问题口径不变，后续如果社区子页再出现错误态，仍必须统一走项目内优美弹窗，不回退到默认安卓弹窗
   - 这轮不能外推成社区深层页全部完成，后续仍要继续逐页复测 `活动 / 通知` 的返回链路、其他空态/错误态和剩余深层页
+
+### 2026-06-07 第一百二十三轮：round303 社区活动与通知返回链路真机回归
+
+- 这轮没有为了凑修改去继续动代码，而是先把 `round302` 后的社区返回链路用真机补验完整，确认修完空态留白后没有引入新的返回回归。
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 起点现场是 [round303_current.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_current.xml) 与 [round303_current.png](D:/ZeroIsle_Notes/.codex-tmp/round303_current.png)
+    - 前台明确命中 `screen.community.notifications`
+    - UI 树包含 `通知消息` 与 `action.community.notifications.back`
+    - 说明本轮返回链路验收从真实 `通知消息` 深层页起步，不是从社区首页直接推断
+  - 从 `通知消息` 按系统返回后，抓取 [round303_after_notifications_keyback.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_keyback.xml) 与 [round303_after_notifications_keyback.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_keyback.png)
+    - 前台已不再是 `screen.community.notifications`
+    - 前台包含 `state.community.pageState.error`
+    - 顶部 `社区` 标题、副标题、`action.community.notifications` 与 `action.community.activity` 都重新可见
+    - 这说明 `通知消息` 的系统返回当前已稳定回到社区首页
+  - 再次进入 `活动动态`，抓取 [round303_activity_recheck.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_activity_recheck.xml) 与 [round303_activity_recheck.png](D:/ZeroIsle_Notes/.codex-tmp/round303_activity_recheck.png)
+    - 命中 `screen.community.activity`
+    - UI 树包含 `活动动态`、`action.community.activity.back`、`state.community.activity.empty`
+    - 说明活动页当前顶部安全区、返回按钮和修后的空态都能稳定落地
+  - 从 `活动动态` 按系统返回后，抓取 [round303_after_activity_keyback.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_activity_keyback.xml) 与 [round303_after_activity_keyback.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_activity_keyback.png)
+    - 前台已不再是 `screen.community.activity`
+    - 前台再次包含 `state.community.pageState.error`
+    - 社区首页的 `action.community.activity` 与 `action.community.notifications` 重新露出
+    - 这说明 `活动动态` 的系统返回当前也已稳定回到社区首页
+  - 再次进入 `通知消息`，抓取 [round303_notifications_reenter.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_notifications_reenter.xml) 与 [round303_notifications_reenter.png](D:/ZeroIsle_Notes/.codex-tmp/round303_notifications_reenter.png)
+    - 再次确认命中 `screen.community.notifications`
+    - 顶部 `通知消息` 与 `action.community.notifications.back` 正常
+  - 点击页头淡蓝色返回按钮后，抓取 [round303_after_notifications_header_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_header_back.xml) 与 [round303_after_notifications_header_back.png](D:/ZeroIsle_Notes/.codex-tmp/round303_after_notifications_header_back.png)
+    - 前台已回到社区首页
+    - 前台包含 `state.community.pageState.error`
+    - 社区首页顶部标题、副标题和两个页头入口按钮完整露出
+    - 说明 `通知消息` 的页头返回按钮当前也和系统返回一样稳定
+- 本轮结论：
+  - 本轮没有发现必须继续改代码的新真实缺陷
+  - `通知消息` 的系统返回与页头返回都已稳定回到社区首页
+  - `活动动态` 的系统返回也已稳定回到社区首页
+  - `活动动态 / 通知消息` 的顶部安全区和淡蓝色方形返回按钮当前真机复核下都保持正常
+  - 这轮不能外推成社区所有深层页都已完成，后续仍需继续逐页复测剩余返回链路、错误态和空态页面
