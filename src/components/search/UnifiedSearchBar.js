@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
@@ -105,6 +106,25 @@ const UnifiedSearchBar = ({
     }
   };
 
+  const closeSearchModal = (reason = 'unknown', shouldNotifyCancel = false) => {
+    openReasonRef.current = reason;
+
+    if (__DEV__) {
+      emitDebugLog('close modal requested', {
+        currentRoute: getCurrentRouteName(),
+        reason,
+        shouldNotifyCancel,
+        visibleBeforeClose: showSearch,
+      });
+    }
+
+    setShowSearch(false);
+
+    if (shouldNotifyCancel) {
+      onCancel?.();
+    }
+  };
+
   // 处理搜索结果
   const handleSearchResult = (results, query, options = {}) => {
     if (__DEV__) {
@@ -144,14 +164,34 @@ const UnifiedSearchBar = ({
 
   useEffect(() => {
     if (__DEV__) {
-      emitDebugLog('visibility changed', {
+      const message = {
+        event: 'visibility changed',
+        scope: debugScopeLabel,
         visible: showSearch,
         reason: openReasonRef.current,
         currentRoute: getCurrentRouteName(),
         elapsedMsSinceMount: Date.now() - mountAtRef.current,
-      });
+      };
+
+      console.log('[UnifiedSearchBar] visibility changed', message);
+      debugLog('info', 'UnifiedSearchBar', message);
     }
   }, [showSearch, debugScopeLabel]);
+
+  useEffect(() => {
+    if (!showSearch) {
+      return undefined;
+    }
+
+    const handleHardwareBackPress = () => {
+      closeSearchModal('hardware-back', true);
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleHardwareBackPress);
+    return () => subscription.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSearch]);
 
   return (
     <>
@@ -211,20 +251,13 @@ const UnifiedSearchBar = ({
         visible={showSearch}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => {
-          openReasonRef.current = 'request-close';
-          setShowSearch(false);
-        }}
+        onRequestClose={() => closeSearchModal('request-close', true)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <MultiModalSearch
             navigation={navigation}
             onSearch={handleSearchResult}
-            onCancel={() => {
-              openReasonRef.current = 'cancel';
-              setShowSearch(false);
-              onCancel?.();
-            }}
+            onCancel={() => closeSearchModal('cancel', true)}
             initialQuery={initialQuery}
             searchScope={searchScope}
           />

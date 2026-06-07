@@ -2803,3 +2803,37 @@
     - 返回按钮统一已有淡蓝色方形箭头
     - 发现异常留白继续单独记录并修正
     - 网络问题继续统一使用项目内优美弹窗，不使用默认安卓弹窗
+
+### 2026-06-07 第一百二十轮：round300 搜索模态返回链路真机闭环
+
+- 这轮从真实可用性问题收口，而不是继续扩大到成熟页面重构：搜索模态页虽然已经有统一的淡蓝色方形返回按钮，但此前真机上“点得中、退不出”的体验会直接卡住使用路径，属于必须优先修的功能问题。
+- 本轮代码只收口一个文件：
+  - [src/components/search/UnifiedSearchBar.js](D:/ZeroIsle_Notes/src/components/search/UnifiedSearchBar.js)
+    - 新增 `BackHandler` 导入
+    - 新增统一关闭函数 `closeSearchModal(reason, shouldNotifyCancel)`
+    - 让 `Modal.onRequestClose`、`MultiModalSearch.onCancel` 与 `hardwareBackPress` 全部走同一条关闭链
+    - 目标是统一“页头返回 / 系统返回 / Modal 请求关闭”的行为，不去改首页、社区、设置等成熟区域
+- 真机 `HGR3Y9MA` 本轮复测证据如下：
+  - 先抓 [round300_current_for_backcheck.xml](D:/ZeroIsle_Notes/.codex-tmp/round300_current_for_backcheck.xml) 与 [round300_current_for_backcheck.png](D:/ZeroIsle_Notes/.codex-tmp/round300_current_for_backcheck.png)
+    - 前台明确仍是搜索模态页
+    - UI 树包含 `action.search.modal.back`、`搜索`、`搜索笔记、标签、内容...`
+  - 点击页头淡蓝色返回按钮后，抓取 [round300_after_header_back.xml](D:/ZeroIsle_Notes/.codex-tmp/round300_after_header_back.xml) 与 [round300_after_header_back.png](D:/ZeroIsle_Notes/.codex-tmp/round300_after_header_back.png)
+    - 前台已回到首页 `screen.home`
+    - `零屿笔记` 标题、首页搜索栏、分类按钮、排序按钮和底部 Tab 都重新可见
+    - 这说明“页头返回按钮可见但不生效”的问题在当前包上已经被真实修复
+  - 再次从首页进入搜索模态，抓取 [round300_reenter_search.xml](D:/ZeroIsle_Notes/.codex-tmp/round300_reenter_search.xml) 与 [round300_reenter_search.png](D:/ZeroIsle_Notes/.codex-tmp/round300_reenter_search.png)
+    - 复核确认重新进入的仍然是同一搜索模态页，而不是其他搜索结果页或残留页面
+  - 随后按系统返回，抓取 [round300_after_keyback_recheck.xml](D:/ZeroIsle_Notes/.codex-tmp/round300_after_keyback_recheck.xml) 与 [round300_after_keyback_recheck.png](D:/ZeroIsle_Notes/.codex-tmp/round300_after_keyback_recheck.png)
+    - 前台再次回到首页 `screen.home`
+    - 首页标题、搜索栏、分类、排序和底部 Tab 再次完整露出
+    - 这说明系统返回在当前统一关闭链下也已恢复稳定
+- 这轮需要特别写清楚的结论与边界：
+  - 本轮修复的是搜索模态关闭链路本身，不是“点击坐标偏了”这类表层问题
+  - 统一关闭链能同时覆盖页头返回、系统返回和 `Modal.onRequestClose`，因此回归结果比只修单一按钮更稳
+  - 当前搜索页顶部没有被平板状态栏遮挡；返回按钮、标题和说明区都处在可视安全区内
+  - 返回按钮样式继续保持现有淡蓝色方形箭头，没有引入新的视觉分叉
+  - 这轮没有把搜索页修复外推成全站返回链路都已完成；社区、群组、设置、知识库、知识图谱等子页后续仍需逐页继续验收
+- 与本轮同时保留的记录纪律：
+  - 若冷启动先弹系统通知权限框，应记为系统权限流程，不误写成业务页原生弹窗回退
+  - 网络问题继续只允许走项目内统一优美弹窗，不回退到默认安卓对话框
+  - 任何顶部被遮挡、异常留白或返回按钮风格分裂，都要继续按页面单独记录，不把本轮结果外推成全站完成
