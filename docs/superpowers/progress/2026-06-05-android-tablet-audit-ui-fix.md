@@ -2446,3 +2446,117 @@
   - 主线转向“为什么 JS 无法真正调用到 `DebugLogModule.log(...)`”
   - 优先检查 RN 0.75 下该原生模块的导出与调用兼容性
   - 在没拿到 `log invoked` 之前，不再把搜索模态时序写成业务层已定位
+
+### 2026-06-07 第一百一十三轮：round291 证实 bundle 已更新，但新增的 `MultiModalSearch` JS 快照日志仍完全缺席
+
+- 这轮没有扩散去改别的页面或 UI，而是紧接上一轮把“到底是不是当前代码没进真机 bundle”这条分支先排干净。
+- 本轮先做了两件低风险核对：
+  - 直接读取本机 Metro 当前提供的开发 bundle，确认里面已经真实包含：
+    - `[MultiModalSearch] native debug module snapshot`
+    - `[MultiModalSearch] direct native debug log call finished`
+    - `[MultiModalSearch] DebugLogModule missing at mount`
+    - `direct-native-log-from-multimodalsearch`
+  - 再对照 [round291_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round291_launch_ui.xml) 和 [round291_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round291_launch_logcat.txt) 重新拆现场
+- 这轮必须明确写实的事实有四条：
+  - 第一，真机前台页面仍然是当前搜索链路，不存在“其实是别的同名页面”：
+    - `action.search.modal.back`
+    - `搜索`
+    - `搜索笔记、标签、内容...`
+    - `从这里开始搜索`
+  - 第二，本机 Metro 当前 bundle 确实已经包含本轮新增 JS 快照字符串
+    - 因而“代码没进当前开发 bundle”已经不再是最合理解释
+  - 第三，`round291_launch_logcat.txt` 中 `ReactNativeJS` 初始化日志继续正常可见：
+    - `ZeroIsle_Notes 应用已成功注册`
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - 以及后续 API / store / Realm 等初始化日志
+  - 第四，尽管 `ReactNativeJS` 与 `DebugLogModule` 构造/导出日志都在，但本轮新增的 `MultiModalSearch` JS 快照仍然完全没有出现：
+    - 没有 `[MultiModalSearch] native debug module snapshot`
+    - 没有 `[MultiModalSearch] direct native debug log call finished`
+    - 没有 `[MultiModalSearch] direct native debug log call failed`
+    - 没有 `[MultiModalSearch] DebugLogModule missing at mount`
+- 这轮还同步确认了两个容易误写的边界：
+  - `adb reverse` 仍正常：
+    - `tcp:8000 -> tcp:8000`
+    - `tcp:8081 -> tcp:8081`
+  - 因而当前不能再把问题描述成“后端没联通”或“生产域名没部署导致网络错误”
+- 本轮更准确的结论应更新为：
+  - 已确认：
+    - 搜索页仍真实挂载在真机前台
+    - Metro 提供的 bundle 已包含新增诊断代码
+    - `ReactNativeJS` 与原生日志桥初始化日志都仍可见
+  - 尚未确认：
+    - 真机运行时是否真的执行到了 `MultiModalSearch` 里新增的这些日志语句
+    - 如果没有执行，是卡在模块求值、组件渲染还是 `useEffect`
+- 下一步：
+  - 不继续猜业务根因
+  - 先把探针再前移到“模块加载”和“组件函数执行”两个更早阶段，再做下一轮真机验证
+
+### 2026-06-07 第一百一十四轮：round292 前移到模块求值/组件渲染层后，`MultiModalSearch` 诊断仍完全不出现
+
+- 这轮继续只做最小诊断收口，没有去碰成熟 UI，也没有去改搜索业务逻辑。
+- 本轮代码只改了一个文件：
+  - [src/components/search/MultiModalSearch.js](D:/ZeroIsle_Notes/src/components/search/MultiModalSearch.js)
+    - 在模块顶层新增：
+      - `[MultiModalSearch] module evaluated`
+    - 在组件函数开始处新增：
+      - `[MultiModalSearch] component render start`
+    - 在开发态挂载副作用开头新增：
+      - `[MultiModalSearch] mount effect start`
+    - 同时保留上一轮已经存在的：
+      - `native debug module snapshot`
+      - 直连 `NativeModules.DebugLogModule.log(...)`
+      - `debugLog(...)`
+- 这样做的目的非常明确：
+  - 如果模块顶层日志出现，说明文件已被真实求值
+  - 如果组件渲染日志出现，说明组件函数确实执行
+  - 如果挂载副作用日志出现，才说明 `useEffect` 真正进入
+  - 若三层都没有，则问题已经前移到“当前运行时没有真实执行到这份新增代码”
+- 真机重装与冷启动结果：
+  - `android\\gradlew.bat :app:installDebug --console=plain` 再次成功安装到 `HGR3Y9MA`
+  - 新证据：
+    - [round292_launch_logcat.txt](D:/ZeroIsle_Notes/.codex-tmp/round292_launch_logcat.txt)
+    - [round292_launch_ui.xml](D:/ZeroIsle_Notes/.codex-tmp/round292_launch_ui.xml)
+    - [round292_launch.png](D:/ZeroIsle_Notes/.codex-tmp/round292_launch.png)
+- 这轮必须拆开的关键事实：
+  - 第一，搜索页前台事实继续稳定：
+    - `action.search.modal.back`
+    - `搜索笔记、标签、内容...`
+    - `从这里开始搜索`
+    - 底部统一提示条 `通知权限请求超时(5000ms)` 仍在
+  - 第二，原生日志桥初始化继续正常：
+    - `DebugLogModule: constructor: initialized, hasActiveCatalystInstance=false`
+    - `DebugLogModule: getName -> DebugLogModule`
+  - 第三，`ReactNativeJS` 初始化链继续正常：
+    - `ZeroIsle_Notes 应用已成功注册`
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - 后续 API、Realm、store、PersistGate 等日志仍持续打印
+  - 第四，`mqt_js` 慢分发仍持续存在：
+    - `Slow dispatch took 2865ms mqt_js`
+    - `Slow delivery took 2860ms mqt_js`
+    - `Slow dispatch took 2828ms mqt_js`
+  - 第五，也是这轮最关键的新结论：
+    - 即便探针已经前移到模块顶层、组件渲染和挂载副作用三层，`round292_launch_logcat.txt` 中仍完全没有：
+      - `[MultiModalSearch] module evaluated`
+      - `[MultiModalSearch] component render start`
+      - `[MultiModalSearch] mount effect start`
+      - `[MultiModalSearch] native debug module snapshot`
+      - `DebugLogModule: log invoked`
+      - `js-bridge-detected`
+- 这轮还需要把一个现场噪声继续单列，不与主结论混写：
+  - 冷启动前半段仍有大量：
+    - `ReactRootView: Unable to dispatch touch to JS as the catalyst instance has not been attached`
+    - 以及后续 `before the dispatcher is available`
+  - 说明启动期输入分发与 JS 附着时序仍然异常，这和 `mqt_js` 慢分发一起继续污染现场
+- 因而到这一轮为止，更准确的技术判断必须写成：
+  - 已确认：
+    - 本机后端与 Metro 联通正常，不是网络问题
+    - 搜索页已真实挂载在真机前台
+    - Metro 当前 bundle 已包含新增诊断字符串
+    - `ReactNativeJS` 与原生日志桥初始化都仍正常可见
+  - 尚未确认但更加收紧为：
+    - 当前真机运行时并没有被证明真实执行到了 `MultiModalSearch` 里新增的日志语句
+    - 问题已经不再局限于 `useEffect`，而是继续前移到了运行时代码装载/执行链
+- 下一步：
+  - 优先核对 RN 0.75.5 开发态下是否存在旧 bundle、预载 bundle 或恢复态代码路径混入
+  - 必要时把探针继续前移到搜索入口路由层或更稳定的文件级副作用
+  - 在出现上述三条更早阶段日志之前，不再继续猜搜索业务根因

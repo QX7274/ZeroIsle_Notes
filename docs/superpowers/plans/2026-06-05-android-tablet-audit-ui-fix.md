@@ -1741,3 +1741,50 @@ Expected: 新增或修改的回归用例通过。
   - 继续增加更底层、可直接比对的模块可用性探针
   - 在确认 `DebugLogModule.log(...)` 真的可从 JS 命中前，不再继续猜搜索模态业务根因
 ```
+
+- [ ] **Step 19: 若 Metro bundle 已确认包含新诊断代码，但 `MultiModalSearch` 更早阶段探针仍完全不打印，则把问题继续前移到运行时装载/执行链**
+
+```md
+- 已确认的新边界：
+  - 当前本机 Metro 返回的开发 bundle 中，已经真实包含：
+    - `[MultiModalSearch] native debug module snapshot`
+    - `[MultiModalSearch] direct native debug log call finished`
+    - `[MultiModalSearch] DebugLogModule missing at mount`
+    - `direct-native-log-from-multimodalsearch`
+  - 说明“这次新增诊断代码没有进当前 bundle”已经基本排除
+  - 真机冷启动后前台 UI 仍稳定是 `MultiModalSearch` 页面：
+    - `action.search.modal.back`
+    - `搜索笔记、标签、内容...`
+    - `从这里开始搜索`
+    - 底部仍会出现统一项目内提示：`通知权限请求超时(5000ms)`
+- 本轮进一步前移探针：
+  - 在 `src/components/search/MultiModalSearch.js` 增加三个更早阶段日志：
+    - `[MultiModalSearch] module evaluated`
+    - `[MultiModalSearch] component render start`
+    - `[MultiModalSearch] mount effect start`
+  - 目的不是改业务，而是区分：
+    - 模块是否被求值
+    - 组件函数是否被执行
+    - `useEffect` 是否真正进入
+- round292 新证据必须写实记录：
+  - `DebugLogModule` 构造与 `getName()` 继续正常打印
+  - `ReactNativeJS` 初始化日志继续正常打印
+  - `mqt_js` 慢分发继续存在，典型值约 `2865ms / 2860ms / 2828ms`
+  - 但即便如此，`round292_launch_logcat.txt` 里仍完全没有：
+    - `[MultiModalSearch] module evaluated`
+    - `[MultiModalSearch] component render start`
+    - `[MultiModalSearch] mount effect start`
+    - `native debug module snapshot`
+    - `direct native debug log call finished`
+    - `DebugLogModule: log invoked`
+    - `js-bridge-detected`
+- 因而当前最准确的技术判断继续收紧为：
+  - 问题已不再是“后端没通”
+  - 也不再是“搜索页没挂载”
+  - 甚至不仅仅是“`useEffect` 没执行”
+  - 而是当前真机运行时里，`MultiModalSearch` 这份新增诊断代码本身没有被证明真实执行到日志语句
+- 下一步动作：
+  - 优先核对当前 RN 0.75.5 开发态是否存在旧 bundle / 预加载 bundle / 恢复态代码路径混入
+  - 必要时把探针再前移到更稳定的文件级副作用或搜索入口路由层
+  - 在出现上述三条更早阶段日志之前，不再继续猜搜索业务根因
+```

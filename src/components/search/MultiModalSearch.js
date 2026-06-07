@@ -39,6 +39,10 @@ import SearchHistory from './SearchHistory';
 import ScreenHeaderBackButton from '../common/ScreenHeaderBackButton';
 import debugLog, { reportDebugLogBridgeState } from '../../native/debugLog';
 
+if (__DEV__) {
+  console.log('[MultiModalSearch] module evaluated');
+}
+
 /**
  * 多模态搜索组件
  * @param {Object} props - 组件属性
@@ -54,6 +58,13 @@ const MultiModalSearch = ({
   initialQuery = '',
   searchScope = 'home',
 }) => {
+  if (__DEV__) {
+    console.log('[MultiModalSearch] component render start', {
+      searchScope,
+      initialQuery,
+    });
+  }
+
   const { theme } = useTheme();
   const { colors } = theme;
   const insets = useSafeAreaInsets();
@@ -126,21 +137,44 @@ const MultiModalSearch = ({
       return;
     }
 
+    console.log('[MultiModalSearch] mount effect start', {
+      searchScope,
+      initialQuery,
+      reduxSearchMode,
+    });
+
     reportDebugLogBridgeState();
 
     const nativeDebugModule = NativeModules?.DebugLogModule;
+    const nativeModuleKeys = Object.keys(NativeModules || {}).filter(name =>
+      name.toLowerCase().includes('debug'));
 
-    if (nativeDebugModule?.log) {
-      nativeDebugModule.log('info', 'DebugLogModule', JSON.stringify({
-        event: 'direct-native-log-from-multimodalsearch',
-        searchScope,
-        initialQuery,
-        searchMode: reduxSearchMode,
-      }));
+    console.log('[MultiModalSearch] native debug module snapshot', {
+      hasDebugLogModule: !!nativeDebugModule,
+      nativeDebugModuleType: typeof nativeDebugModule,
+      nativeDebugLogType: typeof nativeDebugModule?.log,
+      nativeModuleKeys,
+    });
+
+    if (typeof nativeDebugModule?.log === 'function') {
+      try {
+        nativeDebugModule.log('info', 'DebugLogModule', JSON.stringify({
+          event: 'direct-native-log-from-multimodalsearch',
+          searchScope,
+          initialQuery,
+          searchMode: reduxSearchMode,
+        }));
+        console.log('[MultiModalSearch] direct native debug log call finished');
+      } catch (nativeDebugLogError) {
+        console.warn('[MultiModalSearch] direct native debug log call failed', {
+          message: nativeDebugLogError?.message,
+          stack: nativeDebugLogError?.stack,
+        });
+      }
     } else {
       console.warn('[MultiModalSearch] DebugLogModule missing at mount', {
-        nativeModuleKeys: Object.keys(NativeModules || {}).filter(name =>
-          name.toLowerCase().includes('debug')),
+        nativeModuleKeys,
+        nativeDebugModule,
       });
     }
 
