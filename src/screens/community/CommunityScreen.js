@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,7 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, Card, Skeleton } from '../../components/common';
 import { UnifiedSearchBar } from '../../components/search';
-import { fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
+import { fetchPostDetail, fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import networkService from '../../services/network/networkService';
 import networkErrorService from '../../services/networkErrorService';
 import realmService from '../../services/database/realmService';
@@ -40,7 +41,6 @@ const CATEGORY_OPTIONS = [
   { key: 'knowledge_graph', label: '知识图谱' },
 ];
 const DEV_COMMUNITY_QA_USER_ID = '1';
-const DEV_COMMUNITY_QA_POST_ID = '1';
 
 const CommunityScreen = ({ navigation }) => {
   let palette = FALLBACK_THEME;
@@ -71,6 +71,11 @@ const CommunityScreen = ({ navigation }) => {
   const [loadMoreError, setLoadMoreError] = useState('');
   const [actionSource, setActionSource] = useState('');
   const [devQaResolvingPost, setDevQaResolvingPost] = useState(false);
+  const [devQaDialog, setDevQaDialog] = useState({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
   const hasMore = pagination.page < pagination.totalPages;
@@ -79,6 +84,21 @@ const CommunityScreen = ({ navigation }) => {
 
   const resetTransient = useCallback(() => {
     setLoadMoreError('');
+  }, []);
+
+  const closeDevQaDialog = useCallback(() => {
+    setDevQaDialog((current) => ({
+      ...current,
+      visible: false,
+    }));
+  }, []);
+
+  const openDevQaDialog = useCallback((title, message) => {
+    setDevQaDialog({
+      visible: true,
+      title,
+      message,
+    });
   }, []);
 
   const loadPosts = useCallback(
@@ -212,44 +232,79 @@ const CommunityScreen = ({ navigation }) => {
       navigation.navigate('PostDetail', { postId: resolvedPostId });
     };
 
-    const existingPostId = posts?.[0]?.id;
-    if (existingPostId) {
-      openPostDetail(existingPostId);
-      return;
-    }
-
     setDevQaResolvingPost(true);
     try {
+      const candidateIds = [];
+
+      const appendCandidateId = (value) => {
+        if (value === null || value === undefined) {
+          return;
+        }
+        const normalizedId = String(value).trim();
+        if (!normalizedId || candidateIds.includes(normalizedId)) {
+          return;
+        }
+        candidateIds.push(normalizedId);
+      };
+
+      posts?.forEach((post) => appendCandidateId(post?.id));
+
       try {
         const realm = await realmService.getRealm();
         const cachedData = realm.objects('StorageItem').filtered('key = "community_posts"');
         const cachedPosts = cachedData.length > 0 ? JSON.parse(cachedData[0].value || '[]') : [];
-        const cachedPostId = Array.isArray(cachedPosts) ? cachedPosts?.[0]?.id : null;
-        if (cachedPostId) {
-          openPostDetail(cachedPostId);
-          return;
+        if (Array.isArray(cachedPosts)) {
+          cachedPosts.forEach((post) => appendCandidateId(post?.id));
         }
       } catch (cacheReadError) {
         console.log('CommunityScreen dev QA cache lookup skipped:', cacheReadError?.message || cacheReadError);
       }
 
-      const result = await dispatch(
-        fetchPosts({
-          page: 1,
-          pageSize: 1,
-          suppressGlobalErrorUI: false,
-          category: activeCategory === 'all' ? undefined : activeCategory,
-        })
-      ).unwrap();
+      if (candidateIds.length === 0) {
+        const result = await dispatch(
+          fetchPosts({
+            page: 1,
+            pageSize: 10,
+            suppressGlobalErrorUI: false,
+            category: activeCategory === 'all' ? undefined : activeCategory,
+          })
+        ).unwrap();
 
-      const resolvedPostId = result?.posts?.[0]?.id || DEV_COMMUNITY_QA_POST_ID;
-      openPostDetail(resolvedPostId);
+        (result?.posts || []).forEach((post) => appendCandidateId(post?.id));
+      }
+
+      for (const candidateId of candidateIds) {
+        try {
+          const detail = await dispatch(fetchPostDetail(candidateId)).unwrap();
+          if (detail?.id) {
+            openPostDetail(String(detail.id));
+            return;
+          }
+        } catch (detailError) {
+          console.log('CommunityScreen dev QA skipped invalid post detail candidate:', candidateId, detailError?.message || detailError);
+        }
+      }
+
+      openDevQaDialog(
+        '当前暂无可验帖子',
+        '社区深层页验证入口暂未解析到可正常打开的帖子详情。请先刷新社区列表，或稍后待后端存在有效帖子后再验收该链路。'
+      );
     } catch (requestError) {
-      openPostDetail(DEV_COMMUNITY_QA_POST_ID);
+      if (networkErrorService.isNetworkError(requestError)) {
+        networkErrorService.handleApiError(requestError, {
+          context: '解析社区帖子详情验证入口',
+          customMessage: '网络连接失败，暂时无法解析可用的帖子详情入口',
+        });
+      } else {
+        openDevQaDialog(
+          '帖子详情入口暂不可用',
+          '社区深层页验证入口当前未命中可用帖子详情，已阻止跳入失效页面。请稍后重试，或先在社区中生成/确认一条有效帖子。'
+        );
+      }
     } finally {
       setDevQaResolvingPost(false);
     }
-  }, [activeCategory, devQaResolvingPost, dispatch, interactionBusy, navigation, posts]);
+  }, [activeCategory, devQaResolvingPost, dispatch, interactionBusy, navigation, openDevQaDialog, posts]);
 
   const renderPostItem = useCallback(
     ({ item }) => (
@@ -405,161 +460,187 @@ const CommunityScreen = ({ navigation }) => {
   const pageState = isLoading && posts.length === 0 ? 'loading' : error ? 'error' : posts.length === 0 ? 'empty' : 'ready';
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: palette.background,
-          paddingTop: Math.max(insets.top, 12),
-          paddingBottom: Math.max(insets.bottom, SPACING.SMALL),
-        },
-      ]}
-      testID={`state.community.pageState.${pageState}`}
-    >
-      <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
-      <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
-      <View testID={`state.community.activeCategory.${activeCategory}`} />
+    <>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: palette.background,
+            paddingTop: Math.max(insets.top, 12),
+            paddingBottom: Math.max(insets.bottom, SPACING.SMALL),
+          },
+        ]}
+        testID={`state.community.pageState.${pageState}`}
+      >
+        <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
+        <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
+        <View testID={`state.community.activeCategory.${activeCategory}`} />
 
-      <View style={styles.header}>
-        <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>社区</Text>
-          <Text style={[styles.headerSubtitle, { color: palette.textSecondary }]}>浏览帖子、动态和社区资源</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={interactionBusy} testID="action.community.refresh">
-            <Icon name="refresh" size={21} color={palette.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => {
-              if (interactionBusy) {
-                return;
-              }
-              setActionSource('openNotifications');
-              navigation.navigate('Notifications');
-            }}
-            disabled={interactionBusy}
-            testID="action.community.notifications"
-          >
-            <Icon name="notifications" size={21} color={palette.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => {
-              if (interactionBusy) {
-                return;
-              }
-              setActionSource('openActivity');
-              navigation.navigate('Activity');
-            }}
-            disabled={interactionBusy}
-            testID="action.community.activity"
-          >
-            <Icon name="dynamic-feed" size={21} color={palette.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <UnifiedSearchBar
-          searchScope="community"
-          resultScreenName="CommunitySearch"
-          onSearch={(results) => {
-            if (!results || results.length === 0 || interactionBusy) {
-              return;
-            }
-            setActionSource('openSearchResults');
-            navigation.navigate('CommunitySearch', { results });
-          }}
-        />
-      </View>
-
-      <View style={styles.categoryWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CATEGORY_OPTIONS.map((option) => (
+        <View style={styles.header}>
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitle, { color: palette.text }]}>社区</Text>
+            <Text style={[styles.headerSubtitle, { color: palette.textSecondary }]}>浏览帖子、动态和社区资源</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={interactionBusy} testID="action.community.refresh">
+              <Icon name="refresh" size={21} color={palette.text} />
+            </TouchableOpacity>
             <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.categoryButton,
-                activeCategory === option.key ? { backgroundColor: palette.primary, borderColor: palette.primary } : null,
-                interactionBusy ? styles.disabled : null,
-              ]}
+              style={styles.headerButton}
               onPress={() => {
-                if (interactionBusy || option.key === activeCategory) {
+                if (interactionBusy) {
                   return;
                 }
-                setActionSource(`switchCategory.${option.key}`);
-                setPage(1);
-                resetTransient();
-                setActiveCategory(option.key);
+                setActionSource('openNotifications');
+                navigation.navigate('Notifications');
               }}
               disabled={interactionBusy}
-              testID={`filter.community.${option.key}`}
+              testID="action.community.notifications"
             >
-              <Text style={activeCategory === option.key ? styles.categoryTextActive : [styles.categoryText, { color: palette.primary }]}>
-                {option.label}
-              </Text>
+              <Icon name="notifications" size={21} color={palette.text} />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <View style={styles.activeHint}>
-          <Icon name="tune" size={14} color={palette.primary} />
-          <Text style={[styles.activeHintText, { color: palette.primary }]} testID="state.community.activeCategoryText">
-            当前分类：{currentCategoryLabel}
-          </Text>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => {
+                if (interactionBusy) {
+                  return;
+                }
+                setActionSource('openActivity');
+                navigation.navigate('Activity');
+              }}
+              disabled={interactionBusy}
+              testID="action.community.activity"
+            >
+              <Icon name="dynamic-feed" size={21} color={palette.text} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        <View style={styles.searchContainer}>
+          <UnifiedSearchBar
+            searchScope="community"
+            resultScreenName="CommunitySearch"
+            onSearch={(results) => {
+              if (!results || results.length === 0 || interactionBusy) {
+                return;
+              }
+              setActionSource('openSearchResults');
+              navigation.navigate('CommunitySearch', { results });
+            }}
+          />
+        </View>
+
+        <View style={styles.categoryWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {CATEGORY_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.categoryButton,
+                  activeCategory === option.key ? { backgroundColor: palette.primary, borderColor: palette.primary } : null,
+                  interactionBusy ? styles.disabled : null,
+                ]}
+                onPress={() => {
+                  if (interactionBusy || option.key === activeCategory) {
+                    return;
+                  }
+                  setActionSource(`switchCategory.${option.key}`);
+                  setPage(1);
+                  resetTransient();
+                  setActiveCategory(option.key);
+                }}
+                disabled={interactionBusy}
+                testID={`filter.community.${option.key}`}
+              >
+                <Text style={activeCategory === option.key ? styles.categoryTextActive : [styles.categoryText, { color: palette.primary }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <View style={styles.activeHint}>
+            <Icon name="tune" size={14} color={palette.primary} />
+            <Text style={[styles.activeHintText, { color: palette.primary }]} testID="state.community.activeCategoryText">
+              当前分类：{currentCategoryLabel}
+            </Text>
+          </View>
+        </View>
+
+        {loadMoreError ? (
+          <View style={styles.loadMoreErrorBanner} testID="state.community.loadMoreError">
+            <Icon name="warning-amber" size={16} color="#B45309" />
+            <Text style={styles.loadMoreErrorText}>{loadMoreError}</Text>
+            <TouchableOpacity onPress={handleLoadMore} disabled={interactionBusy} testID="action.community.retryLoadMore">
+              <Text style={styles.loadMoreRetryText}>重试</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {isLoading && posts.length === 0 ? (
+          renderSkeleton()
+        ) : (
+          <FlatList
+            data={posts}
+            renderItem={renderPostItem}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[palette.primary]} tintColor={palette.primary} />}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={footer}
+            ListEmptyComponent={renderEmpty}
+            testID="list.community.posts"
+          />
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.fabButton,
+            {
+              backgroundColor: palette.primary,
+              bottom: Math.max(insets.bottom, SPACING.LARGE),
+            },
+            interactionBusy ? styles.disabled : null,
+          ]}
+          onPress={() => {
+            if (interactionBusy) {
+              return;
+            }
+            setActionSource('createPost');
+            navigation.navigate('CreatePost');
+          }}
+          disabled={interactionBusy}
+          testID="action.community.createPost"
+        >
+          <Icon name="add" size={26} color="#FFFFFF" />
+          <Text style={styles.fabButtonText}>发布</Text>
+        </TouchableOpacity>
       </View>
 
-      {loadMoreError ? (
-        <View style={styles.loadMoreErrorBanner} testID="state.community.loadMoreError">
-          <Icon name="warning-amber" size={16} color="#B45309" />
-          <Text style={styles.loadMoreErrorText}>{loadMoreError}</Text>
-          <TouchableOpacity onPress={handleLoadMore} disabled={interactionBusy} testID="action.community.retryLoadMore">
-            <Text style={styles.loadMoreRetryText}>重试</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {isLoading && posts.length === 0 ? (
-        renderSkeleton()
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPostItem}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[palette.primary]} tintColor={palette.primary} />}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={footer}
-          ListEmptyComponent={renderEmpty}
-          testID="list.community.posts"
-        />
-      )}
-
-      <TouchableOpacity
-        style={[
-          styles.fabButton,
-          {
-            backgroundColor: palette.primary,
-            bottom: Math.max(insets.bottom, SPACING.LARGE),
-          },
-          interactionBusy ? styles.disabled : null,
-        ]}
-        onPress={() => {
-          if (interactionBusy) {
-            return;
-          }
-          setActionSource('createPost');
-          navigation.navigate('CreatePost');
-        }}
-        disabled={interactionBusy}
-        testID="action.community.createPost"
+      <Modal
+        visible={devQaDialog.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDevQaDialog}
       >
-        <Icon name="add" size={26} color="#FFFFFF" />
-        <Text style={styles.fabButtonText}>发布</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.dialogOverlay}>
+          <View style={[styles.dialogCard, { backgroundColor: palette.card, borderColor: `${palette.primary}22` }]}>
+            <View style={[styles.dialogIconWrap, { backgroundColor: `${palette.primary}14`, borderColor: `${palette.primary}24` }]}>
+              <Icon name="travel-explore" size={24} color={palette.primary} />
+            </View>
+            <Text style={[styles.dialogTitle, { color: palette.text }]}>{devQaDialog.title}</Text>
+            <Text style={[styles.dialogMessage, { color: palette.textSecondary }]}>{devQaDialog.message}</Text>
+            <TouchableOpacity
+              style={[styles.dialogPrimaryButton, { backgroundColor: palette.primary }]}
+              onPress={closeDevQaDialog}
+              testID="action.community.devQa.dialog.confirm"
+            >
+              <Text style={styles.dialogPrimaryText}>知道了</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -782,6 +863,62 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorBannerText: { color: '#B91C1C', flex: 1, fontSize: 13 },
+  dialogOverlay: {
+    flex: 1,
+    paddingHorizontal: SPACING.LARGE,
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.LARGE,
+    paddingTop: SPACING.LARGE,
+    paddingBottom: SPACING.MEDIUM,
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 10,
+  },
+  dialogIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.MEDIUM,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  dialogMessage: {
+    marginTop: SPACING.SMALL,
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  dialogPrimaryButton: {
+    minWidth: 144,
+    borderRadius: 16,
+    paddingHorizontal: SPACING.LARGE,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.LARGE,
+  },
+  dialogPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   fabButton: {
     position: 'absolute',
     right: SPACING.LARGE,
