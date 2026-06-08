@@ -395,7 +395,8 @@ class PostService:
                     title=f"新帖子: {post.title}",
                     message=f"{post.user.username} 发布了新帖子: {post.title}",
                     sender=post.user,
-                    content_object=post
+                    content_type='Post',
+                    object_id=str(post.id)
                 )
                 count += 1
 

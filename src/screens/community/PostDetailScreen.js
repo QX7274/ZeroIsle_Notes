@@ -130,7 +130,8 @@ const PostDetailScreen = ({ route, navigation }) => {
           postId: post.id,
           content: commentText,
         })
-      );
+      ).unwrap();
+      await dispatch(fetchComments({ postId, page: 1 })).unwrap();
       setCommentText('');
     } finally {
       setSubmittingComment(false);

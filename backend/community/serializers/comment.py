@@ -34,7 +34,7 @@ class CommentListSerializer(serializers.Serializer):
 
     def get_reply_count(self, obj):
         """获取回复数量"""
-        return Comment.objects.filter(parent=obj.id, is_deleted=False).count()
+        return Comment.objects.filter(parent=obj, is_deleted=False).count()
 
     def get_is_liked(self, obj):
         """获取当前用户是否点赞"""
@@ -68,27 +68,19 @@ class CommentDetailSerializer(serializers.Serializer):
 
     def get_post_title(self, obj):
         """获取帖子标题"""
-        if hasattr(obj, 'post') and obj.post:
-            try:
-                post = Post.objects.get(id=obj.post)
-                return post.title
-            except Post.DoesNotExist:
-                pass
+        if getattr(obj, 'post', None):
+            return getattr(obj.post, 'title', '') or ''
         return ''
 
     def get_parent_user(self, obj):
         """获取父评论用户"""
-        if hasattr(obj, 'parent') and obj.parent:
-            try:
-                parent_comment = Comment.objects.get(id=obj.parent)
-                return UserSerializer(parent_comment.user).data
-            except Comment.DoesNotExist:
-                pass
+        if getattr(obj, 'parent', None) and getattr(obj.parent, 'user', None):
+            return UserSerializer(obj.parent.user).data
         return None
 
     def get_replies(self, obj):
         """获取回复列表"""
-        replies = Comment.objects.filter(parent=obj.id, is_deleted=False)[:5]
+        replies = Comment.objects.filter(parent=obj, is_deleted=False)[:5]
         return CommentListSerializer(replies, many=True, context=self.context).data
 
     def get_is_liked(self, obj):
@@ -143,7 +135,7 @@ class CommentCreateSerializer(serializers.Serializer):
         if parent_id:
             try:
                 parent = Comment.objects.get(id=parent_id)
-                if str(parent.post) != post_id:
+                if str(parent.post.id) != str(post_id):
                     raise serializers.ValidationError({"parent_id": "父评论不属于该帖子"})
             except Comment.DoesNotExist:
                 pass

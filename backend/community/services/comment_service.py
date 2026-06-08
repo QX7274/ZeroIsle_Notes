@@ -225,7 +225,8 @@ class CommentService:
                         title=f"{comment.user.username} 回复了你的评论",
                         message=f"{comment.user.username} 回复了你在《{comment.post.title}》中的评论: {comment.content[:50]}...",
                         sender=comment.user,
-                        content_object=comment
+                        content_type='Comment',
+                        object_id=str(comment.id)
                     )
 
             # 通知帖子作者
@@ -236,7 +237,8 @@ class CommentService:
                     title=f"{comment.user.username} 评论了你的帖子",
                     message=f"{comment.user.username} 评论了你的帖子《{comment.post.title}》: {comment.content[:50]}...",
                     sender=comment.user,
-                    content_object=comment
+                    content_type='Comment',
+                    object_id=str(comment.id)
                 )
 
             return True

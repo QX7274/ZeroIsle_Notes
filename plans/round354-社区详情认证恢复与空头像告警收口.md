@@ -252,3 +252,166 @@
     - `评论内容态`
     - `评论点赞`
     - `发表评论`
+
+## 9. round356 续补验证（2026-06-08）
+
+### 9.1 本轮真实目标
+- 在 round355 已完成“社区主页内容态 -> 帖子详情评论空态 -> 返回社区 ready 保持”基础上，继续补齐评论真实交互链：
+  - `发表评论`
+  - `评论内容态`
+  - `评论提交后前台刷新`
+- 同时继续遵守既有上线规范：
+  - 顶部安全区不能被平板状态栏遮挡
+  - 返回按钮继续统一使用已有淡蓝色方形箭头
+  - 网络错误继续只能走项目内统一样式弹窗
+  - 不误动成熟页面，仅修正阻断评论链的真实缺陷
+
+### 9.2 本轮新增定位到的真实根因
+- 首次真机提交评论时，前台出现项目内统一网络错误弹窗：
+  - `网络连接问题`
+  - `服务器错误，请稍后重试`
+- 这次已经确认不是“平板没网”也不是“按钮没有点上”：
+  - React Native 前台日志明确指向：
+    - `POST /community/comments/` 命中 `500`
+  - 后端真实栈指向：
+    - `backend/community/views/comment.py:123`
+    - `backend/community/serializers/comment.py:73 get_post_title`
+- 更精确根因：
+  - 评论创建本身其实已经成功
+  - 真正失败发生在“创建成功后回包序列化”阶段
+  - `obj.post` 是 Mongo `ReferenceField` 引用出的 `Post` 文档对象
+  - 旧代码又把这个对象当作 `id` 去执行：
+    - `Post.objects.get(id=obj.post)`
+  - 最终触发：
+    - `InvalidDocument`
+    - `cannot encode object: <Post ...>`
+
+### 9.3 本轮代码修补
+- 文件：
+  - `backend/community/serializers/comment.py`
+- 修补内容：
+  - `get_reply_count`
+    - 从 `parent=obj.id` 改为 `parent=obj`
+  - `get_post_title`
+    - 不再执行 `Post.objects.get(id=obj.post)`
+    - 直接读取 `obj.post.title`
+  - `get_parent_user`
+    - 不再执行 `Comment.objects.get(id=obj.parent)`
+    - 直接读取 `obj.parent.user`
+  - `get_replies`
+    - 从 `parent=obj.id` 改为 `parent=obj`
+  - `validate`
+    - 父评论归属校验改为对 `parent.post.id` 进行字符串比对
+- 目的：
+  - 把评论序列化链统一改回 MongoEngine `ReferenceField` 的真实使用方式
+  - 避免再次把 Mongo 文档对象错当纯 id 传入查询
+
+- 文件：
+  - `backend/community/services/comment_service.py`
+- 修补内容：
+  - 两处评论通知创建由：
+    - `content_object=comment`
+  - 改为：
+    - `content_type='Comment'`
+    - `object_id=str(comment.id)`
+- 目的：
+  - 避免通知服务继续接收不符合签名的 Mongo 文档对象
+
+- 文件：
+  - `backend/community/services/post_service.py`
+- 修补内容：
+  - 发帖通知由：
+    - `content_object=post`
+  - 改为：
+    - `content_type='Post'`
+    - `object_id=str(post.id)`
+- 目的：
+  - 顺手修掉同类隐患，避免后续在帖子通知链再撞同型错误
+
+- 文件：
+  - `src/screens/community/PostDetailScreen.js`
+- 修补内容：
+  - `handleSubmitComment` 中：
+    - 先 `dispatch(postComment(...)).unwrap()`
+    - 成功后立即 `await dispatch(fetchComments({ postId, page: 1 })).unwrap()`
+    - 最后 `setCommentText('')`
+- 目的：
+  - 评论提交成功后不只依赖前端本地 `unshift`
+  - 统一以后端真实返回的评论列表重新回填前台，降低“发出去了但界面看不出来”的假失败
+
+### 9.4 Zeroisle 后端重启与联通基线
+- 后端重启方式：
+  - `D:\anaconda\envs\ZeroIsle\python.exe -X utf8 manage.py runserver 0.0.0.0:8001 --noreload`
+- 监听进程：
+  - 旧进程 `PID 53012` 已结束
+  - 新进程 `PID 57524` 已接管 `8001`
+- 联通基线：
+  - `adb devices` 正常识别平板 `HGR3Y9MA`
+  - `adb reverse --list` 继续保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+  - `http://127.0.0.1:8001/health/` 返回：
+    - `{"status": "alive", ...}`
+  - `http://127.0.0.1:8081/status` 返回：
+    - `packager-status:running`
+- 结论：
+  - round356 的评论链复测是在修补后代码与真实联通环境都已恢复正常的前提下完成
+
+### 9.5 真机最终复测结果
+- 复测路径：
+  - 社区真实内容态
+  - 进入帖子 `round330 联通发帖验证`
+  - 在帖子详情页评论输入框中输入：
+    - `round356_comment_ok`
+  - 点击发送按钮
+  - 等待提交与评论列表刷新完成
+- 关键证据：
+  - `.local/android-mcp-server/round356_current_state.xml`
+  - `.local/android-mcp-server/round356_current_state.png`
+  - `.local/android-mcp-server/round356_comment_typed.xml`
+  - `.local/android-mcp-server/round356_comment_typed.png`
+  - `.local/android-mcp-server/round356_comment_submit_result.xml`
+  - `.local/android-mcp-server/round356_comment_submit_result.png`
+  - `.local/android-mcp-server/round356_comment_submit_wait8.xml`
+  - `.local/android-mcp-server/round356_comment_submit_wait8.png`
+- 真机结果：
+  - 提交中阶段：
+    - 发送按钮进入提交态
+    - 没有再弹出项目内统一网络错误弹窗
+  - 稳定完成阶段：
+    - 评论标题从 `评论 (0)` 变为 `评论 (1)`
+    - 新评论卡片已真实出现在列表中
+    - 评论正文准确显示：
+      - `round356_comment_ok`
+    - 输入框已恢复占位：
+      - `写下你的评论...`
+    - 发送按钮重新回到禁用初始态
+- 结论：
+  - `发表评论` 已在真实平板前台完成闭环
+  - `评论内容态` 已在真实平板前台完成闭环
+  - `评论提交后评论列表刷新` 已在真实平板前台完成闭环
+
+### 9.6 本轮后端日志最终结果
+- round356 修补后真实后端结果：
+  - `POST /api/v1/community/comments/ HTTP/1.1`
+  - `201`
+- 现场含义：
+  - 本轮评论失败的真实根因已经从“创建后回包序列化 500”收口为“成功创建并成功返回 201”
+  - 统一网络错误弹窗这次没有再被错误触发
+
+### 9.7 社区评论链当前闭环状态
+- 已完成：
+  - `社区主页真实内容态`
+  - `进入帖子详情前认证恢复`
+  - `帖子详情请求前认证恢复`
+  - `帖子详情401后二次认证恢复`
+  - `评论接口 Mongo 查询兼容修复`
+  - `帖子详情评论(0)空态真机闭环`
+  - `帖子详情返回社区后继续保持 ready`
+  - `发表评论真机闭环`
+  - `评论内容态真机闭环`
+  - `评论提交后前台刷新真机闭环`
+- 当前仍待后续补齐：
+  - `评论点赞`
+  - 更多评论分页/多条评论顺序验证
+  - 回复评论链路
