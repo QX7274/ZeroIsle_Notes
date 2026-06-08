@@ -10,6 +10,7 @@ import { CommonActions } from '@react-navigation/native';
 import authStorage from './authStorage';
 import tokenService from './tokenService';
 import networkErrorService from '../networkErrorService';
+import { DEV_MODE_CONFIG } from '../../config';
 
 // 防止多次处理未授权错误
 let isHandlingUnauthorizedError = false;
@@ -21,7 +22,7 @@ let isHandlingUnauthorizedError = false;
  */
 export const handleUnauthorizedError = async () => {
   // 开发调试模式下允许跳过登录，避免联调时被强制跳回Auth
-  const DEV_SKIP_LOGIN = __DEV__;
+  const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
   if (DEV_SKIP_LOGIN) {
     console.log('DEV_SKIP_LOGIN 已启用，跳过未授权跳转处理');
     return;
@@ -174,9 +175,10 @@ export const saveAuthInfo = async (accessToken, refreshToken, user) => {
       await tokenService.saveRefreshToken(refreshToken);
     }
 
-    // 保存用户信息
-    await authStorage.setItem(STORAGE_KEYS.USER_INFO, user);
-    await authStorage.setItem(STORAGE_KEYS.USER, user); // 兼容旧版
+    // StorageItem.value 是字符串字段，认证用户信息需要先序列化后再落盘
+    const serializedUser = JSON.stringify(user ?? null);
+    await authStorage.setItem(STORAGE_KEYS.USER_INFO, serializedUser);
+    await authStorage.setItem(STORAGE_KEYS.USER, serializedUser); // 兼容旧版
 
     return true;
   } catch (error) {
@@ -201,6 +203,14 @@ export const getAuthInfo = async () => {
     // 如果用户信息不存在，尝试从旧版存储键获取
     if (!user) {
       user = await authStorage.getItem(STORAGE_KEYS.USER);
+    }
+
+    if (typeof user === 'string') {
+      try {
+        user = JSON.parse(user);
+      } catch (parseError) {
+        console.warn('解析认证用户信息失败，返回原始值:', parseError);
+      }
     }
 
     return {
