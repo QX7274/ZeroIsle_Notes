@@ -77,6 +77,11 @@ class NetworkErrorService {
 
     if (error?.request && !error?.response) {return true;}
 
+    // 已收到明确 HTTP 响应时，说明链路已到达服务端。
+    // 这类场景应继续按认证/业务/服务端错误处理，避免把 401/404/500
+    // 误接成“网络连接问题”弹窗。
+    if (error?.response) {return false;}
+
     // 检查错误代码
     if (error.code) {
       const networkCodes = [
@@ -96,13 +101,13 @@ class NetworkErrorService {
       'network',
       'connection',
       'timeout',
-      'failed',
       'unreachable',
       'refused',
       'aborted',
       'disconnected',
       'offline',
       'no internet',
+      'network request failed',
     ];
 
     const errorMessage = (error.message || '').toLowerCase();

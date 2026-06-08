@@ -23,6 +23,22 @@ import personalActivityApi from '../../services/api/personalActivityApi';
 import networkErrorService from '../../services/networkErrorService';
 import tryRestoreDevSession from '../../services/auth/devSessionRestore';
 
+const normalizeGoalListPayload = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.results)) {
+    return payload.results;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+};
+
 const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -106,7 +122,7 @@ const GoalManagerScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await personalActivityApi.getGoals();
-      setGoals(response.data);
+      setGoals(normalizeGoalListPayload(response));
     } catch (error) {
       if (!hasRetriedAuth && isUnauthorizedGoalError(error)) {
         const restoredSession = await tryRestoreDevSession({ forceRefresh: true });
@@ -116,7 +132,15 @@ const GoalManagerScreen = ({ navigation }) => {
         }
       }
 
-      if (!presentNetworkError(error, '目标数据加载失败，请确认当前设备与后端联通后重试', loadGoals)) {
+      if (
+        error?.response?.status >= 500
+        && !presentNetworkError(error, '目标数据加载失败，请确认当前设备与后端联通后重试', loadGoals)
+      ) {
+        showToast.error('目标数据加载失败，请稍后重试');
+        return;
+      }
+
+      if (!presentNetworkError(error, '网络连接失败，请检查网络设置后重试', loadGoals)) {
         showToast.error('加载目标失败，请稍后重试');
       }
     } finally {
