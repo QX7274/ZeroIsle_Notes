@@ -39,6 +39,47 @@ const normalizeGoalListPayload = (payload) => {
   return [];
 };
 
+const extractGoalValidationMessage = (error, fallbackMessage) => {
+  const responseData = error?.response?.data;
+
+  if (!responseData || typeof responseData !== 'object') {
+    return fallbackMessage;
+  }
+
+  const candidateFields = [
+    responseData.non_field_errors,
+    responseData.detail,
+    responseData.message,
+    responseData.error,
+    responseData.errors?.non_field_errors,
+    responseData.errors?.detail,
+  ];
+
+  for (const candidate of candidateFields) {
+    if (Array.isArray(candidate) && candidate[0]) {
+      return String(candidate[0]);
+    }
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  if (responseData.errors && typeof responseData.errors === 'object') {
+    for (const fieldErrors of Object.values(responseData.errors)) {
+      if (Array.isArray(fieldErrors) && fieldErrors[0]) {
+        return String(fieldErrors[0]);
+      }
+
+      if (typeof fieldErrors === 'string' && fieldErrors.trim()) {
+        return fieldErrors.trim();
+      }
+    }
+  }
+
+  return fallbackMessage;
+};
+
 const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -121,7 +162,7 @@ const GoalManagerScreen = ({ navigation }) => {
 
     try {
       setLoading(true);
-      const response = await personalActivityApi.getGoals();
+      const response = await personalActivityApi.getGoals({ suppressGlobalErrorUI: true });
       setGoals(normalizeGoalListPayload(response));
     } catch (error) {
       if (!hasRetriedAuth && isUnauthorizedGoalError(error)) {
@@ -151,7 +192,6 @@ const GoalManagerScreen = ({ navigation }) => {
   const handleSaveGoal = async () => {
     if (!formData.title.trim()) {
       showFormStatus('目标标题不能为空', 'warning');
-      showToast.warning('目标标题不能为空');
       return;
     }
 
@@ -166,11 +206,11 @@ const GoalManagerScreen = ({ navigation }) => {
       };
 
       if (editingGoal) {
-        await personalActivityApi.updateGoal(editingGoal._id, goalData);
+        await personalActivityApi.updateGoal(editingGoal._id, goalData, { suppressGlobalErrorUI: true });
         showFormStatus('目标更新成功', 'success');
         showToast.success('目标更新成功');
       } else {
-        await personalActivityApi.createGoal(goalData);
+        await personalActivityApi.createGoal(goalData, { suppressGlobalErrorUI: true });
         showFormStatus('目标创建成功', 'success');
         showToast.success('目标创建成功');
       }
@@ -181,9 +221,16 @@ const GoalManagerScreen = ({ navigation }) => {
       loadGoals();
     } catch (error) {
       const actionLabel = editingGoal ? '更新' : '创建';
+      const fallbackMessage = `目标${actionLabel}失败，请稍后重试`;
+      const validationMessage = extractGoalValidationMessage(error, fallbackMessage);
+
+      if (error?.response?.status === 400) {
+        showFormStatus(validationMessage, 'error');
+        return;
+      }
+
       if (!presentNetworkError(error, `目标${actionLabel}失败，请确认网络与后端服务正常后重试`, handleSaveGoal)) {
-        showFormStatus(`目标${actionLabel}失败，请稍后重试`, 'error');
-        showToast.error(`目标${actionLabel}失败，请稍后重试`);
+        showFormStatus(validationMessage, 'error');
       }
     }
   };
@@ -228,14 +275,21 @@ const GoalManagerScreen = ({ navigation }) => {
     }
 
     try {
-      await personalActivityApi.deleteGoal(pendingDeleteGoal._id);
+      await personalActivityApi.deleteGoal(pendingDeleteGoal._id, { suppressGlobalErrorUI: true });
       showToast.success('目标删除成功');
       setConfirmDialogVisible(false);
       setPendingDeleteGoal(null);
       loadGoals();
     } catch (error) {
+      const validationMessage = extractGoalValidationMessage(error, '删除目标失败，请稍后重试');
+
+      if (error?.response?.status === 400) {
+        showToast.error(validationMessage);
+        return;
+      }
+
       if (!presentNetworkError(error, '删除目标失败，请确认网络与后端服务正常后重试', handleConfirmDelete)) {
-        showToast.error('删除目标失败，请稍后重试');
+        showToast.error(validationMessage);
       }
     }
   };

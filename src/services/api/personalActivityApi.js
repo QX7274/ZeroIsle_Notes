@@ -132,29 +132,45 @@ class PersonalActivityApi {
   /**
    * 获取目标列表
    */
-  async getGoals() {
-    return await apiClient.get(`${BASE_URL}/goals/`);
+  async getGoals(requestOptions = {}) {
+    return await apiClient.get(`${BASE_URL}/goals/`, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
   }
 
   /**
    * 创建目标
    */
-  async createGoal(data) {
-    return await apiClient.post(`${BASE_URL}/goals/`, data);
+  async createGoal(data, requestOptions = {}) {
+    return await apiClient.post(`${BASE_URL}/goals/`, data, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
   }
 
   /**
    * 更新目标
    */
-  async updateGoal(id, data) {
-    return await apiClient.put(`${BASE_URL}/goals/${id}/`, data);
+  async updateGoal(id, data, requestOptions = {}) {
+    return await apiClient.put(`${BASE_URL}/goals/${id}/`, data, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
   }
 
   /**
    * 删除目标
    */
-  async deleteGoal(id) {
-    return await apiClient.delete(`${BASE_URL}/goals/${id}/`);
+  async deleteGoal(id, requestOptions = {}) {
+    return await apiClient.delete(`${BASE_URL}/goals/${id}/`, {
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
+      },
+    });
   }
 
   /**

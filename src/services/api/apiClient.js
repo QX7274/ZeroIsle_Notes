@@ -19,13 +19,19 @@ import tokenService from '../auth/tokenService';
 import { handleUnauthorizedError } from '../auth/authUtils';
 
 // API配置
-import { API_URL as CONFIG_API_URL, API_VERSION as CONFIG_API_VERSION, API_TIMEOUT as CONFIG_API_TIMEOUT } from '../../config';
+import {
+  API_URL as CONFIG_API_URL,
+  API_VERSION as CONFIG_API_VERSION,
+  API_TIMEOUT as CONFIG_API_TIMEOUT,
+  DEV_MODE_CONFIG,
+} from '../../config';
 
 // 使用配置文件中的值
 const API_URL = CONFIG_API_URL;  // 使用配置文件中的API_URL
 const API_VERSION = CONFIG_API_VERSION;
 const API_TIMEOUT = CONFIG_API_TIMEOUT;
-const DEV_SKIP_LOGIN = __DEV__;
+const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
+const DEV_VERBOSE_HTTP_400_LOG = false;
 
 // 错误消息
 const ERROR_MESSAGES = {
@@ -37,6 +43,70 @@ const ERROR_MESSAGES = {
   TIMEOUT: '请求超时，请稍后重试',
   UNKNOWN: '发生未知错误，请稍后重试',
 };
+
+const extractHttpErrorMessage = (data, fallback = '未知错误') => {
+  if (!data) {
+    return fallback;
+  }
+
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  if (typeof data.message === 'string' && data.message.trim()) {
+    return data.message.trim();
+  }
+
+  if (typeof data.error === 'string' && data.error.trim()) {
+    return data.error.trim();
+  }
+
+  if (typeof data.detail === 'string' && data.detail.trim()) {
+    return data.detail.trim();
+  }
+
+  if (Array.isArray(data.non_field_errors) && data.non_field_errors[0]) {
+    return String(data.non_field_errors[0]);
+  }
+
+  if (data.errors && typeof data.errors === 'object') {
+    for (const value of Object.values(data.errors)) {
+      if (Array.isArray(value) && value[0]) {
+        return String(value[0]);
+      }
+
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+  }
+
+  return fallback;
+};
+
+const logHttp400Debug = (status, payload) => {
+  if (!__DEV__ || !DEV_VERBOSE_HTTP_400_LOG) {
+    return;
+  }
+
+  if (typeof console?.debug === 'function') {
+    console.debug(`HTTP错误 ${status}:`, payload);
+    return;
+  }
+
+  console.log(`HTTP错误 ${status}:`, payload);
+};
+
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/password/reset',
+  '/auth/verification-code',
+  '/auth/code-login',
+  '/auth/login/code',
+  '/auth/register/username',
+  '/auth/register/phone',
+];
 
 // 创建axios实例
 const apiClient = axios.create({
@@ -101,7 +171,7 @@ apiClient.interceptors.request.use(
   async config => {
     try {
       // 检查是否是公开路径（不需要认证的路径）
-      const isPublicPath = ['/auth/login', '/auth/register', '/auth/password/reset'].some(
+      const isPublicPath = PUBLIC_AUTH_PATHS.some(
         path => config.url && config.url.includes(path)
       );
 
@@ -114,8 +184,11 @@ apiClient.interceptors.request.use(
       const tokenData = await tokenService.getAccessToken();
       const accessToken = typeof tokenData === 'string' ? tokenData : tokenData?.token;
 
-      // 检查令牌是否过期或即将过期
-      const isExpiring = await tokenService.isAccessTokenExpiredOrExpiring();
+      // 只有本地确实存在访问令牌时，才需要进入过期/刷新逻辑。
+      // 登录、发验证码等匿名请求前若无 token，不应被误判为“刷新失败”。
+      const isExpiring = accessToken
+        ? await tokenService.isAccessTokenExpiredOrExpiring()
+        : false;
 
       if (isExpiring) {
         console.log('访问令牌即将过期，尝试刷新');
@@ -202,11 +275,16 @@ apiClient.interceptors.response.use(
     console.log(`API响应成功: ${response.config.method.toUpperCase()} ${response.config.url}`);
 
     // 处理统一的API响应格式 {code, message, data}
+    // 注意：部分真实业务接口也会直接返回 code 字段（例如开发环境验证码），
+    // 这类响应并不是统一包装格式，不能按错误码逻辑误判。
     if (response.data && typeof response.data === 'object') {
       const { code, message, data } = response.data;
+      const hasWrappedMessage = Object.prototype.hasOwnProperty.call(response.data, 'message');
+      const hasWrappedData = Object.prototype.hasOwnProperty.call(response.data, 'data');
+      const isWrappedApiResponse = code !== undefined && (hasWrappedMessage || hasWrappedData);
 
-      // 如果响应包含code字段，说明是新的统一格式
-      if (code !== undefined) {
+      // 仅当同时具备统一包装特征时，才执行解包/错误处理
+      if (isWrappedApiResponse) {
         if (code === 0) {
           // 成功响应：将 axios 的 response.data 替换为后端 data，保持上层兼容
           response.data = data;
@@ -408,7 +486,7 @@ apiClient.interceptors.response.use(
           }
 
           // 检查是否是公开路径或特定API路径
-          const isPublicPath = ['/auth/login', '/auth/register', '/auth/password/reset'].some(
+          const isPublicPath = PUBLIC_AUTH_PATHS.some(
             path => error.config.url && error.config.url.includes(path)
           );
 
@@ -474,20 +552,26 @@ apiClient.interceptors.response.use(
             }
           });
           break;
+        case 400: {
+          const errorMsg = extractHttpErrorMessage(data, '请求参数有误，请检查后重试');
+          logHttp400Debug(status, {
+            url: error.config?.url,
+            method: error.config?.method,
+            message: errorMsg,
+          });
+
+          error.message = errorMsg;
+          error.userMessage = errorMsg;
+          return Promise.reject(error);
+        }
         default:
           // 其他错误
-          console.error(`HTTP错误 ${status}:`, data);
-          // 尝试获取错误消息
-          let errorMsg = '未知错误';
-          if (data) {
-            if (typeof data === 'string') {
-              errorMsg = data;
-            } else if (data.message) {
-              errorMsg = data.message;
-            } else if (data.error) {
-              errorMsg = data.error;
-            }
-          }
+          console.error(`HTTP错误 ${status}:`, {
+            url: error.config?.url,
+            method: error.config?.method,
+            message: extractHttpErrorMessage(data, '未知错误'),
+          });
+          const errorMsg = extractHttpErrorMessage(data, '未知错误');
           networkErrorService.handleApiError(error, {
             context: '请求失败',
             customMessage: errorMsg,
