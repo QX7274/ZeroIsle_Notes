@@ -31,6 +31,7 @@ import {
 import networkErrorService from '../../services/networkErrorService';
 import useHideMainTabBar from './useHideMainTabBar';
 import tryRestoreDevSession from '../../services/auth/devSessionRestore';
+import resolvePostDetailCommentStats from './postDetailCommentStats';
 import {
   setAuthRefreshToken,
   setAuthToken,
@@ -72,7 +73,11 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const busy = isLoading || submittingComment;
   const pageState = isLoading && !post ? 'loading' : post ? 'ready' : error ? 'error' : 'empty';
-  const commentsTotal = commentsPagination?.totalItems ?? comments.length;
+  const { totalCommentCount: commentsTotal } = resolvePostDetailCommentStats({
+    post,
+    commentsPagination,
+    comments,
+  });
   const hasMoreComments = (commentsPagination?.page ?? 1) < (commentsPagination?.totalPages ?? 1);
 
   const applyRestoredSession = useCallback((restoredSession) => {

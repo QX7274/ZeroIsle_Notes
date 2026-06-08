@@ -953,3 +953,65 @@
   - `回复列表展示真机闭环`
   - `多回复场景假完整风险修补`
   - `3 条真实回复全部可见`
+
+## 14. round362 评论总数展示口径统一（2026-06-08）
+
+### 14.1 本轮真实目标
+- 承接 round361 留下的唯一明确边界：
+  - 社区卡片显示帖子总评论数 `14`
+  - 帖子详情标题与统计区显示顶级评论分页总数 `12`
+- 本轮目标不是继续扩大 UI 改动，而是把详情页展示语义统一到用户更容易理解、也与社区列表一致的“帖子总评论数”口径。
+
+### 14.2 本轮根因确认
+- 代码复核已确认两条链当前读取的不是同一字段：
+  - 社区列表卡片走 `fetchPosts -> item.comment_count -> item.comments`
+  - 帖子详情页 round361 改成了 `commentsPagination.totalItems`
+- 因此 round361 里的 `14 vs 12` 不是新的网络问题，也不是后端随机波动，而是前端展示口径被拆成了两套：
+  - 帖子总评论数
+  - 顶级评论分页总数
+
+### 14.3 本轮代码修补
+- 文件：
+  - `src/screens/community/postDetailCommentStats.js`
+  - `src/screens/community/PostDetailScreen.js`
+  - `src/screens/community/__tests__/postDetailCommentStats.test.js`
+- 处理：
+  - 新增 `resolvePostDetailCommentStats()`，显式区分：
+    - `totalCommentCount`
+    - `topLevelCommentCount`
+  - 帖子详情页标题与顶部统计区统一改为优先显示 `post.comments / post.comment_count`
+  - 若详情接口暂时缺少帖子总评论数，再回退到 `commentsPagination.totalItems`
+- 本轮刻意不改：
+  - 评论分页逻辑
+  - `加载更多评论` 的显示与追加行为
+  - 已成熟的社区列表卡片样式
+
+### 14.4 自动化回归
+- 已新增测试：
+  - `src/screens/community/__tests__/postDetailCommentStats.test.js`
+- 已通过：
+  - `node .\\node_modules\\jest\\bin\\jest.js src/screens/community/__tests__/postDetailCommentStats.test.js --runInBand`
+  - `node .\\node_modules\\jest\\bin\\jest.js src/redux/slices/__tests__/communitySlice.test.js --runInBand`
+- 结论：
+  - 本轮统计口径修补不会破坏社区分页与点赞等现有 slice 回归
+
+### 14.5 本轮结论
+- 帖子详情页的展示语义已重新统一为：
+  - `评论（帖子总评论数）`
+- 顶级评论分页总数没有被删除，而是被收回到实现层，继续服务分页与“加载更多评论”能力
+- 这样处理后：
+  - 社区列表卡片
+  - 帖子详情标题
+  - 帖子详情顶部统计区
+  都会重新回到同一用户语义，不再制造“像坏了但其实是两套统计口径”的误导
+
+### 14.6 规范复核
+- 本轮未改动顶部安全区结构，仍需保持：
+  - 页面顶部内容不能被平板系统状态栏遮挡
+- 本轮未改动返回按钮组件，仍继续使用：
+  - 统一淡蓝色方形箭头
+- 本轮未引入新的网络异常承接方式：
+  - 不允许回退到默认安卓弹窗
+- 本轮未扩大布局变动：
+  - 不对已成熟区块做视觉翻新
+  - 不制造新的异常留白
