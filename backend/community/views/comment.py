@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 
 from community.mongodb_models import Comment
+from community.mongodb_models import Post
 from community.serializers import (
     CommentSerializer,
     CommentListSerializer,
@@ -49,13 +50,13 @@ class CommentViewSet(viewsets.ViewSet):
 
         post_id = self.request.query_params.get('post') or self.request.query_params.get('post_id')
         if post_id:
-            queryset = queryset.filter(post_id=post_id)
+            queryset = queryset.filter(post=post_id)
 
         parent_id = self.request.query_params.get('parent')
         if parent_id:
-            queryset = queryset.filter(parent_id=parent_id)
+            queryset = queryset.filter(parent=parent_id)
         elif self.request.query_params.get('parent__isnull') in {'true', 'True', '1'}:
-            queryset = queryset.filter(parent__isnull=True)
+            queryset = queryset.filter(parent=None)
 
         is_pinned = self.request.query_params.get('is_pinned')
         if is_pinned is not None:
@@ -212,9 +213,10 @@ class CommentViewSet(viewsets.ViewSet):
             )
 
         # 获取顶级评论
+        post = Post.objects.get(id=post_id, is_deleted=False)
         comments = Comment.objects.filter(
-            post_id=post_id,
-            parent__isnull=True,
+            post=post,
+            parent=None,
             is_deleted=False
         )
 

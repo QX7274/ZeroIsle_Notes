@@ -30,6 +30,7 @@ import {
 } from '../../redux/slices/communitySlice';
 import networkErrorService from '../../services/networkErrorService';
 import useHideMainTabBar from './useHideMainTabBar';
+import tryRestoreDevSession from '../../services/auth/devSessionRestore';
 
 /**
  * 社区帖子详情屏幕
@@ -55,6 +56,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     likedComments,
     followedUsers,
   } = useSelector((state) => state.community);
+  const isAuthenticated = useSelector((state) => state.auth?.isAuthenticated);
 
   const liked = post ? likedPosts[post.id] : false;
   const bookmarked = post ? bookmarkedPosts[post.id] : false;
@@ -65,9 +67,36 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const loadPostData = useCallback(async () => {
     try {
+      if (!isAuthenticated) {
+        const restoredSession = await tryRestoreDevSession();
+        if (restoredSession?.user && restoredSession?.token) {
+          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+          dispatch({ type: 'auth/setUserInfo', payload: restoredSession.user });
+          dispatch({ type: 'auth/setAuthToken', payload: restoredSession.token });
+          if (restoredSession.refreshToken) {
+            dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredSession.refreshToken });
+          }
+        }
+      }
+
       await dispatch(fetchPostDetail(postId)).unwrap();
       await dispatch(fetchComments({ postId, page: 1 })).unwrap();
     } catch (requestError) {
+      if (String(requestError || '').includes('登录状态已失效')) {
+        const restoredSession = await tryRestoreDevSession();
+        if (restoredSession?.token) {
+          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+          dispatch({ type: 'auth/setUserInfo', payload: restoredSession.user });
+          dispatch({ type: 'auth/setAuthToken', payload: restoredSession.token });
+          if (restoredSession.refreshToken) {
+            dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredSession.refreshToken });
+          }
+          await dispatch(fetchPostDetail(postId)).unwrap();
+          await dispatch(fetchComments({ postId, page: 1 })).unwrap();
+          return;
+        }
+      }
+
       if (networkErrorService.isNetworkError(requestError)) {
         networkErrorService.handleApiError(requestError, {
           context: '加载帖子详情',
@@ -75,7 +104,15 @@ const PostDetailScreen = ({ route, navigation }) => {
         });
       }
     }
-  }, [dispatch, postId]);
+  }, [dispatch, isAuthenticated, postId]);
+
+  const renderAvatar = useCallback((avatarUri, style, fallbackStyle) => {
+    if (avatarUri) {
+      return <Image source={{ uri: avatarUri }} style={style} />;
+    }
+
+    return <View style={[style, fallbackStyle]} />;
+  }, []);
 
   useEffect(() => {
     loadPostData();
@@ -202,7 +239,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
           <View style={styles.postHeader}>
             <View style={styles.authorContainer}>
-              <Image source={{ uri: post.authorAvatar }} style={styles.avatar} />
+              {renderAvatar(post.authorAvatar, styles.avatar, styles.avatarFallback)}
               <Text style={[styles.authorName, { color: theme.text }]}>{post.author}</Text>
             </View>
             <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
@@ -270,7 +307,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <View key={comment.id} style={[styles.commentItem, styles.glassBlock, { borderColor: `${theme.primary}20` }]} testID={`item.community.postDetail.comment.${comment.id}`}>
               <View style={styles.commentHeader}>
                 <View style={styles.commentAuthor}>
-                  <Image source={{ uri: comment.authorAvatar }} style={styles.commentAvatar} />
+                  {renderAvatar(comment.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
                   <Text style={[styles.commentAuthorName, { color: theme.text }]}>{comment.author}</Text>
                 </View>
                 <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
@@ -368,6 +405,7 @@ const styles = StyleSheet.create({
   postHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.MEDIUM },
   authorContainer: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 36, height: 36, borderRadius: 18, marginRight: SPACING.SMALL, backgroundColor: '#D5DEE9' },
+  avatarFallback: { backgroundColor: '#D5DEE9' },
   authorName: { fontSize: 16, fontWeight: '500' },
   timestamp: { fontSize: 14 },
   postTitle: { fontSize: 22, fontWeight: '700', marginBottom: SPACING.MEDIUM },

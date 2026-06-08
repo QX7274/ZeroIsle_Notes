@@ -25,6 +25,7 @@ import networkService from '../../services/network/networkService';
 import networkErrorService from '../../services/networkErrorService';
 import realmService from '../../services/database/realmService';
 import { SPACING } from '../../utils/constants/dimensions';
+import tryRestoreDevSession from '../../services/auth/devSessionRestore';
 
 const FALLBACK_THEME = {
   background: '#F2F7FB',
@@ -102,6 +103,7 @@ const CommunityScreen = ({ navigation }) => {
   });
 
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
+  const isAuthenticated = useSelector((state) => state.auth?.isAuthenticated);
   const currentUser = useSelector((state) => state.auth?.user);
   const hasMore = pagination.page < pagination.totalPages;
   const interactionBusy = isLoading || refreshing || requestInFlight;
@@ -140,6 +142,25 @@ const CommunityScreen = ({ navigation }) => {
     requestInFlightRef.current = false;
     setRequestInFlight(false);
   }, []);
+
+  const ensureAuthenticatedForDetail = useCallback(async () => {
+    if (isAuthenticated) {
+      return true;
+    }
+
+    const restoredSession = await tryRestoreDevSession();
+    if (restoredSession?.token) {
+      dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+      dispatch({ type: 'auth/setUserInfo', payload: restoredSession.user });
+      dispatch({ type: 'auth/setAuthToken', payload: restoredSession.token });
+      if (restoredSession.refreshToken) {
+        dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredSession.refreshToken });
+      }
+      return true;
+    }
+
+    return false;
+  }, [dispatch, isAuthenticated]);
 
   const loadPosts = useCallback(
     async (targetPage = 1, categoryOverride = undefined) => {
@@ -496,8 +517,15 @@ const CommunityScreen = ({ navigation }) => {
             if (interactionBusy) {
               return;
             }
-            setActionSource(`openPost.${item.id}`);
-            navigation.navigate('PostDetail', { postId: item.id });
+            ensureAuthenticatedForDetail().then((authenticated) => {
+              if (!authenticated) {
+                openDevQaDialog('登录态恢复失败', '当前未能恢复真实认证状态，帖子详情接口会被后端拒绝。请稍后重试。');
+                return;
+              }
+
+              setActionSource(`openPost.${item.id}`);
+              navigation.navigate('PostDetail', { postId: item.id });
+            });
           }}
           disabled={interactionBusy}
           testID={`item.community.post.${item.id}`}
@@ -506,7 +534,11 @@ const CommunityScreen = ({ navigation }) => {
           <View testID={`state.community.postBookmark.${item.id}.${bookmarkedPosts[item.id] ? 'on' : 'off'}`} />
           <View style={styles.postHeader}>
             <View style={styles.authorContainer}>
-              <Image source={{ uri: item.authorAvatar }} style={styles.avatar} />
+              {item.authorAvatar ? (
+                <Image source={{ uri: item.authorAvatar }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]} />
+              )}
               <Text style={[styles.authorName, { color: palette.text }]}>{item.author}</Text>
             </View>
             <Text style={[styles.timestamp, { color: palette.textSecondary }]}>{new Date(item.timestamp).toLocaleDateString()}</Text>
@@ -670,7 +702,7 @@ const CommunityScreen = ({ navigation }) => {
     </View>
   );
 
-  const pageState = isLoading && posts.length === 0 ? 'loading' : error ? 'error' : posts.length === 0 ? 'empty' : 'ready';
+  const pageState = isLoading && posts.length === 0 ? 'loading' : posts.length > 0 ? 'ready' : error ? 'error' : 'empty';
   const topInsetSpacing = Platform.OS === 'android' ? 8 : Math.max(insets.top, 12);
   const shouldShowInlineError = Boolean(error) && posts.length === 0;
 
@@ -976,6 +1008,7 @@ const styles = StyleSheet.create({
   },
   authorContainer: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, marginRight: SPACING.SMALL, backgroundColor: '#D9ECFD' },
+  avatarFallback: { backgroundColor: '#D9ECFD' },
   authorName: { fontSize: 15, fontWeight: '700' },
   timestamp: { fontSize: 12 },
   postTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.SMALL },

@@ -12,6 +12,7 @@ import tokenService from '../../services/auth/tokenService';
 import authUtils from '../../services/auth/authUtils';
 import authStorage from '../../services/auth/authStorage';
 import { DEV_MODE_CONFIG } from '../../config';
+import tryRestoreDevSession from '../../services/auth/devSessionRestore';
 
 const DEV_CONFIG = {
   SKIP_LOGIN: __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN),
@@ -26,8 +27,6 @@ const DEV_CONFIG = {
     createdAt: new Date().toISOString(),
   },
 };
-
-const DEV_DIRECT_LOGIN_PHONE = '13800138000';
 
 const applyAuthenticatedState = (dispatch, user, token) => {
   dispatch({ type: 'auth/setIsAuthenticated', payload: true });
@@ -50,50 +49,6 @@ const restoreUserFromProfile = async () => {
   }
 
   return profileUser;
-};
-
-const tryRestoreRealDevSession = async () => {
-  if (!__DEV__ || !DEV_MODE_CONFIG?.ENABLED || DEV_CONFIG.SKIP_LOGIN) {
-    return null;
-  }
-
-  try {
-    console.log('Redux: 未找到真实认证信息，尝试恢复开发态真实后端登录');
-
-    const verificationResponse = await authApi.sendVerificationCode({
-      phone: DEV_DIRECT_LOGIN_PHONE,
-      purpose: 'login',
-    });
-
-    const verificationCode =
-      verificationResponse?.data?.code ||
-      verificationResponse?.code;
-
-    if (!verificationCode) {
-      console.log('Redux: 开发态真实后端登录未拿到验证码');
-      return null;
-    }
-
-    const loginResponse = await authApi.loginWithCode({
-      phone: DEV_DIRECT_LOGIN_PHONE,
-      code: verificationCode,
-    });
-
-    const payload = loginResponse?.data || loginResponse;
-    const accessToken = payload?.access || payload?.token || null;
-    const refreshToken = payload?.refresh || null;
-    const user = payload?.user || null;
-
-    if (!accessToken || !user) {
-      console.log('Redux: 开发态真实后端登录返回缺少用户或令牌');
-      return null;
-    }
-
-    return { user, token: accessToken, refreshToken };
-  } catch (error) {
-    console.warn('Redux: 恢复开发态真实后端登录失败:', error?.message || error);
-    return null;
-  }
 };
 
 const isDevPlaceholderToken = (token) => (
@@ -463,7 +418,7 @@ export const checkAuthState = createAsyncThunk(
         return { user: devUser, token: devToken, refreshToken: devToken };
       }
 
-      const restoredRealDevSession = await tryRestoreRealDevSession();
+      const restoredRealDevSession = await tryRestoreDevSession();
       if (restoredRealDevSession?.token && restoredRealDevSession?.user) {
         console.log('Redux: 已恢复开发态真实后端登录态');
         applyAuthenticatedState(dispatch, restoredRealDevSession.user, restoredRealDevSession.token);

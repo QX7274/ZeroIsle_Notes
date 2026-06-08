@@ -180,7 +180,7 @@ class CommentService:
                 queryset = queryset.filter(parent_id=parent_id)
             else:
                 # 获取顶级评论
-                queryset = queryset.filter(parent__isnull=True)
+                queryset = queryset.filter(parent=None)
 
             # 获取总数
             total = queryset.count()
