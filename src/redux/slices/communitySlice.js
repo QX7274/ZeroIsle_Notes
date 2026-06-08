@@ -218,9 +218,10 @@ export const fetchComments = createAsyncThunk(
       const uiComments = await Promise.all(results.map(async (c) => {
         let replies = Array.isArray(c.replies) ? c.replies.map(mapReply) : [];
 
-        if (replies.length === 0 && (c.reply_count ?? 0) > 0) {
+        const expectedReplyCount = Number(c.reply_count ?? 0);
+
+        if (expectedReplyCount > 0 && replies.length < expectedReplyCount) {
           try {
-            const expectedReplyCount = Number(c.reply_count ?? 0);
             const replyResponse = await communityApi.getCommentReplies(c.id, {
               page: 1,
               // 拉满当前已知回复数，避免前台把固定 5 条误判成完整列表
