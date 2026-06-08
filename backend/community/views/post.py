@@ -6,7 +6,6 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
 import uuid
 import json
 import os
@@ -31,8 +30,7 @@ class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'status', 'is_pinned', 'is_featured', 'is_public']
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['created_at', 'published_at', 'view_count', 'like_count', 'comment_count']
     ordering = ['-is_pinned', '-published_at', '-created_at']
@@ -52,6 +50,25 @@ class PostViewSet(viewsets.ModelViewSet):
         user_id_filter = self.request.query_params.get('user')
         if user_id_filter:
             base_query = base_query.filter(user=user_id_filter)
+
+        category_filter = self.request.query_params.get('category')
+        if category_filter:
+            base_query = base_query.filter(category=category_filter)
+
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            base_query = base_query.filter(status=status_filter)
+
+        for boolean_field in ['is_pinned', 'is_featured', 'is_public']:
+            raw_value = self.request.query_params.get(boolean_field)
+            if raw_value is None:
+                continue
+
+            normalized = str(raw_value).strip().lower()
+            if normalized in {'true', '1', 'yes'}:
+                base_query = base_query.filter(**{boolean_field: True})
+            elif normalized in {'false', '0', 'no'}:
+                base_query = base_query.filter(**{boolean_field: False})
         
         # 然后在内存中过滤可见性
         # 注意：这在数据量大时性能较差，但确保了逻辑的统一。

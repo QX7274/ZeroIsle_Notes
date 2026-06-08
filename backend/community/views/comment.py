@@ -2,12 +2,10 @@
 评论视图
 """
 
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
-import uuid
 from django.utils import timezone
 
 from community.mongodb_models import Comment
@@ -27,15 +25,47 @@ class CommentViewSet(viewsets.ViewSet):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['post', 'parent', 'is_pinned']
-    search_fields = ['content']
-    ordering_fields = ['created_at', 'like_count']
     ordering = ['-is_pinned', '-created_at']
+
+    def get_serializer(self, *args, **kwargs):
+        """兼容 ViewSet 的简易序列化器获取。"""
+        kwargs.setdefault('context', {'request': self.request})
+        serializer_class = self.get_serializer_class()
+        return serializer_class(*args, **kwargs)
+
+    def paginate_queryset(self, queryset):
+        """为普通 ViewSet 补齐分页能力。"""
+        paginator = self.pagination_class()
+        self._paginator = paginator
+        return paginator.paginate_queryset(queryset, self.request, view=self)
+
+    def get_paginated_response(self, data):
+        """返回统一分页结构。"""
+        return self._paginator.get_paginated_response(data)
 
     def get_queryset(self):
         """获取查询集"""
-        return Comment.objects.filter(is_deleted=False)
+        queryset = Comment.objects.filter(is_deleted=False)
+
+        post_id = self.request.query_params.get('post') or self.request.query_params.get('post_id')
+        if post_id:
+            queryset = queryset.filter(post_id=post_id)
+
+        parent_id = self.request.query_params.get('parent')
+        if parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
+        elif self.request.query_params.get('parent__isnull') in {'true', 'True', '1'}:
+            queryset = queryset.filter(parent__isnull=True)
+
+        is_pinned = self.request.query_params.get('is_pinned')
+        if is_pinned is not None:
+            normalized = str(is_pinned).strip().lower()
+            if normalized in {'true', '1', 'yes'}:
+                queryset = queryset.filter(is_pinned=True)
+            elif normalized in {'false', '0', 'no'}:
+                queryset = queryset.filter(is_pinned=False)
+
+        return queryset.order_by(*self.ordering)
 
     def get_serializer_class(self):
         """根据操作类型选择序列化器"""
@@ -52,10 +82,6 @@ class CommentViewSet(viewsets.ViewSet):
     def list(self, request):
         """获取评论列表"""
         queryset = self.get_queryset()
-
-        # 应用过滤
-        for backend in list(self.filter_backends):
-            queryset = backend().filter_queryset(request, queryset, self)
 
         # 分页
         page = self.paginate_queryset(queryset)

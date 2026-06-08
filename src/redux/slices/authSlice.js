@@ -4,12 +4,101 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { userApi } from '../../services/api/index';
+import authApi from '../../services/api/authApi';
 import { storage } from '../../utils';
 import { Platform } from 'react-native';
 import { navigate, navigationRef } from '../../navigation/navigationRef';
 import tokenService from '../../services/auth/tokenService';
 import authUtils from '../../services/auth/authUtils';
 import authStorage from '../../services/auth/authStorage';
+import { DEV_MODE_CONFIG } from '../../config';
+
+const DEV_CONFIG = {
+  SKIP_LOGIN: __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN),
+  DEFAULT_USER: {
+    id: 'dev-user-001',
+    username: 'developer',
+    email: 'dev@zeroislenotes.com',
+    nickname: '开发者',
+    avatar: null,
+    isAnonymous: false,
+    isDeveloper: true,
+    createdAt: new Date().toISOString(),
+  },
+};
+
+const DEV_DIRECT_LOGIN_PHONE = '13800138000';
+
+const applyAuthenticatedState = (dispatch, user, token) => {
+  dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+  dispatch({ type: 'auth/setUserInfo', payload: user });
+  dispatch({ type: 'auth/setAuthToken', payload: token });
+};
+
+const applyUnauthenticatedState = (dispatch) => {
+  dispatch({ type: 'auth/setIsAuthenticated', payload: false });
+  dispatch({ type: 'auth/setUserInfo', payload: null });
+  dispatch({ type: 'auth/setAuthToken', payload: null });
+};
+
+const restoreUserFromProfile = async () => {
+  const profileResponse = await userApi.getUserInfo();
+  const profileUser = profileResponse?.data ?? null;
+
+  if (profileUser) {
+    await authStorage.saveUser(profileUser);
+  }
+
+  return profileUser;
+};
+
+const tryRestoreRealDevSession = async () => {
+  if (!__DEV__ || !DEV_MODE_CONFIG?.ENABLED || DEV_CONFIG.SKIP_LOGIN) {
+    return null;
+  }
+
+  try {
+    console.log('Redux: 未找到真实认证信息，尝试恢复开发态真实后端登录');
+
+    const verificationResponse = await authApi.sendVerificationCode({
+      phone: DEV_DIRECT_LOGIN_PHONE,
+      purpose: 'login',
+    });
+
+    const verificationCode =
+      verificationResponse?.data?.code ||
+      verificationResponse?.code;
+
+    if (!verificationCode) {
+      console.log('Redux: 开发态真实后端登录未拿到验证码');
+      return null;
+    }
+
+    const loginResponse = await authApi.loginWithCode({
+      phone: DEV_DIRECT_LOGIN_PHONE,
+      code: verificationCode,
+    });
+
+    const payload = loginResponse?.data || loginResponse;
+    const accessToken = payload?.access || payload?.token || null;
+    const refreshToken = payload?.refresh || null;
+    const user = payload?.user || null;
+
+    if (!accessToken || !user) {
+      console.log('Redux: 开发态真实后端登录返回缺少用户或令牌');
+      return null;
+    }
+
+    return { user, token: accessToken, refreshToken };
+  } catch (error) {
+    console.warn('Redux: 恢复开发态真实后端登录失败:', error?.message || error);
+    return null;
+  }
+};
+
+const isDevPlaceholderToken = (token) => (
+  typeof token === 'string' && token.startsWith('dev-token-')
+);
 
 // 异步action：发送验证码
 export const sendVerificationCode = createAsyncThunk(
@@ -301,108 +390,90 @@ export const checkAuthState = createAsyncThunk(
     try {
       console.log('Redux: 检查认证状态...');
 
-      // 检查开发模式 - 直接使用内联配置避免导入问题
-      const DEV_CONFIG = {
-        SKIP_LOGIN: __DEV__ && true,
-        DEFAULT_USER: {
-          id: 'dev-user-001',
-          username: 'developer',
-          email: 'dev@zeroislenotes.com',
-          nickname: '开发者',
-          avatar: null,
-          isAnonymous: false,
-          isDeveloper: true,
-          createdAt: new Date().toISOString(),
-        },
-        DEFAULT_TOKEN: 'dev-token-' + Date.now(),
-      };
+      // 使用统一的认证信息获取函数
+      const { token, refreshToken, user } = await authUtils.getAuthInfo();
 
-      if (DEV_CONFIG && DEV_CONFIG.SKIP_LOGIN) {
-        console.log('Redux: 开发模式 - 跳过认证检查，自动设置为已认证');
+      if (token && !isDevPlaceholderToken(token)) {
+        // 真实 token 存在时优先恢复真实登录态，避免开发模式假 token 覆盖后端鉴权
+        const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
 
-        // 设置开发模式的用户和令牌
+        if (isTokenExpired && refreshToken) {
+          console.log('Redux: 访问令牌已过期或即将过期，尝试刷新...');
+
+          const newTokenData = await tokenService.refreshAccessToken();
+
+          if (newTokenData) {
+            console.log('Redux: 令牌刷新成功');
+            const { token: newToken, refreshToken: latestRefreshToken, user: storedUser } = await authUtils.getAuthInfo();
+            const restoredUser = storedUser || await restoreUserFromProfile();
+
+            if (!newToken || !restoredUser) {
+              console.log('Redux: 刷新后仍缺少有效认证信息，按未登录处理');
+              await tokenService.clearTokens();
+              applyUnauthenticatedState(dispatch);
+              return null;
+            }
+
+            applyAuthenticatedState(dispatch, restoredUser, newToken);
+            return {
+              user: restoredUser,
+              token: newToken,
+              refreshToken: latestRefreshToken || refreshToken,
+            };
+          }
+
+          console.log('Redux: 刷新令牌失败');
+        } else {
+          const restoredUser = user || await restoreUserFromProfile();
+
+          if (restoredUser) {
+            console.log('Redux: 用户已认证，恢复真实登录态');
+            applyAuthenticatedState(dispatch, restoredUser, token);
+            return { user: restoredUser, token, refreshToken };
+          }
+
+          console.log('Redux: 找到令牌但缺少用户信息，且拉取资料失败');
+        }
+
+        await tokenService.clearTokens();
+        applyUnauthenticatedState(dispatch);
+        return null;
+      }
+
+      if (isDevPlaceholderToken(token)) {
+        console.log('Redux: 检测到开发占位 token，先清理后再决定是否回落到开发账号');
+        await tokenService.clearTokens();
+      }
+
+      if (DEV_CONFIG.SKIP_LOGIN) {
+        console.log('Redux: 未找到真实认证信息，开发模式下回落到默认账号');
         const devUser = DEV_CONFIG.DEFAULT_USER;
-        const devToken = DEV_CONFIG.DEFAULT_TOKEN;
+        const devToken = `dev-token-${Date.now()}`;
 
-        // 保存到本地存储
         try {
           await authStorage.saveUser(devUser);
           await tokenService.saveAccessToken(devToken);
           await tokenService.saveRefreshToken(devToken);
-          console.log('Redux: 开发模式 - 已保存默认用户和令牌');
+          console.log('Redux: 开发模式默认账号已写入本地存储');
         } catch (saveError) {
-          console.warn('Redux: 开发模式 - 保存用户信息失败:', saveError);
+          console.warn('Redux: 开发模式默认账号写入失败:', saveError);
         }
 
-        // 设置Redux状态
-        dispatch({ type: 'auth/setIsAuthenticated', payload: true });
-        dispatch({ type: 'auth/setUserInfo', payload: devUser });
-        dispatch({ type: 'auth/setAuthToken', payload: devToken });
-
+        applyAuthenticatedState(dispatch, devUser, devToken);
         return { user: devUser, token: devToken, refreshToken: devToken };
       }
 
-      // 使用统一的认证信息获取函数
-      const { token, refreshToken, user } = await authUtils.getAuthInfo();
-
-      // 如果没有令牌，返回null
-      if (!token) {
-        console.log('Redux: 未找到访问令牌，用户未认证');
-
-        // 确保清除认证状态
-        await tokenService.clearTokens();
-
-        // 确保Redux状态一致
-        dispatch({ type: 'auth/setIsAuthenticated', payload: false });
-        dispatch({ type: 'auth/setUserInfo', payload: null });
-        dispatch({ type: 'auth/setAuthToken', payload: null });
-
-        return null;
+      const restoredRealDevSession = await tryRestoreRealDevSession();
+      if (restoredRealDevSession?.token && restoredRealDevSession?.user) {
+        console.log('Redux: 已恢复开发态真实后端登录态');
+        applyAuthenticatedState(dispatch, restoredRealDevSession.user, restoredRealDevSession.token);
+        return restoredRealDevSession;
       }
 
-      // 检查令牌是否过期
-      const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
-
-      if (isTokenExpired && refreshToken) {
-        console.log('Redux: 访问令牌已过期或即将过期，尝试刷新...');
-
-        // 尝试刷新令牌
-        const newTokenData = await tokenService.refreshAccessToken();
-
-        if (newTokenData) {
-          console.log('Redux: 令牌刷新成功');
-          // 获取最新的认证信息
-          const { token: newToken, user: newUser } = await authUtils.getAuthInfo();
-
-          // 确保Redux状态一致
-          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
-          dispatch({ type: 'auth/setUserInfo', payload: newUser });
-          dispatch({ type: 'auth/setAuthToken', payload: newToken });
-
-          return { user: newUser, token: newToken, refreshToken };
-        } else {
-          console.log('Redux: 刷新令牌失败，用户未认证');
-
-          // 确保清除认证状态
-          await tokenService.clearTokens();
-
-          // 确保Redux状态一致
-          dispatch({ type: 'auth/setIsAuthenticated', payload: false });
-          dispatch({ type: 'auth/setUserInfo', payload: null });
-          dispatch({ type: 'auth/setAuthToken', payload: null });
-
-          return null;
-        }
-      }
-
-      console.log('Redux: 用户已认证');
-
-      // 确保Redux状态一致
-      dispatch({ type: 'auth/setIsAuthenticated', payload: true });
-      dispatch({ type: 'auth/setUserInfo', payload: user });
-      dispatch({ type: 'auth/setAuthToken', payload: token });
-
-      return { user, token, refreshToken };
+      console.log('Redux: 未找到访问令牌，用户未认证');
+      await tokenService.clearTokens();
+      applyUnauthenticatedState(dispatch);
+      return null;
     } catch (error) {
       console.error('Redux: 检查认证状态失败:', error);
 
@@ -412,6 +483,8 @@ export const checkAuthState = createAsyncThunk(
       } catch (clearError) {
         console.error('Redux: 清除令牌失败:', clearError);
       }
+
+      applyUnauthenticatedState(dispatch);
 
       return rejectWithValue(error.message);
     }
