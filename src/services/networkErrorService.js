@@ -75,6 +75,8 @@ class NetworkErrorService {
 
     if (error?.isNetworkError === true) {return true;}
 
+    if (error?.isOfflineError === true || error?.offline === true) {return true;}
+
     if (error?.request && !error?.response) {return true;}
 
     // 已收到明确 HTTP 响应时，说明链路已到达服务端。

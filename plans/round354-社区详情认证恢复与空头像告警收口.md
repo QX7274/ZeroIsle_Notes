@@ -2426,3 +2426,120 @@
   - 返回按钮统一使用已有淡蓝色方形箭头；
   - 网络问题继续统一走项目内自定义优美弹层；
   - 只修明显原始的部分，不误动成熟页面。
+
+## 28. round381：目标管理编辑失败承接与离线预检分类收口（2026-06-08）
+
+### 28.1 本轮目标
+- 按新增要求引入多智能体协作：
+  - 主线程继续控制真机，验证 `目标管理 -> 编辑目标 -> 保存失败`；
+  - 旁路 explorer 只读审查失败承接代码，提前发现统一弹层风险。
+- 本轮继续坚持：
+  - 网络问题必须走项目内统一优美弹层；
+  - 不回退默认安卓弹窗；
+  - 不出现黑色技术提示；
+  - 顶部安全区、统一淡蓝色方形返回按钮和布局合理性不回退。
+
+### 28.2 真机起始现场
+- 起始时前台还停在上一轮删除失败统一网络弹层：
+  - `tmp_round381_start_screen.png`
+  - `tmp_round381_start_ui.xml`
+- 点击 `确定` 后底层仍是删除确认框，这说明上一轮失败承接没有跳页，但也提醒后续应继续观察失败弹层与底层确认框的关系。
+- 点击 `取消` 回到列表后，证据：
+  - `tmp_round381_after_cancel_delete_screen.png`
+  - `tmp_round381_after_cancel_delete_ui.xml`
+- 现场确认：
+  - `目标管理` 列表仍展示：
+    - `Round365DirectGoal`
+    - `Round365Goal`
+  - 顶部安全区正常；
+  - 返回按钮继续使用已有淡蓝色方形箭头；
+  - 列表区没有新增异常留白。
+
+### 28.3 编辑页稳定现场
+- 点击第一条目标的编辑按钮后，证据：
+  - `tmp_round381_edit_modal_screen.png`
+  - `tmp_round381_edit_modal_ui.xml`
+- 现场确认：
+  - `编辑目标` 表单真实可达；
+  - `action.goalManager.modalBack` 与 `action.goalManager.save` 均在顶部正确区域；
+  - 标题 `Round365DirectGoal`、目标值 `10`、单位 `times`、描述 `direct api probe` 均正常显示；
+  - 顶部没有被平板状态栏遮挡；
+  - 表单布局没有新增不合理留白。
+
+### 28.4 编辑失败统一网络弹层现场
+- 本轮受控构造方式：
+  - 临时移除 `adb -s HGR3Y9MA reverse tcp:8001 tcp:8001`
+  - 保留 `adb reverse tcp:8081 tcp:8081`
+- 点击编辑页右上角 `保存` 后，证据：
+  - `tmp_round381_edit_fail_screen.png`
+  - `tmp_round381_edit_fail_ui.xml`
+  - `tmp_round381_edit_fail_logcat.txt`
+  - `tmp_round381_edit_fail_crash.txt`
+- 前台确认：
+  - 没有回退到默认安卓弹窗；
+  - 没有出现黑色技术提示；
+  - 显示项目内统一网络弹层；
+  - 标题为 `网络连接问题`；
+  - 正文为 `目标更新失败，请确认网络与后端服务正常后重试`；
+  - 按钮为 `重试 / 确定`。
+- 崩溃观察：
+  - `tmp_round381_edit_fail_crash.txt` 为空；
+  - 未新增 native crash。
+
+### 28.5 失败后上下文回归
+- 点击网络弹层 `确定` 后，证据：
+  - `tmp_round381_edit_fail_after_ok_screen.png`
+  - `tmp_round381_edit_fail_after_ok_ui.xml`
+  - `tmp_round381_after_ok_crash.txt`
+- 现场确认：
+  - 页面回到 `编辑目标` 表单；
+  - 未跳回首页、列表或其他页面；
+  - 用户编辑上下文没有丢失；
+  - `tmp_round381_after_ok_crash.txt` 为空。
+
+### 28.6 多智能体旁路审查结论
+- 旁路 explorer 只读审查后指出：
+  - 请求已经发出后失败时，当前代码会走 `NetworkErrorAlert`；
+  - `400` 业务校验失败会留在编辑弹层内显示表单状态卡；
+  - 编辑保存链路没有直接 `Alert.alert` 风险；
+  - 但设备离线预检错误可能只带 `isOfflineError/offline`，旧 `networkErrorService.isNetworkError()` 没有显式识别这两个标记，存在落成表单红卡而不是统一网络弹层的风险。
+- 本轮据此做最小代码修补：
+  - 文件：`src/services/networkErrorService.js`
+  - 改动：`isNetworkError(error)` 中新增 `error?.isOfflineError === true || error?.offline === true`
+  - 保留既有约束：已经有 `error.response` 的 HTTP 业务/认证/服务端错误仍不误判为纯网络问题。
+
+### 28.7 联通恢复与当前边界
+- 失败演练结束后已恢复：
+  - `adb -s HGR3Y9MA reverse tcp:8001 tcp:8001`
+- 已确认：
+  - `8001` 后端 health 返回 `200`
+  - `8001/8081` reverse 列表恢复
+- 当前边界：
+  - 文档收口时本机 Metro `8081` 暂未监听；
+  - 因此 `networkErrorService` 的离线预检分类补丁已做静态核对，但还没有在恢复 Metro 后重新热更新或装包做真机二次回归；
+  - 下一轮需要优先补这条热更新/装包后的回归证据。
+
+### 28.8 本轮可确认结论
+- 已通过：
+  - `目标管理 -> 编辑失败承接` 已通过后端断联受控真机验收；
+  - 编辑失败继续走项目内统一网络弹层；
+  - 弹层关闭后仍回到编辑表单上下文；
+  - 顶部安全区、统一返回按钮和表单布局没有回退；
+  - 本轮没有新增 crash。
+- 已修补：
+  - 设备离线预检错误现在会被归入网络错误分类，后续应进入统一网络弹层。
+- 仍待补：
+  - Metro 恢复后重新验证 `isOfflineError/offline` 预检路径；
+  - 继续沿 personal activity 其他异常分支做同类真机闭环。
+
+### 28.9 下一轮要求
+- 优先恢复 Metro 并补：
+  - `networkErrorService` 离线预检分类补丁真机回归；
+  - `目标管理` 其他异常分支；
+  - 必要时继续派旁路 agent 审查同类统一弹层风险。
+- 文档继续写入：
+  - 顶部安全区；
+  - 统一淡蓝色返回按钮；
+  - 合理留白；
+  - 网络问题统一项目内弹层；
+  - 多智能体协作发现的问题与修补边界。
