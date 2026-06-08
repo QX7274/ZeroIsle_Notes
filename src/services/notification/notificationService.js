@@ -2,7 +2,10 @@ import PushNotification from 'react-native-push-notification';
 import { Platform } from 'react-native';
 import { analyticsService } from '../analytics/analyticsService';
 import { initializeFirebase } from '../firebase/firebaseInit';
-import { checkAndRequestNotificationPermission } from '../../utils/permissions';
+import {
+  checkNotificationPermission,
+  requestNotificationPermission,
+} from '../../utils/permissions';
 
 class NotificationService {
   constructor() {
@@ -42,15 +45,16 @@ class NotificationService {
         // 不抛出错误，继续初始化通知服务
       }
 
-      // 检查并请求通知权限（带2秒超时）
+      // 启动阶段只检查通知权限，不主动拉起系统权限弹窗。
+      // 真正申请权限交给设置页或具体功能入口显式触发，避免污染冷启动验收链路。
       let hasNotificationPermission = false;
       try {
         console.log('检查通知权限...');
-        const permissionPromise = checkAndRequestNotificationPermission();
+        const permissionPromise = checkNotificationPermission();
         const timeoutPromise = new Promise(resolve => {
           setTimeout(() => {
-            console.warn('检查通知权限超时，假定已授权以继续初始化');
-            resolve(true);
+            console.warn('检查通知权限超时，按未授权处理并继续初始化');
+            resolve(false);
           }, 2000); // 2秒超时
         });
 
@@ -62,7 +66,7 @@ class NotificationService {
       } catch (permissionError) {
         console.warn('检查通知权限失败，但将继续初始化通知服务:', permissionError);
         // 不抛出错误，继续初始化通知服务
-        hasNotificationPermission = true; // 假定已授权以继续初始化
+        hasNotificationPermission = false;
       }
 
       // 配置通知
@@ -158,6 +162,16 @@ class NotificationService {
       if (!this.isInitialized) {
         this.initPromise = null;
       }
+    }
+  }
+
+  async requestPermission(timeout = 5000) {
+    try {
+      return await requestNotificationPermission(timeout);
+    } catch (error) {
+      console.error('通知服务显式请求权限失败:', error);
+      analyticsService.trackError(error, { action: 'request_notification_permission' });
+      return false;
     }
   }
 
@@ -506,40 +520,24 @@ class NotificationService {
     }
   }
 
-  // 请求通知权限
-  requestPermissions() {
-    return new Promise((resolve, reject) => {
-      try {
-        PushNotification.requestPermissions((permissions) => {
-          if (permissions.alert || permissions.badge || permissions.sound) {
-            analyticsService.trackEvent('notification_permissions_granted');
-            resolve(true);
-          } else {
-            analyticsService.trackEvent('notification_permissions_denied');
-            resolve(false);
-          }
-        });
-      } catch (error) {
-        console.error('请求通知权限错误:', error);
-        analyticsService.trackError(error, { action: 'request_notification_permissions' });
-        reject(error);
-      }
-    });
+  // 兼容旧调用方，统一转发到显式申请权限的新入口
+  async requestPermissions(timeout = 5000) {
+    const granted = await this.requestPermission(timeout);
+    analyticsService.trackEvent(
+      granted ? 'notification_permissions_granted' : 'notification_permissions_denied'
+    );
+    return granted;
   }
 
-  // 检查通知权限
-  checkPermissions() {
-    return new Promise((resolve, reject) => {
-      try {
-        PushNotification.checkPermissions((permissions) => {
-          resolve(permissions);
-        });
-      } catch (error) {
-        console.error('检查通知权限错误:', error);
-        analyticsService.trackError(error, { action: 'check_notification_permissions' });
-        reject(error);
-      }
-    });
+  // 兼容旧调用方，统一返回布尔状态
+  async checkPermissions() {
+    try {
+      return await checkNotificationPermission();
+    } catch (error) {
+      console.error('检查通知权限错误:', error);
+      analyticsService.trackError(error, { action: 'check_notification_permissions' });
+      return false;
+    }
   }
 }
 

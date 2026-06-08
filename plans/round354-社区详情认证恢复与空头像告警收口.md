@@ -1631,3 +1631,99 @@
   - `目标管理（修后列表尾部）`
   - `新建目标（修后表单下半区）`
 - 只有当“修后最新图”明确落在对应页面时，才允许把 round370 的两项 UI 续压改成 `PASS`。
+
+## 21. round371：启动通知权限干扰收口与冷启动基线复核（2026-06-08）
+
+### 21.1 本轮目标
+- 本轮先暂停继续微调 `GoalManagerScreen.js`，优先处理更高优先级的真实真机阻塞：
+  - 冷启动时反复弹出的系统通知权限框会污染首页、社区、零屿空间和目标管理的全部验收链；
+  - 必须先把这条“启动级干扰”从产品功能问题里剥离掉，再继续做页面和网络联通复测。
+- 同时继续坚持既有约束：
+  - 顶部安全区不能被平板系统状态栏遮挡；
+  - 返回按钮继续统一使用已有淡蓝色方形箭头；
+  - 网络问题继续使用项目内统一优美样式弹窗，不回退默认安卓弹窗；
+  - 页面布局避免不合理留白，但本轮不扩散修改成熟 UI。
+
+### 21.2 本轮代码修改
+- 仅修改：
+  - `src/services/notification/notificationService.js`
+  - `src/services/reminder/reminderNotificationService.js`
+- 处理一：主通知服务启动阶段不再主动申请权限
+  - 原先 `notificationService.initialize()` 会在启动时走“检查并请求权限”的链路；
+  - 本轮改为：
+    - 启动阶段只检查通知权限；
+    - 若超时或失败，按未授权继续初始化，不再拉起系统弹窗；
+    - 新增显式 `requestPermission()` 供设置页或具体功能入口按需触发；
+    - 兼容入口 `requestPermissions()` / `checkPermissions()` 也统一转发到 `src/utils/permissions.js`，避免旧调用方绕回原生权限请求链。
+- 处理二：提醒通知服务关闭冷启动自动权限请求
+  - `ReminderNotificationService` 中 `PushNotification.configure({ requestPermissions: true })` 改为 `false`；
+  - `requestPermissions()` / `checkPermissions()` 统一复用 `src/utils/permissions.js`；
+  - 目的：
+    - 避免提醒模块在应用一启动时就再次触发系统通知权限框；
+    - 把权限申请时机收口到真正需要通知能力的功能场景。
+
+### 21.3 本轮安装与冷启动复核
+- 安装：
+  - `android\\gradlew.bat app:installDebug`
+  - 结果：安装成功
+- 冷启动复核步骤：
+  - `adb -s HGR3Y9MA logcat -c`
+  - `adb -s HGR3Y9MA shell am force-stop com.zeroisle_notes`
+  - `adb -s HGR3Y9MA shell monkey -p com.zeroisle_notes -c android.intent.category.LAUNCHER 1`
+- 8 秒后复核结果：
+  - `topResumedActivity`：
+    - `com.zeroisle_notes/.MainActivity`
+  - `pidof -s com.zeroisle_notes`：
+    - 返回有效进程 `8027`
+  - `logcat -d -b crash`：
+    - 空
+- 新增现场证据：
+  - `.local/android-mcp-server/round371b_launch.xml`
+  - `.local/android-mcp-server/round371b_launch.png`
+- 现场结论：
+  - 前台稳定停留在应用首页；
+  - 没有再被 `com.android.permissioncontroller` 系统权限页接管；
+  - 这说明“启动即弹系统通知权限框”的干扰链，在当前包上已经被有效切断。
+
+### 21.4 本轮日志复核结论
+- 继续筛查启动日志：
+  - 未再看到本轮实时 `permissioncontroller` 接管；
+  - 未出现新的 `FATAL EXCEPTION`、`SIGSEGV` 或 crash buffer 命中；
+  - 应用主进程仍稳定存活。
+- 需要诚实补充的观测：
+  - 启动早期 `ActivityManager` 统计里，`com.zeroisle_notes` CPU 峰值一度较高；
+  - 但当前没有证据表明它已升级为启动崩溃或前台掉桌面问题；
+  - 后续继续做深交互时，仍要顺手观察资源峰值，避免再次把性能压力演化成稳定性回退。
+
+### 21.5 本轮对“网络问题”的真实更新
+- 当前可以明确排除的一点：
+  - 冷启动后看到的系统通知权限框，不属于“平板和电脑后端不通”；
+  - 也不是“生产域名未部署”导致的前台网络错误。
+- 当前更准确的执行口径应更新为：
+  - 基础联通仍以 `adb reverse 8001/8081 + /health/ + Metro status` 为真；
+  - 启动权限干扰已被剥离；
+  - 后续若再出现网络错误，应继续追真实接口失败、局域网联通或前端承接层，不再把系统权限弹窗混入网络问题结论。
+
+### 21.6 本轮后续项
+- 本轮已完成：
+  - 冷启动通知权限干扰收口；
+  - 最新包安装成功；
+  - 冷启动前台稳定、无 crash 的真机复核；
+  - 启动阶段不再被 `permissioncontroller` 抢前台的现场补证。
+- 本轮仍未完成：
+  - `round370` 新续压后的 `目标管理` 列表尾部承接卡片最终真机对照图；
+  - `新建目标` 表单下半区进一步收紧后的最终真机对照图；
+  - `零屿空间` 首页下半区异常留白最终收口；
+  - 目标管理新建、删除确认、删除成功、失败重试等深交互真机闭环。
+
+### 21.7 下一轮执行要求
+- 现在可以在更干净的启动基线上继续回到：
+  - `个人资料 -> 零屿空间 -> 目标管理`
+  - `目标管理 -> + 新建`
+- 每一步都继续执行：
+  - 点击后立即抓 `PNG + XML`
+  - 同时复核前台是否仍在 `com.zeroisle_notes/.MainActivity`
+- 后续若出现统一网络错误弹窗：
+  - 优先判断真实接口是否失败；
+  - 再判断是否属于局域网联通或后端未启动；
+  - 不再把系统权限弹窗、启动干扰或取证时序错位误写成网络问题。

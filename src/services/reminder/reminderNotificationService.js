@@ -10,6 +10,10 @@ import analyticsService from '../analytics/analyticsService';
 import { isNetworkConnected } from '../network/networkService';
 import reminderMongoDBService from './reminderMongoDBService';
 import realmService from '../database/realmService';
+import {
+  checkNotificationPermission,
+  requestNotificationPermission,
+} from '../../utils/permissions';
 
 
 // 本地存储键
@@ -106,8 +110,8 @@ class ReminderNotificationService {
         // 是否应该在前台显示通知
         popInitialNotification: true,
 
-        // 请求权限处理
-        requestPermissions: true,
+        // 启动时不主动拉起系统通知权限弹窗，避免打断真机验收与首页恢复。
+        requestPermissions: false,
       });
 
       // 创建通知渠道（仅Android）
@@ -141,22 +145,12 @@ class ReminderNotificationService {
    */
   async requestPermissions() {
     try {
-      // react-native-push-notification在configure时会自动请求权限
-      // 这里我们返回一个Promise，模拟权限请求
-      return new Promise((resolve) => {
-        PushNotification.checkPermissions((permissions) => {
-          const isGranted = Platform.OS === 'ios'
-            ? permissions.alert && permissions.badge && permissions.sound
-            : true; // Android通常默认授予权限
-
-          analyticsService.trackEvent('request_notification_permissions', {
-            permissions,
-            isGranted,
-          });
-
-          resolve(isGranted);
-        });
+      const isGranted = await requestNotificationPermission(5000);
+      analyticsService.trackEvent('request_notification_permissions', {
+        platform: Platform.OS,
+        isGranted,
       });
+      return isGranted;
     } catch (error) {
       console.error('请求通知权限失败:', error);
       analyticsService.trackError(error, { action: 'request_notification_permissions' });
@@ -170,15 +164,7 @@ class ReminderNotificationService {
    */
   async checkPermissions() {
     try {
-      return new Promise((resolve) => {
-        PushNotification.checkPermissions((permissions) => {
-          const isGranted = Platform.OS === 'ios'
-            ? permissions.alert && permissions.badge && permissions.sound
-            : true; // Android通常默认授予权限
-
-          resolve(isGranted);
-        });
-      });
+      return await checkNotificationPermission();
     } catch (error) {
       console.error('检查通知权限失败:', error);
       analyticsService.trackError(error, { action: 'check_notification_permissions' });
