@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,6 +21,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import personalActivityApi from '../../services/api/personalActivityApi';
 import networkErrorService from '../../services/networkErrorService';
+import tryRestoreDevSession from '../../services/auth/devSessionRestore';
 
 const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -33,6 +35,7 @@ const GoalManagerScreen = ({ navigation }) => {
   const [formStatus, setFormStatus] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState(null);
+  const modalTitle = editingGoal ? '编辑目标' : '新建目标';
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -83,12 +86,36 @@ const GoalManagerScreen = ({ navigation }) => {
     loadGoals();
   }, []);
 
-  const loadGoals = async () => {
+  const isUnauthorizedGoalError = (error) => {
+    const status = error?.response?.status;
+    const code = error?.response?.data?.code;
+    const detail = error?.response?.data?.detail;
+    const message = error?.message;
+
+    return status === 401
+      || code === 'token_not_valid'
+      || detail === '身份认证信息未提供。'
+      || String(message || '').includes('登录状态已失效');
+  };
+
+  const loadGoals = async (options = {}) => {
+    const {
+      hasRetriedAuth = false,
+    } = options;
+
     try {
       setLoading(true);
       const response = await personalActivityApi.getGoals();
       setGoals(response.data);
     } catch (error) {
+      if (!hasRetriedAuth && isUnauthorizedGoalError(error)) {
+        const restoredSession = await tryRestoreDevSession({ forceRefresh: true });
+        if (restoredSession?.token) {
+          await loadGoals({ hasRetriedAuth: true });
+          return;
+        }
+      }
+
       if (!presentNetworkError(error, '目标数据加载失败，请确认当前设备与后端联通后重试', loadGoals)) {
         showToast.error('加载目标失败，请稍后重试');
       }
@@ -302,7 +329,9 @@ const GoalManagerScreen = ({ navigation }) => {
             </Text>
           </View>
         ) : (
-          goals.map(renderGoalItem)
+          <View style={styles.goalList}>
+            {goals.map(renderGoalItem)}
+          </View>
         )}
       </ScrollView>
 
@@ -314,19 +343,50 @@ const GoalManagerScreen = ({ navigation }) => {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={[styles.modalButton, { color: colors.text }]}>取消</Text>
-            </TouchableOpacity>
-            <Text variant="h3" style={styles.modalTitle}>
-              {editingGoal ? '编辑目标' : '新建目标'}
-            </Text>
-            <TouchableOpacity onPress={handleSaveGoal}>
-              <Text style={[styles.modalButton, { color: colors.primary }]}>保存</Text>
-            </TouchableOpacity>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12, borderBottomColor: colors.border }]}>
+            <View style={styles.modalHeaderSide}>
+              <ScreenHeaderBackButton
+                onPress={() => setModalVisible(false)}
+                testID="action.goalManager.modalBack"
+              />
+            </View>
+            <View style={styles.modalHeaderCenter}>
+              <Text variant="h3" style={[styles.modalTitle, { color: colors.text }]}>
+                {modalTitle}
+              </Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary || `${colors.text}80` }]}>
+                保持顶部风格统一，减少原始表单感和异常留白
+              </Text>
+            </View>
+            <View style={[styles.modalHeaderSide, styles.modalHeaderActionWrap]}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalSaveButton,
+                  {
+                    backgroundColor: pressed ? `${colors.primary}D9` : colors.primary,
+                  },
+                ]}
+                onPress={handleSaveGoal}
+                testID="action.goalManager.save"
+              >
+                <Text style={styles.modalSaveText}>保存</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalContentContainer}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.modalIntroCard, { backgroundColor: colors.card, borderColor: `${colors.primary}22` }]}>
+              <Text style={[styles.modalIntroTitle, { color: colors.text }]}>
+                {modalTitle}
+              </Text>
+              <Text style={[styles.modalIntroText, { color: colors.textSecondary || `${colors.text}99` }]}>
+                目标名称、周期和数值会直接影响列表展示，保存后会立即回到目标管理页。
+              </Text>
+            </View>
             {formStatus ? (
               <View
                 style={[
@@ -580,11 +640,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
+  goalList: {
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
   emptyState: {
-    flex: 1,
+    minHeight: 420,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
+    paddingHorizontal: 28,
+    paddingVertical: 48,
   },
   emptyText: {
     fontSize: 18,
@@ -661,23 +726,70 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderSide: {
+    width: 88,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  modalHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  modalHeaderActionWrap: {
+    alignItems: 'flex-end',
   },
   modalTitle: {
     fontWeight: '600',
+    textAlign: 'center',
   },
-  modalButton: {
-    fontSize: 16,
-    fontWeight: '500',
+  modalSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  modalSaveButton: {
+    minWidth: 74,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSaveText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   modalContent: {
     flex: 1,
+  },
+  modalContentContainer: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 18,
+    paddingBottom: 36,
+  },
+  modalIntroCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  modalIntroTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  modalIntroText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 20,
   },
   dialogOverlay: {
     flex: 1,

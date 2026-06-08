@@ -5,6 +5,7 @@
 
 import NetInfo from '@react-native-community/netinfo';
 import { Platform } from 'react-native';
+import { API_URL, API_VERSION } from '../../config';
 
 import { eventEmitter } from '../utils/eventEmitter';
 
@@ -44,6 +45,59 @@ class NetworkService {
     this.connectionType = CONNECTION_TYPES.UNKNOWN;
     this.connectionQuality = CONNECTION_QUALITY.UNKNOWN;
     this.unsubscribe = null;
+    this.lastBackendProbeAt = 0;
+    this.lastBackendProbeResult = false;
+  }
+
+  getBackendProbeUrl() {
+    return `${API_URL}/health/`;
+  }
+
+  isLocalDevBackend() {
+    if (!__DEV__) {
+      return false;
+    }
+
+    return ['127.0.0.1', 'localhost', '10.0.2.2'].some(host => API_URL.includes(host));
+  }
+
+  async probeBackendReachability() {
+    const now = Date.now();
+    const cacheWindow = this.lastBackendProbeResult ? 3000 : 500;
+    if (now - this.lastBackendProbeAt < cacheWindow) {
+      return this.lastBackendProbeResult;
+    }
+
+    try {
+      const controller = typeof AbortController === 'function'
+        ? new AbortController()
+        : null;
+      const timeoutId = controller
+        ? setTimeout(() => controller.abort(), 2500)
+        : null;
+
+      try {
+        await fetch(this.getBackendProbeUrl(), {
+          method: 'GET',
+          signal: controller?.signal,
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+        this.lastBackendProbeResult = true;
+        return true;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    } catch (error) {
+      console.log('后端连通性探测失败，保持离线判定:', error?.message || error);
+      this.lastBackendProbeResult = false;
+      return false;
+    } finally {
+      this.lastBackendProbeAt = now;
+    }
   }
 
   /**
@@ -120,7 +174,19 @@ class NetworkService {
    * @private
    */
   updateNetworkState(netInfo) {
-    this.isOnlineValue = netInfo.isConnected && netInfo.isInternetReachable;
+    const isConnected = Boolean(netInfo?.isConnected);
+    const hasReachabilityFlag = typeof netInfo?.isInternetReachable === 'boolean';
+    const reachabilityKnownOffline = hasReachabilityFlag && netInfo.isInternetReachable === false;
+
+    // 部分安卓平板在热点、局域网直连或 adb reverse 联调时会短暂拿不到
+    // isInternetReachable，此时如果已连上网络，不应直接误判为离线。
+    // 对于本机开发后端（127.0.0.1/localhost/10.0.2.2）联调，还要避免
+    // 热点或 adb reverse 场景下 reachability=false 把真实可用链路误判成离线。
+    this.isOnlineValue = isConnected && (
+      !hasReachabilityFlag
+      || netInfo.isInternetReachable
+      || (reachabilityKnownOffline && this.isLocalDevBackend())
+    );
     this.connectionType = netInfo.type || CONNECTION_TYPES.UNKNOWN;
 
     // 根据连接类型和强度估计连接质量
@@ -143,6 +209,29 @@ class NetworkService {
     } else {
       this.connectionQuality = CONNECTION_QUALITY.MODERATE;
     }
+  }
+
+  async resolveOnlineStatus(netInfo) {
+    this.updateNetworkState(netInfo);
+
+    if (this.isOnlineValue) {
+      return true;
+    }
+
+    // 真机联调时 NetInfo 可能把热点、局域网或 adb reverse 场景误判为离线。
+    // 只要本机配置的后端地址实际可达，就应按在线处理，避免匿名接口被错误塞进离线队列。
+    const backendReachable = await this.probeBackendReachability();
+    if (backendReachable) {
+      this.isOnlineValue = true;
+      if (this.connectionType === CONNECTION_TYPES.UNKNOWN) {
+        this.connectionType = netInfo?.type || CONNECTION_TYPES.OTHER;
+      }
+      if (this.connectionQuality === CONNECTION_QUALITY.UNKNOWN) {
+        this.connectionQuality = CONNECTION_QUALITY.MODERATE;
+      }
+    }
+
+    return this.isOnlineValue;
   }
 
   /**
@@ -219,7 +308,7 @@ class NetworkService {
   async checkConnection() {
     try {
       const netInfo = await NetInfo.fetch();
-      this.updateNetworkState(netInfo);
+      await this.resolveOnlineStatus(netInfo);
       return this.isOnlineValue;
     } catch (error) {
       console.error('检查网络连接失败', error);
@@ -234,7 +323,7 @@ class NetworkService {
   async checkConnectionState() {
     try {
       const netInfo = await NetInfo.fetch();
-      this.updateNetworkState(netInfo);
+      await this.resolveOnlineStatus(netInfo);
 
       return {
         isOnline: this.isOnlineValue,
