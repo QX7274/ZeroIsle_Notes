@@ -54,11 +54,8 @@ class NetworkService {
   }
 
   isLocalDevBackend() {
-    if (!__DEV__) {
-      return false;
-    }
-
-    return ['127.0.0.1', 'localhost', '10.0.2.2'].some(host => API_URL.includes(host));
+    const localDevHostPattern = /\/\/(?:127\.0\.0\.1|localhost|10\.0\.2\.2|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(?::|\/|$)/;
+    return localDevHostPattern.test(API_URL);
   }
 
   async probeBackendReachability() {

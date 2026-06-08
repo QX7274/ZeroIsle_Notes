@@ -1,10 +1,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getToken } from '../services/auth/tokenService'; // Adjust path as needed
+import { API_URL } from '../config';
 
-const WS_BASE_URL = __DEV__
-    ? 'ws://localhost:8000'
-    : 'wss://api.zeroislenotes.com';
+const WS_BASE_URL = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
 
 const buildNotificationText = (notification) => {
     const parts = [

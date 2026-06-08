@@ -2624,3 +2624,122 @@
   - 顶部安全区和统一返回按钮是否回归；
   - 统一网络弹层是否继续稳定；
   - 多智能体旁路审查对验证方式的影响。
+
+## 30. round383/384：未部署生产域名下的本地后端联通口径统一（2026-06-08/2026-06-09）
+
+### 30.1 本轮目标
+- 承接用户澄清：
+  - 当前不要求部署公网生产域名；
+  - “生产/生成环境测试”在本阶段指平板与电脑后端真实联通；
+  - 若出现网络问题，要先区分后端联通、Metro 供包、NetInfo reachability 与未部署域名外链，不再混写成同一个问题。
+- 本轮继续不测试登录/注册，只使用已有账号前台和既有联通链路。
+
+### 30.2 实测联通结论
+- 已确认：
+  - 后端 `http://127.0.0.1:8001/health/` 返回 `200`，内容为 `alive`；
+  - 平板 `HGR3Y9MA` 的 `adb reverse --list` 最终保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+  - 清理卡住的 ADB 会话后，设备侧单命令 `adb -s HGR3Y9MA shell curl -s -S --connect-timeout 4 --max-time 10 http://127.0.0.1:8001/health/` 已返回 `{"status":"alive"}`；
+  - 因此当前 REST 后端链路已经从平板侧实证可达，不应把业务页面红屏或空白前台直接归因于“生产域名没部署”。
+- 本轮新增边界：
+  - `adb reverse --list` 曾显示 `8001/8081`，但设备侧请求 `/health/` 超时；
+  - 随后 `adb shell echo` 也超时，说明当时是 ADB shell/reverse 会话卡死，而不是 Django 后端不可用；
+  - 处理方式是只清理 `adb.exe` / ADB server，再按单命令重建 `tcp:8001`，验证设备侧 health 通过后再恢复 `tcp:8081`；
+  - 收尾阶段又出现一次 `adb reverse --list` 为空，设备侧 `127.0.0.1:8001` 随即连接失败；重新创建 `tcp:8001` 后设备侧 `/health/` 再次返回 `alive`，随后 `tcp:8081` 也恢复；
+  - 电脑当前无线/热点侧地址 `10.138.116.105` 在平板侧访问 `8001` 返回 `No route to host`，因此热点直连本轮未作为替代方案落地；
+  - 后续遇到网络弹层时必须先排除这种“陈旧 reverse 显示 + ADB 会话卡死”的假网络错误。
+- 若后续改走电脑热点直连：
+  - 应通过 `ZEROISLE_API_HOST` 或 `ZEROISLE_API_URL` 指向电脑热点网关地址；
+  - 后端仍需监听 `0.0.0.0:8001`；
+  - Windows 防火墙需允许平板访问 `8001`。
+
+### 30.3 代码收口
+- `src/config/index.js`
+  - 当前生产域名未部署阶段不再默认回落到 `https://api.zeroislenotes.com`；
+  - 统一使用 `ZEROISLE_API_URL` 或 `ZEROISLE_API_HOST / ZEROISLE_API_PORT`；
+  - 默认值保持当前已验证链路：`http://127.0.0.1:8001`。
+- `src/hooks/useNotification.js`
+  - WebSocket 基址改为从 `API_URL` 派生；
+  - 不再写死 `ws://localhost:8000` 或 `wss://api.zeroislenotes.com`。
+- `src/hooks/useCollaboration.js`
+  - 协作 WebSocket 同样改为从 `API_URL` 派生；
+  - 与 REST 后端保持同一配置源。
+- `src/services/network/networkService.js`
+  - `isLocalDevBackend()` 扩展识别：
+    - `127.0.0.1`
+    - `localhost`
+    - `10.0.2.2`
+    - `10.*`
+    - `172.16.*` 到 `172.31.*`
+    - `192.168.*`
+  - 电脑热点或同局域网联调时，NetInfo 的 reachability 短暂为 false 不应直接覆盖后端探测结果。
+- `metro.config.js`
+  - 修正 Windows 路径 blockList 构造；
+  - 排除 `backend / docs / tmp / __tests__` 与根目录截图、XML、log 证据文件；
+  - 设置 `maxWorkers: 2`，降低 Metro 首次构建和 watcher 对 CPU/内存的压力。
+
+### 30.4 Metro 边界与资源释放
+- 旧问题：
+  - `tmp_round382_metro.log` 中已有 `Failed to start watch mode`；
+  - 真机红屏是开发服务器供包问题，不是业务 REST 后端网络错误。
+- 本轮复核：
+  - Metro `/status` 可返回 `packager-status:running`；
+  - 但 bundle 请求长时间不返回，并产生 `jest-worker` 子进程；
+  - 该状态会导致平板停留在 RedBox 或无法进入正常业务前台。
+- 已执行资源收口：
+  - 停止本轮启动的忙构建 Metro 主进程；
+  - 停止其派生的 `jest-worker` 子进程；
+  - 保留后端 `8001` 服务，不误杀业务后端。
+- 当前边界：
+  - 本轮不能写成“已恢复正常业务前台”；
+  - 下一轮应优先采用稳定装包或离线 bundle 方式恢复前台，再继续做页面级真机验收。
+
+### 30.5 验证结果
+- 设备侧后端联通验证：
+  - 命令：`adb -s HGR3Y9MA shell curl -s -S --connect-timeout 4 --max-time 10 http://127.0.0.1:8001/health/`
+  - 结果：`{"status":"alive"}`
+  - 说明：平板通过 ADB reverse 到电脑后端的 REST 链路已经实际打通；但 ADB reverse 本轮存在丢失/卡死抖动，后续必须把 `reverse --list` 与设备侧 `/health/` 都作为联通前置检查。
+- 搜索验证：
+  - `src/config/index.js`
+  - `src/hooks`
+  - `src/services/network`
+  - 已不再命中 `localhost:8000`、`ws://localhost`、`wss://api.zeroislenotes.com`。
+- Metro 配置加载验证：
+  - `docs`、`backend`、`tmp`、`__tests__` 样本均被 blockList 命中；
+  - `src/App.js` 未被误排除。
+- 单测验证：
+  - 命令：`node node_modules/jest/bin/jest.js src/services/__tests__/networkErrorService.test.js --runInBand`
+  - 结果：`PASS`
+  - 测试：`2 passed`
+  - 说明：round382 文档中“Jest 尚未取得通过结果”的边界，本轮已补齐。
+
+### 30.6 本轮结论
+- 已完成：
+  - 未部署生产域名阶段的 API 源头口径统一；
+  - WebSocket 跟随 REST API 源头；
+  - 局域网/热点/ADB reverse 本地后端识别增强；
+  - 平板侧经 ADB reverse 命中电脑后端 `/health/` 的实证验证；
+  - ADB 会话卡死导致假网络错误的排查边界记录；
+  - Metro watcher 与资源压力做了配置级收口；
+  - 离线预检分类单测通过。
+- 仍待补：
+  - 使用稳定供包或装包方式恢复业务前台；
+  - 继续验证各页面顶部不被平板状态栏遮挡；
+  - 继续验证统一淡蓝色方形返回按钮不回退；
+  - 继续验证异常留白与统一网络弹层；
+  - 继续推进每个功能模块的实际使用和真机闭环。
+
+### 30.7 下一轮要求
+- 优先级：
+  - 先恢复平板正常业务前台；
+  - 再补 `目标管理` 及其他模块的后续真机链路；
+  - 避免再次长时间保留忙构建 Metro/worker。
+- 文档必须继续写入：
+  - 后端联通证据；
+  - Metro/装包供包状态；
+  - 顶部安全区；
+  - 统一淡蓝返回按钮；
+  - 合理留白；
+  - 项目内统一网络弹层；
+  - 资源释放动作。

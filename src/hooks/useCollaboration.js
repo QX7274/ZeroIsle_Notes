@@ -17,10 +17,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState } from 'react-native';
+import { API_URL } from '../config';
 
-const WS_BASE_URL = __DEV__
-    ? 'ws://localhost:8000'
-    : 'wss://api.zeroislenotes.com';
+const WS_BASE_URL = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
 
 /**
  * 协作状态Hook

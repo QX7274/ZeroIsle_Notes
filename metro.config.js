@@ -1,5 +1,4 @@
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
-const exclusionList = require('metro-config/src/defaults/exclusionList');
 const {resolve: defaultResolve} = require('metro-resolver');
 const path = require('path');
 
@@ -10,6 +9,11 @@ const path = require('path');
  * @type {import('metro-config').MetroConfig}
  */
 const defaultConfig = getDefaultConfig(__dirname);
+const escapeForRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const projectRootName = escapeForRegExp(path.basename(__dirname));
+const rootPattern = name => {
+  return String.raw`.*[\\/]${projectRootName}[\\/]${escapeForRegExp(name)}(?:[\\/].*)?$`;
+};
 const excludedRoots = [
   '.bundle',
   '.git',
@@ -39,7 +43,7 @@ const excludedRoots = [
   '模块功能-核查与优化记录',
   '模块功能核查与优化记录',
 ];
-const excludedRootPatterns = excludedRoots.map(name => path.join(__dirname, name, '.*'));
+const excludedRootPatterns = excludedRoots.map(rootPattern);
 const excludedFilePatterns = [
   String.raw`.*[\\/](?:tmp_|dump_).*\.(?:png|jpe?g|xml|log)$`,
   String.raw`.*[\\/]community_followup\.(?:png|xml)$`,
@@ -47,15 +51,19 @@ const excludedFilePatterns = [
   String.raw`.*[\\/]group_followup\.(?:png|xml)$`,
   String.raw`.*[\\/]profile_followup\.(?:png|xml)$`,
   String.raw`.*[\\/]after_back_from_notification\.(?:png|xml)$`,
+  String.raw`.*[\\/]__tests__[\\/].*$`,
 ];
+const metroBlockList = new RegExp([...excludedRootPatterns, ...excludedFilePatterns].join('|'));
 
 // 自定义配置
 const config = {
   projectRoot: __dirname,
+  watchFolders: [],
+  maxWorkers: 2,
   resolver: {
     assetExts: [...defaultConfig.resolver.assetExts],
     sourceExts: [...defaultConfig.resolver.sourceExts],
-    blockList: exclusionList([...excludedRootPatterns, ...excludedFilePatterns]),
+    blockList: metroBlockList,
     useWatchman: false,
     alias: {
       fs: false,
