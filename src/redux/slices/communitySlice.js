@@ -201,17 +201,47 @@ export const fetchComments = createAsyncThunk(
         return rejectWithValue(response.message || '获取评论失败');
       }
 
+      const mapReply = (reply) => ({
+        id: reply.id,
+        author: reply.user?.nickname || reply.user?.username || '用户',
+        authorAvatar: reply.user?.avatar || '',
+        content: reply.content,
+        likes: reply.like_count ?? 0,
+        timestamp: reply.created_at,
+        isLiked: reply.is_liked ?? false,
+      });
+
       // 映射评论到UI结构
       const results = response.data?.results || response.data?.data?.results || response.data?.results || [];
       const count = response.data?.count ?? response.data?.data?.count ?? 0;
 
-      const uiComments = results.map(c => ({
-        id: c.id,
-        author: c.user?.nickname || c.user?.username || '用户',
-        authorAvatar: c.user?.avatar || '',
-        content: c.content,
-        likes: c.like_count ?? 0,
-        timestamp: c.created_at,
+      const uiComments = await Promise.all(results.map(async (c) => {
+        let replies = Array.isArray(c.replies) ? c.replies.map(mapReply) : [];
+
+        if (replies.length === 0 && (c.reply_count ?? 0) > 0) {
+          try {
+            const replyResponse = await communityApi.getCommentReplies(c.id, {
+              page: 1,
+              page_size: 5,
+            });
+            const replyResults = replyResponse.data?.results || replyResponse.data?.data?.results || [];
+            replies = replyResults.map(mapReply);
+          } catch (_) {
+            replies = [];
+          }
+        }
+
+        return {
+          id: c.id,
+          author: c.user?.nickname || c.user?.username || '用户',
+          authorAvatar: c.user?.avatar || '',
+          content: c.content,
+          likes: c.like_count ?? 0,
+          timestamp: c.created_at,
+          isLiked: c.is_liked ?? false,
+          replyCount: c.reply_count ?? replies.length ?? 0,
+          replies,
+        };
       }));
 
       return {
@@ -658,6 +688,15 @@ const communitySlice = createSlice({
         state.isLoading = false;
         state.comments = action.payload.comments;
         state.commentsPagination = action.payload.pagination;
+        state.likedComments = action.payload.comments.reduce((acc, comment) => {
+          acc[comment.id] = Boolean(comment.isLiked);
+          if (Array.isArray(comment.replies)) {
+            comment.replies.forEach(reply => {
+              acc[reply.id] = Boolean(reply.isLiked);
+            });
+          }
+          return acc;
+        }, {});
       })
       .addCase(fetchComments.rejected, (state, action) => {
         state.isLoading = false;
@@ -720,7 +759,12 @@ const communitySlice = createSlice({
 
       // 发布评论
       .addCase(postComment.fulfilled, (state, action) => {
-        state.comments.unshift(action.payload);
+        const createdComment = action.payload;
+        const parentId = createdComment.parent || createdComment.parent_id || null;
+
+        if (!parentId) {
+          state.comments.unshift(createdComment);
+        }
 
         // 更新评论数
         if (state.currentPost) {
@@ -728,7 +772,7 @@ const communitySlice = createSlice({
         }
 
         // 更新帖子列表中的评论数
-        const postIndex = state.posts.findIndex(post => post.id === action.payload.postId);
+        const postIndex = state.posts.findIndex(post => post.id === createdComment.postId);
         if (postIndex !== -1) {
           state.posts[postIndex].comments += 1;
         }
@@ -770,7 +814,21 @@ const communitySlice = createSlice({
               ? (state.comments[idx].likes || 0) + 1
               : Math.max(0, (state.comments[idx].likes || 0) - 1);
           }
+          return;
         }
+
+        state.comments.forEach(comment => {
+          const replyIndex = comment.replies?.findIndex(reply => reply.id === commentId) ?? -1;
+          if (replyIndex !== -1) {
+            if (typeof likeCount === 'number') {
+              comment.replies[replyIndex].likes = likeCount;
+            } else {
+              comment.replies[replyIndex].likes = liked
+                ? (comment.replies[replyIndex].likes || 0) + 1
+                : Math.max(0, (comment.replies[replyIndex].likes || 0) - 1);
+            }
+          }
+        });
       })
 
       // 获取关注者

@@ -499,3 +499,193 @@
 - 当前仍待后续补齐：
   - 更多评论分页/多条评论顺序验证
   - 回复评论链路
+
+## 11. round358 续补验证（2026-06-08）
+
+### 11.1 本轮真实目标
+- 在 round357 已完成：
+  - `评论点赞`
+  - `评论取消点赞`
+- 的基础上，继续补齐社区评论互动链中的：
+  - `搜索帖子`
+  - `回复评论`
+  - `回复列表展示`
+- 同时继续遵守既有上线规范：
+  - 顶部安全区必须考虑平板系统状态栏，不能被遮挡
+  - 返回按钮继续统一使用已有淡蓝色方形箭头
+  - 网络异常继续只能走项目内统一样式弹窗
+  - 页面布局不能出现异常留白，不误动成熟 UI
+
+### 11.2 本轮定位到的真实根因
+- 社区搜索链此前看起来像“无结果/无响应”，但本轮已明确：
+  - 平板与电脑后端联通正常
+  - 问题不在网络
+  - 真正根因是后端 `PostViewSet` 仍保留 DRF `SearchFilter`
+- 在 MongoEngine QuerySet 下，`SearchFilter` 与当前帖子查询链不兼容：
+  - 会把 `search` 处理推进到不适配的 ORM 风格过滤链
+  - 从而触发社区搜索接口 `500`
+- 同时，评论回复链此前并非“前端没有入口”，而是缺少：
+  - 回复模式状态管理
+  - `parentId` 提交
+  - 回复列表主动拉取与前台渲染
+
+### 11.3 本轮代码修补
+- 文件：
+  - `backend/community/views/post.py`
+- 修补内容：
+  - 移除 `filters.SearchFilter`
+  - `filter_backends` 改为仅保留 `filters.OrderingFilter`
+  - 在 `get_queryset()` 中手动读取 `search`
+  - 使用 Mongo `__raw__ + $regex + $options: i` 对：
+    - `title`
+    - `content`
+    - `excerpt`
+    做不区分大小写搜索
+- 目的：
+  - 彻底绕开 DRF `SearchFilter` 与 MongoEngine 不兼容导致的社区搜索 `500`
+  - 保持排序逻辑不回退
+
+- 文件：
+  - `src/services/api/communityApi.js`
+- 修补内容：
+  - 新增 `getCommentReplies(id, params)`
+- 目的：
+  - 为帖子详情页补齐父评论下回复列表的独立获取能力
+
+- 文件：
+  - `src/redux/slices/communitySlice.js`
+- 修补内容：
+  - `fetchComments`
+    - 新增回复映射逻辑
+    - 当 `reply_count > 0` 且主接口未直接带 `replies` 时，主动请求：
+      - `/community/comments/{id}/replies/`
+  - `likedComments`
+    - 扩展为同时覆盖顶级评论与子回复
+  - `postComment.fulfilled`
+    - 若本次提交是回复评论，不再错误把子回复直接插到顶级评论数组首位
+  - `toggleCommentLike.fulfilled`
+    - 支持对子回复的点赞数与 liked 状态回写
+- 目的：
+  - 让评论回复链在 Redux 状态层真正闭环，而不是只补一层按钮
+
+- 文件：
+  - `src/screens/community/PostDetailScreen.js`
+- 修补内容：
+  - 新增 `replyTarget`
+  - 点击评论区 `回复` 按钮后进入回复模式
+  - 底部输入区增加“正在回复 xxx”横条，并支持取消
+  - 提交评论时携带 `parentId`
+  - 顶级评论下展示：
+    - `回复 (n)`
+    - 子回复列表
+  - 子回复支持点赞
+- 目的：
+  - 补齐真实用户能感知到的评论回复体验闭环
+
+### 11.4 联通基线与运行环境说明
+- 设备：
+  - `HGR3Y9MA`
+- 联通状态：
+  - `adb reverse --list` 继续保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+  - `GET /health/` 返回 `200`
+- 后端搜索接口修复后已验证：
+  - `GET /api/v1/community/posts/?search=round330&page=1&page_size=20`
+  - 返回 `200`
+- 本轮实际用于拉起后端的可运行环境：
+  - `D:\APP\Anaconda\envs\Zeroisle`
+- 说明：
+  - 用户指定环境 `D:\anaconda\envs\ZeroIsle` 本轮仍存在本机异常，未作为本轮联调运行环境
+  - 为保证“平板 <-> 电脑后端”真实联通验证不中断，本轮继续临时使用可运行环境代跑
+  - 该环境边界已如实记录，后续再单独处理，不把它误判成产品网络问题
+
+### 11.5 本轮真机最终复测结果
+- 目标帖子：
+  - `round330 联通发帖验证`
+  - `postId: a5edc2dd-3d6a-4bfb-b886-c6dbcb770ab2`
+- 目标顶级评论：
+  - `commentId: 5c3a1787-d95d-45e5-984a-d5a047d6c3c4`
+  - 评论内容：
+    - `round356_comment_ok`
+- 真机复测路径：
+  - 社区真实内容态
+  - 搜索 `round330`
+  - 进入目标帖子详情
+  - 点击顶级评论的 `回复`
+  - 输入：
+    - `round358_reply_ok`
+  - 点击发送
+  - 观察父评论下回复数与回复内容变化
+
+- 关键证据：
+  - `.local/android-mcp-server/round358_community_entry.xml`
+  - `.local/android-mcp-server/round358_community_entry.png`
+  - `.local/android-mcp-server/round358_search_entry_after_restart.xml`
+  - `.local/android-mcp-server/round358_search_entry_after_restart.png`
+  - `.local/android-mcp-server/round358_search_results_after_fix.xml`
+  - `.local/android-mcp-server/round358_search_results_after_fix.png`
+  - `.local/android-mcp-server/round358_post_detail_ready.xml`
+  - `.local/android-mcp-server/round358_post_detail_ready.png`
+  - `.local/android-mcp-server/round358_reply_mode.xml`
+  - `.local/android-mcp-server/round358_reply_mode.png`
+  - `.local/android-mcp-server/round358_reply_after_back.xml`
+  - `.local/android-mcp-server/round358_reply_after_back.png`
+
+### 11.6 本轮前台结论
+- 社区主页顶部安全区正常：
+  - 头部没有被平板系统状态栏遮挡
+  - 社区顶部此前异常留白本轮无新增回退
+- 社区搜索页返回按钮正常：
+  - 继续使用统一淡蓝色方形箭头
+- 帖子详情页返回按钮正常：
+  - 继续使用统一淡蓝色方形箭头
+- 布局留白正常：
+  - 本轮没有出现新的明显异常大面积留白
+- 搜索接口恢复后：
+  - 目标帖子可通过真实搜索结果进入
+- 评论回复链真机前台结果：
+  - 点击 `回复` 后底部输入区已显示：
+    - `正在回复 user_8000`
+  - 提交后父评论下已显示：
+    - `回复 (1)`
+  - 子回复正文已真实显示：
+    - `round358_reply_ok`
+  - 回复提交成功后底部输入区已退出回复模式
+  - 输入框恢复为：
+    - `写下你的评论...`
+
+### 11.7 本轮接口与后端结果
+- 社区搜索接口：
+  - `GET /api/v1/community/posts/?search=round330&page=1&page_size=20`
+  - 返回：
+    - `200`
+- 回复列表接口：
+  - `GET /api/v1/community/comments/5c3a1787-d95d-45e5-984a-d5a047d6c3c4/replies/?page=1&page_size=20`
+  - 返回中已命中：
+    - `id: ed9ef5ed-5df1-4173-8c0d-e358bdc29725`
+    - `content: round358_reply_ok`
+
+### 11.8 本轮边界与诚实说明
+- 社区搜索页文本输入在 adb 自动化场景下仍有偶发不稳定：
+  - 这属于自动化输入链稳定性问题
+  - 不属于“平板和电脑后端未联通”
+  - 也不属于社区搜索接口本身仍有网络故障
+- `D:\anaconda\envs\ZeroIsle` 当前环境异常仍未在本轮继续深挖：
+  - 该项保留为环境层待处理事项
+  - 不阻断本轮产品功能真实联通验收
+
+### 11.9 社区评论链当前闭环状态
+- 已完成：
+  - `社区主页真实内容态`
+  - `社区搜索接口恢复`
+  - `搜索结果 -> 帖子详情`
+  - `发表评论真机闭环`
+  - `评论点赞真机闭环`
+  - `评论取消点赞真机闭环`
+  - `回复评论真机闭环`
+  - `回复列表展示真机闭环`
+  - `子回复点赞前端回写支持`
+- 当前仍待后续补齐：
+  - 多条回复顺序与分页
+  - 搜索输入自动化稳定性复核

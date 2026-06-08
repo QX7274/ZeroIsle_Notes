@@ -43,6 +43,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [replyTarget, setReplyTarget] = useState(null);
 
   useHideMainTabBar();
 
@@ -129,14 +130,59 @@ const PostDetailScreen = ({ route, navigation }) => {
         postComment({
           postId: post.id,
           content: commentText,
+          parentId: replyTarget?.id ?? null,
         })
       ).unwrap();
       await dispatch(fetchComments({ postId, page: 1 })).unwrap();
       setCommentText('');
+      setReplyTarget(null);
     } finally {
       setSubmittingComment(false);
     }
   };
+
+  const handleReplyComment = (comment) => {
+    setReplyTarget(comment);
+  };
+
+  const handleCancelReply = () => {
+    setReplyTarget(null);
+  };
+
+  const renderReplyItem = (reply, parentCommentId) => (
+    <View
+      key={reply.id}
+      style={[styles.replyItem, { borderColor: `${theme.primary}16`, backgroundColor: `${theme.background}E6` }]}
+      testID={`item.community.postDetail.reply.${parentCommentId}.${reply.id}`}
+    >
+      <View style={styles.replyHeader}>
+        <View style={styles.commentAuthor}>
+          {renderAvatar(reply.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
+          <Text style={[styles.commentAuthorName, { color: theme.text }]}>{reply.author}</Text>
+        </View>
+        <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
+          {reply.timestamp ? new Date(reply.timestamp).toLocaleDateString() : '时间未知'}
+        </Text>
+      </View>
+      <Text style={[styles.replyContent, { color: theme.text }]}>{reply.content}</Text>
+      <View style={styles.replyFooter}>
+        <TouchableOpacity
+          style={styles.commentLike}
+          onPress={() => dispatch(toggleCommentLike(reply.id))}
+          testID={`action.community.postDetail.replyLike.${parentCommentId}.${reply.id}`}
+        >
+          <Icon
+            name={likedComments?.[reply.id] ? 'thumb-up' : 'thumb-up-off-alt'}
+            size={15}
+            color={likedComments?.[reply.id] ? theme.primary : theme.textSecondary}
+          />
+          <Text style={[styles.commentLikeCount, { color: likedComments?.[reply.id] ? theme.primary : theme.textSecondary }]}>
+            {reply.likes}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   const handleLike = () => {
     if (!post) {return;}
@@ -316,6 +362,16 @@ const PostDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
               <Text style={[styles.commentContent, { color: theme.text }]}>{comment.content}</Text>
+              {comment.replyCount > 0 && (
+                <Text style={[styles.replyCountText, { color: theme.textSecondary }]}>
+                  回复 ({comment.replyCount})
+                </Text>
+              )}
+              {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+                <View style={styles.replyList}>
+                  {comment.replies.map(reply => renderReplyItem(reply, comment.id))}
+                </View>
+              )}
               <View style={styles.commentFooter}>
                 <TouchableOpacity style={styles.commentLike} onPress={() => dispatch(toggleCommentLike(comment.id))} testID={`action.community.postDetail.commentLike.${comment.id}`}>
                   <Icon
@@ -327,7 +383,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                     {comment.likes}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.commentReply}>
+                <TouchableOpacity
+                  style={styles.commentReply}
+                  onPress={() => handleReplyComment(comment)}
+                  testID={`action.community.postDetail.commentReply.${comment.id}`}
+                >
                   <Text style={[styles.commentReplyText, { color: theme.primary }]}>回复</Text>
                 </TouchableOpacity>
               </View>
@@ -337,23 +397,38 @@ const PostDetailScreen = ({ route, navigation }) => {
       </ScrollView>
 
       <View style={[styles.commentInputContainer, styles.glassBlock, { borderColor: `${theme.primary}16` }]}>
-        <TextInput
-          style={[styles.commentInput, { color: theme.text, backgroundColor: `${theme.background}EE`, borderColor: `${theme.primary}1C` }]}
-          placeholder="写下你的评论..."
-          placeholderTextColor={theme.textSecondary}
-          value={commentText}
-          onChangeText={setCommentText}
-          multiline
-          testID="input.community.postDetail.comment"
-        />
-        <TouchableOpacity
-          style={[styles.commentSubmitButton, { backgroundColor: commentText.trim() ? theme.primary : theme.disabled }]}
-          onPress={handleSubmitComment}
-          disabled={!commentText.trim() || submittingComment}
-          testID="action.community.postDetail.submitComment"
-        >
-          {submittingComment ? <ActivityIndicator size="small" color="#FFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
-        </TouchableOpacity>
+        {replyTarget && (
+          <View style={[styles.replyBanner, { backgroundColor: `${theme.primary}14`, borderColor: `${theme.primary}26` }]}>
+            <View style={styles.replyBannerTextWrap}>
+              <Text style={[styles.replyBannerTitle, { color: theme.primary }]}>正在回复 {replyTarget.author}</Text>
+              <Text style={[styles.replyBannerContent, { color: theme.textSecondary }]} numberOfLines={1}>
+                {replyTarget.content}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={handleCancelReply} testID="action.community.postDetail.cancelReply">
+              <Icon name="close" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+        <View style={styles.commentInputRow}>
+          <TextInput
+            style={[styles.commentInput, { color: theme.text, backgroundColor: `${theme.background}EE`, borderColor: `${theme.primary}1C` }]}
+            placeholder={replyTarget ? `回复 ${replyTarget.author}...` : '写下你的评论...'}
+            placeholderTextColor={theme.textSecondary}
+            value={commentText}
+            onChangeText={setCommentText}
+            multiline
+            testID="input.community.postDetail.comment"
+          />
+          <TouchableOpacity
+            style={[styles.commentSubmitButton, { backgroundColor: commentText.trim() ? theme.primary : theme.disabled }]}
+            onPress={handleSubmitComment}
+            disabled={!commentText.trim() || submittingComment}
+            testID="action.community.postDetail.submitComment"
+          >
+            {submittingComment ? <ActivityIndicator size="small" color="#FFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -458,16 +533,42 @@ const styles = StyleSheet.create({
   commentAuthorName: { fontSize: 14, fontWeight: '500' },
   commentTimestamp: { fontSize: 12 },
   commentContent: { fontSize: 14, lineHeight: 20, marginBottom: SPACING.SMALL },
+  replyCountText: { fontSize: 12, marginBottom: SPACING.SMALL },
+  replyList: { marginTop: SPACING.SMALL, gap: SPACING.SMALL },
+  replyItem: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: SPACING.SMALL,
+  },
+  replyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  replyContent: { fontSize: 13, lineHeight: 18, marginBottom: 6 },
+  replyFooter: { flexDirection: 'row', justifyContent: 'flex-start' },
   commentFooter: { flexDirection: 'row', justifyContent: 'space-between' },
   commentLike: { flexDirection: 'row', alignItems: 'center' },
   commentLikeCount: { fontSize: 12, marginLeft: 4 },
   commentReply: {},
   commentReplyText: { fontSize: 12, fontWeight: '500' },
   commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: SPACING.SMALL,
     padding: SPACING.MEDIUM,
     borderTopWidth: 1,
+  },
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: SPACING.SMALL,
+  },
+  replyBannerTextWrap: { flex: 1, marginRight: SPACING.SMALL },
+  replyBannerTitle: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  replyBannerContent: { fontSize: 12 },
+  commentInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   commentInput: {
     flex: 1,

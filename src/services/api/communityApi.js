@@ -71,6 +71,27 @@ export const getPostComments = async (id, params = {}) => {
 };
 
 /**
+ * 获取评论回复
+ * @param {string} id - 评论ID
+ * @param {object} params - 查询参数
+ * @returns {Promise} - 回复列表
+ */
+export const getCommentReplies = async (id, params = {}) => {
+  try {
+    const response = await instance.get(
+      `/community/comments/${id}/replies/`,
+      { params }
+    );
+    return {
+      success: true,
+      data: response,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
  * 添加评论
  * @param {string} id - 帖子ID
  * @param {object} commentData - 评论数据
@@ -625,6 +646,7 @@ const communityApi = {
 
   // 评论相关
   getPostComments,
+  getCommentReplies,
   addComment,
   deleteComment,
   toggleCommentLike,

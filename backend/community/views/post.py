@@ -30,7 +30,7 @@ class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     pagination_class = StandardResultsSetPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.OrderingFilter]
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['created_at', 'published_at', 'view_count', 'like_count', 'comment_count']
     ordering = ['-is_pinned', '-published_at', '-created_at']
@@ -69,7 +69,20 @@ class PostViewSet(viewsets.ModelViewSet):
                 base_query = base_query.filter(**{boolean_field: True})
             elif normalized in {'false', '0', 'no'}:
                 base_query = base_query.filter(**{boolean_field: False})
-        
+
+        search_term = (self.request.query_params.get('search') or '').strip()
+        if search_term:
+            escaped_search_term = search_term.replace('\\', '\\\\')
+            base_query = base_query.filter(
+                __raw__={
+                    '$or': [
+                        {'title': {'$regex': escaped_search_term, '$options': 'i'}},
+                        {'content': {'$regex': escaped_search_term, '$options': 'i'}},
+                        {'excerpt': {'$regex': escaped_search_term, '$options': 'i'}},
+                    ]
+                }
+            )
+
         # 然后在内存中过滤可见性
         # 注意：这在数据量大时性能较差，但确保了逻辑的统一。
         # 优化方向：将 can_view_post 的逻辑尽可能地转换为MongoDB查询。
