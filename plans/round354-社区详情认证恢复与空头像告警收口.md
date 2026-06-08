@@ -258,6 +258,111 @@
 ### 9.1 本轮真实目标
 - 在 round355 已完成“社区主页内容态 -> 帖子详情评论空态 -> 返回社区 ready 保持”基础上，继续补齐评论真实交互链：
   - `发表评论`
+
+## 10. round361 续补验证（2026-06-08）
+
+### 10.1 本轮真实目标
+- 不再把“社区卡片评论数正常、帖子详情评论为 0”模糊记成网络问题，而是继续把真因压到具体前端环节：
+  - 详情页认证恢复是否错误复用了本地旧 token
+  - 评论分页状态是否能在真机前台真正落地
+  - `加载更多评论` 是否只是按钮出现，还是能把第二页真实追加进列表
+
+### 10.2 本轮代码修复
+- 文件：
+  - `src/services/auth/devSessionRestore.js`
+  - `src/screens/community/PostDetailScreen.js`
+  - `src/services/auth/__tests__/devSessionRestore.test.js`
+- 处理：
+  - `tryRestoreDevSession(options)` 新增 `forceRefresh`
+  - 当详情页首次请求命中 `登录状态已失效` 时，不再继续复用本地旧 token，而是强制跳过旧 token，重新走开发态真实直登
+  - `PostDetailScreen` 改为使用 `authSlice` 已导出的正式 action：
+    - `setIsAuthenticated`
+    - `setUserInfo`
+    - `setAuthToken`
+    - `setAuthRefreshToken`
+  - 新增 `applyRestoredSession()`，统一恢复后 Redux 写回口径
+- 目的：
+  - 避免“本地 token 看似存在，但后端已不认，前台却误以为恢复成功”的伪恢复
+  - 保证帖子详情 401 后会拿全新 token 再请求详情和评论，而不是重复匿名/失效态打转
+
+### 10.3 自动化回归
+- 新增测试：
+  - `src/services/auth/__tests__/devSessionRestore.test.js`
+- 已通过：
+  - `node .\\node_modules\\jest\\bin\\jest.js src/services/auth/__tests__/devSessionRestore.test.js --runInBand`
+  - `node .\\node_modules\\jest\\bin\\jest.js src/services/auth/__tests__/tokenService.test.js --runInBand`
+  - `node .\\node_modules\\jest\\bin\\jest.js src/redux/slices/__tests__/communitySlice.test.js --runInBand`
+- 结论：
+  - 本轮恢复策略改动没有打坏 token 基线与社区 slice 现有回归
+
+### 10.4 真机最终证据
+- 基线：
+  - `adb reverse --list` 仍保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+  - `http://127.0.0.1:8001/health/` 返回正常
+  - `http://127.0.0.1:8081/status` 返回 `packager-status:running`
+- 社区页证据：
+  - `.local/android-mcp-server/round361b_community.xml`
+  - `.local/android-mcp-server/round361b_community.png`
+  - 命中：
+    - `state.community.pageState.ready`
+    - 目标帖子 `round330 联通发帖验证`
+    - 卡片评论数仍为 `14`
+- 详情页第一页证据：
+  - `.local/android-mcp-server/round361b_postdetail.xml`
+  - `.local/android-mcp-server/round361b_postdetail.png`
+  - 命中：
+    - `screen.community.postDetail`
+    - `评论 (12)`
+    - 详情统计中的评论数也同步为 `12`
+    - 前台已不再回落为 `评论 (0)`
+- 详情页滚动到底部证据：
+  - `.local/android-mcp-server/round361b_postdetail_scrolled.xml`
+  - `.local/android-mcp-server/round361b_postdetail_scrolled.png`
+  - 命中：
+    - `round361_comment_01`
+    - `round361_comment_probe_c`
+    - `round361_comment_probe`
+    - `action.community.postDetail.loadMoreComments`
+    - `加载更多评论`
+- 点击“加载更多评论”后的证据：
+  - `.local/android-mcp-server/round361b_postdetail_loadmore.xml`
+  - `.local/android-mcp-server/round361b_postdetail_loadmore.png`
+  - 命中：
+    - 第二页历史评论继续追加到当前列表
+    - `round356_comment_ok`
+    - 其下真实回复 `回复 (3)` 继续可见
+    - 没有出现“第二页覆盖第一页”的回退
+- 日志证据：
+  - `.local/android-mcp-server/round361b_postdetail.log`
+  - `.local/android-mcp-server/round361b_postdetail_loadmore.log`
+  - 命中：
+    - `API响应成功: GET /community/posts/a5edc2dd-3d6a-4bfb-b886-c6dbcb770ab2/`
+    - `API响应成功: GET /community/comments/by_post/?post_id=a5edc2dd-3d6a-4bfb-b886-c6dbcb770ab2`
+
+### 10.5 本轮结论
+- 这次已经确认：
+  - 后端真实评论分页数据正常
+  - 平板与电脑后端联通正常
+  - 帖子详情评论为 `0` 的前序主因在前端认证恢复链，而不是“没网”
+  - 强制刷新 token 后，帖子详情已能在真机前台稳定显示真实评论总数 `12`
+  - “加载更多评论”已能把第二页真实追加进当前列表，而不是覆盖第一页
+- 还需诚实保留的边界：
+  - 帖子详情顶部统计评论数当前取的是评论分页总数 `12`，而社区卡片仍显示帖子总评论数 `14`
+  - 这说明帖子总评论数与顶级评论分页总数仍是两个语义口径，后续若要完全统一展示，还需要结合回复数/后端口径再做产品级取舍
+
+### 10.6 规范复核
+- 顶部安全区：
+  - 本轮社区页与帖子详情页顶部都继续位于平板系统状态栏下方，没有被遮挡
+- 返回按钮：
+  - 帖子详情页继续统一使用已有淡蓝色方形箭头，没有样式漂移
+- 网络异常承接：
+  - 本轮详情链与分页链都没有回退到默认安卓弹窗
+  - 统一网络弹窗规范未回退
+- 留白与布局：
+  - 社区页、帖子详情页、评论列表和“加载更多评论”区块未出现新的异常生硬留白
+  - 功能区承接保持合理，特别是详情页底部按钮区与输入区没有塌陷
   - `评论内容态`
   - `评论提交后前台刷新`
 - 同时继续遵守既有上线规范：

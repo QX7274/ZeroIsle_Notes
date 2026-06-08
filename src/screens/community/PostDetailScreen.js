@@ -31,6 +31,12 @@ import {
 import networkErrorService from '../../services/networkErrorService';
 import useHideMainTabBar from './useHideMainTabBar';
 import tryRestoreDevSession from '../../services/auth/devSessionRestore';
+import {
+  setAuthRefreshToken,
+  setAuthToken,
+  setIsAuthenticated,
+  setUserInfo,
+} from '../../redux/slices/authSlice';
 
 /**
  * 社区帖子详情屏幕
@@ -50,6 +56,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const {
     currentPost: post,
     comments,
+    commentsPagination,
     isLoading,
     error,
     likedPosts,
@@ -65,33 +72,38 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const busy = isLoading || submittingComment;
   const pageState = isLoading && !post ? 'loading' : post ? 'ready' : error ? 'error' : 'empty';
+  const commentsTotal = commentsPagination?.totalItems ?? comments.length;
+  const hasMoreComments = (commentsPagination?.page ?? 1) < (commentsPagination?.totalPages ?? 1);
+
+  const applyRestoredSession = useCallback((restoredSession) => {
+    if (!restoredSession?.token) {
+      return false;
+    }
+
+    dispatch(setIsAuthenticated(true));
+    dispatch(setUserInfo(restoredSession.user || null));
+    dispatch(setAuthToken(restoredSession.token));
+
+    if (restoredSession.refreshToken) {
+      dispatch(setAuthRefreshToken(restoredSession.refreshToken));
+    }
+
+    return true;
+  }, [dispatch]);
 
   const loadPostData = useCallback(async () => {
     try {
       if (!isAuthenticated) {
         const restoredSession = await tryRestoreDevSession();
-        if (restoredSession?.user && restoredSession?.token) {
-          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
-          dispatch({ type: 'auth/setUserInfo', payload: restoredSession.user });
-          dispatch({ type: 'auth/setAuthToken', payload: restoredSession.token });
-          if (restoredSession.refreshToken) {
-            dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredSession.refreshToken });
-          }
-        }
+        applyRestoredSession(restoredSession);
       }
 
       await dispatch(fetchPostDetail(postId)).unwrap();
       await dispatch(fetchComments({ postId, page: 1 })).unwrap();
     } catch (requestError) {
       if (String(requestError || '').includes('登录状态已失效')) {
-        const restoredSession = await tryRestoreDevSession();
-        if (restoredSession?.token) {
-          dispatch({ type: 'auth/setIsAuthenticated', payload: true });
-          dispatch({ type: 'auth/setUserInfo', payload: restoredSession.user });
-          dispatch({ type: 'auth/setAuthToken', payload: restoredSession.token });
-          if (restoredSession.refreshToken) {
-            dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredSession.refreshToken });
-          }
+        const restoredSession = await tryRestoreDevSession({ forceRefresh: true });
+        if (applyRestoredSession(restoredSession)) {
           await dispatch(fetchPostDetail(postId)).unwrap();
           await dispatch(fetchComments({ postId, page: 1 })).unwrap();
           return;
@@ -105,7 +117,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         });
       }
     }
-  }, [dispatch, isAuthenticated, postId]);
+  }, [applyRestoredSession, dispatch, isAuthenticated, postId]);
 
   const renderAvatar = useCallback((avatarUri, style, fallbackStyle) => {
     if (avatarUri) {
@@ -147,6 +159,11 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const handleCancelReply = () => {
     setReplyTarget(null);
+  };
+
+  const handleLoadMoreComments = async () => {
+    if (isLoading || !post || !hasMoreComments) {return;}
+    await dispatch(fetchComments({ postId, page: (commentsPagination?.page ?? 1) + 1 })).unwrap();
   };
 
   const renderReplyItem = (reply, parentCommentId) => (
@@ -280,6 +297,7 @@ const PostDetailScreen = ({ route, navigation }) => {
       <View testID={`state.community.postDetail.state.${pageState}`} />
       <View testID={`state.community.postDetail.busy.visibility.${busy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
+      <View testID={`state.community.postDetail.comments.total.${commentsTotal}`} />
       {renderHeader()}
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -339,7 +357,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
           <View style={styles.statItem}>
             <Icon name="comment" size={20} color={theme.textSecondary} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>{comments.length}</Text>
+            <Text style={[styles.statText, { color: theme.textSecondary }]}>{commentsTotal}</Text>
           </View>
           <View style={styles.statItem}>
             <Icon name="file-download" size={20} color={theme.textSecondary} />
@@ -348,7 +366,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.commentsSection}>
-          <Text style={[styles.commentsTitle, { color: theme.text }]}>评论 ({comments.length})</Text>
+          <Text style={[styles.commentsTitle, { color: theme.text }]}>评论 ({commentsTotal})</Text>
 
           {comments.map((comment) => (
             <View key={comment.id} style={[styles.commentItem, styles.glassBlock, { borderColor: `${theme.primary}20` }]} testID={`item.community.postDetail.comment.${comment.id}`}>
@@ -393,6 +411,26 @@ const PostDetailScreen = ({ route, navigation }) => {
               </View>
             </View>
           ))}
+
+          {hasMoreComments && (
+            <TouchableOpacity
+              style={[styles.loadMoreCommentsButton, styles.glassBlock, { borderColor: `${theme.primary}18` }]}
+              onPress={handleLoadMoreComments}
+              disabled={isLoading}
+              testID="action.community.postDetail.loadMoreComments"
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <>
+                  <Icon name="expand-more" size={18} color={theme.primary} />
+                  <Text style={[styles.loadMoreCommentsText, { color: theme.primary }]}>
+                    加载更多评论
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
@@ -521,6 +559,21 @@ const styles = StyleSheet.create({
   statText: { fontSize: 14, marginLeft: 4 },
   commentsSection: { marginBottom: SPACING.LARGE },
   commentsTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.MEDIUM },
+  loadMoreCommentsButton: {
+    marginTop: SPACING.SMALL,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: SPACING.MEDIUM,
+    paddingHorizontal: SPACING.MEDIUM,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.XSMALL,
+  },
+  loadMoreCommentsText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   commentItem: {
     borderRadius: 10,
     padding: SPACING.MEDIUM,
