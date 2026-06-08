@@ -359,8 +359,18 @@ const GoalManagerScreen = ({ navigation }) => {
             </Text>
           </View>
         ) : (
-          <View style={styles.goalList}>
-            {goals.map(renderGoalItem)}
+          <View style={styles.goalListSection}>
+            <View style={styles.goalList}>
+              {goals.map(renderGoalItem)}
+            </View>
+            <View style={[styles.goalListFooter, { backgroundColor: colors.card, borderColor: `${colors.primary}20` }]}>
+              <Text style={[styles.goalListFooterTitle, { color: colors.text }]}>
+                已创建 {goals.length} 个目标
+              </Text>
+              <Text style={[styles.goalListFooterText, { color: colors.text + '80' }]}>
+                继续点击右上角的 + 号补充规划，让列表区在平板上保持完整承接，不留下生硬空白。
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -679,12 +689,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   contentContainer: {
-    paddingTop: 6,
-    paddingBottom: 18,
+    flexGrow: 1,
+    paddingTop: 4,
+    paddingBottom: 24,
+  },
+  goalListSection: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
   },
   goalList: {
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 8,
+  },
+  goalListFooter: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  goalListFooterTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  goalListFooterText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 20,
   },
   emptyState: {
     marginTop: 10,
@@ -828,14 +859,14 @@ const styles = StyleSheet.create({
   modalContentContainer: {
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 18,
+    paddingBottom: 10,
   },
   modalIntroCard: {
     borderWidth: 1,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   modalIntroTitle: {
     fontSize: 17,
@@ -916,13 +947,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   formGroup: {
-    marginBottom: 14,
+    marginBottom: 10,
   },
   formGroupCompact: {
     marginBottom: 0,
   },
   formSection: {
-    marginBottom: 10,
+    marginBottom: 6,
   },
   formStatusCard: {
     flexDirection: 'row',
@@ -944,17 +975,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   formLabel: {
-    marginBottom: 6,
+    marginBottom: 4,
     fontWeight: '500',
   },
   textInput: {
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     fontSize: 15,
   },
   textArea: {
-    minHeight: 66,
+    minHeight: 58,
     textAlignVertical: 'top',
   },
   typeSelector: {
@@ -966,7 +997,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 14,
     minWidth: '48%',
   },

@@ -1520,3 +1520,114 @@
   - 每一步点击后立刻抓一次 `PNG + XML`
   - 以更短时间窗口减少截图/XML错位；
   - 只有当截图与 XML 同时命中 `目标管理` 或 `新建目标` 关键锚点时，才允许把修后空态/表单写成 `PASS`。
+
+## 20. round370：目标管理双证据补齐后继续收口列表尾部与表单下半区
+
+### 20.1 本轮目标
+- 先补 round369 遗留的真机双证据缺口，不能继续靠推测写结论；
+- 再根据真实现网前台决定是否继续只改 `GoalManagerScreen.js`；
+- 保持以下约束不变：
+  - 顶部安全区不能被平板状态栏遮挡；
+  - 返回按钮继续统一使用已有淡蓝色方形箭头；
+  - 网络问题仍由项目内统一优美样式弹窗承接；
+  - 不扩散改成熟页面。
+
+### 20.2 本轮先补到的关键现场
+- 冷启动干扰项：
+  - `.local/android-mcp-server/round370_launch.xml`
+  - `.local/android-mcp-server/round370_launch.png`
+  - 结论：
+    - 当前冷启动后会再次弹出系统级通知权限弹窗；
+    - 包名为 `com.android.permissioncontroller`；
+    - 文案为 `零屿笔记正在尝试显示通知`；
+    - 这不是应用白屏，也不是业务失败页面。
+- 允许系统弹窗后首页恢复现场：
+  - `.local/android-mcp-server/round370_after_permission.xml`
+  - `.local/android-mcp-server/round370_after_permission.png`
+  - 结论：
+    - 应用可恢复到首页；
+    - 底部 `检查通知权限超时，假定已授权以继续初始化` 属于项目内提示，不是系统阻塞。
+- 个人资料稳定现场：
+  - `.local/android-mcp-server/round370_profile.png`
+  - 结论：
+    - 顶部安全区正常；
+    - 统一淡蓝色方形返回按钮正常；
+    - 功能中心旧版彩色卡片风格保持不变。
+- 零屿空间稳定现场：
+  - `.local/android-mcp-server/round370_zeroisle.png`
+  - 结论：
+    - `零屿空间` 页面稳定可达；
+    - 顶部风格与返回按钮正常；
+    - 下半区 `空空如也` 到页尾之间仍有较大异常留白。
+- 目标管理列表态稳定双证据：
+  - `.local/android-mcp-server/round370_goal.xml`
+  - `.local/android-mcp-server/round370_goal.png`
+  - 结论：
+    - 真实前台并不是空态，而是目标列表内容态；
+    - 已命中：
+      - `action.goalManager.back`
+      - `目标管理`
+      - `Round365Goal`
+      - `Round365DirectGoal`
+    - 当前没有统一网络错误弹窗覆盖。
+- 新建目标表单稳定双证据：
+  - `.local/android-mcp-server/round370_goal_create.xml`
+  - `.local/android-mcp-server/round370_goal_create.png`
+  - 结论：
+    - 已命中：
+      - `action.goalManager.modalBack`
+      - `action.goalManager.save`
+      - `新建目标`
+      - `数量目标`
+      - `目标值`
+      - `描述`
+    - round369 留下的“新建表单修后真机双证据待补”已在本轮补齐。
+
+### 20.3 由现场更新出来的真实判断
+- round369 里继续围绕“目标管理空态页”推进，其实已经不再是当前现网主场景；
+- 当前更真实的问题是：
+  - 目标管理列表态最后一屏下方留白仍偏空；
+  - 新建目标表单下半区仍然偏松，尤其描述区以下承接不够完整；
+  - 零屿空间首页下半区留白仍然明显。
+
+### 20.4 本轮代码调整
+- 仅修改：
+  - `src/screens/personal_activity/GoalManagerScreen.js`
+- 调整点：
+  - 列表态新增底部承接卡片，减少最后一屏生硬空白；
+  - `contentContainer` 改为 `flexGrow: 1`，让目标页内容区在平板上形成完整承接；
+  - 进一步压缩：
+    - `modalContentContainer`
+    - `formSection`
+    - `formGroup`
+    - `formLabel`
+    - `textInput`
+    - `textArea`
+    - `typeOption`
+  - 目标是继续降低新建表单中下半区的松散原始感。
+
+### 20.5 安装结果
+- 已重新执行：
+  - `android\\gradlew.bat app:installDebug`
+- 结果：
+  - 安装成功；
+  - `adb reverse --list` 仍保持：
+    - `tcp:8081`
+    - `tcp:8001`
+
+### 20.6 必须诚实保留的边界
+- 本轮“列表尾部承接卡片 + 表单进一步压缩”虽然已经写入并装包成功；
+- 但修后最新现场回放时再次受到两类干扰：
+  - 系统通知权限弹窗重新覆盖；
+  - 页面跳转过程中出现漂移，个别步骤会落到非目标页；
+- 因此本轮不能把“最新续压后的最终真机效果”直接写成 `PASS`。
+
+### 20.7 下一轮执行要求
+- 优先先处理真机取证干扰，而不是继续盲目加代码：
+  - 启动后先判断是否出现系统通知权限弹窗；
+  - 若出现，先允许，再开始正式验收；
+- 之后按以下顺序分别抓图：
+  - `零屿空间`
+  - `目标管理（修后列表尾部）`
+  - `新建目标（修后表单下半区）`
+- 只有当“修后最新图”明确落在对应页面时，才允许把 round370 的两项 UI 续压改成 `PASS`。
