@@ -44,6 +44,7 @@ import GlobalNetworkErrorHandler from './components/common/GlobalNetworkErrorHan
 // 导入令牌服务
 import tokenService from './services/auth/tokenService';
 import { handleUnauthorizedError } from './services/auth/authUtils';
+import { DEV_MODE_CONFIG } from './config';
 import debugLog from './native/debugLog';
 
 const DEV_SUPPRESSED_LOG_PREFIXES = [
@@ -94,7 +95,10 @@ const DEV_SUPPRESSED_LOG_PREFIXES = [
   'API_BASE_URL:',
   'SplashScreen 超时未完成，触发初始化兜底放行',
   'SplashScreen 兜底初始化失败:',
+  '检查通知权限超时，按未授权处理并继续初始化',
   '创建通知渠道超时，但应用将继续运行',
+  '通知渠道创建失败，但应用将继续运行',
+  '提醒通知服务初始化部分失败，但应用将继续运行',
   '通知渠道创建超时，已创建',
   'NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）:',
   'PersistBootstrapGate: 持久化恢复超过',
@@ -107,11 +111,30 @@ const shouldSuppressDevConsoleMessage = (args = []) => {
   }
 
   const [firstArg] = args;
-  if (typeof firstArg !== 'string') {
-    return false;
+  const joinedMessage = args
+    .map(arg => {
+      if (typeof arg === 'string') {
+        return arg;
+      }
+      if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}`;
+      }
+      try {
+        return JSON.stringify(arg);
+      } catch (error) {
+        return String(arg);
+      }
+    })
+    .join(' ');
+
+  if (typeof firstArg === 'string') {
+    const matchesFirstArg = DEV_SUPPRESSED_LOG_PREFIXES.some(prefix => firstArg.startsWith(prefix));
+    if (matchesFirstArg) {
+      return true;
+    }
   }
 
-  return DEV_SUPPRESSED_LOG_PREFIXES.some(prefix => firstArg.startsWith(prefix));
+  return DEV_SUPPRESSED_LOG_PREFIXES.some(prefix => joinedMessage.includes(prefix));
 };
 
 if (__DEV__ && !global.__ZEROISLE_DEV_CONSOLE_FILTER_INSTALLED__) {
@@ -148,6 +171,10 @@ LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
   'ColorPropType will be removed',
   'SplashScreen 超时未完成，触发初始化兜底放行',
+  '检查通知权限超时，按未授权处理并继续初始化',
+  '创建通知渠道超时，但应用将继续运行',
+  '通知渠道创建失败，但应用将继续运行',
+  '提醒通知服务初始化部分失败，但应用将继续运行',
   'PersistBootstrapGate: 持久化恢复超过',
   'PersistBootstrapGate: 当前以降级模式继续启动',
 ]);
@@ -245,7 +272,7 @@ const useAppInitialization = () => {
       console.log('阶段3: 正在检查认证状态...');
 
       // 开发调试模式下跳过认证流程，避免跳转登录影响联调
-      const DEV_SKIP_LOGIN = __DEV__;
+      const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
       if (DEV_SKIP_LOGIN) {
         console.log('阶段3: DEV_SKIP_LOGIN 已启用，跳过认证检查');
       } else {

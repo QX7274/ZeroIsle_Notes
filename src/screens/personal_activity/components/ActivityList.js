@@ -83,11 +83,19 @@ const ActivityList = ({ activities, loading, onActivityPress, onImagePress, onRe
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <Animated.View style={{ transform: [{ scale }], opacity }}>
-        <Icon name="auto-awesome" size={72} color="#3b82f6" />
-      </Animated.View>
-      <Text style={[styles.emptyText, { color: '#3b82f6' }]}>空空如也</Text>
-      <Text style={styles.emptySubText}>发表第一条动态，记录属于你自己的零屿空间吧。</Text>
+      <View style={styles.emptyCard}>
+        <Animated.View style={{ transform: [{ scale }], opacity }}>
+          <Icon name="auto-awesome" size={72} color="#3b82f6" />
+        </Animated.View>
+        <Text style={[styles.emptyText, { color: '#3b82f6' }]}>空空如也</Text>
+        <Text style={styles.emptySubText}>发表第一条动态，记录属于你自己的零屿空间吧。</Text>
+        <View style={styles.emptyHintRow}>
+          <Icon name="edit-note" size={18} color={colors.primary} />
+          <Text style={[styles.emptyHintText, { color: colors.text }]}>
+            点击右下角按钮，补充动态内容，让首页信息承接更完整。
+          </Text>
+        </View>
+      </View>
     </View>
   );
 
@@ -134,7 +142,7 @@ const getStatusColor = (status, colors) => {
 };
 
 const getStyles = ({ colors }) => StyleSheet.create({
-  listContainer: { paddingBottom: 20, paddingHorizontal: 16 },
+  listContainer: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 16 },
   itemContainer: { backgroundColor: colors.card, padding: 12, borderRadius: 12, marginBottom: 12 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   iconContainer: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
@@ -147,9 +155,36 @@ const getStyles = ({ colors }) => StyleSheet.create({
   progressWrapper: { marginTop: 12 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
   statusText: { color: '#fff', fontSize: 10, fontWeight: '600' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 44, paddingBottom: 72, paddingHorizontal: 32, opacity: 0.7 },
-  emptyText: { marginTop: 16, fontSize: 18, fontWeight: '600', color: colors.textSecondary },
-  emptySubText: { marginTop: 8, fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyContainer: { paddingTop: 18, paddingBottom: 88, paddingHorizontal: 8 },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 34,
+    paddingBottom: 28,
+    paddingHorizontal: 28,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: `${colors.primary}22`,
+    minHeight: 260,
+  },
+  emptyText: { marginTop: 16, fontSize: 20, fontWeight: '700', color: colors.textSecondary },
+  emptySubText: { marginTop: 10, fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: `${colors.primary}12`,
+  },
+  emptyHintText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    lineHeight: 19,
+  },
 });
 
 export default ActivityList;
