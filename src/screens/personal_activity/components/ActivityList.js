@@ -147,7 +147,7 @@ const getStyles = ({ colors }) => StyleSheet.create({
   progressWrapper: { marginTop: 12 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
   statusText: { color: '#fff', fontSize: 10, fontWeight: '600' },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 32, opacity: 0.7 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 44, paddingBottom: 72, paddingHorizontal: 32, opacity: 0.7 },
   emptyText: { marginTop: 16, fontSize: 18, fontWeight: '600', color: colors.textSecondary },
   emptySubText: { marginTop: 8, fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

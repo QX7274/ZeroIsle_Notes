@@ -1036,3 +1036,103 @@
   - round362 的代码修补已经真实落到平板现场
   - 帖子详情标题与顶部统计区都已回到与社区卡片一致的帖子总评论数口径
   - 这一步已经不再停留在代码与单测层，而是补成了真实前台证据
+
+## 15. round364 个人活动后端联通修复与零屿空间首屏收口（2026-06-08）
+
+### 15.1 本轮真实目标
+- 承接当前真机现场 `个人资料 -> 零屿空间 -> 目标管理` 链路，优先确认两类问题：
+  - 目标管理页出现的“网络连接问题”究竟是平板与电脑后端不通，还是模块自身后端错误；
+  - 零屿空间首屏在平板上是否存在明显原始感与异常留白，需要在不破坏成熟样式的前提下收口。
+
+### 15.2 本轮根因定位
+- 真机现场先后抓到：
+  - `.local/android-mcp-server/round364_goal_form.png`
+  - `.local/android-mcp-server/round364_goal_after_retry.png`
+- 现场最初会弹出项目内统一样式弹窗：
+  - `网络连接问题`
+  - `目标数据加载失败，请确认当前设备与后端联通后重试`
+- 结合后端日志 `backend/runserver_round361.log` 进一步确认，真正根因不是“平板没网”，而是后端 `personal_activity` 模块内部报错：
+  - 旧代码把 `PyMongo Database/Collection` 对象用于布尔判断；
+  - `request.user.id` 直接进入个人活动 Mongo 集合时仍沿用旧 `ObjectId` 假设；
+  - 最终在 `GET /api/v1/personal-activity/goals/` 上抛出 `NotImplementedError`，前台才被统一网络弹窗接住。
+
+### 15.3 本轮代码修补
+- 后端文件：
+  - `backend/personal_activity/mongodb_models.py`
+  - `backend/personal_activity/views.py`
+- 前端文件：
+  - `src/screens/personal_activity/PersonalActivityScreen.js`
+  - `src/screens/personal_activity/components/ActivityList.js`
+- 后端处理：
+  - 为个人活动模块新增统一 `user_id` 查询口径，兼容：
+    - 当前 Mongo 用户 UUID 字符串
+    - 旧数据可能残留的 `ObjectId`
+  - 所有 `models_instance.db` 与 `self.collection` 的布尔判断改为显式 `is not None / is None`；
+  - 个人活动各视图统一优先解析 `Mongo user id`，避免继续把 Django UUID 误写入模块数据集合；
+  - 视图内直接查 Mongo 集合的分支也改为复用统一 `user_id` 查询口径。
+- 前端处理：
+  - 零屿空间页顶部补回统一的淡蓝色方形返回按钮；
+  - 收紧 `hero` 高度与空状态容器纵向占位；
+  - 减少首屏异常留白，保留已有配色、功能卡风格和 FAB，不翻动成熟模块。
+
+### 15.4 本轮环境与重启说明
+- 本机双路径核对：
+  - `D:\anaconda\envs\ZeroIsle\python.exe`
+  - `D:\APP\Anaconda\envs\Zeroisle\python.exe`
+  - 两者都存在，但当前实际监听 `8001` 的后端进程为：
+    - `D:\APP\Anaconda\envs\Zeroisle\python.exe -X utf8 manage.py runserver 0.0.0.0:8001 --noreload`
+- 因运行参数带 `--noreload`，本轮在代码修改后已手动重启 `8001` 后端实例，使修复真正落地到真机联调环境。
+
+### 15.5 本轮验证
+- 自检：
+  - `D:\APP\Anaconda\envs\Zeroisle\python.exe -X utf8 manage.py check`
+  - 结果：
+    - `System check identified no issues (0 silenced).`
+  - 说明：
+    - `notes.urls` 与 `voice_recognition.urls` 的历史可选模块告警仍存在，但不阻断本轮 `personal_activity` 路由可用性。
+- 联通基线：
+  - `http://127.0.0.1:8001/health/` 返回正常；
+  - `adb reverse --list` 继续保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+- 真机证据：
+  - 个人资料页：
+    - `.local/android-mcp-server/round363_profile_tab.png`
+    - `.local/android-mcp-server/round363_profile_tab.xml`
+  - 零屿空间页：
+    - `.local/android-mcp-server/round364_personalActivity.png`
+    - `.local/android-mcp-server/round364_personalActivity.xml`
+  - 目标管理页旧失败态：
+    - `.local/android-mcp-server/round364_goal_form.png`
+    - `.local/android-mcp-server/round364_goal_form.xml`
+  - 目标管理页修复后成功态：
+    - `.local/android-mcp-server/round364_goal_post_restart.png`
+    - `.local/android-mcp-server/round364_goal_post_restart.xml`
+- 真机结论：
+  - 修复前：
+    - 点击 `目标管理` 后会进入统一网络弹窗；
+    - 这一步已经证明前台网络异常样式仍符合既定规范，没有退回默认安卓弹窗。
+  - 修复后：
+    - `目标管理` 已可稳定进入 `新建目标` 表单；
+    - 可见 `取消 / 新建目标 / 保存 / 标题 / 类型 / 目标值 / 开始日期 / 结束日期 / 描述` 等完整表单字段；
+    - 说明“平板到电脑后端未联通”并不是当前主问题，真实问题已被本轮后端修补收口。
+
+### 15.6 UI / UX 结论
+- 零屿空间页本轮已落实：
+  - 顶部改回统一淡蓝色方形返回按钮；
+  - 标题处于平板系统状态栏下方，不被遮挡；
+  - 首屏空态留白明显收紧，不再把大面积白区裸露在卡片外；
+  - 原有管理卡片与 FAB 风格保持不变，避免误动成熟视觉。
+- 目标管理页本轮维持：
+  - 顶部安全区正常；
+  - 返回按钮仍为统一淡蓝色方形箭头；
+  - 网络问题继续走项目内统一优美弹窗，不使用默认安卓弹窗。
+
+### 15.7 本轮诚实保留项
+- 本轮已完成到：
+  - `目标管理 -> 新建目标表单可进入`
+- 本轮尚未补到：
+  - 真机创建成功
+  - 真机删除确认与删除成功
+  - 真机失败后重试恢复
+- 这些项不在本轮虚记为已通过，后续继续沿 `目标管理` 深交互补证。

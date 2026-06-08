@@ -6,11 +6,54 @@ Personal Activity Tracking MongoDB Models
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo import MongoClient
 from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _maybe_object_id(raw_value):
+    """兼容旧数据：仅当值本身是合法 ObjectId 时才转换。"""
+    if isinstance(raw_value, ObjectId):
+        return raw_value
+    if raw_value in (None, ''):
+        return None
+    try:
+        return ObjectId(str(raw_value))
+    except (InvalidId, TypeError, ValueError):
+        return None
+
+
+def _user_id_candidates(user_id: str):
+    """
+    统一个人活动模块的 user_id 口径。
+
+    新数据使用字符串化后的 Mongo 用户 UUID；
+    旧数据若曾写入 ObjectId，则查询时一并兼容。
+    """
+    candidates = [str(user_id)]
+    legacy_object_id = _maybe_object_id(user_id)
+    if legacy_object_id is not None:
+        candidates.append(legacy_object_id)
+    return candidates
+
+
+def _user_id_query(user_id: str):
+    candidates = _user_id_candidates(user_id)
+    if len(candidates) == 1:
+        return candidates[0]
+    return {"$in": candidates}
+
+
+def build_personal_activity_user_id_query(user_id: str):
+    """供视图层直接查询 Mongo 集合时复用统一 user_id 口径。"""
+    return _user_id_query(user_id)
+
+
+def _serialize_user_id(raw_user_id):
+    return str(raw_user_id) if raw_user_id is not None else None
 
 class PersonalActivityModels:
     """个人活动记录模型管理类"""
@@ -68,17 +111,17 @@ class ActivityRecord:
     
     def __init__(self, models_instance: PersonalActivityModels):
         self.models = models_instance
-        self.collection = models_instance.db.personal_activities if models_instance.db else None
+        self.collection = models_instance.db.personal_activities if models_instance.db is not None else None
     
     def create(self, user_id: str, data: Dict[str, Any]) -> Optional[str]:
         """创建新的活动记录"""
-        if not self.collection:
+        if self.collection is None:
             return None
             
         try:
             # 构建活动记录文档
             activity_doc = {
-                "user_id": ObjectId(user_id),
+                "user_id": str(user_id),
                 "title": data.get("title", ""),
                 "description": data.get("description", ""),
                 "category": data.get("category", {}),
@@ -139,19 +182,19 @@ class ActivityRecord:
     
     def get_by_id(self, user_id: str, activity_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取活动记录"""
-        if not self.collection:
+        if self.collection is None:
             return None
             
         try:
             activity = self.collection.find_one({
                 "_id": ObjectId(activity_id),
-                "user_id": ObjectId(user_id),
+                "user_id": _user_id_query(user_id),
                 "deleted_at": None
             })
             
             if activity:
                 activity["_id"] = str(activity["_id"])
-                activity["user_id"] = str(activity["user_id"])
+                activity["user_id"] = _serialize_user_id(activity["user_id"])
                 # 转换依赖关系ID
                 activity["dependencies"] = [str(dep) for dep in activity.get("dependencies", [])]
                 
@@ -164,13 +207,13 @@ class ActivityRecord:
     def get_user_activities(self, user_id: str, filters: Dict[str, Any] = None, 
                           page: int = 1, page_size: int = 20) -> Dict[str, Any]:
         """获取用户的活动记录列表"""
-        if not self.collection:
+        if self.collection is None:
             return {"activities": [], "total": 0, "page": page, "page_size": page_size}
             
         try:
             # 构建查询条件
             query = {
-                "user_id": ObjectId(user_id),
+                "user_id": _user_id_query(user_id),
                 "deleted_at": None
             }
             
@@ -198,7 +241,7 @@ class ActivityRecord:
             activities = []
             for activity in cursor:
                 activity["_id"] = str(activity["_id"])
-                activity["user_id"] = str(activity["user_id"])
+                activity["user_id"] = _serialize_user_id(activity["user_id"])
                 activity["dependencies"] = [str(dep) for dep in activity.get("dependencies", [])]
                 activities.append(activity)
             
@@ -216,7 +259,7 @@ class ActivityRecord:
     
     def update(self, user_id: str, activity_id: str, data: Dict[str, Any]) -> bool:
         """更新活动记录"""
-        if not self.collection:
+        if self.collection is None:
             return False
             
         try:
@@ -237,7 +280,7 @@ class ActivityRecord:
             result = self.collection.update_one(
                 {
                     "_id": ObjectId(activity_id),
-                    "user_id": ObjectId(user_id),
+                    "user_id": _user_id_query(user_id),
                     "deleted_at": None
                 },
                 {"$set": update_data}
@@ -251,14 +294,14 @@ class ActivityRecord:
     
     def delete(self, user_id: str, activity_id: str) -> bool:
         """软删除活动记录"""
-        if not self.collection:
+        if self.collection is None:
             return False
             
         try:
             result = self.collection.update_one(
                 {
                     "_id": ObjectId(activity_id),
-                    "user_id": ObjectId(user_id),
+                    "user_id": _user_id_query(user_id),
                     "deleted_at": None
                 },
                 {
@@ -288,15 +331,15 @@ class ActivityCategory:
 
     def __init__(self, models_instance: PersonalActivityModels):
         self.models = models_instance
-        self.collection = models_instance.db.personal_activity_categories if models_instance.db else None
+        self.collection = models_instance.db.personal_activity_categories if models_instance.db is not None else None
 
     def create(self, user_id: str, data: Dict[str, Any]) -> Optional[str]:
         """创建新的分类"""
-        if not self.collection:
+        if self.collection is None:
             return None
         try:
             category_doc = {
-                "user_id": ObjectId(user_id),
+                "user_id": str(user_id),
                 "name": data["name"],
                 "description": data.get("description", ""),
                 "color": data.get("color", "#FFFFFF"),
@@ -318,13 +361,13 @@ class ActivityCategory:
 
     def get_by_id(self, user_id: str, category_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取分类"""
-        if not self.collection:
+        if self.collection is None:
             return None
         try:
-            category = self.collection.find_one({"_id": ObjectId(category_id), "user_id": ObjectId(user_id)})
+            category = self.collection.find_one({"_id": ObjectId(category_id), "user_id": _user_id_query(user_id)})
             if category:
                 category["_id"] = str(category["_id"])
-                category["user_id"] = str(category["user_id"])
+                category["user_id"] = _serialize_user_id(category["user_id"])
                 if category.get("parent_id"):
                     category["parent_id"] = str(category["parent_id"])
             return category
@@ -334,14 +377,14 @@ class ActivityCategory:
 
     def get_user_categories(self, user_id: str) -> List[Dict[str, Any]]:
         """获取用户的所有分类"""
-        if not self.collection:
+        if self.collection is None:
             return []
         try:
-            cursor = self.collection.find({"user_id": ObjectId(user_id), "is_active": True}).sort("order", 1)
+            cursor = self.collection.find({"user_id": _user_id_query(user_id), "is_active": True}).sort("order", 1)
             categories = []
             for category in cursor:
                 category["_id"] = str(category["_id"])
-                category["user_id"] = str(category["user_id"])
+                category["user_id"] = _serialize_user_id(category["user_id"])
                 if category.get("parent_id"):
                     category["parent_id"] = str(category["parent_id"])
                 categories.append(category)
@@ -352,7 +395,7 @@ class ActivityCategory:
 
     def update(self, user_id: str, category_id: str, data: Dict[str, Any]) -> bool:
         """更新分类"""
-        if not self.collection:
+        if self.collection is None:
             return False
         try:
             update_data = {"updated_at": datetime.now(timezone.utc)}
@@ -364,7 +407,7 @@ class ActivityCategory:
                         update_data[key] = value
 
             result = self.collection.update_one(
-                {"_id": ObjectId(category_id), "user_id": ObjectId(user_id)},
+                {"_id": ObjectId(category_id), "user_id": _user_id_query(user_id)},
                 {"$set": update_data}
             )
             return result.modified_count > 0
@@ -374,7 +417,7 @@ class ActivityCategory:
 
     def delete(self, user_id: str, category_id: str) -> bool:
         """删除分类 (软删除或硬删除取决于业务逻辑)"""
-        if not self.collection:
+        if self.collection is None:
             return False
         try:
             # 检查是否为系统分类
@@ -385,7 +428,7 @@ class ActivityCategory:
 
             # 软删除：将is_active设为False
             result = self.collection.update_one(
-                {"_id": ObjectId(category_id), "user_id": ObjectId(user_id)},
+                {"_id": ObjectId(category_id), "user_id": _user_id_query(user_id)},
                 {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
             )
             return result.modified_count > 0
@@ -395,7 +438,7 @@ class ActivityCategory:
 
     def create_default_categories(self, user_id: str) -> bool:
         """为新用户创建默认分类"""
-        if not self.collection:
+        if self.collection is None:
             return False
 
         default_categories = [
@@ -411,12 +454,12 @@ class ActivityCategory:
 
         try:
             # 检查是否已存在默认分类
-            if self.collection.count_documents({"user_id": ObjectId(user_id), "is_system": True}) > 0:
+            if self.collection.count_documents({"user_id": _user_id_query(user_id), "is_system": True}) > 0:
                 return True
 
             for category_data in default_categories:
                 category_doc = {
-                    "user_id": ObjectId(user_id),
+                    "user_id": str(user_id),
                     "name": category_data["name"],
                     "description": f"默认{category_data['name']}分类",
                     "color": category_data["color"],
@@ -443,15 +486,15 @@ class ActivityGoal:
 
     def __init__(self, models_instance: PersonalActivityModels):
         self.models = models_instance
-        self.collection = models_instance.db.personal_activity_goals if models_instance.db else None
+        self.collection = models_instance.db.personal_activity_goals if models_instance.db is not None else None
 
     def create(self, user_id: str, data: Dict[str, Any]) -> Optional[str]:
         """创建新目标"""
-        if not self.collection:
+        if self.collection is None:
             return None
         try:
             goal_doc = {
-                "user_id": ObjectId(user_id),
+                "user_id": str(user_id),
                 "title": data["title"],
                 "description": data.get("description", ""),
                 "type": data["type"],
@@ -476,13 +519,13 @@ class ActivityGoal:
 
     def get_by_id(self, user_id: str, goal_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取目标"""
-        if not self.collection:
+        if self.collection is None:
             return None
         try:
-            goal = self.collection.find_one({"_id": ObjectId(goal_id), "user_id": ObjectId(user_id)})
+            goal = self.collection.find_one({"_id": ObjectId(goal_id), "user_id": _user_id_query(user_id)})
             if goal:
                 goal["_id"] = str(goal["_id"])
-                goal["user_id"] = str(goal["user_id"])
+                goal["user_id"] = _serialize_user_id(goal["user_id"])
                 goal["related_categories"] = [str(cat_id) for cat_id in goal.get("related_categories", [])]
                 goal["related_activities"] = [str(act_id) for act_id in goal.get("related_activities", [])]
             return goal
@@ -492,10 +535,10 @@ class ActivityGoal:
 
     def get_user_goals(self, user_id: str, status: str = None) -> List[Dict[str, Any]]:
         """获取用户的目标列表"""
-        if not self.collection:
+        if self.collection is None:
             return []
         try:
-            query = {"user_id": ObjectId(user_id)}
+            query = {"user_id": _user_id_query(user_id)}
             if status:
                 query["status"] = status
 
@@ -503,7 +546,7 @@ class ActivityGoal:
             goals = []
             for goal in cursor:
                 goal["_id"] = str(goal["_id"])
-                goal["user_id"] = str(goal["user_id"])
+                goal["user_id"] = _serialize_user_id(goal["user_id"])
                 goal["related_categories"] = [str(cat_id) for cat_id in goal.get("related_categories", [])]
                 goal["related_activities"] = [str(act_id) for act_id in goal.get("related_activities", [])]
                 goals.append(goal)
@@ -514,7 +557,7 @@ class ActivityGoal:
 
     def update(self, user_id: str, goal_id: str, data: Dict[str, Any]) -> bool:
         """更新目标"""
-        if not self.collection:
+        if self.collection is None:
             return False
         try:
             update_data = {"updated_at": datetime.now(timezone.utc)}
@@ -526,7 +569,7 @@ class ActivityGoal:
                         update_data[key] = value
 
             result = self.collection.update_one(
-                {"_id": ObjectId(goal_id), "user_id": ObjectId(user_id)},
+                {"_id": ObjectId(goal_id), "user_id": _user_id_query(user_id)},
                 {"$set": update_data}
             )
             return result.modified_count > 0
@@ -536,11 +579,11 @@ class ActivityGoal:
 
     def delete(self, user_id: str, goal_id: str) -> bool:
         """删除目标"""
-        if not self.collection:
+        if self.collection is None:
             return False
         try:
             result = self.collection.delete_one(
-                {"_id": ObjectId(goal_id), "user_id": ObjectId(user_id)}
+                {"_id": ObjectId(goal_id), "user_id": _user_id_query(user_id)}
             )
             return result.deleted_count > 0
         except Exception as e:
@@ -549,7 +592,7 @@ class ActivityGoal:
 
     def update_progress(self, user_id: str, goal_id: str, current_value: float) -> bool:
         """更新目标进度"""
-        if not self.collection:
+        if self.collection is None:
             return False
         try:
             goal = self.get_by_id(user_id, goal_id)
@@ -563,7 +606,7 @@ class ActivityGoal:
             status = "completed" if completion_rate >= 100 else goal.get("status", "active")
 
             result = self.collection.update_one(
-                {"_id": ObjectId(goal_id), "user_id": ObjectId(user_id)},
+                {"_id": ObjectId(goal_id), "user_id": _user_id_query(user_id)},
                 {"$set": {
                     "current_value": current_value,
                     "completion_rate": completion_rate,

@@ -18,17 +18,29 @@ from typing import Dict, Any, List
 from bson import ObjectId
 
 from .mongodb_models import (
+    build_personal_activity_user_id_query,
     get_activity_category,
     get_activity_goal,
     get_activity_record,
     get_personal_activity_models,
 )
+from users.utils import get_mongo_user_from_django
 from .serializers import (
     ActivityRecordSerializer, ActivityCategorySerializer, ActivityGoalSerializer,
     ActivityFilterSerializer, BatchOperationSerializer
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _resolved_personal_activity_user_id(request):
+    """
+    统一使用 Mongo 用户 ID，避免把 Django UUID 误当成 ObjectId 写入个人活动集合。
+    """
+    mongo_user = get_mongo_user_from_django(request.user)
+    if mongo_user and getattr(mongo_user, 'id', None):
+        return str(mongo_user.id)
+    return str(request.user.id)
 
 
 def _activity_record_service():
@@ -50,7 +62,7 @@ def _personal_activity_models_service():
 @permission_classes([IsAuthenticated])
 def activity_list_view(request):
     """活动列表视图 - 获取活动列表或创建新活动"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取查询参数
@@ -112,7 +124,7 @@ def activity_list_view(request):
 @permission_classes([IsAuthenticated])
 def activity_detail_view(request, activity_id):
     """活动详情视图 - 获取、更新或删除特定活动"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取活动详情
@@ -170,7 +182,7 @@ def activity_detail_view(request, activity_id):
 @permission_classes([IsAuthenticated])
 def activity_status_view(request, activity_id):
     """更新活动状态"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
     new_status = request.data.get('status')
 
     if not new_status:
@@ -206,7 +218,7 @@ def activity_status_view(request, activity_id):
 @permission_classes([IsAuthenticated])
 def activity_progress_view(request, activity_id):
     """更新活动进度"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
     progress = request.data.get('progress')
 
     if progress is None:
@@ -250,7 +262,7 @@ def activity_progress_view(request, activity_id):
 @permission_classes([IsAuthenticated])
 def dashboard_view(request):
     """获取仪表板数据"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     try:
         # 获取今日活动统计
@@ -318,7 +330,7 @@ def dashboard_view(request):
 @permission_classes([IsAuthenticated])
 def search_activities_view(request):
     """搜索活动"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
     query = request.GET.get('q', '').strip()
 
     if not query:
@@ -334,7 +346,7 @@ def search_activities_view(request):
 
             # 构建搜索查询
             search_query = {
-                'user_id': ObjectId(user_id),
+                'user_id': build_personal_activity_user_id_query(user_id),
                 'deleted_at': None,
                 '$or': [
                     {'title': {'$regex': query, '$options': 'i'}},
@@ -377,7 +389,7 @@ def search_activities_view(request):
 @permission_classes([IsAuthenticated])
 def batch_operation_view(request):
     """批量操作活动"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     serializer = BatchOperationSerializer(data=request.data)
     if not serializer.is_valid():
@@ -448,7 +460,7 @@ def batch_operation_view(request):
 @permission_classes([IsAuthenticated])
 def category_list_view(request):
     """分类列表视图 - 获取分类列表或创建新分类"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取用户的所有分类
@@ -491,7 +503,7 @@ def category_list_view(request):
 @permission_classes([IsAuthenticated])
 def category_detail_view(request, category_id):
     """分类详情视图 - 获取、更新或删除特定分类"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取分类详情
@@ -548,7 +560,7 @@ def category_detail_view(request, category_id):
 @permission_classes([IsAuthenticated])
 def category_tree_view(request):
     """分类树视图 - 获取层级结构的分类树"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     try:
         categories = _activity_category_service().get_user_categories(user_id)
@@ -587,7 +599,7 @@ def category_tree_view(request):
 @permission_classes([IsAuthenticated])
 def goal_list_view(request):
     """目标列表视图 - 获取目标列表或创建新目标"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取查询参数
@@ -628,7 +640,7 @@ def goal_list_view(request):
 @permission_classes([IsAuthenticated])
 def goal_detail_view(request, goal_id):
     """目标详情视图 - 获取、更新或删除特定目标"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if request.method == 'GET':
         # 获取目标详情
@@ -686,7 +698,7 @@ def goal_detail_view(request, goal_id):
 @permission_classes([IsAuthenticated])
 def analytics_reports_view(request):
     """分析报告视图 - 生成和获取分析报告"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     try:
         # 获取查询参数
@@ -781,7 +793,7 @@ def analytics_reports_view(request):
 @permission_classes([IsAuthenticated])
 def analytics_insights_view(request):
     """智能洞察视图 - 基于数据生成智能建议"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     try:
         # 获取最近30天的活动数据
@@ -869,7 +881,7 @@ def analytics_insights_view(request):
 @permission_classes([IsAuthenticated])
 def analytics_trends_view(request):
     """趋势分析视图 - 分析活动数据的时间趋势"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     try:
         # 获取查询参数
@@ -948,7 +960,7 @@ from django.conf import settings
 @permission_classes([IsAuthenticated])
 def export_data_view(request):
     """数据导出视图 - 导出活动数据为JSON或CSV格式"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
     export_format = request.GET.get('format', 'json').lower()
 
     try:
@@ -994,7 +1006,7 @@ def export_data_view(request):
 @permission_classes([IsAuthenticated])
 def import_data_view(request):
     """数据导入视图 - 从JSON文件导入活动数据"""
-    user_id = str(request.user.id)
+    user_id = _resolved_personal_activity_user_id(request)
 
     if 'file' not in request.FILES:
         return Response({'success': False, 'message': '没有提供文件'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1069,7 +1081,7 @@ def upload_image_view(request):
         unique_filename = f"{uuid.uuid4()}{file_extension}"
 
         # 创建用户专属目录
-        user_id = str(request.user.id)
+        user_id = _resolved_personal_activity_user_id(request)
         upload_path = f"personal_activity/{user_id}/images/{unique_filename}"
 
         # 保存原始图片
@@ -1126,7 +1138,7 @@ def upload_image_view(request):
 def delete_image_view(request, filename):
     """删除图片视图"""
     try:
-        user_id = str(request.user.id)
+        user_id = _resolved_personal_activity_user_id(request)
 
         # 构建文件路径
         image_path = f"personal_activity/{user_id}/images/{filename}"

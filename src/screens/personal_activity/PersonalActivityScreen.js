@@ -17,6 +17,7 @@ import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import { useFocusEffect } from '@react-navigation/native';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 
 // 导入子组件
@@ -140,7 +141,13 @@ const PersonalActivityScreen = ({ navigation }) => {
     return (
       <View>
         <View style={[styles.topBar, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) }]}>
-          <Text variant="h2" style={{ color: colors.text }}>零屿空间</Text>
+          <ScreenHeaderBackButton
+            onPress={() => navigation.goBack()}
+            testID="action.personalActivity.back"
+            style={styles.topBackButton}
+          />
+          <Text variant="h2" style={[styles.topTitle, { color: colors.text }]}>零屿空间</Text>
+          <View style={styles.topPlaceholder} />
         </View>
         <View style={[styles.hero, { backgroundColor: colors.card }]}>
           <Animated.View style={[styles.animatedBg, { transform: [{ rotate }], opacity }]}>
@@ -216,10 +223,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 10,
+  },
+  topBackButton: {
+    flexShrink: 0,
+  },
+  topTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 12,
+  },
+  topPlaceholder: {
+    width: 40,
+    height: 40,
   },
   hero: {
-    height: 220, // Increased height
+    height: 176,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -242,9 +261,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   managementPanel: {
-    marginTop: 14,
+    marginTop: 10,
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 4,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingTop: 14,
