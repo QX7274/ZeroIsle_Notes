@@ -2743,3 +2743,85 @@
   - 合理留白；
   - 项目内统一网络弹层；
   - 资源释放动作。
+
+## 31. round385：RedBox 供包根因定位与 Metro 扫描收紧（2026-06-09）
+
+### 31.1 本轮目标
+- 承接上一轮边界，优先恢复平板可测试业务前台；
+- 不测试登录/注册，不执行 `adb uninstall`，避免清除已有账号状态；
+- 若无法恢复前台，必须写实记录阻塞点，并释放本轮构建/供包进程。
+
+### 31.2 真机现场
+- 当前前台：
+  - `com.zeroisle_notes/.MainActivity`
+- UI 证据：
+  - `tmp_round385_current_ui.xml`
+- 结论：
+  - 页面为 React Native RedBox；
+  - 文案为 `Could not connect to development server`；
+  - 请求地址为 `http://localhost:8081/index.bundle?...`；
+  - 因此当前不是业务页面，也不是后端 REST 网络错误。
+
+### 31.3 并行审查结论
+- explorer：稳定装包路径
+  - Android 包名：`com.zeroisle_notes`；
+  - debug APK 不含 JS bundle，依赖 Metro；
+  - release 使用 debug keystore 签名，理论上 `assembleRelease / installRelease` 可保留数据并绕开 Metro；
+  - 不应执行 `adb uninstall`，否则可能清除登录态。
+- explorer：网络配置
+  - 当前 `API_URL` 默认 `http://127.0.0.1:8001`；
+  - ADB reverse 场景与未部署生产域名口径一致；
+  - 热点直连仍需额外验证 env 注入与路由；
+  - 本轮 RedBox 与 `8081` 供包有关，不应误判为 `8001` 后端不可达。
+
+### 31.4 构建与供包尝试
+- `:app:assembleRelease`
+  - 运行超过 15 分钟未产出 `android/app/build/outputs/apk/release/app-release.apk`；
+  - 本轮已停止残留 Gradle 进程，避免继续占用资源。
+- RN CLI bundle：
+  - 命令：`node node_modules/react-native/cli.js bundle --platform android --dev false ...`
+  - 结果：`Failed to start watch mode`。
+- Metro build：
+  - 直接 `node node_modules/metro/src/cli.js build ...` 也长时间无产物；
+  - `CI=true` 后台 bundle 同样未在可接受时间内产生日志或 bundle；
+  - 本轮已停止残留 Metro/bundle/诊断 Node 进程。
+
+### 31.5 本轮最小修复
+- 修改 `metro.config.js`：
+  - 继续保留 `src` 可解析；
+  - 额外排除 `.codex-tmp`、`.cursor`、`.github`；
+  - 排除 `android / ios / e2e / electron / patches / plans` 等移动端 JS 供包无关目录；
+  - 排除根目录历史截图、XML、log 证据文件；
+  - 目标是减少 Metro FileMap crawl/watch 的输入规模。
+- 配置探针：
+  - `src/App.js` 未被 blockList 命中；
+  - `android`、`plans`、`e2e`、`docs`、根目录 `tmp_round385_current_ui.xml` 均被 blockList 命中。
+
+### 31.6 本轮边界
+- 仍未恢复：
+  - 业务前台；
+  - release APK；
+  - 可安装的离线 bundle 包。
+- 本轮不能写为 PASS：
+  - 顶部安全区；
+  - 统一淡蓝返回按钮；
+  - 页面留白；
+  - 统一网络弹层；
+  - 各功能模块使用闭环。
+- 当前已确认：
+  - 前台阻塞来自 debug 包无内置 JS 与 Metro/FileMap 供包问题；
+  - 电脑端业务后端 `8001` 仍可返回 `alive`；
+  - 网络问题不应继续笼统归因于生产域名未部署。
+
+### 31.7 下一轮计划
+- 优先继续 Metro/FileMap 根因：
+  - 尝试专用 bundle config 或更窄 `projectRoot`；
+  - 先让 JS bundle 产出；
+  - 再生成 release APK 或内置 bundle debug 包；
+  - 最后恢复平板业务前台。
+- 恢复前台后继续：
+  - 逐页检查顶部不被状态栏遮挡；
+  - 统一淡蓝返回按钮；
+  - 合理留白；
+  - 项目内统一网络弹层；
+  - 不触碰登录/注册，保留已有账号状态。

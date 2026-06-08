@@ -16,7 +16,10 @@ const rootPattern = name => {
 };
 const excludedRoots = [
   '.bundle',
+  '.codex-tmp',
+  '.cursor',
   '.git',
+  '.github',
   '.gradle-run2',
   '.gradle-user',
   '.idea',
@@ -28,15 +31,21 @@ const excludedRoots = [
   '.venv',
   '.vscode',
   'admin_system',
+  'android',
   'archive',
   'backend',
   'backups',
   'data',
   'docs',
+  'e2e',
+  'electron',
   'Info',
+  'ios',
   'module-status',
   'nginx',
   'optimization-docs',
+  'patches',
+  'plans',
   'tmp',
   'web',
   'zeroislenotes_local.realm.management',
@@ -45,6 +54,7 @@ const excludedRoots = [
 ];
 const excludedRootPatterns = excludedRoots.map(rootPattern);
 const excludedFilePatterns = [
+  String.raw`.*[\\/]${projectRootName}[\\/][^\\/]+\.(?:png|jpe?g|xml|log)$`,
   String.raw`.*[\\/](?:tmp_|dump_).*\.(?:png|jpe?g|xml|log)$`,
   String.raw`.*[\\/]community_followup\.(?:png|xml)$`,
   String.raw`.*[\\/]current_followup\.(?:png|xml)$`,
