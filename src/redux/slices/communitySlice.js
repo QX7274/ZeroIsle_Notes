@@ -8,8 +8,27 @@ import communityApi from '../../services/api/communityApi';
 const resolveCommunityErrorMessage = (error, fallbackMessage) => {
   const responseData = error?.response?.data;
   const responseStatus = error?.response?.status;
+  const devErrorSignals = ['Traceback (most recent call last)', 'ImportError at ', 'Exception Type:', '<!DOCTYPE html', '<html'];
+
+  const shouldMaskDevErrorPayload = (value) => {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    const normalized = value.trim();
+    if (!normalized) {
+      return false;
+    }
+
+    return devErrorSignals.some(signal => normalized.includes(signal));
+  };
 
   if (typeof responseData === 'string' && responseData.trim()) {
+    if (shouldMaskDevErrorPayload(responseData)) {
+      return responseStatus >= 500
+        ? '社区服务暂时不可用，请稍后刷新重试'
+        : fallbackMessage;
+    }
     return responseData.trim();
   }
 
@@ -22,6 +41,11 @@ const resolveCommunityErrorMessage = (error, fallbackMessage) => {
       || responseData.content?.[0];
 
     if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      if (shouldMaskDevErrorPayload(nestedMessage)) {
+        return responseStatus >= 500
+          ? '社区服务暂时不可用，请稍后刷新重试'
+          : fallbackMessage;
+      }
       return nestedMessage.trim();
     }
   }

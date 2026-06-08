@@ -92,9 +92,13 @@ const DEV_SUPPRESSED_LOG_PREFIXES = [
   'API基础URL构建过程:',
   '后端API路径示例:',
   'API_BASE_URL:',
+  'SplashScreen 超时未完成，触发初始化兜底放行',
+  'SplashScreen 兜底初始化失败:',
   '创建通知渠道超时，但应用将继续运行',
   '通知渠道创建超时，已创建',
   'NotificationProvider: 通知服务延后初始化失败（已捕获，不阻塞应用）:',
+  'PersistBootstrapGate: 持久化恢复超过',
+  'PersistBootstrapGate: 当前以降级模式继续启动',
 ];
 
 const shouldSuppressDevConsoleMessage = (args = []) => {
@@ -143,6 +147,9 @@ if (__DEV__ && !global.__ZEROISLE_DEV_CONSOLE_FILTER_INSTALLED__) {
 LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
   'ColorPropType will be removed',
+  'SplashScreen 超时未完成，触发初始化兜底放行',
+  'PersistBootstrapGate: 持久化恢复超过',
+  'PersistBootstrapGate: 当前以降级模式继续启动',
 ]);
 
 // 默认主题

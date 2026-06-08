@@ -3,7 +3,8 @@
 """
 
 from functools import lru_cache
-from ..mongodb_models import Post, GroupMember
+from ..mongodb_models import Post
+from groups.mongodb_models import GroupMember
 
 class CommunityPermissionService:
     """
