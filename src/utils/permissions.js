@@ -90,7 +90,7 @@ export const requestNotificationPermission = async (timeout = 5000) => {
     // 创建一个超时Promise
     const timeoutPromise = new Promise((resolve) => {
       setTimeout(() => {
-        console.warn(`通知权限请求超时(${timeout}ms)`);
+        console.log(`通知权限请求超时(${timeout}ms)，按非阻塞降级继续运行`);
         resolve(true); // 超时时默认返回true，避免阻塞应用
       }, timeout);
     });

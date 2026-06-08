@@ -4,6 +4,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, Card, Skeleton } from '../../components/common';
+import { showToast } from '../../components/common/ToastHelper';
 import { UnifiedSearchBar } from '../../components/search';
 import { fetchPostDetail, fetchPosts, likePost, toggleBookmark } from '../../redux/slices/communitySlice';
 import networkService from '../../services/network/networkService';
@@ -41,6 +43,27 @@ const CATEGORY_OPTIONS = [
   { key: 'knowledge_graph', label: '知识图谱' },
 ];
 const DEV_COMMUNITY_QA_USER_ID = '1';
+const resolveInlineCommunityError = (message) => {
+  const normalized = String(message || '').trim();
+
+  if (!normalized) {
+    return '社区内容加载失败，请稍后刷新重试';
+  }
+
+  if (normalized === 'Request failed with status code 500') {
+    return '社区服务暂时不可用，请稍后刷新重试';
+  }
+
+  if (normalized === 'Request failed with status code 404') {
+    return '社区内容暂未找到，请稍后刷新重试';
+  }
+
+  if (normalized === 'Request failed with status code 429') {
+    return '社区请求过于频繁，请稍后再试';
+  }
+
+  return normalized;
+};
 
 const CommunityScreen = ({ navigation }) => {
   let palette = FALLBACK_THEME;
@@ -130,7 +153,12 @@ const CommunityScreen = ({ navigation }) => {
           })
         ).unwrap();
       } catch (requestError) {
-        console.warn('CommunityScreen load failed:', requestError?.message || requestError);
+        const errorMessage = resolveInlineCommunityError(requestError);
+        if (targetPage === 1) {
+          showToast.error(errorMessage);
+        } else {
+          setLoadMoreError(errorMessage);
+        }
       } finally {
         requestInFlightRef.current = false;
       }
@@ -626,6 +654,8 @@ const CommunityScreen = ({ navigation }) => {
   );
 
   const pageState = isLoading && posts.length === 0 ? 'loading' : error ? 'error' : posts.length === 0 ? 'empty' : 'ready';
+  const topInsetSpacing = Platform.OS === 'android' ? 8 : Math.max(insets.top, 12);
+  const shouldShowInlineError = Boolean(error) && posts.length === 0;
 
   return (
     <>
@@ -634,7 +664,7 @@ const CommunityScreen = ({ navigation }) => {
           styles.container,
           {
             backgroundColor: palette.background,
-            paddingTop: Math.max(insets.top, 12),
+            paddingTop: topInsetSpacing,
             paddingBottom: Math.max(insets.bottom, SPACING.SMALL),
           },
         ]}
@@ -683,6 +713,16 @@ const CommunityScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {shouldShowInlineError ? (
+          <View style={styles.errorBanner} testID="state.community.errorBanner">
+            <Icon name="cloud-off" size={16} color="#B91C1C" />
+            <Text style={styles.errorBannerText}>{resolveInlineCommunityError(error)}</Text>
+            <TouchableOpacity onPress={handleRefresh} disabled={interactionBusy} testID="action.community.retryInlineError">
+              <Text style={styles.loadMoreRetryText}>刷新</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.searchContainer}>
           <UnifiedSearchBar
@@ -827,8 +867,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.LARGE,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 2,
+    paddingBottom: 8,
     backgroundColor: 'rgba(255,255,255,0.88)',
     borderBottomWidth: 1,
     borderBottomColor: '#DDEAF7',
@@ -857,9 +897,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchContainer: { paddingHorizontal: SPACING.MEDIUM, marginTop: 0, marginBottom: SPACING.SMALL },
+  searchContainer: { paddingHorizontal: SPACING.MEDIUM, marginTop: 2, marginBottom: 8 },
   categoryWrap: {
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
     paddingHorizontal: SPACING.MEDIUM,
     backgroundColor: 'rgba(255,255,255,0.84)',
     borderTopWidth: 1,
@@ -893,7 +934,7 @@ const styles = StyleSheet.create({
   listContainer: { padding: SPACING.MEDIUM, paddingBottom: SPACING.XLARGE + 24 },
   emptyListContainer: {
     paddingHorizontal: SPACING.MEDIUM,
-    paddingTop: SPACING.LARGE,
+    paddingTop: SPACING.MEDIUM,
     paddingBottom: SPACING.XLARGE + 24,
   },
   postCard: {
@@ -953,10 +994,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 0,
     marginTop: 0,
-    minHeight: 420,
+    minHeight: 360,
     paddingHorizontal: SPACING.LARGE,
-    paddingTop: SPACING.XLARGE,
-    paddingBottom: SPACING.XLARGE,
+    paddingTop: SPACING.LARGE + 2,
+    paddingBottom: SPACING.LARGE + 6,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#D6E9FB',
@@ -977,7 +1018,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: SPACING.MEDIUM },
   devQaPanel: {
     width: '100%',
-    marginTop: SPACING.LARGE,
+    marginTop: SPACING.MEDIUM,
     paddingHorizontal: SPACING.LARGE,
     paddingTop: SPACING.LARGE,
     paddingBottom: SPACING.LARGE,

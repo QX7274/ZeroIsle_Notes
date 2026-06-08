@@ -38,6 +38,18 @@ const resolveCommunityErrorMessage = (error, fallbackMessage) => {
     return '提交内容未通过校验，请检查标题、正文、分类、标签或附件后重试';
   }
 
+  if (responseStatus === 404) {
+    return '社区内容暂未找到，请稍后刷新重试';
+  }
+
+  if (responseStatus === 429) {
+    return '社区请求过于频繁，请稍后再试';
+  }
+
+  if (responseStatus >= 500) {
+    return '社区服务暂时不可用，请稍后刷新重试';
+  }
+
   if (typeof error?.message === 'string' && error.message.trim() && error.message !== 'Rejected') {
     return error.message.trim();
   }
@@ -108,7 +120,7 @@ export const fetchPosts = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取社区帖子失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取社区帖子失败'));
     }
   }
 );
@@ -144,7 +156,7 @@ export const fetchPostDetail = createAsyncThunk(
       };
       return detail;
     } catch (error) {
-      return rejectWithValue(error.message || '获取帖子详情失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取帖子详情失败'));
     }
   }
 );
@@ -187,7 +199,7 @@ export const fetchComments = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取评论失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取评论失败'));
     }
   }
 );
@@ -370,7 +382,7 @@ export const fetchFollowers = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取关注者失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取关注者失败'));
     }
   }
 );
@@ -410,7 +422,7 @@ export const fetchFollowing = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取关注列表失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取关注列表失败'));
     }
   }
 );
@@ -450,7 +462,7 @@ export const fetchNotifications = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取通知失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取通知失败'));
     }
   }
 );
@@ -522,7 +534,7 @@ export const fetchActivity = createAsyncThunk(
         },
       };
     } catch (error) {
-      return rejectWithValue(error.message || '获取活动流失败');
+      return rejectWithValue(resolveCommunityErrorMessage(error, '获取活动流失败'));
     }
   }
 );
