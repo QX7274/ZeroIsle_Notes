@@ -1015,3 +1015,24 @@
 - 本轮未扩大布局变动：
   - 不对已成熟区块做视觉翻新
   - 不制造新的异常留白
+
+### 14.7 真机补证（2026-06-08）
+- 联通基线复核：
+  - 平板 `HGR3Y9MA` 在线
+  - `adb reverse --list` 继续保持：
+    - `tcp:8001 tcp:8001`
+    - `tcp:8081 tcp:8081`
+  - `http://127.0.0.1:8001/health/` 返回正常
+  - `http://127.0.0.1:8081/status` 返回 `packager-status:running`
+- 现场证据：
+  - `.local/android-mcp-server/round362_postdetail_total_aligned.xml`
+  - `.local/android-mcp-server/round362_current.png`
+- 真机命中：
+  - `screen.community.postDetail`
+  - `action.community.postDetail.back`
+  - 标题区 `评论 (14)`
+  - 顶部统计评论数 `14`
+- 本次补证说明：
+  - round362 的代码修补已经真实落到平板现场
+  - 帖子详情标题与顶部统计区都已回到与社区卡片一致的帖子总评论数口径
+  - 这一步已经不再停留在代码与单测层，而是补成了真实前台证据
