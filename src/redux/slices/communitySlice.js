@@ -220,9 +220,11 @@ export const fetchComments = createAsyncThunk(
 
         if (replies.length === 0 && (c.reply_count ?? 0) > 0) {
           try {
+            const expectedReplyCount = Number(c.reply_count ?? 0);
             const replyResponse = await communityApi.getCommentReplies(c.id, {
               page: 1,
-              page_size: 5,
+              // 拉满当前已知回复数，避免前台把固定 5 条误判成完整列表
+              page_size: Math.max(5, Math.min(expectedReplyCount || 5, 50)),
             });
             const replyResults = replyResponse.data?.results || replyResponse.data?.data?.results || [];
             replies = replyResults.map(mapReply);
