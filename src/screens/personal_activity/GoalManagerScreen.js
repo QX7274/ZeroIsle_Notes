@@ -341,15 +341,21 @@ const GoalManagerScreen = ({ navigation }) => {
       </View>
 
       {/* 目标列表 */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {goals.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="flag" size={64} color={colors.text + '40'} />
-            <Text style={[styles.emptyText, { color: colors.text + '60' }]}>
+          <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: `${colors.primary}20` }]}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: `${colors.primary}12` }]}>
+              <Icon name="flag" size={34} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyText, { color: colors.text }]}>
               还没有设置目标
             </Text>
-            <Text style={[styles.emptySubtext, { color: colors.text + '40' }]}>
-              点击右上角的 + 号创建第一个目标
+            <Text style={[styles.emptySubtext, { color: colors.text + '80' }]}>
+              点击右上角的 + 号创建第一个目标，列表会在这里集中展示进度与周期。
             </Text>
           </View>
         ) : (
@@ -475,23 +481,25 @@ const GoalManagerScreen = ({ navigation }) => {
                 </Text>
               </View>
             ) : null}
-            <View style={styles.formGroup}>
-              <Text variant="body" style={styles.formLabel}>标题 *</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
-                value={formData.title}
-                onChangeText={(text) => {
-                  if (formStatus?.type === 'warning' || formStatus?.type === 'error') {
-                    clearFormStatus();
-                  }
-                  setFormData({ ...formData, title: text });
-                }}
-                placeholder="输入目标标题"
-                placeholderTextColor={colors.text + '60'}
-              />
+            <View style={styles.formSection}>
+              <View style={styles.formGroup}>
+                <Text variant="body" style={styles.formLabel}>标题 *</Text>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                  value={formData.title}
+                  onChangeText={(text) => {
+                    if (formStatus?.type === 'warning' || formStatus?.type === 'error') {
+                      clearFormStatus();
+                    }
+                    setFormData({ ...formData, title: text });
+                  }}
+                  placeholder="输入目标标题"
+                  placeholderTextColor={colors.text + '60'}
+                />
+              </View>
             </View>
 
-            <View style={styles.formGroup}>
+            <View style={styles.formSection}>
               <Text variant="body" style={styles.formLabel}>类型</Text>
               <View style={styles.typeSelector}>
                 {goalTypes.map(type => (
@@ -523,65 +531,71 @@ const GoalManagerScreen = ({ navigation }) => {
             </View>
 
             {(formData.type === 'quantitative' || formData.type === 'habit') && (
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 2 }]}>
-                  <Text variant="body" style={styles.formLabel}>目标值</Text>
-                  <TextInput
-                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
-                    value={formData.target_value}
-                    onChangeText={(text) => setFormData({ ...formData, target_value: text })}
-                    placeholder="输入目标数值"
-                    placeholderTextColor={colors.text + '60'}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
-                  <Text variant="body" style={styles.formLabel}>单位</Text>
-                  <TextInput
-                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
-                    value={formData.unit}
-                    onChangeText={(text) => setFormData({ ...formData, unit: text })}
-                    placeholder="单位"
-                    placeholderTextColor={colors.text + '60'}
-                  />
+              <View style={styles.formSection}>
+                <View style={styles.formRow}>
+                  <View style={[styles.formGroup, { flex: 2 }]}>
+                    <Text variant="body" style={styles.formLabel}>目标值</Text>
+                    <TextInput
+                      style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                      value={formData.target_value}
+                      onChangeText={(text) => setFormData({ ...formData, target_value: text })}
+                      placeholder="输入目标数值"
+                      placeholderTextColor={colors.text + '60'}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
+                    <Text variant="body" style={styles.formLabel}>单位</Text>
+                    <TextInput
+                      style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                      value={formData.unit}
+                      onChangeText={(text) => setFormData({ ...formData, unit: text })}
+                      placeholder="单位"
+                      placeholderTextColor={colors.text + '60'}
+                    />
+                  </View>
                 </View>
               </View>
             )}
 
-            <View style={styles.formRow}>
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text variant="body" style={styles.formLabel}>开始日期</Text>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
-                  value={formData.start_date}
-                  onChangeText={(text) => setFormData({ ...formData, start_date: text })}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.text + '60'}
-                />
-              </View>
-              <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text variant="body" style={styles.formLabel}>结束日期</Text>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
-                  value={formData.end_date}
-                  onChangeText={(text) => setFormData({ ...formData, end_date: text })}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.text + '60'}
-                />
+            <View style={styles.formSection}>
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text variant="body" style={styles.formLabel}>开始日期</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                    value={formData.start_date}
+                    onChangeText={(text) => setFormData({ ...formData, start_date: text })}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.text + '60'}
+                  />
+                </View>
+                <View style={[styles.formGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text variant="body" style={styles.formLabel}>结束日期</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.card, color: colors.text }]}
+                    value={formData.end_date}
+                    onChangeText={(text) => setFormData({ ...formData, end_date: text })}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.text + '60'}
+                  />
+                </View>
               </View>
             </View>
 
-            <View style={styles.formGroup}>
-              <Text variant="body" style={styles.formLabel}>描述</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea, { backgroundColor: colors.card, color: colors.text }]}
-                value={formData.description}
-                onChangeText={(text) => setFormData({ ...formData, description: text })}
-                placeholder="输入目标描述"
-                placeholderTextColor={colors.text + '60'}
-                multiline
-                numberOfLines={3}
-              />
+            <View style={styles.formSection}>
+              <View style={[styles.formGroup, styles.formGroupCompact]}>
+                <Text variant="body" style={styles.formLabel}>描述</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea, { backgroundColor: colors.card, color: colors.text }]}
+                  value={formData.description}
+                  onChangeText={(text) => setFormData({ ...formData, description: text })}
+                  placeholder="输入目标描述"
+                  placeholderTextColor={colors.text + '60'}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -664,36 +678,53 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
+  contentContainer: {
+    paddingTop: 6,
+    paddingBottom: 18,
+  },
   goalList: {
-    paddingTop: 12,
-    paddingBottom: 36,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   emptyState: {
-    minHeight: 420,
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
-    paddingVertical: 48,
+    paddingVertical: 28,
+  },
+  emptyIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     fontSize: 18,
-    marginTop: 16,
+    fontWeight: '700',
+    marginTop: 14,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 420,
   },
   goalItem: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 10,
   },
   goalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   goalTitle: {
     flex: 1,
@@ -709,15 +740,15 @@ const styles = StyleSheet.create({
   },
   goalDescription: {
     opacity: 0.7,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   goalProgress: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   progressInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   progressText: {
     fontSize: 12,
@@ -727,18 +758,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   progressBar: {
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 999,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 999,
   },
   goalTarget: {
     fontSize: 12,
     opacity: 0.8,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   goalDates: {
     fontSize: 12,
@@ -796,15 +827,15 @@ const styles = StyleSheet.create({
   },
   modalContentContainer: {
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 36,
+    paddingTop: 14,
+    paddingBottom: 18,
   },
   modalIntroCard: {
     borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    marginBottom: 16,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
   },
   modalIntroTitle: {
     fontSize: 17,
@@ -885,7 +916,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: 14,
+  },
+  formGroupCompact: {
+    marginBottom: 0,
+  },
+  formSection: {
+    marginBottom: 10,
   },
   formStatusCard: {
     flexDirection: 'row',
@@ -907,30 +944,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   formLabel: {
-    marginBottom: 8,
+    marginBottom: 6,
     fontWeight: '500',
   },
   textInput: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
   },
   textArea: {
-    height: 80,
+    minHeight: 66,
     textAlignVertical: 'top',
   },
   typeSelector: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   typeOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
     minWidth: '48%',
   },
   typeText: {
