@@ -149,13 +149,16 @@ export const toggleFollow = async (userId) => {
  * @param {object} params - 查询参数
  * @returns {Promise} - 关注者列表
  */
-export const getUserFollowers = async (userId, params = {}) => {
+export const getUserFollowers = async (userId, params = {}, requestOptions = {}) => {
   try {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWERS(userId), {
       params: {
         ...params,
         content_type: 'User',
         object_id: userId,
+      },
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
       },
     });
     return {
@@ -173,12 +176,15 @@ export const getUserFollowers = async (userId, params = {}) => {
  * @param {object} params - 查询参数
  * @returns {Promise} - 关注列表
  */
-export const getUserFollowing = async (userId, params = {}) => {
+export const getUserFollowing = async (userId, params = {}, requestOptions = {}) => {
   try {
     const response = await instance.get(API_ENDPOINTS.COMMUNITY.FOLLOWING(userId), {
       params: {
         ...params,
         user_id: userId,
+      },
+      metadata: {
+        suppressGlobalErrorUI: Boolean(requestOptions.suppressGlobalErrorUI),
       },
     });
     return {

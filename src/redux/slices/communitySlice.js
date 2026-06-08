@@ -379,6 +379,8 @@ export const fetchFollowers = createAsyncThunk(
       const response = await communityApi.getUserFollowers(userId, {
         page,
         page_size: pageSize,
+      }, {
+        suppressGlobalErrorUI: true,
       });
 
       if (!response.success) {
@@ -419,6 +421,8 @@ export const fetchFollowing = createAsyncThunk(
       const response = await communityApi.getUserFollowing(userId, {
         page,
         page_size: pageSize,
+      }, {
+        suppressGlobalErrorUI: true,
       });
 
       if (!response.success) {

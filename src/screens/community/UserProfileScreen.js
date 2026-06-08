@@ -118,9 +118,9 @@ const UserProfileScreen = ({ navigation, route }) => {
 
     try {
       const [followersResult, followingResult, postsResult] = await Promise.allSettled([
-        communityApi.getUserFollowers(targetUserId, { page: 1, page_size: 1 }),
-        communityApi.getUserFollowing(targetUserId, { page: 1, page_size: 1 }),
-        communityApi.getPosts({ page: 1, page_size: 3, user: targetUserId }),
+        communityApi.getUserFollowers(targetUserId, { page: 1, page_size: 1 }, { suppressGlobalErrorUI: true }),
+        communityApi.getUserFollowing(targetUserId, { page: 1, page_size: 1 }, { suppressGlobalErrorUI: true }),
+        communityApi.getPosts({ page: 1, page_size: 3, user: targetUserId }, { suppressGlobalErrorUI: true }),
       ]);
 
       setProfileUser((current) => ({

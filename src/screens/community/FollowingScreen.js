@@ -84,13 +84,46 @@ const FollowingScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleFollowingPress = (item) => {
+    if (!item) {
+      return;
+    }
+
+    if (item.contentType === 'user' && item.targetId) {
+      navigation?.navigate?.('UserProfile', {
+        userId: item.targetId,
+        initialUser: {
+          id: item.targetId,
+          username: `用户 ${item.targetId}`,
+          nickname: `用户 ${item.targetId}`,
+        },
+      });
+      return;
+    }
+
+    if (item.contentType === 'post' && item.targetId) {
+      navigation?.navigate?.('PostDetail', {
+        postId: item.targetId,
+        title: '帖子详情',
+      });
+      return;
+    }
+
+    if (item.contentType === 'tag' && item.targetId) {
+      navigation?.navigate?.('Community', { tag: item.targetId });
+      return;
+    }
+
+    navigation?.navigate?.('Community');
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={[
         styles.itemCard,
         { borderColor: `${theme.colors?.primary || '#2196F3'}24` },
       ]}
-      onPress={() => navigation?.navigate?.('Community')}
+      onPress={() => handleFollowingPress(item)}
       testID={`item.community.following.${item.id}`}
     >
       <View style={styles.itemHead}>
