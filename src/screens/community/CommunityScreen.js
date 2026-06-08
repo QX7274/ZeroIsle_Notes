@@ -87,6 +87,7 @@ const CommunityScreen = ({ navigation }) => {
 
   const dispatch = useDispatch();
   const requestInFlightRef = useRef(false);
+  const [requestInFlight, setRequestInFlight] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
@@ -103,7 +104,7 @@ const CommunityScreen = ({ navigation }) => {
   const { posts, isLoading, error, pagination, likedPosts, bookmarkedPosts } = useSelector((state) => state.community);
   const currentUser = useSelector((state) => state.auth?.user);
   const hasMore = pagination.page < pagination.totalPages;
-  const interactionBusy = isLoading || refreshing || requestInFlightRef.current;
+  const interactionBusy = isLoading || refreshing || requestInFlight;
   const currentCategoryLabel = CATEGORY_OPTIONS.find((i) => i.key === activeCategory)?.label || '全部';
 
   const resetTransient = useCallback(() => {
@@ -125,16 +126,30 @@ const CommunityScreen = ({ navigation }) => {
     });
   }, []);
 
+  const beginRequestLock = useCallback(() => {
+    if (requestInFlightRef.current) {
+      return false;
+    }
+
+    requestInFlightRef.current = true;
+    setRequestInFlight(true);
+    return true;
+  }, []);
+
+  const releaseRequestLock = useCallback(() => {
+    requestInFlightRef.current = false;
+    setRequestInFlight(false);
+  }, []);
+
   const loadPosts = useCallback(
     async (targetPage = 1, categoryOverride = undefined) => {
-      if (requestInFlightRef.current) {
+      if (!beginRequestLock()) {
         return;
       }
 
-      requestInFlightRef.current = true;
       const isOnline = await networkService.checkConnection();
       if (!isOnline) {
-        requestInFlightRef.current = false;
+        releaseRequestLock();
         return;
       }
 
@@ -160,10 +175,10 @@ const CommunityScreen = ({ navigation }) => {
           setLoadMoreError(errorMessage);
         }
       } finally {
-        requestInFlightRef.current = false;
+        releaseRequestLock();
       }
     },
-    [activeCategory, dispatch]
+    [activeCategory, beginRequestLock, dispatch, releaseRequestLock]
   );
 
   useEffect(() => {
@@ -174,13 +189,13 @@ const CommunityScreen = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       return () => {
-        requestInFlightRef.current = false;
+        releaseRequestLock();
         setRefreshing(false);
         setPage(1);
         setActionSource('');
         resetTransient();
       };
-    }, [resetTransient])
+    }, [releaseRequestLock, resetTransient])
   );
 
   const handleRefresh = useCallback(() => {
@@ -198,7 +213,9 @@ const CommunityScreen = ({ navigation }) => {
     if (interactionBusy || !hasMore) {
       return;
     }
-    requestInFlightRef.current = true;
+    if (!beginRequestLock()) {
+      return;
+    }
     setActionSource(loadMoreError ? 'retryLoadMore' : 'loadMore');
     const nextPage = page + 1;
     const category = activeCategory === 'all' ? undefined : activeCategory;
@@ -225,9 +242,9 @@ const CommunityScreen = ({ navigation }) => {
         setLoadMoreError(requestError?.message || '加载更多失败，请重试');
       })
       .finally(() => {
-        requestInFlightRef.current = false;
+        releaseRequestLock();
       });
-  }, [activeCategory, dispatch, hasMore, interactionBusy, loadMoreError, page]);
+  }, [activeCategory, beginRequestLock, dispatch, hasMore, interactionBusy, loadMoreError, page, releaseRequestLock]);
 
   const handleLike = useCallback(
     (postId) => {
