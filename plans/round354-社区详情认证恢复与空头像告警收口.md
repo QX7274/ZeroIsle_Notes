@@ -2543,3 +2543,84 @@
   - 合理留白；
   - 网络问题统一项目内弹层；
   - 多智能体协作发现的问题与修补边界。
+
+## 29. round382：离线预检分类补证、Metro/ADB 边界与资源收口（2026-06-08）
+
+### 29.1 本轮目标
+- 承接 round381 边界：
+  - 恢复 Metro / ADB / 后端联通；
+  - 补 `isOfflineError/offline` 预检分类的可控验证；
+  - 不把停后端的 axios 网络错误分支误写成离线预检真机验证。
+- 继续使用多智能体协作：
+  - 主线程负责环境、真机、文档与提交；
+  - 旁路 explorer 只读审查离线预检生成点和验证方式。
+
+### 29.2 环境恢复尝试与当前前台
+- 已确认：
+  - `src/services/networkErrorService.js` 已包含 `error?.isOfflineError === true || error?.offline === true`
+  - Node 端口探测显示 `8001/8081` 均可连接；
+  - `adb reverse` 恢复 `tcp:8001 / tcp:8081`；
+  - `http://127.0.0.1:8001/health/` 返回 `200`。
+- 真机拉起后证据：
+  - `tmp_round382_launch_screen.png`
+  - `tmp_round382_launch_ui.xml`
+- 现场问题：
+  - 前台是异常空白页面；
+  - 仅能看到顶部三个点与右侧笔形浮动按钮；
+  - 不是正常首页，也不是目标管理；
+  - 后续 ADB/UI dump/logcat 多次超时。
+- 结论：
+  - 本轮不能把真机离线预检回归写成通过；
+  - 下一轮必须先恢复正常应用前台，再继续真机闭环。
+
+### 29.3 多智能体旁路审查结论
+- 离线预检错误生成点：
+  - `apiClient` 请求发出前调用 `checkNetworkConnection()`;
+  - 该逻辑继续走 `networkService.checkConnection()` / NetInfo；
+  - 非 GET 离线请求会在请求拦截阶段抛出离线错误。
+- 错误标记传播：
+  - 初始离线错误带 `isOfflineError: true`；
+  - 响应拦截器归一后补齐：
+    - `isOfflineError = true`
+    - `offline = true`
+- 关键边界：
+  - 停后端只会验证 axios `Network Error` 分支；
+  - 不能替代离线预检；
+  - 更可控的验证应使用单元/集成 mock，让 `networkService.checkConnection()` 返回 `false`。
+
+### 29.4 本轮新增单元补证
+- 新增文件：
+  - `src/services/__tests__/networkErrorService.test.js`
+- 覆盖内容：
+  - `networkErrorService.isNetworkError({ isOfflineError: true }) === true`
+  - `networkErrorService.isNetworkError({ offline: true }) === true`
+  - 带 `response.status = 400` 的 HTTP 业务错误不被误判为纯网络错误。
+- 验证情况：
+  - 尝试执行 `npx jest src/services/__tests__/networkErrorService.test.js --runInBand`
+  - 当前环境 Jest 启动超时，未拿到通过结果；
+  - 已用 Node 静态验证确认测试文件与源码补丁均已落地。
+
+### 29.5 本轮可确认结论
+- 已确认：
+  - 离线预检分类补丁仍在源码中；
+  - 单元测试文件已补上离线标记和 HTTP 响应短路两个关键断言；
+  - 后端 `8001` 和 reverse 已恢复。
+- 不能确认：
+  - 真机离线预检路径已通过；
+  - 当前空白前台是否为 JS 加载中、页面漂移还是调试环境卡顿；
+  - Jest 用例已通过。
+- 风险：
+  - ADB/PowerShell/Jest 当前均出现过超时；
+  - 需要先释放资源、恢复稳定前台，再继续大范围真机操作。
+
+### 29.6 下一轮要求
+- 优先处理：
+  - 恢复应用正常首页或目标管理前台；
+  - 必要时重启 Metro 与 ADB server；
+  - 重新执行新增 `networkErrorService.test.js`；
+  - 再补 `isOfflineError/offline` 热更新或装包后的真机回归。
+- 文档继续写入：
+  - 资源释放与环境恢复动作；
+  - 顶部安全区和统一返回按钮是否回归；
+  - 统一网络弹层是否继续稳定；
+  - 多智能体旁路审查对验证方式的影响。
