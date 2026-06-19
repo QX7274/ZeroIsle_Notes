@@ -703,7 +703,7 @@ const CommunityScreen = ({ navigation }) => {
   );
 
   const pageState = isLoading && posts.length === 0 ? 'loading' : posts.length > 0 ? 'ready' : error ? 'error' : 'empty';
-  const topInsetSpacing = Platform.OS === 'android' ? 8 : Math.max(insets.top, 12);
+  const topInsetSpacing = Platform.OS === 'android' ? 0 : Math.max(insets.top, 12);
   const shouldShowInlineError = Boolean(error) && posts.length === 0;
 
   return (
@@ -916,8 +916,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.LARGE,
-    paddingTop: 2,
-    paddingBottom: 8,
+    paddingTop: 0,
+    paddingBottom: 10,
     backgroundColor: 'rgba(255,255,255,0.88)',
     borderBottomWidth: 1,
     borderBottomColor: '#DDEAF7',
@@ -937,16 +937,16 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', gap: 8 },
   headerButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#CAE0F6',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(33,150,243,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchContainer: { paddingHorizontal: SPACING.MEDIUM, marginTop: 2, marginBottom: 8 },
+  searchContainer: { paddingHorizontal: SPACING.MEDIUM, marginTop: 4, marginBottom: 8 },
   categoryWrap: {
     paddingTop: 8,
     paddingBottom: 10,
