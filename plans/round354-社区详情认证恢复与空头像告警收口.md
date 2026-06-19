@@ -2876,3 +2876,67 @@
   - 先让平板重新进入 `adb devices -l`；
   - 再续做 `reverse + device-side health + 前台验证`；
   - 之后再恢复功能测试、UI/UX 审查和代码修改。
+
+## 33. round387：ADB 与设备侧后端联通恢复，但 Metro bundle 仍卡住（2026-06-20）
+
+### 33.1 本轮目标
+- 承接平板重新进入 `adb devices -l` 的状态，优先恢复真实联通基线；
+- 先区分后端、ADB reverse、Metro 启动、bundle 返回四个层级，不再把问题混写成“网络错误”；
+- 若业务前台仍不可测，必须把活跃阻塞准确收口到当前层级。
+
+### 33.2 本轮实测
+- ADB 与 reverse：
+  - `adb -s HGR3Y9MA reverse tcp:8001 tcp:8001`
+  - `adb -s HGR3Y9MA reverse tcp:8081 tcp:8081`
+  - `adb -s HGR3Y9MA reverse --list`
+  - 结果：`tcp:8001`、`tcp:8081` 均已恢复
+- 电脑端后端健康：
+  - `curl.exe -s -S http://127.0.0.1:8001/health/`
+  - 结果：`alive`
+- 设备侧后端健康：
+  - `adb -s HGR3Y9MA shell curl -s -S --connect-timeout 4 --max-time 10 http://127.0.0.1:8001/health/`
+  - 结果：`alive`
+- Metro 状态：
+  - 初始 `http://127.0.0.1:8081/status` 直接拒绝连接
+  - 重启 Metro 后日志进入：
+    - `Welcome to Metro v0.80.12`
+    - `Starting dev server on port 8081...`
+  - 说明：Metro 进程已重新启动
+- bundle 请求：
+  - `http://127.0.0.1:8081/index.bundle?...`
+  - 结果：20 秒超时内仍未返回
+  - 说明：当前主阻塞已收敛到 bundle 产出/返回阶段
+
+### 33.3 真机前台证据
+- 证据一：
+  - `.local/android-mcp-server/round386_after_metro_relaunch.png/.xml`
+  - 结论：应用已回到 `com.zeroisle_notes/.MainActivity` 前台，但页面仅剩空白根容器
+- 证据二：
+  - `.local/android-mcp-server/round386_after_loading_fix.png/.xml`
+  - 结论：前台出现 `Loading from localhost:8081...`
+  - 说明：当前已不是 `Could not connect to development server` 红屏，而是等待 bundle 迟迟不返回
+
+### 33.4 本轮判断
+- 已排除：
+  - 后端 `8001` 未启动
+  - ADB reverse 未恢复
+  - 平板与电脑后端不通
+  - Metro 完全未启动
+- 当前活跃阻塞：
+  - Metro/FileMap/bundle 产出过慢或挂起
+- 当前不能写成 PASS 的内容：
+  - 任一业务页面的顶部安全区
+  - 统一淡蓝返回按钮
+  - 合理留白
+  - 统一网络异常弹层
+  - 功能中心旧样式恢复后的逐页验收
+
+### 33.5 下一轮要求
+- 优先继续收敛：
+  - `index.bundle` 为什么长时间不返回
+  - 是否需要专用 bundle 配置
+  - 是否直接切到 release / 内置 bundle 装包路径
+- 只有业务前台恢复后，才继续：
+  - 社区/个人页/功能中心/设置/提醒/知识图谱逐页真机验收
+  - 顶部安全区与状态栏遮挡复查
+  - 统一淡蓝返回按钮与合理留白复查
