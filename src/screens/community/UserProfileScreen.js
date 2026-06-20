@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -242,7 +243,7 @@ const UserProfileScreen = ({ navigation, route }) => {
         styles.container,
         {
           backgroundColor: colors.background || FALLBACK_COLORS.background,
-          paddingTop: Math.max(insets.top, 12),
+          paddingTop: Platform.OS === 'android' ? 0 : Math.max(insets.top, 12),
         },
       ]}
       testID="screen.community.userProfile"
@@ -264,7 +265,12 @@ const UserProfileScreen = ({ navigation, route }) => {
             </Text>
           </View>
           <TouchableOpacity
-            style={[styles.refreshButton, { borderColor: `${colors.primary || FALLBACK_COLORS.primary}44` }]}
+            style={[
+              styles.refreshButton,
+              {
+                backgroundColor: colors.primary ? `${colors.primary}14` : 'rgba(33,150,243,0.12)',
+              },
+            ]}
             onPress={handleRefresh}
             disabled={refreshing || isLoading}
             testID="action.community.userProfile.refresh"
@@ -362,11 +368,9 @@ const styles = StyleSheet.create({
   refreshButton: {
     width: 40,
     height: 40,
-    borderRadius: 17,
-    borderWidth: 1,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.86)',
   },
   statusCard: {
     marginHorizontal: 14,

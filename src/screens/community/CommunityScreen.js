@@ -575,29 +575,6 @@ const CommunityScreen = ({ navigation }) => {
     [bookmarkedPosts, handleBookmark, handleLike, interactionBusy, likedPosts, navigation, palette.card, palette.primary, palette.text, palette.textSecondary]
   );
 
-  const footer = useMemo(() => {
-    if (posts.length === 0) {
-      return null;
-    }
-    if (isLoading) {
-      return (
-        <View style={styles.footerLoader} testID="state.community.loadingMore">
-          <ActivityIndicator size="small" color={palette.primary} />
-          <Text style={[styles.footerText, { color: palette.textSecondary }]}>加载更多中…</Text>
-        </View>
-      );
-    }
-    if (!hasMore) {
-      return (
-        <View style={styles.footerLoader} testID="state.community.endOfList">
-          <Icon name="check-circle" size={16} color={palette.primary} />
-          <Text style={[styles.footerText, { color: palette.textSecondary }]}>已加载全部内容</Text>
-        </View>
-      );
-    }
-    return null;
-  }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length]);
-
   const renderDevQaPanel = () => (
     <View style={styles.devQaPanel} testID="panel.community.devQa">
       <View style={styles.devQaHead}>
@@ -662,6 +639,35 @@ const CommunityScreen = ({ navigation }) => {
       </View>
     </View>
   );
+
+  const footer = useMemo(() => {
+    if (posts.length === 0) {
+      return null;
+    }
+    if (isLoading) {
+      return (
+        <>
+          <View style={styles.footerLoader} testID="state.community.loadingMore">
+            <ActivityIndicator size="small" color={palette.primary} />
+            <Text style={[styles.footerText, { color: palette.textSecondary }]}>加载更多中…</Text>
+          </View>
+          {__DEV__ ? <View style={styles.devQaFooterWrap}>{renderDevQaPanel()}</View> : null}
+        </>
+      );
+    }
+    if (!hasMore) {
+      return (
+        <>
+          <View style={styles.footerLoader} testID="state.community.endOfList">
+            <Icon name="check-circle" size={16} color={palette.primary} />
+            <Text style={[styles.footerText, { color: palette.textSecondary }]}>已加载全部内容</Text>
+          </View>
+          {__DEV__ ? <View style={styles.devQaFooterWrap}>{renderDevQaPanel()}</View> : null}
+        </>
+      );
+    }
+    return __DEV__ ? <View style={styles.devQaFooterWrap}>{renderDevQaPanel()}</View> : null;
+  }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length]);
 
   const renderEmpty = () => (
     <View>
@@ -1037,6 +1043,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.88)',
     padding: SPACING.MEDIUM,
     marginTop: SPACING.SMALL,
+  },
+  devQaFooterWrap: {
+    paddingTop: SPACING.SMALL,
+    paddingBottom: SPACING.LARGE,
   },
   footerText: { marginLeft: 8, fontSize: 13, fontWeight: '600' },
   emptyContainer: {
