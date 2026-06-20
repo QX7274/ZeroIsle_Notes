@@ -708,3 +708,66 @@
   - 启动期依赖图缩减；
   - Metro / bundle 扫描与转换层
   推进，而不是回头盲改页面 UI。
+
+## 18. round415 启动链补记：继续缩减 `App.js` 启动期依赖图后，离线 bundle 仍未穿透 Metro 欢迎阶段
+
+### 18.1 本轮继续下钻启动入口，而不是回头动页面层
+- 基于 round412/414 已确认：
+  - 后端正常；
+  - ADB reverse 正常；
+  - Metro `/status` 正常；
+  - 但 bundle 与前台仍卡住；
+- 本轮继续把注意力集中在：
+  - `App.js`
+  - `HomeScreen`
+  - `services/index`
+  - `services/offline`
+  这些真正可能放大启动期依赖图的入口，不回头盲改 UI。
+
+### 18.2 本轮发现的第二组可疑启动期放大点
+- 代码复核中确认：
+  - `App.js` 顶层仍直接导入：
+    - `import { dataService } from './services/database';`
+    - `import { infiniteCanvasStorage } from './services/offline';`
+- 其中：
+  - `dataService` 在 `App.js` 中并未实际使用；
+  - `infiniteCanvasStorage` 只在初始化函数 `initializeApp()` 中被使用；
+  - 因此这两个顶层导入都会让 bundle 在根入口阶段提前进入更大的依赖图。
+
+### 18.3 本轮代码试探：继续把根入口依赖改为更小、更晚加载
+- 文件：
+  - `D:\ZeroIsle_Notes\src\App.js`
+- 本轮只做两项最小改动：
+  1. 删除顶层未使用的：
+     - `import { dataService } from './services/database';`
+  2. 将：
+     - `import { infiniteCanvasStorage } from './services/offline';`
+     改为：
+     - 在 `initializeApp()` 内部按需 `require('./services/offline/infiniteCanvasStorage').default`
+- 目的：
+  - 避免应用根入口在真正进入初始化逻辑前，就把数据库聚合入口和离线画布存储整条链一起拉进 bundle；
+  - 继续缩减启动期依赖图。
+
+### 18.4 round415 结果：方向正确，但还没穿透主卡点
+- 在上述改动后，本轮继续执行新的离线 bundle 试探：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round415_bundle.js --assets-dest .codex-tmp/round415-assets --reset-cache --max-workers 1 --verbose`
+- 结果：
+  - 3 分钟窗口内仍未生成 `round415_bundle.js`；
+  - `D:\ZeroIsle_Notes\.codex-tmp\round415_bundle_full.log` 仍只停留在：
+    - `warning: the transform cache was reset.`
+    - `Welcome to Metro v0.80.12`
+  - 没有继续进入 `BUNDLE ./index.js`。
+- 因此当前可以诚实确认：
+  - `App.js` 这两处顶层依赖确实属于应当收缩的启动期噪音；
+  - 但它们还不是当前 Metro / bundle 卡死的唯一根因。
+
+### 18.5 截止 round415 的收口结论
+- 当前已连续完成两轮方向一致的缩图试探：
+  1. `fileService` 删除顶层未使用 `xlsx`
+  2. `App.js` 删除未使用 `dataService` 并将 `infiniteCanvasStorage` 改为按需加载
+- 但 bundle 仍未真正产出，因此下一步仍需继续沿：
+  - `HomeScreen`
+  - `documentPickerService`
+  - `services/index`
+  - 其它启动期被提前拉入的大模块
+  继续缩图，而不是误写成页面层回退或网络问题。

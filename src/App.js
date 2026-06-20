@@ -34,8 +34,6 @@ import { NotificationProvider } from './context/NotificationContext';
 
 // 导入服务
 import realmService from './services/database/realmService';
-import { dataService } from './services/database';
-import { infiniteCanvasStorage } from './services/offline';
 
 // 导入屏幕组件
 import SplashScreen from './screens/common/SplashScreen';
@@ -225,6 +223,7 @@ const useAppInitialization = () => {
   const initializeApp = async () => {
     try {
       console.log('========= 开始应用初始化 =========');
+      const infiniteCanvasStorage = require('./services/offline/infiniteCanvasStorage').default;
 
       // 阶段1: 服务初始化（对应SplashScreen的第1阶段）
       console.log('阶段1: 正在初始化基础服务...');
