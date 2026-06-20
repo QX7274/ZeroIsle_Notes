@@ -17,8 +17,6 @@ import useOrientation, { ORIENTATION } from '../../utils/hooks/useOrientation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RenameDialog from '../../components/common/RenameDialog';
 import DocumentPicker, { types } from 'react-native-document-picker';
-import documentPickerService from '../../services/document/documentPickerService';
-import { fileService } from '../../services/files/fileService';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
@@ -31,7 +29,6 @@ import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
 import SortControl from '../../components/home/SortControl';
 import ProcessingProgressModal from '../../components/common/ProcessingProgressModal';
-import nonBlockingPPTProcessor from '../../services/document/nonBlockingPPTProcessor';
 // OfflineIndicator 已移除
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
 import NetInfo from '@react-native-community/netinfo';
@@ -40,7 +37,6 @@ import CardTypeModal from '../../components/common/CardTypeModal';
 import CanvasStyleModal from '../../components/canvas/CanvasStyleModal';
 import NoteStyleModal from '../../components/note/NoteStyleModal';
 import TemplatePickerModal from '../../components/common/TemplatePickerModal';
-import preloadService from '../../services/document/preloadService';
 import fileHistoryService from '../../services/fileHistoryService';
 import networkErrorService from '../../services/networkErrorService';
 
@@ -1278,6 +1274,7 @@ Week 4: □□□□□□□
         if (recentDocuments.length > 0) {
           console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
           // 异步执行预加载，不等待结果
+          const preloadService = require('../../services/document/preloadService').default;
           preloadService.intelligentPreload(recentDocuments);
         }
       } catch (error) {
@@ -1311,6 +1308,7 @@ Week 4: □□□□□□□
           // 使用文件持久化服务将文件复制到应用私有目录
           console.log('HomeScreen: 开始持久化PDF文件');
           // 使用 fileService 复制文件到应用私有目录
+          const fileService = require('../../services/files/fileService').fileService;
           const destinationPath = `${RNFS.DocumentDirectoryPath}/${file.name || `document_${Date.now()}.pdf`}`;
           await fileService.copyFile(file.uri || file.fileCopyUri, destinationPath);
           const persistedFile = {
@@ -1465,6 +1463,7 @@ Week 4: □□□□□□□
   // 导入Word文件
   const importWord = async () => {
     try {
+      const documentPickerService = require('../../services/document/documentPickerService').default;
       const documentInfo = await documentPickerService.pickWordDocument();
 
       if (documentInfo) {
@@ -1549,6 +1548,7 @@ Week 4: □□□□□□□
   // 导入PPT文件
   const importPPT = async () => {
     try {
+      const documentPickerService = require('../../services/document/documentPickerService').default;
       const documentInfo = await documentPickerService.pickPPTDocument();
 
       if (documentInfo) {
@@ -1561,6 +1561,7 @@ Week 4: □□□□□□□
         setProcessingStage('preparing');
 
         // 使用静态导入的非阻塞PPT处理器
+        const nonBlockingPPTProcessor = require('../../services/document/nonBlockingPPTProcessor').default;
 
         // 创建进度更新函数
         const updateProgress = (progressInfo) => {

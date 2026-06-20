@@ -771,3 +771,68 @@
   - `services/index`
   - 其它启动期被提前拉入的大模块
   继续缩图，而不是误写成页面层回退或网络问题。
+
+## 19. round416 启动链补记：`HomeScreen` 顶层文档/文件服务已改为按需加载，但离线 bundle 仍未穿透
+
+### 19.1 本轮继续沿 `HomeScreen` 首屏链路收缩依赖图
+- 基于前几轮结论：
+  - `App.js` 启动期依赖已做过一轮收缩；
+  - 但 bundle 仍卡在 Metro 欢迎阶段；
+- 本轮继续下钻 `HomeScreen`，重点检查其顶层是否提前拉入了只在交互时才需要的重服务。
+
+### 19.2 本轮确认的 `HomeScreen` 启动期可收缩点
+- 代码复核确认 `HomeScreen` 顶层此前直接导入了：
+  - `documentPickerService`
+  - `fileService`
+  - `preloadService`
+  - `nonBlockingPPTProcessor`
+- 这些服务的共同特点是：
+  - 并不参与首页首屏静态渲染；
+  - 只在以下时机才真正需要：
+    - 用户点击导入 Word/PPT/PDF；
+    - 后台启动最近文档智能预加载；
+    - 处理 PPT 转换；
+    - 持久化导入文件。
+- 因此它们都属于“可以从首页首包里移出去”的启动期依赖噪音。
+
+### 19.3 本轮代码试探：将 `HomeScreen` 内相关重服务改为函数内按需 `require`
+- 文件：
+  - `D:\ZeroIsle_Notes\src\screens\common\HomeScreen.js`
+- 本轮只做最小行为等价调整：
+  1. 删除顶层导入：
+     - `documentPickerService`
+     - `fileService`
+     - `preloadService`
+     - `nonBlockingPPTProcessor`
+  2. 将这些服务改为在真正使用时按需 `require`：
+     - 智能预加载时再加载 `preloadService`
+     - 导入 PDF 时再加载 `fileService`
+     - 导入 Word/PPT 时再加载 `documentPickerService`
+     - 处理 PPT 时再加载 `nonBlockingPPTProcessor`
+- 目的：
+  - 继续缩小首页首包的启动期依赖图；
+  - 避免文档/文件处理链在用户尚未触发任何导入操作前就进入 bundle。
+
+### 19.4 round416 结果：方向继续正确，但 Metro / bundle 主卡点仍未被穿透
+- 在上述改动后，本轮继续执行新的离线 bundle 试探：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round416_bundle.js --assets-dest .codex-tmp/round416-assets --reset-cache --max-workers 1 --verbose`
+- 结果：
+  - 3 分钟窗口内仍未生成 `round416_bundle.js`；
+  - `D:\ZeroIsle_Notes\.codex-tmp\round416_bundle_full.log` 仍只停留在：
+    - `warning: the transform cache was reset.`
+    - `Welcome to Metro v0.80.12`
+  - 没有进入 `BUNDLE ./index.js`。
+- 这说明：
+  - `HomeScreen` 顶层这几条文档/文件服务链确实也属于应当收缩的启动期噪音；
+  - 但它们仍不是当前 bundle 阻塞的唯一根因。
+
+### 19.5 截止 round416 的连续收口结论
+- 当前已经连续完成三轮方向一致的启动期缩图试探：
+  1. `fileService` 删除顶层未使用 `xlsx`
+  2. `App.js` 删除未使用 `dataService` 并将 `infiniteCanvasStorage` 改为按需加载
+  3. `HomeScreen` 将文档/文件处理服务改为按需加载
+- 但离线 bundle 依旧没有真正产出，因此下一步仍需继续下钻：
+  - `services/index`
+  - `documentPickerService` 自身依赖图
+  - `preloadService` 与缓存链
+  - 以及其它首页间接引用的大模块。
