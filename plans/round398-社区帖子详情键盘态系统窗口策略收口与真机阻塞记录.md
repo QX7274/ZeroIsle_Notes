@@ -143,3 +143,206 @@
 - 本轮已经拿到“问题仍存在”的新证据，也已经继续落了一次方向正确的最小补丁；
 - 但补丁后的再次真机复测仍未完成，所以当前不能把问题写成已通过；
 - 下一步必须继续抓补丁后键盘态 XML，确认头部是否恢复到 `y=36` 左右。
+
+## 10. round402 启动链补记：Metro 已恢复，但当前真机仍被前台承接链阻塞
+
+### 10.1 本轮先确认的真实根因
+- 起始现场证据：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round402_current.xml/.png`
+- 起始现象：
+  - 平板前台仍是 `com.zeroisle_notes/.MainActivity`；
+  - 但 `android:id/content` 下只有空 `FrameLayout`，页面为白色空根容器；
+  - 这说明当前不能把阻塞误写成“社区详情页又坏了”或“后端不通”。
+- 同时抓到的关键日志：
+  - `ReactNative: Unable to load script. Make sure you're either running Metro...`
+  - 这一步把本轮首要阻塞正式确认成：`debug` 包供包链失效，而不是业务代码直接崩回桌面。
+
+### 10.2 本轮对 Metro/ADB 链路的恢复动作
+- 已重新确认：
+  - `adb -s HGR3Y9MA shell echo ok` 正常；
+  - 安装时间仍为 `lastUpdateTime=2026-06-20 19:57:22`，说明平板上仍是本轮新包；
+  - `adb reverse tcp:8001 tcp:8001` 与 `adb reverse tcp:8081 tcp:8081` 已重建。
+- Metro 侧真实过程：
+  - 先抓到一个“端口被占但服务不健康”的假活状态：
+    - `8081` 被旧 `node` 进程占用；
+    - `http://127.0.0.1:8081/status` 在 5 秒和 10 秒窗口均超时，不是健康 Metro。
+  - 清掉僵住进程并带 `--reset-cache` 重启后：
+    - `http://127.0.0.1:8081/status` 已返回 `packager-status:running`；
+    - Metro 日志已进入 `Welcome to Metro v0.80.12`。
+
+### 10.3 本轮继续收口到的更细边界
+- 即便 `/status` 已恢复：
+  - 平板冷启动后先出现 `Loading from localhost:8081...`；
+  - 电脑端直接请求 `index.bundle?...` 在 40 秒窗口内仍可超时；
+  - 说明阻塞点一度继续落在 bundle 产出阶段，而不是“8081 根本没起”。
+- 进一步读取 Metro 前台构建输出后又确认：
+  - Metro 实际已经成功执行过多轮 `BUNDLE ./index.js`；
+  - JS 日志已出现：
+    - `ZeroIsle_Notes 应用已成功注册`
+    - `Running "ZeroIsle_Notes" with {"rootTag":11}`
+    - `应用准备就绪，显示主界面`
+    - `API响应成功: GET /community/posts/`
+    - `API响应成功: GET /community/posts/<postId>/`
+    - `API响应成功: GET /community/comments/by_post/?post_id=<postId>`
+  - 这说明当前又不能再把问题继续简化成“bundle 从未成功执行”。
+
+### 10.4 当前最诚实的现场判断
+- 最新证据：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round402_after_metro_recover.xml/.png`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round402_cold_start_after_healthy_metro.xml/.png`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round402_post_bundle_live.xml/.png`
+- 现场结论：
+  - 平板前台始终仍在 `com.zeroisle_notes/.MainActivity`；
+  - 画面一度从“纯白空根容器”变成了 `Loading from localhost:8081...`；
+  - 但在 Metro 已真实跑过 JS 和社区接口请求后，最新 UI dump 仍只有空 `FrameLayout`，没有稳定落到业务页面。
+- 因此本轮必须如实记为：
+  - `PostDetail` 键盘态头部修补代码仍保留；
+  - 但这一轮没有资格继续宣称“已在真机上复测到社区详情终态”；
+  - 当前新的主阻塞已经上移为：
+    - `Metro / bundle / JS 运行已部分恢复`
+    - 但 `React 视图未稳定挂上平板前台`
+    - 属于启动承接链问题，不是社区详情页本身回退。
+
+### 10.5 下一步顺序
+- 下一轮必须按以下顺序继续：
+  1. 继续用前台 Metro 日志确认 `bundle -> JS 注册 -> AppNavigator -> 当前路由` 的完整链路；
+  2. 优先解释“JS 已运行但平板仍显示空根容器/Loading”的原因；
+  3. 只有业务前台真正恢复后，才重新进入：
+     - `社区 -> 帖子详情 -> 评论输入`
+     - 再验证 `action.community.postDetail.back` 是否仍掉到 `y=0`；
+  4. 在此之前，不能把社区详情键盘态问题写成已复测通过。
+
+## 11. round403 / round404 启动链续查：Metro 工作区缓存绕开旧权限表象，但前台仍未恢复到业务页
+
+### 11.1 本轮先确认的旧 Metro 假活根因
+- 历史日志再次核对到：
+  - `D:\ZeroIsle_Notes\tmp_round399_metro_stdout.log`
+  - `D:\ZeroIsle_Notes\tmp_round399_metro_stderr.log`
+- 其中已明确出现：
+  - `EPERM: operation not permitted, unlink 'C:\Users\QX\AppData\Local\Temp\metro-cache\...'`
+- 这说明此前反复出现的：
+  - `8081` 端口被占但 `/status` 超时；
+  - 平板长期停在 `Loading from localhost:8081...`
+  - Metro `reset-cache` 后状态反复异常
+  与系统临时目录下的 Metro 缓存清理失败存在直接关联。
+
+### 11.2 本轮做的环境级最小试探
+- 本轮没有改业务代码，只做了运行环境试探：
+  - 先清理旧 `node` / Metro / bundle 残留进程，避免继续占 CPU/内存；
+  - 在工作区内创建：
+    - `D:\ZeroIsle_Notes\.codex-tmp\metro-temp`
+    - `D:\ZeroIsle_Notes\.codex-tmp\metro-cache-workspace`
+  - 以工作区内 `TEMP/TMP/TMPDIR/METRO_CACHE` 重启 Metro。
+
+### 11.3 这次环境试探的真实结果
+- 正向收获：
+  - 在工作区缓存环境下，Metro 能重新回到 `/status = packager-status:running`；
+  - 真机冷启动后，`Loading from localhost:8081...` 的黑条已消失；
+  - 这说明“系统临时目录 Metro 缓存链不稳”这一层并不是误判。
+- 仍未闭环的事实：
+  - 最新证据：
+    - `D:\ZeroIsle_Notes\.local\android-mcp-server\round403_after_workspace_cache_metro.xml/.png`
+  - 前台依然只有空白根容器；
+  - `android:id/content` 下仍只剩空 `FrameLayout`；
+  - 说明当前启动链虽然摆脱了 `Loading from localhost:8081...` 表象，但业务视图依然没有真正挂上平板前台。
+
+### 11.4 对离线 bundle 路径的补充判断
+- 本轮继续试了“工作区缓存环境下直接离线构建 Android bundle”：
+  - 目标产物：
+    - `D:\ZeroIsle_Notes\tmp\round404_bundle_probe.js`
+  - 结果：
+    - 进程在 2 分钟窗口内仍长期运行；
+    - 没有即时产出 bundle 文件；
+    - 也没有吐出新的明确错误文本。
+- 为避免继续占用资源，本轮已主动结束残留 bundle 进程。
+- 因此当前对离线装包路径的最诚实判断是：
+  - 它相比旧 Metro 缓存路径少了 `EPERM unlink metro-cache` 明错；
+  - 但还没有形成“可在当前机器上稳定快速产出 bundle”的通过证据。
+
+### 11.5 当前结论再更新
+- `PostDetailScreen.js` 的键盘态顶部 inset 修补本轮依旧没有新的业务终态复测证据；
+- 当前阻塞继续上移并收窄为：
+  - Metro 默认缓存路径存在历史权限/清理不稳问题；
+  - 工作区缓存已能改善 `Loading from localhost:8081...`；
+  - 但 `React` 视图仍未稳定挂上真机前台；
+  - 离线 bundle 路径也还未形成可直接替代的稳定产物。
+- 所以本轮仍然不能把：
+  - 社区详情键盘态头部修补
+  - 统一顶部安全区
+  - 统一淡蓝返回按钮
+  - 社区顶部留白
+  - 统一网络异常弹层
+  写成新的真机 PASS。
+
+## 12. round406 启动链工程化补记：已形成可复用 `pwsh` 真机会话脚本，但前台仍停在 Reloading 空根容器
+
+### 12.1 本轮新增工程化脚本
+- 新增文件：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1`
+- 目标：
+  - 将后续每轮都要重复做的启动链动作收口为一条可复用脚本，而不是继续手工散打。
+- 当前脚本已内置的动作：
+  - 校验目标平板 `HGR3Y9MA` 是否在线；
+  - 校验电脑端后端 `http://127.0.0.1:8001/health/`；
+  - 建立并记录 `adb reverse tcp:8001 tcp:8001` 与 `tcp:8081 tcp:8081`；
+  - 在设备侧再次实测 `http://127.0.0.1:8001/health/`，避免把 ADB reverse 丢失误判为前端网络故障；
+  - 使用工作区目录 `D:\ZeroIsle_Notes\.codex-tmp\metro-temp` 与 `D:\ZeroIsle_Notes\.codex-tmp\metro-cache-workspace` 重启 Metro；
+  - 轮询 `http://127.0.0.1:8081/status`；
+  - 清空并采集当轮 `logcat`；
+  - 冷启动 `com.zeroisle_notes/.MainActivity`；
+  - 调用现有 `capture_android_round.py` 落盘 XML/PNG；
+  - 将当轮摘要、Metro stdout/stderr、logcat、reverse 列表统一落到：
+    - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\<round>\`
+
+### 12.2 本轮真实执行结果
+- 实际执行命令：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1 -Round round406_startup_session`
+- 当轮关键产物：
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\summary.txt`
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\metro.stdout.log`
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\metro.stderr.log`
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\logcat.txt`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round406_startup_session.xml`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round406_startup_session.png`
+- 当轮可确认的正向结果：
+  - 电脑端后端 `/health/` 通过；
+  - 设备侧 `/health/` 通过；
+  - Metro `/status` 通过；
+  - ADB reverse 与截图/XML 落盘链路通过；
+  - 说明后续每轮至少可以先用这一条脚本稳定判断“阻塞是在启动链，还是在业务页本身”。
+
+### 12.3 本轮最关键的现场结论
+- 证据：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round406_startup_session.xml`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round406_startup_session.png`
+- 现场真实表现：
+  - 前台并未进入任何业务页面；
+  - 页面截图仍为顶部 `Reloading...` 黑条 + 大面积白色空白；
+  - UI XML 继续显示 `android:id/content` 下仅有空 `FrameLayout`；
+  - 同时系统状态栏高度仍稳定为 `36`，底部导航背景仍落在 `1977-2000` 区间。
+- 因此本轮必须如实记为：
+  - 新脚本已经把“调试启动链”工程化；
+  - 但业务前台仍没有恢复；
+  - 当前还不能重新进入：
+    - `社区 -> 帖子详情 -> 评论输入`
+  - 更不能把：
+    - 顶部安全区
+    - 统一淡蓝返回按钮
+    - 不合理留白
+    - 统一网络异常弹层
+    - 功能中心风格回退
+    这些页面级验收状态写成新增通过。
+
+### 12.4 本轮补充修正
+- 在脚本首轮运行后，已继续修正两处实现细节：
+  - Metro `/status` 响应原先被按字节数组保存为数字串，现已统一按 UTF-8 文本解码；
+  - `adb reverse --list` 已改为携带设备序列号，避免多设备场景再次出现歧义。
+
+### 12.5 对页面规范的持续约束
+- 即使当前主阻塞在启动链，页面规范仍继续保持不变并写实生效：
+  - 顶部内容不得被平板系统状态栏遮挡；
+  - 页面布局必须以可视窗口与安全区为准，不能按整块平板物理高度粗暴拉满；
+  - 异常留白必须持续清理，尤其是社区顶部与深层页头部；
+  - 深层页返回按钮继续统一使用已有淡蓝色方形带箭头样式；
+  - 网络问题继续使用项目内统一优美弹层，不回退默认安卓弹窗；
+  - 成熟 UI 不随意重做，只修明显原始或有结构缺陷的页面。
