@@ -263,10 +263,11 @@ const PostDetailScreen = ({ route, navigation }) => {
         styles.glassBlock,
         {
           borderBottomColor: `${theme.primary}22`,
-          paddingTop: Platform.OS === 'android' ? 0 : Math.max(insets.top, SPACING.MEDIUM),
+          paddingTop: Platform.OS === 'android' ? Math.max(insets.top, SPACING.SMALL) : Math.max(insets.top, SPACING.MEDIUM),
         },
       ]}
     >
+      <View testID={`state.community.postDetail.topInset.${Math.max(insets.top, SPACING.SMALL)}`} />
       <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
       <Text style={[styles.headerTitle, { color: theme.text }]}>帖子详情</Text>
       <View style={styles.headerRight}>
@@ -314,10 +315,8 @@ const PostDetailScreen = ({ route, navigation }) => {
   }
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : null}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       testID="screen.community.postDetail"
     >
       <View testID={`state.community.postDetail.state.${pageState}`} />
@@ -325,191 +324,208 @@ const PostDetailScreen = ({ route, navigation }) => {
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
       <View testID={`state.community.postDetail.comments.total.${commentsTotal}`} />
       {renderHeader()}
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
-          <View style={styles.postHeader}>
-            <TouchableOpacity
-              style={styles.authorContainer}
-              onPress={() => openUserProfile(post.authorId, post.author, post.authorAvatar)}
-              disabled={!post.authorId}
-              testID="action.community.postDetail.author"
-            >
-              {renderAvatar(post.authorAvatar, styles.avatar, styles.avatarFallback)}
-              <Text style={[styles.authorName, { color: theme.text }]}>{post.author}</Text>
-            </TouchableOpacity>
-            <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
-              {post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '时间未知'}
-            </Text>
-          </View>
-
-          <Text style={[styles.postTitle, { color: theme.text }]}>{post.title}</Text>
-
-          <View style={styles.tagsContainer}>
-            {(post.tags || []).map((tag, index) => (
-              <View key={`${tag}-${index}`} style={[styles.tag, { backgroundColor: `${theme.primary}1E`, borderColor: `${theme.primary}30` }]}>
-                <Text style={[styles.tagText, { color: theme.primary }]}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Text style={[styles.postContent, { color: theme.text }]}>{post.content}</Text>
-        </View>
-
-        {post.attachments && post.attachments.length > 0 && (
-          <View style={[styles.attachmentsContainer, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
-            <Text style={[styles.attachmentsTitle, { color: theme.text }]}>附件</Text>
-            {post.attachments.map((attachment) => (
+      <KeyboardAvoidingView
+        style={styles.keyboardArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
+            <View style={styles.postHeader}>
               <TouchableOpacity
-                key={attachment.id}
-                style={styles.attachmentItem}
-                onPress={() => handleDownload(attachment)}
-                testID={`action.community.postDetail.download.${attachment.id}`}
+                style={styles.authorContainer}
+                onPress={() => openUserProfile(post.authorId, post.author, post.authorAvatar)}
+                disabled={!post.authorId}
+                testID="action.community.postDetail.author"
               >
-                <Icon name={attachment.type === 'pdf' ? 'picture-as-pdf' : 'insert-drive-file'} size={24} color={theme.primary} />
-                <View style={styles.attachmentInfo}>
-                  <Text style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text>
-                  <Text style={[styles.attachmentSize, { color: theme.textSecondary }]}>{attachment.size}</Text>
-                </View>
-                <Icon name="file-download" size={22} color={theme.primary} />
+                {renderAvatar(post.authorAvatar, styles.avatar, styles.avatarFallback)}
+                <Text style={[styles.authorName, { color: theme.text }]}>{post.author}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        <View style={[styles.postStats, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
-          <TouchableOpacity style={styles.statButton} onPress={handleLike} testID="action.community.postDetail.like">
-            <Icon name={liked ? 'thumb-up' : 'thumb-up-off-alt'} size={20} color={liked ? theme.primary : theme.textSecondary} />
-            <Text style={[styles.statText, { color: liked ? theme.primary : theme.textSecondary }]}>{post.likes}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statButton} onPress={handleFollow} testID="action.community.postDetail.follow">
-            <Icon name={followed ? 'person-remove' : 'person-add'} size={20} color={followed ? theme.primary : theme.textSecondary} />
-            <Text style={[styles.statText, { color: followed ? theme.primary : theme.textSecondary }]}>{followed ? '已关注' : '关注'}</Text>
-          </TouchableOpacity>
-          <View style={styles.statItem}>
-            <Icon name="comment" size={20} color={theme.textSecondary} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>{commentsTotal}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Icon name="file-download" size={20} color={theme.textSecondary} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>{post.downloads}</Text>
-          </View>
-        </View>
-
-        <View style={styles.commentsSection}>
-          <Text style={[styles.commentsTitle, { color: theme.text }]}>评论 ({commentsTotal})</Text>
-
-          {comments.map((comment) => (
-            <View key={comment.id} style={[styles.commentItem, styles.glassBlock, { borderColor: `${theme.primary}20` }]} testID={`item.community.postDetail.comment.${comment.id}`}>
-              <View style={styles.commentHeader}>
-                <TouchableOpacity
-                  style={styles.commentAuthor}
-                  onPress={() => openUserProfile(comment.authorId, comment.author, comment.authorAvatar)}
-                  disabled={!comment.authorId}
-                  testID={`action.community.postDetail.commentAuthor.${comment.id}`}
-                >
-                  {renderAvatar(comment.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
-                  <Text style={[styles.commentAuthorName, { color: theme.text }]}>{comment.author}</Text>
-                </TouchableOpacity>
-                <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
-                  {comment.timestamp ? new Date(comment.timestamp).toLocaleDateString() : '时间未知'}
-                </Text>
-              </View>
-              <Text style={[styles.commentContent, { color: theme.text }]}>{comment.content}</Text>
-              {comment.replyCount > 0 && (
-                <Text style={[styles.replyCountText, { color: theme.textSecondary }]}>
-                  回复 ({comment.replyCount})
-                </Text>
-              )}
-              {Array.isArray(comment.replies) && comment.replies.length > 0 && (
-                <View style={styles.replyList}>
-                  {comment.replies.map(reply => renderReplyItem(reply, comment.id))}
-                </View>
-              )}
-              <View style={styles.commentFooter}>
-                <TouchableOpacity style={styles.commentLike} onPress={() => dispatch(toggleCommentLike(comment.id))} testID={`action.community.postDetail.commentLike.${comment.id}`}>
-                  <Icon
-                    name={likedComments?.[comment.id] ? 'thumb-up' : 'thumb-up-off-alt'}
-                    size={16}
-                    color={likedComments?.[comment.id] ? theme.primary : theme.textSecondary}
-                  />
-                  <Text style={[styles.commentLikeCount, { color: likedComments?.[comment.id] ? theme.primary : theme.textSecondary }]}>
-                    {comment.likes}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.commentReply}
-                  onPress={() => handleReplyComment(comment)}
-                  testID={`action.community.postDetail.commentReply.${comment.id}`}
-                >
-                  <Text style={[styles.commentReplyText, { color: theme.primary }]}>回复</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-
-          {hasMoreComments && (
-            <TouchableOpacity
-              style={[styles.loadMoreCommentsButton, styles.glassBlock, { borderColor: `${theme.primary}18` }]}
-              onPress={handleLoadMoreComments}
-              disabled={isLoading}
-              testID="action.community.postDetail.loadMoreComments"
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={theme.primary} />
-              ) : (
-                <>
-                  <Icon name="expand-more" size={18} color={theme.primary} />
-                  <Text style={[styles.loadMoreCommentsText, { color: theme.primary }]}>
-                    加载更多评论
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-
-      <View style={[styles.commentInputContainer, styles.glassBlock, { borderColor: `${theme.primary}16` }]}>
-        {replyTarget && (
-          <View style={[styles.replyBanner, { backgroundColor: `${theme.primary}14`, borderColor: `${theme.primary}26` }]}>
-            <View style={styles.replyBannerTextWrap}>
-              <Text style={[styles.replyBannerTitle, { color: theme.primary }]}>正在回复 {replyTarget.author}</Text>
-              <Text style={[styles.replyBannerContent, { color: theme.textSecondary }]} numberOfLines={1}>
-                {replyTarget.content}
+              <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
+                {post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '时间未知'}
               </Text>
             </View>
-            <TouchableOpacity onPress={handleCancelReply} testID="action.community.postDetail.cancelReply">
-              <Icon name="close" size={18} color={theme.textSecondary} />
+
+            <Text style={[styles.postTitle, { color: theme.text }]}>{post.title}</Text>
+
+            <View style={styles.tagsContainer}>
+              {(post.tags || []).map((tag, index) => (
+                <View key={`${tag}-${index}`} style={[styles.tag, { backgroundColor: `${theme.primary}1E`, borderColor: `${theme.primary}30` }]}>
+                  <Text style={[styles.tagText, { color: theme.primary }]}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={[styles.postContent, { color: theme.text }]}>{post.content}</Text>
+          </View>
+
+          {post.attachments && post.attachments.length > 0 && (
+            <View style={[styles.attachmentsContainer, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>附件</Text>
+              {post.attachments.map((attachment) => (
+                <TouchableOpacity
+                  key={attachment.id}
+                  style={styles.attachmentItem}
+                  onPress={() => handleDownload(attachment)}
+                  testID={`action.community.postDetail.download.${attachment.id}`}
+                >
+                  <Icon name={attachment.type === 'pdf' ? 'picture-as-pdf' : 'insert-drive-file'} size={24} color={theme.primary} />
+                  <View style={styles.attachmentInfo}>
+                    <Text style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text>
+                    <Text style={[styles.attachmentSize, { color: theme.textSecondary }]}>{attachment.size}</Text>
+                  </View>
+                  <Icon name="file-download" size={22} color={theme.primary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <View style={[styles.postStats, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
+            <TouchableOpacity style={styles.statButton} onPress={handleLike} testID="action.community.postDetail.like">
+              <Icon name={liked ? 'thumb-up' : 'thumb-up-off-alt'} size={20} color={liked ? theme.primary : theme.textSecondary} />
+              <Text style={[styles.statText, { color: liked ? theme.primary : theme.textSecondary }]}>{post.likes}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statButton} onPress={handleFollow} testID="action.community.postDetail.follow">
+              <Icon name={followed ? 'person-remove' : 'person-add'} size={20} color={followed ? theme.primary : theme.textSecondary} />
+              <Text style={[styles.statText, { color: followed ? theme.primary : theme.textSecondary }]}>{followed ? '已关注' : '关注'}</Text>
+            </TouchableOpacity>
+            <View style={styles.statItem}>
+              <Icon name="comment" size={20} color={theme.textSecondary} />
+              <Text style={[styles.statText, { color: theme.textSecondary }]}>{commentsTotal}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Icon name="file-download" size={20} color={theme.textSecondary} />
+              <Text style={[styles.statText, { color: theme.textSecondary }]}>{post.downloads}</Text>
+            </View>
+          </View>
+
+          <View style={styles.commentsSection}>
+            <Text style={[styles.commentsTitle, { color: theme.text }]}>评论 ({commentsTotal})</Text>
+
+            {comments.map((comment) => (
+              <View key={comment.id} style={[styles.commentItem, styles.glassBlock, { borderColor: `${theme.primary}20` }]} testID={`item.community.postDetail.comment.${comment.id}`}>
+                <View style={styles.commentHeader}>
+                  <TouchableOpacity
+                    style={styles.commentAuthor}
+                    onPress={() => openUserProfile(comment.authorId, comment.author, comment.authorAvatar)}
+                    disabled={!comment.authorId}
+                    testID={`action.community.postDetail.commentAuthor.${comment.id}`}
+                  >
+                    {renderAvatar(comment.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
+                    <Text style={[styles.commentAuthorName, { color: theme.text }]}>{comment.author}</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
+                    {comment.timestamp ? new Date(comment.timestamp).toLocaleDateString() : '时间未知'}
+                  </Text>
+                </View>
+                <Text style={[styles.commentContent, { color: theme.text }]}>{comment.content}</Text>
+                {comment.replyCount > 0 && (
+                  <Text style={[styles.replyCountText, { color: theme.textSecondary }]}>
+                    回复 ({comment.replyCount})
+                  </Text>
+                )}
+                {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+                  <View style={styles.replyList}>
+                    {comment.replies.map(reply => renderReplyItem(reply, comment.id))}
+                  </View>
+                )}
+                <View style={styles.commentFooter}>
+                  <TouchableOpacity style={styles.commentLike} onPress={() => dispatch(toggleCommentLike(comment.id))} testID={`action.community.postDetail.commentLike.${comment.id}`}>
+                    <Icon
+                      name={likedComments?.[comment.id] ? 'thumb-up' : 'thumb-up-off-alt'}
+                      size={16}
+                      color={likedComments?.[comment.id] ? theme.primary : theme.textSecondary}
+                    />
+                    <Text style={[styles.commentLikeCount, { color: likedComments?.[comment.id] ? theme.primary : theme.textSecondary }]}>
+                      {comment.likes}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.commentReply}
+                    onPress={() => handleReplyComment(comment)}
+                    testID={`action.community.postDetail.commentReply.${comment.id}`}
+                  >
+                    <Text style={[styles.commentReplyText, { color: theme.primary }]}>回复</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+
+            {hasMoreComments && (
+              <TouchableOpacity
+                style={[styles.loadMoreCommentsButton, styles.glassBlock, { borderColor: `${theme.primary}18` }]}
+                onPress={handleLoadMoreComments}
+                disabled={isLoading}
+                testID="action.community.postDetail.loadMoreComments"
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <>
+                    <Icon name="expand-more" size={18} color={theme.primary} />
+                    <Text style={[styles.loadMoreCommentsText, { color: theme.primary }]}>
+                      加载更多评论
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+
+        <View style={[styles.commentInputContainer, styles.glassBlock, { borderColor: `${theme.primary}16` }]}>
+          <View
+            style={styles.commentInputSafeArea}
+            testID={`state.community.postDetail.bottomInset.${Math.max(insets.bottom, SPACING.SMALL)}`}
+          />
+          {replyTarget && (
+            <View style={[styles.replyBanner, { backgroundColor: `${theme.primary}14`, borderColor: `${theme.primary}26` }]}>
+              <View style={styles.replyBannerTextWrap}>
+                <Text style={[styles.replyBannerTitle, { color: theme.primary }]}>正在回复 {replyTarget.author}</Text>
+                <Text style={[styles.replyBannerContent, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {replyTarget.content}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleCancelReply} testID="action.community.postDetail.cancelReply">
+                <Icon name="close" size={18} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View
+            style={[
+              styles.commentInputRow,
+              {
+                paddingBottom: Math.max(insets.bottom, SPACING.SMALL),
+              },
+            ]}
+          >
+            <TextInput
+              style={[styles.commentInput, { color: theme.text, backgroundColor: `${theme.background}EE`, borderColor: `${theme.primary}1C` }]}
+              placeholder={replyTarget ? `回复 ${replyTarget.author}...` : '写下你的评论...'}
+              placeholderTextColor={theme.textSecondary}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              testID="input.community.postDetail.comment"
+            />
+            <TouchableOpacity
+              style={[styles.commentSubmitButton, { backgroundColor: commentText.trim() ? theme.primary : theme.disabled }]}
+              onPress={handleSubmitComment}
+              disabled={!commentText.trim() || submittingComment}
+              testID="action.community.postDetail.submitComment"
+            >
+              {submittingComment ? <ActivityIndicator size="small" color="#FFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
             </TouchableOpacity>
           </View>
-        )}
-        <View style={styles.commentInputRow}>
-          <TextInput
-            style={[styles.commentInput, { color: theme.text, backgroundColor: `${theme.background}EE`, borderColor: `${theme.primary}1C` }]}
-            placeholder={replyTarget ? `回复 ${replyTarget.author}...` : '写下你的评论...'}
-            placeholderTextColor={theme.textSecondary}
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-            testID="input.community.postDetail.comment"
-          />
-          <TouchableOpacity
-            style={[styles.commentSubmitButton, { backgroundColor: commentText.trim() ? theme.primary : theme.disabled }]}
-            onPress={handleSubmitComment}
-            disabled={!commentText.trim() || submittingComment}
-            testID="action.community.postDetail.submitComment"
-          >
-            {submittingComment ? <ActivityIndicator size="small" color="#FFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
-          </TouchableOpacity>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  keyboardArea: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: SPACING.MEDIUM, fontSize: 16 },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.LARGE },
@@ -642,6 +658,10 @@ const styles = StyleSheet.create({
     gap: SPACING.SMALL,
     padding: SPACING.MEDIUM,
     borderTopWidth: 1,
+  },
+  commentInputSafeArea: {
+    width: 0,
+    height: 0,
   },
   replyBanner: {
     flexDirection: 'row',
