@@ -420,3 +420,64 @@
   - 网络弹层
   这些页面层代码；
 - 而应继续围绕“如何让 bundle 真正产出”推进。
+
+## 14. round408 / round409 启动链补记：已抓到 Metro 缓存互踩明错，并确认 ADB reverse 仍存在“显示存在但实转不稳”的独立波动
+
+### 14.1 round408：首次拿到 createBundleDebugJsAndAssets 的直接失败根因
+- 本轮不再只看“超时没产物”，而是把 `:app:createBundleDebugJsAndAssets --info --stacktrace` 的完整输出落盘到：
+  - `D:\ZeroIsle_Notes\.codex-tmp\round408_createBundleDebug_full.log`
+- 从该日志中已明确拿到当前第一层直接失败根因：
+  - `ENOTEMPTY: directory not empty, rmdir 'D:\ZeroIsle_Notes\.codex-tmp\metro-temp\metro-cache\4a'`
+- 这说明此前的 bundle 阻塞里至少有一部分不是“单纯构建太慢”，而是：
+  - 多个 Metro / bundle / Gradle 任务共用同一组 `TEMP/TMP/METRO_CACHE`；
+  - 在 `--reset-cache` 清缓存时互相踩踏；
+  - 导致 `createBundleDebugJsAndAssets` 在 Metro FileStore 清理阶段直接失败。
+
+### 14.2 round408：由此确认的更细边界
+- 当前已经能更准确地区分两类问题：
+  1. `bundle` 生成层真实卡点；
+  2. 共享缓存目录导致的缓存清理互踩。
+- 因此本轮后的方向不再是笼统地“继续试 bundle”，而是必须先把：
+  - Metro 运行时目录
+  - bundle 构建临时目录
+  - 调试会话目录
+  彻底隔离开。
+
+### 14.3 round409：调试脚本已改为每轮独立缓存目录
+- 文件：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1`
+- 本轮已继续做最小工程化修补：
+  - 每一轮调试会话改为使用：
+    - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\<round>\runtime\metro-temp`
+    - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\<round>\runtime\metro-cache`
+  - 不再与其它轮次共享 `metro-temp/metro-cache-workspace`；
+  - 增加 `-SkipMetroResetCache` 选项；
+  - 启动前同时清理旧的 `node` 与相关 `java` 残留进程，尽量减少缓存目录被并发占用的概率。
+- 目的：
+  - 先切断“缓存互踩”这一层伪阻塞；
+  - 让后续看到的失败更接近真实主因。
+
+### 14.4 round409：独立缓存后出现的另一层独立波动
+- 使用新脚本执行：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1 -Round round409_isolated_cache_session -SkipMetroResetCache`
+- 当前结果：
+  - 脚本没有再先死在 Metro 缓存目录清理；
+  - 但设备侧后端联通验证再次超时：
+    - `curl: (28) Operation timed out after 10001 milliseconds with 0 bytes received`
+- 随后单独复核又确认：
+  - `adb devices -l` 正常；
+  - `adb -s HGR3Y9MA shell echo ok` 正常；
+  - `adb -s HGR3Y9MA reverse --list` 仍显示：
+    - `tcp:8081 tcp:8081`
+    - `tcp:8001 tcp:8001`
+  - 但设备侧 `curl http://127.0.0.1:8001/health/` 依旧可能超时。
+
+### 14.5 当前最诚实更新
+- 本轮之后，阻塞链已进一步拆分清楚：
+  - `bundle` 构建层存在真实问题；
+  - 共享缓存目录互踩已被抓到明错，并已开始工程化隔离；
+  - ADB reverse 仍存在“列表显示存在，但设备侧实际转发不稳定”的独立波动。
+- 因此后续继续推进时，必须分开判断：
+  - 若是 `ENOTEMPTY ... metro-cache`，属于缓存互踩；
+  - 若是设备侧 `curl 127.0.0.1:8001/health/` 超时，属于 reverse 波动；
+  - 这两类问题都不能再误写成“社区页网络异常”或“某个页面布局回退”。

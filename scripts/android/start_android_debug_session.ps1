@@ -7,6 +7,7 @@ param(
     [string]$MetroPort = "8081",
     [switch]$SkipMetroRestart,
     [switch]$SkipCapture,
+    [switch]$SkipMetroResetCache,
     [int]$LaunchWaitSeconds = 10
 )
 
@@ -53,20 +54,30 @@ function Ensure-Directory {
     }
 }
 
+function Remove-DirectorySafe {
+    param([string]$Path)
+    if (Test-Path -LiteralPath $Path) {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $tmpRoot = Join-Path $repoRoot ".codex-tmp"
-$metroTempDir = Join-Path $tmpRoot "metro-temp"
-$metroCacheDir = Join-Path $tmpRoot "metro-cache-workspace"
 $sessionDir = Join-Path $tmpRoot "android-debug-sessions"
 $roundDir = Join-Path $sessionDir $Round
+$roundTempRoot = Join-Path $roundDir "runtime"
+$metroTempDir = Join-Path $roundTempRoot "metro-temp"
+$metroCacheDir = Join-Path $roundTempRoot "metro-cache"
 $localCaptureDir = Join-Path $repoRoot ".local\android-mcp-server"
 $captureScript = Join-Path $repoRoot "scripts\android\capture_android_round.py"
 
 Ensure-Directory -Path $tmpRoot
-Ensure-Directory -Path $metroTempDir
-Ensure-Directory -Path $metroCacheDir
 Ensure-Directory -Path $sessionDir
 Ensure-Directory -Path $roundDir
+Remove-DirectorySafe -Path $roundTempRoot
+Ensure-Directory -Path $roundTempRoot
+Ensure-Directory -Path $metroTempDir
+Ensure-Directory -Path $metroCacheDir
 
 $metroStdout = Join-Path $roundDir "metro.stdout.log"
 $metroStderr = Join-Path $roundDir "metro.stderr.log"
@@ -105,16 +116,20 @@ $deviceHealth | Set-Content -Path (Join-Path $roundDir "device_api_health.txt") 
 if (-not $SkipMetroRestart) {
     Write-Step "清理旧 Metro / node 残留"
     Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name java -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -like '*jdk*' } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
     Write-Step "使用工作区缓存重启 Metro"
+    $resetCacheArg = if ($SkipMetroResetCache) { "" } else { " --reset-cache" }
     $metroCommand = @"
 `$env:TEMP = '$metroTempDir'
 `$env:TMP = '$metroTempDir'
 `$env:TMPDIR = '$metroTempDir'
 `$env:METRO_CACHE = '$metroCacheDir'
 Set-Location '$repoRoot'
-node node_modules/react-native/cli.js start --port $MetroPort --reset-cache *>> '$metroStdout' 2>> '$metroStderr'
+node node_modules/react-native/cli.js start --port $MetroPort$resetCacheArg *>> '$metroStdout' 2>> '$metroStderr'
 "@
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($metroCommand))
     Start-Process -FilePath "pwsh" -ArgumentList @("-NoLogo", "-NoProfile", "-EncodedCommand", $encodedCommand) -WindowStyle Hidden | Out-Null
