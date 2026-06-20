@@ -10,7 +10,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { SPACING } from '../../utils/constants/dimensions';
-import { knowledgeGraphApi } from '../../services';
+import knowledgeGraphApi from '../../services/api/knowledgeGraphApi';
 
 /**
  * 标签生成组件

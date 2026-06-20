@@ -21,7 +21,6 @@ import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
 import { useDispatch, useSelector } from 'react-redux';
-import { apiWrapper } from '../../services/api';
 import { setNotes as setNotesAction, addNote, deleteNote, selectAllNotes, updateNote } from '../../redux/slices/notesSlice';
 import notesApi from '../../services/api/notesApi';
 import Icon from 'react-native-vector-icons/Ionicons';

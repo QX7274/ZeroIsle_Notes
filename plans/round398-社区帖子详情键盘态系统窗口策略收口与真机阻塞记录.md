@@ -836,3 +836,85 @@
   - `documentPickerService` 自身依赖图
   - `preloadService` 与缓存链
   - 以及其它首页间接引用的大模块。
+
+## 20. round417/418 启动链补记：继续去除聚合出口误引用，并确认存在高 CPU 残留 bundle 进程
+
+### 20.1 本轮新增确认：知识图谱组件链上存在“总聚合出口误引用”
+- 继续沿“首页未恢复前，优先缩小依赖图而非盲改 UI”的原则排查启动链。
+- 本轮在知识图谱组件链复核到一个非常典型的误引用：
+  - `src/components/knowledge/index.js` 会聚合导出 `TagGenerator`
+  - `TagGenerator` 顶层此前使用：
+    - `import { knowledgeGraphApi } from '../../services';`
+- 问题在于：
+  - `src/services/index.js` 是超重总聚合入口；
+  - 它会一次性顶层导入数据库、网络、离线、AI、通知、音频、群组、翻译、WebRTC 等大批服务；
+  - 因此只要任意知识图谱页面通过 `../../components/knowledge` 引入该 barrel，`TagGenerator` 就可能把整棵服务树一起拉入 bundle。
+- 该模式与当前“Metro 长时间卡在依赖图扫描/转换前段”的症状高度一致，因此属于应优先收缩的启动期噪音。
+
+### 20.2 round417 本轮代码试探一：将 `TagGenerator` 从 `../../services` 改为直连具体 API 模块
+- 文件：
+  - `D:\ZeroIsle_Notes\src\components\knowledge\TagGenerator.js`
+- 本轮调整：
+  - 将：
+    - `import { knowledgeGraphApi } from '../../services';`
+  - 改为：
+    - `import knowledgeGraphApi from '../../services/api/knowledgeGraphApi';`
+- 目的：
+  - 切断知识图谱组件链对 `src/services/index.js` 总聚合入口的误引用；
+  - 避免因为一个标签生成组件，把整组无关服务提前带入启动期依赖图。
+
+### 20.3 round418 本轮代码试探二：继续删除首页与通用弹层上未使用的 API 聚合入口
+- 本轮继续在“只删噪音、不改行为”的前提下检查更靠近启动入口的模块。
+- 新确认两处未使用但会放大依赖图的引用：
+  1. `src/screens/common/HomeScreen.js`
+     - 未使用的：
+       - `import { apiWrapper } from '../../services/api';`
+  2. `src/components/common/CreateContentModal.js`
+     - 未使用的：
+       - `import api from '../../services/api';`
+- 这两处共同问题是：
+  - `src/services/api/index.js` 本身也是一个 API 聚合出口；
+  - 它会顶层导入整组 `authApi / notesApi / knowledgeGraphApi / communityApi / reminderApi / codeApi / userApi ...`
+  - 即使当前文件并未真正使用，也会在启动或弹层加载时无端扩大 bundle 依赖图。
+- 因此本轮已删除上述两处未使用导入。
+
+### 20.4 round417/418 离线 bundle 复测结果：仍停留在 Metro 欢迎阶段，没有进入 `BUNDLE ./index.js`
+- round417 复测命令：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round417_bundle.js --assets-dest .codex-tmp/round417-assets --reset-cache --max-workers 1 --verbose`
+- round418 复测命令：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round418_bundle.js --assets-dest .codex-tmp/round418-assets --reset-cache --max-workers 1 --verbose`
+- 两轮共同结果：
+  - 3 分钟窗口内都未产生 bundle 成品；
+  - 日志 `round417_bundle_full.log`、`round418_bundle_full.log` 仍只停留在：
+    - `warning: the transform cache was reset.`
+    - `Welcome to Metro v0.80.12`
+  - 仍没有进入：
+    - `BUNDLE ./index.js`
+- 这说明：
+  - `TagGenerator` 对总服务聚合入口的误引用、以及首页/通用弹层里未使用的 API 聚合入口，确实都属于应当收缩的启动期噪音；
+  - 但这些噪音被剪掉后，Metro / bundle 主卡点仍未被真正打穿；
+  - 当前根因依旧更像是依赖图扫描层面存在更深的重链，或 Metro 在 Windows 当前工程体量下仍在前段被拖住。
+
+### 20.5 本轮新增环境证据：存在高 CPU 的残留 bundle 进程，必须纳入后续资源治理
+- 本轮使用进程级检查进一步确认：
+  - 存在历史残留的离线 bundle 进程：
+    - `round417` 对应 `node ... cli.js bundle ... round417_bundle.js`
+    - `round418` 对应 `node ... cli.js bundle ... round418_bundle.js`
+  - 这些进程在超时后仍未自动退出，并持续占用高 CPU/大内存。
+- 同期还确认：
+  - `.codex-tmp` 下文件条目规模仍然非常大；
+  - 即使 `metro.config.js` 已对 `.codex-tmp`、`docs`、`plans`、`backend`、根目录截图/XML/日志等做了 blockList 收口，工程现场仍非常臃肿。
+- 因此本轮将该点明确记为：
+  - 不仅要继续缩依赖图；
+  - 还必须在每轮结束后及时清理残留 bundle / Metro 试探进程，避免高 CPU 残留持续拖慢机器并污染后续判断。
+
+### 20.6 截止 round418 的阶段性结论
+- 本轮进一步排除了三类明显不合理的启动链噪音：
+  1. 知识图谱组件链对 `src/services/index.js` 总聚合出口的误引用
+  2. 首页 `HomeScreen` 上未使用的 API 聚合入口
+  3. 通用创建弹层 `CreateContentModal` 上未使用的 API 聚合入口
+- 但离线 bundle 仍未进入真正打包阶段，因此下一步仍需继续下钻：
+  - `services/api/index.js` 在其它近入口页面/切片上的聚合引用
+  - `services/index.js` 是否仍被其它链路间接带入
+  - Metro 在当前工程规模下的扫描面与残留进程治理
+  - 以及其它首页/主导航链附近的大模块误引用。

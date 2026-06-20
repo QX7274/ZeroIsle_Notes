@@ -12,7 +12,6 @@ import { Text } from './Typography';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import DocumentPicker from 'react-native-document-picker';
-import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 import { API_URL, API_VERSION } from '../../config';
 import ProcessingProgressModal from './ProcessingProgressModal';
