@@ -481,3 +481,138 @@
   - 若是 `ENOTEMPTY ... metro-cache`，属于缓存互踩；
   - 若是设备侧 `curl 127.0.0.1:8001/health/` 超时，属于 reverse 波动；
   - 这两类问题都不能再误写成“社区页网络异常”或“某个页面布局回退”。
+
+## 15. round410 联网链补记：已确认电脑与平板处于同网段，但直连电脑 IP 仍未打通
+
+### 15.1 本轮网络基线复核
+- 电脑端当前 IPv4 现场：
+  - `WLAN = 192.168.10.12/24`
+- 平板端当前 IPv4 现场：
+  - `wlan0 = 192.168.10.18/24`
+- 这说明：
+  - 当前电脑与平板已经处于同一 `192.168.10.0/24` 网段；
+  - 至少从地址层面看，已经具备“绕开 ADB reverse，直接走电脑 IP 联调”的前提。
+
+### 15.2 本轮对直连电脑 IP 的真实测试
+- 电脑端后端仍监听：
+  - `0.0.0.0:8001`
+- 电脑端本机访问：
+  - `http://0.0.0.0:8001/health/` 正常返回 `alive`
+- 设备侧实际测试：
+  - `curl http://192.168.10.12:8001/health/`
+  - `curl http://192.168.10.12:8081/status`
+- 结果：
+  - 两者都在超时窗口内无响应。
+
+### 15.3 本轮由此得出的更准确结论
+- 当前不能把问题简单归因于：
+  - 只有 `adb reverse` 不稳定；
+  - 只要电脑和平板在同网段就一定能直连成功。
+- 因为现在现场已经明确显示：
+  - 同网段成立；
+  - Windows 防火墙处于关闭状态；
+  - ICS 服务运行中；
+  - 后端监听 `0.0.0.0:8001`；
+  - 但平板直连电脑 `192.168.10.12` 仍超时。
+- 所以当前这条链更像是：
+  - 电脑热点/共享链路本身未形成真实可达转发；
+  - 或平板到电脑无线链路还有系统层/共享层限制；
+  - 而不是应用 API 地址写错。
+
+### 15.4 本轮工程化补充
+- `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1`
+  - 已新增：
+    - `-DirectApiHost`
+  - 作用：
+    - 后续可以直接用脚本验证设备侧访问：
+    - `127.0.0.1:<port>`（ADB reverse）
+    - 或 `电脑IP:<port>`（直连）
+    - 避免后续每轮再临时手工拼探测命令。
+
+## 16. round411 联网链补记：平板到电脑后端已恢复真实联通，当前主阻塞正式收敛到 Metro / bundle 供包链
+
+### 16.1 本轮先收口 ADB 会话层，避免假网络超时误判
+- 本轮先没有直接继续追页面或 Metro，而是先复核 ADB 现场；
+- 复核中发现：
+  - 工作区里累计残留了多条挂住的 `adb.exe` 进程；
+  - 其中包含：
+    - `adb -s HGR3Y9MA shell echo ok`
+    - `adb -s HGR3Y9MA logcat`
+    - `adb kill-server`
+    - `adb start-server`
+  - 这些残留会把后续新的 ADB 命令一起拖住，形成“设备像是没网/没响应”的假象。
+- 因此本轮先做了最小现场清理：
+  - 仅停止残留 `adb.exe`；
+  - 重新启动 ADB server；
+  - 改回“单线程、串行”的 ADB 探测节奏；
+  - 不再对同一台平板并发发多条 `adb shell` / `reverse` / `logcat`。
+- 清理后立即复核：
+  - `adb devices -l` 正常；
+  - `adb -s HGR3Y9MA shell echo ok` 已恢复稳定返回 `ok`。
+
+### 16.2 本轮拿到两条关键正证据：reverse 与电脑 IP 直连都已命中后端 `/health/`
+- 电脑端本机后端仍正常：
+  - `http://127.0.0.1:8001/health/` 返回 `{"status":"alive"}`
+- 平板侧先重建：
+  - `adb -s HGR3Y9MA reverse tcp:8001 tcp:8001`
+- 随后做设备侧真实探测，结果如下：
+  - `curl http://127.0.0.1:8001/health/`
+    - 返回 `{"status":"alive"}`
+  - `curl http://192.168.10.12:8001/health/`
+    - 也返回 `{"status":"alive"}`
+- 这意味着：
+  - 先前“同网段但直连电脑 IP 超时”的状态，本轮现场已不再成立；
+  - 当前平板到电脑后端的 REST 联通已经恢复为真实可用状态；
+  - 不能再把当前真机前台阻塞写成“平板没网”或“电脑和平板还没打通”。
+
+### 16.3 本轮新的主阻塞定位：不是后端没通，而是 Metro `8081` / bundle 供包链仍未恢复
+- 在后端联通恢复后，本轮继续执行：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1 -Round round411_network_restored -DirectApiHost 192.168.10.12`
+- 本轮脚本执行到：
+  - 设备在线检查：通过；
+  - 本机后端健康检查：通过；
+  - 设备侧后端健康检查：通过；
+  - 之后在 `检查 Metro 状态` 阶段失败：
+    - `Metro /status 未恢复`
+- 同轮日志补抓结果也进一步说明：
+  - `round411_network_restored\device_api_health.txt` 已存在，说明设备侧后端联通确实已成功；
+  - `round411_network_restored\metro.stderr.log` 只有 Metro 启动期警告；
+  - `round411_network_restored` 目录下没有产出最终业务前台截图/XML；
+  - 当前失败点已明确上移到：
+    - Metro `8081` 未恢复稳定 `/status`
+    - 或 Metro 虽启动但未稳定进入可供包状态
+    - 进而导致 bundle 供包链继续阻塞。
+
+### 16.4 本轮对阻塞链的诚实更新
+- 截止 round411，当前最准确的现场判断应更新为：
+  1. 平板与电脑后端 `8001` 联通已恢复；
+  2. `ADB reverse` 与 `电脑IP直连` 两条后端健康探测都已经命中成功；
+  3. 当前主阻塞不再是“网络问题”；
+  4. 当前主阻塞已经收敛为：
+     - Metro `8081` 启动/供包不稳
+     - bundle 生成层仍未真正恢复
+  5. 因此前台未恢复业务页面时，不能误把问题归到：
+     - 社区顶部状态栏留白
+     - 功能中心样式
+     - 个人主页按钮
+     - 统一返回按钮
+     - 统一网络异常弹层
+     这些页面层模块本身。
+
+### 16.5 本轮工程化补充：调试脚本失败也必须落摘要，避免下一轮再丢关键现场
+- `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1`
+  - 本轮继续增强：
+    - 增加 `try / catch / finally`
+    - 即便中途失败，也会强制写出 `summary.txt`
+    - 在摘要中额外记录：
+      - `session_failed`
+      - `failure_message`
+      - 已成功拿到的 `api_health`
+      - 已成功拿到的 `device_api_health`
+      - 已使用的 `device_api_probe_url`
+      - 已成功或未成功拿到的 `metro_status`
+- 目的：
+  - 避免后续再出现“脚本中途失败，但没有 summary，导致现场信息断层”的问题；
+  - 让每轮都能更稳定地区分：
+    - 后端联通失败
+    - 还是 Metro / bundle 失败。

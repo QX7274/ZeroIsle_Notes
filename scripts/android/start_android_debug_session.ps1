@@ -5,6 +5,7 @@ param(
     [string]$MainActivity = ".MainActivity",
     [string]$ApiPort = "8001",
     [string]$MetroPort = "8081",
+    [string]$DirectApiHost = "",
     [switch]$SkipMetroRestart,
     [switch]$SkipCapture,
     [switch]$SkipMetroResetCache,
@@ -83,47 +84,61 @@ $metroStdout = Join-Path $roundDir "metro.stdout.log"
 $metroStderr = Join-Path $roundDir "metro.stderr.log"
 $logcatPath = Join-Path $roundDir "logcat.txt"
 $summaryPath = Join-Path $roundDir "summary.txt"
+$script:apiHealthResult = ""
+$script:deviceHealthResult = ""
+$script:deviceApiProbeUrl = ""
+$script:metroStatusResult = ""
+$script:sessionFailed = $false
+$script:failureMessage = ""
 
-Write-Step "检查设备在线状态"
-$adbDevices = & adb devices -l
-if ($LASTEXITCODE -ne 0) {
-    throw "adb devices 执行失败"
-}
-$adbDevices | Set-Content -Path (Join-Path $roundDir "adb_devices.txt") -Encoding UTF8
-if (-not ($adbDevices -match [regex]::Escape($DeviceSerial) + ".*device")) {
-    throw "目标设备 $DeviceSerial 未处于 device 状态"
-}
+try {
+    Write-Step "检查设备在线状态"
+    $adbDevices = & adb devices -l
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb devices 执行失败"
+    }
+    $adbDevices | Set-Content -Path (Join-Path $roundDir "adb_devices.txt") -Encoding UTF8
+    if (-not ($adbDevices -match [regex]::Escape($DeviceSerial) + ".*device")) {
+        throw "目标设备 $DeviceSerial 未处于 device 状态"
+    }
 
-Write-Step "检查本机后端健康状态"
-$apiHealth = Test-HttpText -Uri ("http://127.0.0.1:{0}/health/" -f $ApiPort) -TimeoutSec 5
-if (-not $apiHealth) {
-    throw "本机后端 http://127.0.0.1:$ApiPort/health/ 未通过"
-}
-$apiHealth | Set-Content -Path (Join-Path $roundDir "api_health.txt") -Encoding UTF8
+    Write-Step "检查本机后端健康状态"
+    $apiHealth = Test-HttpText -Uri ("http://127.0.0.1:{0}/health/" -f $ApiPort) -TimeoutSec 5
+    if (-not $apiHealth) {
+        throw "本机后端 http://127.0.0.1:$ApiPort/health/ 未通过"
+    }
+    $script:apiHealthResult = $apiHealth
+    $apiHealth | Set-Content -Path (Join-Path $roundDir "api_health.txt") -Encoding UTF8
 
-Write-Step "建立 ADB reverse"
-Invoke-Adb reverse ("tcp:{0}" -f $ApiPort) ("tcp:{0}" -f $ApiPort)
-Invoke-Adb reverse ("tcp:{0}" -f $MetroPort) ("tcp:{0}" -f $MetroPort)
-(& adb -s $DeviceSerial reverse --list) | Set-Content -Path (Join-Path $roundDir "adb_reverse_list.txt") -Encoding UTF8
+    Write-Step "建立 ADB reverse"
+    Invoke-Adb reverse ("tcp:{0}" -f $ApiPort) ("tcp:{0}" -f $ApiPort)
+    Invoke-Adb reverse ("tcp:{0}" -f $MetroPort) ("tcp:{0}" -f $MetroPort)
+    (& adb -s $DeviceSerial reverse --list) | Set-Content -Path (Join-Path $roundDir "adb_reverse_list.txt") -Encoding UTF8
 
-Write-Step "设备侧验证后端联通"
-$deviceHealth = & adb -s $DeviceSerial shell curl -s -S --connect-timeout 4 --max-time 10 ("http://127.0.0.1:{0}/health/" -f $ApiPort)
-if ($LASTEXITCODE -ne 0 -or -not $deviceHealth) {
-    throw "设备侧后端联通验证失败"
-}
-$deviceHealth | Set-Content -Path (Join-Path $roundDir "device_api_health.txt") -Encoding UTF8
+    Write-Step "设备侧验证后端联通"
+    $script:deviceApiProbeUrl = if ([string]::IsNullOrWhiteSpace($DirectApiHost)) {
+        "http://127.0.0.1:{0}/health/" -f $ApiPort
+    } else {
+        "http://{0}:{1}/health/" -f $DirectApiHost, $ApiPort
+    }
+    $deviceHealth = & adb -s $DeviceSerial shell curl -s -S --connect-timeout 4 --max-time 10 $script:deviceApiProbeUrl
+    if ($LASTEXITCODE -ne 0 -or -not $deviceHealth) {
+        throw "设备侧后端联通验证失败: $script:deviceApiProbeUrl"
+    }
+    $script:deviceHealthResult = $deviceHealth
+    $deviceHealth | Set-Content -Path (Join-Path $roundDir "device_api_health.txt") -Encoding UTF8
 
-if (-not $SkipMetroRestart) {
-    Write-Step "清理旧 Metro / node 残留"
-    Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    Get-Process -Name java -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -like '*jdk*' } |
-        Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    if (-not $SkipMetroRestart) {
+        Write-Step "清理旧 Metro / node 残留"
+        Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Get-Process -Name java -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -like '*jdk*' } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
 
-    Write-Step "使用工作区缓存重启 Metro"
-    $resetCacheArg = if ($SkipMetroResetCache) { "" } else { " --reset-cache" }
-    $metroCommand = @"
+        Write-Step "使用工作区缓存重启 Metro"
+        $resetCacheArg = if ($SkipMetroResetCache) { "" } else { " --reset-cache" }
+        $metroCommand = @"
 `$env:TEMP = '$metroTempDir'
 `$env:TMP = '$metroTempDir'
 `$env:TMPDIR = '$metroTempDir'
@@ -131,62 +146,71 @@ if (-not $SkipMetroRestart) {
 Set-Location '$repoRoot'
 node node_modules/react-native/cli.js start --port $MetroPort$resetCacheArg *>> '$metroStdout' 2>> '$metroStderr'
 "@
-    $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($metroCommand))
-    Start-Process -FilePath "pwsh" -ArgumentList @("-NoLogo", "-NoProfile", "-EncodedCommand", $encodedCommand) -WindowStyle Hidden | Out-Null
-    Start-Sleep -Seconds 8
-}
-
-Write-Step "检查 Metro 状态"
-$metroStatus = $null
-for ($i = 0; $i -lt 6; $i++) {
-    $metroStatus = Test-HttpText -Uri ("http://127.0.0.1:{0}/status" -f $MetroPort) -TimeoutSec 5
-    if ($metroStatus) {
-        break
+        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($metroCommand))
+        Start-Process -FilePath "pwsh" -ArgumentList @("-NoLogo", "-NoProfile", "-EncodedCommand", $encodedCommand) -WindowStyle Hidden | Out-Null
+        Start-Sleep -Seconds 8
     }
+
+    Write-Step "检查 Metro 状态"
+    $metroStatus = $null
+    for ($i = 0; $i -lt 6; $i++) {
+        $metroStatus = Test-HttpText -Uri ("http://127.0.0.1:{0}/status" -f $MetroPort) -TimeoutSec 5
+        if ($metroStatus) {
+            break
+        }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $metroStatus) {
+        throw "Metro /status 未恢复"
+    }
+    $script:metroStatusResult = $metroStatus
+    $metroStatus | Set-Content -Path (Join-Path $roundDir "metro_status.txt") -Encoding UTF8
+
+    Write-Step "清空并开始采集 logcat"
+    & adb -s $DeviceSerial logcat -c
+    Start-Process -FilePath "pwsh" -ArgumentList @(
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        "adb -s $DeviceSerial logcat > '$logcatPath'"
+    ) -WindowStyle Hidden | Out-Null
     Start-Sleep -Seconds 2
-}
-if (-not $metroStatus) {
-    throw "Metro /status 未恢复"
-}
-$metroStatus | Set-Content -Path (Join-Path $roundDir "metro_status.txt") -Encoding UTF8
 
-Write-Step "清空并开始采集 logcat"
-& adb -s $DeviceSerial logcat -c
-Start-Process -FilePath "pwsh" -ArgumentList @(
-    "-NoLogo",
-    "-NoProfile",
-    "-Command",
-    "adb -s $DeviceSerial logcat > '$logcatPath'"
-) -WindowStyle Hidden | Out-Null
-Start-Sleep -Seconds 2
+    Write-Step "冷启动应用"
+    & adb -s $DeviceSerial shell am force-stop $PackageName
+    Start-Sleep -Seconds 1
+    Invoke-Adb shell am start -n "$PackageName/$MainActivity"
+    Start-Sleep -Seconds $LaunchWaitSeconds
 
-Write-Step "冷启动应用"
-& adb -s $DeviceSerial shell am force-stop $PackageName
-Start-Sleep -Seconds 1
-Invoke-Adb shell am start -n "$PackageName/$MainActivity"
-Start-Sleep -Seconds $LaunchWaitSeconds
-
-if (-not $SkipCapture) {
-    Write-Step "采集当前前台截图与 UI XML"
-    & python -X utf8 $captureScript --round $Round --serial $DeviceSerial --package $PackageName --activity $MainActivity --ensure-foreground
-    if ($LASTEXITCODE -ne 0) {
-        throw "抓证脚本执行失败"
+    if (-not $SkipCapture) {
+        Write-Step "采集当前前台截图与 UI XML"
+        & python -X utf8 $captureScript --round $Round --serial $DeviceSerial --package $PackageName --activity $MainActivity --ensure-foreground
+        if ($LASTEXITCODE -ne 0) {
+            throw "抓证脚本执行失败"
+        }
     }
+} catch {
+    $script:sessionFailed = $true
+    $script:failureMessage = $_.Exception.Message
+    throw
+} finally {
+    Write-Step "输出摘要"
+    $summaryLines = @(
+        "round=$Round",
+        "device=$DeviceSerial",
+        "api_health=$script:apiHealthResult",
+        "device_api_health=$script:deviceHealthResult",
+        "device_api_probe_url=$script:deviceApiProbeUrl",
+        "metro_status=$script:metroStatusResult",
+        "session_failed=$script:sessionFailed",
+        "failure_message=$script:failureMessage",
+        "round_dir=$roundDir",
+        "capture_xml=$(Join-Path $localCaptureDir ($Round + '.xml'))",
+        "capture_png=$(Join-Path $localCaptureDir ($Round + '.png'))",
+        "logcat=$logcatPath",
+        "metro_stdout=$metroStdout",
+        "metro_stderr=$metroStderr"
+    )
+    $summaryLines | Set-Content -Path $summaryPath -Encoding UTF8
+    $summaryLines | ForEach-Object { Write-Host $_ }
 }
-
-Write-Step "输出摘要"
-$summaryLines = @(
-    "round=$Round",
-    "device=$DeviceSerial",
-    "api_health=$apiHealth",
-    "device_api_health=$deviceHealth",
-    "metro_status=$metroStatus",
-    "round_dir=$roundDir",
-    "capture_xml=$(Join-Path $localCaptureDir ($Round + '.xml'))",
-    "capture_png=$(Join-Path $localCaptureDir ($Round + '.png'))",
-    "logcat=$logcatPath",
-    "metro_stdout=$metroStdout",
-    "metro_stderr=$metroStderr"
-)
-$summaryLines | Set-Content -Path $summaryPath -Encoding UTF8
-$summaryLines | ForEach-Object { Write-Host $_ }
