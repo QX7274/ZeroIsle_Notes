@@ -242,7 +242,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         styles.glassBlock,
         {
           borderBottomColor: `${theme.primary}22`,
-          paddingTop: Math.max(insets.top, SPACING.MEDIUM),
+          paddingTop: Platform.OS === 'android' ? 0 : Math.max(insets.top, SPACING.MEDIUM),
         },
       ]}
     >

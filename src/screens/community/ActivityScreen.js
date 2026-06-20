@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -131,7 +132,7 @@ const ActivityScreen = ({ navigation }) => {
         styles.container,
         {
           backgroundColor: theme.colors?.background || '#F2F7FB',
-          paddingTop: Math.max(insets.top, 12),
+          paddingTop: Platform.OS === 'android' ? 0 : Math.max(insets.top, 12),
         },
       ]}
       testID="screen.community.activity"
@@ -228,11 +229,11 @@ const styles = StyleSheet.create({
   refreshAction: {
     width: 40,
     height: 40,
-    borderRadius: 17,
+    borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: 'rgba(33,150,243,0.12)',
     alignSelf: 'flex-end',
   },
   listContent: {

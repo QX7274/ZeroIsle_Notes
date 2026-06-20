@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -165,7 +166,7 @@ const NotificationsScreen = () => {
         styles.container,
         {
           backgroundColor: theme.colors?.background || '#F2F7FB',
-          paddingTop: Math.max(insets.top, 12),
+          paddingTop: Platform.OS === 'android' ? 0 : Math.max(insets.top, 12),
         },
       ]}
       testID="screen.community.notifications"
@@ -269,11 +270,11 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 17,
+    borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: 'rgba(33,150,243,0.12)',
   },
   backButton: { width: 40 },
   markAllBtn: {
