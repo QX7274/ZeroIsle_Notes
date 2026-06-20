@@ -132,6 +132,22 @@ const PostDetailScreen = ({ route, navigation }) => {
     return <View style={[style, fallbackStyle]} />;
   }, []);
 
+  const openUserProfile = useCallback((userId, fallbackName, avatar) => {
+    if (!userId) {
+      return;
+    }
+
+    navigation.navigate('UserProfile', {
+      userId: String(userId),
+      initialUser: {
+        id: String(userId),
+        username: fallbackName || '社区用户',
+        nickname: fallbackName || '社区用户',
+        avatar: avatar || '',
+      },
+    });
+  }, [navigation]);
+
   useEffect(() => {
     loadPostData();
     return () => {
@@ -178,10 +194,15 @@ const PostDetailScreen = ({ route, navigation }) => {
       testID={`item.community.postDetail.reply.${parentCommentId}.${reply.id}`}
     >
       <View style={styles.replyHeader}>
-        <View style={styles.commentAuthor}>
+        <TouchableOpacity
+          style={styles.commentAuthor}
+          onPress={() => openUserProfile(reply.authorId, reply.author, reply.authorAvatar)}
+          disabled={!reply.authorId}
+          testID={`action.community.postDetail.replyAuthor.${parentCommentId}.${reply.id}`}
+        >
           {renderAvatar(reply.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
           <Text style={[styles.commentAuthorName, { color: theme.text }]}>{reply.author}</Text>
-        </View>
+        </TouchableOpacity>
         <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
           {reply.timestamp ? new Date(reply.timestamp).toLocaleDateString() : '时间未知'}
         </Text>
@@ -308,10 +329,15 @@ const PostDetailScreen = ({ route, navigation }) => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.postShell, styles.glassBlock, { borderColor: `${theme.primary}20` }]}>
           <View style={styles.postHeader}>
-            <View style={styles.authorContainer}>
+            <TouchableOpacity
+              style={styles.authorContainer}
+              onPress={() => openUserProfile(post.authorId, post.author, post.authorAvatar)}
+              disabled={!post.authorId}
+              testID="action.community.postDetail.author"
+            >
               {renderAvatar(post.authorAvatar, styles.avatar, styles.avatarFallback)}
               <Text style={[styles.authorName, { color: theme.text }]}>{post.author}</Text>
-            </View>
+            </TouchableOpacity>
             <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
               {post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '时间未知'}
             </Text>
@@ -376,10 +402,15 @@ const PostDetailScreen = ({ route, navigation }) => {
           {comments.map((comment) => (
             <View key={comment.id} style={[styles.commentItem, styles.glassBlock, { borderColor: `${theme.primary}20` }]} testID={`item.community.postDetail.comment.${comment.id}`}>
               <View style={styles.commentHeader}>
-                <View style={styles.commentAuthor}>
+                <TouchableOpacity
+                  style={styles.commentAuthor}
+                  onPress={() => openUserProfile(comment.authorId, comment.author, comment.authorAvatar)}
+                  disabled={!comment.authorId}
+                  testID={`action.community.postDetail.commentAuthor.${comment.id}`}
+                >
                   {renderAvatar(comment.authorAvatar, styles.commentAvatar, styles.avatarFallback)}
                   <Text style={[styles.commentAuthorName, { color: theme.text }]}>{comment.author}</Text>
-                </View>
+                </TouchableOpacity>
                 <Text style={[styles.commentTimestamp, { color: theme.textSecondary }]}>
                   {comment.timestamp ? new Date(comment.timestamp).toLocaleDateString() : '时间未知'}
                 </Text>

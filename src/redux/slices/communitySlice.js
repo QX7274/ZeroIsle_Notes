@@ -190,10 +190,11 @@ export const fetchComments = createAsyncThunk(
   'community/fetchComments',
   async ({ postId, page = 1 }, { rejectWithValue }) => {
     try {
+      const pageSize = 10;
       // 调用实际的API
       const response = await communityApi.getPostComments(postId, {
         page: page,
-        page_size: 10,
+        page_size: pageSize,
         parent: null, // 获取顶级评论
       });
 
@@ -203,6 +204,7 @@ export const fetchComments = createAsyncThunk(
 
       const mapReply = (reply) => ({
         id: reply.id,
+        authorId: reply.user?.id,
         author: reply.user?.nickname || reply.user?.username || '用户',
         authorAvatar: reply.user?.avatar || '',
         content: reply.content,
@@ -236,6 +238,7 @@ export const fetchComments = createAsyncThunk(
 
         return {
           id: c.id,
+          authorId: c.user?.id,
           author: c.user?.nickname || c.user?.username || '用户',
           authorAvatar: c.user?.avatar || '',
           content: c.content,
@@ -248,10 +251,11 @@ export const fetchComments = createAsyncThunk(
       }));
 
       return {
+        page,
         comments: uiComments,
         pagination: {
           page: page,
-          totalPages: Math.ceil(count / 10),
+          totalPages: Math.max(1, Math.ceil(count / pageSize)),
           totalItems: count,
         },
       };
@@ -689,9 +693,11 @@ const communitySlice = createSlice({
       })
       .addCase(fetchComments.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.comments = action.payload.comments;
+        state.comments = action.payload.page > 1
+          ? [...state.comments, ...action.payload.comments]
+          : action.payload.comments;
         state.commentsPagination = action.payload.pagination;
-        state.likedComments = action.payload.comments.reduce((acc, comment) => {
+        const nextLikedComments = action.payload.comments.reduce((acc, comment) => {
           acc[comment.id] = Boolean(comment.isLiked);
           if (Array.isArray(comment.replies)) {
             comment.replies.forEach(reply => {
@@ -700,6 +706,9 @@ const communitySlice = createSlice({
           }
           return acc;
         }, {});
+        state.likedComments = action.payload.page > 1
+          ? { ...state.likedComments, ...nextLikedComments }
+          : nextLikedComments;
       })
       .addCase(fetchComments.rejected, (state, action) => {
         state.isLoading = false;
