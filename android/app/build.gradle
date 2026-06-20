@@ -6,6 +6,10 @@ apply plugin: "com.google.gms.google-services"
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
 react {
+    // 当前真机 debug 依赖 Metro 的供包链不稳定，导致前台长期停在 Reloading/空根容器。
+    // 将 debug 从 debuggableVariants 中移除后，installDebug 也会内置 JS bundle，
+    // 便于在不依赖 Metro 的情况下恢复真机业务前台继续逐页验收。
+    debuggableVariants = []
     autolinkLibrariesWithApp()
 }
 

@@ -346,3 +346,77 @@
   - 深层页返回按钮继续统一使用已有淡蓝色方形带箭头样式；
   - 网络问题继续使用项目内统一优美弹层，不回退默认安卓弹窗；
   - 成熟 UI 不随意重做，只修明显原始或有结构缺陷的页面。
+
+## 13. round407 启动链续查：确认卡点已收口到 bundle 产出层，开始试探 debug 内置 bundle 路径
+
+### 13.1 本轮先进一步排除的误判
+- 本轮继续基于 `round406_startup_session` 现场复核：
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\logcat.txt`
+  - `D:\ZeroIsle_Notes\.codex-tmp\android-debug-sessions\round406_startup_session\metro.stdout.log`
+- 当前能明确排除：
+  - 不是 `MainActivity`/`MainApplication` 根本没起来；
+  - 不是平板与电脑后端 REST 链路不通；
+  - 不是单纯 `Reloading...` 文案噪声。
+- 判断依据：
+  - logcat 已明确出现：
+    - `ZeroIsleMainApplication: onCreate`
+    - `ZeroIsleMainActivity: getMainComponentName -> ZeroIsle_Notes`
+    - `ZeroIsleMainApplication: getJSMainModuleName -> index`
+  - 说明原生壳层已经正常启动并指向正确入口组件。
+
+### 13.2 本轮进一步确认的真实卡点
+- 本轮直接请求：
+  - `http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false&app=com.zeroisle_notes&modulesOnly=false&runModule=true`
+- 结果：
+  - 60 秒窗口内超时；
+  - 这比单看 `/status = packager-status:running` 更能说明问题。
+- 同时进程侧已看到：
+  - Metro 主进程：
+    - `node node_modules/react-native/cli.js start --port 8081 --reset-cache`
+  - 额外 `jest-worker` 子进程被拉起。
+- 因此当前阻塞必须继续收口为：
+  - Metro 服务“活着”不等于 bundle 能产出；
+  - 当前更核心的阻塞已经落在：
+    - `Metro / bundle build / worker 扫描与构建阶段`
+  - 不是页面导航或顶部布局本身导致空根容器。
+
+### 13.3 对离线 bundle 路径的再次验证
+- 本轮重新执行工作区缓存环境下的离线 bundle：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output tmp\\round407_bundle.js --assets-dest tmp\\round407_assets --reset-cache --max-workers 1 --verbose`
+- 结果：
+  - 3 分钟窗口仍超时；
+  - `D:\ZeroIsle_Notes\tmp\round407_bundle.js` 未生成；
+  - 说明“直接 bundle”路径与“设备实时取包”路径当前卡在同一层，而不是两条完全独立的问题。
+
+### 13.4 debug 内置 bundle 路径的当前试探
+- 为尽快恢复真机业务前台，本轮先做了一个最小且方向明确的 Android 构建策略试探：
+  - 文件：
+    - `D:\ZeroIsle_Notes\android\app\build.gradle`
+  - 修改：
+    - 在顶层 `react {}` 中将 `debuggableVariants` 改为 `[]`
+- 目的：
+  - 让 `debug` 也参与 `createBundleDebugJsAndAssets`；
+  - 尽量绕开“前台依赖 Metro 即时供包”的实时链路，转为“安装时内置 JS bundle”的调试包路径。
+- 当前试探结果：
+  - `:app:tasks --all` 已确认 `createBundleDebugJsAndAssets` 任务出现；
+  - 但实际执行 `:app:createBundleDebugJsAndAssets` 在 4 分钟窗口内仍未产出：
+    - `D:\ZeroIsle_Notes\android\app\build\generated\assets\react\debug\index.android.bundle`
+- 这说明：
+  - 构建策略方向是对的；
+  - 但真正卡住的仍然是 bundle 生成本身，而不是“debug 默认不打包”这一层。
+
+### 13.5 当前最诚实结论
+- 本轮没有恢复业务前台；
+- 但进一步把问题从“启动链泛化异常”收口成了：
+  - 原生壳层正常；
+  - 后端联通正常；
+  - `/status` 正常；
+  - 真实卡点落在 bundle 产出层；
+  - debug 内置 bundle 路径已打开，但产物生成仍卡住。
+- 因此下一步不应回头盲改：
+  - 社区顶部留白
+  - 功能中心样式
+  - 统一返回按钮
+  - 网络弹层
+  这些页面层代码；
+- 而应继续围绕“如何让 bundle 真正产出”推进。
