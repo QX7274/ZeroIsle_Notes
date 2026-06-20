@@ -616,3 +616,95 @@
   - 让每轮都能更稳定地区分：
     - 后端联通失败
     - 还是 Metro / bundle 失败。
+
+## 17. round412 / round414 启动链补记：后端、ADB reverse、Metro `/status` 已同时正常，但前台仍停在 `Reloading...` 空根容器；并开始收缩启动期依赖图
+
+### 17.1 round412：首次拿到“后端健康 + Metro `/status` 健康 + 前台仍空白”的同轮完整正反证据
+- 本轮先不再重启 Metro，而是直接复用当前已恢复的 Metro 现场执行：
+  - `D:\ZeroIsle_Notes\scripts\android\start_android_debug_session.ps1 -Round round412_status_ok_bundle_timeout -SkipMetroRestart -DirectApiHost 192.168.10.12`
+- 这一次脚本完整通过：
+  - 设备在线检查；
+  - 本机后端健康检查；
+  - 设备侧后端健康检查；
+  - Metro `/status` 检查；
+  - 冷启动；
+  - 截图/XML 抓证；
+  - `summary.txt` 落盘。
+- `round412_status_ok_bundle_timeout\summary.txt` 已明确记录：
+  - `api_health={"status":"alive"...}`
+  - `device_api_health={"status":"alive"...}`
+  - `device_api_probe_url=http://192.168.10.12:8001/health/`
+  - `metro_status=packager-status:running`
+  - `session_failed=False`
+- 这说明本轮已拿到同一轮内的三条关键正证据同时成立：
+  1. 后端 `8001` 正常；
+  2. 平板到电脑后端联通正常；
+  3. Metro `/status` 正常。
+
+### 17.2 round412：但前台终态依旧不是业务页面，而是 `Reloading...` + 空 `FrameLayout`
+- 尽管 `round412` 的健康检查全部通过，前台证据：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round412_status_ok_bundle_timeout.png`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round412_status_ok_bundle_timeout.xml`
+  仍明确显示：
+  - 页面顶部存在 `Reloading...` 黑条；
+  - `android:id/content` 下依旧只有空 `FrameLayout`；
+  - 没有进入任何业务页面，也没有落到根组件兜底错误页。
+- 因此当前主阻塞又进一步收紧为：
+  - 不是“后端不通”；
+  - 不是“ADB reverse 不稳”；
+  - 也不是“Metro `/status` 根本没起来”；
+  - 而是更接近：
+    - bundle 长时间无法真正产出或送达；
+    - 或 JS runtime 未完成从 packager 到根组件执行的承接。
+
+### 17.3 round412：本机直接请求 `index.bundle` 仍在 45 秒窗口内超时
+- 在 `round412` 同期，电脑端本机直接请求：
+  - `http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false&app=com.zeroisle_notes&modulesOnly=false&runModule=true`
+- 结果：
+  - 45 秒超时；
+  - 没有拿到 bundle 内容长度。
+- 这进一步说明：
+  - 即使 `/status = packager-status:running`，
+  - Metro 也依旧没有恢复到“能及时产出 bundle”的可用状态。
+
+### 17.4 round414：离线 bundle 在独立缓存目录下仍连续 3 分钟无产物，卡点更像依赖图扫描/转换阶段
+- 为避免把问题继续归咎到设备取包，本轮继续在独立 `TEMP/TMP/METRO_CACHE` 目录下直接执行：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round414_bundle.js --assets-dest .codex-tmp/round414-assets --reset-cache --max-workers 1 --verbose`
+- 结果：
+  - 3 分钟窗口内仍未产出 `round414_bundle.js`；
+  - 日志 `D:\ZeroIsle_Notes\.codex-tmp\round414_bundle_full.log` 依旧只到：
+    - `warning: the transform cache was reset.`
+    - `Welcome to Metro v0.80.12`
+  - 没有进入可见的 `BUNDLE ./index.js` 或具体模块解析输出。
+- 同时进程侧已确认：
+  - `bundle` 主进程持续高 CPU 运行；
+  - 没有生成目标 bundle 文件。
+- 因此本轮更倾向于判断：
+  - 当前卡点并不是“设备连不上 bundle”；
+  - 而是 Metro / bundle 在依赖图扫描或转换阶段就已极慢甚至卡死。
+
+### 17.5 本轮最小试探：移除 `fileService` 顶层未使用的 `xlsx` 大包引用，开始收缩启动期依赖图
+- 本轮在代码侧只做了一个很小、风险可控的试探：
+  - 文件：
+    - `D:\ZeroIsle_Notes\src\services\files\fileService.js`
+  - 调整：
+    - 删除顶层 `import XLSX from 'xlsx';`
+- 原因：
+  - `fileService` 会被 `HomeScreen` 启动链间接引用；
+  - `xlsx` 属于纯 JS 大包；
+  - 而当前该文件中并没有实际使用 `XLSX`；
+  - 因此这个顶层引用只会白白放大启动期依赖图与 bundle 压力。
+- 本轮这一步还不能宣称“已修复 bundle 阻塞”，但它是一个对主阻塞方向一致、且风险很低的缩图试探。
+
+### 17.6 截止本轮的最准确判断
+- 当前启动链真实状态应更新为：
+  1. 后端 `8001` 联通已恢复；
+  2. 设备侧 `adb reverse` 与电脑 IP 直连健康探测都正常；
+  3. Metro `/status` 已恢复；
+  4. 但 `index.bundle` 仍超时；
+  5. 离线 `react-native bundle` 也仍在 3 分钟窗口内无产物；
+  6. 真机前台仍停在 `Reloading...` + 空 `FrameLayout`。
+- 因此下一步仍应继续围绕：
+  - 启动期依赖图缩减；
+  - Metro / bundle 扫描与转换层
+  推进，而不是回头盲改页面 UI。

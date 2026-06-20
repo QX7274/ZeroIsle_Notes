@@ -5,7 +5,6 @@
 import { logService } from '../../utils/logService';
 import RNFS from 'react-native-fs';
 import PDFLib from 'react-native-pdf';
-import XLSX from 'xlsx';
 import { chunkedUploadService } from './chunkedUploadService';
 import { firebaseStorage } from '../firebase/firebaseStorage';
 import Share from 'react-native-share';
