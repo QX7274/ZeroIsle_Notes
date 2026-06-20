@@ -78,3 +78,68 @@
   - `replyAuthor -> UserProfile`
   - 关注状态联动
   - 社区其他深层页回归
+
+## 8. round399 现场补记
+
+### 8.1 已恢复并确认的现场事实
+- 本轮先恢复了 ADB daemon、重新枚举设备，并重新建立：
+  - `adb reverse tcp:8001 tcp:8001`
+  - `adb reverse tcp:8081 tcp:8081`
+- 恢复后可确认：
+  - `adb shell echo ok` 正常返回；
+  - 输入法仍为 `com.github.uiautomator/.AdbKeyboard`；
+  - 设备 `HGR3Y9MA` 已重新稳定出现在 `adb devices -l` 中。
+
+### 8.2 当前前台页面并未丢失
+- 通过原生命令绕过慢抓证脚本后，已重新拿到：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round399_recovery_probe.xml`
+- 该证据明确显示：
+  - 前台仍命中 `screen.community.postDetail`；
+  - 头部 `action.community.postDetail.back` 仍位于 `y=48` 左右；
+  - 页面根内容区仍从 `y=36` 起始；
+  - 说明这时应用并没有退回首页、没有跳到其他模块，也没有出现新的顶部遮挡回退。
+
+### 8.3 当前继续阻塞真机键盘态复测的真实原因
+- 本轮证据同时抓到：
+  - 页面底部存在 `Cannot connect to Metro` 的开发提示条；
+  - 文案明确指向 `localhost:8081` 的 Metro 供包链断开。
+- 结合本机探针可确认：
+  - 当前 `127.0.0.1:8081/status` 连接被拒绝；
+  - 本机确有 `node node_modules/react-native/cli.js start --reset-cache` 进程，但 8081 并未真正进入监听；
+  - 因此当前不能继续把“评论输入后键盘态头部是否贴顶”的阻塞归因于业务页面本身。
+
+### 8.4 当前结论更新
+- `adjustResize + Android 端取消二次 height 避让` 的代码已经落地；
+- 非键盘态下，`PostDetail` 顶部安全区没有回退；
+- 但在 Metro 供包链恢复前，本轮还不能拿到新的评论输入终态证据，所以不能把“键盘态头部问题已通过”写成 PASS。
+
+## 9. round399 键盘态复测结果与后续补丁
+
+### 9.1 本轮终于拿到的关键真机证据
+- 证据：
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round399_after_focus_input.xml`
+  - `D:\ZeroIsle_Notes\.local\android-mcp-server\round399_after_text_input.xml`
+- 现场结果：
+  - 评论输入框已经真实进入 `focused="true"`；
+  - 页面根高度从非键盘态的 `1977` 左右收缩到 `1893`；
+  - 但头部 `action.community.postDetail.back` 的坐标也从非键盘态 `y=48` 掉到了键盘态 `y=0`。
+- 这说明：
+  - `adjustResize` 已经让系统窗口开始收缩；
+  - 但当前头部在键盘态仍会吃到“被重算后的零顶部 inset”；
+  - 因此问题没有完全消失，只是从“整页被平移”进一步收敛为“头部使用的顶部 inset 在键盘态被清零”。
+
+### 9.2 本轮新增代码补丁
+- 文件：
+  - `src/screens/community/PostDetailScreen.js`
+- 修改：
+  - 新增 `stableTopInsetRef`；
+  - Android 端记录非键盘态下出现过的最大 `insets.top`；
+  - 头部 `paddingTop` 与 `state.community.postDetail.topInset.*` 改为使用该稳定值，而不是直接使用键盘态瞬时 `insets.top`。
+- 目的：
+  - 非键盘态已经拿到的真实安全区值不应在评论输入时被清零；
+  - 统一淡蓝返回按钮、标题与右上角操作区都应继续固定在状态栏下方，而不是跟随键盘态顶部 inset 抖动。
+
+### 9.3 当前边界
+- 本轮已经拿到“问题仍存在”的新证据，也已经继续落了一次方向正确的最小补丁；
+- 但补丁后的再次真机复测仍未完成，所以当前不能把问题写成已通过；
+- 下一步必须继续抓补丁后键盘态 XML，确认头部是否恢复到 `y=36` 左右。

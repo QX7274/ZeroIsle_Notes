@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const { theme } = useTheme();
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
+  const stableTopInsetRef = useRef(insets.top || 0);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null);
@@ -73,12 +74,25 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const busy = isLoading || submittingComment;
   const pageState = isLoading && !post ? 'loading' : post ? 'ready' : error ? 'error' : 'empty';
+  const stableTopInset = Platform.OS === 'android'
+    ? Math.max(stableTopInsetRef.current || insets.top || 0, SPACING.SMALL)
+    : Math.max(insets.top, SPACING.MEDIUM);
   const { totalCommentCount: commentsTotal } = resolvePostDetailCommentStats({
     post,
     commentsPagination,
     comments,
   });
   const hasMoreComments = (commentsPagination?.page ?? 1) < (commentsPagination?.totalPages ?? 1);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    if (insets.top > stableTopInsetRef.current) {
+      stableTopInsetRef.current = insets.top;
+    }
+  }, [insets.top]);
 
   const applyRestoredSession = useCallback((restoredSession) => {
     if (!restoredSession?.token) {
@@ -263,11 +277,11 @@ const PostDetailScreen = ({ route, navigation }) => {
         styles.glassBlock,
         {
           borderBottomColor: `${theme.primary}22`,
-          paddingTop: Platform.OS === 'android' ? Math.max(insets.top, SPACING.SMALL) : Math.max(insets.top, SPACING.MEDIUM),
+          paddingTop: stableTopInset,
         },
       ]}
     >
-      <View testID={`state.community.postDetail.topInset.${Math.max(insets.top, SPACING.SMALL)}`} />
+      <View testID={`state.community.postDetail.topInset.${stableTopInset}`} />
       <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.postDetail.back" style={styles.backIconBtn} />
       <Text style={[styles.headerTitle, { color: theme.text }]}>帖子详情</Text>
       <View style={styles.headerRight}>
