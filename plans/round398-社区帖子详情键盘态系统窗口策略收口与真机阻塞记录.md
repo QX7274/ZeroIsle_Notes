@@ -918,3 +918,146 @@
   - `services/index.js` 是否仍被其它链路间接带入
   - Metro 在当前工程规模下的扫描面与残留进程治理
   - 以及其它首页/主导航链附近的大模块误引用。
+
+## 21. round419 启动链补记：Redux `reminderSlice` 已脱离 API 聚合出口，但离线 bundle 仍卡在 Metro 欢迎阶段
+
+### 21.1 本轮继续沿 store 启动主链收口，而非回头盲改页面层
+- 由于 `App.js -> store/index.js -> redux/store.js` 会在应用启动时稳定进入，
+  本轮继续沿 Redux 主链排查是否仍有通过 API 聚合出口放大依赖图的情况。
+- 复核确认：
+  - `src/redux/slices/reminderSlice.js` 顶层此前使用：
+    - `import api from '../../services/api';`
+  - 而该 slice 本身作为根 reducer 一部分，会在 store 创建时被直接加载。
+- 这意味着：
+  - 即使提醒功能当前用户并未打开，
+  - `reminderSlice` 也会把 `src/services/api/index.js` 聚合出口提前拉入 store 启动链，
+  - 从而一并把整组 API 模块一起带进 bundle。
+
+### 21.2 本轮代码试探：将 `reminderSlice` 改为直连 `reminderApi`
+- 文件：
+  - `D:\ZeroIsle_Notes\src\redux\slices\reminderSlice.js`
+- 本轮调整：
+  1. 将：
+     - `import api from '../../services/api';`
+     改为：
+     - `import reminderApi from '../../services/api/reminderApi';`
+  2. 将以下调用逐一改为直连提醒 API：
+     - `api.get('/reminders/')` -> `reminderApi.getAllReminders()`
+     - `api.post('/reminders/', reminderData)` -> `reminderApi.createReminder(reminderData)`
+     - `api.put(`/reminders/${id}/`, reminderData)` -> `reminderApi.updateReminder(id, reminderData)`
+     - `api.delete(`/reminders/${id}/`)` -> `reminderApi.deleteReminder(id)`
+- 本轮保持行为等价，不扩展功能，只做“切断聚合出口误引用”的最小收口。
+
+### 21.3 本轮保守未动的点：`authSlice` 虽也经由 API 聚合出口取 `userApi`，但当前方法映射存在风险
+- 同轮复核还发现：
+  - `src/redux/slices/authSlice.js` 通过 `../../services/api/index` 获取 `userApi`
+- 但进一步核对 `authSlice` 当前调用的方法名与 `userApi.js` 现有导出时发现：
+  - `authSlice` 中存在若干调用名与 `userApi.js` 当前实现并不完全一致；
+  - 其真实适配关系与 `authApi.js`、现有运行链可能存在历史混用。
+- 因此本轮没有贸然直接替换 `authSlice` 的 API 引用路径，
+  避免在未补齐行为验证前引入认证链回归。
+- 这一点在后续仍值得继续专项清理，但需要更谨慎的逐项核对，而不是这轮顺手硬改。
+
+### 21.4 round419 离线 bundle 复测结果：仍未进入 `BUNDLE ./index.js`
+- 本轮继续使用独立缓存目录执行离线打包：
+  - `node node_modules/react-native/cli.js bundle --platform android --dev true --entry-file index.js --bundle-output .codex-tmp/round419_bundle.js --assets-dest .codex-tmp/round419-assets --reset-cache --max-workers 1 --verbose`
+- 结果：
+  - 3 分钟窗口内仍未生成 `round419_bundle.js`
+  - `D:\ZeroIsle_Notes\.codex-tmp\round419_bundle_full.log` 仍只停留在：
+    - `warning: the transform cache was reset.`
+    - `Welcome to Metro v0.80.12`
+  - 没有进入：
+    - `BUNDLE ./index.js`
+- 这说明：
+  - `reminderSlice` 对 API 聚合出口的依赖也确实属于启动期噪音；
+  - 但剪掉这一条后，Metro / bundle 主卡点依然没有被打穿。
+
+### 21.5 本轮资源治理补记：`round419` 残留 bundle 进程已清理
+- 本轮复测后确认超时残留：
+  - `node ... cli.js bundle ... round419_bundle.js`
+- 为避免其继续占用 CPU 并污染后续判断，
+  本轮已显式停止该残留进程。
+
+### 21.6 截止 round419 的新增阶段性结论
+- 当前又进一步排除了一个稳定位于 store 启动主链上的聚合出口误引用：
+  - `redux/reminderSlice -> services/api/index`
+- 但 bundle 仍完全停留在 Metro 欢迎阶段，
+  因此下一步仍需继续围绕以下方向下钻：
+  1. 继续排查其它 store 主链 slice 是否仍经由 API 聚合出口加载
+  2. 更谨慎地梳理 `authSlice` 与 `userApi/authApi` 的真实映射关系
+  3. 继续压缩 Metro 在当前工程体量下的扫描面与调试产物残留
+
+## 22. round420 功能完善补记：目标管理已从静态目标列表推进为可直接更新状态与进度的规划执行页
+
+### 22.1 本轮主动调整优先级：不再让启动链深挖拖慢“功能实现和完善”主线
+- 基于当前目标和用户最新强调：
+  - 要尽快进入功能完善部分；
+  - 不要继续被 Metro / bundle 排查无限拖慢；
+- 因此本轮主动切换到“规划功能正确实现”的主线推进，
+  选择当前文件现场干净、且确实是规划功能核心的 `目标管理` 模块先做实质增强。
+
+### 22.2 本轮确认的实际功能缺口：目标管理此前更像“能建目标的表单页”，而不是“能推进目标的执行页”
+- 代码与页面结构复核确认：
+  - `GoalManagerScreen` 此前已有：
+    - 新建目标
+    - 编辑目标
+    - 删除目标
+    - 展示完成率 / 状态 / 周期
+- 但仍缺少用户在日常使用中最常用的两条执行链：
+  1. 列表内直接切换目标状态
+  2. 列表内快速更新当前完成值 / 当前进度
+- 这导致目标管理在真实使用时仍偏“静态资料维护”，
+  不符合“规划功能正确实现”和“重点放在功能实现和完善”的要求。
+
+### 22.3 本轮前端增强：列表级快捷状态切换 + 进度更新弹层
+- 文件：
+  - `D:\ZeroIsle_Notes\src\screens\personal_activity\GoalManagerScreen.js`
+- 本轮新增能力：
+  1. 为每个目标卡片补充状态徽标
+  2. 为每个目标卡片补充快捷状态切换 chips：
+     - `进行中`
+     - `已暂停`
+     - `已完成`
+     - `已取消`
+  3. 为每个目标卡片补充 `更新进度 / 更新状态` 快捷入口
+  4. 新增统一风格的进度更新弹层：
+     - 数量型 / 习惯型目标可直接填写 `current_value`
+     - 所有目标都可在弹层内直接调整状态
+  5. 为目标级异步操作增加局部 loading，避免列表级操作期间缺乏反馈
+- 本轮保持：
+  - 顶部统一风格不变
+  - 深层页返回按钮仍沿用既有淡蓝方形返回按钮体系
+  - 只增强功能闭环，不回头大改成熟区域视觉
+
+### 22.4 本轮接口层增强：补齐目标状态与进度快捷更新方法
+- 文件：
+  - `D:\ZeroIsle_Notes\src\services\api\personalActivityApi.js`
+- 新增：
+  - `updateGoalStatus(id, status, requestOptions)`
+  - `updateGoalProgress(id, currentValue, requestOptions)`
+- 目的：
+  - 让目标管理页不再重复拼接底层 `updateGoal` 参数；
+  - 为后续个人记录链其它页面复用目标状态 / 进度更新能力打基础。
+
+### 22.5 本轮后端一致性增强：更新目标时同步重算完成率，并自动收口完成状态
+- 文件：
+  - `D:\ZeroIsle_Notes\backend\personal_activity\mongodb_models.py`
+- 本轮在 `ActivityGoal.update()` 中补齐：
+  1. 更新目标前先读取现有目标
+  2. 当 `current_value` 或 `target_value` 被更新时：
+     - 同步重算 `completion_rate`
+  3. 当完成率达到 `100%` 时：
+     - 若本轮未显式指定状态，则自动收口为 `completed`
+  4. 若用户直接将状态改为 `completed`：
+     - 自动把 `completion_rate` 写为 `100`
+- 这样可避免以下不一致：
+  - 状态已完成，但完成率仍停留在旧值
+  - 当前值已超过目标值，但状态仍停留进行中
+
+### 22.6 截止 round420 的阶段性结论
+- 本轮已把 `目标管理` 从“静态目标表单管理”推进为“可直接更新状态与进度的规划执行页”
+- 这属于直接面向用户目标的功能完善进展，而不是继续在启动链上空转
+- 下一步在个人记录链上仍值得继续补齐：
+  1. 目标与活动的关联回流
+  2. 目标完成后对统计 / 分析页的联动展示
+  3. 分类管理与目标管理之间的使用闭环

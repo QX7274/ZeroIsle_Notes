@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../services/api';
+import reminderApi from '../../services/api/reminderApi';
 import { showMessage } from '../../utils/messageUtils';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 
@@ -69,7 +69,7 @@ export const loadReminders = createAsyncThunk(
         };
       } else {
         // 浠嶢PI鑾峰彇鏁版嵁
-        const response = await api.get('/reminders/');
+        const response = await reminderApi.getAllReminders();
         const offlineOperations = await reminderNotificationService.getOfflineOperations();
         return {
           reminders: response.data,
@@ -96,7 +96,7 @@ export const syncReminders = createAsyncThunk(
       const syncResult = await reminderNotificationService.syncOfflineReminders();
 
       if (syncResult.synced > 0) {
-        const response = await api.get('/reminders/');
+        const response = await reminderApi.getAllReminders();
         dispatch(loadReminders(response.data));
       }
 
@@ -137,7 +137,7 @@ export const addReminder = createAsyncThunk(
   'reminders/addReminder',
   async (reminderData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/reminders/', reminderData);
+      const response = await reminderApi.createReminder(reminderData);
       showMessage('提醒事项已添加');
       return response.data;
     } catch (error) {
@@ -152,7 +152,7 @@ export const updateReminder = createAsyncThunk(
   'reminders/updateReminder',
   async ({ id, reminderData }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/reminders/${id}/`, reminderData);
+      const response = await reminderApi.updateReminder(id, reminderData);
       showMessage('提醒事项已更新');
       return response.data;
     } catch (error) {
@@ -167,7 +167,7 @@ export const deleteReminder = createAsyncThunk(
   'reminders/deleteReminder',
   async (id, { rejectWithValue }) => {
     try {
-      await api.delete(`/reminders/${id}/`);
+      await reminderApi.deleteReminder(id);
       showMessage('提醒事项已删除');
       return id;
     } catch (error) {

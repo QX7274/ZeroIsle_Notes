@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -87,11 +88,16 @@ const GoalManagerScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
+  const [progressDialogVisible, setProgressDialogVisible] = useState(false);
   const [networkErrorVisible, setNetworkErrorVisible] = useState(false);
   const [networkErrorState, setNetworkErrorState] = useState(null);
   const [formStatus, setFormStatus] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState(null);
+  const [progressGoal, setProgressGoal] = useState(null);
+  const [progressValueInput, setProgressValueInput] = useState('');
+  const [progressStatusInput, setProgressStatusInput] = useState('active');
+  const [goalActionLoading, setGoalActionLoading] = useState({});
   const modalTitle = editingGoal ? '编辑目标' : '新建目标';
   const [formData, setFormData] = useState({
     title: '',
@@ -108,6 +114,12 @@ const GoalManagerScreen = ({ navigation }) => {
     { key: 'habit', label: '习惯养成', icon: 'repeat' },
     { key: 'milestone', label: '里程碑', icon: 'flag' },
     { key: 'qualitative', label: '定性目标', icon: 'star' },
+  ];
+  const goalStatuses = [
+    { key: 'active', label: '进行中', icon: 'play-arrow' },
+    { key: 'paused', label: '已暂停', icon: 'pause' },
+    { key: 'completed', label: '已完成', icon: 'check-circle' },
+    { key: 'cancelled', label: '已取消', icon: 'cancel' },
   ];
 
   const dismissNetworkError = () => {
@@ -137,6 +149,18 @@ const GoalManagerScreen = ({ navigation }) => {
 
   const clearFormStatus = () => {
     setFormStatus(null);
+  };
+
+  const setGoalBusy = (goalId, busy) => {
+    setGoalActionLoading(prev => {
+      if (!goalId) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [goalId]: busy,
+      };
+    });
   };
 
   useEffect(() => {
@@ -267,6 +291,83 @@ const GoalManagerScreen = ({ navigation }) => {
     setConfirmDialogVisible(true);
   };
 
+  const canTrackGoalValue = (goal) => (
+    goal?.type === 'quantitative' || goal?.type === 'habit'
+  );
+
+  const openProgressDialog = (goal) => {
+    setProgressGoal(goal);
+    setProgressValueInput(
+      goal?.current_value === null || goal?.current_value === undefined
+        ? ''
+        : String(goal.current_value)
+    );
+    setProgressStatusInput(goal?.status || 'active');
+    setProgressDialogVisible(true);
+  };
+
+  const closeProgressDialog = () => {
+    setProgressDialogVisible(false);
+    setProgressGoal(null);
+    setProgressValueInput('');
+    setProgressStatusInput('active');
+  };
+
+  const handleQuickStatusUpdate = async (goal, nextStatus) => {
+    if (!goal?._id || goal.status === nextStatus) {
+      return;
+    }
+
+    try {
+      setGoalBusy(goal._id, true);
+      await personalActivityApi.updateGoalStatus(goal._id, nextStatus, { suppressGlobalErrorUI: true });
+      showToast.success(`目标已更新为${getStatusText(nextStatus)}`);
+      await loadGoals();
+    } catch (error) {
+      if (!presentNetworkError(error, '目标状态更新失败，请确认网络与后端服务正常后重试', () => handleQuickStatusUpdate(goal, nextStatus))) {
+        showToast.error(extractGoalValidationMessage(error, '目标状态更新失败，请稍后重试'));
+      }
+    } finally {
+      setGoalBusy(goal._id, false);
+    }
+  };
+
+  const handleSaveProgress = async () => {
+    if (!progressGoal?._id) {
+      return;
+    }
+
+    const shouldUpdateValue = canTrackGoalValue(progressGoal);
+    const parsedValue = progressValueInput === '' ? null : parseFloat(progressValueInput);
+
+    if (shouldUpdateValue && (parsedValue === null || Number.isNaN(parsedValue) || parsedValue < 0)) {
+      showToast.error('请输入有效的当前进度值');
+      return;
+    }
+
+    try {
+      setGoalBusy(progressGoal._id, true);
+      const payload = {
+        status: progressStatusInput,
+      };
+
+      if (shouldUpdateValue) {
+        payload.current_value = parsedValue;
+      }
+
+      await personalActivityApi.updateGoal(progressGoal._id, payload, { suppressGlobalErrorUI: true });
+      showToast.success('目标进度已更新');
+      closeProgressDialog();
+      await loadGoals();
+    } catch (error) {
+      if (!presentNetworkError(error, '目标进度更新失败，请确认网络与后端服务正常后重试', handleSaveProgress)) {
+        showToast.error(extractGoalValidationMessage(error, '目标进度更新失败，请稍后重试'));
+      }
+    } finally {
+      setGoalBusy(progressGoal._id, false);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!pendingDeleteGoal?._id) {
       setConfirmDialogVisible(false);
@@ -365,6 +466,66 @@ const GoalManagerScreen = ({ navigation }) => {
           目标: {goal.current_value || 0} / {goal.target_value} {goal.unit}
         </Text>
       )}
+
+      <View style={styles.goalMetaRow}>
+        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(goal.status)}18` }]}>
+          <Text style={[styles.statusBadgeText, { color: getStatusColor(goal.status) }]}>
+            {getStatusText(goal.status)}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.progressShortcutButton, { borderColor: `${colors.primary}33` }]}
+          onPress={() => openProgressDialog(goal)}
+          activeOpacity={0.88}
+        >
+          <Icon name={canTrackGoalValue(goal) ? 'tune' : 'flag'} size={16} color={colors.primary} />
+          <Text style={[styles.progressShortcutText, { color: colors.primary }]}>
+            {canTrackGoalValue(goal) ? '更新进度' : '更新状态'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.quickStatusRow}>
+        {goalStatuses.map(statusOption => {
+          const active = goal.status === statusOption.key;
+          const busy = Boolean(goalActionLoading[goal._id]);
+          return (
+            <TouchableOpacity
+              key={`${goal._id}_${statusOption.key}`}
+              style={[
+                styles.quickStatusChip,
+                {
+                  backgroundColor: active ? `${getStatusColor(statusOption.key)}18` : `${colors.border}30`,
+                  borderColor: active ? `${getStatusColor(statusOption.key)}45` : `${colors.border}70`,
+                },
+              ]}
+              activeOpacity={0.88}
+              disabled={busy}
+              onPress={() => handleQuickStatusUpdate(goal, statusOption.key)}
+            >
+              {busy && active ? (
+                <ActivityIndicator size="small" color={getStatusColor(statusOption.key)} />
+              ) : (
+                <Icon
+                  name={statusOption.icon}
+                  size={15}
+                  color={active ? getStatusColor(statusOption.key) : colors.textSecondary || `${colors.text}99`}
+                />
+              )}
+              <Text
+                style={[
+                  styles.quickStatusText,
+                  {
+                    color: active ? getStatusColor(statusOption.key) : colors.textSecondary || `${colors.text}99`,
+                  },
+                ]}
+              >
+                {statusOption.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       <Text variant="caption" style={styles.goalDates}>
         {new Date(goal.start_date).toLocaleDateString()} - {new Date(goal.end_date).toLocaleDateString()}
@@ -666,6 +827,99 @@ const GoalManagerScreen = ({ navigation }) => {
       </Modal>
 
       <Modal
+        visible={progressDialogVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeProgressDialog}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={[styles.confirmDialog, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.confirmIconWrap, { backgroundColor: `${colors.primary}16` }]}>
+              <Icon name="track-changes" size={24} color={colors.primary} />
+            </View>
+            <Text variant="h3" style={[styles.confirmTitle, { color: colors.text }]}>
+              更新目标进度
+            </Text>
+            <Text style={[styles.confirmMessage, { color: colors.textSecondary || `${colors.text}99` }]}>
+              {progressGoal ? `正在更新“${progressGoal.title}”` : '正在更新当前目标'}
+            </Text>
+
+            <View style={styles.progressDialogBody}>
+              {canTrackGoalValue(progressGoal) ? (
+                <View style={styles.formGroup}>
+                  <Text variant="body" style={[styles.formLabel, { color: colors.text }]}>当前值</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.background, color: colors.text }]}
+                    value={progressValueInput}
+                    onChangeText={setProgressValueInput}
+                    placeholder="输入当前完成值"
+                    placeholderTextColor={colors.text + '60'}
+                    keyboardType="numeric"
+                  />
+                </View>
+              ) : null}
+
+              <View style={styles.formGroup}>
+                <Text variant="body" style={[styles.formLabel, { color: colors.text }]}>状态</Text>
+                <View style={styles.quickStatusRow}>
+                  {goalStatuses.map(statusOption => {
+                    const active = progressStatusInput === statusOption.key;
+                    return (
+                      <TouchableOpacity
+                        key={`progress_${statusOption.key}`}
+                        style={[
+                          styles.quickStatusChip,
+                          {
+                            backgroundColor: active ? `${getStatusColor(statusOption.key)}18` : `${colors.border}30`,
+                            borderColor: active ? `${getStatusColor(statusOption.key)}45` : `${colors.border}70`,
+                          },
+                        ]}
+                        activeOpacity={0.88}
+                        onPress={() => setProgressStatusInput(statusOption.key)}
+                      >
+                        <Icon
+                          name={statusOption.icon}
+                          size={15}
+                          color={active ? getStatusColor(statusOption.key) : colors.textSecondary || `${colors.text}99`}
+                        />
+                        <Text
+                          style={[
+                            styles.quickStatusText,
+                            {
+                              color: active ? getStatusColor(statusOption.key) : colors.textSecondary || `${colors.text}99`,
+                            },
+                          ]}
+                        >
+                          {statusOption.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={[styles.confirmSecondaryButton, { borderColor: colors.border }]}
+                onPress={closeProgressDialog}
+                activeOpacity={0.88}
+              >
+                <Text style={[styles.confirmSecondaryText, { color: colors.text }]}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmPrimaryButton, { backgroundColor: colors.primary }]}
+                onPress={handleSaveProgress}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.confirmPrimaryText}>保存进度</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={confirmDialogVisible}
         transparent
         animationType="fade"
@@ -830,6 +1084,38 @@ const styles = StyleSheet.create({
   goalProgress: {
     marginBottom: 6,
   },
+  goalMetaRow: {
+    marginTop: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressShortcutButton: {
+    minHeight: 34,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  progressShortcutText: {
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   progressInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -850,6 +1136,26 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 999,
+  },
+  quickStatusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  quickStatusChip: {
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  quickStatusText: {
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: '600',
   },
   goalTarget: {
     fontSize: 12,
@@ -930,6 +1236,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     lineHeight: 20,
+  },
+  progressDialogBody: {
+    marginTop: 14,
   },
   dialogOverlay: {
     flex: 1,

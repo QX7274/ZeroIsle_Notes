@@ -163,6 +163,20 @@ class PersonalActivityApi {
   }
 
   /**
+   * 快速更新目标状态
+   */
+  async updateGoalStatus(id, status, requestOptions = {}) {
+    return await this.updateGoal(id, { status }, requestOptions);
+  }
+
+  /**
+   * 快速更新目标当前进度值
+   */
+  async updateGoalProgress(id, currentValue, requestOptions = {}) {
+    return await this.updateGoal(id, { current_value: currentValue }, requestOptions);
+  }
+
+  /**
    * 删除目标
    */
   async deleteGoal(id, requestOptions = {}) {

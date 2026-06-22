@@ -560,6 +560,10 @@ class ActivityGoal:
         if self.collection is None:
             return False
         try:
+            existing_goal = self.get_by_id(user_id, goal_id)
+            if not existing_goal:
+                return False
+
             update_data = {"updated_at": datetime.now(timezone.utc)}
             for key, value in data.items():
                 if key not in ["_id", "user_id", "created_at"]:
@@ -567,6 +571,31 @@ class ActivityGoal:
                         update_data[key] = [ObjectId(item_id) for item_id in value]
                     else:
                         update_data[key] = value
+
+            next_target_value = update_data.get("target_value", existing_goal.get("target_value"))
+            next_current_value = update_data.get("current_value", existing_goal.get("current_value", 0))
+            next_status = update_data.get("status", existing_goal.get("status", "active"))
+
+            if next_target_value is not None:
+                try:
+                    target_value_number = float(next_target_value)
+                except (TypeError, ValueError):
+                    target_value_number = 0
+
+                try:
+                    current_value_number = float(next_current_value or 0)
+                except (TypeError, ValueError):
+                    current_value_number = 0
+
+                completion_rate = min(100, (current_value_number / target_value_number) * 100) if target_value_number > 0 else 0
+                update_data["completion_rate"] = completion_rate
+
+                if "status" not in update_data:
+                    update_data["status"] = "completed" if completion_rate >= 100 else next_status
+            elif "status" in update_data and update_data["status"] == "completed":
+                update_data["completion_rate"] = 100
+            elif "status" in update_data and update_data["status"] in ["paused", "cancelled"]:
+                update_data["completion_rate"] = existing_goal.get("completion_rate", 0)
 
             result = self.collection.update_one(
                 {"_id": ObjectId(goal_id), "user_id": _user_id_query(user_id)},
