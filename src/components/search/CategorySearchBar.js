@@ -6,8 +6,8 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
-  Modal,
 } from 'react-native';
+import { Portal } from 'react-native-paper';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -68,20 +68,19 @@ const CategorySearchBar = ({ onSearch }) => {
         </Text>
       </TouchableOpacity>
 
-      <Modal
-        visible={showSearch}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowSearch(false)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <MultiModalSearch
-            onSearch={handleSearchResult}
-            onCancel={() => setShowSearch(false)}
-            searchScope="category"
-          />
-        </View>
-      </Modal>
+      {showSearch ? (
+        <Portal>
+          <View style={[styles.portalOverlay, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+              <MultiModalSearch
+                onSearch={handleSearchResult}
+                onCancel={() => setShowSearch(false)}
+                searchScope="category"
+              />
+            </View>
+          </View>
+        </Portal>
+      ) : null}
     </>
   );
 };
@@ -109,7 +108,10 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    paddingTop: 40,
+  },
+  portalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    elevation: 16,
   },
 });
 

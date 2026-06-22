@@ -7,9 +7,9 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   BackHandler,
 } from 'react-native';
+import { Portal } from 'react-native-paper';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -254,22 +254,21 @@ const UnifiedSearchBar = ({
         </Text>
       </TouchableOpacity>
 
-      <Modal
-        visible={showSearch}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => closeSearchModal('request-close', true)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <MultiModalSearch
-            navigation={navigation}
-            onSearch={handleSearchResult}
-            onCancel={() => closeSearchModal('cancel', true)}
-            initialQuery={initialQuery}
-            searchScope={searchScope}
-          />
-        </View>
-      </Modal>
+      {showSearch ? (
+        <Portal>
+          <View style={[styles.portalOverlay, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+              <MultiModalSearch
+                navigation={navigation}
+                onSearch={handleSearchResult}
+                onCancel={() => closeSearchModal('cancel', true)}
+                initialQuery={initialQuery}
+                searchScope={searchScope}
+              />
+            </View>
+          </View>
+        </Portal>
+      ) : null}
     </>
   );
 };
@@ -297,7 +296,10 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    paddingTop: 40,
+  },
+  portalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    elevation: 16,
   },
 });
 

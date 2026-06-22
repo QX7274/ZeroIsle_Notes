@@ -1377,3 +1377,152 @@
 - 下一步最值得继续推进的是：
   1. 真机验证活动发表/列表刷新/分析页承接是否一致
   2. 在统一写链基础上补活动与目标的自动联动
+
+## 26. round425 真机补记：搜索页返回后半屏残影收口，原生 `Modal` 独立窗口问题转为应用内覆盖层
+
+### 26.1 本轮先处理已经在真机上拿到明确截图证据的缺陷
+- round424 现场已经抓到一个很清晰的真实故障：
+  - 搜索页打开后点击返回，
+  - 首页主界面虽然恢复，
+  - 但搜索页仍残留在下半屏，
+  - 形成明显的半屏幽灵层。
+- 关键证据是：
+  - `D:\ZeroIsle_Notes\tmp_after_tap_back_round424.png`
+- 这个问题优先级很高，因为它不是文案或细节问题，
+  而是会直接破坏页面退出后的显示完整性。
+
+### 26.2 本轮先用代码和 XML 判清楚：这不是简单的“返回逻辑没执行”
+- 先定位到搜索相关主实现：
+  - `D:\ZeroIsle_Notes\src\components\search\UnifiedSearchBar.js`
+  - `D:\ZeroIsle_Notes\src\components\search\MultiModalSearch.js`
+  - 以及旧版兼容入口：
+    - `HomeSearchBar.js`
+    - `CommunitySearchBar.js`
+    - `CategorySearchBar.js`
+- 进一步对照现场发现：
+  - `tmp_after_tap_back_round424.xml` 里其实已经没有搜索层；
+  - 但同一时刻截图却还残留半屏搜索 UI。
+- 这说明当时的问题不是：
+  - `showSearch` 没设回 `false`
+  - 或 `onCancel` 没触发
+- 更像是：
+  - 搜索页承载在安卓原生 `Modal` 独立窗口里，
+  - 业务状态已经关闭，
+  - 但原生窗口退场绘制在平板横屏上出现残影。
+
+### 26.3 本轮根因收敛：搜索层和主界面之前不在同一方向/窗口体系里
+- 为了避免只凭截图猜测，
+  本轮重新抓取了搜索打开现场 XML。
+- 关键现象：
+  - 旧现场里搜索页打开时 XML 是竖屏坐标：
+    - `1200 x 2000`
+  - 返回后的首页 XML 是横屏坐标：
+    - `2000 x 1200`
+- 这说明旧实现下：
+  - 搜索页和主界面不在同一绘制方向体系里，
+  - 搜索层实际落在原生 `Modal` 独立窗口上，
+  - 而平板当前主界面是横屏 Activity。
+- 这就是为什么：
+  - 返回逻辑本身已经生效，
+  - 但画面上还能短暂甚至错误地留下半屏搜索层。
+
+### 26.4 本轮代码策略：不重画成熟搜索 UI，只替换承载层
+- 用户一直强调：
+  - 只改明显原始问题，
+  - 成熟部分不要乱动，
+  - 风格保持一致。
+- 所以本轮没有重做搜索页视觉结构，
+  只做最小但关键的结构性收口：
+  1. 把 `UnifiedSearchBar` 的原生 `Modal` 改为应用内 `Portal` 全屏覆盖层
+  2. 把旧兼容入口：
+     - `HomeSearchBar`
+     - `CommunitySearchBar`
+     - `CategorySearchBar`
+     也一起从 `Modal` 改为 `Portal`
+  3. 去掉外层那一层额外固定 `paddingTop: 40`
+     - 避免和页内安全区再次叠加，
+     - 造成顶部多余留白或高度计算错位
+
+### 26.5 本轮改动文件
+- `D:\ZeroIsle_Notes\src\components\search\UnifiedSearchBar.js`
+- `D:\ZeroIsle_Notes\src\components\search\HomeSearchBar.js`
+- `D:\ZeroIsle_Notes\src\components\search\CommunitySearchBar.js`
+- `D:\ZeroIsle_Notes\src\components\search\CategorySearchBar.js`
+
+### 26.6 本轮设计/规范收口点
+- 这轮虽然主要是结构修复，
+  但同时继续落实了用户多次强调的规范：
+  1. 返回按钮继续统一使用既有淡蓝色方形箭头按钮
+  2. 顶部不得被平板系统状态栏遮挡
+  3. 顶部高度计算必须和安全区统一，不允许再额外叠加原始留白
+  4. 只改“系统层/窗口层缺陷”，不打散成熟搜索页头部和模式按钮样式
+
+### 26.7 本轮真机更新前准备：确认 JS 可以直接热更新到平板
+- 本轮没有先去跑整包构建，
+  而是先确认当前平板是 Debug 链路：
+  - 应用私有目录存在 `BridgeReactNativeDevBundle.js`
+  - 电脑端 `8081` 端口监听正常
+  - 对真机执行了：
+    - `adb reverse tcp:8081 tcp:8081`
+    - React Native reload 广播
+- 这样能保证：
+  - 这轮 JS 改动可以最快速上平板，
+  - 不会被整包安装重新拖慢，
+  - 也避免在旧 JS 包上误判真机结果。
+
+### 26.8 本轮第一组复测：确认搜索页现在已经在横屏主窗口内打开
+- 从首页重新进入搜索后，
+  重新抓取：
+  - `D:\ZeroIsle_Notes\tmp_round425_home_search_open.xml`
+  - `D:\ZeroIsle_Notes\tmp_round425_home_search_open.png`
+- 结论：
+  1. 搜索页现在直接在横屏 `2000 x 1200` 坐标系下打开
+  2. 顶部搜索头部与返回按钮都在正确横屏位置
+  3. 顶部没有再出现“竖屏独立窗口”那种方向错位
+  4. 顶部状态栏没有压住搜索头部
+- 这说明承载层替换已经生效，
+  搜索页不再走原生 `Modal` 独立窗口体系。
+
+### 26.9 本轮第二组复测：精确命中返回按钮，验证残影是否消失
+- 为了避免坐标误差导致“实际上没点中返回按钮却误判”，
+  本轮又单独精确点击了 `action.search.modal.back` 对应区域，
+  并抓取两组证据：
+  - 即时返回：
+    - `D:\ZeroIsle_Notes\tmp_round425_home_search_back_hit_immediate.xml`
+    - `D:\ZeroIsle_Notes\tmp_round425_home_search_back_hit_immediate.png`
+  - 延时返回：
+    - `D:\ZeroIsle_Notes\tmp_round425_home_search_back_hit_delayed.xml`
+    - `D:\ZeroIsle_Notes\tmp_round425_home_search_back_hit_delayed.png`
+- 结论非常明确：
+  1. 命中返回按钮后，搜索页会立即退场
+  2. 即时图已经回到首页
+  3. 延时图仍稳定停留首页
+  4. 原先 round424 那种“首页恢复但搜索层残留在下半屏”的情况没有再出现
+
+### 26.10 本轮和用户要求的对应关系
+- 这轮虽然不是大面积 UI 美化，
+  但它非常符合用户当前要求的优先级：
+  - 真实启动并测试平板功能
+  - 在真实使用中发现错误
+  - 先修功能与结构性缺陷
+  - 风格一致
+  - 顶部不遮挡
+  - 布局不出现不合理留白
+  - 返回按钮统一
+- 这次也再次证明：
+  - 有些“异常留白/半屏残影”并不是单纯样式问题，
+  - 而是系统窗口层级和安全区承载方式设计不对，
+  - 必须通过结构性修复解决。
+
+### 26.11 round425 的阶段性结论
+- 截止本轮，
+  首页搜索链已经完成以下收口：
+  1. 搜索页不再依赖原生 `Modal` 独立窗口
+  2. 搜索页与主界面统一到同一横屏窗口体系
+  3. 返回按钮点击后不会再留下下半屏幽灵层
+  4. 顶部安全区和头部样式继续保持一致
+  5. 返回按钮仍统一使用现有淡蓝色方形箭头按钮
+- 这是一类非常典型的平板真机缺陷收口案例，
+  后续继续逐页测试时，
+  需要特别留意是否还有别的页面也在使用原生 `Modal`、
+  原生对话框或系统级弹层承载，从而在横屏平板上引出类似残影、遮挡或异常留白问题。
