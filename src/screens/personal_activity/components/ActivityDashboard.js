@@ -69,12 +69,14 @@ const ActivityDashboard = ({ data, loading, onNavigateToAnalytics }) => {
           recent_activities.slice(0, 5).map((activity) => (
             <TouchableOpacity key={activity._id} style={styles.activityItem} activeOpacity={0.7}>
               <View style={[styles.activityIcon, { backgroundColor: getStatusColor(activity.status, colors) + '20' }]}>
-                <Icon name={getActivityIcon(activity.type)} size={20} color={getStatusColor(activity.status, colors)} />
+                <Icon name={getActivityIcon(activity.type || activity.content_type)} size={20} color={getStatusColor(activity.status, colors)} />
               </View>
               <View style={styles.activityInfo}>
                 <Text variant="body" style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
                 <Text variant="caption" style={styles.activityTime}>
-                  {new Date(activity.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {activity.start_time
+                    ? new Date(activity.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '刚刚'}
                 </Text>
               </View>
               <Icon name="chevron-right" size={22} color={colors.textSecondary} />
@@ -101,6 +103,7 @@ const getStatusColor = (status, colors) => {
   switch (status) {
     case 'completed': return colors.success;
     case 'in_progress': return colors.warning;
+    case 'published': return colors.primary;
     case 'paused': return colors.info;
     case 'cancelled': return colors.error;
     case 'planned': return colors.textSecondary;

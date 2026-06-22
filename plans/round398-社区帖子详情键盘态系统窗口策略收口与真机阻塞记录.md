@@ -1261,3 +1261,119 @@
   - 本地活动写链
   - 后端活动写链
   - 以及目标进度回流时的唯一写口径
+
+## 25. round423 功能完善补记：活动主链开始统一到后端优先，个人记录核心数据源收口
+
+### 25.1 本轮先解决“活动一套、目标一套、分析一套”的根部割裂问题
+- round422 结束时已经明确：
+  - 目标管理和目标分析基本都已依赖后端 `personal-activity` 接口
+  - 但活动表单和活动列表的核心写链仍主要走本地 `personalActivityDb`
+- 这会带来一个非常关键的问题：
+  - 就算后面强行补了“活动完成推动目标进度”
+  - 也很容易因为活动数据和目标数据不在同一主源，而让规划链继续不稳定
+- 因此本轮不继续往上堆功能，而是先从数据主链收口开始做：
+  - 让活动链开始向后端对齐
+  - 但保留本地兜底，避免一下子把当前离线能力完全打断
+
+### 25.2 本轮确认的真实现场：当前活动表单字段和后端序列化器并不完全匹配
+- 复核确认：
+  - `ActivityFormScreen` 当前主要提交：
+    - `content`
+    - `images`
+    - `content_type`
+    - `is_public`
+  - 但 `backend/personal_activity/serializers.py` 的 `ActivityRecordSerializer` 之前并没有完整接住这些字段
+- 这意味着：
+  - 就算前端活动写链改到后端优先
+  - 如果后端序列化器不补齐字段
+  - 也会在真实提交时被序列化校验或数据落库缺项绊住
+
+### 25.3 本轮后端收口：活动序列化器补齐动态表单字段，并容忍缺省标题/时间
+- 文件：
+  - `D:\ZeroIsle_Notes\backend\personal_activity\serializers.py`
+- 本轮新增支持：
+  1. `content`
+  2. `images`
+  3. `content_type`
+  4. `is_public`
+  5. `weather`
+  6. `location_name`
+- 同时补充验证收口：
+  - 如果标题为空：
+    - 自动从内容截取前 24 个字符作为标题
+    - 无内容时回落为 `动态`
+  - 如果 `start_time` 缺失：
+    - 自动补为当前时间
+- 这样一来，当前动态发表表单的真实字段终于能被后端完整接住，
+  不再要求前端先人为拼出一份并不符合页面交互形态的旧式活动对象。
+
+### 25.4 本轮前端主链收口：Redux 活动 slice 改为“后端优先、本地兜底”
+- 文件：
+  - `D:\ZeroIsle_Notes\src\redux\slices\personalActivitySlice.js`
+- 本轮调整：
+  1. `fetchActivities`
+     - 优先走 `personalActivityApi.getActivities`
+     - 失败时回退 `personalActivityDb.getActivities`
+  2. `createActivity`
+     - 优先走 `personalActivityApi.createActivity`
+     - 失败时回退本地保存
+  3. `updateActivity`
+     - 优先走 `personalActivityApi.updateActivity`
+     - 失败时回退本地保存
+  4. `deleteActivity`
+     - 优先走 `personalActivityApi.deleteActivity`
+     - 失败时回退本地软删除
+- 同时增加：
+  - 活动列表返回值归一化
+  - 远端 payload 构造器
+  - 动态内容自动生成标题逻辑
+- 这让当前活动链终于开始和目标链、分析链汇到同一个后端数据主源上。
+
+### 25.5 本轮表单配合收口：编辑活动时把现有对象一起带入远端 payload 构造
+- 文件：
+  - `D:\ZeroIsle_Notes\src\screens\personal_activity\ActivityFormScreen.js`
+- 本轮在编辑时新增传递：
+  - `existingActivity`
+- 目的：
+  - 让更新活动时远端 payload 可以继承原对象已有字段
+  - 避免只改内容时把旧活动已有信息整体丢空
+
+### 25.6 本轮展示兼容收口：列表与概览卡兼容新旧活动结构，避免刚统一主链就把 UI 打坏
+- 文件：
+  - `D:\ZeroIsle_Notes\src\screens\personal_activity\components\ActivityList.js`
+  - `D:\ZeroIsle_Notes\src\screens\personal_activity\components\ActivityDashboard.js`
+- 本轮兼容内容：
+  1. 图标来源兼容：
+     - `type || content_type`
+  2. 时间来源兼容：
+     - `start_time || created_at`
+  3. 新增 `published` 状态颜色承接
+- 这样即使活动数据来自：
+  - 新后端记录
+  - 旧本地记录
+  - 或两者混合阶段
+  页面也不至于立刻出现时间为空、图标不对、状态色缺失等观感问题。
+
+### 25.7 本轮样式与功能方向结论
+- 这轮的重点不是做新的视觉花样，
+  而是先把个人记录核心数据主链往一致性方向收拢。
+- 但页面侧仍有明确收益：
+  - 活动列表和概览卡现在对新旧数据更稳
+  - 不会因为主链收口就出现“看起来坏掉”的原始状态
+- 这符合当前总策略：
+  - 重点放在各功能实现和完善
+  - 成熟样式不乱动
+  - 真正影响功能闭环的地方优先修
+
+### 25.8 round423 的阶段性结论
+- 截止本轮，
+  个人记录主链已进一步收口为：
+  1. 目标管理：后端主源
+  2. 目标分析：后端主源
+  3. 活动链：开始切换到后端优先、本地兜底
+- 这意味着后续再做：
+  - 活动完成推动目标进度
+  才终于具备更可信的实现基础。
+- 下一步最值得继续推进的是：
+  1. 真机验证活动发表/列表刷新/分析页承接是否一致
+  2. 在统一写链基础上补活动与目标的自动联动

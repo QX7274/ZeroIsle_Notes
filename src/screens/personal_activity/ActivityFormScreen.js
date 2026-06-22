@@ -69,7 +69,7 @@ const ActivityFormScreen = ({ navigation, route }) => {
     }
     try {
       if (isEditing && activity?._id) {
-        await dispatch(updateActivity({ id: activity._id, data: formData })).unwrap();
+        await dispatch(updateActivity({ id: activity._id, data: formData, existingActivity: activity })).unwrap();
       } else {
         await dispatch(createActivity(formData)).unwrap();
       }

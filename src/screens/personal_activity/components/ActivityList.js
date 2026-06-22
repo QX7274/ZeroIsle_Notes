@@ -13,6 +13,7 @@ const ActivityItem = ({ item, onPress, onImagePress }) => {
   const styles = getStyles({ colors });
   const statusColor = getStatusColor(item.status, colors);
   const [expanded, setExpanded] = useState(false);
+  const displayTimestamp = item.start_time || item.created_at;
 
   const contentLength = item.content?.length || 0;
   const shouldShowExpand = contentLength > 100;
@@ -21,12 +22,14 @@ const ActivityItem = ({ item, onPress, onImagePress }) => {
     <View style={styles.itemContainer}>
       <View style={styles.itemHeader}>
         <View style={[styles.iconContainer, { backgroundColor: statusColor + '20' }]}>
-          <Icon name={getActivityIcon(item.type)} size={24} color={statusColor} />
+          <Icon name={getActivityIcon(item.type || item.content_type)} size={24} color={statusColor} />
         </View>
         <View style={styles.itemContent}>
           <Text variant="body" style={styles.itemTitle} numberOfLines={1}>{item.title || '动态'}</Text>
           <Text variant="caption" style={styles.itemTime}>
-            {new Date(item.start_time).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {displayTimestamp
+              ? new Date(displayTimestamp).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : '刚刚'}
           </Text>
         </View>
       </View>
@@ -134,6 +137,7 @@ const getStatusColor = (status, colors) => {
   switch (status) {
     case 'completed': return colors.success;
     case 'in_progress': return colors.warning;
+    case 'published': return colors.primary;
     case 'paused': return colors.info;
     case 'cancelled': return colors.error;
     case 'planned': return colors.textSecondary;

@@ -4,6 +4,49 @@
  */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import personalActivityDb from '../../services/local/personalActivityDb';
+import personalActivityApi from '../../services/api/personalActivityApi';
+
+const normalizeActivityListPayload = (payload) => {
+  if (Array.isArray(payload?.data?.activities)) {
+    return payload.data.activities;
+  }
+
+  if (Array.isArray(payload?.activities)) {
+    return payload.activities;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return [];
+};
+
+const buildActivityTitle = (data = {}) => {
+  const explicitTitle = String(data.title || '').trim();
+  if (explicitTitle) {
+    return explicitTitle;
+  }
+
+  const normalizedContent = String(data.content || '').replace(/\s+/g, ' ').trim();
+  return normalizedContent ? normalizedContent.slice(0, 24) : '动态';
+};
+
+const buildRemoteActivityPayload = (data = {}, existingActivity = null) => ({
+  title: buildActivityTitle({ ...existingActivity, ...data }),
+  description: data.description ?? existingActivity?.description ?? '',
+  content: data.content ?? existingActivity?.content ?? '',
+  images: Array.isArray(data.images) ? data.images : (existingActivity?.images || []),
+  content_type: data.content_type ?? existingActivity?.content_type ?? existingActivity?.type ?? 'activity',
+  is_public: data.is_public ?? existingActivity?.is_public ?? true,
+  start_time: data.start_time ?? existingActivity?.start_time ?? existingActivity?.created_at ?? new Date().toISOString(),
+  status: data.status ?? existingActivity?.status ?? 'planned',
+  progress: typeof data.progress === 'number' ? data.progress : (existingActivity?.progress ?? 0),
+});
 
 // --- Thunks for Local DB Operations ---
 
@@ -11,10 +54,15 @@ export const fetchActivities = createAsyncThunk(
   'personalActivity/fetchActivities',
   async (_, { rejectWithValue }) => {
     try {
-      const activities = await personalActivityDb.getActivities();
-      return activities;
+      const response = await personalActivityApi.getActivities({ page: 1, page_size: 100 });
+      return normalizeActivityListPayload(response);
     } catch (error) {
-      return rejectWithValue(error.toString());
+      try {
+        const activities = await personalActivityDb.getActivities();
+        return activities;
+      } catch (localError) {
+        return rejectWithValue(localError.toString() || error.toString());
+      }
     }
   }
 );
@@ -23,22 +71,36 @@ export const createActivity = createAsyncThunk(
   'personalActivity/createActivity',
   async (activityData, { rejectWithValue }) => {
     try {
-      const updatedActivities = await personalActivityDb.saveActivity(activityData);
-      return updatedActivities;
+      const payload = buildRemoteActivityPayload(activityData);
+      await personalActivityApi.createActivity(payload);
+      const refreshed = await personalActivityApi.getActivities({ page: 1, page_size: 100 });
+      return normalizeActivityListPayload(refreshed);
     } catch (error) {
-      return rejectWithValue(error.toString());
+      try {
+        const updatedActivities = await personalActivityDb.saveActivity(activityData);
+        return updatedActivities;
+      } catch (localError) {
+        return rejectWithValue(localError.toString() || error.toString());
+      }
     }
   }
 );
 
 export const updateActivity = createAsyncThunk(
   'personalActivity/updateActivity',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data, existingActivity }, { rejectWithValue }) => {
     try {
-      const updatedActivities = await personalActivityDb.saveActivity({ ...data, _id: id });
-      return updatedActivities;
+      const payload = buildRemoteActivityPayload(data, existingActivity);
+      await personalActivityApi.updateActivity(id, payload);
+      const refreshed = await personalActivityApi.getActivities({ page: 1, page_size: 100 });
+      return normalizeActivityListPayload(refreshed);
     } catch (error) {
-      return rejectWithValue(error.toString());
+      try {
+        const updatedActivities = await personalActivityDb.saveActivity({ ...data, _id: id });
+        return updatedActivities;
+      } catch (localError) {
+        return rejectWithValue(localError.toString() || error.toString());
+      }
     }
   }
 );
@@ -47,11 +109,18 @@ export const deleteActivity = createAsyncThunk(
   'personalActivity/deleteActivity',
   async (id, { dispatch, rejectWithValue }) => {
     try {
-      const updatedActivities = await personalActivityDb.deleteActivity(id);
+      await personalActivityApi.deleteActivity(id);
+      const refreshed = await personalActivityApi.getActivities({ page: 1, page_size: 100 });
       dispatch(fetchRecycledItems()); // Refresh recycle bin
-      return updatedActivities;
+      return normalizeActivityListPayload(refreshed);
     } catch (error) {
-      return rejectWithValue(error.toString());
+      try {
+        const updatedActivities = await personalActivityDb.deleteActivity(id);
+        dispatch(fetchRecycledItems()); // Refresh recycle bin
+        return updatedActivities;
+      } catch (localError) {
+        return rejectWithValue(localError.toString() || error.toString());
+      }
     }
   }
 );

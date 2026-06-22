@@ -4,7 +4,7 @@ Personal Activity Tracking Serializers
 """
 
 from rest_framework import serializers
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 class LocationSerializer(serializers.Serializer):
@@ -62,7 +62,7 @@ class ActivityRecordSerializer(serializers.Serializer):
     user_id = serializers.CharField(read_only=True)
     
     # 基本信息
-    title = serializers.CharField(max_length=200)
+    title = serializers.CharField(max_length=200, required=False, allow_blank=True)
     description = serializers.CharField(max_length=2000, required=False, allow_blank=True)
     category = CategorySerializer(required=False)
     status = serializers.ChoiceField(
@@ -91,6 +91,22 @@ class ActivityRecordSerializer(serializers.Serializer):
     energy_level = serializers.IntegerField(min_value=1, max_value=5, required=False, allow_null=True)
     satisfaction = serializers.IntegerField(min_value=1, max_value=5, required=False, allow_null=True)
     difficulty = serializers.IntegerField(min_value=1, max_value=5, required=False, allow_null=True)
+
+    # 动态内容
+    content = serializers.CharField(required=False, allow_blank=True)
+    images = serializers.ListField(
+        child=serializers.CharField(max_length=1000),
+        required=False,
+        default=list
+    )
+    content_type = serializers.ChoiceField(
+        choices=['activity', 'diary', 'thought'],
+        required=False,
+        default='activity'
+    )
+    is_public = serializers.BooleanField(required=False, default=False)
+    weather = serializers.DictField(required=False)
+    location_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
     
     # 关联数据
     tags = serializers.ListField(
@@ -118,6 +134,15 @@ class ActivityRecordSerializer(serializers.Serializer):
     
     def validate(self, data):
         """验证数据"""
+        title = (data.get('title') or '').strip()
+        content = ' '.join((data.get('content') or '').split())
+
+        if not title:
+            data['title'] = content[:24] if content else '动态'
+
+        if not data.get('start_time'):
+            data['start_time'] = datetime.now(timezone.utc)
+
         # 验证时间逻辑
         start_time = data.get('start_time')
         end_time = data.get('end_time')
