@@ -15,6 +15,42 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import personalActivityApi from '../../services/api/personalActivityApi';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
+const normalizeGoalListPayload = (payload) => {
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.results)) {
+    return payload.results;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return [];
+};
+
+const normalizeCategoryListPayload = (payload) => {
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.data?.categories)) {
+    return payload.data.categories;
+  }
+
+  if (Array.isArray(payload?.categories)) {
+    return payload.categories;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return [];
+};
+
 const AnalyticsScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('reports');
@@ -22,13 +58,21 @@ const AnalyticsScreen = ({ navigation }) => {
   const [reportData, setReportData] = useState(null);
   const [insights, setInsights] = useState([]);
   const [trends, setTrends] = useState(null);
+  const [goalData, setGoalData] = useState([]);
+  const [goalCategories, setGoalCategories] = useState([]);
 
   const loadAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'reports') {
-        const response = await personalActivityApi.getAnalyticsReports({ type: 'weekly' });
-        setReportData(response.data);
+        const [reportResponse, goalResponse, categoryResponse] = await Promise.all([
+          personalActivityApi.getAnalyticsReports({ type: 'weekly' }),
+          personalActivityApi.getGoals({ suppressGlobalErrorUI: true }),
+          personalActivityApi.getCategories(),
+        ]);
+        setReportData(reportResponse.data);
+        setGoalData(normalizeGoalListPayload(goalResponse));
+        setGoalCategories(normalizeCategoryListPayload(categoryResponse));
       } else if (activeTab === 'insights') {
         const response = await personalActivityApi.getInsights();
         setInsights(response.data.insights || []);
@@ -88,6 +132,49 @@ const AnalyticsScreen = ({ navigation }) => {
 
   const renderReports = () => {
     if (!reportData) {return null;}
+
+    const completedGoals = goalData.filter(goal => goal.status === 'completed').length;
+    const activeGoals = goalData.filter(goal => goal.status === 'active').length;
+    const pausedGoals = goalData.filter(goal => goal.status === 'paused').length;
+    const averageGoalCompletion = goalData.length > 0
+      ? Math.round(goalData.reduce((sum, goal) => sum + (Number(goal.completion_rate) || 0), 0) / goalData.length)
+      : 0;
+    const linkedGoals = goalData.filter(goal => Array.isArray(goal.related_categories) && goal.related_categories.length > 0).length;
+    const goalCategoryCoverage = goalData.length > 0 ? Math.round((linkedGoals / goalData.length) * 100) : 0;
+    const categoryMap = new Map(goalCategories.map(category => [category._id, category]));
+    const goalCategoryBreakdownMap = goalData.reduce((acc, goal) => {
+      const relatedCategories = Array.isArray(goal.related_categories) ? goal.related_categories : [];
+      relatedCategories.forEach(categoryId => {
+        const category = categoryMap.get(categoryId);
+        const key = categoryId || 'unknown';
+        if (!acc[key]) {
+          acc[key] = {
+            key,
+            name: category?.name || '未命名分类',
+            color: category?.color || colors.primary,
+            total: 0,
+            completed: 0,
+          };
+        }
+        acc[key].total += 1;
+        if (goal.status === 'completed') {
+          acc[key].completed += 1;
+        }
+      });
+      return acc;
+    }, {});
+    const goalCategoryBreakdown = Object.values(goalCategoryBreakdownMap)
+      .map(item => ({
+        ...item,
+        completionRate: item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+    const goalStatusItems = [
+      { key: 'active', label: '进行中', value: activeGoals, color: colors.primary, icon: 'play-arrow' },
+      { key: 'completed', label: '已完成', value: completedGoals, color: colors.success || '#22C55E', icon: 'check-circle' },
+      { key: 'paused', label: '已暂停', value: pausedGoals, color: colors.warning || '#F59E0B', icon: 'pause' },
+      { key: 'coverage', label: '分类覆盖', value: `${goalCategoryCoverage}%`, color: colors.info || colors.primary, icon: 'category' },
+    ];
 
     return (
       <View style={styles.reportsContainer}>
@@ -149,6 +236,99 @@ const AnalyticsScreen = ({ navigation }) => {
               </View>
             </View>
           ))}
+        </View>
+
+        <View style={[styles.goalSummaryCard, { backgroundColor: colors.card }]}>
+          <View style={styles.goalSummaryHeader}>
+            <Text variant="h3" style={styles.cardTitle}>目标规划摘要</Text>
+            <Text variant="caption" style={[styles.goalSummaryHint, { color: colors.text + '70' }]}>
+              直接承接目标管理中的状态、进度与分类关联
+            </Text>
+          </View>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryItem}>
+              <Text variant="h2" style={[styles.summaryValue, { color: colors.primary }]}>
+                {goalData.length}
+              </Text>
+              <Text variant="caption" style={styles.summaryLabel}>总目标数</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text variant="h2" style={[styles.summaryValue, { color: colors.success || '#22C55E' }]}>
+                {completedGoals}
+              </Text>
+              <Text variant="caption" style={styles.summaryLabel}>已完成</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text variant="h2" style={[styles.summaryValue, { color: colors.warning || '#F59E0B' }]}>
+                {averageGoalCompletion}%
+              </Text>
+              <Text variant="caption" style={styles.summaryLabel}>平均进度</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text variant="h2" style={[styles.summaryValue, { color: colors.info || colors.primary }]}>
+                {linkedGoals}/{goalData.length || 0}
+              </Text>
+              <Text variant="caption" style={styles.summaryLabel}>已关联分类</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.goalStatusCard, { backgroundColor: colors.card }]}>
+          <Text variant="h3" style={styles.cardTitle}>目标状态分布</Text>
+          <View style={styles.goalStatusGrid}>
+            {goalStatusItems.map(item => (
+              <View
+                key={item.key}
+                style={[styles.goalStatusItem, { backgroundColor: `${item.color}12`, borderColor: `${item.color}28` }]}
+              >
+                <View style={[styles.goalStatusIconWrap, { backgroundColor: `${item.color}18` }]}>
+                  <Icon name={item.icon} size={18} color={item.color} />
+                </View>
+                <Text style={[styles.goalStatusValue, { color: item.color }]}>{item.value}</Text>
+                <Text style={[styles.goalStatusLabel, { color: colors.text + '80' }]}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.goalCategoryCard, { backgroundColor: colors.card }]}>
+          <Text variant="h3" style={styles.cardTitle}>目标分类覆盖</Text>
+          {goalCategoryBreakdown.length > 0 ? goalCategoryBreakdown.map(item => (
+            <View key={item.key} style={styles.goalCategoryItem}>
+              <View style={styles.goalCategoryInfo}>
+                <View style={[styles.goalCategoryDot, { backgroundColor: item.color }]} />
+                <View style={styles.goalCategoryTextWrap}>
+                  <Text variant="body" style={styles.categoryName}>{item.name}</Text>
+                  <Text variant="caption" style={styles.categoryStats}>
+                    {item.completed}/{item.total} 个目标已完成
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.categoryProgress}>
+                <Text variant="caption" style={styles.categoryRate}>
+                  {item.completionRate}%
+                </Text>
+                <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        backgroundColor: item.color,
+                        width: `${item.completionRate}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+          )) : (
+            <View style={styles.goalEmptyState}>
+              <Icon name="category" size={24} color={colors.primary} />
+              <Text style={[styles.goalEmptyText, { color: colors.text + '80' }]}>
+                目标还没有形成分类覆盖，先去目标管理里补齐关联分类会更利于后续复盘。
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -420,6 +600,7 @@ const styles = StyleSheet.create({
   categoryCard: {
     padding: 16,
     borderRadius: 12,
+    marginBottom: 16,
   },
   categoryItem: {
     flexDirection: 'row',
@@ -546,6 +727,89 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  goalSummaryCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  goalSummaryHeader: {
+    marginBottom: 4,
+  },
+  goalSummaryHint: {
+    marginTop: -8,
+    marginBottom: 12,
+    fontSize: 12,
+  },
+  goalStatusCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  goalStatusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  goalStatusItem: {
+    width: '48.5%',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  goalStatusIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  goalStatusValue: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  goalStatusLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  goalCategoryCard: {
+    padding: 16,
+    borderRadius: 12,
+  },
+  goalCategoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  goalCategoryInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  goalCategoryDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    marginRight: 10,
+  },
+  goalCategoryTextWrap: {
+    flex: 1,
+  },
+  goalEmptyState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  goalEmptyText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    lineHeight: 20,
   },
 });
 
