@@ -85,6 +85,7 @@ const GoalManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [goals, setGoals] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
@@ -107,6 +108,7 @@ const GoalManagerScreen = ({ navigation }) => {
     unit: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    related_categories: [],
   });
 
   const goalTypes = [
@@ -165,6 +167,7 @@ const GoalManagerScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadGoals();
+    loadCategories();
   }, []);
 
   const isUnauthorizedGoalError = (error) => {
@@ -210,6 +213,35 @@ const GoalManagerScreen = ({ navigation }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const normalizeCategoryListPayload = (payload) => {
+    if (Array.isArray(payload?.data)) {
+      return payload.data;
+    }
+
+    if (Array.isArray(payload?.data?.categories)) {
+      return payload.data.categories;
+    }
+
+    if (Array.isArray(payload?.categories)) {
+      return payload.categories;
+    }
+
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    return [];
+  };
+
+  const loadCategories = async () => {
+    try {
+      const response = await personalActivityApi.getCategories();
+      setCategories(normalizeCategoryListPayload(response));
+    } catch (error) {
+      setCategories([]);
     }
   };
 
@@ -268,6 +300,7 @@ const GoalManagerScreen = ({ navigation }) => {
       unit: '',
       start_date: new Date().toISOString().split('T')[0],
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      related_categories: [],
     });
   };
 
@@ -282,6 +315,7 @@ const GoalManagerScreen = ({ navigation }) => {
       unit: goal.unit || '',
       start_date: new Date(goal.start_date).toISOString().split('T')[0],
       end_date: new Date(goal.end_date).toISOString().split('T')[0],
+      related_categories: Array.isArray(goal.related_categories) ? goal.related_categories : [],
     });
     setModalVisible(true);
   };
@@ -415,6 +449,30 @@ const GoalManagerScreen = ({ navigation }) => {
     }
   };
 
+  const completedGoalsCount = goals.filter(goal => goal.status === 'completed').length;
+  const activeGoalsCount = goals.filter(goal => goal.status === 'active').length;
+  const trackedGoals = goals.filter(goal => canTrackGoalValue(goal));
+  const averageCompletionRate = trackedGoals.length > 0
+    ? Math.round(
+      trackedGoals.reduce((sum, goal) => sum + (Number(goal.completion_rate) || 0), 0) / trackedGoals.length
+    )
+    : 0;
+
+  const getCategoryById = (categoryId) => categories.find(category => category?._id === categoryId);
+
+  const toggleRelatedCategory = (categoryId) => {
+    setFormData(prev => {
+      const nextRelatedCategories = prev.related_categories.includes(categoryId)
+        ? prev.related_categories.filter(id => id !== categoryId)
+        : [...prev.related_categories, categoryId];
+
+      return {
+        ...prev,
+        related_categories: nextRelatedCategories,
+      };
+    });
+  };
+
   const renderGoalItem = (goal) => (
     <View key={goal._id} style={[styles.goalItem, { backgroundColor: colors.card }]}>
       <View style={styles.goalHeader}>
@@ -464,6 +522,35 @@ const GoalManagerScreen = ({ navigation }) => {
       {goal.target_value && (
         <Text variant="caption" style={styles.goalTarget}>
           目标: {goal.current_value || 0} / {goal.target_value} {goal.unit}
+        </Text>
+      )}
+
+      {Array.isArray(goal.related_categories) && goal.related_categories.length > 0 ? (
+        <View style={styles.relatedCategoryRow}>
+          {goal.related_categories.slice(0, 3).map(categoryId => {
+            const category = getCategoryById(categoryId);
+            const accentColor = category?.color || colors.primary;
+            return (
+              <View
+                key={`${goal._id}_${categoryId}`}
+                style={[styles.relatedCategoryChip, { backgroundColor: `${accentColor}16`, borderColor: `${accentColor}33` }]}
+              >
+                <Icon name={category?.icon || 'label'} size={13} color={accentColor} />
+                <Text style={[styles.relatedCategoryText, { color: accentColor }]}>
+                  {category?.name || '关联分类'}
+                </Text>
+              </View>
+            );
+          })}
+          {goal.related_categories.length > 3 ? (
+            <Text style={[styles.relatedCategoryMoreText, { color: colors.textSecondary || `${colors.text}80` }]}>
+              +{goal.related_categories.length - 3}
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={[styles.relatedCategoryHint, { color: colors.textSecondary || `${colors.text}80` }]}>
+          未关联分类，后续统计与整理会比较分散
         </Text>
       )}
 
@@ -561,6 +648,26 @@ const GoalManagerScreen = ({ navigation }) => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {goals.length > 0 ? (
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: `${colors.primary}18` }]}>
+              <Text style={[styles.summaryValue, { color: colors.primary }]}>{goals.length}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary || `${colors.text}80` }]}>总目标</Text>
+            </View>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: `${colors.success || '#22C55E'}22` }]}>
+              <Text style={[styles.summaryValue, { color: colors.success || '#22C55E' }]}>{completedGoalsCount}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary || `${colors.text}80` }]}>已完成</Text>
+            </View>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: `${colors.warning || '#F59E0B'}22` }]}>
+              <Text style={[styles.summaryValue, { color: colors.warning || '#F59E0B' }]}>{activeGoalsCount}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary || `${colors.text}80` }]}>进行中</Text>
+            </View>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: `${colors.info || colors.primary}22` }]}>
+              <Text style={[styles.summaryValue, { color: colors.info || colors.primary }]}>{averageCompletionRate}%</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary || `${colors.text}80` }]}>平均进度</Text>
+            </View>
+          </View>
+        ) : null}
         {goals.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: `${colors.primary}20` }]}>
             <View style={[styles.emptyIconWrap, { backgroundColor: `${colors.primary}12` }]}>
@@ -639,7 +746,7 @@ const GoalManagerScreen = ({ navigation }) => {
                 {modalTitle}
               </Text>
               <Text style={[styles.modalIntroText, { color: colors.textSecondary || `${colors.text}99` }]}>
-                目标名称、周期和数值会直接影响列表展示，保存后会立即回到目标管理页。
+                目标名称、周期、数值和关联分类会直接影响列表展示与后续整理统计，保存后会立即回到目标管理页。
               </Text>
             </View>
             {formStatus ? (
@@ -706,6 +813,60 @@ const GoalManagerScreen = ({ navigation }) => {
                 </Text>
               </View>
             ) : null}
+            <View style={styles.formSection}>
+              <View style={styles.formGroup}>
+                <Text variant="body" style={styles.formLabel}>关联分类</Text>
+                <Text style={[styles.formHelperText, { color: colors.textSecondary || `${colors.text}80` }]}>
+                  给目标挂到合适分类后，后续回看和分析会更清晰。
+                </Text>
+                {categories.length > 0 ? (
+                  <View style={styles.categorySelector}>
+                    {categories.map(category => {
+                      const selected = formData.related_categories.includes(category._id);
+                      const accentColor = category.color || colors.primary;
+                      return (
+                        <TouchableOpacity
+                          key={category._id}
+                          style={[
+                            styles.categoryOptionChip,
+                            {
+                              backgroundColor: selected ? `${accentColor}18` : colors.card,
+                              borderColor: selected ? `${accentColor}40` : `${colors.border}B0`,
+                            },
+                          ]}
+                          activeOpacity={0.88}
+                          onPress={() => toggleRelatedCategory(category._id)}
+                        >
+                          <Icon
+                            name={category.icon || 'label'}
+                            size={15}
+                            color={selected ? accentColor : colors.textSecondary || `${colors.text}90`}
+                          />
+                          <Text
+                            style={[
+                              styles.categoryOptionText,
+                              {
+                                color: selected ? accentColor : colors.text,
+                              },
+                            ]}
+                          >
+                            {category.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={[styles.inlineEmptyCard, { backgroundColor: colors.card, borderColor: `${colors.primary}18` }]}>
+                    <Icon name="folder-copy" size={18} color={colors.primary} />
+                    <Text style={[styles.inlineEmptyText, { color: colors.textSecondary || `${colors.text}80` }]}>
+                      还没有可用分类，可先到分类管理补充后再回来关联。
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
             <View style={styles.formSection}>
               <View style={styles.formGroup}>
                 <Text variant="body" style={styles.formLabel}>标题 *</Text>
@@ -1001,6 +1162,30 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 24,
   },
+  summaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  summaryCard: {
+    width: '48.5%',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  summaryLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   goalListSection: {
     flexGrow: 1,
     justifyContent: 'space-between',
@@ -1161,6 +1346,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.8,
     marginBottom: 2,
+  },
+  relatedCategoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  relatedCategoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  relatedCategoryText: {
+    marginLeft: 5,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  relatedCategoryMoreText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  relatedCategoryHint: {
+    marginTop: 8,
+    marginBottom: 2,
+    fontSize: 12,
+    lineHeight: 18,
   },
   goalDates: {
     fontSize: 12,
@@ -1341,6 +1557,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontWeight: '500',
   },
+  formHelperText: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
   textInput: {
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -1355,6 +1576,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+  },
+  categorySelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  categoryOptionChip: {
+    minHeight: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryOptionText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inlineEmptyCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineEmptyText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 12,
+    lineHeight: 18,
   },
   typeOption: {
     flexDirection: 'row',
