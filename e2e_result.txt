@@ -1,4 +1,0 @@
-register: status=201 ct=application/json body={"user":{"id":"17fa1fa2-452e-4f1b-99cb-d014386b98e1","username":"e2e_d7057316","email":"","phone":"","first_name":"","last_name":"","nickname":"","avatar":"","wechat_avatar":"","qq_avatar":"","is_active":true,"date_joined":"2026-04-09T02:13:54.298850Z","last_login":null},"refresh":"eyJhbGciOiJIUzI1N
-login: status=400 ct=application/json body={"non_field_errors":["ÃÜÂë´íÎó"]}
-create: status=404 ct=text/html; charset=utf-8 body=<!DOCTYPE html> <html lang="en"> <head>   <meta http-equiv="content-type" content="text/html; charset=utf-8">   <title>Page not found at /api/v1/notes/notes/</title>   <meta name="robots" content="NONE,NOARCHIVE">   <style type="text/css">     html * { padding:0; margin:0; }     body * { padding:10p
-create failed
