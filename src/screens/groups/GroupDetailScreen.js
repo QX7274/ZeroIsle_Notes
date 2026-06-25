@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import MIIcon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch } from 'react-redux';
 import { setCurrentGroup } from '../../redux/slices/groupsSlice';
 import GroupDetail from '../../components/groups/GroupDetail';
@@ -65,8 +64,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 24,
+    paddingVertical: 10,
+    paddingTop: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#CFE1FF',
     backgroundColor: 'rgba(255,255,255,0.90)',

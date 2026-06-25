@@ -63,6 +63,7 @@ import CategoryManagerScreen from '../screens/personal_activity/CategoryManagerS
 import GoalManagerScreen from '../screens/personal_activity/GoalManagerScreen';
 import PAAnalyticsScreen from '../screens/personal_activity/AnalyticsScreen';
 import ActivityFormScreen from '../screens/personal_activity/ActivityFormScreen';
+import { DEV_MODE_CONFIG } from '../config';
 
 
 const Stack = createStackNavigator();
@@ -231,7 +232,7 @@ const AppNavigator = () => {
 
   // 开发调试开关：真机联调时可直接跳过登录
   // 仅在 __DEV__ 下生效，避免影响生产构建
-  const DEV_SKIP_LOGIN = __DEV__;
+  const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
 
   // 使用 try-catch 包装 useTheme 调用，确保即使出错也能提供默认值
   let theme;

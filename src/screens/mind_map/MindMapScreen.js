@@ -201,7 +201,7 @@ const MindMapScreen = () => {
         onRefresh={handleRefresh}
         ListEmptyComponent={loading ? null : (
           <EmptyState
-            icon="bubble-chart"
+            icon="brain"
             title="还没有思维导图"
             message={searchQuery ? '没有找到匹配结果，请尝试其他关键词' : '点击下方按钮创建第一张本地思维导图'}
           />

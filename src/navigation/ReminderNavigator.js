@@ -1,6 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '../context/ThemeContext';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // 导入屏幕
 import {
@@ -11,14 +12,16 @@ import {
 
 // 创建一个临时的提醒列表屏幕
 import { ReminderListView } from '../components/reminder';
-import { View, TouchableOpacity, Text, StyleSheet, Platform, StatusBar } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { View, StyleSheet, Text } from 'react-native';
+import ScreenHeaderBackButton from '../components/common/ScreenHeaderBackButton';
 
 const ReminderScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const cardBg = theme?.cardBackground || theme?.colors?.card || '#FFFFFF';
-  const border = theme?.border || theme?.colors?.border || '#E0E0E0';
-  const primary = theme?.primary || theme?.colors?.primary || '#2196F3';
+  const insets = useSafeAreaInsets();
+  const colors = theme?.colors || {};
+  const cardBg = theme?.cardBackground || colors.card || '#FFFFFF';
+  const border = theme?.border || colors.border || '#E0E0E0';
+  const primary = theme?.primary || colors.primary || '#2196F3';
   const text = theme?.text || theme?.colors?.text || '#000000';
   const sampleReminder = {
     id: 'debug-reminder-sample',
@@ -35,44 +38,39 @@ const ReminderScreen = ({ navigation, route }) => {
   };
 
   return (
-      <View
-        style={{ flex: 1, backgroundColor: theme?.background || theme?.colors?.background || '#FFFFFF' }}
-        testID="screen.reminderList"
-      >
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme?.background || colors.background || '#FFFFFF' }}
+      testID="screen.reminderList"
+    >
       {/* 顶部导航栏（统一返回按钮样式） */}
-      <View style={[styles.headerBar, { borderBottomColor: border, backgroundColor: cardBg }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: primary + '15' }]}
+      <View style={[styles.headerBar, { borderBottomColor: border, backgroundColor: cardBg, paddingTop: Math.max(insets.top, 12) }]}>
+        <ScreenHeaderBackButton
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-back" size={22} color={primary} />
-        </TouchableOpacity>
+          testID="action.reminder.list.back"
+          style={[styles.backButton, { marginLeft: 0 }]}
+        />
         <Text style={[styles.headerTitle, { color: text }]}>日程</Text>
         <View style={styles.headerRight} />
       </View>
 
       <ReminderListView navigation={navigation} route={route} />
       {__DEV__ ? (
-        <TouchableOpacity
-          style={[
-            styles.devSampleButton,
-            {
-              backgroundColor: cardBg + 'F2',
-              borderColor: primary + '2E',
-            },
-          ]}
-          onPress={() => navigation.navigate('ReminderDetail', {
-            id: sampleReminder.id,
-            reminder: sampleReminder,
-          })}
-          testID="action.reminder.openDetailSample"
-        >
-          <Icon name="science" size={16} color={primary} />
-          <Text style={[styles.devSampleText, { color: primary }]}>详情样例</Text>
-        </TouchableOpacity>
+        <View pointerEvents="box-none" style={styles.devSampleLayer}>
+          <View style={[styles.devSampleButton, { backgroundColor: cardBg + 'F2', borderColor: primary + '2E' }]}>
+            <Text
+              style={[styles.devSampleText, { color: primary }]}
+              onPress={() => navigation.navigate('ReminderDetail', {
+                id: sampleReminder.id,
+                reminder: sampleReminder,
+              })}
+              testID="action.reminder.openDetailSample"
+            >
+              详情样例
+            </Text>
+          </View>
+        </View>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -133,15 +131,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 24,
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginLeft: -4,
   },
   headerTitle: {
@@ -154,11 +146,6 @@ const styles = StyleSheet.create({
     width: 40,
   },
   devSampleButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 96,
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
@@ -170,9 +157,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   devSampleText: {
-    marginLeft: 6,
     fontSize: 13,
     fontWeight: '600',
+  },
+  devSampleLayer: {
+    position: 'absolute',
+    right: 20,
+    bottom: 96,
   },
 });
 

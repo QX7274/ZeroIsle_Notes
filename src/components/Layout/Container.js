@@ -6,7 +6,6 @@ import React from 'react';
 import {
   View,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   KeyboardAvoidingView,
@@ -14,6 +13,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 
 /**
@@ -115,7 +115,10 @@ const Container = ({
 
     if (useSafeArea) {
       return (
-        <SafeAreaView style={containerStyle}>
+        <SafeAreaView
+          style={containerStyle}
+          edges={['top', 'left', 'right', 'bottom']}
+        >
           {renderContent()}
         </SafeAreaView>
       );

@@ -18,8 +18,8 @@ import {
   Switch,
   Modal,
   SafeAreaView,
-  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 
 import { useDispatch, useSelector } from 'react-redux';
@@ -39,6 +39,7 @@ import networkService from '../../services/network/networkService';
 
 const ReminderListView = ({ navigation, route }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const reminders = useSelector(state => state.reminders.reminders);
   const hasNavigation = Boolean(navigation);
@@ -63,6 +64,7 @@ const ReminderListView = ({ navigation, route }) => {
   const [showBatchActions, setShowBatchActions] = useState(false);
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
   const [listState, setListState] = useState('idle');
   const resolveReminderSelectionKey = useCallback((reminder) => {
@@ -705,12 +707,21 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 应用高级筛选
   const applyAdvancedFilters = () => {
+    if (isApplyingFilters) {
+      return;
+    }
+    setIsApplyingFilters(true);
     setShowFilterModal(false);
+    notifyNonBlocking('高级筛选已应用');
     // 筛选已在organizeReminders函数中应用
+    Promise.resolve().then(() => setIsApplyingFilters(false));
   };
 
   // 重置高级筛选
   const resetAdvancedFilters = () => {
+    if (isApplyingFilters) {
+      return;
+    }
     setAdvancedFilters({
       priority: 'all',
       category: 'all',
@@ -718,6 +729,59 @@ const ReminderListView = ({ navigation, route }) => {
       endDate: null,
       tags: [],
     });
+    notifyNonBlocking('高级筛选已重置');
+  };
+
+  const handleToggleStartDateFilter = () => {
+    if (isApplyingFilters) {
+      return;
+    }
+    setAdvancedFilters((prev) => {
+      if (prev.startDate) {
+        notifyNonBlocking('开始日期已清空');
+        return { ...prev, startDate: null };
+      }
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      notifyNonBlocking('开始日期已设为今天');
+      return { ...prev, startDate: startDate.toISOString() };
+    });
+  };
+
+  const handleToggleEndDateFilter = () => {
+    if (isApplyingFilters) {
+      return;
+    }
+    setAdvancedFilters((prev) => {
+      if (prev.endDate) {
+        notifyNonBlocking('结束日期已清空');
+        return { ...prev, endDate: null };
+      }
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+      endDate.setHours(23, 59, 59, 999);
+      notifyNonBlocking('结束日期已设为7天后');
+      return { ...prev, endDate: endDate.toISOString() };
+    });
+  };
+
+  const openFilterModal = () => {
+    if (isApplyingFilters) {
+      return;
+    }
+    setShowFilterModal(true);
+  };
+
+  const closeFilterModal = () => {
+    if (isApplyingFilters) {
+      return;
+    }
+    setShowFilterModal(false);
+  };
+
+  const closeBatchActions = () => {
+    setSelectedReminders([]);
+    setShowBatchActions(false);
   };
 
   // 渲染提醒项
@@ -748,7 +812,7 @@ const ReminderListView = ({ navigation, route }) => {
     const isSelected = selectedReminders.includes(reminderId);
 
     return (
-      <TouchableOpacity
+       <TouchableOpacity
         style={[
           styles.reminderItem,
           {
@@ -986,7 +1050,13 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 渲染过滤器
   const renderFilterBar = () => (
-    <View style={[styles.filterBar, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
+    <View style={[
+      styles.filterBar,
+      {
+        backgroundColor: getThemeColor('cardBackground', '#FFFFFF'),
+        paddingTop: Math.max(insets.top, 12) + 8,
+      },
+    ]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
         <TouchableOpacity
           style={[
@@ -1063,7 +1133,7 @@ const ReminderListView = ({ navigation, route }) => {
             advancedFilters.tags.length > 0) &&
            { backgroundColor: getThemeColor('primary', '#2196F3') + '20' },
          ]}
-         onPress={() => setShowFilterModal(true)}
+         onPress={openFilterModal}
          testID="filter.reminder.advanced"
        >
          <Icon
@@ -1127,13 +1197,15 @@ const ReminderListView = ({ navigation, route }) => {
       visible={showFilterModal}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setShowFilterModal(false)}
+      onRequestClose={() => {
+        closeFilterModal();
+      }}
     >
       <View style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <View style={[styles.modalContent, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: getThemeColor('text', '#000000') }]}>高级筛选</Text>
-            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+            <TouchableOpacity onPress={closeFilterModal} disabled={isApplyingFilters}>
               <Icon name="close" size={24} color={getThemeColor('text', '#000000')} />
             </TouchableOpacity>
           </View>
@@ -1154,6 +1226,7 @@ const ReminderListView = ({ navigation, route }) => {
                       },
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, priority})}
+                    disabled={isApplyingFilters}
                   >
                     <Text style={[
                       styles.filterOptionText,
@@ -1183,6 +1256,7 @@ const ReminderListView = ({ navigation, route }) => {
                       },
                     ]}
                     onPress={() => setAdvancedFilters({...advancedFilters, category})}
+                    disabled={isApplyingFilters}
                   >
                     <Text style={[
                       styles.filterOptionText,
@@ -1199,12 +1273,11 @@ const ReminderListView = ({ navigation, route }) => {
              <View style={styles.filterSection}>
                <Text style={[styles.filterSectionTitle, { color: getThemeColor('text', '#000000') }]}>日期范围</Text>
                <View style={styles.dateRangeContainer}>
-                 <TouchableOpacity
-                   style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }]}
-                   onPress={() => {
-                     // 显示日期选择器
-                     // 这里需要实现日期选择逻辑
-                   }}
+                <TouchableOpacity
+                  style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }, isApplyingFilters ? styles.disabledOpacity : null]}
+                  onPress={handleToggleStartDateFilter}
+                  disabled={isApplyingFilters}
+                  testID="action.reminder.filter.toggleStartDate"
                  >
                    <Text style={[styles.dateText, { color: advancedFilters.startDate ? getThemeColor('text', '#000000') : getThemeColor('textSecondary', '#666666') }]}>
                      {advancedFilters.startDate ? format(new Date(advancedFilters.startDate), 'yyyy-MM-dd') : '开始日期'}
@@ -1213,12 +1286,11 @@ const ReminderListView = ({ navigation, route }) => {
 
                  <Text style={[styles.dateRangeSeparator, { color: getThemeColor('textSecondary', '#666666') }]}>至</Text>
 
-                 <TouchableOpacity
-                   style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }]}
-                   onPress={() => {
-                     // 显示日期选择器
-                     // 这里需要实现日期选择逻辑
-                   }}
+                <TouchableOpacity
+                  style={[styles.dateInput, { borderColor: getThemeColor('border', '#E0E0E0') }, isApplyingFilters ? styles.disabledOpacity : null]}
+                  onPress={handleToggleEndDateFilter}
+                  disabled={isApplyingFilters}
+                  testID="action.reminder.filter.toggleEndDate"
                  >
                    <Text style={[styles.dateText, { color: advancedFilters.endDate ? getThemeColor('text', '#000000') : getThemeColor('textSecondary', '#666666') }]}>
                      {advancedFilters.endDate ? format(new Date(advancedFilters.endDate), 'yyyy-MM-dd') : '结束日期'}
@@ -1229,16 +1301,20 @@ const ReminderListView = ({ navigation, route }) => {
            </ScrollView>
 
            <View style={styles.modalFooter}>
-             <TouchableOpacity
-               style={[styles.modalButton, { borderColor: getThemeColor('border', '#E0E0E0') }]}
-               onPress={resetAdvancedFilters}
+            <TouchableOpacity
+              style={[styles.modalButton, { borderColor: getThemeColor('border', '#E0E0E0') }, isApplyingFilters ? styles.disabledOpacity : null]}
+              onPress={resetAdvancedFilters}
+              disabled={isApplyingFilters}
+              testID="action.reminder.filter.reset"
              >
                <Text style={[styles.modalButtonText, { color: getThemeColor('text', '#000000') }]}>重置</Text>
              </TouchableOpacity>
 
-             <TouchableOpacity
-               style={[styles.modalButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
-               onPress={applyAdvancedFilters}
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: getThemeColor('primary', '#2196F3') }, isApplyingFilters ? styles.disabledOpacity : null]}
+              onPress={applyAdvancedFilters}
+              disabled={isApplyingFilters}
+              testID="action.reminder.filter.apply"
              >
                <Text style={[styles.modalButtonText, { color: '#fff' }]}>应用</Text>
              </TouchableOpacity>
@@ -1250,7 +1326,15 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 渲染批量操作工具栏
   const renderBatchToolbar = () => (
-    <View style={[styles.batchToolbar, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
+    <View
+      style={[
+        styles.batchToolbar,
+        {
+          backgroundColor: getThemeColor('cardBackground', '#FFFFFF'),
+          bottom: Math.max(insets.bottom, 12),
+        },
+      ]}
+    >
       <View style={styles.batchInfo}>
         <Text style={[styles.batchCount, { color: getThemeColor('text', '#000000') }]}>
           已选择 {selectedReminders.length} 项
@@ -1276,10 +1360,7 @@ const ReminderListView = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={styles.batchAction}
-          onPress={() => {
-            setSelectedReminders([]);
-            setShowBatchActions(false);
-          }}
+          onPress={closeBatchActions}
         >
           <Icon name="close" size={20} color={getThemeColor('textSecondary', '#666666')} />
           <Text style={[styles.batchActionText, { color: getThemeColor('textSecondary', '#666666') }]}>取消</Text>
@@ -1298,7 +1379,13 @@ const ReminderListView = ({ navigation, route }) => {
     });
 
     return (
-      <View style={[styles.syncIndicator, { backgroundColor: getThemeColor('cardBackground', '#FFFFFF') }]}>
+      <View style={[
+        styles.syncIndicator,
+        {
+          backgroundColor: getThemeColor('cardBackground', '#FFFFFF'),
+          top: Math.max(insets.top, 12) + 50,
+        },
+      ]}>
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
           <Icon name="sync" size={20} color={getThemeColor('primary', '#2196F3')} />
         </Animated.View>
@@ -1411,7 +1498,10 @@ const ReminderListView = ({ navigation, route }) => {
 
   // 主渲染
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}
+      testID="screen.reminderList"
+    >
       {renderFilterBar()}
       {renderSyncStatusCard()}
 
@@ -1439,7 +1529,13 @@ const ReminderListView = ({ navigation, route }) => {
       {/* 添加提醒按钮 */}
       {!showBatchActions && (
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: getThemeColor('primary', '#2196F3') }]}
+          style={[
+            styles.addButton,
+            {
+              backgroundColor: getThemeColor('primary', '#2196F3'),
+              bottom: Math.max(insets.bottom, 20),
+            },
+          ]}
           onPress={() => navigation?.navigate('ReminderAdd')}
           testID="action.reminder.add"
         >
@@ -1466,8 +1562,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 0, // 确保没有顶部边距
-    // 为Android添加状态栏高度补偿，确保过滤器栏在状态栏下方
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
+    // 过滤器栏的顶部留白由安全区 inset 决定，避免按整屏尺寸铺满后被状态栏截掉
+    paddingTop: 8,
     backgroundColor: 'rgba(255,255,255,0.82)',
     borderTopWidth: 1,
     borderTopColor: '#ECF4FC',
@@ -1732,7 +1828,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
     elevation: 4,
@@ -1769,7 +1864,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     position: 'absolute',
-    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 50 : 70, // 根据平台和状态栏高度动态调整，确保在过滤器栏下方
+    top: 70,
     right: 16,
     elevation: 4,
     shadowColor: '#000',
@@ -1785,7 +1880,6 @@ const styles = StyleSheet.create({
   // 添加按钮样式
   addButton: {
     position: 'absolute',
-    bottom: 20,
     right: 20,
     width: 56,
     height: 56,
@@ -1889,6 +1983,9 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  disabledOpacity: {
+    opacity: 0.55,
   },
 });
 

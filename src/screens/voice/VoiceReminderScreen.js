@@ -28,6 +28,7 @@ import { Button, Loading, Toast } from '../../components/common';
 
 // 导入常量和工具函数
 import { useTheme } from '../../context/ThemeContext';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const VoiceReminderScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
@@ -359,12 +360,7 @@ const VoiceReminderScreen = ({ navigation, route }) => {
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.voiceReminder.back" style={styles.backButton} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>语音提醒</Text>
           <TouchableOpacity
             style={[styles.saveButton, isSubmitting && styles.disabledButton]}
@@ -547,7 +543,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   backButton: {
-    padding: 4,
+    flexShrink: 0,
   },
   headerTitle: {
     fontSize: 18,

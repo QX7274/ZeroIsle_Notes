@@ -49,7 +49,7 @@ const TabBar = ({
   const [activeIndex, setActiveIndex] = useState(0);
 
   // 动画值
-  const indicatorPosition = new Animated.Value(0);
+  const [indicatorPosition] = useState(() => new Animated.Value(0));
 
   // 当activeTab变化时，更新activeIndex
   useEffect(() => {
@@ -69,7 +69,7 @@ const TabBar = ({
         indicatorPosition.setValue(index * (width / tabs.length));
       }
     }
-  }, [activeTab, tabs, animated, showIndicator]);
+  }, [activeTab, tabs, animated, showIndicator, indicatorPosition]);
 
   // 处理标签点击
   const handleTabPress = (tab, index) => {
@@ -174,7 +174,7 @@ const TabBar = ({
         {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 12),
         },
         style,
       ]}

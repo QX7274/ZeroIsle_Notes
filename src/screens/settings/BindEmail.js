@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { Text } from '../../components/common/Typography';
@@ -20,6 +21,7 @@ import { setUserInfo } from '../../redux/slices/authSlice';
 
 const BindEmail = ({ navigation }) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
 
@@ -81,31 +83,28 @@ const BindEmail = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.page, { backgroundColor: '#F3F8FF' }]}
-      testID={`state.settings.bindEmail.state.${pageState}`}
-    >
-      <View testID="state.settings.bindEmail.visibility.visible" />
-      <View testID={`state.settings.bindEmail.sendingCode.visibility.${isSendingCode ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindEmail.countdown.visibility.${countdown > 0 ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindEmail.error.visibility.${error ? 'visible' : 'hidden'}`} />
-      <View testID={`state.settings.bindEmail.current.visibility.${user?.email ? 'visible' : 'hidden'}`} />
+    <SafeAreaView style={[styles.page, { backgroundColor: '#F3F8FF' }]} testID={`state.settings.bindEmail.state.${pageState}`}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <View testID="state.settings.bindEmail.visibility.visible" />
+        <View testID={`state.settings.bindEmail.sendingCode.visibility.${isSendingCode ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindEmail.countdown.visibility.${countdown > 0 ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindEmail.error.visibility.${error ? 'visible' : 'hidden'}`} />
+        <View testID={`state.settings.bindEmail.current.visibility.${user?.email ? 'visible' : 'hidden'}`} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="list.settings.bindEmail.sections">
-        <View style={[styles.header, styles.glassCard]}>
+        <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 12) }, styles.glassCard]}>
           <ScreenHeaderBackButton
             onPress={() => navigation.goBack()}
             testID="action.settings.bindEmail.back"
             style={styles.backButton}
           />
-          <Text variant="h2" size="large">邮箱绑定</Text>
+          <Text variant="h2" size="large" style={styles.pageTitle}>邮箱绑定</Text>
         </View>
 
-        <View style={[styles.contentCard, styles.glassCard]}>
-          <Text variant="body" size="medium" color="hint" style={styles.description}>
-            绑定邮箱可提升账户安全性，并用于接收通知和找回密码。
-          </Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="list.settings.bindEmail.sections">
+          <View style={[styles.contentCard, styles.glassCard]}>
+            <Text variant="body" size="medium" color="hint" style={styles.description}>
+              绑定邮箱可提升账户安全性，并用于接收通知和找回密码。
+            </Text>
 
           {user?.email ? (
             <View style={[styles.currentInfo, { borderColor: 'rgba(76,141,255,0.22)' }]}>
@@ -158,22 +157,36 @@ const BindEmail = ({ navigation }) => {
             </Text>
           ) : null}
 
-          <GradientButton
-            title="绑定邮箱"
-            onPress={handleBindEmail}
-            loading={isLoading}
-            style={styles.submitButton}
-            testID="action.settings.bindEmail.submit"
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <GradientButton
+              title="绑定邮箱"
+              onPress={handleBindEmail}
+              loading={isLoading}
+              style={styles.submitButton}
+              testID="action.settings.bindEmail.submit"
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: { flexGrow: 1, padding: 16 },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pageTitle: {
+    flex: 1,
+  },
   glassCard: {
     backgroundColor: 'rgba(255,255,255,0.88)',
     borderWidth: 1,

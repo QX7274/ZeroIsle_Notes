@@ -141,7 +141,17 @@ export function reset(state) {
       }
     }
   } else {
-    console.warn('navigationRef.current不存在，无法重置导航状态');
+    console.log('navigationRef.current不存在，暂存重置导航状态请求');
+    const firstRoute = Array.isArray(state?.routes) && state.routes.length > 0
+      ? state.routes[0]
+      : null;
+    if (firstRoute?.name) {
+      getNavigationQueue().push({
+        name: firstRoute.name,
+        params: firstRoute.params,
+        options: { reset: true },
+      });
+    }
   }
 }
 
@@ -170,7 +180,17 @@ export function resetRoot(state) {
       }
     }
   } else {
-    console.warn('navigationRef.current不存在，无法重置导航根状态');
+    console.log('navigationRef.current不存在，暂存重置导航根状态请求');
+    const firstRoute = Array.isArray(state?.routes) && state.routes.length > 0
+      ? state.routes[0]
+      : null;
+    if (firstRoute?.name) {
+      getNavigationQueue().push({
+        name: firstRoute.name,
+        params: firstRoute.params,
+        options: { reset: true },
+      });
+    }
   }
 }
 

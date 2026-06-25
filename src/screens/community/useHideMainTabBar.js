@@ -25,7 +25,10 @@ const useHideMainTabBar = () => {
 
       parentNavigations.forEach((parentNavigation) => {
         parentNavigation?.setOptions?.({
-          tabBarStyle: { display: 'none' },
+          tabBarStyle: {
+            display: 'none',
+            position: 'absolute',
+          },
         });
       });
 
