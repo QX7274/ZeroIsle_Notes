@@ -8,6 +8,7 @@ import OfflineDataScreen from './OfflineDataScreen';
 import BackupRestoreScreen from './BackupRestoreScreen';
 import AboutScreen from './AboutScreen';
 import HelpScreen from './HelpScreen';
+import AIAssistantSettingsScreen from './AIAssistantSettingsScreen';
 
 export {
   SettingsScreen,
@@ -17,6 +18,7 @@ export {
   BackupRestoreScreen,
   AboutScreen,
   HelpScreen,
+  AIAssistantSettingsScreen,
 };
 
 export default {

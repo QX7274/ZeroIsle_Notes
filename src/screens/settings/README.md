@@ -1,153 +1,98 @@
-# 设置模块
+# 设置模块说明（Settings Module）
 
-本目录包含零屿笔记应用的设置功能相关屏幕组件。设置模块允许用户自定义应用的外观、行为和功能，管理个人资料和账户设置。
+本目录包含 ZeroIsle Notes 的设置相关屏幕与入口编排，覆盖账户、安全绑定、外观主题、离线与同步、通知、隐私与服务条款等能力。
 
-## 文件结构
+## 当前文件结构（与代码一致）
 
-- **index.js**: 设置模块导出文件，集中导出所有设置相关屏幕
-- **SettingsScreen.js**: 设置主屏幕，显示设置选项列表
-- **ProfileScreen.js**: 个人资料屏幕，用于查看和编辑个人信息
-- **AccountScreen.js**: 账户设置屏幕，用于管理账户相关设置
-- **AppearanceScreen.js**: 外观设置屏幕，用于自定义应用外观
-- **NotificationScreen.js**: 通知设置屏幕，用于管理通知偏好
-- **PrivacyScreen.js**: 隐私设置屏幕，用于管理隐私相关设置
-- **SecurityScreen.js**: 安全设置屏幕，用于管理安全相关设置
-- **StorageScreen.js**: 存储设置屏幕，用于管理存储和缓存
-- **SyncScreen.js**: 同步设置屏幕，用于管理数据同步设置
-- **AboutScreen.js**: 关于屏幕，显示应用信息和版本
+- `index.js`：设置模块统一导出
+- `SettingsScreen.js`：设置主入口页
+- `ProfileSettings.js`：个人资料与功能中心入口
+- `BindPhone.js`：手机号绑定
+- `BindEmail.js`：邮箱绑定
+- `BindWechat.js`：微信绑定
+- `BindQQ.js`：QQ 绑定
+- `ThemeSettingsScreen.js`：主题选择
+- `ThemeEditorScreen.js`：主题颜色编辑
+- `FontSettings.js`：字体大小设置
+- `NotificationSettingsScreen.js`：通知设置
+- `OfflineDataScreen.js`：离线数据管理
+- `SyncSettingsScreen.js`：同步设置
+- `HelpScreen.js`：帮助与反馈
+- `AboutScreen.js`：关于页面
+- `PrivacyPolicyScreen.js`：隐私政策
+- `TermsOfServiceScreen.js`：服务条款
+- `AIAssistantSettingsScreen.js`：AI 助手配置
 
-## 主要功能
+## 主要能力分组
 
-### 设置主屏幕 (SettingsScreen)
+### 1) 账户与身份
 
-设置主屏幕是用户进入设置功能的入口，主要功能包括：
+- 个人资料编辑（头像、用户名、简介）
+- 功能中心六个入口采用纯色 iOS 风格卡片，保留不同颜色区分与统一层次
+- 最新一版已收回到更接近初版的干净骨架：无渐变、无标签、无底部附加文案，减少无意义留白
+- 手机/邮箱绑定
+- 微信/QQ 绑定
+- 退出登录
 
-- 显示设置选项列表，分类展示各种设置
-- 提供快速访问常用设置的入口
-- 显示用户基本信息和登录状态
-- 提供退出登录功能
+### 2) 外观与可访问性
 
-### 个人资料屏幕 (ProfileScreen)
+- 主题预设切换
+- 主题颜色自定义
+- 字体大小切换（小/中/大）
 
-个人资料屏幕用于查看和编辑个人信息，主要功能包括：
+### 3) 数据与同步
 
-- 显示和编辑用户头像
-- 显示和编辑用户名、昵称、简介等基本信息
-- 显示和编辑联系方式（邮箱、电话等）
-- 管理社交账号绑定
+- 离线模式切换
+- 手动同步与同步状态查看
+- 搜索索引重建
+- 离线数据清理
+- 缓存大小查看与清理
 
-### 账户设置屏幕 (AccountScreen)
+### 4) 通知与策略
 
-账户设置屏幕用于管理账户相关设置，主要功能包括：
+- 通知总开关与子通道配置
+- 优先级、免打扰、声音振动等选项
 
-- 修改密码
-- 管理第三方账号绑定（微信、QQ等）
-- 管理邮箱和手机号绑定
-- 账户注销选项
+### 5) 合规与支持
 
-### 外观设置屏幕 (AppearanceScreen)
+- 隐私政策
+- 服务条款
+- 帮助与反馈
+- 关于与版本信息
 
-外观设置屏幕用于自定义应用外观，主要功能包括：
+## 状态与数据流（RTK）
 
-- 主题选择（亮色、暗色、跟随系统）
-- 主题风格选择（经典、现代等）
-- 字体大小和样式设置
-- 颜色自定义
-- 布局选项
+核心由 Redux Toolkit 管理，关键切片：
 
-### 通知设置屏幕 (NotificationScreen)
+- `settingsSlice`：主题、字体、通知、离线、自动保存等偏好设置
+- `authSlice`：用户登录态与绑定信息（phone/email/wechat_openid/qq_openid）
 
-通知设置屏幕用于管理通知偏好，主要功能包括：
+常见流转：
 
-- 开启/关闭各类通知
-- 设置通知提醒方式（声音、振动、横幅等）
-- 设置免打扰时间
-- 管理提醒和日历集成
+1. 设置页读取 `settings` 与 `auth.user`
+2. 用户交互触发 `updateSettings` / `setUserInfo` / `logout`
+3. 局部页面执行 API 调用（绑定、资料更新、同步动作）
+4. 页面通过状态锚点（testID）暴露可观测状态，供安卓自动验收
 
-### 隐私设置屏幕 (PrivacyScreen)
+## 安卓验收约定
 
-隐私设置屏幕用于管理隐私相关设置，主要功能包括：
+设置模块页面均已逐步补齐状态锚点，建议验收时覆盖：
 
-- 管理数据收集和使用权限
-- 设置内容可见性和分享权限
-- 管理应用权限（相机、麦克风、存储等）
-- 隐私政策查看
+- 页面可见性：`state.*.visibility.visible`
+- 忙碌态/加载态：`state.*.state.busy` 或 `*.loading.visibility.visible`
+- 关键动作入口：`action.*`
+- 列表分区可见：`list.*`
 
-### 安全设置屏幕 (SecurityScreen)
+推荐脚本：
 
-安全设置屏幕用于管理安全相关设置，主要功能包括：
+```powershell
+python scripts/android/capture_android_round.py --round <round_name> --ensure-foreground
+```
 
-- 设置应用锁（密码、指纹、面容识别等）
-- 管理登录设备
-- 查看登录历史
-- 设置双重验证
+## 维护建议
 
-### 存储设置屏幕 (StorageScreen)
-
-存储设置屏幕用于管理存储和缓存，主要功能包括：
-
-- 显示存储使用情况
-- 清理缓存
-- 管理离线文件
-- 设置自动备份选项
-
-### 同步设置屏幕 (SyncScreen)
-
-同步设置屏幕用于管理数据同步设置，主要功能包括：
-
-- 开启/关闭自动同步
-- 设置同步频率和条件（仅WiFi等）
-- 手动触发同步
-- 解决同步冲突
-
-### 关于屏幕 (AboutScreen)
-
-关于屏幕显示应用信息和版本，主要功能包括：
-
-- 显示应用版本和构建信息
-- 检查更新
-- 显示开发者信息
-- 显示开源许可和法律信息
-- 提供反馈和评分入口
-
-## 使用的组件
-
-设置模块使用了以下主要组件：
-
-- **SettingsList**: 设置列表组件，用于显示设置选项
-- **SettingsItem**: 设置项组件，用于显示单个设置选项
-- **SettingsSection**: 设置分区组件，用于对设置进行分组
-- **ProfileEditor**: 个人资料编辑器组件，用于编辑个人信息
-- **ThemeSelector**: 主题选择器组件，用于选择应用主题
-- **PermissionManager**: 权限管理组件，用于管理应用权限
-
-## 与其他模块的交互
-
-设置模块与以下模块有交互：
-
-- **认证模块**: 用于管理用户账户和登录状态
-- **主题模块**: 用于应用主题设置
-- **存储模块**: 用于管理缓存和存储
-- **通知模块**: 用于管理通知设置
-
-## API交互
-
-设置模块主要与以下API端点交互：
-
-- **GET /api/users/profile**: 获取用户资料
-- **PUT /api/users/profile**: 更新用户资料
-- **PUT /api/users/password**: 修改密码
-- **POST /api/users/bind-email**: 绑定邮箱
-- **POST /api/users/bind-phone**: 绑定手机号
-- **POST /api/users/bind-wechat**: 绑定微信
-- **POST /api/users/bind-qq**: 绑定QQ
-- **GET /api/settings**: 获取用户设置
-- **PUT /api/settings**: 更新用户设置
-
-## 状态管理
-
-设置模块的状态主要通过Redux进行管理，相关的状态切片包括：
-
-- **settingsSlice**: 管理应用设置相关状态
-- **userSlice**: 管理用户资料相关状态
-- **authSlice**: 管理用户认证状态
+- 新增设置子页面时，必须同步更新 `index.js` 与本 README 的“当前文件结构”。
+- 新增交互应补充 testID 锚点，避免安卓验收不可观测。
+- 与远端 API 强耦合的动作，保留本地兜底提示，避免弱网导致空白失败。
+- 设置模块中的成熟头部、输入区与标准按钮样式尽量保持一致，只有明显原始或过素的区域才允许针对性重做。
+- 纯色卡片方案必须避免渐变色与过多装饰层，重点控制顶部留白和卡片内部空壳感。
