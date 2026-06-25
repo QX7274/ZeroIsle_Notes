@@ -16,6 +16,44 @@ const STORAGE_KEYS = {
   MARKDOWN_ENABLED: 'markdown_enabled',
 };
 
+const MAX_HISTORY_SESSIONS = 40;
+const MAX_MESSAGES_PER_SESSION = 200;
+const MAX_MESSAGE_TEXT_LENGTH = 4000;
+
+const sanitizeSessionMessages = (messages = []) => {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+  return messages
+    .slice(-MAX_MESSAGES_PER_SESSION)
+    .map((msg, index) => ({
+      id: String(msg?.id || `msg-${index}`),
+      text: String(msg?.text || '').slice(0, MAX_MESSAGE_TEXT_LENGTH),
+      sender: msg?.sender === 'assistant' ? 'assistant' : 'user',
+      timestamp: msg?.timestamp || new Date().toISOString(),
+      isError: Boolean(msg?.isError),
+      isStreaming: Boolean(msg?.isStreaming),
+    }));
+};
+
+const sanitizeHistoryObject = (raw) => {
+  const safeObject = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  const entries = Object.entries(safeObject)
+    .filter(([k]) => typeof k === 'string' && k.length > 0)
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    .slice(-MAX_HISTORY_SESSIONS);
+  const normalized = {};
+  entries.forEach(([sessionId, sessionMessages]) => {
+    normalized[sessionId] = sanitizeSessionMessages(sessionMessages);
+  });
+  return normalized;
+};
+
+export const __testables__ = {
+  sanitizeSessionMessages,
+  sanitizeHistoryObject,
+};
+
 // 选择器
 export const selectMessages = (state) => state.aiAssistant.messages;
 export const selectIsLoading = (state) => state.aiAssistant.isLoading;
@@ -345,7 +383,7 @@ export const loadChatHistory = createAsyncThunk(
         const { safeParseJSON } = require('../../utils/jsonUtils');
 
         // 使用安全解析函数
-        const historyObj = safeParseJSON(savedHistory, {});
+        const historyObj = sanitizeHistoryObject(safeParseJSON(savedHistory, {}));
 
         // 如果提供了会话ID，加载特定会话
         if (sessionId && historyObj[sessionId]) {
@@ -365,7 +403,7 @@ export const loadChatHistory = createAsyncThunk(
           if (!historyObj || typeof historyObj !== 'object') {
             const newHistory = {};
             const newSessionId = sessionId || Date.now().toString();
-            newHistory[newSessionId] = [welcomeMessage];
+            newHistory[newSessionId] = sanitizeSessionMessages([welcomeMessage]);
             realm.write(() => {
               const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
               if (existingItem.length > 0) {
@@ -385,16 +423,17 @@ export const loadChatHistory = createAsyncThunk(
 
           // 创建新会话
           const newSessionId = sessionId || Date.now().toString();
-          historyObj[newSessionId] = [welcomeMessage];
+          historyObj[newSessionId] = sanitizeSessionMessages([welcomeMessage]);
+          const safeHistory = sanitizeHistoryObject(historyObj);
           realm.write(() => {
             const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
             if (existingItem.length > 0) {
-              existingItem[0].value = JSON.stringify(historyObj);
+              existingItem[0].value = JSON.stringify(safeHistory);
               existingItem[0].updated_at = new Date();
             } else {
               realm.create('StorageItem', {
                 key: STORAGE_KEYS.CHAT_HISTORY,
-                value: JSON.stringify(historyObj),
+                value: JSON.stringify(safeHistory),
                 createdAt: new Date(),
                 updated_at: new Date(),
               });
@@ -414,17 +453,17 @@ export const loadChatHistory = createAsyncThunk(
         // 创建新的历史记录对象
         const newHistory = {};
         const newSessionId = sessionId || Date.now().toString();
-        newHistory[newSessionId] = [welcomeMessage];
+        newHistory[newSessionId] = sanitizeSessionMessages([welcomeMessage]);
 
         realm.write(() => {
           const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
           if (existingItem.length > 0) {
-            existingItem[0].value = JSON.stringify(newHistory);
+            existingItem[0].value = JSON.stringify(sanitizeHistoryObject(newHistory));
             existingItem[0].updated_at = new Date();
           } else {
             realm.create('StorageItem', {
               key: STORAGE_KEYS.CHAT_HISTORY,
-              value: JSON.stringify(newHistory),
+              value: JSON.stringify(sanitizeHistoryObject(newHistory)),
               createdAt: new Date(),
               updated_at: new Date(),
             });
@@ -458,7 +497,7 @@ export const saveChatHistory = createAsyncThunk(
           const { safeParseJSON } = require('../../utils/jsonUtils');
 
           // 使用安全解析函数
-          historyObj = safeParseJSON(savedHistory, {});
+          historyObj = sanitizeHistoryObject(safeParseJSON(savedHistory, {}));
 
           // 确保historyObj是一个对象
           if (typeof historyObj !== 'object' || historyObj === null) {
@@ -471,18 +510,19 @@ export const saveChatHistory = createAsyncThunk(
       }
 
       // 更新当前会话的消息
-      historyObj[currentSessionId] = messages;
+      historyObj[currentSessionId] = sanitizeSessionMessages(messages);
+      const safeHistory = sanitizeHistoryObject(historyObj);
 
       // 保存更新后的历史记录
       realm.write(() => {
         const existingItem = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
         if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(historyObj);
+          existingItem[0].value = JSON.stringify(safeHistory);
           existingItem[0].updated_at = new Date();
         } else {
           realm.create('StorageItem', {
             key: STORAGE_KEYS.CHAT_HISTORY,
-            value: JSON.stringify(historyObj),
+            value: JSON.stringify(safeHistory),
             createdAt: new Date(),
             updated_at: new Date(),
           });
