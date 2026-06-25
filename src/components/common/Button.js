@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View, Animated, Pressable } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View, Animated } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import * as Animations from '../../utils/animations';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -31,6 +31,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
  */
 const Button = ({
   title,
+  children,
   onPress,
   type = 'primary',
   size = 'medium',
@@ -71,7 +72,7 @@ const Button = ({
       fadeAnim.setValue(1);
       scaleAnim.setValue(1);
     }
-  }, []);
+  }, [animation, animationDuration, fadeAnim, scaleAnim]);
 
   // 处理按压动画
   const handlePressIn = () => {
@@ -319,6 +320,9 @@ const Button = ({
       );
     }
 
+    const content = title ?? children;
+    const hasContent = content !== null && content !== undefined && content !== false;
+
     // 渲染图标
     const renderIcon = () => {
       // 如果图标是字符串，使用Icon组件渲染
@@ -346,13 +350,17 @@ const Button = ({
     return (
       <>
         {icon && iconPosition === 'left' && (
-          <View style={[styles.iconContainer, { marginRight: title ? 8 : 0 }, iconStyle]}>
+          <View style={[styles.iconContainer, hasContent ? styles.iconLeftSpacing : null, iconStyle]}>
             {renderIcon()}
           </View>
         )}
-        {title && <Text style={buttonTextStyle}>{title}</Text>}
+        {typeof content === 'string' || typeof content === 'number' ? (
+          <Text style={buttonTextStyle}>{content}</Text>
+        ) : (
+          content
+        )}
         {icon && iconPosition === 'right' && (
-          <View style={[styles.iconContainer, { marginLeft: title ? 8 : 0 }, iconStyle]}>
+          <View style={[styles.iconContainer, hasContent ? styles.iconRightSpacing : null, iconStyle]}>
             {renderIcon()}
           </View>
         )}
@@ -465,6 +473,12 @@ const styles = StyleSheet.create({
   iconContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  iconLeftSpacing: {
+    marginRight: 8,
+  },
+  iconRightSpacing: {
+    marginLeft: 8,
   },
 });
 

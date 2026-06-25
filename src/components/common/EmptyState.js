@@ -17,44 +17,44 @@ const EmptyState = ({
   onButtonPress,
   secondaryButtonTitle,
   onSecondaryButtonPress,
+  buttonTestID,
+  secondaryButtonTestID,
   style,
 }) => {
   return (
     <View style={[styles.container, style]}>
-      {icon && (
+      {icon ? (
         <Icon
           name={icon}
           size={64}
           color={COLORS.TEXT_SECONDARY}
           style={styles.icon}
         />
-      )}
+      ) : null}
 
-      {title && (
-        <Text style={styles.title}>{title}</Text>
-      )}
+      {title ? <Text style={styles.title}>{title}</Text> : null}
 
-      {message && (
-        <Text style={styles.message}>{message}</Text>
-      )}
+      {message ? <Text style={styles.message}>{message}</Text> : null}
 
-      {buttonTitle && onButtonPress && (
+      {buttonTitle && onButtonPress ? (
         <TouchableOpacity
           style={styles.button}
           onPress={onButtonPress}
+          testID={buttonTestID}
         >
           <Text style={styles.buttonText}>{buttonTitle}</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
 
-      {secondaryButtonTitle && onSecondaryButtonPress && (
+      {secondaryButtonTitle && onSecondaryButtonPress ? (
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={onSecondaryButtonPress}
+          testID={secondaryButtonTestID}
         >
           <Text style={styles.secondaryButtonText}>{secondaryButtonTitle}</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 };
@@ -65,6 +65,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.XLARGE,
+    backgroundColor: 'transparent',
   },
   icon: {
     marginBottom: SPACING.MEDIUM,
@@ -84,11 +85,18 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   button: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: '#1D4ED8',
     paddingHorizontal: SPACING.LARGE,
     paddingVertical: SPACING.MEDIUM,
     borderRadius: 16,
     marginBottom: SPACING.MEDIUM,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
   },
   buttonText: {
     color: '#FFFFFF',
@@ -96,15 +104,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     paddingHorizontal: SPACING.LARGE,
     paddingVertical: SPACING.MEDIUM,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY,
+    borderColor: '#CFE1FF',
   },
   secondaryButtonText: {
-    color: COLORS.PRIMARY,
+    color: '#2563EB',
     fontWeight: '600',
     fontSize: 16,
   },

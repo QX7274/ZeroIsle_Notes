@@ -28,18 +28,18 @@ const ErrorState = ({
 
       <Text style={styles.title}>{title}</Text>
 
-      {message && (
+      {message ? (
         <Text style={styles.message}>{message}</Text>
-      )}
+      ) : null}
 
-      {onRetry && (
+      {onRetry ? (
         <TouchableOpacity
           style={styles.button}
           onPress={onRetry}
         >
           <Text style={styles.buttonText}>{buttonTitle}</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 };
@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.XLARGE,
+    backgroundColor: 'transparent',
   },
   icon: {
     marginBottom: SPACING.MEDIUM,
@@ -69,10 +70,17 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   button: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: '#1D4ED8',
     paddingHorizontal: SPACING.LARGE,
     paddingVertical: SPACING.MEDIUM,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    shadowColor: '#4C8DFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
   },
   buttonText: {
     color: '#FFFFFF',
