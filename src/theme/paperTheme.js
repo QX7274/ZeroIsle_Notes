@@ -161,7 +161,7 @@ export const createPaperLightTheme = (appTheme) => {
       inverseSurface: appTheme.colors.inverseSurface,
       inverseOnSurface: appTheme.colors.inverseOnSurface,
       inversePrimary: appTheme.colors.inversePrimary,
-      elevation: appTheme.colors.elevation,
+      elevation: appTheme.colors.elevation || MD3LightTheme.colors.elevation,
     },
     fonts: createFonts(true),
   };
@@ -202,7 +202,7 @@ export const createPaperDarkTheme = (appTheme) => {
       inverseSurface: appTheme.colors.inverseSurface,
       inverseOnSurface: appTheme.colors.inverseOnSurface,
       inversePrimary: appTheme.colors.inversePrimary,
-      elevation: appTheme.colors.elevation,
+      elevation: appTheme.colors.elevation || MD3DarkTheme.colors.elevation,
     },
     fonts: createFonts(true),
   };

@@ -61,6 +61,9 @@ const LoginScreen = ({ navigation }) => {
   const [passwordVisible, setPasswordVisible] = useState(false); // 密码可见性
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false); // 确认密码可见性
   const [hasSentCode, setHasSentCode] = useState(false); // 是否已发送过验证码
+  const [isDirectDevLoginLoading, setIsDirectDevLoginLoading] = useState(false);
+
+  const DEV_DIRECT_LOGIN_PHONE = '13800138000';
 
   // 清除Redux错误
   useEffect(() => {
@@ -143,6 +146,92 @@ const LoginScreen = ({ navigation }) => {
     } catch (alertError) {
       console.log(`${title}: ${message}`);
       console.error('显示成功提示失败:', alertError);
+    }
+  };
+
+  const handleDirectDevLogin = async () => {
+    if (!__DEV__) {
+      return;
+    }
+
+    setError('');
+    setIsDirectDevLoginLoading(true);
+
+    try {
+      console.log('开始执行开发态真实账号直连登录:', DEV_DIRECT_LOGIN_PHONE);
+
+      const verificationResponse = await authApi.sendVerificationCode({
+        phone: DEV_DIRECT_LOGIN_PHONE,
+        purpose: 'login',
+      });
+      console.log('开发态直连登录-验证码完整响应:', JSON.stringify(verificationResponse));
+
+      const verificationCode = verificationResponse?.data?.code || verificationResponse?.code;
+      console.log('开发态直连登录-解析出的验证码:', verificationCode);
+
+      if (!verificationCode) {
+        throw new Error('后端未返回可用验证码，无法执行直连登录');
+      }
+
+      const result = await authApi.loginWithCode({
+        phone: DEV_DIRECT_LOGIN_PHONE,
+        code: verificationCode,
+      });
+      console.log('开发态直连登录-登录完整响应:', JSON.stringify(result));
+
+      const loginPayload = result?.data || result;
+      console.log('开发态直连登录-登录载荷:', JSON.stringify(loginPayload));
+
+      if (!loginPayload?.user) {
+        const failureMessage =
+          result?.message ||
+          loginPayload?.message ||
+          loginPayload?.detail ||
+          loginPayload?.error ||
+          '真实账号直连登录失败';
+        throw new Error(failureMessage);
+      }
+
+      dispatch({ type: 'auth/setUserInfo', payload: loginPayload.user });
+      dispatch({ type: 'auth/setAuthToken', payload: loginPayload.access || loginPayload.token });
+      dispatch({ type: 'auth/setAuthRefreshToken', payload: loginPayload.refresh });
+      dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+
+      try {
+        await authStorage.saveUser(loginPayload.user);
+        await authStorage.saveToken({
+          access_token: loginPayload.access || loginPayload.token,
+          refresh_token: loginPayload.refresh,
+          realm_jwt: loginPayload.realm_jwt || loginPayload.tokens?.realm_jwt,
+        });
+      } catch (syncError) {
+        console.error('保存直连登录认证信息失败:', syncError);
+      }
+
+      setIdentifier(DEV_DIRECT_LOGIN_PHONE);
+      setCode(verificationCode);
+      showSuccessMessage('已通过真实后端完成开发态直连登录', '登录成功');
+    } catch (error) {
+      console.error('开发态真实账号直连登录失败:', error);
+      console.error('开发态真实账号直连登录失败-原始对象:', JSON.stringify({
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        status: error?.response?.status,
+        responseData: error?.response?.data,
+        stack: error?.stack,
+      }));
+      handleError(error, {
+        context: '开发态真实账号直连登录',
+        customMessage:
+          error?.response?.data?.non_field_errors?.[0] ||
+          error?.response?.data?.detail ||
+          error?.message ||
+          '真实账号直连登录失败，请检查登录参数或后端状态',
+      });
+      setError(error?.message || '真实账号直连登录失败');
+    } finally {
+      setIsDirectDevLoginLoading(false);
     }
   };
 
@@ -837,13 +926,31 @@ const LoginScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             {__DEV__ && !isRegister && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleEnterDevMode}
-                style={styles.devModeButton}
-              >
-                <Text style={styles.devModeButtonText}>跳过登录（开发者模式）</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleEnterDevMode}
+                  style={styles.devModeButton}
+                >
+                  <Text style={styles.devModeButtonText}>跳过登录（开发者模式）</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleDirectDevLogin}
+                  disabled={isDirectDevLoginLoading}
+                  style={[
+                    styles.devModeButton,
+                    styles.directDevLoginButton,
+                    isDirectDevLoginLoading && styles.devModeButtonDisabled,
+                  ]}
+                >
+                  {isDirectDevLoginLoading ? (
+                    <ActivityIndicator color="#1E90FF" size="small" />
+                  ) : (
+                    <Text style={styles.directDevLoginButtonText}>真实账号直连登录（开发调试）</Text>
+                  )}
+                </TouchableOpacity>
+              </>
             )}
 
             {!isRegister && (
@@ -1183,6 +1290,24 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  directDevLoginButton: {
+    minWidth: 220,
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#B7D8F5',
+    backgroundColor: '#EEF7FF',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  directDevLoginButtonText: {
+    color: '#1E90FF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  devModeButtonDisabled: {
+    opacity: 0.65,
   },
   devModeButtonText: {
     color: '#2A88D0',

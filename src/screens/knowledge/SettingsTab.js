@@ -45,6 +45,11 @@ const SettingsTab = ({ kbId }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
 
+  const openEditModal = () => setShowEditModal(true);
+  const closeEditModal = () => setShowEditModal(false);
+  const openDeleteConfirm = () => setShowDeleteConfirm(true);
+  const closeDeleteConfirm = () => setShowDeleteConfirm(false);
+
   const notifyNonBlocking = (message) => {
     if (!message) {
       return;
@@ -71,7 +76,7 @@ const SettingsTab = ({ kbId }) => {
         is_public: isPublic,
       };
       await dispatch(updateKnowledgeBase({ id: kbId, kbData })).unwrap();
-      setShowEditModal(false);
+      closeEditModal();
       notifyNonBlocking('知识库信息已更新');
     } catch (error) {
       notifyNonBlocking(error?.message || '更新失败，请重试');
@@ -88,13 +93,18 @@ const SettingsTab = ({ kbId }) => {
     }
   };
 
+  const handleConfirmDeleteKB = async () => {
+    closeDeleteConfirm();
+    await handleDeleteKB();
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
       {/* 基本信息卡片 */}
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>基本信息</Text>
-        <TouchableOpacity style={styles.settingItem} onPress={() => setShowEditModal(true)}>
+        <TouchableOpacity style={styles.settingItem} onPress={openEditModal}>
           <Icon name="edit" size={24} color={theme.colors.primary} style={styles.itemIcon} />
           <View style={styles.itemContent}>
             <Text style={styles.itemLabel}>名称</Text>
@@ -102,7 +112,7 @@ const SettingsTab = ({ kbId }) => {
           </View>
           <Icon name="chevron-right" size={24} color={theme.colors.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => setShowEditModal(true)}>
+        <TouchableOpacity style={styles.settingItem} onPress={openEditModal}>
           <Icon name="description" size={24} color={theme.colors.primary} style={styles.itemIcon} />
           <View style={styles.itemContent}>
             <Text style={styles.itemLabel}>描述</Text>
@@ -158,7 +168,7 @@ const SettingsTab = ({ kbId }) => {
       {/* 危险操作卡片 */}
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>危险操作</Text>
-        <TouchableOpacity style={styles.dangerButton} onPress={() => setShowDeleteConfirm(true)}>
+        <TouchableOpacity style={styles.dangerButton} onPress={openDeleteConfirm}>
           <Icon name="delete" size={24} color="#E74C3C" style={styles.itemIcon} />
           <Text style={styles.dangerText}>删除知识库</Text>
         </TouchableOpacity>
@@ -168,7 +178,7 @@ const SettingsTab = ({ kbId }) => {
         visible={showDeleteConfirm}
         animationType="fade"
         transparent
-        onRequestClose={() => setShowDeleteConfirm(false)}
+        onRequestClose={closeDeleteConfirm}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.confirmModalContent}>
@@ -177,16 +187,13 @@ const SettingsTab = ({ kbId }) => {
             <View style={styles.modalButtons}>
               <Button
                 title="取消"
-                onPress={() => setShowDeleteConfirm(false)}
+                onPress={closeDeleteConfirm}
                 variant="outline"
                 style={styles.modalButton}
               />
               <Button
                 title="删除"
-                onPress={async () => {
-                  setShowDeleteConfirm(false);
-                  await handleDeleteKB();
-                }}
+                onPress={handleConfirmDeleteKB}
                 style={styles.modalButton}
               />
             </View>
@@ -216,7 +223,7 @@ const SettingsTab = ({ kbId }) => {
               numberOfLines={4}
             />
             <View style={styles.modalButtons}>
-              <Button title="取消" onPress={() => setShowEditModal(false)} variant="outline" style={styles.modalButton} />
+              <Button title="取消" onPress={closeEditModal} variant="outline" style={styles.modalButton} />
               <Button title="保存" onPress={handleSave} style={styles.modalButton} />
             </View>
           </View>
@@ -388,4 +395,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default SettingsTab;
-

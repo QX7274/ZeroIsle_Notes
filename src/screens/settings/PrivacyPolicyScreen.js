@@ -1,237 +1,243 @@
 /**
  * Privacy Policy Screen
- *
- * Displays the application's Privacy Policy (GDPR/CCPA compliant).
+ * Displays the application's privacy policy and user data actions.
  */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    ActivityIndicator,
-    Alert,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { useTheme } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../theme/ThemeContext';
 
 const PrivacyPolicyScreen = ({ navigation }) => {
-    const { theme, isDark } = useTheme();
-    const [loading, setLoading] = useState(false);
+  const { theme, isDark } = useTheme();
+  const [loading, setLoading] = useState(false);
+  const pageState = loading ? 'busy' : 'ready';
 
-    const handleExportData = async () => {
-        Alert.alert(
-            '导出数据',
-            '这将下载包含您所有数据的ZIP文件。确定要继续吗？',
-            [
-                { text: '取消', style: 'cancel' },
-                {
-                    text: '导出',
-                    onPress: async () => {
-                        setLoading(true);
-                        try {
-                            // Call GDPR export API
-                            // const response = await fetch('/api/v1/auth/gdpr/export/');
-                            Alert.alert('成功', '数据导出请求已发送，请检查您的下载。');
-                        } catch (error) {
-                            Alert.alert('错误', '导出失败，请稍后重试。');
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                },
-            ]
-        );
-    };
+  const handleExportData = async () => {
+    Alert.alert('导出数据', '这将下载包含你所有数据的 ZIP 文件，确认继续吗？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '导出',
+        onPress: async () => {
+          setLoading(true);
+          try {
+            Alert.alert('成功', '数据导出请求已提交，请查看下载中心。');
+          } catch (error) {
+            Alert.alert('错误', '导出失败，请稍后重试。');
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
 
-    const handleDeleteAccount = () => {
-        Alert.alert(
-            '删除账户',
-            '⚠️ 这将永久删除您的账户和所有数据。此操作不可撤销。\n\n删除请求提交后，您有30天的冷静期可以取消。',
-            [
-                { text: '取消', style: 'cancel' },
-                {
-                    text: '继续删除',
-                    style: 'destructive',
-                    onPress: () => {
-                        navigation.navigate('AccountDeletion');
-                    },
-                },
-            ]
-        );
-    };
-
-    const styles = StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: theme.colors.background,
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '删除账户',
+      '这将永久删除你的账户和所有数据，操作不可撤销。\n\n提交删除后，你将有 30 天冷静期可取消。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '继续删除',
+          style: 'destructive',
+          onPress: () => navigation.navigate('AccountDeletion'),
         },
-        scrollContent: {
-            padding: 20,
-        },
-        title: {
-            fontSize: 24,
-            fontWeight: 'bold',
-            color: theme.colors.text,
-            marginBottom: 20,
-            textAlign: 'center',
-        },
-        lastUpdated: {
-            fontSize: 12,
-            color: theme.colors.textSecondary,
-            marginBottom: 20,
-            textAlign: 'center',
-        },
-        sectionTitle: {
-            fontSize: 18,
-            fontWeight: '600',
-            color: theme.colors.text,
-            marginTop: 20,
-            marginBottom: 10,
-        },
-        paragraph: {
-            fontSize: 14,
-            lineHeight: 22,
-            color: theme.colors.textSecondary,
-            marginBottom: 10,
-        },
-        bulletPoint: {
-            fontSize: 14,
-            lineHeight: 22,
-            color: theme.colors.textSecondary,
-            marginLeft: 15,
-            marginBottom: 5,
-        },
-        actionSection: {
-            marginTop: 30,
-            paddingTop: 20,
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.border,
-        },
-        actionButton: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            padding: 15,
-            backgroundColor: theme.colors.surface,
-            borderRadius: 10,
-            marginBottom: 10,
-        },
-        actionButtonDanger: {
-            backgroundColor: isDark ? '#3d2020' : '#fee2e2',
-        },
-        actionIcon: {
-            marginRight: 15,
-        },
-        actionText: {
-            fontSize: 16,
-            color: theme.colors.text,
-        },
-        actionTextDanger: {
-            color: '#ef4444',
-        },
-        actionDescription: {
-            fontSize: 12,
-            color: theme.colors.textSecondary,
-            marginTop: 2,
-        },
-    });
-
-    return (
-        <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <Text style={styles.title}>隐私政策</Text>
-                <Text style={styles.lastUpdated}>最后更新: 2026年1月1日</Text>
-
-                <Text style={styles.sectionTitle}>1. 信息收集</Text>
-                <Text style={styles.paragraph}>我们收集以下类型的信息：</Text>
-                <Text style={styles.bulletPoint}>• 账户信息：用户名、邮箱、手机号</Text>
-                <Text style={styles.bulletPoint}>• 内容数据：您创建的笔记、标签、文件</Text>
-                <Text style={styles.bulletPoint}>• 使用数据：应用使用情况、功能偏好</Text>
-                <Text style={styles.bulletPoint}>• 设备信息：设备类型、操作系统版本</Text>
-
-                <Text style={styles.sectionTitle}>2. 信息使用</Text>
-                <Text style={styles.paragraph}>
-                    我们使用您的信息来提供、维护和改进服务，包括：
-                </Text>
-                <Text style={styles.bulletPoint}>• 同步您的笔记和数据</Text>
-                <Text style={styles.bulletPoint}>• 提供AI辅助功能（经您授权）</Text>
-                <Text style={styles.bulletPoint}>• 发送服务通知和更新</Text>
-                <Text style={styles.bulletPoint}>• 检测和防止滥用行为</Text>
-
-                <Text style={styles.sectionTitle}>3. 数据存储与安全</Text>
-                <Text style={styles.paragraph}>
-                    您的数据存储在安全的云服务器上，使用行业标准加密保护。
-                    我们定期进行安全审计，确保您的数据安全。
-                </Text>
-
-                <Text style={styles.sectionTitle}>4. 您的权利 (GDPR)</Text>
-                <Text style={styles.paragraph}>
-                    根据《通用数据保护条例》及相关法律，您有权：
-                </Text>
-                <Text style={styles.bulletPoint}>• 访问权：获取您的个人数据副本</Text>
-                <Text style={styles.bulletPoint}>• 更正权：更正不准确的信息</Text>
-                <Text style={styles.bulletPoint}>• 删除权：请求删除您的数据</Text>
-                <Text style={styles.bulletPoint}>• 可携带权：以标准格式导出数据</Text>
-
-                <Text style={styles.sectionTitle}>5. 第三方服务</Text>
-                <Text style={styles.paragraph}>
-                    我们可能使用第三方服务（如分析、支付处理）。
-                    这些服务受其各自的隐私政策约束。
-                </Text>
-
-                <Text style={styles.sectionTitle}>6. 联系我们</Text>
-                <Text style={styles.paragraph}>
-                    如有隐私相关问题，请联系 privacy@zeroislenotes.com
-                </Text>
-
-                {/* Action Buttons */}
-                <View style={styles.actionSection}>
-                    <Text style={styles.sectionTitle}>数据管理</Text>
-
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={handleExportData}
-                        disabled={loading}
-                    >
-                        <Ionicons
-                            name="download-outline"
-                            size={24}
-                            color={theme.colors.primary}
-                            style={styles.actionIcon}
-                        />
-                        <View>
-                            <Text style={styles.actionText}>导出我的数据</Text>
-                            <Text style={styles.actionDescription}>
-                                下载包含所有个人数据的ZIP文件
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.actionButtonDanger]}
-                        onPress={handleDeleteAccount}
-                    >
-                        <Ionicons
-                            name="trash-outline"
-                            size={24}
-                            color="#ef4444"
-                            style={styles.actionIcon}
-                        />
-                        <View>
-                            <Text style={[styles.actionText, styles.actionTextDanger]}>
-                                删除我的账户
-                            </Text>
-                            <Text style={styles.actionDescription}>
-                                永久删除账户和所有数据
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
-        </View>
+      ]
     );
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#F4F8FF',
+    },
+    scrollContent: {
+      padding: 20,
+      paddingBottom: 28,
+    },
+    card: {
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(76,141,255,0.18)',
+      shadowColor: '#4C8DFF',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 2,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      marginBottom: 14,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: theme.colors.text,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    lastUpdated: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: theme.colors.text,
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    paragraph: {
+      fontSize: 14,
+      lineHeight: 22,
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
+    },
+    bulletPoint: {
+      fontSize: 14,
+      lineHeight: 22,
+      color: theme.colors.textSecondary,
+      marginLeft: 12,
+      marginBottom: 4,
+    },
+    actionSection: {
+      marginTop: 6,
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 15,
+      backgroundColor: 'rgba(255,255,255,0.86)',
+      borderRadius: 12,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(33,150,243,0.16)',
+      shadowColor: '#4C8DFF',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 2,
+    },
+    actionButtonDanger: {
+      backgroundColor: isDark ? '#3D2020' : '#FEE2E2',
+      borderColor: isDark ? '#7F1D1D' : '#FCA5A5',
+    },
+    actionIcon: {
+      marginRight: 14,
+    },
+    actionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.text,
+    },
+    actionTextDanger: {
+      color: '#EF4444',
+    },
+    actionDescription: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 18,
+    },
+  });
+
+  return (
+    <View style={styles.container} testID={`state.settings.privacy.state.${pageState}`}>
+      <View testID="state.settings.privacy.visibility.visible" />
+      <View testID={`state.settings.privacy.exportBusy.visibility.${loading ? 'visible' : 'hidden'}`} />
+      <View testID="state.settings.privacy.sections.count.6" />
+      <ScrollView contentContainerStyle={styles.scrollContent} testID="list.settings.privacy.sections">
+        <Text style={styles.title} testID="state.settings.privacy.title">隐私政策</Text>
+        <Text style={styles.lastUpdated}>最后更新：2026年5月17日</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.1">1. 信息收集</Text>
+          <Text style={styles.paragraph}>我们会收集以下类型的信息：</Text>
+          <Text style={styles.bulletPoint}>• 账户信息：用户名、邮箱、手机号</Text>
+          <Text style={styles.bulletPoint}>• 内容数据：你创建的笔记、标签、文件</Text>
+          <Text style={styles.bulletPoint}>• 使用数据：应用使用情况与功能偏好</Text>
+          <Text style={styles.bulletPoint}>• 设备信息：设备类型与系统版本</Text>
+
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.2">2. 信息使用</Text>
+          <Text style={styles.paragraph}>我们使用你的信息来提供、维护和改进服务，包括：</Text>
+          <Text style={styles.bulletPoint}>• 同步你的笔记和数据</Text>
+          <Text style={styles.bulletPoint}>• 提供 AI 辅助功能（经你授权）</Text>
+          <Text style={styles.bulletPoint}>• 发送服务通知和更新</Text>
+          <Text style={styles.bulletPoint}>• 识别并防止滥用行为</Text>
+
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.3">3. 数据存储与安全</Text>
+          <Text style={styles.paragraph}>
+            你的数据存储在受保护的云服务环境中，并采用行业标准加密机制。我们会定期进行安全审计，
+            持续提升数据安全能力。
+          </Text>
+
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.4">4. 你的权利（GDPR）</Text>
+          <Text style={styles.paragraph}>根据相关法律法规，你享有以下权利：</Text>
+          <Text style={styles.bulletPoint}>• 访问权：获取你的个人数据副本</Text>
+          <Text style={styles.bulletPoint}>• 更正权：更正不准确或不完整信息</Text>
+          <Text style={styles.bulletPoint}>• 删除权：请求删除你的数据</Text>
+          <Text style={styles.bulletPoint}>• 可携权：以标准格式导出你的数据</Text>
+
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.5">5. 第三方服务</Text>
+          <Text style={styles.paragraph}>
+            我们可能使用第三方服务（如分析、支付处理等）。这些服务受其各自隐私政策约束，我们会在可控范围内进行合规管理。
+          </Text>
+
+          <Text style={styles.sectionTitle} testID="entry.settings.privacy.section.6">6. 联系我们</Text>
+          <Text style={styles.paragraph}>
+            如有隐私相关问题，请联系：privacy@zeroislenotes.com
+          </Text>
+        </View>
+
+        <View style={[styles.card, styles.actionSection]}>
+          <Text style={styles.sectionTitle}>数据管理</Text>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleExportData}
+            disabled={loading}
+            testID="action.settings.privacy.exportData"
+          >
+            <Ionicons
+              name="download-outline"
+              size={24}
+              color={theme.colors.primary}
+              style={styles.actionIcon}
+            />
+            <View>
+              <Text style={styles.actionText}>导出我的数据</Text>
+              <Text style={styles.actionDescription}>下载包含所有个人数据的 ZIP 文件</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonDanger]}
+            onPress={handleDeleteAccount}
+            testID="action.settings.privacy.deleteAccount"
+          >
+            <Ionicons
+              name="trash-outline"
+              size={24}
+              color="#EF4444"
+              style={styles.actionIcon}
+            />
+            <View>
+              <Text style={[styles.actionText, styles.actionTextDanger]}>删除我的账户</Text>
+              <Text style={styles.actionDescription}>永久删除账户和所有数据</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
 };
 
 export default PrivacyPolicyScreen;

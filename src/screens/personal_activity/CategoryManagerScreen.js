@@ -16,6 +16,7 @@ import { Text } from '../../components/common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as Haptics from '../../utils/haptics';
 import personalActivityApi from '../../services/api/personalActivityApi';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const CategoryManagerScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -215,12 +216,7 @@ const CategoryManagerScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 头部 */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.categoryManager.back" style={styles.backButton} />
         <Text variant="h2" style={styles.headerTitle}>分类管理</Text>
         <TouchableOpacity
           style={styles.addButton}
@@ -313,7 +309,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   backButton: {
-    padding: 8,
+    flexShrink: 0,
   },
   headerTitle: {
     flex: 1,

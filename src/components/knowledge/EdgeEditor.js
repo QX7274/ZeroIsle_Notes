@@ -56,6 +56,39 @@ const EdgeEditor = ({
   const [filteredNodes, setFilteredNodes] = useState([]);
   const [searchText, setSearchText] = useState('');
 
+  const openSourceSelector = () => {
+    setShowSourceSelector(true);
+    setSearchText('');
+  };
+
+  const closeSourceSelector = () => {
+    setShowSourceSelector(false);
+  };
+
+  const openTargetSelector = () => {
+    setShowTargetSelector(true);
+    setSearchText('');
+  };
+
+  const closeTargetSelector = () => {
+    setShowTargetSelector(false);
+  };
+
+  const clearNodeSearchText = () => {
+    setSearchText('');
+  };
+
+  const handleNodePicked = (node, isSource) => {
+    if (isSource) {
+      setSourceId(node.id);
+      closeSourceSelector();
+    } else {
+      setTargetId(node.id);
+      closeTargetSelector();
+    }
+    clearNodeSearchText();
+  };
+
   // 初始化状态
   useEffect(() => {
     if (edge) {
@@ -194,10 +227,10 @@ const EdgeEditor = ({
         visible={isSource ? showSourceSelector : showTargetSelector}
         transparent
         animationType="slide"
-        onRequestClose={() => isSource ? setShowSourceSelector(false) : setShowTargetSelector(false)}
+        onRequestClose={isSource ? closeSourceSelector : closeTargetSelector}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.selectorContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.selectorContainer, { backgroundColor: `${colors.card}F2` }]}>
             <View style={styles.selectorHeader}>
               <Text
                 variant="heading"
@@ -209,7 +242,7 @@ const EdgeEditor = ({
 
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => isSource ? setShowSourceSelector(false) : setShowTargetSelector(false)}
+                onPress={isSource ? closeSourceSelector : closeTargetSelector}
               >
                 <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -221,9 +254,7 @@ const EdgeEditor = ({
                 placeholder="搜索节点"
                 style={styles.searchBar}
                 onSearch={(results) => {
-                  if (results && results.length > 0) {
-                    setFilteredNodes(results);
-                  }
+                  setFilteredNodes(results || []);
                 }}
               />
             </View>
@@ -247,16 +278,7 @@ const EdgeEditor = ({
                       node.id === currentId && styles.selectedNodeItem,
                       node.id === currentId && { borderColor: getNodeTypeColor(node.type) },
                     ]}
-                    onPress={() => {
-                      if (isSource) {
-                        setSourceId(node.id);
-                        setShowSourceSelector(false);
-                      } else {
-                        setTargetId(node.id);
-                        setShowTargetSelector(false);
-                      }
-                      setSearchText('');
-                    }}
+                    onPress={() => handleNodePicked(node, isSource)}
                   >
                     <View
                       style={[
@@ -305,7 +327,7 @@ const EdgeEditor = ({
       onRequestClose={onCancel}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.container, { backgroundColor: colors.card }]}>
+        <View style={[styles.container, { backgroundColor: `${colors.card}F2` }]}>
           <View style={styles.header}>
             <Text
               variant="heading"
@@ -338,10 +360,7 @@ const EdgeEditor = ({
                   styles.nodeSelector,
                   { borderColor: colors.border },
                 ]}
-                onPress={() => {
-                  setShowSourceSelector(true);
-                  setSearchText('');
-                }}
+                onPress={openSourceSelector}
               >
                 <View
                   style={[
@@ -374,10 +393,7 @@ const EdgeEditor = ({
                   styles.nodeSelector,
                   { borderColor: colors.border },
                 ]}
-                onPress={() => {
-                  setShowTargetSelector(true);
-                  setSearchText('');
-                }}
+                onPress={openTargetSelector}
               >
                 <View
                   style={[
@@ -639,6 +655,8 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.18)',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

@@ -177,7 +177,7 @@ const ChatInput = ({
 
   // 渲染发送按钮
   const renderSendButton = () => {
-    const isDisabled = message.trim() === '';
+    const isDisabled = isLoading || message.trim() === '';
 
     return (
         <TouchableOpacity

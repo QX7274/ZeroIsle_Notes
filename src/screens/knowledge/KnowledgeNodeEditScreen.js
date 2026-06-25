@@ -8,15 +8,24 @@ import {
   StyleSheet,
   ScrollView,
   Text,
+  TouchableOpacity,
   ToastAndroid,
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Button, Input, Card } from '../../components/common';
 import { SPACING, FONT_SIZES } from '../../utils/constants/dimensions';
 import { createKnowledgeBaseNode, updateKnowledgeBaseNode } from '../../redux/slices/knowledgeBaseSlice';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+
+const TYPE_OPTIONS = [
+  { value: 'note', label: '笔记' },
+  { value: 'concept', label: '概念' },
+  { value: 'document', label: '文档' },
+];
 
 const KnowledgeNodeEditScreen = () => {
   const navigation = useNavigation();
@@ -24,13 +33,14 @@ const KnowledgeNodeEditScreen = () => {
   const dispatch = useDispatch();
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
 
-  const existingNode = route.params?.node;
-  const kbId = route.params?.kbId;
+  const existingNode = route?.params?.node;
+  const kbId = route?.params?.kbId;
 
   const [title, setTitle] = useState(existingNode?.title || '');
   const [description, setDescription] = useState(existingNode?.description || '');
-  const [type, setType] = useState(existingNode?.type || 'note'); // 'note', 'concept', 'document'
+  const [type, setType] = useState(existingNode?.type || 'note');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
 
@@ -74,10 +84,26 @@ const KnowledgeNodeEditScreen = () => {
     }
   };
 
+  const setNoteType = () => setType('note');
+  const setConceptType = () => setType('concept');
+  const setDocumentType = () => setType('document');
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
-      <Card style={styles.card}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+        <View style={styles.pageHeaderTopRow}>
+          <ScreenHeaderBackButton
+            onPress={() => navigation.goBack()}
+            testID="action.knowledgeNodeEdit.back"
+            style={styles.backButton}
+          />
+          <Text style={styles.pageTitle}>{existingNode ? '编辑节点' : '创建新节点'}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </View>
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
+        {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
+        <Card style={styles.card}>
         <Input
           label="标题"
           value={title}
@@ -94,24 +120,81 @@ const KnowledgeNodeEditScreen = () => {
           numberOfLines={4}
           style={styles.descriptionInput}
         />
-        {/* TODO: Add a component to select node type (e.g., Segmented Control or Picker) */}
-        <Text style={styles.label}>类型: {type}</Text>
-      </Card>
+        <Text style={styles.label}>类型</Text>
+        <View style={styles.typeSelector}>
+          {TYPE_OPTIONS.map((option, index) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.typeOption,
+                type === option.value && styles.typeOptionActive,
+                index === TYPE_OPTIONS.length - 1 ? styles.typeOptionLast : null,
+              ]}
+              onPress={
+                option.value === 'note'
+                  ? setNoteType
+                  : option.value === 'concept'
+                    ? setConceptType
+                    : setDocumentType
+              }
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.typeOptionText,
+                  type === option.value && styles.typeOptionTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        </Card>
 
-      <Button
-        title={existingNode ? '更新节点' : '创建节点'}
-        onPress={handleSubmit}
-        loading={isSubmitting}
-        style={styles.submitButton}
-      />
-    </ScrollView>
+        <Button
+          title={existingNode ? '更新节点' : '创建节点'}
+          onPress={handleSubmit}
+          loading={isSubmitting}
+          style={styles.submitButton}
+        />
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pageHeader: {
+    paddingHorizontal: SPACING.medium,
+    paddingBottom: SPACING.medium,
     backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    marginRight: SPACING.small,
+  },
+  pageTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: FONT_SIZES.large,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   contentContainer: {
     padding: SPACING.medium,
@@ -132,6 +215,35 @@ const getStyles = (theme) => StyleSheet.create({
     fontSize: FONT_SIZES.medium,
     color: theme.colors.textSecondary,
     marginTop: SPACING.medium,
+    marginBottom: SPACING.small,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  typeOption: {
+    flex: 1,
+    paddingVertical: SPACING.small,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+  },
+  typeOptionLast: {
+    borderRightWidth: 0,
+  },
+  typeOptionActive: {
+    backgroundColor: theme.colors.primary + '22',
+  },
+  typeOptionText: {
+    fontSize: FONT_SIZES.small,
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
+  },
+  typeOptionTextActive: {
+    color: theme.colors.primary,
   },
   submitButton: {
     marginTop: SPACING.large,
@@ -139,4 +251,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default KnowledgeNodeEditScreen;
-

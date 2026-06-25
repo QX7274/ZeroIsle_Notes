@@ -32,7 +32,9 @@ export const API_ENDPOINTS = {
     REGISTER_USERNAME: '/auth/register/username/',
     REGISTER_EMAIL: '/auth/register/email/',
     REGISTER_PHONE: '/auth/register/phone/',
-    LOGIN_CODE: '/auth/login/code/',
+    // 当前后端正式口径：手机号 + 验证码登录仍走 /auth/login/
+    // 保留常量名以兼容旧调用方，但底层指向真实可用接口。
+    LOGIN_CODE: '/auth/login/',
     LOGIN_WECHAT: '/auth/login/wechat/',
     LOGIN_QQ: '/auth/login/qq/',
     REFRESH_TOKEN: '/auth/token/refresh/',
@@ -41,7 +43,8 @@ export const API_ENDPOINTS = {
     RESET_PASSWORD: '/auth/password/reset/',
     VERIFY_RESET_CODE: '/auth/password/verify-reset-code/',
     VERIFY_EMAIL: '/auth/email/verify/',
-    SEND_VERIFICATION_CODE: '/auth/send-verification-code/',
+    // 当前后端正式口径：发送验证码接口为 /auth/verification-code/
+    SEND_VERIFICATION_CODE: '/auth/verification-code/',
     BIND_EMAIL: '/auth/bind/email/',
     BIND_PHONE: '/auth/bind/phone/',
     BIND_WECHAT: '/auth/bind/wechat/',

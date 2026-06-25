@@ -70,6 +70,15 @@ const GraphControlPanel = ({
     }
   };
 
+  const setDepthOne = () => handleDepthChange(1);
+  const setDepthTwo = () => handleDepthChange(2);
+  const setDepthThree = () => handleDepthChange(3);
+  const setDepthFour = () => handleDepthChange(4);
+
+  const setForceLayout = () => handleLayoutChange('force');
+  const setRadialLayout = () => handleLayoutChange('radial');
+  const setTreeLayout = () => handleLayoutChange('tree');
+
   return (
     <View
       style={[
@@ -146,7 +155,15 @@ const GraphControlPanel = ({
                   depth === d && { backgroundColor: colors.primary },
                   { borderColor: colors.border || '#E0E0E0' },
                 ]}
-                onPress={() => handleDepthChange(d)}
+                onPress={
+                  d === 1
+                    ? setDepthOne
+                    : d === 2
+                      ? setDepthTwo
+                      : d === 3
+                        ? setDepthThree
+                        : setDepthFour
+                }
               >
                 <Text
                   style={[
@@ -168,7 +185,7 @@ const GraphControlPanel = ({
                 layout === 'force' && { backgroundColor: colors.primary },
                 { borderColor: colors.border || '#E0E0E0' },
               ]}
-              onPress={() => handleLayoutChange('force')}
+              onPress={setForceLayout}
             >
               <Text
                 style={[
@@ -185,7 +202,7 @@ const GraphControlPanel = ({
                 layout === 'radial' && { backgroundColor: colors.primary },
                 { borderColor: colors.border || '#E0E0E0' },
               ]}
-              onPress={() => handleLayoutChange('radial')}
+              onPress={setRadialLayout}
             >
               <Text
                 style={[
@@ -202,7 +219,7 @@ const GraphControlPanel = ({
                 layout === 'tree' && { backgroundColor: colors.primary },
                 { borderColor: colors.border || '#E0E0E0' },
               ]}
-              onPress={() => handleLayoutChange('tree')}
+              onPress={setTreeLayout}
             >
               <Text
                 style={[

@@ -613,12 +613,13 @@ export const sendVerificationCode = async (data) => {
     const requestData = typeof data === 'object' ? data : { phone: data, type: arguments[1] || 'login' };
 
     const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, requestData);
+    const responseData = response?.data || response;
 
-    console.log('验证码发送响应:', response.data);
+    console.log('验证码发送响应:', responseData);
 
     return {
       success: true,
-      data: response.data,
+      data: responseData,
     };
   } catch (error) {
     console.error('发送验证码失败:', error);
@@ -635,20 +636,43 @@ export const loginWithCode = async (loginData) => {
   try {
     console.log('验证码登录请求数据:', loginData);
 
-    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_CODE, loginData);
+    const requestData = {
+      ...loginData,
+      verification_code: loginData?.verification_code || loginData?.code,
+    };
 
-    console.log('验证码登录响应数据:', response.data);
+    if ('code' in requestData) {
+      delete requestData.code;
+    }
+
+    const response = await instance.post(API_ENDPOINTS.AUTH.LOGIN_CODE, requestData);
+    const responseData = response?.data || response;
+
+    console.log('验证码登录响应数据:', responseData);
 
     // 保存令牌和用户信息
-    const { access, refresh, user } = response.data;
+    const { access, refresh, user } = responseData;
+    console.log('验证码登录响应关键字段:', {
+      hasAccess: Boolean(access),
+      hasRefresh: Boolean(refresh),
+      hasUser: Boolean(user),
+      userId: user?.id,
+      username: user?.username,
+    });
     await saveAuthInfo(access, refresh, user);
 
     return {
       success: true,
-      data: response.data,
+      data: responseData,
     };
   } catch (error) {
     console.error('验证码登录失败:', error);
+    console.error('验证码登录失败详情:', {
+      message: error?.message,
+      code: error?.code,
+      status: error?.response?.status,
+      responseData: error?.response?.data,
+    });
     throw error;
   }
 };

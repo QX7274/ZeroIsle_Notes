@@ -12,6 +12,7 @@ import {
   Platform,
   ToastAndroid,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -84,6 +85,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
     reminder: routeReminderParam = null,
   } = route.params;
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const localReminders = useSelector(selectReminders);
   const localReminder = localReminders.find((item) => item.id === id);
@@ -444,7 +446,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
   }
 
   return (
-    <View
+    <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
       testID="screen.reminder.detail"
     >
@@ -459,6 +461,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
           {
             borderBottomColor: theme.primary + '16',
             backgroundColor: theme.cardBackground,
+            paddingTop: Math.max(insets.top, 12),
           },
         ]}
       >
@@ -867,7 +870,7 @@ const ReminderDetailScreen = ({ route, navigation }) => {
         onError={(error) => console.log('ReschedulePicker error:', error)}
         testID="picker.reminder.detail.reschedule"
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -888,8 +891,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 24,
+    paddingVertical: 10,
+    paddingTop: 16,
     borderBottomWidth: 1,
   },
   backButton: {

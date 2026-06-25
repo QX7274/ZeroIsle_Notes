@@ -15,11 +15,13 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { createKnowledgeBase, updateKnowledgeBase } from '../../redux/slices/knowledgeBaseSlice';
 import { Button, Card } from '../../components/common';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../utils/constants/dimensions';
+import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 
 const ICON_OPTIONS = [
   { name: 'work', label: '工作' },
@@ -44,11 +46,12 @@ const KnowledgeBaseEditScreen = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   const { currentKnowledgeBase, status, error } = useSelector((state) => state.knowledgeBase);
 
-  const kbId = route.params?.kbId;
+  const kbId = route?.params?.kbId;
   const isEditMode = !!kbId;
 
   const [name, setName] = useState('');
@@ -112,10 +115,30 @@ const KnowledgeBaseEditScreen = () => {
     }
   };
 
+  const handleIconSelect = (iconName) => {
+    setSelectedIcon(iconName);
+  };
+
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
-      <Card style={styles.card}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+        <View style={styles.pageHeaderTopRow}>
+          <ScreenHeaderBackButton
+            onPress={() => navigation.goBack()}
+            testID="action.knowledgeBaseEdit.back"
+            style={styles.backButton}
+          />
+          <Text style={styles.pageTitle}>{isEditMode ? '编辑知识库' : '创建知识库'}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </View>
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.content}>
+        {inlineHint ? <Text style={styles.hintText}>{inlineHint}</Text> : null}
+        <Card style={styles.card}>
         <Text style={styles.label}>知识库名称 *</Text>
         <TextInput
           style={styles.input}
@@ -145,7 +168,7 @@ const KnowledgeBaseEditScreen = () => {
                 styles.iconOption,
                 selectedIcon === icon.name && styles.iconOptionSelected,
               ]}
-              onPress={() => setSelectedIcon(icon.name)}
+              onPress={() => handleIconSelect(icon.name)}
             >
               <Icon name={icon.name} size={28} color={selectedIcon === icon.name ? theme.colors.primary : theme.colors.textSecondary} />
             </TouchableOpacity>
@@ -162,7 +185,7 @@ const KnowledgeBaseEditScreen = () => {
                 { backgroundColor: color },
                 selectedColor === color && styles.colorOptionSelected,
               ]}
-              onPress={() => setSelectedColor(color)}
+              onPress={() => handleColorSelect(color)}
             >
               {selectedColor === color && (
                 <Icon name="check" size={20} color="#FFFFFF" />
@@ -170,9 +193,9 @@ const KnowledgeBaseEditScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
-      </Card>
+        </Card>
 
-      <View style={styles.previewCard}>
+        <View style={styles.previewCard}>
         <Text style={styles.previewLabel}>预览</Text>
         <View style={styles.previewContent}>
           <Icon name={selectedIcon} size={32} color={selectedColor} style={styles.previewIcon} />
@@ -183,22 +206,51 @@ const KnowledgeBaseEditScreen = () => {
             </Text>
           </View>
         </View>
-      </View>
+        </View>
 
-      <Button
-        title={isEditMode ? '保存' : '创建'}
-        onPress={handleSave}
-        loading={status === 'loading'}
-        style={styles.saveButton}
-      />
-    </ScrollView>
+        <Button
+          title={isEditMode ? '保存' : '创建'}
+          onPress={handleSave}
+          loading={status === 'loading'}
+          style={styles.saveButton}
+        />
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pageHeader: {
+    paddingHorizontal: SPACING.medium,
+    paddingBottom: SPACING.medium,
     backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  pageHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    marginRight: SPACING.small,
+  },
+  pageTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: FONT_SIZES.large,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   content: {
     padding: SPACING.medium,
@@ -327,4 +379,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default KnowledgeBaseEditScreen;
-

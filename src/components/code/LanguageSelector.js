@@ -95,9 +95,21 @@ const LanguageSelector = ({
     return LANGUAGES.find((lang) => lang.id === value) || LANGUAGES[0];
   };
 
+  const openModal = () => {
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+  };
+
+  const clearSearchQuery = () => {
+    setSearchQuery('');
+  };
+
   // 处理语言选择
   const handleSelectLanguage = (language) => {
-    setModalVisible(false);
+    closeModal();
 
     if (onChange && language.id !== value) {
       onChange(language.id);
@@ -170,7 +182,7 @@ const LanguageSelector = ({
           compact && styles.compactButton,
           style,
         ]}
-        onPress={() => setModalVisible(true)}
+        onPress={openModal}
       >
         <View
           style={[
@@ -218,9 +230,9 @@ const LanguageSelector = ({
         visible={modalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={closeModal}
       >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={closeModal}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View
@@ -239,7 +251,7 @@ const LanguageSelector = ({
                   </Text>
                   <TouchableOpacity
                     style={styles.closeButton}
-                    onPress={() => setModalVisible(false)}
+                    onPress={closeModal}
                   >
                     <Icon name="close" size={24} color={colors.text} />
                   </TouchableOpacity>
@@ -272,7 +284,7 @@ const LanguageSelector = ({
                   {searchQuery.length > 0 && (
                     <TouchableOpacity
                       style={styles.clearButton}
-                      onPress={() => setSearchQuery('')}
+                      onPress={clearSearchQuery}
                     >
                       <Icon
                         name="clear"

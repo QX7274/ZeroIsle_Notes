@@ -3,26 +3,17 @@
  */
 import React from 'react';
 import {
-  View,
+  Image,
   StyleSheet,
   TouchableOpacity,
-  Image,
+  View,
 } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
-import { Text } from '../common/Typography';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useTheme } from '../../context/ThemeContext';
 import { MarkdownPreview } from '../common';
-import { SPACING, RADIUS, ELEVATION, SIZE, BORDER } from '../../theme/tokens';
+import { Text } from '../common/Typography';
+import { BORDER, ELEVATION, RADIUS, SIZE, SPACING } from '../../theme/tokens';
 
-/**
- * 社区帖子项组件
- * @param {Object} post - 帖子对象
- * @param {Function} onPress - 点击回调
- * @param {Function} onLikePress - 点赞回调
- * @param {Function} onCommentPress - 评论回调
- * @param {Function} onSharePress - 分享回调
- * @param {Function} onUserPress - 用户点击回调
- */
 const PostItem = React.memo(({
   post,
   onPress,
@@ -34,7 +25,6 @@ const PostItem = React.memo(({
   const { theme } = useTheme();
   const { colors } = theme;
 
-  // 提取帖子信息
   const {
     title,
     content,
@@ -49,161 +39,111 @@ const PostItem = React.memo(({
     is_featured,
   } = post || {};
 
-  // 格式化日期
-  const formatDate = (dateString) => {
-    if (!dateString) {return '';}
+  const username = user?.username || '匿名用户';
+  const postId = String(post?.id || 'unknown');
 
+  const formatDate = (dateString) => {
+    if (!dateString) {
+      return '';
+    }
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
-      // 今天
       return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    } else if (diffDays === 1) {
-      // 昨天
+    }
+    if (diffDays === 1) {
       return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    } else if (diffDays < 7) {
-      // 一周内
+    }
+    if (diffDays < 7) {
       const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       return `${days[date.getDay()]} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    } else {
-      // 一周前
-      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
     }
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
   };
 
-  // 渲染标签
   const renderTags = () => {
-    if (!tags || tags.length === 0) {return null;}
-
+    if (!tags || tags.length === 0) {
+      return null;
+    }
     return (
       <View style={styles.tagsContainer}>
         {tags.slice(0, 3).map((tag, index) => (
           <View
-            key={`tag-${index}`}
+            key={`tag-${postId}-${index}`}
             style={[
               styles.tagChip,
-              { backgroundColor: (colors.primary || '#007AFF') + '20' },
+              { backgroundColor: `${colors.primary || '#007AFF'}20` },
             ]}
           >
-            <Text
-              variant="caption"
-              color="primary"
-              style={styles.tagText}
-            >
-              {tag.name || tag}
+            <Text variant="caption" color="primary" style={styles.tagText}>
+              {tag?.name || tag}
             </Text>
           </View>
         ))}
 
-        {tags.length > 3 && (
-          <Text
-            variant="caption"
-            color="hint"
-            style={styles.moreTagsText}
-          >
+        {tags.length > 3 ? (
+          <Text variant="caption" color="hint" style={styles.moreTagsText}>
             +{tags.length - 3}
           </Text>
-        )}
+        ) : null}
       </View>
     );
   };
 
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        { backgroundColor: colors.card || '#FFFFFF' },
-      ]}
+      style={[styles.container, { backgroundColor: colors.card || '#FFFFFF' }]}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.74}
+      testID={`item.community.postCard.${postId}`}
     >
-      {/* 帖子头部 */}
+      <View testID={`state.community.postItem.featured.${postId}.${is_featured ? 'on' : 'off'}`} />
+      <View testID={`state.community.postItem.liked.${postId}.${is_liked ? 'on' : 'off'}`} />
+
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.userContainer}
-          onPress={onUserPress}
-        >
+        <TouchableOpacity style={styles.userContainer} onPress={onUserPress} testID={`action.community.postItem.user.${postId}`}>
           <Image
-            source={
-              user?.avatar
-                ? { uri: user.avatar }
-                : require('../../assets/images/default-avatar.png')
-            }
+            source={user?.avatar ? { uri: user.avatar } : require('../../assets/images/default-avatar.png')}
             style={styles.avatar}
           />
           <View style={styles.userInfo}>
-            <Text
-              variant="body"
-              size="medium"
-              bold
-            >
-              {user?.username || '匿名用户'}
-            </Text>
-            <Text
-              variant="caption"
-              color="hint"
-            >
-              {formatDate(created_at)}
-            </Text>
+            <Text variant="body" size="medium" bold>{username}</Text>
+            <Text variant="caption" color="hint">{formatDate(created_at)}</Text>
           </View>
         </TouchableOpacity>
 
-        {is_featured && (
-          <View
-            style={[
-              styles.featuredBadge,
-              { backgroundColor: colors.warning || '#FF9500' },
-            ]}
-          >
+        {is_featured ? (
+          <View style={[styles.featuredBadge, { backgroundColor: colors.warning || '#FF9500' }]}>
             <Icon name="star" size={12} color="#FFFFFF" />
-            <Text
-              variant="caption"
-              color="card"
-              style={styles.featuredText}
-            >
+            <Text variant="caption" color="card" style={styles.featuredText}>
               精选
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
 
-      {/* 帖子内容 */}
       <View style={styles.content}>
-        <Text
-          variant="heading"
-          level="h6"
-          numberOfLines={2}
-          style={styles.title}
-        >
+        <Text variant="heading" level="h6" numberOfLines={2} style={styles.title}>
           {title}
         </Text>
 
         {excerpt ? (
-          <Text
-            variant="body"
-            size="medium"
-            numberOfLines={3}
-            style={styles.excerpt}
-          >
+          <Text variant="body" size="medium" numberOfLines={3} style={styles.excerpt}>
             {excerpt}
           </Text>
         ) : (
           <View style={styles.markdownContainer}>
-            <MarkdownPreview
-              content={content}
-              scrollEnabled={false}
-            />
+            <MarkdownPreview content={content} scrollEnabled={false} />
           </View>
         )}
       </View>
 
-      {/* 帖子底部 */}
       <View style={styles.footer}>
         <View style={styles.metaContainer}>
-          {category && (
+          {category ? (
             <View style={styles.categoryContainer}>
               <View
                 style={[
@@ -211,65 +151,35 @@ const PostItem = React.memo(({
                   { backgroundColor: category.color || colors.primary || '#007AFF' },
                 ]}
               />
-              <Text
-                variant="caption"
-                color="hint"
-                style={styles.categoryText}
-              >
+              <Text variant="caption" color="hint" style={styles.categoryText}>
                 {category.name}
               </Text>
             </View>
-          )}
-
+          ) : null}
           {renderTags()}
         </View>
 
         <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={onLikePress}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={onLikePress} testID={`action.community.postItem.like.${postId}`}>
             <Icon
               name={is_liked ? 'favorite' : 'favorite-border'}
               size={SIZE.icon.md}
               color={is_liked ? (colors.error || '#FF3B30') : (colors.text || '#000000')}
             />
-            <Text
-              variant="caption"
-              color={is_liked ? 'error' : 'text'}
-              style={styles.actionText}
-            >
+            <Text variant="caption" color={is_liked ? 'error' : 'text'} style={styles.actionText}>
               {like_count || 0}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={onCommentPress}
-          >
-            <Icon
-              name="comment"
-              size={SIZE.icon.md}
-              color={colors.text || '#000000'}
-            />
-            <Text
-              variant="caption"
-              color="text"
-              style={styles.actionText}
-            >
+          <TouchableOpacity style={styles.actionButton} onPress={onCommentPress} testID={`action.community.postItem.comment.${postId}`}>
+            <Icon name="comment" size={SIZE.icon.md} color={colors.text || '#000000'} />
+            <Text variant="caption" color="text" style={styles.actionText}>
               {comment_count || 0}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={onSharePress}
-          >
-            <Icon
-              name="share"
-              size={SIZE.icon.md}
-              color={colors.text || '#000000'}
-            />
+          <TouchableOpacity style={styles.actionButton} onPress={onSharePress} testID={`action.community.postItem.share.${postId}`}>
+            <Icon name="share" size={SIZE.icon.md} color={colors.text || '#000000'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -300,6 +210,7 @@ const styles = StyleSheet.create({
   userContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   avatar: {
     width: SIZE.avatar.md,

@@ -24,6 +24,7 @@ const ChatHistorySidebar = ({
   onSelectSession,
   colors,
   currentSessionId,
+  interactionDisabled = false,
 }) => {
   const [chatSessions, setChatSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +111,7 @@ const ChatHistorySidebar = ({
 
   // 创建新会话
   const handleCreateNewSession = () => {
+    if (interactionDisabled) {return;}
     const newSessionId = Date.now().toString();
     onSelectSession(newSessionId);
     onClose();
@@ -117,12 +119,19 @@ const ChatHistorySidebar = ({
 
   // 选择会话
   const handleSelectSession = (sessionId) => {
+    if (interactionDisabled) {return;}
     onSelectSession(sessionId);
+    onClose();
+  };
+
+  const handleCloseSidebar = () => {
+    if (interactionDisabled) {return;}
     onClose();
   };
 
   // 删除会话
   const handleDeleteSession = async (sessionId) => {
+    if (interactionDisabled) {return;}
     try {
       const realm = await realmService.getRealm();
       const item = realm.objects('StorageItem').filtered(`key = "${STORAGE_KEYS.CHAT_HISTORY}"`);
@@ -182,12 +191,14 @@ const ChatHistorySidebar = ({
 
   // 开始编辑会话标题
   const startEditingTitle = (session) => {
+    if (interactionDisabled) {return;}
     setEditingSessionId(session.id);
     setEditingTitle(session.customTitle || session.title);
   };
 
   // 保存会话标题
   const saveSessionTitle = async () => {
+    if (interactionDisabled) {return;}
     if (!editingSessionId) {return;}
 
     try {
@@ -256,14 +267,15 @@ const ChatHistorySidebar = ({
               onBlur={saveSessionTitle}
               onSubmitEditing={saveSessionTitle}
             />
-            <TouchableOpacity onPress={saveSessionTitle} style={styles.saveButton}>
+            <TouchableOpacity onPress={saveSessionTitle} style={styles.saveButton} disabled={interactionDisabled}>
               <Icon name="check" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            style={styles.sessionContent}
+            style={[styles.sessionContent, interactionDisabled ? { opacity: 0.6 } : null]}
             onPress={() => handleSelectSession(item.id)}
+            disabled={interactionDisabled}
           >
             <View style={styles.sessionInfo}>
               <Text
@@ -289,12 +301,14 @@ const ChatHistorySidebar = ({
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => startEditingTitle(item)}
+                disabled={interactionDisabled}
               >
                 <Icon name="edit" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => confirmDeleteSession(item)}
+                disabled={interactionDisabled}
               >
                 <Icon name="delete" size={18} color={colors.error} />
               </TouchableOpacity>
@@ -329,7 +343,8 @@ const ChatHistorySidebar = ({
         </View>
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={onClose}
+          onPress={handleCloseSidebar}
+          disabled={interactionDisabled}
         >
           <Icon name="close" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -351,6 +366,7 @@ const ChatHistorySidebar = ({
           },
         ]}
         onPress={handleCreateNewSession}
+        disabled={interactionDisabled}
       >
         <View style={{
           flexDirection: 'row',

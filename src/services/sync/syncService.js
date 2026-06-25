@@ -17,6 +17,7 @@ import { apiService } from '../api/apiClient';
 import { SYNC_EVENTS } from './syncEvents';
 import * as syncUtils from './syncUtils';
 import { eventEmitter } from '../utils/eventEmitter';
+import STORAGE_KEYS from '../../constants/storageKeys';
 
 class SyncService {
   constructor() {
@@ -76,9 +77,12 @@ class SyncService {
    */
   async loadLastSyncTime() {
     try {
-      const lastSyncTimeStr = await realmService.findOne('SyncInfo', { type: 'last_sync_time' });
-      if (lastSyncTimeStr) {
-        this.lastSyncTime = new Date(lastSyncTimeStr.value);
+      const lastSyncItem = await realmService.findOne('StorageItem', { key: STORAGE_KEYS.LAST_SYNC_TIME });
+      const lastSyncValue = lastSyncItem?.value;
+
+      if (lastSyncValue) {
+        const parsedTime = new Date(lastSyncValue);
+        this.lastSyncTime = Number.isNaN(parsedTime.getTime()) ? null : parsedTime;
         logService.info('加载上次同步时间', { lastSyncTime: this.lastSyncTime });
       } else {
         this.lastSyncTime = null;
@@ -87,7 +91,6 @@ class SyncService {
     } catch (error) {
       logService.error('加载上次同步时间失败', error);
       this.lastSyncTime = null;
-      throw error;
     }
   }
 
@@ -99,25 +102,25 @@ class SyncService {
   async saveLastSyncTime(time) {
     try {
       const syncTime = time || new Date();
-      const existingRecord = await realmService.findOne('SyncInfo', { type: 'last_sync_time' });
+      const syncTimeValue = syncTime.toISOString();
+      const existingRecord = await realmService.findOne('StorageItem', { key: STORAGE_KEYS.LAST_SYNC_TIME });
 
       if (existingRecord) {
-        await realmService.update('SyncInfo', existingRecord._id, {
-          value: syncTime.toISOString(),
+        await realmService.update('StorageItem', existingRecord.key, {
+          value: syncTimeValue,
           updated_at: new Date(),
         });
       } else {
-        await realmService.create('SyncInfo', {
-          _id: realmService.createObjectId().toHexString(),
-          type: 'last_sync_time',
-          value: syncTime.toISOString(),
+        await realmService.create('StorageItem', {
+          key: STORAGE_KEYS.LAST_SYNC_TIME,
+          value: syncTimeValue,
           created_at: new Date(),
           updated_at: new Date(),
         });
       }
 
       this.lastSyncTime = syncTime;
-      logService.info('保存同步时间', { syncTime });
+      logService.info('保存同步时间', { syncTime: syncTimeValue });
     } catch (error) {
       logService.error('保存同步时间失败', error);
       throw error;
@@ -130,7 +133,7 @@ class SyncService {
    */
   async loadOfflineQueue() {
     try {
-      const offlineOperations = await realmService.find('OfflineQueue', { is_synced: false });
+      const offlineOperations = await realmService.find('OfflineQueue', { status: 'pending' });
       this.offlineQueue = (offlineOperations || []).map(op => op?._id).filter(Boolean);
       logService.info('加载离线队列', { count: this.offlineQueue.length });
     } catch (error) {
@@ -293,14 +296,16 @@ class SyncService {
       // 创建离线队列项
       const createdOperation = await realmService.create('OfflineQueue', {
         _id: realmService.createObjectId(),
-        type: operation.type,
-        collection: operation.collection,
-        document_id: operation.document_id,
+        entity_id: operation.document_id,
+        entity_type: operation.collection,
+        operation: operation.type,
         data: JSON.stringify(operation.data),
+        user_id: null,
+        status: 'pending',
         created_at: new Date(),
         updated_at: new Date(),
-        is_synced: false,
         retry_count: 0,
+        priority: 0,
       });
       const operationId = createdOperation?._id || createdOperation;
 
@@ -468,18 +473,26 @@ class SyncService {
     for (const operationId of queue) {
       try {
         const operation = await realmService.findById('OfflineQueue', operationId);
-        if (!operation || operation.is_synced) {
+        if (!operation || operation.status === 'synced') {
           continue;
         }
 
         // 将操作添加到相应的集合组
-        if (!operationsByCollection[operation.collection]) {
-          operationsByCollection[operation.collection] = [];
+        const entityType = operation.entity_type || operation.collection;
+        const entityId = operation.entity_id || operation.document_id;
+
+        if (!entityType) {
+          continue;
         }
 
-        operationsByCollection[operation.collection].push({
+        if (!operationsByCollection[entityType]) {
+          operationsByCollection[entityType] = [];
+        }
+
+        operationsByCollection[entityType].push({
           id: operationId,
           operation,
+          entityId,
         });
       } catch (error) {
         logService.error(`获取离线操作失败: ${operationId}`, error);
@@ -500,11 +513,11 @@ class SyncService {
         case 'Note':
         case 'Notes':
           syncData.notes = [];
-          for (const { id, operation } of operations) {
+          for (const { id, operation, entityId } of operations) {
             try {
               const data = JSON.parse(operation.data);
-              data._id = operation.document_id;
-              data._operation = operation.type;
+              data._id = entityId;
+              data._operation = operation.operation || operation.type;
               syncData.notes.push(data);
             } catch (error) {
               logService.error(`处理笔记操作数据失败: ${id}`, error);
@@ -521,9 +534,10 @@ class SyncService {
                 // 标记操作为已同步
                 for (const { id } of operations) {
                   await realmService.update('OfflineQueue', id, {
-                    is_synced: true,
+                    status: 'synced',
+                    synced_at: new Date(),
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result),
+                    error: null,
                   });
 
                   // 从内存队列中移除
@@ -552,11 +566,11 @@ class SyncService {
         case 'Reminder':
         case 'Reminders':
           syncData.reminders = [];
-          for (const { id, operation } of operations) {
+          for (const { id, operation, entityId } of operations) {
             try {
               const data = JSON.parse(operation.data);
-              data._id = operation.document_id;
-              data._operation = operation.type;
+              data._id = entityId;
+              data._operation = operation.operation || operation.type;
               syncData.reminders.push(data);
             } catch (error) {
               logService.error(`处理提醒操作数据失败: ${id}`, error);
@@ -573,9 +587,10 @@ class SyncService {
                 // 标记操作为已同步
                 for (const { id } of operations) {
                   await realmService.update('OfflineQueue', id, {
-                    is_synced: true,
+                    status: 'synced',
+                    synced_at: new Date(),
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result),
+                    error: null,
                   });
 
                   // 从内存队列中移除
@@ -623,9 +638,10 @@ class SyncService {
                 // 标记操作为已同步
                 for (const { id } of operations) {
                   await realmService.update('OfflineQueue', id, {
-                    is_synced: true,
+                    status: 'synced',
+                    synced_at: new Date(),
                     updated_at: new Date(),
-                    server_response: JSON.stringify(result),
+                    error: null,
                   });
 
                   // 从内存队列中移除
@@ -689,9 +705,10 @@ class SyncService {
 
               // 标记为已同步
               await realmService.update('OfflineQueue', id, {
-                is_synced: true,
+                status: 'synced',
+                synced_at: new Date(),
                 updated_at: new Date(),
-                server_response: JSON.stringify(result),
+                error: null,
               });
 
               // 从内存队列中移除
@@ -739,8 +756,9 @@ class SyncService {
       const operation = await realmService.findById('OfflineQueue', operationId);
       if (operation) {
         await realmService.update('OfflineQueue', operationId, {
+          status: 'failed',
           retry_count: (operation.retry_count || 0) + 1,
-          last_error: error.message,
+          error: error.message,
           updated_at: new Date(),
         });
       }
@@ -976,7 +994,7 @@ class SyncService {
     await this.initialize();
 
     try {
-      const offlineOperations = await realmService.find('OfflineQueue', { is_synced: false });
+      const offlineOperations = await realmService.find('OfflineQueue', { status: 'pending' });
       return offlineOperations || [];
     } catch (error) {
       logService.error('获取离线队列失败', error);
@@ -993,7 +1011,7 @@ class SyncService {
 
     try {
       // 获取所有未同步的操作
-      const offlineOperations = await realmService.find('OfflineQueue', { is_synced: false });
+      const offlineOperations = await realmService.find('OfflineQueue', { status: 'pending' });
 
       // 删除所有操作
       for (const operation of offlineOperations) {

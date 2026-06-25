@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { Card } from '../../components/common';
@@ -29,6 +30,7 @@ const AnalysisTab = ({ kbId }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
   const dispatch = useDispatch();
+  const navigation = useNavigation();
 
   const { analysis, analysisStatus } = useSelector((state) => state.knowledgeBase);
 
@@ -37,6 +39,11 @@ const AnalysisTab = ({ kbId }) => {
       dispatch(fetchKnowledgeBaseAnalysis(kbId));
     }
   }, [kbId, dispatch]);
+
+  const openNodeDetail = (nodeId) => {
+    if (!nodeId) {return;}
+    navigation.navigate('NodeDetail', { nodeId });
+  };
 
   if (analysisStatus === 'loading' || !analysis) {
     return <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />;
@@ -82,7 +89,7 @@ const AnalysisTab = ({ kbId }) => {
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>关键节点</Text>
         {analysis.keyNodes.map((node, index) => (
-          <TouchableOpacity key={node.id} style={styles.keyNodeItem}>
+          <TouchableOpacity key={node.id} style={styles.keyNodeItem} onPress={() => openNodeDetail(node.id)}>
             <View style={styles.rankBadge}>
               <Text style={styles.rankText}>{index + 1}</Text>
             </View>

@@ -4,6 +4,7 @@
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
 import networkService from '../network/networkService';
 import realmService from '../database/realmService';
+import { DEV_MODE_CONFIG } from '../../config';
 
 /**
  * 从离线存储获取所有笔记
@@ -30,7 +31,7 @@ export const getNotesFromOfflineStorage = async () => {
         throw new Error('未获取到有效的用户信息，无法读取离线笔记');
       }
     } catch (userError) {
-      const DEV_SKIP_LOGIN = __DEV__;
+      const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
       if (DEV_SKIP_LOGIN) {
         console.log('DEV_SKIP_LOGIN 模式：未获取到用户信息，返回空笔记列表以继续联调');
         return {

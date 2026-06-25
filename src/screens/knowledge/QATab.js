@@ -81,6 +81,7 @@ const QATab = ({ kbId }) => {
     setInput('');
   }, [input, status, dispatch, kbId]);
 
+
   return (
     <KeyboardAvoidingView
         style={styles.container}
@@ -255,4 +256,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default QATab;
-

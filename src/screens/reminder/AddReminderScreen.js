@@ -10,9 +10,9 @@ import {
   Platform,
   ToastAndroid,
   KeyboardAvoidingView,
-  StatusBar,
   Keyboard,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch } from 'react-redux';
 import SafeDateTimePicker from '../../components/common/SafeDateTimePicker';
@@ -29,8 +29,8 @@ const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
   const themeContext = useTheme();
   const theme = themeContext.theme;
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const statusBarInset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const actionBarHeight = 96;
 
   const [saving, setSaving] = useState(false);
@@ -412,31 +412,31 @@ const AddReminderScreen = ({ route, navigation }) => {
   };
 
   // 渲染主界面
-    return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={statusBarInset + 12}
-      testID="screen.reminder"
-    >
-      <View testID={`state.reminder.create.state.${createState}`} />
-      <View testID={`state.reminder.create.saving.visibility.${saving ? 'visible' : 'hidden'}`} />
-      <View testID={`state.reminder.create.datePicker.visibility.${showDatePicker ? 'visible' : 'hidden'}`} />
-      <View testID={`state.reminder.create.repeatEndPicker.visibility.${showRepeatEndPicker ? 'visible' : 'hidden'}`} />
-      {/* 顶部导航栏（统一返回按钮样式） */}
-      <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
-        <ScreenHeaderBackButton
-          onPress={handleBackPress}
-          testID="action.reminder.back"
-          style={styles.backButton}
-        />
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>添加提醒</Text>
-        <View style={styles.headerRight} />
-      </View>
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: actionBarHeight + 32 }]}
-        keyboardShouldPersistTaps="handled"
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} testID="screen.reminder">
+      <KeyboardAvoidingView
+        style={styles.flexFill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.top + 12}
       >
+        <View testID={`state.reminder.create.state.${createState}`} />
+        <View testID={`state.reminder.create.saving.visibility.${saving ? 'visible' : 'hidden'}`} />
+        <View testID={`state.reminder.create.datePicker.visibility.${showDatePicker ? 'visible' : 'hidden'}`} />
+        <View testID={`state.reminder.create.repeatEndPicker.visibility.${showRepeatEndPicker ? 'visible' : 'hidden'}`} />
+        {/* 顶部导航栏（统一返回按钮样式） */}
+        <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card, paddingTop: Math.max(insets.top, 12) }]}>
+          <ScreenHeaderBackButton
+            onPress={handleBackPress}
+            testID="action.reminder.back"
+            style={styles.backButton}
+          />
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>添加提醒</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: actionBarHeight + 32 }]}
+          keyboardShouldPersistTaps="handled"
+        >
         {inlineHint ? (
           <View
             style={[
@@ -754,9 +754,9 @@ const AddReminderScreen = ({ route, navigation }) => {
           />
         </View>
 
-      </ScrollView>
+        </ScrollView>
 
-      <View
+        <View
         style={[
           styles.actionBar,
           {
@@ -792,8 +792,8 @@ const AddReminderScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* 安全日期选择器 */}
-      <SafeDateTimePicker
+        {/* 安全日期选择器 */}
+        <SafeDateTimePicker
         value={reminder.due_date}
         mode={datePickerMode}
         is24Hour={true}
@@ -805,8 +805,8 @@ const AddReminderScreen = ({ route, navigation }) => {
         testID="dateTimePicker"
       />
 
-      {/* 重复结束日期选择器（仅日期） */}
-      <SafeDateTimePicker
+        {/* 重复结束日期选择器（仅日期） */}
+        <SafeDateTimePicker
         value={reminder.repeat_end_date ? new Date(reminder.repeat_end_date) : new Date()}
         mode="date"
         is24Hour={true}
@@ -817,7 +817,8 @@ const AddReminderScreen = ({ route, navigation }) => {
         onClose={() => setShowRepeatEndPicker(false)}
         testID="repeatEndPicker"
       />
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -831,7 +832,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 24,
+    paddingTop: 24,
     borderBottomWidth: 1,
   },
   backButton: {
