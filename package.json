@@ -3,7 +3,7 @@
   "version": "1.0.0-rc.1",
   "private": true,
   "scripts": {
-    "android": "node node_modules/react-native/cli.js run-android",
+    "android": "node scripts/android/run_android_with_metro.js",
     "ios": "node node_modules/react-native/cli.js run-ios",
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "start": "node node_modules/react-native/cli.js start",

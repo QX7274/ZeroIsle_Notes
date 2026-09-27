@@ -12,7 +12,7 @@ import { OfflineQueue, SearchIndex } from '../../models';
 import { fileService } from '../files/fileService';
 import offlineDataService from '../storage/offlineDataService';
 import { deviceIdentityService } from '../app/deviceIdentityService';
-import crypto from 'crypto-js';
+import { generateNoteDataHash } from '../data/noteDataHash';
 
 class EnhancedNoteService {
   constructor() {
@@ -226,9 +226,6 @@ _generateClientOpId() {
       const now = new Date();
       const noteId = noteData._id || realmService.createObjectId();
 
-      // 生成数据完整性哈希
-      const dataHash = this.generateDataHash(noteData);
-
       // 构建完整的笔记对象
       const clientOpId = noteData.clientOpId || this._generateClientOpId();
       const deviceId = await deviceIdentityService.getDeviceId();
@@ -301,8 +298,8 @@ _generateClientOpId() {
         wordContent: noteData.wordContent ? String(noteData.wordContent) : null,
         wordMetadata: noteData.wordMetadata ? String(noteData.wordMetadata) : null,
 
-        // 数据完整性保护字段
-        dataHash: dataHash,
+        // 数据完整性保护字段；完整对象构建后再计算，避免默认字段造成哈希漂移
+        dataHash: null,
         backupCount: 0,
         lastBackupAt: null,
         syncStatus: networkService.isOnline() ? this.SYNC_STATUS.PENDING : this.SYNC_STATUS.OFFLINE,
@@ -316,6 +313,8 @@ _generateClientOpId() {
                 typeof noteData.metadata === 'string' ?
                 noteData.metadata : '{}',
       };
+
+      note.dataHash = this.generateDataHash(note);
 
       // 多重存储策略
       const results = await Promise.allSettled([
@@ -443,7 +442,7 @@ _generateClientOpId() {
         logService.info(`笔记更新成功(ID: ${noteId})`);
 
         // 如果在线，尝试同步
-        if (networkService.isOnline()) {
+        if (networkService.isOnline() && options.skipRemoteSync !== true) {
           this.syncNoteToServer(noteId).catch(error => {
             logService.error(`同步笔记失败(ID: ${noteId})`, error);
           });
@@ -591,20 +590,7 @@ _generateClientOpId() {
    */
   generateDataHash(noteData) {
     try {
-      // 创建用于哈希的数据副本
-      const hashData = {
-        title: noteData.title,
-        content: noteData.content,
-        type: noteData.type,
-        strokeData: noteData.strokeData,
-        viewport: noteData.viewport,
-        pdfAnnotations: noteData.pdfAnnotations,
-        audioTranscription: noteData.audioTranscription,
-        wordContent: noteData.wordContent,
-      };
-
-      const hashString = JSON.stringify(hashData);
-      return crypto.SHA256(hashString).toString();
+      return generateNoteDataHash(noteData);
     } catch (error) {
       logService.error('生成数据哈希失败', error);
       return null;
@@ -732,6 +718,32 @@ _generateClientOpId() {
     throw lastError || new Error('retry_with_backoff_failed');
   }
 
+  async _markOfflineQueueSynced(clientOpId) {
+    if (!clientOpId) {
+      return;
+    }
+
+    const realm = await realmService.getRealm();
+    const pendingItems = realm.objects('OfflineQueue').filtered(
+      'clientOpId == $0 AND status != "synced"',
+      clientOpId,
+    );
+    if (!pendingItems || pendingItems.length === 0) {
+      return;
+    }
+
+    const now = new Date();
+    realm.write(() => {
+      for (const item of pendingItems) {
+        item.status = this.SYNC_STATUS.SYNCED;
+        item.error = null;
+        item.synced_at = now;
+        item.completed_at = now;
+        item.updated_at = now;
+      }
+    });
+  }
+
   async syncNoteToServer(noteId) {
     let note = null;
 
@@ -740,39 +752,46 @@ _generateClientOpId() {
       if (!note) {
         throw new Error(`笔记不存在(ID: ${noteId})`);
       }
+      const clientOpId = note.clientOpId || this._generateClientOpId();
 
       // 更新同步状态
-      await this.updateNote(noteId, { syncStatus: this.SYNC_STATUS.SYNCING }, { updateSyncFields: false });
+      await this.updateNote(noteId, { syncStatus: this.SYNC_STATUS.SYNCING }, {
+        updateSyncFields: false,
+        skipRemoteSync: true,
+        clientOpId,
+      });
 
-      // 实际同步：优先更新，若不存在则创建
+      // 通过认证 HTTP 契约同步；mongoDBService 仅用于本地缓存/开发辅助，不能
+      // 作为移动端的远端写入通道，否则平板上的“同步成功”只会写入本地 Realm。
+      const apiClient = require('../api/apiClient').default;
+      note = await this.getNoteById(noteId);
       const remotePayload = this._toPlainRemoteNote(note);
-      const existsRemote = await mongoDBService.findOne(this.collection, { _id: noteId });
-
-      if (existsRemote) {
-        await this._retryWithBackoff(async () => {
-          await mongoDBService.updateOne(this.collection, { _id: noteId }, {
-            $set: {
-              ...remotePayload,
-              updated_at: new Date(),
-            },
-          });
-        }, 2, 400);
-      } else {
-        await this._retryWithBackoff(async () => {
-          await mongoDBService.insertOne(this.collection, {
+      const operation = remotePayload.is_deleted ? 'delete' : 'update';
+      const result = await this._retryWithBackoff(
+        () => apiClient.post('/sync/notes/', {
+          timestamp: new Date().toISOString(),
+          notes: [{
             ...remotePayload,
+            _operation: operation,
             _id: noteId,
-            created_at: remotePayload.created_at || new Date(),
-            updated_at: new Date(),
-          });
-        }, 2, 400);
+            id: noteId,
+            clientOpId,
+          }],
+        }),
+        2,
+        400,
+      );
+      if (!result || !result.success) {
+        throw new Error(result?.error || result?.errors?.[0]?.message || '笔记同步失败');
       }
 
       await this.updateNote(noteId, {
         syncStatus: this.SYNC_STATUS.SYNCED,
         is_synced: true,
         syncError: null,
-      }, { updateSyncFields: false });
+        clientOpId,
+      }, { updateSyncFields: false, skipRemoteSync: true });
+      await this._markOfflineQueueSynced(clientOpId);
 
       logService.info(`笔记同步成功(ID: ${noteId})`);
     } catch (error) {
@@ -794,7 +813,8 @@ _generateClientOpId() {
         syncError: error.message,
         retryCount: safeRetryCount,
         lastRetryAt: new Date(),
-      }, { updateSyncFields: false });
+        clientOpId: note?.clientOpId || null,
+      }, { updateSyncFields: false, skipRemoteSync: true });
 
       throw error;
     }
@@ -1067,7 +1087,3 @@ const enhancedNoteService = new EnhancedNoteService();
 
 export default enhancedNoteService;
 export { EnhancedNoteService };
-
-
-
-

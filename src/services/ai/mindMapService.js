@@ -21,7 +21,7 @@ class MindMapService {
       const processedText = this._preprocessText(text);
 
       // 调用API生成思维导图
-      const response = await apiService.post('/mind-map/generator/generate/text/', {
+      const response = await apiClient.post('/mind-map/generator/generate/text/', {
         text: processedText,
         title: options.title || '思维导图',
         options: {
@@ -56,7 +56,7 @@ class MindMapService {
   async generateFromNote(noteId, options = {}) {
     try {
       // 调用API从笔记生成思维导图
-      const response = await apiService.post(`/mind-map/generator/generate/note/${noteId}/`, {
+      const response = await apiClient.post(`/mind-map/generator/generate/note/${noteId}/`, {
         options: {
           layout_type: options.layoutType || 'tree',
           theme: options.theme || 'default',
@@ -89,7 +89,7 @@ class MindMapService {
   async expandNode(node, depth = 1) {
     try {
       // 调用API扩展节点
-      const response = await apiService.post('/mind-map/generator/expand-node/', {
+      const response = await apiClient.post('/mind-map/generator/expand-node/', {
         node,
         depth,
       });
@@ -284,7 +284,7 @@ class MindMapService {
   async optimizeMindMap(mindMap, options = {}) {
     try {
       // 调用API优化思维导图
-      const response = await apiService.post('/mind-map/generator/optimize/', {
+      const response = await apiClient.post('/mind-map/generator/optimize/', {
         mind_map: mindMap,
         options: {
           balance: options.balance !== undefined ? options.balance : true,
@@ -317,7 +317,7 @@ class MindMapService {
   async convertToOutline(mindMap) {
     try {
       // 调用API转换为大纲
-      const response = await apiService.post('/mind-map/generator/to-outline/', {
+      const response = await apiClient.post('/mind-map/generator/to-outline/', {
         mind_map: mindMap,
       });
 
@@ -351,7 +351,7 @@ class MindMapService {
   async exportToImage(mindMap, format = 'png') {
     try {
       // 调用API导出为图片
-      const response = await apiService.post('/mind-map/generator/export/', {
+      const response = await apiClient.post('/mind-map/generator/export/', {
         mind_map: mindMap,
         format,
       });

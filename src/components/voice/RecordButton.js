@@ -66,6 +66,7 @@ const RecordButton = ({
   const volumeAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef(null);
   const longPressRef = useRef(null);
+  const pulseActionsRef = useRef({});
 
   // 获取屏幕像素密度
   const pixelRatio = PixelRatio.get();
@@ -104,7 +105,7 @@ const RecordButton = ({
   useEffect(() => {
     if (isRecording) {
       // 开始录音
-      startPulseAnimation();
+      pulseActionsRef.current.startPulseAnimation?.();
       setTimerActive(true);
       setCountingDown(false);
 
@@ -129,7 +130,7 @@ const RecordButton = ({
       }
     } else {
       // 停止录音
-      stopPulseAnimation();
+      pulseActionsRef.current.stopPulseAnimation?.();
       setTimerActive(false);
       setRecordingTime(0);
       setCountingDown(false);
@@ -170,7 +171,7 @@ const RecordButton = ({
         clearTimeout(longPressRef.current);
       }
     };
-  }, [isRecording, vibrate, hapticFeedback, isScreenReaderEnabled]);
+  }, [hapticFeedback, isRecording, isScreenReaderEnabled, pulseAnim, pulseOpacityAnim, vibrate, volumeAnim]);
 
   // 处理计时器 - 增强版
   useEffect(() => {
@@ -424,6 +425,8 @@ const RecordButton = ({
       }),
     ]).start();
   };
+
+  pulseActionsRef.current = { startPulseAnimation, stopPulseAnimation };
 
   // 格式化时间
   const formatTime = (seconds) => {

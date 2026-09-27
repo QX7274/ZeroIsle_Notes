@@ -33,19 +33,25 @@ import {
  */
 const SearchScreen = ({ navigation, route }) => {
   const themeContext = useTheme();
-  const colors = (themeContext && themeContext.colors) ? themeContext.colors : {
-    primary: '#007AFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    card: '#FFFFFF',
-    background: '#F2F2F2',
-    border: '#E5E5EA',
-  };
-  const theme = themeContext && themeContext.theme ? themeContext.theme : { colors };
+  const { colors, theme } = useMemo(() => {
+    const fallbackColors = {
+      primary: '#007AFF',
+      text: '#000000',
+      textSecondary: '#8E8E93',
+      card: '#FFFFFF',
+      background: '#F2F2F2',
+      border: '#E5E5EA',
+    };
+    const resolvedColors = themeContext?.colors || fallbackColors;
+    return {
+      colors: resolvedColors,
+      theme: themeContext?.theme || { colors: resolvedColors },
+    };
+  }, [themeContext]);
   const dispatch = useDispatch();
 
   // Build styles after colors are available
-  const styles = useMemo(() => getStyles(theme, colors), [colors]);
+  const styles = useMemo(() => getStyles(theme, colors), [theme, colors]);
 
 
   // 从Redux获取状态

@@ -19,7 +19,7 @@ export default function VersionHistoryDrawer({ noteId, visible, onRequestClose, 
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState([]); // store version ids
 
-  const load = useCallback(async (p = page) => {
+  const load = useCallback(async (p = 1) => {
     if (!noteId) {return;}
     try {
       setLoading(true);
@@ -34,11 +34,11 @@ export default function VersionHistoryDrawer({ noteId, visible, onRequestClose, 
     } finally {
       setLoading(false);
     }
-  }, [noteId, page, pageSize]);
+  }, [noteId, pageSize]);
 
   useEffect(() => {
     if (visible) {load(1);}
-  }, [visible]);
+  }, [load, visible]);
 
   const toggleSelect = (id) => {
     setSelected((prev) => {

@@ -105,8 +105,8 @@ class VoiceSearchTestCase(APITestCase):
         self.audio_file_patcher.stop()
         self.transcription_patcher.stop()
         self.get_mongo_user_patcher.stop()
-        self.searchview_init_patcher.stop()
         self.searchview_init_patcher2.stop()
+        self.searchview_init_patcher.stop()
 
         # Reconnect signals
         post_save.connect(create_mongo_user_and_profile, sender=User)
@@ -191,15 +191,9 @@ class ImageSearchTestCase(APITestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-        # 注入轻量模块，避免导入可能缺失的外部依赖
-        fake_ai_services = types.ModuleType('ai_assistant.services')
-        fake_ai_services.ImageAnalysisService = MagicMock()
-        self.ai_services_module_patcher = patch.dict(sys.modules, {
-            'ai_assistant.services': fake_ai_services,
-        })
-        self.ai_services_module_patcher.start()
-
-        # 确保模块已导入，便于 patch 解析路径
+        # 保留完整服务包，只替换图像分析类，避免 URL 初始化时缺少
+        # ConversationService 等其他服务导出。
+        importlib.import_module('ai_assistant.services')
         importlib.import_module('search.views.search')
 
         # Mock ImageAnalysisService
@@ -242,9 +236,8 @@ class ImageSearchTestCase(APITestCase):
         self.patcher.stop()
         self.search_patcher.stop()
         self.get_mongo_user_patcher.stop()
-        self.searchview_init_patcher.stop()
         self.searchview_init_patcher2.stop()
-        self.ai_services_module_patcher.stop()
+        self.searchview_init_patcher.stop()
 
         # Reconnect signals
         post_save.connect(create_mongo_user_and_profile, sender=User)

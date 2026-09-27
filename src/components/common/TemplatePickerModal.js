@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ const TemplatePickerModal = ({ visible, onClose, onSelectTemplate }) => {
   const [customTitle, setCustomTitle] = useState('');
 
   // 默认模板列表
-  const defaultTemplates = [
+  const defaultTemplates = useMemo(() => [
     {
       id: 'blank',
       title: '空白笔记',
@@ -199,15 +199,9 @@ const TemplatePickerModal = ({ visible, onClose, onSelectTemplate }) => {
 - 
 `,
     },
-  ];
+  ], []);
 
-  useEffect(() => {
-    if (visible) {
-      loadTemplates();
-    }
-  }, [visible]);
-
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
       // 这里可以从API加载模板，暂时使用默认模板
@@ -219,7 +213,13 @@ const TemplatePickerModal = ({ visible, onClose, onSelectTemplate }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [defaultTemplates]);
+
+  useEffect(() => {
+    if (visible) {
+      loadTemplates();
+    }
+  }, [loadTemplates, visible]);
 
   const handleSelectTemplate = () => {
     if (!selectedTemplate) {
@@ -492,4 +492,3 @@ const styles = StyleSheet.create({
 });
 
 export default TemplatePickerModal;
-

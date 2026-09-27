@@ -3,55 +3,83 @@
 ZeroIsle Notes Production Deployment Script
 .DESCRIPTION
 This script automates the deployment process for ZeroIsle Notes on Windows.
-It checks for necessary environment files, prompts for missing secrets, and runs docker-compose.
+It requires a production environment file and runs the production Compose definition.
 #>
 
 $ErrorActionPreference = "Stop"
-$BackendPath = Join-Path $PSScriptRoot "..\backend"
-$EnvPath = Join-Path $BackendPath ".env"
-$EnvExamplePath = Join-Path $BackendPath ".env.example"
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$EnvPath = Join-Path $ProjectRoot ".env.production"
+$DockerComposeFile = Join-Path $ProjectRoot "docker-compose.prod.yml"
+
+function Invoke-ReleaseProbe {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [int]$MaxAttempts = 30,
+        [int]$DelaySeconds = 2
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                Write-Host "$Name probe passed (attempt $attempt/$MaxAttempts)." -ForegroundColor Green
+                return
+            }
+            Write-Warning "$Name probe returned HTTP $($response.StatusCode) (attempt $attempt/$MaxAttempts)."
+        } catch {
+            Write-Warning "$Name probe is not ready (attempt $attempt/$MaxAttempts)."
+        }
+
+        if ($attempt -lt $MaxAttempts) {
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+
+    throw "$Name probe failed after $MaxAttempts attempts: $Uri"
+}
 
 Write-Host "🚀 ZeroIsle Notes Production Deployment" -ForegroundColor Cyan
 Write-Host "======================================"
 
-# 1. Check for .env file
+# 1. Check for production environment and Compose files
 if (-not (Test-Path $EnvPath)) {
-    Write-Warning "⚠️  .env file not found in backend directory."
-    if (Test-Path $EnvExamplePath) {
-        Write-Host "Creating .env from .env.example..." -ForegroundColor Yellow
-        Copy-Item $EnvExamplePath $EnvPath
-        Write-Host "✅ .env created." -ForegroundColor Green
-    } else {
-        Write-Error "❌ .env.example not found! Cannot proceed."
+    throw "❌ .env.production not found at $EnvPath. Create it outside Git before deploying."
+}
+
+if (-not (Test-Path $DockerComposeFile)) {
+    throw "❌ docker-compose.prod.yml not found at $DockerComposeFile."
+}
+
+# 2. Check for critical production configuration
+$EnvContent = Get-Content $EnvPath -Raw -Encoding UTF8
+if ($EnvContent -match "your-secret-key-here|changeme|your-sentry-dsn-here|__CHANGE_ME|__MONGO_PASSWORD__|__SENDGRID_API_KEY__") {
+    throw "❌ .env.production contains placeholder secrets. Refusing to deploy."
+}
+
+$requiredKeys = @(
+    'DJANGO_ENV',
+    'DJANGO_SECRET_KEY',
+    'MONGO_URI',
+    'MONGO_DB',
+    'MONGO_USER',
+    'MONGO_PASSWORD',
+    'NEO4J_PASSWORD'
+)
+foreach ($key in $requiredKeys) {
+    $match = [regex]::Match($EnvContent, "(?m)^$([regex]::Escape($key))\s*=\s*(.+)$")
+    if (-not $match.Success -or [string]::IsNullOrWhiteSpace($match.Groups[2].Value)) {
+        throw "❌ Required production variable '$key' is missing or empty. Refusing to deploy."
     }
 }
 
-# 2. Check for Critical Secrets
-$EnvContent = Get-Content $EnvPath
-$MissingSecrets = $false
-
-if ($EnvContent -match "your-sentry-dsn-here") {
-    Write-Warning "⚠️  SENTRY_DSN is not configured."
-    $SentryDSN = Read-Host "Please enter your Sentry DSN (or press Enter to skip)"
-    if ($SentryDSN) {
-        (Get-Content $EnvPath) -replace "your-sentry-dsn-here", $SentryDSN | Set-Content $EnvPath
-        Write-Host "✅ SENTRY_DSN updated." -ForegroundColor Green
-    }
-}
-
-if ($EnvContent -match "your-secret-key-here") {
-    Write-Warning "⚠️  DJANGO_SECRET_KEY is using the default value."
-    $NewSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 50 | % {[char]$_})
-    $Update = Read-Host "Generate a new secure secret key? (Y/n)"
-    if ($Update -ne "n") {
-         (Get-Content $EnvPath) -replace "your-secret-key-here", $NewSecret | Set-Content $EnvPath
-         Write-Host "✅ DJANGO_SECRET_KEY generated and updated." -ForegroundColor Green
-    }
+if ($EnvContent -match '(?im)^DEBUG\s*=\s*(true|1|yes)\s*$' -or
+    $EnvContent -notmatch '(?im)^DJANGO_ENV\s*=\s*production\s*$') {
+    throw "❌ Production environment must set DJANGO_ENV=production and DEBUG=False."
 }
 
 # 3. Build and Run via Docker Compose
-Write-Host "`n🐳 Starting Docker Deployment..." -ForegroundColor Cyan
-$DockerComposeFile = Join-Path $PSScriptRoot "..\docker-compose.yml"
+Write-Host "Starting Docker Deployment..." -ForegroundColor Cyan
 
 # Load env vars for docker-compose interpolation
 foreach ($line in Get-Content $EnvPath) {
@@ -63,10 +91,20 @@ foreach ($line in Get-Content $EnvPath) {
 }
 
 try {
-    docker-compose -f $DockerComposeFile up --build -d
-    Write-Host "`n✅ Deployment Successful!" -ForegroundColor Green
+    docker compose --env-file $EnvPath -f $DockerComposeFile config --quiet
+    docker compose --env-file $EnvPath -f $DockerComposeFile up --build -d
+    Invoke-ReleaseProbe -Name "Liveness" -Uri "http://localhost:8000/health/"
+    Invoke-ReleaseProbe -Name "Readiness" -Uri "http://localhost:8000/ready/"
+    Write-Host "Deployment Successful!" -ForegroundColor Green
     Write-Host "API is running at http://localhost:8000"
     Write-Host "Health check: http://localhost:8000/health/"
+    Write-Host "Readiness check: http://localhost:8000/ready/"
 } catch {
     Write-Error "❌ Deployment Failed: $_"
+    try {
+        docker compose --env-file $EnvPath -f $DockerComposeFile logs --tail 100 backend
+    } catch {
+        Write-Warning "Unable to collect backend logs after deployment failure."
+    }
+    throw
 }

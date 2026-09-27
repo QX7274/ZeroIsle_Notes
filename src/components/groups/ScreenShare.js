@@ -50,7 +50,7 @@ const ScreenShare = ({ groupId }) => {
   const isLoading = useSelector(selectScreenShareLoading);
   const error = useSelector(selectScreenShareError);
   const currentGroup = useSelector(selectCurrentGroup);
-  const sharedScreens = useSelector(selectSharedScreens) || [];
+  const sharedScreens = useSelector(selectSharedScreens);
   const activeSession = useSelector(selectActiveScreenShareSession);
   const currentUser = useSelector((state) => state.auth.user);
 
@@ -61,7 +61,7 @@ const ScreenShare = ({ groupId }) => {
 
   const canUseWebShare = Platform.OS === 'web';
   const activeGroupShares = useMemo(
-    () => sharedScreens.filter((share) => share?.group?.id === groupId && share?.status !== 'ended'),
+    () => (sharedScreens || []).filter((share) => share?.group?.id === groupId && share?.status !== 'ended'),
     [groupId, sharedScreens]
   );
 

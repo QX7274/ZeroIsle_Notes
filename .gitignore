@@ -32,7 +32,18 @@ local.properties
 *.hprof
 .cxx/
 *.keystore
-!debug.keystore
+*.jks
+*.p12
+*.pfx
+**/google-services.json
+
+# Local environment and secret configuration (keep only explicit examples)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 # Local Android/Gradle caches in this repo (do not commit)
 .gradle-run2/

@@ -60,7 +60,7 @@ export const SplashScreen = ({ onFinish, minDuration = 2000 }) => {
                 onFinish();
             }
         });
-    }, []);
+    }, [logoOpacity, logoScale, minDuration, onFinish, progressWidth, textOpacity]);
 
     const backgroundColor = dark ? '#0F172A' : '#F8FAFC';
     const primaryColor = colors.primary || '#6366F1';
@@ -126,7 +126,7 @@ export const LoadingOverlay = ({ visible, message = '加载中...' }) => {
             duration: 200,
             useNativeDriver: true,
         }).start();
-    }, [visible]);
+    }, [opacity, visible]);
 
     if (!visible) {return null;}
 
@@ -162,7 +162,7 @@ export const PageLoadingPlaceholder = ({ message }) => {
                 }),
             ])
         ).start();
-    }, []);
+    }, [pulseAnim]);
 
     return (
         <View style={[styles.pageLoading, { backgroundColor: dark ? '#0F172A' : '#F8FAFC' }]}>

@@ -11,6 +11,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { Text } from '../common/Typography';
 import { useTheme } from '../../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -59,20 +60,21 @@ const VoiceTranscription = ({
   // 引用
   const scrollViewRef = useRef(null);
   const realtimeSession = useRef(null);
+  const transcriptionActionsRef = useRef({});
 
   // 组件挂载时检查初始音频
   useEffect(() => {
     if (initialAudioPath && autoTranscribe && !initialTranscription) {
-      transcribeAudio(initialAudioPath);
+      transcriptionActionsRef.current.transcribeAudio?.(initialAudioPath);
     }
 
     // 组件卸载时清理
     return () => {
       if (realtimeSession.current) {
-        stopRealtimeTranscription();
+        transcriptionActionsRef.current.stopRealtimeTranscription?.();
       }
     };
-  }, []);
+  }, [autoTranscribe, initialAudioPath, initialTranscription]);
 
   // 当转写文本变化时，滚动到底部
   useEffect(() => {
@@ -239,6 +241,8 @@ const VoiceTranscription = ({
       setProgress(0);
     }
   };
+
+  transcriptionActionsRef.current = { stopRealtimeTranscription, transcribeAudio };
 
   // 复制转写文本
   const copyTranscription = () => {

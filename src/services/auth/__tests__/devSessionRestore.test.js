@@ -21,8 +21,7 @@ jest.mock('../authUtils', () => ({
 jest.mock('../../api/authApi', () => ({
   __esModule: true,
   default: {
-    sendVerificationCode: jest.fn(),
-    loginWithCode: jest.fn(),
+    login: jest.fn(),
   },
 }));
 
@@ -49,12 +48,17 @@ describe('devSessionRestore', () => {
     jest.clearAllMocks();
     global.__DEV__ = true;
     global.fetch = jest.fn();
+    process.env.ZEROISLE_DEV_PASSWORD = 'test-password';
 
     tokenService = require('../tokenService').default;
     authStorage = require('../authStorage').default;
     authApi = require('../../api/authApi').default;
     ({ saveAuthInfo } = require('../authUtils'));
     ({ tryRestoreDevSession } = require('../devSessionRestore'));
+  });
+
+  afterEach(() => {
+    delete process.env.ZEROISLE_DEV_PASSWORD;
   });
 
   it('默认优先复用本地有效 token', async () => {
@@ -74,28 +78,35 @@ describe('devSessionRestore', () => {
 
   it('forceRefresh 时跳过旧 token，直接重新直登', async () => {
     tokenService.getAccessToken.mockResolvedValue({ token: 'stale_access' });
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    authApi.login.mockResolvedValue({
+      data: {
         access: 'fresh_access',
         refresh: 'fresh_refresh',
         user: { id: 'user-2' },
-      }),
+      },
     });
 
     const result = await tryRestoreDevSession({ forceRefresh: true });
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:8001/api/v1/auth/login/',
-      expect.objectContaining({
-        method: 'POST',
-      })
-    );
+    expect(authApi.login).toHaveBeenCalledWith({
+      username: 'developer',
+      password: 'test-password',
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
     expect(saveAuthInfo).toHaveBeenCalledWith('fresh_access', 'fresh_refresh', { id: 'user-2' });
     expect(result).toEqual({
       token: 'fresh_access',
       refreshToken: 'fresh_refresh',
       user: { id: 'user-2' },
     });
+  });
+
+  it('缺少本地开发密码时不尝试直登', async () => {
+    delete process.env.ZEROISLE_DEV_PASSWORD;
+
+    const result = await tryRestoreDevSession({ forceRefresh: true });
+
+    expect(result).toBeNull();
+    expect(authApi.login).not.toHaveBeenCalled();
   });
 });

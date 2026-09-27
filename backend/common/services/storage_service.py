@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Optional
 
 from django.conf import settings
+from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
@@ -64,6 +65,51 @@ class StorageService:
         default_storage.save(filename, ContentFile(content))
         return filename
 
+    def save_stream(self, stream, filename: str, content_type: str) -> str:
+        """Persist a seekable stream without materialising the full file in memory."""
+        if self._s3:
+            self._s3.upload_fileobj(
+                stream,
+                self.bucket,
+                filename,
+                ExtraArgs={'ContentType': content_type},
+            )
+            return filename
+
+        if default_storage.exists(filename):
+            default_storage.delete(filename)
+        default_storage.save(filename, File(stream, name=filename))
+        return filename
+
+    def open(self, filename: str):
+        """Open a stored object as a readable stream."""
+        if self._s3:
+            return self._s3.get_object(Bucket=self.bucket, Key=filename)['Body']
+        return default_storage.open(filename, 'rb')
+
+    def open_range(self, filename: str, start: int, end: int):
+        """Open only an inclusive byte range without materialising the object."""
+        if start < 0 or end < start:
+            raise ValueError('Invalid byte range')
+        if self._s3:
+            return self._s3.get_object(
+                Bucket=self.bucket,
+                Key=filename,
+                Range=f'bytes={start}-{end}',
+            )['Body']
+
+        stream = default_storage.open(filename, 'rb')
+        stream.seek(start)
+        return stream
+
+    def delete(self, filename: str) -> None:
+        """Delete a stored object when it exists."""
+        if self._s3:
+            self._s3.delete_object(Bucket=self.bucket, Key=filename)
+            return
+        if default_storage.exists(filename):
+            default_storage.delete(filename)
+
     def generate_presigned_url(self, key: str, expires_in: int = 600) -> Optional[str]:
         if self._s3:
             return self._s3.generate_presigned_url(
@@ -75,4 +121,3 @@ class StorageService:
 
 
 storage_service = StorageService()
-

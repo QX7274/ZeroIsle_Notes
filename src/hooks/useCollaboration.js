@@ -38,6 +38,10 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
     const reconnectTimeoutRef = useRef(null);
     const heartbeatIntervalRef = useRef(null);
     const reconnectAttemptsRef = useRef(0);
+    const connectRef = useRef(null);
+    const startHeartbeatRef = useRef(null);
+    const stopHeartbeatRef = useRef(null);
+    const handleMessageRef = useRef(null);
     const maxReconnectAttempts = 5;
 
     /**
@@ -64,7 +68,7 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
                 reconnectAttemptsRef.current = 0;
 
                 // 启动心跳
-                startHeartbeat();
+                startHeartbeatRef.current?.();
             };
 
             ws.onclose = (event) => {
@@ -86,7 +90,7 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
                     console.log(`[Collaboration] Reconnecting in ${delay}ms...`);
                     reconnectTimeoutRef.current = setTimeout(() => {
                         reconnectAttemptsRef.current++;
-                        connect();
+                        connectRef.current?.();
                     }, delay);
                 }
             };
@@ -97,7 +101,7 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
             };
 
             ws.onmessage = (event) => {
-                handleMessage(JSON.parse(event.data));
+                handleMessageRef.current?.(JSON.parse(event.data));
             };
 
         } catch (err) {
@@ -105,14 +109,14 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
             setIsConnecting(false);
             setError('连接失败');
         }
-    }, [noteId, authToken, onEditReceived]);
+    }, [noteId, authToken]);
 
 
     /**
      * 断开连接
      */
     const disconnect = useCallback(() => {
-        stopHeartbeat();
+        stopHeartbeatRef.current?.();
 
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
@@ -213,6 +217,11 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
         }
     };
 
+    connectRef.current = connect;
+    startHeartbeatRef.current = startHeartbeat;
+    stopHeartbeatRef.current = stopHeartbeat;
+    handleMessageRef.current = handleMessage;
+
     /**
      * 发送光标位置
      */
@@ -258,7 +267,7 @@ export const useCollaboration = (noteId, authToken, onEditReceived) => {
         return () => {
             disconnect();
         };
-    }, [noteId, authToken]);
+    }, [authToken, connect, disconnect, noteId]);
 
     // 处理应用状态变化
     useEffect(() => {

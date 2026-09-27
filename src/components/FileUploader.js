@@ -14,7 +14,7 @@ import { loadingService } from '../../services/loading';
 import { showToast } from '../../redux/slices/uiSlice';
 import networkErrorService from '../../services/networkErrorService';
 
-const FileUploader = ({ onUploadComplete, allowedTypes = ['pdf', 'doc', 'docx'] }) => {
+const FileUploader = ({ noteId, onUploadComplete, allowedTypes = ['pdf', 'doc', 'docx'] }) => {
   const { colors } = useTheme();
   const dispatch = useDispatch();
   const [isUploading, setIsUploading] = useState(false);
@@ -214,6 +214,7 @@ const FileUploader = ({ onUploadComplete, allowedTypes = ['pdf', 'doc', 'docx'] 
         name: file.name,
         type: file.type,
         size: file.size,
+        noteId,
         onProgress: (progress) => {
           const percent = Math.round((Number(progress || 0)) * 100);
           loadingService.show(`上传中... ${percent}%`);

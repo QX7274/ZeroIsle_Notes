@@ -80,7 +80,7 @@ export const DEV_MODE_CONFIG = {
   // 开发者模式特性
   FEATURES: {
     // 是否跳过登录界面
-    SKIP_LOGIN_SCREEN: false,
+    SKIP_LOGIN_SCREEN: true,
     // 是否自动填充测试数据
     AUTO_FILL_TEST_DATA: false,
     // 是否显示调试信息

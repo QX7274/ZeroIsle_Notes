@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -30,12 +30,6 @@ const CheckboxTextInput = React.forwardRef(({
   const [parsedContent, setParsedContent] = useState([]);
   const textInputRef = useRef(null);
 
-  // 同步外部value变化
-  useEffect(() => {
-    setLocalValue(value);
-    setParsedContent(parseContent(value));
-  }, [value, cardType]);
-
   // 处理文本变化
   const handleTextChange = (text) => {
     setLocalValue(text);
@@ -46,7 +40,7 @@ const CheckboxTextInput = React.forwardRef(({
   };
 
   // 解析不同类型的内容
-  const parseContent = (text) => {
+  const parseContent = useCallback((text) => {
     if (!text) return [];
 
     const lines = text.split('\n');
@@ -64,6 +58,7 @@ const CheckboxTextInput = React.forwardRef(({
           originalLine: line,
           lineIndex: index
         };
+      }
 
       // 重要标记格式：! 内容
       const importantMatch = line.match(/^(\s*)(!)\s*(.*)$/);
@@ -95,7 +90,13 @@ const CheckboxTextInput = React.forwardRef(({
         lineIndex: index
       };
     });
-  };
+  }, [cardType]);
+
+  // 同步外部value变化
+  useEffect(() => {
+    setLocalValue(value);
+    setParsedContent(parseContent(value));
+  }, [value, parseContent]);
 
   // 切换待办事项状态
   const toggleTodo = (lineIndex) => {
@@ -110,9 +111,26 @@ const CheckboxTextInput = React.forwardRef(({
 
     const newValue = lines.join('\n');
     handleTextChange(newValue);
-    
-    onChangeText(newValue);
   };
+
+  const checkboxItems = useMemo(
+    () => parsedContent
+      .filter(item => item.type === 'todo')
+      .map(item => ({
+        index: item.lineIndex,
+        text: item.content,
+        isChecked: item.isChecked,
+        isCanceled: false,
+      })),
+    [parsedContent]
+  );
+
+  const processedText = useMemo(
+    () => parsedContent
+      .map(item => item.type === 'todo' ? `__CHECKBOX_${item.lineIndex}__` : item.originalLine)
+      .join('\n'),
+    [parsedContent]
+  );
 
   // 渲染复选框项目
   const renderCheckboxItem = (item) => {
@@ -137,7 +155,7 @@ const CheckboxTextInput = React.forwardRef(({
       <TouchableOpacity
         key={`checkbox-${index}`}
         style={styles.checkboxItem}
-        onPress={() => toggleCheckbox(index)}
+        onPress={() => toggleTodo(index)}
         activeOpacity={0.7}
       >
         <Icon name={iconName} size={20} color={iconColor} />

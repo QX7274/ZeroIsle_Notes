@@ -4,6 +4,7 @@
 
 import { mongoDBService } from '../database/mongoDBAdapter';
 import realmService from '../database/realmService';
+import apiClient from '../api/apiClient';
 import { networkService } from '../network/networkService';
 import { configService } from '../app/configService';
 // offlineStorageService 已删除，使用 realmService
@@ -89,9 +90,12 @@ class OfflineSyncService {
 
     // 添加新的监听器
     this.networkListener = networkService.addListener('network:change', async (state) => {
-      // 当网络恢复在线时，尝试同步
-      if (state.isOnline && !this.isSyncing && this.syncQueue.length > 0) {
-        await this.syncWithServer();
+      // 当网络恢复在线时，尝试同步 SyncInfo 和 Realm OfflineQueue。
+      if (state.isOnline && !this.isSyncing) {
+        const hasOfflineQueue = await this.hasPendingOfflineQueue();
+        if (this.syncQueue.length > 0 || hasOfflineQueue) {
+          await this.syncWithServer();
+        }
       }
     });
   }
@@ -107,8 +111,11 @@ class OfflineSyncService {
 
     // 设置新的定时器
     this.syncInterval = setInterval(async () => {
-      if (networkService.isOnline() && !this.isSyncing && this.syncQueue.length > 0) {
-        await this.syncWithServer();
+      if (networkService.isOnline() && !this.isSyncing) {
+        const hasOfflineQueue = await this.hasPendingOfflineQueue();
+        if (this.syncQueue.length > 0 || hasOfflineQueue) {
+          await this.syncWithServer();
+        }
       }
     }, this.syncIntervalTime);
 
@@ -207,6 +214,24 @@ class OfflineSyncService {
       console.error('加载同步队列失败', error);
       this.syncQueue = [];
       throw error;
+    }
+  }
+
+  /**
+   * 检查生产 Realm OfflineQueue 是否有待重放操作。
+   * @returns {Promise<boolean>} 是否存在待同步的离线操作
+   */
+  async hasPendingOfflineQueue() {
+    try {
+      const realm = await realmService.getRealm();
+      const pendingItems = realm.objects('OfflineQueue').filtered(
+        `status == "${this.SYNC_STATUS.PENDING}" OR (status == "${this.SYNC_STATUS.FAILED}" AND retry_count < $0)`,
+        this.MAX_OFFLINE_RETRIES
+      );
+      return pendingItems.length > 0;
+    } catch (error) {
+      console.warn('检查 OfflineQueue 失败', error);
+      return false;
     }
   }
 
@@ -411,7 +436,23 @@ class OfflineSyncService {
           const entityType = String(item.entity_type || '').toLowerCase();
           const collection = this.getCollectionForType(entityType);
 
-          if (item.operation === 'delete') {
+          if (entityType === 'note') {
+            const syncData = {
+              ...data,
+              _id: item.entity_id,
+              id: item.entity_id,
+              _operation: item.operation,
+              clientOpId: item.clientOpId || data.clientOpId || null,
+              deviceId: item.deviceId || item.device_id || data.deviceId || data.device_id || null,
+            };
+            const result = await apiClient.post('/sync/notes/', {
+              timestamp: new Date().toISOString(),
+              notes: [syncData],
+            });
+            if (!result || !result.success) {
+              throw new Error(result?.error || result?.errors?.[0]?.message || '同步笔记失败');
+            }
+          } else if (item.operation === 'delete') {
             await this.syncDelete(collection, item.entity_id, entityType);
           } else {
             // update/create 统一走 upsert 逻辑

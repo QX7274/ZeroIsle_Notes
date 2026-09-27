@@ -62,7 +62,7 @@ const SpeakerLabel = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [isActive]);
+  }, [isActive, scaleAnim]);
 
   // 根据说话人ID生成颜色
   const getSpeakerColor = (id) => {

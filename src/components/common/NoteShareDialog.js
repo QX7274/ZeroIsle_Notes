@@ -2,7 +2,7 @@
  * 笔记分享对话框组件
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Switch, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Button, Toast } from './';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -38,15 +38,8 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // 加载笔记的现有分享
-  useEffect(() => {
-    if (visible && noteId) {
-      loadExistingShares();
-    }
-  }, [visible, noteId]);
-
   // 加载现有分享
-  const loadExistingShares = async () => {
+  const loadExistingShares = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await noteShareApi.getNoteShares(noteId);
@@ -56,7 +49,14 @@ const NoteShareDialog = ({ visible, onClose, noteId, noteTitle }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [noteId]);
+
+  // 加载笔记的现有分享
+  useEffect(() => {
+    if (visible && noteId) {
+      loadExistingShares();
+    }
+  }, [loadExistingShares, noteId, visible]);
 
   // 显示Toast消息
   const showToast = (message) => {

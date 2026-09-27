@@ -54,7 +54,7 @@ class TokenService {
   async _saveSecurely(service, value, identifier = 'token') {
     if (Platform.OS === 'web') {
       try {
-        localStorage.setItem(`secure_${service}`, value);
+        globalThis.localStorage.setItem(`secure_${service}`, value);
         return true;
       } catch (e) {
         console.error(`Web存储失败 (${service}):`, e);
@@ -73,7 +73,7 @@ class TokenService {
   async _getSecurely(service) {
     if (Platform.OS === 'web') {
       try {
-        const value = localStorage.getItem(`secure_${service}`);
+        const value = globalThis.localStorage.getItem(`secure_${service}`);
         return value ? { password: value } : null;
       } catch (e) {
         console.error(`Web读取失败 (${service}):`, e);
@@ -92,7 +92,7 @@ class TokenService {
   async _resetSecurely(service) {
     if (Platform.OS === 'web') {
       try {
-        localStorage.removeItem(`secure_${service}`);
+        globalThis.localStorage.removeItem(`secure_${service}`);
         return true;
       } catch (e) {
         console.error(`Web删除失败 (${service}):`, e);

@@ -11,7 +11,7 @@ class AnnotationSerializer(serializers.Serializer):
     注释序列化器
     """
     id = serializers.UUIDField(read_only=True)
-    note = serializers.PrimaryKeyRelatedField(queryset=None)
+    note = serializers.PrimaryKeyRelatedField(queryset=Note.objects.all())
     user = UserSerializer(read_only=True)
     page = serializers.IntegerField(required=True)
     type = serializers.ChoiceField(choices=('text', 'drawing', 'highlight', 'shape'), required=True)

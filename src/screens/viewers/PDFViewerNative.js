@@ -54,7 +54,7 @@ const PDF_VIEW_COMMANDS = {
 };
 
 const PDFViewerNative = ({ route, navigation }) => {
-  const { uri, title, noteId, fromFileHistory, fileType } = route.params || {};
+  const { uri, title, noteId, fromFileHistory, fileType, targetPage } = route.params || {};
   const { colors } = useTheme();
 
   const [isLoading, setIsLoading] = useState(true); // 初始为true，显示加载指示器
@@ -107,151 +107,33 @@ const PDFViewerNative = ({ route, navigation }) => {
     onHistoryStateChange: setToolbarHistoryState,
   });
 
-  useEffect(() => {
-    console.log('[PDFViewerNative] 初始化原生 PDF 视图', { uri, noteId, fileType });
-    if (uri) {
-      checkAndLoadFile(uri);
-    }
+  const loadPDF = useCallback(async (pdfUri) => {
+    try {
+      console.log('[PDFViewerNative] 开始加载PDF:', pdfUri);
 
-    // 添加到文件历史记录
-    if (uri && title) {
-      console.log('[PDFViewerNative] 添加到文件历史记录:', { uri, title, noteId });
-      fileHistoryService.addFile({
-        uri,
-        title,
-        type: fileType || 'pdf',
-        fileName: title,
-        noteId,
-      });
-    }
-  }, [uri, noteId]);
+      // ✅ 简化loadPDF：只记录信息，数据导入由handleReady处理
+      if (noteId) {
+        const realm = await getWritableRealmOrThrow();
+        const note = realm.objectForPrimaryKey('Note', noteId);
 
-  // 隐藏Android系统导航栏，实现沉浸式全屏体验
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      console.log('[PDFViewerNative] 隐藏Android系统导航栏');
-      StatusBar.setHidden(true);
-    }
+        console.log('🔍 [PDFViewerNative] 查找保存的 Note:', noteId, '找到:', !!note);
 
-    return () => {
-      if (Platform.OS === 'android') {
-        console.log('[PDFViewerNative] 恢复Android系统导航栏');
-        StatusBar.setHidden(false);
-      }
-    };
-  }, []);
-
-  // ✅ 自动保存机制
-  useEffect(() => {
-    if (hasUnsavedChanges && noteId && pdfViewRef.current) {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-
-      autoSaveTimerRef.current = setTimeout(() => {
-        console.log('[PDFViewerNative] 自动保存触发...');
-        handleSave().catch(err => console.error('自动保存失败:', err));
-      }, 3000);
-    }
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [hasUnsavedChanges, noteId]);
-
-  // ✅ 组件卸载时保存数据
-  useEffect(() => {
-    return () => {
-      if (hasUnsavedChanges && pdfViewRef.current && uri) {
-        console.log('[PDFViewerNative] 组件卸载，保存数据...');
-        try {
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(pdfViewRef.current),
-            PDF_VIEW_COMMANDS.EXPORT_PDF,
-            [`${uri}_annotated.pdf`]
-          );
-        } catch (err) {
-          console.error('[PDFViewerNative] 卸载保存失败:', err);
+        if (note) {
+          console.log('📖 [PDFViewerNative] PDF阅读状态信息:', {
+            savedCurrentPage: note.pdfCurrentPage,
+            savedTotalPages: note.pdfTotalPages,
+            savedScale: note.pdfScale,
+            pdfPath: note.pdfPath,
+            hasAnnotations: !!note.pdfAnnotations,
+            annotationsLength: note.pdfAnnotations?.length || 0,
+          });
+          console.log('ℹ️ [PDFViewerNative] 数据将在handleReady中导入');
         }
       }
-    };
-  }, [hasUnsavedChanges, uri]);
-
-  // ✅ 监听屏幕焦点变化，失焦时保存数据
-  useEffect(() => {
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      if (hasUnsavedChanges && pdfViewRef.current && uri) {
-        console.log('[PDFViewerNative] 屏幕失去焦点，保存数据...');
-        try {
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(pdfViewRef.current),
-            PDF_VIEW_COMMANDS.EXPORT_PDF,
-            [`${uri}_annotated.pdf`]
-          );
-        } catch (err) {
-          console.error('[PDFViewerNative] 失焦保存失败:', err);
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeBlur();
-    };
-  }, [navigation, hasUnsavedChanges, uri]);
-
-  // ✅ 监听应用状态变化，应用进入后台时保存数据
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState) => {
-      if (nextAppState === 'background' && hasUnsavedChanges && pdfViewRef.current && uri) {
-        console.log('[PDFViewerNative] 应用进入后台，立即保存数据...');
-        try {
-          // 保存PDF状态和注释
-          if (noteId) {
-            const realm = await getWritableRealmOrThrow();
-            realm.write(() => {
-              const note = realm.objectForPrimaryKey('Note', noteId);
-              if (note) {
-                Object.assign(note, {
-                  pdfPath: uri,
-                  pdfCurrentPage: currentPage,
-                  pdfTotalPages: totalPages,
-                  pdfScale: zoomLevel,
-                  updated_at: new Date().toISOString(),
-                });
-              }
-            });
-          }
-
-          // 导出PDF注释数据（命令ID: 7）
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(pdfViewRef.current),
-            PDF_VIEW_COMMANDS.EXPORT_PDF,
-            [noteId || uri]
-          );
-          console.log('[PDFViewerNative] 后台保存完成');
-        } catch (err) {
-          console.error('[PDFViewerNative] 后台保存失败:', err);
-        }
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      subscription?.remove();
-    };
-  }, [hasUnsavedChanges, uri, noteId]);
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (zoomIndicatorTimeoutRef.current) {
-        clearTimeout(zoomIndicatorTimeoutRef.current);
-      }
-    };
-  }, []);
+    } catch (error) {
+      console.error('[PDFViewerNative] 加载PDF状态失败:', error);
+    }
+  }, [getWritableRealmOrThrow, noteId]);
 
   /**
    * 检查文件类型并加载或转换
@@ -326,7 +208,237 @@ const PDFViewerNative = ({ route, navigation }) => {
       });
       setIsLoading(false);
     }
-  }, [fileType, noteId]);
+  }, [fileType, getWritableRealmOrThrow, loadPDF, noteId]);
+
+  const handleSave = useCallback(async () => {
+    console.log('🔥🔥🔥 [PDFViewerNative] 开始保存 PDF 数据...');
+    try {
+      if (!pdfViewRef.current || !uri) {
+        throw new Error('PDF组件或URI无效');
+      }
+
+      // ✅ 立即保存所有 PDF 数据到数据库（不等待原生回调）
+      if (noteId) {
+        console.log('💾 [PDFViewerNative] 保存 PDF 状态到数据库...', {
+          noteId,
+          currentPage,
+          totalPages,
+          zoomLevel,
+        });
+
+        const realm = await getWritableRealmOrThrow();
+
+        // 🔍 验证 Schema
+        const schema = realm.schema.find(s => s.name === 'Note');
+        const hasPdfAnnotations = schema && 'pdfAnnotations' in schema.properties;
+        console.log('🔍 [PDFViewerNative] Schema 检查 - pdfAnnotations:', hasPdfAnnotations);
+        if (!hasPdfAnnotations) {
+          console.error('❌❌❌ [PDFViewerNative] Schema 缺少 pdfAnnotations 字段！需要完全重启应用！');
+        }
+
+        realm.write(() => {
+          let note = realm.objectForPrimaryKey('Note', noteId);
+
+          // 如果不存在，创建新记录
+          if (!note) {
+            console.log('📝 [PDFViewerNative] 创建新的 Note 记录');
+            note = realm.create('Note', {
+              _id: noteId,
+              title: title || 'PDF文档',
+              type: 'pdf',
+              file_type: 'pdf',
+              created_at: new Date(),
+              updated_at: new Date(),
+            }, 'modified');
+          }
+
+          // 保存所有 PDF 状态
+          Object.assign(note, {
+            pdfPath: uri,
+            pdfCurrentPage: currentPage,
+            pdfTotalPages: totalPages,
+            pdfScale: zoomLevel,
+            // 注意：pdfAnnotations 需要从原生端获取，这里先不保存
+            // 原生端应该通过 onExportComplete 回调提供
+            updated_at: new Date(),
+          });
+
+          console.log('✅✅✅ [PDFViewerNative] PDF 状态已保存到数据库', {
+            noteId: note._id,
+            pdfPath: note.pdfPath,
+            pdfCurrentPage: note.pdfCurrentPage,
+            pdfTotalPages: note.pdfTotalPages,
+            pdfScale: note.pdfScale,
+          });
+        });
+      }
+
+      // 调用原生方法导出PDF（命令ID: 7）
+      // 注意：这会触发 onExportComplete 回调来保存注释数据
+      UIManager.dispatchViewManagerCommand(
+        findNodeHandle(pdfViewRef.current),
+        PDF_VIEW_COMMANDS.EXPORT_PDF,
+        [`${uri}_annotated.pdf`]
+      );
+
+      setHasUnsavedChanges(false);
+      console.log('✅ [PDFViewerNative] PDF保存命令已发送');
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ [PDFViewerNative] 保存失败:', error);
+      console.error('错误堆栈:', error.stack);
+      return { success: false, error: error.message };
+    }
+  }, [currentPage, getWritableRealmOrThrow, noteId, title, totalPages, uri, zoomLevel]);
+
+  useEffect(() => {
+    console.log('[PDFViewerNative] 初始化原生 PDF 视图', { uri, noteId, fileType });
+    if (uri) {
+      checkAndLoadFile(uri);
+    }
+
+    // 添加到文件历史记录
+    if (uri && title) {
+      console.log('[PDFViewerNative] 添加到文件历史记录:', { uri, title, noteId });
+      fileHistoryService.addFile({
+        uri,
+        title,
+        type: fileType || 'pdf',
+        fileName: title,
+        noteId,
+      });
+    }
+  }, [checkAndLoadFile, fileType, noteId, title, uri]);
+
+  // 隐藏Android系统导航栏，实现沉浸式全屏体验
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      console.log('[PDFViewerNative] 隐藏Android系统导航栏');
+      StatusBar.setHidden(true);
+    }
+
+    return () => {
+      if (Platform.OS === 'android') {
+        console.log('[PDFViewerNative] 恢复Android系统导航栏');
+        StatusBar.setHidden(false);
+      }
+    };
+  }, []);
+
+  // ✅ 自动保存机制
+  useEffect(() => {
+    if (hasUnsavedChanges && noteId && pdfViewRef.current) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+
+      autoSaveTimerRef.current = setTimeout(() => {
+        console.log('[PDFViewerNative] 自动保存触发...');
+        handleSave().catch(err => console.error('自动保存失败:', err));
+      }, 3000);
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [handleSave, hasUnsavedChanges, noteId]);
+
+  // ✅ 组件卸载时保存数据
+  useEffect(() => {
+    const pdfView = pdfViewRef.current;
+
+    return () => {
+      if (hasUnsavedChanges && pdfView && uri) {
+        console.log('[PDFViewerNative] 组件卸载，保存数据...');
+        try {
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(pdfView),
+            PDF_VIEW_COMMANDS.EXPORT_PDF,
+            [`${uri}_annotated.pdf`]
+          );
+        } catch (err) {
+          console.error('[PDFViewerNative] 卸载保存失败:', err);
+        }
+      }
+    };
+  }, [hasUnsavedChanges, uri]);
+
+  // ✅ 监听屏幕焦点变化，失焦时保存数据
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      if (hasUnsavedChanges && pdfViewRef.current && uri) {
+        console.log('[PDFViewerNative] 屏幕失去焦点，保存数据...');
+        try {
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(pdfViewRef.current),
+            PDF_VIEW_COMMANDS.EXPORT_PDF,
+            [`${uri}_annotated.pdf`]
+          );
+        } catch (err) {
+          console.error('[PDFViewerNative] 失焦保存失败:', err);
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeBlur();
+    };
+  }, [navigation, hasUnsavedChanges, uri]);
+
+  // ✅ 监听应用状态变化，应用进入后台时保存数据
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === 'background' && hasUnsavedChanges && pdfViewRef.current && uri) {
+        console.log('[PDFViewerNative] 应用进入后台，立即保存数据...');
+        try {
+          // 保存PDF状态和注释
+          if (noteId) {
+            const realm = await getWritableRealmOrThrow();
+            realm.write(() => {
+              const note = realm.objectForPrimaryKey('Note', noteId);
+              if (note) {
+                Object.assign(note, {
+                  pdfPath: uri,
+                  pdfCurrentPage: currentPage,
+                  pdfTotalPages: totalPages,
+                  pdfScale: zoomLevel,
+                  updated_at: new Date().toISOString(),
+                });
+              }
+            });
+          }
+
+          // 导出PDF注释数据（命令ID: 7）
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(pdfViewRef.current),
+            PDF_VIEW_COMMANDS.EXPORT_PDF,
+            [noteId || uri]
+          );
+          console.log('[PDFViewerNative] 后台保存完成');
+        } catch (err) {
+          console.error('[PDFViewerNative] 后台保存失败:', err);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [currentPage, getWritableRealmOrThrow, hasUnsavedChanges, noteId, totalPages, uri, zoomLevel]);
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (zoomIndicatorTimeoutRef.current) {
+        clearTimeout(zoomIndicatorTimeoutRef.current);
+      }
+    };
+  }, []);
 
   /**
    * 转换文件为PDF
@@ -412,35 +524,7 @@ const PDFViewerNative = ({ route, navigation }) => {
         originalFile: uri,
       });
     }
-  }, [uri, noteId, title]);
-
-  const loadPDF = useCallback(async (pdfUri) => {
-    try {
-      console.log('[PDFViewerNative] 开始加载PDF:', pdfUri);
-
-      // ✅ 简化loadPDF：只记录信息，数据导入由handleReady处理
-      if (noteId) {
-        const realm = await getWritableRealmOrThrow();
-        const note = realm.objectForPrimaryKey('Note', noteId);
-
-        console.log('🔍 [PDFViewerNative] 查找保存的 Note:', noteId, '找到:', !!note);
-
-        if (note) {
-          console.log('📖 [PDFViewerNative] PDF阅读状态信息:', {
-            savedCurrentPage: note.pdfCurrentPage,
-            savedTotalPages: note.pdfTotalPages,
-            savedScale: note.pdfScale,
-            pdfPath: note.pdfPath,
-            hasAnnotations: !!note.pdfAnnotations,
-            annotationsLength: note.pdfAnnotations?.length || 0,
-          });
-          console.log('ℹ️ [PDFViewerNative] 数据将在handleReady中导入');
-        }
-      }
-    } catch (error) {
-      console.error('[PDFViewerNative] 加载PDF状态失败:', error);
-    }
-  }, [noteId]);
+  }, [getWritableRealmOrThrow, loadPDF, noteId, title, uri]);
 
   // 原生组件事件处理
   const handleReady = useCallback(async (event) => {
@@ -454,7 +538,6 @@ const PDFViewerNative = ({ route, navigation }) => {
 
     // 如果有目标页，先跳转
     try {
-      const targetPage = route?.params?.targetPage;
       if (typeof targetPage === 'number' && targetPage >= 1 && pdfViewRef.current) {
         const nodeHandle = findNodeHandle(pdfViewRef.current);
         UIManager.dispatchViewManagerCommand(
@@ -495,11 +578,11 @@ const PDFViewerNative = ({ route, navigation }) => {
           let annotations;
           if (Array.isArray(rawAnnotations)) {
             console.log('🔄 [PDFViewerNative] 检测到旧格式数据，正在转换...');
-            annotations = convertOldFormatToNew(rawAnnotations, totalPages);
+            annotations = convertOldFormatToNew(rawAnnotations, loadedTotalPages);
           } else if (rawAnnotations.pages) {
             annotations = rawAnnotations;
             if (!annotations.totalPages || annotations.totalPages === 0) {
-              annotations.totalPages = totalPages;
+              annotations.totalPages = loadedTotalPages;
             }
           } else {
             console.warn('⚠️ [PDFViewerNative] 未知的数据格式');
@@ -574,7 +657,7 @@ const PDFViewerNative = ({ route, navigation }) => {
         console.error('[PDFViewerNative] 导入注释失败:', error);
       }
     }
-  }, [noteId]);
+  }, [getWritableRealmOrThrow, noteId, targetPage]);
 
   const handleError = useCallback((event) => {
     const { code, message } = event.nativeEvent;
@@ -805,7 +888,7 @@ const PDFViewerNative = ({ route, navigation }) => {
       count: 1,
       documentPage: currentPage,
     });
-  }, [noteId, currentPage, totalPages, uri, title, toolbarPropsBase]);
+  }, [currentPage, getWritableRealmOrThrow, noteId, title, totalPages, uri, toolbarPropsBase]);
 
 /**
  * 将旧格式数组转换为新格式对象
@@ -967,7 +1050,22 @@ const convertOldFormatToNew = (oldFormatArray, totalPages) => {
       console.error('[PDFViewerNative] 保存PDF注释数据失败:', error);
       console.error('[PDFViewerNative] 错误堆栈:', error.stack);
     }
-  }, [noteId, uri, currentPage, totalPages, zoomLevel, title]);
+  }, [currentPage, getWritableRealmOrThrow, noteId, title, totalPages, uri, zoomLevel]);
+
+  const addTextAnnotation = useCallback((text) => {
+    // 将识别文本添加为PDF注释（命令ID: 6）
+    if (pdfViewRef.current) {
+      try {
+        UIManager.dispatchViewManagerCommand(
+          findNodeHandle(pdfViewRef.current),
+          PDF_VIEW_COMMANDS.ADD_TEXT_ANNOTATION,
+          [text]
+        );
+      } catch (err) {
+        console.error('[PDFViewerNative] 添加文本注释命令失败:', err);
+      }
+    }
+  }, []);
 
   const handleHandwritingRecognized = useCallback((event) => {
     const { strokeId, recognizedText: legacyText, text, confidence, scope } = event.nativeEvent;
@@ -1013,22 +1111,7 @@ const convertOldFormatToNew = (oldFormatArray, totalPages) => {
       // 可选：如果需要，可以给用户一个识别失败的提示
       // console.log('[PDFViewerNative] 未识别出文本');
     }
-  }, [currentPage, title, route, convertedPdfUri, uri, navigation]);
-
-  const addTextAnnotation = useCallback((text) => {
-    // 将识别文本添加为PDF注释（命令ID: 6）
-    if (pdfViewRef.current) {
-      try {
-        UIManager.dispatchViewManagerCommand(
-          findNodeHandle(pdfViewRef.current),
-          PDF_VIEW_COMMANDS.ADD_TEXT_ANNOTATION,
-          [text]
-        );
-      } catch (err) {
-        console.error('[PDFViewerNative] 添加文本注释命令失败:', err);
-      }
-    }
-  }, []);
+  }, [addTextAnnotation, convertedPdfUri, currentPage, navigation, route, title, uri]);
 
   // 区域选择事件处理函数
   const handleRegionTouchStart = useCallback((event) => {
@@ -1099,88 +1182,6 @@ const convertOldFormatToNew = (oldFormatArray, totalPages) => {
       }
     }
   }, [fromFileHistory, navigation, noteId, uri]);
-
-  const handleSave = useCallback(async () => {
-    console.log('🔥🔥🔥 [PDFViewerNative] 开始保存 PDF 数据...');
-    try {
-      if (!pdfViewRef.current || !uri) {
-        throw new Error('PDF组件或URI无效');
-      }
-
-      // ✅ 立即保存所有 PDF 数据到数据库（不等待原生回调）
-      if (noteId) {
-        console.log('💾 [PDFViewerNative] 保存 PDF 状态到数据库...', {
-          noteId,
-          currentPage,
-          totalPages,
-          zoomLevel,
-        });
-
-        const realm = await getWritableRealmOrThrow();
-
-        // 🔍 验证 Schema
-        const schema = realm.schema.find(s => s.name === 'Note');
-        const hasPdfAnnotations = schema && 'pdfAnnotations' in schema.properties;
-        console.log('🔍 [PDFViewerNative] Schema 检查 - pdfAnnotations:', hasPdfAnnotations);
-        if (!hasPdfAnnotations) {
-          console.error('❌❌❌ [PDFViewerNative] Schema 缺少 pdfAnnotations 字段！需要完全重启应用！');
-        }
-
-        realm.write(() => {
-          let note = realm.objectForPrimaryKey('Note', noteId);
-
-          // 如果不存在，创建新记录
-          if (!note) {
-            console.log('📝 [PDFViewerNative] 创建新的 Note 记录');
-            note = realm.create('Note', {
-              _id: noteId,
-              title: title || 'PDF文档',
-              type: 'pdf',
-              file_type: 'pdf',
-              created_at: new Date(),
-              updated_at: new Date(),
-            }, 'modified');
-          }
-
-          // 保存所有 PDF 状态
-          Object.assign(note, {
-            pdfPath: uri,
-            pdfCurrentPage: currentPage,
-            pdfTotalPages: totalPages,
-            pdfScale: zoomLevel,
-            // 注意：pdfAnnotations 需要从原生端获取，这里先不保存
-            // 原生端应该通过 onExportComplete 回调提供
-            updated_at: new Date(),
-          });
-
-          console.log('✅✅✅ [PDFViewerNative] PDF 状态已保存到数据库', {
-            noteId: note._id,
-            pdfPath: note.pdfPath,
-            pdfCurrentPage: note.pdfCurrentPage,
-            pdfTotalPages: note.pdfTotalPages,
-            pdfScale: note.pdfScale,
-          });
-        });
-      }
-
-      // 调用原生方法导出PDF（命令ID: 7）
-      // 注意：这会触发 onExportComplete 回调来保存注释数据
-      UIManager.dispatchViewManagerCommand(
-        findNodeHandle(pdfViewRef.current),
-        PDF_VIEW_COMMANDS.EXPORT_PDF,
-        [`${uri}_annotated.pdf`]
-      );
-
-      setHasUnsavedChanges(false);
-      console.log('✅ [PDFViewerNative] PDF保存命令已发送');
-
-      return { success: true };
-    } catch (error) {
-      console.error('❌ [PDFViewerNative] 保存失败:', error);
-      console.error('错误堆栈:', error.stack);
-      return { success: false, error: error.message };
-    }
-  }, [uri, noteId, currentPage, totalPages, zoomLevel, title]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

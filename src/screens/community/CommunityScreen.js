@@ -572,10 +572,10 @@ const CommunityScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Card>
     ),
-    [bookmarkedPosts, handleBookmark, handleLike, interactionBusy, likedPosts, navigation, palette.card, palette.primary, palette.text, palette.textSecondary]
+    [bookmarkedPosts, ensureAuthenticatedForDetail, handleBookmark, handleLike, interactionBusy, likedPosts, navigation, openDevQaDialog, palette.card, palette.primary, palette.text, palette.textSecondary]
   );
 
-  const renderDevQaPanel = () => (
+  const renderDevQaPanel = useCallback(() => (
     <View style={styles.devQaPanel} testID="panel.community.devQa">
       <View style={styles.devQaHead}>
         <Icon name="science" size={16} color={palette.primary} />
@@ -638,7 +638,7 @@ const CommunityScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ), [currentUser, devQaResolvingPost, handleOpenDevQaPostDetail, handleOpenDevQaSearchPostResult, handleOpenDevQaSearchUserResult, navigation, palette.primary, palette.text, palette.textSecondary]);
 
   const footer = useMemo(() => {
     if (posts.length === 0) {
@@ -667,7 +667,7 @@ const CommunityScreen = ({ navigation }) => {
       );
     }
     return __DEV__ ? <View style={styles.devQaFooterWrap}>{renderDevQaPanel()}</View> : null;
-  }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length]);
+  }, [hasMore, isLoading, palette.primary, palette.textSecondary, posts.length, renderDevQaPanel]);
 
   const renderEmpty = () => (
     <View>

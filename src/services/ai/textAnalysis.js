@@ -17,7 +17,7 @@ class TextAnalysisService {
    */
   async extractKeywords(text, limit = 10) {
     try {
-      const response = await apiService.post('/ai/text/keywords', {
+      const response = await apiClient.post('/ai/text/keywords', {
         text,
         limit,
       });
@@ -43,7 +43,7 @@ class TextAnalysisService {
    */
   async generateSummary(text, maxLength = 200) {
     try {
-      const response = await apiService.post('/ai/text/summary', {
+      const response = await apiClient.post('/ai/text/summary', {
         text,
         max_length: maxLength,
       });
@@ -68,7 +68,7 @@ class TextAnalysisService {
    */
   async analyzeSentiment(text) {
     try {
-      const response = await apiService.post('/ai/text/sentiment', {
+      const response = await apiClient.post('/ai/text/sentiment', {
         text,
       });
 
@@ -92,7 +92,7 @@ class TextAnalysisService {
    */
   async classifyText(text, categories = []) {
     try {
-      const response = await apiService.post('/ai/text/classify', {
+      const response = await apiClient.post('/ai/text/classify', {
         text,
         categories,
       });
@@ -117,7 +117,7 @@ class TextAnalysisService {
    */
   async recognizeEntities(text) {
     try {
-      const response = await apiService.post('/ai/text/entities', {
+      const response = await apiClient.post('/ai/text/entities', {
         text,
       });
 

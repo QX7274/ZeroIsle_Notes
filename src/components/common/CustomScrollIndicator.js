@@ -3,7 +3,7 @@
  * 支持流畅滑动、自动隐藏、页面分隔等功能
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -138,7 +138,7 @@ const CustomScrollIndicator = ({
   };
 
   // 显示指示器
-  const showIndicator = () => {
+  const showIndicator = useCallback(() => {
     if (!visible) {return;}
 
     setIsVisible(true);
@@ -162,10 +162,10 @@ const CustomScrollIndicator = ({
         useNativeDriver: true,
       }),
     ]).start();
-  };
+  }, [fadeInDuration, opacityAnim, scaleAnim, visible]);
 
   // 隐藏指示器
-  const hideIndicator = () => {
+  const hideIndicator = useCallback(() => {
     setIsActive(false);
 
     // 延迟隐藏 - 使用更流畅的动画
@@ -185,7 +185,7 @@ const CustomScrollIndicator = ({
         setIsVisible(false);
       });
     }, autoHideDelay);
-  };
+  }, [autoHideDelay, fadeOutDuration, opacityAnim, scaleAnim]);
 
   // 处理滚动更新
   useEffect(() => {
@@ -212,7 +212,7 @@ const CustomScrollIndicator = ({
         clearTimeout(hideTimeoutRef.current);
       }
     };
-  }, [scrollOffset, visible, autoHideDelay]);
+  }, [autoHideDelay, hideIndicator, scrollOffset, showIndicator, visible]);
 
   // 组件卸载时清理
   useEffect(() => {

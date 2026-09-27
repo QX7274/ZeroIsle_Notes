@@ -63,7 +63,8 @@ const LoginScreen = ({ navigation }) => {
   const [hasSentCode, setHasSentCode] = useState(false); // 是否已发送过验证码
   const [isDirectDevLoginLoading, setIsDirectDevLoginLoading] = useState(false);
 
-  const DEV_DIRECT_LOGIN_PHONE = '13800138000';
+  const DEV_DIRECT_LOGIN_USERNAME = DEV_MODE_CONFIG?.DEV_ACCOUNT?.username || 'developer';
+  const DEV_DIRECT_LOGIN_PASSWORD = process.env.ZEROISLE_DEV_PASSWORD || '';
 
   // 清除Redux错误
   useEffect(() => {
@@ -158,24 +159,15 @@ const LoginScreen = ({ navigation }) => {
     setIsDirectDevLoginLoading(true);
 
     try {
-      console.log('开始执行开发态真实账号直连登录:', DEV_DIRECT_LOGIN_PHONE);
-
-      const verificationResponse = await authApi.sendVerificationCode({
-        phone: DEV_DIRECT_LOGIN_PHONE,
-        purpose: 'login',
-      });
-      console.log('开发态直连登录-验证码完整响应:', JSON.stringify(verificationResponse));
-
-      const verificationCode = verificationResponse?.data?.code || verificationResponse?.code;
-      console.log('开发态直连登录-解析出的验证码:', verificationCode);
-
-      if (!verificationCode) {
-        throw new Error('后端未返回可用验证码，无法执行直连登录');
+      if (!DEV_DIRECT_LOGIN_PASSWORD) {
+        throw new Error('未配置 ZEROISLE_DEV_PASSWORD，无法执行开发者直登');
       }
 
-      const result = await authApi.loginWithCode({
-        phone: DEV_DIRECT_LOGIN_PHONE,
-        code: verificationCode,
+      console.log('开始执行开发态真实账号直连登录:', DEV_DIRECT_LOGIN_USERNAME);
+
+      const result = await authApi.login({
+        username: DEV_DIRECT_LOGIN_USERNAME,
+        password: DEV_DIRECT_LOGIN_PASSWORD,
       });
       console.log('开发态直连登录-登录完整响应:', JSON.stringify(result));
 
@@ -208,8 +200,8 @@ const LoginScreen = ({ navigation }) => {
         console.error('保存直连登录认证信息失败:', syncError);
       }
 
-      setIdentifier(DEV_DIRECT_LOGIN_PHONE);
-      setCode(verificationCode);
+      setIdentifier(DEV_DIRECT_LOGIN_USERNAME);
+      setPassword(DEV_DIRECT_LOGIN_PASSWORD);
       showSuccessMessage('已通过真实后端完成开发态直连登录', '登录成功');
     } catch (error) {
       console.error('开发态真实账号直连登录失败:', error);

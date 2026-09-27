@@ -17,11 +17,13 @@ export default function DraggableImage({
   size = 180,
   initialScale = 1,
 }) {
+  const initialX = initial?.x ?? 20;
+  const initialY = initial?.y ?? 20;
   const [pos, setPos] = useState(initial);
   const [scale, setScale] = useState(initialScale);
   const [selected, setSelected] = useState(false);
 
-  useEffect(() => setPos(initial), [initial?.x, initial?.y]);
+  useEffect(() => setPos({ x: initialX, y: initialY }), [initialX, initialY]);
   useEffect(() => setSelected(false), [deselectSignal]);
 
   // 拖拽移动

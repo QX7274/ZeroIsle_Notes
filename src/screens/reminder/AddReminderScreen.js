@@ -24,6 +24,14 @@ import { isNetworkConnected } from '../../services/network/networkService';
 import reminderNotificationService from '../../services/reminder/reminderNotificationService';
 import { addLocalReminder, refreshUnsyncedCount } from '../../redux/slices/reminderSlice';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+import { DEV_MODE_CONFIG } from '../../config';
+import { shouldFallbackToLocalReminder } from './reminderCreatePolicy';
+import {
+  REMINDER_SCREEN_LAYOUT,
+  REMINDER_CONTENT_LAYOUT,
+  REMINDER_SCROLL_LAYOUT,
+  REMINDER_ACTION_BAR_LAYOUT,
+} from './reminderLayout';
 
 const AddReminderScreen = ({ route, navigation }) => {
   const { date, category } = route.params || {};
@@ -193,11 +201,9 @@ const AddReminderScreen = ({ route, navigation }) => {
       notifyNonBlocking('提醒已创建', 'success');
       navigateToReminderList();
     } catch (error) {
-      const shouldFallbackToLocal = error?.isOfflineError
-        || error?.isNetworkError
-        || error?.message?.includes('网络')
-        || error?.message?.includes('offline')
-        || error?.message?.includes('Network');
+      const isDeveloperDirectEntry = __DEV__
+        && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
+      const shouldFallbackToLocal = shouldFallbackToLocalReminder(error, isDeveloperDirectEntry);
 
       if (shouldFallbackToLocal) {
         logHandledCreateIssue('创建提醒时触发离线回退:', error);
@@ -413,9 +419,12 @@ const AddReminderScreen = ({ route, navigation }) => {
 
   // 渲染主界面
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} testID="screen.reminder">
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      testID="screen.reminder"
+    >
       <KeyboardAvoidingView
-        style={styles.flexFill}
+        style={REMINDER_SCREEN_LAYOUT}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={insets.top + 12}
       >
@@ -423,6 +432,9 @@ const AddReminderScreen = ({ route, navigation }) => {
         <View testID={`state.reminder.create.saving.visibility.${saving ? 'visible' : 'hidden'}`} />
         <View testID={`state.reminder.create.datePicker.visibility.${showDatePicker ? 'visible' : 'hidden'}`} />
         <View testID={`state.reminder.create.repeatEndPicker.visibility.${showRepeatEndPicker ? 'visible' : 'hidden'}`} />
+        <View
+          style={REMINDER_CONTENT_LAYOUT}
+        >
         {/* 顶部导航栏（统一返回按钮样式） */}
         <View style={[styles.headerBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card, paddingTop: Math.max(insets.top, 12) }]}>
           <ScreenHeaderBackButton
@@ -434,6 +446,7 @@ const AddReminderScreen = ({ route, navigation }) => {
           <View style={styles.headerRight} />
         </View>
         <ScrollView
+          style={REMINDER_SCROLL_LAYOUT}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: actionBarHeight + 32 }]}
           keyboardShouldPersistTaps="handled"
         >
@@ -506,7 +519,7 @@ const AddReminderScreen = ({ route, navigation }) => {
           <View style={styles.contextContent}>
             <Text style={[styles.contextTitle, { color: theme.colors.text }]}>创建提醒</Text>
             <Text style={[styles.contextDescription, { color: theme.colors.textSecondary }]}>
-              当前阶段优先保证真机可点、页内可读和离线提示诚实清晰。联网后即可正常创建并同步提醒。
+              设置提醒时间和优先级，联网后会自动同步到你的账户。
             </Text>
           </View>
         </View>
@@ -756,8 +769,11 @@ const AddReminderScreen = ({ route, navigation }) => {
 
         </ScrollView>
 
+        </View>
+
         <View
         style={[
+          REMINDER_ACTION_BAR_LAYOUT,
           styles.actionBar,
           {
             backgroundColor: theme.colors.card + 'EB',
@@ -766,7 +782,9 @@ const AddReminderScreen = ({ route, navigation }) => {
         ]}
         testID="state.reminder.actionBar"
       >
-        <View style={styles.actionButtons}>
+        <View
+          style={styles.actionButtons}
+        >
           <TouchableOpacity
             style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
             onPress={navigateToReminderList}

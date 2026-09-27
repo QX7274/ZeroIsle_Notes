@@ -7,6 +7,7 @@ from pymongo import MongoClient
 
 # 调试模式
 DEBUG = True
+DEV_AUTH_ENABLED = True
 
 # 允许的主机
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.138.116.105', '10.0.2.2', '*', '192.168.154.232']

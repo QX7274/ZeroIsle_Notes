@@ -148,9 +148,10 @@ export const trackUserAction = (action, params = {}) => {
 const sendEvents = async () => {
   if (eventQueue.length === 0) {return;}
 
+  let events = [];
   try {
     // 复制队列并清空
-    const events = [...eventQueue];
+    events = [...eventQueue];
     eventQueue.length = 0;
 
     // 这里应该实现发送到分析服务器的逻辑

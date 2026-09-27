@@ -94,7 +94,7 @@ const Input = ({
       errorOpacity.value = withTiming(0, { duration: ANIMATION.duration.quick });
       successScale.value = withTiming(0, { duration: ANIMATION.duration.quick });
     }
-  }, [error, touched, value]);
+  }, [error, errorOpacity, shakeOffset, successScale, touched, value]);
 
   // Border color animation
   useEffect(() => {
@@ -105,7 +105,7 @@ const Input = ({
     } else {
       borderColorProgress.value = withTiming(0, { duration: ANIMATION.duration.quick }); // Normal
     }
-  }, [error, touched, isFocused]);
+  }, [borderColorProgress, error, isFocused, touched]);
 
   // Animated styles
   const animatedContainerStyle = useAnimatedStyle(() => ({

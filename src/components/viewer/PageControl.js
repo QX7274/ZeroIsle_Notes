@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Platform, PanResponder, Dimensions, Keyboard } from 'react-native';
 
 // 一个可拖拽的页码控件（含输入框、上下页按钮），带“一”形拖拽标记
@@ -25,6 +25,28 @@ const PageControl = ({
   const bottomSafeDistance = 24;
   // 新增：记录控件原始位置（用于键盘隐藏后恢复）
   const originalPosRef = useRef({ x: 0, y: 0 });
+
+  // 保存位置到缓存
+  const persistPos = useCallback(async (p) => {
+    try {
+      const realmService = require('../../services/database/realmService').default;
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = JSON.stringify(p);
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: storageKey,
+            value: JSON.stringify(p),
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+    } catch {}
+  }, [storageKey]);
 
   // 同步输入框与当前页码
   useEffect(() => {
@@ -79,7 +101,7 @@ const PageControl = ({
     return () => {
       dimensionsListener.remove();
     };
-  }, [isInputFocused]);
+  }, [isInputFocused, persistPos]);
 
   // 键盘监听：仅在「页码输入框聚焦」时响应（核心优化）
   useEffect(() => {
@@ -119,7 +141,7 @@ const PageControl = ({
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
-  }, [isInputFocused]); // 仅依赖输入框聚焦状态，避免无关触发
+  }, [isInputFocused, persistPos]); // 仅依赖输入框聚焦状态，避免无关触发
 
   // 工具函数1：计算底部居中位置
   const getBottomCenterPos = (screenWidth, screenHeight) => {
@@ -139,28 +161,6 @@ const PageControl = ({
       x: Math.min(Math.max(targetPos.x, minX), maxX),
       y: Math.min(Math.max(targetPos.y, minY), maxY),
     };
-  };
-
-  // 保存位置到缓存
-  const persistPos = async (p) => {
-    try {
-      const realmService = require('../../services/database/realmService').default;
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "${storageKey}"`);
-        if (existingItem.length > 0) {
-          existingItem[0].value = JSON.stringify(p);
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: storageKey,
-            value: JSON.stringify(p),
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-    } catch {}
   };
 
   // 拖拽逻辑：添加位置边界限制

@@ -355,30 +355,7 @@ const MultiModalSearch = ({
           onNavigateToFile: handleNavigateToFile,
         });
 
-        // 如果有结果，导航到搜索结果页面
-        if (hasResults && results.length > 0) {
-          console.log('搜索成功，准备导航到结果页面，结果数量:', results.length);
-
-          // 确保navigation对象存在
-          if (navigation && navigation.navigate) {
-            navigation.navigate('SearchResults', {
-              results,
-              query: searchQuery,
-              searchMode: reduxSearchMode,
-              onNavigateToFile: handleNavigateToFile,
-            });
-          } else {
-            console.error('Navigation对象不可用，无法跳转到搜索结果页面');
-            // 如果navigation不可用，直接调用onSearch回调
-            onSearch?.(results, searchQuery, {
-              isLocalSearch: true,
-              searchMode: reduxSearchMode,
-              searchScope: searchScope,
-              hasResults,
-              onNavigateToFile: handleNavigateToFile,
-            });
-          }
-        } else {
+        if (!hasResults) {
           // 没有结果时显示提示
           setLocalError('未找到相关内容，请尝试其他关键词');
         }

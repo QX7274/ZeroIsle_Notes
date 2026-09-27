@@ -824,13 +824,17 @@ const ReminderListView = ({ navigation, route }) => {
         ]}
         testID={`item.reminder.${reminderKey}`}
         onPress={() => showBatchActions ? handleToggleSelect(item) : navigation?.navigate('ReminderDetail', { id: reminderId, reminder: item })}
-        onLongPress={() => {
+         onLongPress={() => {
           if (!showBatchActions) {
             setShowBatchActions(true);
-            handleToggleSelect(item);
+           handleToggleSelect(item);
           }
         }}
-      >
+       >
+        <View
+          style={styles.testAnchor}
+          testID={`state.reminder.item.${reminderKey}.completed.${item.is_completed ? 'true' : 'false'}`}
+        />
         {showBatchActions ? (
           <TouchableOpacity
             style={styles.completeButton}
@@ -1170,7 +1174,10 @@ const ReminderListView = ({ navigation, route }) => {
     // 渲染加载中状态
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: getThemeColor('background', '#FFFFFF') }]}
+        testID="state.reminder.loading"
+      >
         <ActivityIndicator size="large" color={getThemeColor('primary', '#2196F3')} />
       </SafeAreaView>
     );
@@ -1808,6 +1815,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     marginTop: 0, // 移除顶部边距，避免超出屏幕
+  },
+  testAnchor: {
+    height: 0,
+    width: 0,
   },
   emptyText: {
     fontSize: 18,

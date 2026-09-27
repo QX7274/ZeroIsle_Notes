@@ -83,304 +83,6 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
   const pendingOCRResolverRef = useRef(null);
   const selectionStartRef = useRef(null);
 
-  // 初始化画布
-  useEffect(() => {
-    console.log('[FluidInfiniteCanvasScreenNative] 初始化原生无限画布', { noteId, title, canvasStyle, createNew });
-    console.log('🔍 [画布] 初始化检查 - createNew:', createNew, 'noteObjectId:', noteObjectId);
-
-    if (createNew && noteObjectId) {
-      console.log('🔍 [画布] 调用 createNewCanvas');
-      // 创建新画布并保存
-      createNewCanvas();
-    } else if (noteObjectId) {
-      console.log('🔍 [画布] 调用 loadCanvas');
-      loadCanvas(noteObjectId);
-    } else {
-      console.log('🔍 [画布] 没有调用任何函数 - createNew:', createNew, 'noteObjectId:', noteObjectId);
-    }
-  }, [noteObjectId, createNew]);
-
-  // 跟踪画布样式变化
-  useEffect(() => {
-    console.log('🎨 [画布] 样式状态变化:', loadedCanvasStyle);
-  }, [loadedCanvasStyle]);
-
-  // 添加到文件历史（进入页面或标题变化时）
-  useEffect(() => {
-    let isMounted = true;
-
-    try {
-      const fileHistoryService = require('../../services/fileHistoryService').default;
-      const effectiveTitle = (title || '无限画布').trim();
-      if (isMounted && noteId && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
-        console.log('[FluidInfiniteCanvasScreenNative] 添加到文件历史记录:', { noteId, effectiveTitle });
-        fileHistoryService.addFile({
-          uri: `canvas://${noteId}`,
-          title: effectiveTitle,
-          type: 'canvas',
-          noteType: 'canvas',
-          fileName: effectiveTitle,
-          noteId: noteId,
-        });
-      } else {
-        console.log('[FluidInfiniteCanvasScreenNative] 跳过添加到文件历史记录:', {
-          isMounted,
-          noteId,
-          effectiveTitle,
-          hasFileHistoryService: !!fileHistoryService,
-          hasAddFile: !!(fileHistoryService && fileHistoryService.addFile),
-        });
-      }
-    } catch (e) {
-      console.error('[FluidInfiniteCanvasScreenNative] 添加到文件历史记录失败:', e);
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [noteId, title]);
-
-  // ✅ 自动保存机制
-  useEffect(() => {
-    if (hasUnsavedChanges && noteObjectId && canvasViewRef.current) {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-
-      autoSaveTimerRef.current = setTimeout(async () => {
-        console.log('[FluidInfiniteCanvasScreenNative] 自动保存触发...');
-        try {
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(canvasViewRef.current),
-            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
-            [noteObjectId.toString()]
-          );
-        } catch (err) {
-          console.error('[FluidInfiniteCanvasScreenNative] 自动保存失败:', err);
-        }
-      }, 3000);
-    }
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [hasUnsavedChanges, noteObjectId]);
-
-  // ✅ 监听应用状态变化，应用进入后台时保存数据
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState) => {
-      if (nextAppState === 'background' && hasUnsavedChanges && canvasViewRef.current && noteObjectId) {
-        console.log('[FluidInfiniteCanvasScreenNative] 应用进入后台，立即保存数据...');
-        try {
-          // 先保存基本状态
-          const realm = await realmService.getRealm();
-          realm.write(() => {
-            const note = realm.objectForPrimaryKey('Note', noteObjectId.toString());
-            if (note) {
-              Object.assign(note, {
-                viewport: JSON.stringify(viewportRef.current),
-                canvasStyle: loadedCanvasStyle,
-                updated_at: new Date().toISOString(),
-              });
-            }
-          }).then(() => {
-            // 然后保存画布数据
-            UIManager.dispatchViewManagerCommand(
-              findNodeHandle(canvasViewRef.current),
-              INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
-              [noteObjectId.toString()]
-            );
-            console.log('[FluidInfiniteCanvasScreenNative] 后台保存完成');
-          }).catch(err => {
-            console.error('[FluidInfiniteCanvasScreenNative] 后台保存失败:', err);
-          });
-        } catch (err) {
-          console.error('[FluidInfiniteCanvasScreenNative] 后台保存失败:', err);
-        }
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      subscription?.remove();
-    };
-  }, [hasUnsavedChanges, noteObjectId, loadedCanvasStyle]);
-
-  // ✅ 组件卸载时保存数据
-  useEffect(() => {
-    return () => {
-      if (hasUnsavedChanges && canvasViewRef.current && noteObjectId) {
-        console.log('[FluidInfiniteCanvasScreenNative] 组件卸载，保存数据...');
-        try {
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(canvasViewRef.current),
-            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
-            [noteObjectId.toString()]
-          );
-        } catch (err) {
-          console.error('[FluidInfiniteCanvasScreenNative] 卸载保存失败:', err);
-        }
-      }
-    };
-  }, [hasUnsavedChanges, noteObjectId]);
-
-  // ✅ 监听屏幕焦点变化，失焦时保存数据
-  useEffect(() => {
-    const unsubscribeBlur = navigation.addListener('blur', async () => {
-      if (hasUnsavedChanges && canvasViewRef.current && noteObjectId) {
-        console.log('[FluidInfiniteCanvasScreenNative] 屏幕失去焦点，保存数据...');
-        try {
-          UIManager.dispatchViewManagerCommand(
-            findNodeHandle(canvasViewRef.current),
-            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
-            [noteObjectId.toString()]
-          );
-
-          const realm = await realmService.getRealm();
-          realm.write(() => {
-            const note = realm.objectForPrimaryKey('Note', noteObjectId.toString());
-            if (note) {
-              Object.assign(note, {
-                viewport: JSON.stringify(viewportRef.current),
-                updated_at: new Date().toISOString(),
-              });
-            }
-          }).catch(err => console.error('失焦保存失败:', err));
-        } catch (err) {
-          console.error('[FluidInfiniteCanvasScreenNative] 失焦保存失败:', err);
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeBlur();
-    };
-  }, [navigation, hasUnsavedChanges, noteObjectId]);
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (zoomDebounceTimer.current) {
-        clearTimeout(zoomDebounceTimer.current);
-      }
-      if (exportDebounceTimerRef.current) {
-        clearTimeout(exportDebounceTimerRef.current);
-        exportDebounceTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  // ===== 区域OCR：开始选择并在完成后触发本地识别 =====
-  const onRequestRegionOCR = useCallback(() => {
-    return new Promise((resolve) => {
-      pendingOCRResolverRef.current = resolve;
-      setSelectionRect(null);
-      selectionStartRef.current = null;
-      setIsSelectingRegion(true);
-    });
-  }, []);
-
-  const onRequestStrokeRecognition = useCallback(async (recognitionType = 'auto', selectedStrokeIds = []) => {
-    try {
-      let strokeIdsToRecognize = [];
-      if (recognitionType === 'lasso' && selectedStrokeIds.length > 0) {
-        strokeIdsToRecognize = selectedStrokeIds;
-      } else {
-        const count = 5; // 默认识别最近5笔
-        strokeIdsToRecognize = strokeOrder.slice(-count);
-      }
-
-      if (strokeIdsToRecognize.length === 0) {
-        console.log('[Recognition] 没有可识别的笔迹');
-        return '';
-      }
-
-      const recognizedText = await toolbarPropsBase.requestRecognition({
-        selection: recognitionType === 'lasso' ? 'selection' : 'latest',
-        scope: recognitionType === 'lasso' ? 'selection' : 'latest',
-        strokeIds: strokeIdsToRecognize,
-        count: strokeIdsToRecognize.length,
-      });
-
-      console.log(`[Recognition] 结果: "${recognizedText}"`);
-      return recognizedText;
-    } catch (error) {
-      console.error('[FluidInfiniteCanvasScreenNative] 手写识别失败:', error);
-      Alert.alert('错误', '手写识别失败: ' + error.message);
-      return '';
-    }
-  }, [strokeOrder, toolbarPropsBase]);
-
-  const handleRegionTouchStart = useCallback((e) => {
-    const { locationX, locationY } = e.nativeEvent;
-    selectionStartRef.current = { x: locationX, y: locationY };
-    setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
-  }, []);
-
-  const handleRegionTouchMove = useCallback((e) => {
-    if (!selectionStartRef.current) {return;}
-    const { locationX, locationY } = e.nativeEvent;
-    const start = selectionStartRef.current;
-    const x = Math.min(start.x, locationX);
-    const y = Math.min(start.y, locationY);
-    const width = Math.abs(locationX - start.x);
-    const height = Math.abs(locationY - start.y);
-    setSelectionRect({ x, y, width, height });
-  }, []);
-
-  const handleRegionTouchEnd = useCallback(() => {
-    // 停留选择，等待用户点击“识别”或“取消”
-  }, []);
-
-  const cancelRegionSelection = useCallback(() => {
-    setIsSelectingRegion(false);
-    setSelectionRect(null);
-    selectionStartRef.current = null;
-    if (pendingOCRResolverRef.current) {
-      pendingOCRResolverRef.current('');
-      pendingOCRResolverRef.current = null;
-    }
-  }, []);
-
-  const confirmRegionOCR = useCallback(async () => {
-    try {
-      if (!selectionRect || !canvasViewRef.current) {
-        throw new Error('未选择区域');
-      }
-      const { x, y, width, height } = selectionRect;
-      const reactTag = findNodeHandle(canvasViewRef.current);
-      if (!reactTag) {throw new Error('视图无效');}
-
-      if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-        Alert.alert('提示', '当前平台暂未集成本地OCR');
-        pendingOCRResolverRef.current && pendingOCRResolverRef.current('');
-        return;
-      }
-
-      const recognizedText = await recognizeTextInRegion('infinite', reactTag, { x, y, width, height });
-      console.log('[RegionOCR] Recognized text:', recognizedText);
-      pendingOCRResolverRef.current && pendingOCRResolverRef.current(recognizedText || '');
-    } catch (error) {
-      console.error('[RegionOCR] 识别失败:', error);
-      pendingOCRResolverRef.current && pendingOCRResolverRef.current('');
-    } finally {
-      pendingOCRResolverRef.current = null;
-      setIsSelectingRegion(false);
-      setSelectionRect(null);
-      selectionStartRef.current = null;
-    }
-  }, [selectionRect]);
-
-  // 处理原生组件就绪事件
-  const handleReady = useCallback((event) => {
-    console.log('[FluidInfiniteCanvasScreenNative] 原生组件就绪', event.nativeEvent);
-    setIsLoading(false);
-    console.log('🔍 [画布] handleReady 简化版本执行完成');
-  }, []);
-
   const createNewCanvas = useCallback(async () => {
     try {
       if (!noteObjectId) {
@@ -524,6 +226,309 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
       setError('加载画布失败');
       setIsLoading(false);
     }
+  }, []);
+
+  // 初始化画布
+  useEffect(() => {
+    console.log('[FluidInfiniteCanvasScreenNative] 初始化原生无限画布', { noteId, title, canvasStyle, createNew });
+    console.log('🔍 [画布] 初始化检查 - createNew:', createNew, 'noteObjectId:', noteObjectId);
+
+    if (createNew && noteObjectId) {
+      console.log('🔍 [画布] 调用 createNewCanvas');
+      // 创建新画布并保存
+      createNewCanvas();
+    } else if (noteObjectId) {
+      console.log('🔍 [画布] 调用 loadCanvas');
+      loadCanvas(noteObjectId);
+    } else {
+      console.log('🔍 [画布] 没有调用任何函数 - createNew:', createNew, 'noteObjectId:', noteObjectId);
+    }
+  }, [canvasStyle, createNew, createNewCanvas, loadCanvas, noteId, noteObjectId, title]);
+
+  // 跟踪画布样式变化
+  useEffect(() => {
+    console.log('🎨 [画布] 样式状态变化:', loadedCanvasStyle);
+  }, [loadedCanvasStyle]);
+
+  // 添加到文件历史（进入页面或标题变化时）
+  useEffect(() => {
+    let isMounted = true;
+
+    try {
+      const fileHistoryService = require('../../services/fileHistoryService').default;
+      const effectiveTitle = (title || '无限画布').trim();
+      if (isMounted && noteId && effectiveTitle && fileHistoryService && fileHistoryService.addFile) {
+        console.log('[FluidInfiniteCanvasScreenNative] 添加到文件历史记录:', { noteId, effectiveTitle });
+        fileHistoryService.addFile({
+          uri: `canvas://${noteId}`,
+          title: effectiveTitle,
+          type: 'canvas',
+          noteType: 'canvas',
+          fileName: effectiveTitle,
+          noteId: noteId,
+        });
+      } else {
+        console.log('[FluidInfiniteCanvasScreenNative] 跳过添加到文件历史记录:', {
+          isMounted,
+          noteId,
+          effectiveTitle,
+          hasFileHistoryService: !!fileHistoryService,
+          hasAddFile: !!(fileHistoryService && fileHistoryService.addFile),
+        });
+      }
+    } catch (e) {
+      console.error('[FluidInfiniteCanvasScreenNative] 添加到文件历史记录失败:', e);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [noteId, title]);
+
+  // ✅ 自动保存机制
+  useEffect(() => {
+    if (hasUnsavedChanges && noteObjectId && canvasViewRef.current) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+
+      autoSaveTimerRef.current = setTimeout(async () => {
+        console.log('[FluidInfiniteCanvasScreenNative] 自动保存触发...');
+        try {
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(canvasViewRef.current),
+            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
+            [noteObjectId.toString()]
+          );
+        } catch (err) {
+          console.error('[FluidInfiniteCanvasScreenNative] 自动保存失败:', err);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, noteObjectId]);
+
+  // ✅ 监听应用状态变化，应用进入后台时保存数据
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === 'background' && hasUnsavedChanges && canvasViewRef.current && noteObjectId) {
+        console.log('[FluidInfiniteCanvasScreenNative] 应用进入后台，立即保存数据...');
+        try {
+          // 先保存基本状态
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const note = realm.objectForPrimaryKey('Note', noteObjectId.toString());
+            if (note) {
+              Object.assign(note, {
+                viewport: JSON.stringify(viewportRef.current),
+                canvasStyle: loadedCanvasStyle,
+                updated_at: new Date().toISOString(),
+              });
+            }
+          }).then(() => {
+            // 然后保存画布数据
+            UIManager.dispatchViewManagerCommand(
+              findNodeHandle(canvasViewRef.current),
+              INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
+              [noteObjectId.toString()]
+            );
+            console.log('[FluidInfiniteCanvasScreenNative] 后台保存完成');
+          }).catch(err => {
+            console.error('[FluidInfiniteCanvasScreenNative] 后台保存失败:', err);
+          });
+        } catch (err) {
+          console.error('[FluidInfiniteCanvasScreenNative] 后台保存失败:', err);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [hasUnsavedChanges, noteObjectId, loadedCanvasStyle]);
+
+  // ✅ 组件卸载时保存数据
+  useEffect(() => {
+    const canvasView = canvasViewRef.current;
+
+    return () => {
+      if (hasUnsavedChanges && canvasView && noteObjectId) {
+        console.log('[FluidInfiniteCanvasScreenNative] 组件卸载，保存数据...');
+        try {
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(canvasView),
+            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
+            [noteObjectId.toString()]
+          );
+        } catch (err) {
+          console.error('[FluidInfiniteCanvasScreenNative] 卸载保存失败:', err);
+        }
+      }
+    };
+  }, [hasUnsavedChanges, noteObjectId]);
+
+  // ✅ 监听屏幕焦点变化，失焦时保存数据
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener('blur', async () => {
+      if (hasUnsavedChanges && canvasViewRef.current && noteObjectId) {
+        console.log('[FluidInfiniteCanvasScreenNative] 屏幕失去焦点，保存数据...');
+        try {
+          UIManager.dispatchViewManagerCommand(
+            findNodeHandle(canvasViewRef.current),
+            INFINITE_CANVAS_COMMANDS.EXPORT_CANVAS,
+            [noteObjectId.toString()]
+          );
+
+          const realm = await realmService.getRealm();
+          realm.write(() => {
+            const note = realm.objectForPrimaryKey('Note', noteObjectId.toString());
+            if (note) {
+              Object.assign(note, {
+                viewport: JSON.stringify(viewportRef.current),
+                updated_at: new Date().toISOString(),
+              });
+            }
+          }).catch(err => console.error('失焦保存失败:', err));
+        } catch (err) {
+          console.error('[FluidInfiniteCanvasScreenNative] 失焦保存失败:', err);
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeBlur();
+    };
+  }, [navigation, hasUnsavedChanges, noteObjectId]);
+
+  // 清理定时器
+  useEffect(() => {
+    const zoomTimerRef = zoomDebounceTimer;
+    const exportTimerRef = exportDebounceTimerRef;
+
+    return () => {
+      if (zoomTimerRef.current) {
+        clearTimeout(zoomTimerRef.current);
+      }
+      if (exportTimerRef.current) {
+        clearTimeout(exportTimerRef.current);
+        exportTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // ===== 区域OCR：开始选择并在完成后触发本地识别 =====
+  const onRequestRegionOCR = useCallback(() => {
+    return new Promise((resolve) => {
+      pendingOCRResolverRef.current = resolve;
+      setSelectionRect(null);
+      selectionStartRef.current = null;
+      setIsSelectingRegion(true);
+    });
+  }, []);
+
+  const onRequestStrokeRecognition = useCallback(async (recognitionType = 'auto', selectedStrokeIds = []) => {
+    try {
+      let strokeIdsToRecognize = [];
+      if (recognitionType === 'lasso' && selectedStrokeIds.length > 0) {
+        strokeIdsToRecognize = selectedStrokeIds;
+      } else {
+        const count = 5; // 默认识别最近5笔
+        strokeIdsToRecognize = strokeOrder.slice(-count);
+      }
+
+      if (strokeIdsToRecognize.length === 0) {
+        console.log('[Recognition] 没有可识别的笔迹');
+        return '';
+      }
+
+      const recognizedText = await toolbarPropsBase.requestRecognition({
+        selection: recognitionType === 'lasso' ? 'selection' : 'latest',
+        scope: recognitionType === 'lasso' ? 'selection' : 'latest',
+        strokeIds: strokeIdsToRecognize,
+        count: strokeIdsToRecognize.length,
+      });
+
+      console.log(`[Recognition] 结果: "${recognizedText}"`);
+      return recognizedText;
+    } catch (error) {
+      console.error('[FluidInfiniteCanvasScreenNative] 手写识别失败:', error);
+      Alert.alert('错误', '手写识别失败: ' + error.message);
+      return '';
+    }
+  }, [strokeOrder, toolbarPropsBase]);
+
+  const handleRegionTouchStart = useCallback((e) => {
+    const { locationX, locationY } = e.nativeEvent;
+    selectionStartRef.current = { x: locationX, y: locationY };
+    setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
+  }, []);
+
+  const handleRegionTouchMove = useCallback((e) => {
+    if (!selectionStartRef.current) {return;}
+    const { locationX, locationY } = e.nativeEvent;
+    const start = selectionStartRef.current;
+    const x = Math.min(start.x, locationX);
+    const y = Math.min(start.y, locationY);
+    const width = Math.abs(locationX - start.x);
+    const height = Math.abs(locationY - start.y);
+    setSelectionRect({ x, y, width, height });
+  }, []);
+
+  const handleRegionTouchEnd = useCallback(() => {
+    // 停留选择，等待用户点击“识别”或“取消”
+  }, []);
+
+  const cancelRegionSelection = useCallback(() => {
+    setIsSelectingRegion(false);
+    setSelectionRect(null);
+    selectionStartRef.current = null;
+    if (pendingOCRResolverRef.current) {
+      pendingOCRResolverRef.current('');
+      pendingOCRResolverRef.current = null;
+    }
+  }, []);
+
+  const confirmRegionOCR = useCallback(async () => {
+    try {
+      if (!selectionRect || !canvasViewRef.current) {
+        throw new Error('未选择区域');
+      }
+      const { x, y, width, height } = selectionRect;
+      const reactTag = findNodeHandle(canvasViewRef.current);
+      if (!reactTag) {throw new Error('视图无效');}
+
+      if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+        Alert.alert('提示', '当前平台暂未集成本地OCR');
+        pendingOCRResolverRef.current && pendingOCRResolverRef.current('');
+        return;
+      }
+
+      const recognizedText = await recognizeTextInRegion('infinite', reactTag, { x, y, width, height });
+      console.log('[RegionOCR] Recognized text:', recognizedText);
+      pendingOCRResolverRef.current && pendingOCRResolverRef.current(recognizedText || '');
+    } catch (error) {
+      console.error('[RegionOCR] 识别失败:', error);
+      pendingOCRResolverRef.current && pendingOCRResolverRef.current('');
+    } finally {
+      pendingOCRResolverRef.current = null;
+      setIsSelectingRegion(false);
+      setSelectionRect(null);
+      selectionStartRef.current = null;
+    }
+  }, [selectionRect]);
+
+  // 处理原生组件就绪事件
+  const handleReady = useCallback((event) => {
+    console.log('[FluidInfiniteCanvasScreenNative] 原生组件就绪', event.nativeEvent);
+    setIsLoading(false);
+    console.log('🔍 [画布] handleReady 简化版本执行完成');
   }, []);
 
   const handleViewportChange = useCallback((event) => {
@@ -673,6 +678,21 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
     }
   }, [loadedCanvasStyle, title]);
 
+  const addTextElement = useCallback((text) => {
+    // 将识别文本添加为画布文本元素（命令ID: 2）
+    if (canvasViewRef.current) {
+      try {
+        UIManager.dispatchViewManagerCommand(
+          findNodeHandle(canvasViewRef.current),
+          INFINITE_CANVAS_COMMANDS.ADD_TEXT_ELEMENT,
+          [text]
+        );
+      } catch (err) {
+        console.error('[FluidInfiniteCanvasScreenNative] 添加文本命令失败:', err);
+      }
+    }
+  }, []);
+
   const handleHandwritingRecognized = useCallback((event) => {
     const { strokeId, recognizedText: legacyText, text, confidence } = event.nativeEvent;
     const recognizedText = typeof text === 'string' && text.length > 0 ? text : legacyText;
@@ -685,7 +705,7 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
         { text: '添加文本', onPress: () => addTextElement(recognizedText) },
       ]);
     }
-  }, []);
+  }, [addTextElement]);
 
 
   // 处理套索选择事件
@@ -702,21 +722,6 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
       console.log('[Lasso] 没有选中任何笔迹');
     }
   }, [onRequestStrokeRecognition]);
-
-  const addTextElement = useCallback((text) => {
-    // 将识别文本添加为画布文本元素（命令ID: 2）
-    if (canvasViewRef.current) {
-      try {
-        UIManager.dispatchViewManagerCommand(
-          findNodeHandle(canvasViewRef.current),
-          INFINITE_CANVAS_COMMANDS.ADD_TEXT_ELEMENT,
-          [text]
-        );
-      } catch (err) {
-        console.error('[FluidInfiniteCanvasScreenNative] 添加文本命令失败:', err);
-      }
-    }
-  }, []);
 
   const handleGoBack = useCallback(async () => {
     try {

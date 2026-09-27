@@ -3,7 +3,7 @@
  * Provides syntax highlighting for markdown text in the editor
  */
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -30,26 +30,15 @@ const MarkdownSyntaxHighlighter = ({
 }) => {
   const { theme } = useTheme();
   const { colors } = theme;
-
-  // Parse and highlight markdown content
-  const highlightedContent = useMemo(() => {
-    if (!content.trim()) {return [];}
-
-    const lines = content.split('\n');
-    return lines.map((line, index) => ({
-      number: index + 1,
-      content: highlightLine(line),
-      raw: line,
-    }));
-  }, [content]);
+  const getBlockElementRef = useRef(null);
 
   // Highlight a single line
-  const highlightLine = (line) => {
+  const highlightLine = useCallback((line) => {
     const elements = [];
     let currentPos = 0;
 
     // Check for block-level elements first
-    const blockElement = getBlockElement(line);
+    const blockElement = getBlockElementRef.current?.(line);
     if (blockElement) {
       elements.push(blockElement);
       return elements;
@@ -103,7 +92,7 @@ const MarkdownSyntaxHighlighter = ({
     }
 
     return elements;
-  };
+  }, []);
 
   // Get block-level element type and styling
   const getBlockElement = (line) => {
@@ -196,6 +185,20 @@ const MarkdownSyntaxHighlighter = ({
 
     return null;
   };
+
+  getBlockElementRef.current = getBlockElement;
+
+  // Parse and highlight markdown content
+  const highlightedContent = useMemo(() => {
+    if (!content.trim()) {return [];}
+
+    const lines = content.split('\n');
+    return lines.map((line, index) => ({
+      number: index + 1,
+      content: highlightLine(line),
+      raw: line,
+    }));
+  }, [content, highlightLine]);
 
   // Render highlighted element
   const renderElement = (element, lineIndex) => {

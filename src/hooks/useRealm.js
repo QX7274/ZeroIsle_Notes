@@ -17,13 +17,6 @@ const useRealm = (collectionName) => {
   const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
 
-  // 初始化时加载数据
-  useEffect(() => {
-    if (isReady && realm && collectionName) {
-      fetchAll();
-    }
-  }, [isReady, realm, collectionName]);
-
   /**
    * 获取所有文档
    * @param {Object} filter 过滤条件
@@ -83,6 +76,13 @@ const useRealm = (collectionName) => {
       return [];
     }
   }, [isReady, realm, collectionName]);
+
+  // 初始化时加载数据
+  useEffect(() => {
+    if (isReady && realm && collectionName) {
+      fetchAll();
+    }
+  }, [collectionName, fetchAll, isReady, realm]);
 
   /**
    * 根据 ID 获取文档

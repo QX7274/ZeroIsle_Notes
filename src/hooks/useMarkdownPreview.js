@@ -3,7 +3,7 @@
  * Handles debounced updates, performance optimization, and preview state management
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { debounce } from 'lodash';
 import { parseMarkdown, validateMarkdown } from '../utils/markdownParser';
 
@@ -37,13 +37,17 @@ export const useMarkdownPreview = (content = '', options = {}) => {
     tables: 0,
     taskLists: 0,
   });
+  const validationRef = useRef(validation);
+  const statsRef = useRef(stats);
+  validationRef.current = validation;
+  statsRef.current = stats;
 
   const updateTimeoutRef = useRef(null);
   const lastContentRef = useRef('');
 
   // Debounced update function
-  const debouncedUpdate = useCallback(
-    debounce(async (newContent) => {
+  const debouncedUpdate = useMemo(
+    () => debounce(async (newContent) => {
       if (newContent === lastContentRef.current) {
         return; // No change, skip update
       }
@@ -81,8 +85,8 @@ export const useMarkdownPreview = (content = '', options = {}) => {
           onContentChange({
             content: newContent,
             parsed,
-            validation: enableValidation ? validation : null,
-            stats: enableStats ? stats : null,
+            validation: enableValidation ? validationRef.current : null,
+            stats: enableStats ? statsRef.current : null,
           });
         }
       } catch (error) {
@@ -103,9 +107,10 @@ export const useMarkdownPreview = (content = '', options = {}) => {
 
   // Cleanup on unmount
   useEffect(() => {
+    const timeoutId = updateTimeoutRef.current;
     return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
       debouncedUpdate.cancel();
     };

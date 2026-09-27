@@ -26,6 +26,7 @@ import notesApi from '../../services/api/notesApi';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Text } from 'react-native'; // 直接从react-native导入Text组件
 import UnifiedSearchBar from '../../components/search/UnifiedSearchBar';
+import { shouldNavigateHomeSearch } from '../../components/search/searchNavigation';
 import SortControl from '../../components/home/SortControl';
 import ProcessingProgressModal from '../../components/common/ProcessingProgressModal';
 // OfflineIndicator 已移除
@@ -38,18 +39,21 @@ import NoteStyleModal from '../../components/note/NoteStyleModal';
 import TemplatePickerModal from '../../components/common/TemplatePickerModal';
 import fileHistoryService from '../../services/fileHistoryService';
 import networkErrorService from '../../services/networkErrorService';
+import Realm from 'realm';
+
+const FALLBACK_COLORS = {
+  primary: '#007AFF',
+  text: '#000000',
+  textSecondary: '#8E8E93',
+  card: '#FFFFFF',
+  background: '#F2F2F2',
+  border: '#E5E5EA',
+  shadow: 'rgba(0,0,0,0.1)',
+};
 
 const HomeScreen = ({ navigation }) => {
   const themeContext = useTheme();
-  const colors = (themeContext && themeContext.colors) ? themeContext.colors : {
-    primary: '#007AFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    card: '#FFFFFF',
-    background: '#F2F2F2',
-    border: '#E5E5EA',
-    shadow: 'rgba(0,0,0,0.1)',
-  };
+  const colors = themeContext?.colors || FALLBACK_COLORS;
   // Create styles after we have a safe colors object
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -117,129 +121,6 @@ const HomeScreen = ({ navigation }) => {
       setIsNavigatingQuickEntry(false);
     }, 300);
   }, [isNavigatingQuickEntry, navigation]);
-
-  // 加载排序偏好和初始化离线存储
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        setIsLoading(true);
-        console.log('开始初始化 HomeScreen...');
-
-        // 加载排序偏好
-        try {
-          // 使用AsyncStorage替代Realm来存储排序偏好，避免Realm关闭问题
-          const savedSortOption = await AsyncStorage.getItem('home_sort_preference');
-          if (savedSortOption) {
-            setSortOption(savedSortOption);
-            console.log('已加载排序偏好:', savedSortOption);
-          }
-        } catch (sortError) {
-          console.warn('加载排序偏好失败:', sortError);
-          // 使用默认排序选项
-        }
-
-        // 初始化文件历史记录缓存
-        setFileHistoryCache(fileHistoryService.getHistory());
-
-        // 设置超时，确保加载状态不会一直显示
-        const timeoutId = setTimeout(() => {
-          console.log('初始化超时，强制结束加载状态');
-          setIsLoading(false);
-        }, 5000); // 5秒超时
-
-        try {
-          // 加载笔记 - 不等待离线存储服务初始化
-          console.log('直接加载笔记...');
-          await loadNotes();
-
-          // 在后台初始化离线存储服务，不阻塞UI
-          // realmService 不需要手动初始化
-          if (false) {
-            console.log('在后台初始化离线存储服务...');
-            // realmService 不需要手动初始化
-            try {
-              // 这里可以添加初始化代码
-            } catch (err) {
-              console.warn('后台初始化离线存储服务失败:', err);
-            }
-          } else {
-            console.log('离线存储服务已初始化');
-          }
-
-          // 无限画布存储已移除
-
-          console.log('HomeScreen 初始化完成');
-        } catch (innerError) {
-          console.error('内部初始化失败:', innerError);
-          // 即使内部初始化失败，也继续执行，不阻塞UI
-        } finally {
-          // 清除超时
-          clearTimeout(timeoutId);
-        }
-      } catch (error) {
-        console.error('初始化失败:', error);
-      } finally {
-        // 确保无论如何都会结束加载状态
-        setIsLoading(false);
-      }
-    };
-
-    initialize();
-  }, []);
-
-
-
-  // 网络状态监听已移除
-
-  // 同步功能已移除
-
-  // 文件历史记录监听器
-  useEffect(() => {
-    const historyListener = () => {
-      console.log('HomeScreen: 文件历史记录更新，刷新缓存');
-      // 更新缓存
-      const newHistory = fileHistoryService.getHistory();
-      console.log('HomeScreen: 新的历史记录:', newHistory.length, '条');
-      console.log('HomeScreen: 历史记录前3条:', newHistory.slice(0, 3).map(h => ({ title: h.title, lastOpened: h.lastOpened })));
-      setFileHistoryCache(newHistory);
-      // 强制触发重新排序
-      setForceUpdate(prev => prev + 1);
-    };
-
-    fileHistoryService.addListener(historyListener);
-    console.log('HomeScreen: 文件历史记录监听器已添加');
-
-    // 测试：立即获取一次历史记录
-    const initialHistory = fileHistoryService.getHistory();
-    console.log('HomeScreen: 初始历史记录:', initialHistory.length, '条');
-    setFileHistoryCache(initialHistory);
-
-    return () => {
-      fileHistoryService.removeListener(historyListener);
-      console.log('HomeScreen: 文件历史记录监听器已移除');
-    };
-  }, []);
-
-  // 当笔记或排序选项变化时，重新排序
-  useEffect(() => {
-    console.log('HomeScreen: 重新排序触发，原因:', {
-      allNotesLength: allNotes ? allNotes.length : 0,
-      sortOption,
-      isLoading,
-      notesStateLoading: notesState.isLoading,
-      fileHistoryCacheLength: fileHistoryCache.length,
-    });
-
-    if (allNotes && allNotes.length > 0) {
-      const sortedNotes = sortNotes(allNotes, sortOption);
-      console.log('HomeScreen: 排序完成，结果:', sortedNotes.length, '条笔记');
-      console.log('HomeScreen: 排序后前3条:', sortedNotes.slice(0, 3).map(n => n.title || n.name));
-      setNotes(sortedNotes);
-    } else {
-      console.log('HomeScreen: 没有笔记可显示，设置空数组');
-      setNotes([]);
-    }
-  }, [allNotes, sortOption, isLoading, notesState.isLoading, fileHistoryCache, forceUpdate]);
 
   // 排序笔记
   const sortNotes = useCallback((notesToSort, option) => {
@@ -1065,7 +946,41 @@ Week 4: □□□□□□□
     setIsLoading(false);
   };
 
-  const loadNotes = async () => {
+  // 智能预加载 - 完全异步，不阻塞UI
+  const startIntelligentPreload = useCallback((notesList) => {
+    // 使用setTimeout确保预加载不阻塞UI渲染
+    setTimeout(() => {
+      try {
+        // 过滤出文档类型的笔记
+        const documentNotes = notesList.filter(note => {
+          const fileType = note.file_type || '';
+          return ['pdf', 'docx', 'doc', 'pptx', 'ppt'].includes(fileType.toLowerCase());
+        });
+
+        // 按更新时间排序，获取最近访问的文档
+        const recentDocuments = documentNotes
+          .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+          .slice(0, 3) // 减少预加载数量，避免阻塞
+          .map(note => ({
+            uri: note.uri || note.file_uri || note.file_path,
+            type: note.file_type?.toLowerCase(),
+            title: note.title,
+          }))
+          .filter(doc => doc.uri && doc.type);
+
+        if (recentDocuments.length > 0) {
+          console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
+          // 异步执行预加载，不等待结果
+          const preloadService = require('../../services/document/preloadService').default;
+          preloadService.intelligentPreload(recentDocuments);
+        }
+      } catch (error) {
+        console.error('HomeScreen: 智能预加载失败:', error);
+      }
+    }, 1000); // 延迟1秒执行，确保UI完全渲染
+  }, []);
+
+  const loadNotes = useCallback(async () => {
     try {
       // 注意：setIsLoading(true) 已经在调用此方法的地方设置
       console.log('开始加载笔记...');
@@ -1163,7 +1078,128 @@ Week 4: □□□□□□□
       setIsLoading(false);
     }
     // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
-  };
+  }, [dispatch, startIntelligentPreload]);
+
+  // 加载排序偏好和初始化离线存储
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        setIsLoading(true);
+        console.log('开始初始化 HomeScreen...');
+
+        // 加载排序偏好
+        try {
+          // 使用AsyncStorage替代Realm来存储排序偏好，避免Realm关闭问题
+          const savedSortOption = await AsyncStorage.getItem('home_sort_preference');
+          if (savedSortOption) {
+            setSortOption(savedSortOption);
+            console.log('已加载排序偏好:', savedSortOption);
+          }
+        } catch (sortError) {
+          console.warn('加载排序偏好失败:', sortError);
+          // 使用默认排序选项
+        }
+
+        // 初始化文件历史记录缓存
+        setFileHistoryCache(fileHistoryService.getHistory());
+
+        // 设置超时，确保加载状态不会一直显示
+        const timeoutId = setTimeout(() => {
+          console.log('初始化超时，强制结束加载状态');
+          setIsLoading(false);
+        }, 5000); // 5秒超时
+
+        try {
+          // 加载笔记 - 不等待离线存储服务初始化
+          console.log('直接加载笔记...');
+          await loadNotes();
+
+          // 在后台初始化离线存储服务，不阻塞UI
+          // realmService 不需要手动初始化
+          if (false) {
+            console.log('在后台初始化离线存储服务...');
+            // realmService 不需要手动初始化
+            try {
+              // 这里可以添加初始化代码
+            } catch (err) {
+              console.warn('后台初始化离线存储服务失败:', err);
+            }
+          } else {
+            console.log('离线存储服务已初始化');
+          }
+
+          // 无限画布存储已移除
+
+          console.log('HomeScreen 初始化完成');
+        } catch (innerError) {
+          console.error('内部初始化失败:', innerError);
+          // 即使内部初始化失败，也继续执行，不阻塞UI
+        } finally {
+          // 清除超时
+          clearTimeout(timeoutId);
+        }
+      } catch (error) {
+        console.error('初始化失败:', error);
+      } finally {
+        // 确保无论如何都会结束加载状态
+        setIsLoading(false);
+      }
+    };
+
+    initialize();
+  }, [loadNotes]);
+
+  // 网络状态监听已移除
+
+  // 同步功能已移除
+
+  // 文件历史记录监听器
+  useEffect(() => {
+    const historyListener = () => {
+      console.log('HomeScreen: 文件历史记录更新，刷新缓存');
+      // 更新缓存
+      const newHistory = fileHistoryService.getHistory();
+      console.log('HomeScreen: 新的历史记录:', newHistory.length, '条');
+      console.log('HomeScreen: 历史记录前3条:', newHistory.slice(0, 3).map(h => ({ title: h.title, lastOpened: h.lastOpened })));
+      setFileHistoryCache(newHistory);
+      // 强制触发重新排序
+      setForceUpdate(prev => prev + 1);
+    };
+
+    fileHistoryService.addListener(historyListener);
+    console.log('HomeScreen: 文件历史记录监听器已添加');
+
+    // 测试：立即获取一次历史记录
+    const initialHistory = fileHistoryService.getHistory();
+    console.log('HomeScreen: 初始历史记录:', initialHistory.length, '条');
+    setFileHistoryCache(initialHistory);
+
+    return () => {
+      fileHistoryService.removeListener(historyListener);
+      console.log('HomeScreen: 文件历史记录监听器已移除');
+    };
+  }, []);
+
+  // 当笔记或排序选项变化时，重新排序
+  useEffect(() => {
+    console.log('HomeScreen: 重新排序触发，原因:', {
+      allNotesLength: allNotes ? allNotes.length : 0,
+      sortOption,
+      isLoading,
+      notesStateLoading: notesState.isLoading,
+      fileHistoryCacheLength: fileHistoryCache.length,
+    });
+
+    if (allNotes && allNotes.length > 0) {
+      const sortedNotes = sortNotes(allNotes, sortOption);
+      console.log('HomeScreen: 排序完成，结果:', sortedNotes.length, '条笔记');
+      console.log('HomeScreen: 排序后前3条:', sortedNotes.slice(0, 3).map(n => n.title || n.name));
+      setNotes(sortedNotes);
+    } else {
+      console.log('HomeScreen: 没有笔记可显示，设置空数组');
+      setNotes([]);
+    }
+  }, [allNotes, sortOption, isLoading, notesState.isLoading, fileHistoryCache, forceUpdate, sortNotes]);
 
   // 非阻塞方式加载笔记
   const loadNotesNonBlocking = async () => {
@@ -1246,40 +1282,6 @@ Week 4: □□□□□□□
       console.error('非阻塞加载笔记失败:', error);
       dispatch(setNotesAction([]));
     }
-  };
-
-  // 智能预加载 - 完全异步，不阻塞UI
-  const startIntelligentPreload = (notesList) => {
-    // 使用setTimeout确保预加载不阻塞UI渲染
-    setTimeout(() => {
-      try {
-        // 过滤出文档类型的笔记
-        const documentNotes = notesList.filter(note => {
-          const fileType = note.file_type || '';
-          return ['pdf', 'docx', 'doc', 'pptx', 'ppt'].includes(fileType.toLowerCase());
-        });
-
-        // 按更新时间排序，获取最近访问的文档
-        const recentDocuments = documentNotes
-          .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
-          .slice(0, 3) // 减少预加载数量，避免阻塞
-          .map(note => ({
-            uri: note.uri || note.file_uri || note.file_path,
-            type: note.file_type?.toLowerCase(),
-            title: note.title,
-          }))
-          .filter(doc => doc.uri && doc.type);
-
-        if (recentDocuments.length > 0) {
-          console.log('HomeScreen: 启动智能预加载，文档数量:', recentDocuments.length);
-          // 异步执行预加载，不等待结果
-          const preloadService = require('../../services/document/preloadService').default;
-          preloadService.intelligentPreload(recentDocuments);
-        }
-      } catch (error) {
-        console.error('HomeScreen: 智能预加载失败:', error);
-      }
-    }, 1000); // 延迟1秒执行，确保UI完全渲染
   };
 
   // 导入PDF文件
@@ -1700,7 +1702,7 @@ Week 4: □□□□□□□
         Alert.alert('错误', error.message || '导入失败，请稍后重试');
       }
     }
-  }, []);
+  }, [dispatch]);
 
 
   // 本地导入处理函数
@@ -2219,7 +2221,7 @@ Week 4: □□□□□□□
         <TouchableOpacity
           style={styles.coverTouchable}
           onPress={() => handleFilePress(item)}
-          onLongPress={() => handleLongPress(item)}
+          onLongPress={onLongPress}
           activeOpacity={0.7}
         >
           {renderCover()}
@@ -2280,95 +2282,6 @@ Week 4: □□□□□□□
       prevProps.item?.updated_at === nextProps.item?.updated_at
     );
   });
-
-  // 渲染笔记项的包装函数
-  const renderNoteItem = useCallback(({ item, index }) => {
-
-    return (
-      <NoteItem
-        item={item}
-        index={index}
-        onPress={() => {
-          const handleFilePress = (item) => {
-            // 处理文件点击的逻辑...
-            const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
-            const name = item.file_name || item.title || '';
-            const uri = possibleUris[0] || '';
-
-            const isPdf = name.toLowerCase().includes('.pdf') || uri.toLowerCase().includes('.pdf') || (item.file_type && item.file_type.toLowerCase().includes('pdf'));
-            const isDoc = name.toLowerCase().includes('.doc') || uri.toLowerCase().includes('.doc') || (item.file_type && item.file_type.toLowerCase().includes('doc'));
-            const isPpt = name.toLowerCase().includes('.ppt') || uri.toLowerCase().includes('.ppt') || (item.file_type && item.file_type.toLowerCase().includes('ppt'));
-            const isMd = name.toLowerCase().includes('.md') || uri.toLowerCase().includes('.md') || (item.file_type && item.file_type.toLowerCase().includes('md'));
-
-            if (isPdf && possibleUris.length > 0) {
-              navigation.navigate('PDFViewer', {
-                uri: possibleUris[0],
-                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名PDF'),
-                noteId: item._id || item.id || `temp_${Date.now()}`,
-              });
-            } else if (isDoc && possibleUris.length > 0) {
-              navigation.navigate('DocViewer', {
-                uri: possibleUris[0],
-                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
-                noteId: item._id || item.id || `temp_${Date.now()}`,
-                type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc',
-              });
-            } else if (isPpt && possibleUris.length > 0) {
-              navigation.navigate('PPTViewer', {
-                uri: possibleUris[0],
-                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
-                noteId: item._id || item.id || `temp_${Date.now()}`,
-                type: 'pptx',
-              });
-            } else if (isMd && possibleUris.length > 0) {
-              navigation.navigate('MarkdownViewer', {
-                uri: possibleUris[0],
-                title: item.title || (item.file_name ? item.file_name.split('.')[0] : 'Markdown'),
-                noteId: item._id || item.id || `temp_${Date.now()}`,
-              });
-            } else {
-              // 处理其他类型的笔记
-              const noteId = item._id || item.id;
-              const noteType = item.noteType || item.note_type || 'card';
-
-              if (noteType === 'paged_note') {
-                navigation.navigate('FluidPagedNote', {
-                  noteId,
-                  title: item.title || '分页笔记',
-                  content: item.content || '',
-                });
-              } else if (noteType === 'canvas') {
-                navigation.navigate('InfiniteCanvas', {
-                  noteId,
-                  title: item.title || '无限画布',
-                  content: item.content || '',
-                });
-              } else {
-                navigation.navigate('CardNote', {
-                  noteId,
-                  title: item.title || '笔记',
-                  content: item.content || '',
-                });
-              }
-            }
-          };
-          handleFilePress(item);
-        }}
-        onLongPress={() => {
-          Alert.alert(
-            '笔记操作',
-            `选择对"${item.title || '未命名笔记'}"的操作`,
-            [
-              { text: '重命名', onPress: () => handleRenameNote(item) },
-              { text: '导出/分享', onPress: () => handleExportNote(item) },
-              { text: '删除', onPress: () => handleDeleteNote(item._id || item.id), style: 'destructive' },
-              { text: '取消', style: 'cancel' },
-            ]
-          );
-        }}
-      />
-    );
-  }, [isLandscape, navigation, handleRenameNote, handleExportNote, handleDeleteNote]);
 
   // 处理笔记重命名 - 优化为立即响应
   const handleRenameNote = (note) => {
@@ -2685,16 +2598,110 @@ Week 4: □□□□□□□
   };
 
   // 处理搜索结果
-  const handleSearch = useCallback((results) => {
-    if (!results || results.length === 0 || isNavigatingQuickEntry) {
+  const handleSearch = useCallback((results, query) => {
+    if (!shouldNavigateHomeSearch({ query }) || isNavigatingQuickEntry) {
       return;
     }
     setIsNavigatingQuickEntry(true);
-    navigation.navigate('SearchResults', { results });
+    navigation.navigate('SearchResults', {
+      results: Array.isArray(results) ? results : [],
+      query,
+      searchPerformed: true,
+      source: 'home',
+    });
     setTimeout(() => {
       setIsNavigatingQuickEntry(false);
     }, 300);
   }, [isNavigatingQuickEntry, navigation]);
+
+  // 渲染笔记项的包装函数
+  const renderNoteItem = ({ item, index }) => {
+
+    return (
+      <NoteItem
+        item={item}
+        index={index}
+        onPress={() => {
+          const handleFilePress = (item) => {
+            // 处理文件点击的逻辑...
+            const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
+            const name = item.file_name || item.title || '';
+            const uri = possibleUris[0] || '';
+
+            const isPdf = name.toLowerCase().includes('.pdf') || uri.toLowerCase().includes('.pdf') || (item.file_type && item.file_type.toLowerCase().includes('pdf'));
+            const isDoc = name.toLowerCase().includes('.doc') || uri.toLowerCase().includes('.doc') || (item.file_type && item.file_type.toLowerCase().includes('doc'));
+            const isPpt = name.toLowerCase().includes('.ppt') || uri.toLowerCase().includes('.ppt') || (item.file_type && item.file_type.toLowerCase().includes('ppt'));
+            const isMd = name.toLowerCase().includes('.md') || uri.toLowerCase().includes('.md') || (item.file_type && item.file_type.toLowerCase().includes('md'));
+
+            if (isPdf && possibleUris.length > 0) {
+              navigation.navigate('PDFViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名PDF'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+              });
+            } else if (isDoc && possibleUris.length > 0) {
+              navigation.navigate('DocViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '未命名文档'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+                type: name.endsWith('.docx') || uri.endsWith('.docx') ? 'docx' : 'doc',
+              });
+            } else if (isPpt && possibleUris.length > 0) {
+              navigation.navigate('PPTViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : '演示文稿'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+                type: 'pptx',
+              });
+            } else if (isMd && possibleUris.length > 0) {
+              navigation.navigate('MarkdownViewer', {
+                uri: possibleUris[0],
+                title: item.title || (item.file_name ? item.file_name.split('.')[0] : 'Markdown'),
+                noteId: item._id || item.id || `temp_${Date.now()}`,
+              });
+            } else {
+              // 处理其他类型的笔记
+              const noteId = item._id || item.id;
+              const noteType = item.noteType || item.note_type || 'card';
+
+              if (noteType === 'paged_note') {
+                navigation.navigate('FluidPagedNote', {
+                  noteId,
+                  title: item.title || '分页笔记',
+                  content: item.content || '',
+                });
+              } else if (noteType === 'canvas') {
+                navigation.navigate('InfiniteCanvas', {
+                  noteId,
+                  title: item.title || '无限画布',
+                  content: item.content || '',
+                });
+              } else {
+                navigation.navigate('CardNote', {
+                  noteId,
+                  title: item.title || '笔记',
+                  content: item.content || '',
+                });
+              }
+            }
+          };
+          handleFilePress(item);
+        }}
+        onLongPress={() => {
+          Alert.alert(
+            '笔记操作',
+            `选择对"${item.title || '未命名笔记'}"的操作`,
+            [
+              { text: '重命名', onPress: () => handleRenameNote(item) },
+              { text: '导出/分享', onPress: () => handleExportNote(item) },
+              { text: '删除', onPress: () => handleDeleteNote(item._id || item.id), style: 'destructive' },
+              { text: '取消', style: 'cancel' },
+            ]
+          );
+        }}
+      />
+    );
+  };
 
   return (
     <SafeAreaView

@@ -56,6 +56,7 @@ const RealtimeTranscription = ({
   const charIndexRef = useRef(0);
   const resultScrollRef = useRef(null);
   const dotsTimerRef = useRef(null);
+  const stopRecordingRef = useRef(null);
 
   // 初始化AudioRecorderPlayer
   useEffect(() => {
@@ -76,7 +77,7 @@ const RealtimeTranscription = ({
     return () => {
       // 停止录音
       if (isRecording) {
-        stopRecording();
+        stopRecordingRef.current?.();
       }
 
       // 清理计时器
@@ -175,7 +176,7 @@ const RealtimeTranscription = ({
 
       // 检查录音器是否初始化
       if (!audioRecorderPlayer.current) {
-        setError('录音器未初始化');
+        setErrorMessage('录音器未初始化');
         return;
       }
 
@@ -296,6 +297,8 @@ const RealtimeTranscription = ({
       setSessionId(null);
     }
   };
+
+  stopRecordingRef.current = stopRecording;
 
   // 处理音频数据
   const processAudioChunk = async () => {

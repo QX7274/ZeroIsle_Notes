@@ -8,7 +8,7 @@
  * - Improved styling and performance
  */
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -42,9 +42,18 @@ const AdvancedMarkdownPreview = ({
 }) => {
   const { theme } = useTheme();
   const { colors, dimensions } = theme;
+  const markdownHelpersRef = useRef({});
 
   // Convert markdown to HTML with advanced features
   const convertToHtml = useCallback((markdown) => {
+    const {
+      getEmptyStateHtml,
+      getStyledHtml,
+      highlightCode,
+      processMarkdownTables,
+      wrapListItems,
+    } = markdownHelpersRef.current;
+
     if (!markdown.trim()) {
       return getEmptyStateHtml();
     }
@@ -153,7 +162,7 @@ const AdvancedMarkdownPreview = ({
     html = html.replace(/(<\/hr>)<\/p>/g, '$1');
 
     return getStyledHtml(html);
-  }, [colors, enableMath, enableSyntaxHighlighting]);
+  }, [enableMath, enableSyntaxHighlighting]);
 
   // Simple syntax highlighting
   const highlightCode = useCallback((code, language) => {
@@ -508,6 +517,14 @@ const AdvancedMarkdownPreview = ({
     `);
   }, [colors, getStyledHtml]);
 
+  markdownHelpersRef.current = {
+    getEmptyStateHtml,
+    getStyledHtml,
+    highlightCode,
+    processMarkdownTables,
+    wrapListItems,
+  };
+
   // Handle WebView messages
   const handleWebViewMessage = useCallback((event) => {
     try {
@@ -525,7 +542,7 @@ const AdvancedMarkdownPreview = ({
     } catch (error) {
       console.warn('Failed to parse WebView message:', error);
     }
-  }, [onTaskToggle, onLinkPress]);
+  }, [onBlockReferencePress, onLinkPress, onTaskToggle, onWikiLinkPress]);
 
   // Memoize HTML content
   const htmlContent = useMemo(() => {

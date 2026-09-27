@@ -79,7 +79,11 @@ class LoginAttempt(Document):
             # 获取最后一次失败尝试的时间
             last_attempt = cls.objects(**query).order_by('-timestamp').first()
             if last_attempt:
-                lockout_end = last_attempt.timestamp + LOCKOUT_DURATION
+                last_attempt_time = last_attempt.timestamp
+                if last_attempt_time and timezone.is_naive(last_attempt_time):
+                    last_attempt_time = timezone.make_aware(last_attempt_time, timezone.get_current_timezone())
+
+                lockout_end = last_attempt_time + LOCKOUT_DURATION
                 if now < lockout_end:
                     remaining = (lockout_end - now).total_seconds()
                     return True, int(remaining), failed_attempts

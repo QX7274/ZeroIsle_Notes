@@ -53,6 +53,7 @@ const useForceLayout = ({
     const [isConverged, setIsConverged] = useState(false);
     const requestRef = useRef();
     const iterationRef = useRef(0);
+    const startSimulationRef = useRef(null);
 
     // Initialize positions randomly if new nodes appear
     useEffect(() => {
@@ -82,7 +83,7 @@ const useForceLayout = ({
             // Restart simulation if new nodes are added
             iterationRef.current = 0;
             setIsConverged(false);
-            startSimulation();
+            startSimulationRef.current?.();
         }
     }, [nodes, width, height]);
 
@@ -210,6 +211,8 @@ const useForceLayout = ({
         if (requestRef.current) {cancelAnimationFrame(requestRef.current);}
         requestRef.current = requestAnimationFrame(runSimulationStep);
     }, [runSimulationStep]);
+
+    startSimulationRef.current = startSimulation;
 
     useEffect(() => {
         // Start simulation when nodes/edges change significantly

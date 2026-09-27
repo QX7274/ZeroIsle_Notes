@@ -261,7 +261,7 @@ class FileValidationService {
   async readFileHeader(filePath, length = 4) {
     try {
       const content = await RNFS.read(filePath, length, 0, 'base64');
-      return atob(content);
+      return globalThis.atob(content);
     } catch (error) {
       console.error('FileValidationService: 读取文件头失败:', error);
       throw error;

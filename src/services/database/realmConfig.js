@@ -29,7 +29,7 @@ export const MONGODB_CONFIG = {
  */
 export const getRealmConfig = () => {
   // 基本配置 - 不使用同步功能
-  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本: 17');
+  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本: 19');
   if (__DEV__) {
     console.log('⚠️ [RealmConfig] 开发模式启用 deleteRealmIfMigrationNeeded，将清空并重建本地 Realm 数据库');
   } else {
@@ -37,7 +37,7 @@ export const getRealmConfig = () => {
   }
   const config = {
     schema: getAllSchemas(),
-    schemaVersion: 17, // 增加版本号到17，统一修复 list/objectType 声明
+    schemaVersion: 19, // 增加上传会话的 noteId/attachmentId 字段
     path: `${MONGODB_CONFIG.dbName}.realm`,
     deleteRealmIfMigrationNeeded: __DEV__, // 开发环境清库
     migration: (oldRealm, newRealm) => {
@@ -50,6 +50,16 @@ export const getRealmConfig = () => {
       if (oldRealm.schemaVersion < 17) {
         console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 17');
         console.info('✅ [安全迁移] 统一列表字段声明（list/objectType），不变更业务字段语义');
+      }
+
+      if (oldRealm.schemaVersion < 18) {
+        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 18');
+        console.info('✅ [安全迁移] 添加 Note.dataHash 字段');
+      }
+
+      if (oldRealm.schemaVersion < 19) {
+        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 19');
+        console.info('✅ [安全迁移] 添加 UploadSession.noteId/attachmentId 字段');
       }
 
       // 处理syncStatus和lastBackupAt字段添加的迁移

@@ -2,7 +2,7 @@
  * 同步设置屏幕
  * 用于配置同步策略与查看同步状态
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -46,7 +46,7 @@ const SyncSettingsScreen = ({ navigation }) => {
     }));
   };
 
-  const openDialog = (nextDialog) => {
+  const openDialog = useCallback((nextDialog) => {
     setDialogState({
       visible: true,
       tone: nextDialog.tone || 'warning',
@@ -56,16 +56,16 @@ const SyncSettingsScreen = ({ navigation }) => {
       secondaryText: nextDialog.secondaryText || '',
       onPrimary: nextDialog.onPrimary || null,
     });
-  };
+  }, []);
 
-  const showSyncError = (title, message) => {
+  const showSyncError = useCallback((title, message) => {
     openDialog({
       tone: 'error',
       title,
       message,
       primaryText: '知道了',
     });
-  };
+  }, [openDialog]);
 
   useEffect(() => {
     navigation.setOptions({ title: '同步设置' });
@@ -103,7 +103,7 @@ const SyncSettingsScreen = ({ navigation }) => {
     };
 
     loadData();
-  }, [navigation]);
+  }, [navigation, showSyncError]);
 
   const updateConfig = async (key, value) => {
     const nextConfig = { ...syncConfig, [key]: value };

@@ -26,6 +26,9 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'api.zeroislenotes.com,www.zeroi
 
 # 安全设置
 SECURE_SSL_REDIRECT = True
+# Internal container probes use plain HTTP before an external TLS terminator.
+# Keep the probe endpoints reachable without weakening browser traffic policy.
+SECURE_REDIRECT_EXEMPT = [r'^health/$', r'^ready/$']
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True

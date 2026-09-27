@@ -4,7 +4,18 @@
  * 用于平滑过渡到新的存储架构
  */
 
+import Realm from 'realm';
 import realmService from './realmService';
+
+const REALM_SCHEMA_ALIASES = {
+  notes: 'Note',
+  categories: 'Category',
+  tags: 'Tag',
+  reminders: 'Reminder',
+  users: 'User',
+};
+
+const resolveRealmSchema = collectionName => REALM_SCHEMA_ALIASES[collectionName] || collectionName;
 
 
 /**
@@ -53,7 +64,7 @@ class MongoDBAdapter {
   async insertOne(collectionName, document) {
     try {
       await this.initialize();
-      const result = await realmService.create(collectionName, document);
+      const result = await realmService.create(resolveRealmSchema(collectionName), document);
       return result._id.toString();
     } catch (error) {
       console.error(`插入文档失败: ${collectionName}`, error);
@@ -75,7 +86,7 @@ class MongoDBAdapter {
 
       realm.write(() => {
         for (const document of documents) {
-          const obj = realm.create(collectionName, {
+          const obj = realm.create(resolveRealmSchema(collectionName), {
             ...document,
             _id: document._id || new Realm.BSON.ObjectId(),
           });
@@ -102,14 +113,14 @@ class MongoDBAdapter {
       await this.initialize();
 
       // 查找文档
-      const document = await realmService.findOne(collectionName, filter);
+      const document = await realmService.findOne(resolveRealmSchema(collectionName), filter);
 
       if (!document) {
         throw new Error(`更新失败，文档不存在: ${collectionName}`);
       }
 
       // 更新文档
-      await realmService.update(collectionName, document._id, update.$set || update);
+      await realmService.update(resolveRealmSchema(collectionName), document._id, update.$set || update);
 
       return true;
     } catch (error) {
@@ -130,7 +141,8 @@ class MongoDBAdapter {
       await this.initialize();
 
       // 查找文档
-      const documents = await realmService.find(collectionName, filter);
+      const schemaName = resolveRealmSchema(collectionName);
+      const documents = await realmService.find(schemaName, filter);
 
       if (documents.length === 0) {
         return 0;
@@ -142,7 +154,7 @@ class MongoDBAdapter {
 
       realm.write(() => {
         for (const document of documents) {
-          const obj = realm.objectForPrimaryKey(collectionName, document._id);
+          const obj = realm.objectForPrimaryKey(schemaName, document._id);
           if (obj) {
             Object.keys(updateData).forEach(key => {
               if (key !== '_id') {
@@ -171,14 +183,14 @@ class MongoDBAdapter {
       await this.initialize();
 
       // 查找文档
-      const document = await realmService.findOne(collectionName, filter);
+      const document = await realmService.findOne(resolveRealmSchema(collectionName), filter);
 
       if (!document) {
         throw new Error(`删除失败，文档不存在: ${collectionName}`);
       }
 
       // 删除文档
-      await realmService.delete(collectionName, document._id);
+      await realmService.delete(resolveRealmSchema(collectionName), document._id);
 
       return true;
     } catch (error) {
@@ -198,7 +210,8 @@ class MongoDBAdapter {
       await this.initialize();
 
       // 查找文档
-      const documents = await realmService.find(collectionName, filter);
+      const schemaName = resolveRealmSchema(collectionName);
+      const documents = await realmService.find(schemaName, filter);
 
       if (documents.length === 0) {
         return 0;
@@ -209,7 +222,7 @@ class MongoDBAdapter {
 
       realm.write(() => {
         for (const document of documents) {
-          const obj = realm.objectForPrimaryKey(collectionName, document._id);
+          const obj = realm.objectForPrimaryKey(schemaName, document._id);
           if (obj) {
             realm.delete(obj);
           }
@@ -233,7 +246,7 @@ class MongoDBAdapter {
   async find(collectionName, filter = {}, options = {}) {
     try {
       await this.initialize();
-      return await realmService.find(collectionName, filter, options);
+      return await realmService.find(resolveRealmSchema(collectionName), filter, options);
     } catch (error) {
       console.error(`查询文档失败: ${collectionName}`, error);
       throw error;
@@ -250,7 +263,7 @@ class MongoDBAdapter {
   async findOne(collectionName, filter = {}, options = {}) {
     try {
       await this.initialize();
-      return await realmService.findOne(collectionName, filter);
+      return await realmService.findOne(resolveRealmSchema(collectionName), filter);
     } catch (error) {
       console.error(`查询单个文档失败: ${collectionName}`, error);
       throw error;

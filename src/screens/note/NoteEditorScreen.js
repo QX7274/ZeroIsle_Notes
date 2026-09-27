@@ -12,12 +12,14 @@ import VersionHistoryDrawer from './components/VersionHistoryDrawer';
 import DiffView from './components/DiffView';
 import { compareVersions, restoreVersion } from '../../services/api/noteVersionApi';
 
+const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Helper function to find block content by its ID
 const findBlockContentById = async (blockId) => {
   const realm = await realmService.getRealm();
   const allNotes = realm.objects('Note');
   // Regex to find a line ending with the block ID
-  const searchRegex = new RegExp(`(.*)(\s\^${blockId})$`, 'm');
+  const searchRegex = new RegExp(`(.*)(\\s\\^${escapeRegExp(blockId)})$`, 'm');
 
   for (const note of allNotes) {
     if (note.content) {
@@ -51,19 +53,30 @@ const NoteEditorScreen = ({ route, navigation }) => {
   useEffect(() => {
     const loadNote = async () => {
       if (noteId) {
+        setNote(null);
+        setContent('');
+        setBacklinks([]);
+        setIsDirty(false);
+        setSaveSuccess(false);
+        setShowHistory(false);
+        setDiffVisible(false);
         const realm = await realmService.getRealm();
         const noteObject = realm.objectForPrimaryKey('Note', noteId);
         if (noteObject) {
           setNote(noteObject);
           setContent(noteObject.content || '');
+          setIsDirty(false);
+          setSaveSuccess(false);
+          setShowHistory(false);
+          setDiffVisible(false);
           navigation.setOptions({ title: noteObject.title || 'Edit Note' });
         }
       }
     };
     loadNote();
-  }, [noteId, navigation, note?.title]);
+  }, [noteId, navigation]);
 
-  const findBacklinks = async () => {
+  const findBacklinks = useCallback(async () => {
     if (note) {
       const realm = await realmService.getRealm();
       // 优化: 使用 Realm 原生查询 (C++ 层执行) 替代 JS filter
@@ -71,13 +84,17 @@ const NoteEditorScreen = ({ route, navigation }) => {
       const linkingNotes = realm.objects('Note').filtered('content CONTAINS[c] $0', `[[${note.title}]]`);
       setBacklinks(Array.from(linkingNotes));
     }
-  };
+  }, [note]);
 
   useEffect(() => {
+    if (!note?.title) {
+      setBacklinks([]);
+      return;
+    }
     findBacklinks();
-  }, [note?.title]);
+  }, [findBacklinks, note?.title]);
 
-  const handleSave = async (newContent) => {
+  const handleSave = useCallback(async (newContent) => {
     if (note) {
       setIsSaving(true);
       setSaveSuccess(false);
@@ -95,14 +112,17 @@ const NoteEditorScreen = ({ route, navigation }) => {
         setSaveSuccess(true);
         // 保存成功提示 2 秒后消失
         setTimeout(() => setSaveSuccess(false), 2000);
+        return true;
       } catch (error) {
         console.error('Failed to save note:', error);
         Alert.alert('Error', 'Failed to save note. Please try again.');
+        return false;
       } finally {
         setIsSaving(false);
       }
     }
-  };
+    return false;
+  }, [note]);
 
   const handleWikiLinkPress = async (title) => {
     const realm = await realmService.getRealm();
@@ -150,11 +170,6 @@ const NoteEditorScreen = ({ route, navigation }) => {
     setShowBlockReferenceModal(false);
   };
 
-  const handleChange = (val) => {
-    setContent(val);
-    setIsDirty(true);
-  };
-
   const guardBeforeAction = (proceed) => {
     if (!isDirty) {return proceed();}
     Alert.alert(
@@ -163,7 +178,15 @@ const NoteEditorScreen = ({ route, navigation }) => {
       [
         { text: '取消', style: 'cancel' },
         { text: '放弃并继续', style: 'destructive', onPress: () => proceed() },
-        { text: '保存后继续', onPress: async () => { await handleSave(content); proceed(); } },
+        {
+          text: '保存后继续',
+          onPress: async () => {
+            const saved = await handleSave(content);
+            if (saved) {
+              proceed();
+            }
+          },
+        },
       ]
     );
   };
@@ -207,6 +230,20 @@ const NoteEditorScreen = ({ route, navigation }) => {
     guardBeforeAction(doRestore);
   };
 
+  const handleOpenHistory = () => {
+    setDiffVisible(false);
+    setShowHistory(true);
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistory(false);
+    setDiffVisible(false);
+  };
+
+  const handleCloseDiff = () => {
+    setDiffVisible(false);
+  };
+
   // Setup navigation choices in header
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -218,7 +255,7 @@ const NoteEditorScreen = ({ route, navigation }) => {
           {saveSuccess && (
             <Icon name="check-circle" size={20} color={theme.colors.success || '#4CAF50'} style={{ marginRight: 8 }} />
           )}
-          <TouchableOpacity onPress={() => setShowHistory(true)}>
+          <TouchableOpacity onPress={handleOpenHistory}>
             <Icon name="history" size={24} color={theme.colors.primary} style={{ marginRight: 15 }} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleSave(content)} disabled={isSaving}>
@@ -231,16 +268,16 @@ const NoteEditorScreen = ({ route, navigation }) => {
         </View>
       ),
     });
-  }, [navigation, theme, isDirty, isSaving, saveSuccess, content]);
+  }, [navigation, theme, isDirty, isSaving, saveSuccess, content, handleSave]);
 
   // 优化: 缓存正则表达式，避免在 renderItem 中重复创建
   const backlinkRegex = useMemo(() => {
     if (!note?.title) {return null;}
-    return new RegExp(`\\[\\[${note.title}\\]\\]`);
+    return new RegExp(`\\[\\[${escapeRegExp(note.title)}\\]\\]`);
   }, [note?.title]);
 
   // 渲染 backlink 项 (优化: useCallback)
-  const renderBacklinkItem = useCallback(({ item }) => {
+  const renderBacklinkItem = ({ item }) => {
     if (!backlinkRegex) {return null;}
 
     // Extract context for the backlink
@@ -259,7 +296,7 @@ const NoteEditorScreen = ({ route, navigation }) => {
         <Text style={styles.backlinkContext} numberOfLines={2}>{context}</Text>
       </TouchableOpacity>
     );
-  }, [backlinkRegex, navigation]);
+  };
 
   if (!note) {
     return (
@@ -280,6 +317,36 @@ const NoteEditorScreen = ({ route, navigation }) => {
         onBlockReferencePress={handleBlockReferencePress}
         onOpenBlockReferenceSearch={() => setShowBlockReferenceModal(true)}
       />
+
+      <VersionHistoryDrawer
+        noteId={noteId}
+        visible={showHistory}
+        onRequestClose={handleCloseHistory}
+        onRestore={handleRestore}
+        onCompare={handleCompare}
+        theme={theme}
+      />
+
+      <Modal
+        visible={diffVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleCloseDiff}
+      >
+        <View style={styles.diffModalContainer}>
+          <View style={styles.diffModalHeader}>
+            <Text style={styles.diffModalTitle}>版本差异</Text>
+            <TouchableOpacity onPress={handleCloseDiff} style={styles.diffModalCloseButton}>
+              <Icon name="close" size={22} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+          <DiffView
+            titleDiff={diffData.title_diff}
+            contentDiff={diffData.content_diff}
+            theme={theme}
+          />
+        </View>
+      </Modal>
 
       <BlockReferenceModal
         visible={showBlockReferenceModal}
@@ -314,6 +381,30 @@ const getStyles = (theme) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     maxHeight: 200,
+  },
+  diffModalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    padding: 16,
+  },
+  diffModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  diffModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  diffModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.card,
   },
   backlinksTitle: {
     fontSize: 16,
@@ -351,4 +442,3 @@ const getStyles = (theme) => StyleSheet.create({
 });
 
 export default NoteEditorScreen;
-

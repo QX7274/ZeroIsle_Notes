@@ -33,6 +33,15 @@ const API_TIMEOUT = CONFIG_API_TIMEOUT;
 const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
 const DEV_VERBOSE_HTTP_400_LOG = false;
 
+const getCachedData = async (url) => {
+  try {
+    return await apiCache.getCachedApiResponse(url);
+  } catch (error) {
+    console.warn('读取离线缓存失败:', error);
+    return null;
+  }
+};
+
 // 错误消息
 const ERROR_MESSAGES = {
   NETWORK_ERROR: '网络连接失败，请检查网络设置',

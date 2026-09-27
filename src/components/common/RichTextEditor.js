@@ -2,7 +2,7 @@
  * 富文本编辑器组件
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -53,6 +53,7 @@ const RichTextEditor = ({
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const inputRef = useRef(null);
+  const uploadImageToServerRef = useRef(null);
 
   const { colors } = useTheme();
   // 获取动态样式
@@ -61,12 +62,12 @@ const RichTextEditor = ({
   const { isLoading: isImageUploading, error: imageUploadError, result: imageUploadResult } = useSelector(state => state.notes.imageUpload);
 
   // 处理内容变化
-  const handleContentChange = (text) => {
+  const handleContentChange = useCallback((text) => {
     setContent(text);
     if (onChange) {
       onChange(text);
     }
-  };
+  }, [onChange]);
 
   // 处理选择范围变化
   const handleSelectionChange = (event) => {
@@ -233,8 +234,8 @@ const RichTextEditor = ({
 
       // 检查网络状态
       if (Platform.OS !== 'web') {
-        const isOnline = await networkService.checkConnection();
-        if (!isOnline) {
+        const networkState = await networkService.checkConnectionState();
+        if (!networkState.isOnline) {
           Alert.alert(
             '离线状态',
             '当前处于离线状态，无法上传图片到服务器。是否要将图片插入到笔记中？上线后可以再次同步。',
@@ -252,7 +253,7 @@ const RichTextEditor = ({
         }
 
         // 检查网络质量
-        if (netInfo.type === 'cellular' && (netInfo.details?.cellularGeneration === '2g' || netInfo.details?.cellularGeneration === '3g')) {
+        if (networkState.connectionType === 'cellular' && (networkState.details?.details?.cellularGeneration === '2g' || networkState.details?.details?.cellularGeneration === '3g')) {
           // 在网络质量较差的情况下提示用户
           Alert.alert(
             '网络提示',
@@ -352,6 +353,8 @@ const RichTextEditor = ({
     }
   };
 
+  uploadImageToServerRef.current = uploadImageToServer;
+
   // 处理上传错误
   const handleUploadError = (error) => {
     console.error('上传图片失败:', error);
@@ -436,7 +439,7 @@ const RichTextEditor = ({
   };
 
   // 插入图片
-  const insertImage = (imageUrl) => {
+  const insertImage = useCallback((imageUrl) => {
     try {
       // 判断是否为本地图片路径（离线模式下）
       const isLocalImage = imageUrl.startsWith('file:') || imageUrl.startsWith('content:');
@@ -469,7 +472,7 @@ const RichTextEditor = ({
       console.error('插入图片失败:', error);
       Alert.alert('错误', '插入图片失败: ' + error.message);
     }
-  };
+  }, [content, handleContentChange, onImageUpload, selection, showToast]);
 
   // 监听图片上传结果
   useEffect(() => {
@@ -483,7 +486,7 @@ const RichTextEditor = ({
         }
       }
     }
-  }, [imageUploadResult, imagePreview, isImageUploading, imageUploadError, content]);
+  }, [content, imagePreview, imageUploadError, imageUploadResult, insertImage, isImageUploading]);
 
   // 监听图片上传错误
   useEffect(() => {
@@ -495,13 +498,13 @@ const RichTextEditor = ({
           {text: '取消', style: 'cancel', onPress: () => setImagePreview(null)},
           {text: '重试', onPress: () => {
             if (imagePreview) {
-              uploadImageToServer(imagePreview);
+              uploadImageToServerRef.current?.(imagePreview);
             }
           }},
         ]
       );
     }
-  }, [imageUploadError]);
+  }, [imagePreview, imageUploadError]);
 
   return (
     <KeyboardAvoidingView

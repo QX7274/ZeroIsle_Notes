@@ -107,7 +107,7 @@ const MarkdownEditorIntegration = ({
   }, [isFullscreen]);
 
   // Choose editor component based on performance mode
-  const EditorComponent = enablePerformanceMode ? VirtualizedMarkdownEditor : EnhancedMarkdownEditor;
+  const styles = getStyles(colors, dimensions);
 
   // Render action buttons
   const ActionButtons = useMemo(() => (
@@ -155,27 +155,28 @@ const MarkdownEditorIntegration = ({
   ]);
 
   // Render editor content
-  const EditorContent = useMemo(() => (
-    <View style={styles.editorContainer}>
-      <EditorComponent
-        value={currentContent}
-        onChange={handleContentChange}
-        readOnly={readOnly}
-        placeholder={placeholder}
-        showPreview={showPreview}
-        viewMode={viewMode}
-        style={styles.editor}
-        onWikiLinkPress={onWikiLinkPress}
-        onBlockReferencePress={onBlockReferencePress}
-        onOpenBlockReferenceSearch={onOpenBlockReferenceSearch}
-      />
-    </View>
-  ), [
-    EditorComponent, currentContent, handleContentChange, readOnly,
+  const EditorContent = useMemo(() => {
+    const Editor = enablePerformanceMode ? VirtualizedMarkdownEditor : EnhancedMarkdownEditor;
+    return (
+      <View style={styles.editorContainer}>
+        <Editor
+          value={currentContent}
+          onChange={handleContentChange}
+          readOnly={readOnly}
+          placeholder={placeholder}
+          showPreview={showPreview}
+          viewMode={viewMode}
+          style={styles.editor}
+          onWikiLinkPress={onWikiLinkPress}
+          onBlockReferencePress={onBlockReferencePress}
+          onOpenBlockReferenceSearch={onOpenBlockReferenceSearch}
+        />
+      </View>
+    );
+  }, [
+    enablePerformanceMode, currentContent, handleContentChange, readOnly,
     placeholder, showPreview, viewMode, styles, onWikiLinkPress, onBlockReferencePress, onOpenBlockReferenceSearch,
   ]);
-
-  const styles = getStyles(colors, dimensions);
 
   // Render in fullscreen modal if enabled
   if (isFullscreen) {

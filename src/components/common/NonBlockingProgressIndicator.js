@@ -88,7 +88,7 @@ const NonBlockingProgressIndicator = ({
         useNativeDriver: false,
       }).start();
     }
-  }, [localMessage, animated, messageAnim]);
+  }, [localMessage, animated, message, messageAnim]);
 
   // 阶段变化动画
   useEffect(() => {
@@ -100,7 +100,7 @@ const NonBlockingProgressIndicator = ({
         useNativeDriver: false,
       }).start();
     }
-  }, [localStage, animated, stageAnim]);
+  }, [localStage, animated, stage, stageAnim]);
 
   if (!isVisible) {
     return null;

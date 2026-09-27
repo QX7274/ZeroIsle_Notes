@@ -72,6 +72,12 @@ const CardNoteScreen = ({ route, navigation }) => {
   const contentInputRef = useRef(null);
   const autoSaveTimeoutRef = useRef(null);
   const recordingTimerRef = useRef(null);
+  const recordTimeRef = useRef(recordTime);
+  const createNewNoteRef = useRef(null);
+  const saveNoteRef = useRef(null);
+  const stopRecordingRef = useRef(null);
+
+  recordTimeRef.current = recordTime;
 
   // 添加键盘状态监听
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -105,7 +111,7 @@ const CardNoteScreen = ({ route, navigation }) => {
 
     // 添加音频事件监听器
     const recordingProgressListener = (data) => {
-      if (isMounted && data.formattedTime !== recordTime) {
+      if (isMounted && data.formattedTime !== recordTimeRef.current) {
         // 使用 requestAnimationFrame 来节流更新，减少闪烁
         requestAnimationFrame(() => {
           if (isMounted) {
@@ -208,7 +214,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             // 如果找不到笔记，检查是否应该创建新的
             if (route.params?.createNew || route.params?.isNew) {
               console.log('CardNoteScreen: 明确要求创建新笔记');
-              await createNewNote();
+              await createNewNoteRef.current();
             } else {
               console.log('CardNoteScreen: 未明确要求创建新笔记，保持空白状态');
               // 保持初始状态，不创建新笔记
@@ -219,7 +225,7 @@ const CardNoteScreen = ({ route, navigation }) => {
           // 只有在明确指定创建新笔记时才创建
           if (route.params?.createNew || route.params?.isNew) {
             console.log('CardNoteScreen: 明确要求创建新笔记');
-            await createNewNote();
+            await createNewNoteRef.current();
           } else {
             console.log('CardNoteScreen: 未明确要求创建新笔记，保持空白状态');
             // 保持初始状态，不创建新笔记
@@ -338,6 +344,8 @@ const CardNoteScreen = ({ route, navigation }) => {
     }
   };
 
+  createNewNoteRef.current = createNewNote;
+
   useEffect(() => {
     // 计算字数
     const count = content.replace(/\s/g, '').length;
@@ -353,7 +361,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       }
 
       autoSaveTimeoutRef.current = setTimeout(() => {
-        saveNote();
+        saveNoteRef.current();
       }, 8000); // 8秒后自动保存，给用户更多时间输入
     }
 
@@ -397,7 +405,7 @@ const CardNoteScreen = ({ route, navigation }) => {
     return () => {
       isMounted = false;
     };
-  }, [noteId, title]);
+  }, [noteId, title, initialTitle]);
 
   // ✅ 监听屏幕焦点变化，失焦时保存数据
   useEffect(() => {
@@ -409,7 +417,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       console.log('[CardNoteScreen] 屏幕失去焦点，保存数据...');
       // 失焦时保存数据
       if (noteId && (title.trim() || content.trim())) {
-        saveNote().catch(err => console.error('[CardNoteScreen] 失焦保存失败:', err));
+        saveNoteRef.current().catch(err => console.error('[CardNoteScreen] 失焦保存失败:', err));
       }
     });
 
@@ -432,7 +440,7 @@ const CardNoteScreen = ({ route, navigation }) => {
 
       // 停止录音和语音识别
       if (isRecording) {
-        stopRecording();
+        stopRecordingRef.current();
       }
       if (isListening) {
         stopSpeechRecognition();
@@ -441,7 +449,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       // ✅ 组件卸载时保存 - 只有在有noteId且有内容时才保存
       console.log('[CardNoteScreen] 组件卸载，保存数据...');
       if (noteId && (title.trim() || content.trim())) {
-        saveNote().catch(err => console.warn('[CardNoteScreen] 组件卸载时保存笔记失败:', err));
+        saveNoteRef.current().catch(err => console.warn('[CardNoteScreen] 组件卸载时保存笔记失败:', err));
       }
     };
   }, [noteId, title, content, isRecording, isListening]);
@@ -583,6 +591,8 @@ const CardNoteScreen = ({ route, navigation }) => {
     }
   };
 
+  saveNoteRef.current = saveNote;
+
   // 请求录音权限
   const requestRecordPermission = async () => {
     if (Platform.OS === 'android') {
@@ -700,6 +710,8 @@ const CardNoteScreen = ({ route, navigation }) => {
       setIsRecording(false);
     }
   };
+
+  stopRecordingRef.current = stopRecording;
 
   // 开始语音识别
   const startSpeechRecognition = async () => {

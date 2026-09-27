@@ -3,7 +3,7 @@
  * 用于显示和交互思维导图
  */
 
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -475,7 +475,7 @@ const MindMapView = forwardRef(({
   };
 
   // 计算节点位置
-  const calculateNodePositions = (currentLayoutType = layoutType) => {
+  const calculateNodePositions = useCallback((currentLayoutType = layoutType) => {
     if (!nodes.length) {return;}
 
     // 使用布局工具构建节点树
@@ -524,7 +524,7 @@ const MindMapView = forwardRef(({
     }
 
     setNodePositions(positions);
-  };
+  }, [nodes, edges, layoutType]);
 
   // 重置视图 - 增强版
   const resetView = () => {
@@ -591,7 +591,7 @@ const MindMapView = forwardRef(({
   // 初始化和布局变化时计算节点位置
   useEffect(() => {
     calculateNodePositions();
-  }, [nodes, edges, layoutType]);
+  }, [calculateNodePositions]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

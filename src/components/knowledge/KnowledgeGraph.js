@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
@@ -8,12 +8,21 @@ import { colors } from '../../utils/constants/colors';
  * 知识图谱可视化组件
  * 使用D3.js在WebView中渲染交互式知识图谱
  */
+const getNodeGroup = (nodeType) => {
+  switch (nodeType) {
+    case 'NOTE': return 1;
+    case 'TAG': return 2;
+    case 'CONCEPT': return 3;
+    default: return 4;
+  }
+};
+
 const KnowledgeGraph = ({ data, onNodeClick }) => {
   const { theme } = useTheme();
   const webViewRef = useRef(null);
 
   // 将图数据转换为D3.js可用的格式
-  const formatGraphData = (graphData) => {
+  const formatGraphData = useCallback((graphData) => {
     const nodes = [];
     const links = [];
     const nodeMap = new Map();
@@ -47,17 +56,7 @@ const KnowledgeGraph = ({ data, onNodeClick }) => {
     });
 
     return { nodes, links };
-  };
-
-  // 根据节点类型确定分组（用于颜色区分）
-  const getNodeGroup = (nodeType) => {
-    switch (nodeType) {
-      case 'NOTE': return 1;
-      case 'TAG': return 2;
-      case 'CONCEPT': return 3;
-      default: return 4;
-    }
-  };
+  }, []);
 
   useEffect(() => {
     if (webViewRef.current && data) {
@@ -67,7 +66,7 @@ const KnowledgeGraph = ({ data, onNodeClick }) => {
         true;
       `);
     }
-  }, [data]);
+  }, [data, formatGraphData]);
 
   // 处理节点点击事件
   const handleMessage = (event) => {

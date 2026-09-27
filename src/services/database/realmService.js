@@ -496,27 +496,8 @@ class RealmService {
       const object = realm.objectForPrimaryKey(schemaName, id);
 
       if (!object) {
-        console.log(`${schemaName}对象(ID: ${id})不存在，尝试创建新对象`);
-
-        // 如果对象不存在，尝试创建新对象
-        try {
-          let newObject;
-          realm.write(() => {
-            // 确保数据包含主键
-            const createData = { ...data };
-            if (!createData._id) {
-              createData._id = id;
-            }
-
-            newObject = realm.create(schemaName, createData);
-          });
-
-          // 返回新创建的对象
-          return this.realmObjectToPlain(newObject);
-        } catch (createError) {
-          console.error(`创建${schemaName}对象失败:`, createError);
-          throw createError;
-        }
+        // 业务语义：目标不存在时视为幂等删除完成（非错误）
+        return true;
       }
 
       // 删除对象
@@ -920,4 +901,3 @@ module.exports.default = realmService;
 module.exports.realmService = realmService;
 module.exports.RealmService = RealmService;
 export default realmService;
-

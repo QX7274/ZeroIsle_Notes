@@ -26,10 +26,21 @@ class SearchService:
     def __init__(self):
         """初始化"""
         self.suggestion_service = SuggestionService()
-        self.vector_service = EnhancedVectorService.get_instance()
+        self._vector_service = None
 
         # 初始化结巴分词
         jieba.initialize()
+
+    @property
+    def vector_service(self):
+        """按需加载向量服务，关键词和历史接口不应依赖可选模型。"""
+        if self._vector_service is None:
+            self._vector_service = EnhancedVectorService.get_instance()
+        return self._vector_service
+
+    @vector_service.setter
+    def vector_service(self, value):
+        self._vector_service = value
 
     def search(self, query, user, filters=None, page=1, page_size=20, use_vector=False):
         """

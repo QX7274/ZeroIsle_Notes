@@ -36,6 +36,7 @@ export const NoteSchema = {
     is_locked: { type: 'bool', default: false },
     password: 'string?',
     metadata: 'string?', // JSON 字符串
+    dataHash: 'string?', // 笔记内容完整性哈希
     // 新增文件相关字段
     type: 'string?',
     noteType: 'string?',
@@ -489,6 +490,8 @@ export const UploadSessionSchema = {
     _id: 'string',
     sessionId: 'string',
     fileId: 'string?',
+    noteId: 'string?',
+    attachmentId: 'string?',
     localPath: 'string',
     fileSize: 'int',
     chunkSize: { type: 'int', default: 1024 * 1024 }, // 1MB chunks by default

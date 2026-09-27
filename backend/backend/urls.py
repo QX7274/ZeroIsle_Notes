@@ -11,6 +11,14 @@ from django.views.generic import RedirectView, TemplateView
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+from notes.views.chunked_upload import (
+    chunked_upload_cancel,
+    chunked_upload_chunk,
+    chunked_upload_complete,
+    chunked_upload_download,
+    chunked_upload_init,
+    chunked_upload_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +190,12 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path(f'{api_prefix}auth/', include('users.urls')),
+    path(f'{api_prefix}files/upload/init/', chunked_upload_init, name='chunked-upload-init'),
+    path(f'{api_prefix}files/upload/chunk/', chunked_upload_chunk, name='chunked-upload-chunk'),
+    path(f'{api_prefix}files/upload/complete/', chunked_upload_complete, name='chunked-upload-complete'),
+    path(f'{api_prefix}files/upload/cancel/', chunked_upload_cancel, name='chunked-upload-cancel'),
+    path(f'{api_prefix}files/upload/<str:session_id>/status/', chunked_upload_status, name='chunked-upload-status'),
+    path(f'{api_prefix}files/upload/<str:session_id>/download/', chunked_upload_download, name='chunked-upload-download'),
     path(f'{api_prefix}ai-assistant/', include('ai_assistant.urls')),
     path(f'{api_prefix}search/', include('search.urls')),
 ]

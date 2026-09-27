@@ -89,6 +89,22 @@ const ColorPicker = ({
   const [recentColors, setRecentColors] = useState([]);
   const [isPickingColor, setIsPickingColor] = useState(false);
 
+  // 加载最近颜色
+  const loadRecentColors = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_COLORS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const normalized = Array.isArray(parsed)
+          ? parsed.map((c) => normalizeToHex(c)).filter(Boolean)
+          : [];
+        setRecentColors(normalized);
+      }
+    } catch (error) {
+      console.warn('加载最近颜色失败:', error);
+    }
+  }, [normalizeToHex]);
+
   // 初始化颜色状态
   useEffect(() => {
     if (visible) {
@@ -103,23 +119,7 @@ const ColorPicker = ({
 
       loadRecentColors();
     }
-  }, [visible, initialColor, normalizeToHex, clampPercent]);
-
-  // 加载最近颜色
-  const loadRecentColors = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_COLORS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const normalized = Array.isArray(parsed)
-          ? parsed.map((c) => normalizeToHex(c)).filter(Boolean)
-          : [];
-        setRecentColors(normalized);
-      }
-    } catch (error) {
-      console.warn('加载最近颜色失败:', error);
-    }
-  };
+  }, [clampPercent, initialColor, loadRecentColors, normalizeToHex, visible]);
 
   // 保存最近颜色
   const saveRecentColor = async (color) => {

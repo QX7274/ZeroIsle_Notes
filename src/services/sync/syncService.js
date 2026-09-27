@@ -13,7 +13,7 @@
 import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
 import { networkService } from '../network/networkService';
-import { apiService } from '../api/apiClient';
+import apiClient from '../api/apiClient';
 import { SYNC_EVENTS } from './syncEvents';
 import * as syncUtils from './syncUtils';
 import { eventEmitter } from '../utils/eventEmitter';
@@ -225,7 +225,7 @@ class SyncService {
 
       // 2. 发送同步请求到专门的关键数据同步API
       if (Object.keys(keyData).length > 1) { // 至少有timestamp和一个数据对象
-        const result = await apiService.post('/sync/key-data/', keyData);
+        const result = await apiClient.post('/sync/key-data/', keyData);
 
         if (!result || !result.success) {
           throw new Error(result?.error || '同步关键数据失败');
@@ -527,7 +527,7 @@ class SyncService {
           // 发送同步请求
           if (syncData.notes.length > 0) {
             try {
-              const result = await apiService.post('/sync/notes', syncData);
+              const result = await apiClient.post('/sync/notes/', syncData);
 
               // 处理结果
               if (result && result.success) {
@@ -580,7 +580,7 @@ class SyncService {
           // 发送同步请求
           if (syncData.reminders.length > 0) {
             try {
-              const result = await apiService.post('/sync/reminders', syncData);
+              const result = await apiClient.post('/sync/reminders/', syncData);
 
               // 处理结果
               if (result && result.success) {
@@ -631,7 +631,7 @@ class SyncService {
           // 发送同步请求
           if (Object.keys(syncData.settings).length > 0) {
             try {
-              const result = await apiService.post('/sync/settings', syncData);
+              const result = await apiClient.post('/sync/settings/', syncData);
 
               // 处理结果
               if (result && result.success) {
@@ -693,7 +693,7 @@ class SyncService {
                   break;
                 case 'update':
                   // 只同步关键用户信息
-                  result = await apiService.put('/users/profile', keyUserInfo);
+                  result = await apiClient.put('/users/profile/', keyUserInfo);
                   break;
                 case 'delete':
                   // 用户删除操作需要特殊处理，这里跳过
@@ -783,7 +783,7 @@ class SyncService {
 
       // 从新的同步API获取更新
       logService.info('从服务器拉取最新数据', params);
-      const response = await apiService.get('/sync/data', { params });
+      const response = await apiClient.get('/sync/data/', { params });
 
       if (!response || !response.success) {
         throw new Error(response?.error || '从服务器拉取更新失败');

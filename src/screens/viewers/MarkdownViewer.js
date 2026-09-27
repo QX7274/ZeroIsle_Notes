@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Alert, Platform, TextInput, ScrollView, TouchableOpacity, Text, Modal, Dimensions, AppState } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useTheme } from '../../context/ThemeContext';
@@ -49,6 +49,72 @@ function MarkdownViewer({ route, navigation }) {
 
   const docId = noteId || uri || title;
   const autoSaveTimerRef = useRef(null);
+  const debouncedAutoSave = useRef(null);
+
+  // 保存到本地
+  const saveToLocal = useCallback(async () => {
+    try {
+      if (!content || !docId) {
+        throw new Error('内容或文档ID无效');
+      }
+
+      // 先保存到本地存储
+      await SaveUtils.saveMarkdownContent(docId, content, realmService);
+
+      // 如果有noteId，也更新笔记元数据
+      if (noteId) {
+        const realm = await realmService.getRealm();
+        realm.write(() => {
+          const note = realm.objectForPrimaryKey('Note', noteId);
+          if (note) {
+            Object.assign(note, {
+              content,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        });
+      }
+
+      setLastSavedContent(content);
+      console.log('MarkdownViewer: 内容已手动保存');
+
+      return { success: true };
+    } catch (error) {
+      console.error('MarkdownViewer: 手动保存失败:', error);
+      throw error;
+    }
+  }, [content, docId, noteId]);
+
+  // 自动保存功能
+  const autoSave = useCallback(async (newContent) => {
+    try {
+      // 如果内容没有变化，不保存
+      if (newContent === lastSavedContent) {
+        return;
+      }
+
+      const savedKey = `markdown_content_${docId}`;
+      const realm = await realmService.getRealm();
+      realm.write(() => {
+        const existingItem = realm.objects('StorageItem').filtered(`key = "${savedKey}"`);
+        if (existingItem.length > 0) {
+          existingItem[0].value = newContent;
+          existingItem[0].updated_at = new Date();
+        } else {
+          realm.create('StorageItem', {
+            key: savedKey,
+            value: newContent,
+            createdAt: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      });
+      setLastSavedContent(newContent);
+      console.log('MarkdownViewer: 内容已自动保存');
+    } catch (error) {
+      console.warn('MarkdownViewer: 自动保存失败:', error);
+    }
+  }, [docId, lastSavedContent]);
 
   // ✅ 监听屏幕焦点变化，失焦时保存数据
   useEffect(() => {
@@ -63,21 +129,22 @@ function MarkdownViewer({ route, navigation }) {
     return () => {
       unsubscribeBlur();
     };
-  }, [navigation, content, lastSavedContent]);
+  }, [navigation, content, lastSavedContent, saveToLocal]);
 
   // ✅ 组件卸载时保存数据
   useEffect(() => {
+    const timerId = autoSaveTimerRef.current;
     return () => {
       console.log('[MarkdownViewer] 组件卸载，保存数据...');
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (timerId) {
+        clearTimeout(timerId);
       }
       // 如果内容有变化，保存
       if (content !== lastSavedContent) {
         saveToLocal().catch(err => console.warn('[MarkdownViewer] 组件卸载时保存失败:', err));
       }
     };
-  }, [content, lastSavedContent]);
+  }, [content, lastSavedContent, saveToLocal]);
 
   // ✅ 监听应用状态变化，应用进入后台时保存数据
   useEffect(() => {
@@ -100,7 +167,7 @@ function MarkdownViewer({ route, navigation }) {
     return () => {
       subscription?.remove();
     };
-  }, [content, lastSavedContent]);
+  }, [content, lastSavedContent, autoSave]);
 
   useEffect(() => {
     console.log('MarkdownViewer: 组件挂载，开始加载内容');
@@ -307,7 +374,7 @@ function MarkdownViewer({ route, navigation }) {
       }
       // 内容保存已由外部useEffect处理
     };
-  }, [uri, docId]);
+  }, [uri, docId, noteId, title]);
 
   // 渲染引擎
   // 已有 MarkdownPreview（react-native-markdown-display），无需 markdown-it 依赖
@@ -319,73 +386,7 @@ function MarkdownViewer({ route, navigation }) {
     return hasMarkdownSyntax ? content : `${content}`;
   }, [content]);
 
-  // 保存到本地
-  const saveToLocal = async () => {
-    try {
-      if (!content || !docId) {
-        throw new Error('内容或文档ID无效');
-      }
-
-      // 先保存到本地存储
-      await SaveUtils.saveMarkdownContent(docId, content, realmService);
-
-      // 如果有noteId，也更新笔记元数据
-      if (noteId) {
-        const realm = await realmService.getRealm();
-        realm.write(() => {
-          const note = realm.objectForPrimaryKey('Note', noteId);
-          if (note) {
-            Object.assign(note, {
-              content: content,
-              updated_at: new Date().toISOString(),
-            });
-          }
-        });
-      }
-
-      setLastSavedContent(content); // 更新上次保存的内容
-      console.log('MarkdownViewer: 内容已手动保存');
-
-      return { success: true };
-    } catch (error) {
-      console.error('MarkdownViewer: 手动保存失败:', error);
-      throw error;
-    }
-  };
-
-  // 自动保存功能
-  const autoSave = async (newContent) => {
-    try {
-      // 如果内容没有变化，不保存
-      if (newContent === lastSavedContent) {
-        return;
-      }
-
-      const savedKey = `markdown_content_${docId}`;
-      const realm = await realmService.getRealm();
-      realm.write(() => {
-        const existingItem = realm.objects('StorageItem').filtered(`key = "${savedKey}"`);
-        if (existingItem.length > 0) {
-          existingItem[0].value = newContent;
-          existingItem[0].updated_at = new Date();
-        } else {
-          realm.create('StorageItem', {
-            key: savedKey,
-            value: newContent,
-            createdAt: new Date(),
-            updated_at: new Date(),
-          });
-        }
-      });
-      setLastSavedContent(newContent);
-      console.log('MarkdownViewer: 内容已自动保存');
-    } catch (error) {
-      console.warn('MarkdownViewer: 自动保存失败:', error);
-    }
-  };
-
   // 防抖自动保存
-  const debouncedAutoSave = useRef(null);
   const handleContentChange = (newContent) => {
     setContent(newContent);
 
@@ -715,4 +716,3 @@ const styles = StyleSheet.create({
 });
 
 export default MarkdownViewer;
-

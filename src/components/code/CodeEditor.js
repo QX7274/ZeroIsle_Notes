@@ -40,14 +40,14 @@ const CodeEditor = ({ initialCode = '', language = 'javascript', onCodeChange, o
   };
 
   const handleFormat = () => {
-    // 格式化代�?
+    // 格式化代码
     analyticsService.trackCodeAction('format_code', { language: selectedLanguage });
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>代码编辑�?/Text>
+        <Text style={styles.title}>代码编辑器</Text>
         <Picker
           selectedValue={selectedLanguage}
           style={styles.languagePicker}
@@ -91,7 +91,7 @@ const CodeEditor = ({ initialCode = '', language = 'javascript', onCodeChange, o
             <Text style={styles.toolbarButtonText}>复制</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.toolbarButton} onPress={handleFormat}>
-            <Text style={styles.toolbarButtonText}>格式�?/Text>
+            <Text style={styles.toolbarButtonText}>格式化</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput, StyleSheet, FlatList, Alert } from 'react-native';
 import { getBookmarks, addBookmark, updateBookmark, removeBookmark } from '../../services/bookmarkService';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,7 +18,7 @@ export default function BookmarkPanel({ visible, onClose, docId, onJump }) {
   const [editName, setEditName] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     try {
       const response = await getBookmarks(docId);
       console.log('Bookmark data:', response);
@@ -33,9 +33,9 @@ export default function BookmarkPanel({ visible, onClose, docId, onJump }) {
       Alert.alert('错误', '加载书签失败，请稍后重试');
       setList([]);
     }
-  };
+  }, [docId]);
 
-  useEffect(() => { if (visible) {reload();} }, [visible, docId]);
+  useEffect(() => { if (visible) {reload();} }, [docId, reload, visible]);
 
   const handleAdd = async () => {
     if (!name.trim()) {return;}

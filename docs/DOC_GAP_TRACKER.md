@@ -3,7 +3,7 @@
 > 总控入口：[生产上线整改总控](D:/ZeroIsle_Notes/docs/生产上线整改总控.md)  
 > 历史归档：[DOC_GAP_TRACKER-历史归档](D:/ZeroIsle_Notes/docs/archive/DOC_GAP_TRACKER-历史归档.md)
 > 页面矩阵：[页面能力矩阵](D:/ZeroIsle_Notes/docs/页面能力矩阵.md)
-> 子批次记录：[子批次执行记录-批次01（10页）](D:/ZeroIsle_Notes/docs/子批次执行记录-批次01（10页）.md)
+> 子批次记录：当前工作区未发现 `子批次执行记录-批次01（10页）.md`；以本文件和 `docs/上线验收矩阵.md` 为当前入口。
 
 ## 1. 状态定义
 - `TODO`：已登记未实施
@@ -14,29 +14,32 @@
 ## 2. 活跃 GAP（仅保留当前推进必需项）
 | GAP ID | 优先级 | 状态 | 责任 | 目标 | 最近提交 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|---|---|
-| GAP-SEC-001 | P0 | IN_PROGRESS | 后端/安全 | 清理真实凭据与危险默认值 | `c7b162d` | 仓库配置核查记录 | 继续全仓扫描并补轮换说明 |
-| GAP-SEC-002 | P0 | TODO | 后端/安全 | 密钥轮换与环境契约强制失败 | - | 外部平台待执行 | 拆成可执行检查清单 |
-| GAP-DEPLOY-001 | P0 | IN_PROGRESS | 部署/CI | `/health/` 与 `/ready/` 职责闭环 | `c7b162d` | 部署配置与检查记录 | 演练冷启动与依赖异常场景 |
-| GAP-DEPLOY-002 | P0 | TODO | 部署/CI | 迁移/静态/日志/持久化启动链闭环 | - | 待补 | 编写并验证一键演练流程 |
-| GAP-CI-001 | P0 | IN_PROGRESS | 部署/CI | lint/test/build 全 hard-fail | `fba2e33`,`22f0bed` | Detox smoke 7/7 通过 | 增加回归门禁与失败快照 |
+| GAP-SEC-001 | P0 | IN_PROGRESS | 后端/安全 | 清理真实凭据与危险默认值 | 工作区未提交 | `.env`、`admin_system/backend/.env`、debug keystore 和 Firebase 配置已从 Git index 移除并保留本地；`.gitignore` 和本地 tracked-asset scan 已更新 | 完成旧提交/外部平台凭据轮换、历史扫描和生产注入说明 |
+| GAP-SEC-002 | P0 | IN_PROGRESS | 后端/安全 | 密钥轮换与环境契约强制失败 | 工作区未提交 | `.gitignore` 已覆盖 `.env*`（保留 example）、签名文件和 Firebase 配置；CI security-scan 已改为 generalized tracked-asset gate；真实轮换和历史扫描待外部执行 | 拆成凭据轮换、历史处理、release keystore、生产环境和复验清单 |
+| GAP-DEPLOY-001 | P0 | IN_PROGRESS | 部署/CI | `/health/` 与 `/ready/` 职责闭环 | 工作区未提交 | 生产设置已豁免内部 HTTP 探针；部署脚本已加入两路重试探针，`deploy_prod.ps1` 解析通过 | 使用真实 Compose 演练冷启动、TLS 终止和依赖异常场景 |
+| GAP-DEPLOY-002 | P0 | IN_PROGRESS | 部署/CI | 迁移/静态/日志/持久化启动链闭环 | 工作区未提交 | 部署脚本现已校验生产变量、执行 Compose config/up 并等待 health/readiness；真实环境演练待补 | 在真实生产样配置执行一键演练并验证失败可阻断 |
+| GAP-CI-001 | P0 | IN_PROGRESS | 部署/CI | lint/test/build 全 hard-fail | 工作区未提交 | Docker 发布 job 已把 `security-scan` 纳入 `needs`；tracked release-asset scan 本地通过；最新 `CI=1 yarn bundle:verify --max-workers 1 --verbose` 通过，`Done in 297.10s`、43 个资源；`.local/verification_bundle_sync_20260719.log` | 增加历史 secret scan、APK/release-signature、readiness 和失败快照门禁并复核 CI |
 | GAP-TEST-001 | P0 | IN_PROGRESS | 后端/安全 | testing 环境去外部 Mongo 依赖 | `ff72009` | `manage.py check` 通过 | 扫尾模块级初始化副作用 |
-| GAP-REVIEW-001 | P0 | IN_PROGRESS | 验证 | 全规划功能完成度与上线可用性审查 | 多提交持续推进 | 多轮真机与脚本证据 | 输出模块化“可上线判定矩阵” |
-| GAP-DEVICE-001 | P0 | IN_PROGRESS | 移动端/验证 | Android MCP 真机覆盖核心页面并留证 | `44a616e`（round64） | `.local/android-mcp-server` round 证据链 | 继续 round65+，优先共享链与联网同步 |
+| GAP-REVIEW-001 | P0 | IN_PROGRESS | 验证 | 全规划功能完成度与上线可用性审查 | 多提交持续推进 | 最新全量 Jest `46/46 suites、191/191 tests`、Bundle `43` 资源通过、普通 `yarn android` 真机启动证据和七份发布控制文档已同步；真实同步、附件、生产安全和完整真机矩阵仍未闭环 | 输出模块化“可上线判定矩阵” |
+| GAP-DEVICE-001 | P0 | IN_PROGRESS | 移动端/验证 | Android MCP 真机覆盖核心页面并留证 | 工作区 2026-07-19 复核 | `.local/android-evidence`：最新普通 `yarn android` 退出码 0，`BUILD SUCCESSFUL`、APK 安装成功、`MainActivity` 启动；`yarn_android_sync_20260719.log/.xml/.png/_crash.log` 命中 `screen.home`、`release_note_20260719`；设备 `HGR3Y9MA/TB128FU/Android 13` | 继续补搜索、AI、社区、提醒、群组、同步和异常流程；保持真机证据文件大小校验与 ADB 稳定性 |
+| GAP-NOTE-001 | P0 | IN_PROGRESS | 移动端/核心笔记 | notesApi 本地优先 P0、远端契约和真机闭环 | 工作区 2026-07-19 复核 | 当前真机 `note_flow_editor_created.xml/.png`、`note_flow_after_save.xml/.png`、`note_flow_back_only.xml/.png`、`note_flow_after_restart_reverse_wait.xml/.png`；最新普通入口 `yarn_android_sync_20260719.*`；重启后日志记录开发者本地读取 1 条笔记；最新全量 Jest `46/46 suites、191/191 tests` 覆盖离线队列和编辑器 HTTP 同步代码 | 完成正文输入/自动保存、图片上传、历史/恢复、离线重开、笔迹和真实认证远端集成验证 |
+| GAP-007 | P0 | IN_PROGRESS | 后端/文件 | 500MB 附件的 init/chunk/complete/cancel/status、幂等、顺序校验、流式落盘和缓存闭环 | 工作区未提交 | `backend/notes/tests/test_chunked_upload_contract.py`：15 passed；客户端二进制分片/权威偏移/chunkSize/SHA-256：3 passed；schema migration：1 passed；已挂载 `/api/v1/files/upload/*`；服务端支持单 Range `206/416` 和逐分片/整文件摘要校验；`MAX_CHUNKED_ATTACHMENT_MB=500` | 使用真实 Mongo/对象存储执行客户端认证下载、断点续传、权限、取消清理和 Android 平板性能验收 |
 | GAP-GROUP-012 | P1 | IN_PROGRESS | 移动端/验证 | 共享链 RTK 状态一致性与可观测性收口 | 多提交持续推进 | groupsSlice 单测 + 真机局部证据 | 做端到端真机观看/结束/重连闭环 |
 | GAP-MOBILE-001 | P1 | IN_PROGRESS | 移动端 | `testID`、可测试性、UI 可达与降级体验 | 多提交持续推进 | Detox + 真机页面证据 | 继续补缺口页面与操作链 |
 | GAP-SLIM-001 | P1 | IN_PROGRESS | 总控/环境 | 删除无用/过时/可再生资产并降输入噪声 | `1d96221`,`044a119`,`c572b46` | 清理记录与差异 | 本轮执行文档瘦身归档迁移 |
 | GAP-SLIM-002 | P1 | IN_PROGRESS | 总控/环境 | 已跟踪缓存清理与防回流 | `1d96221` | `.gitignore` 与移除记录 | 持续巡检防回流 |
-| GAP-ENV-001 | P0 | IN_PROGRESS | 总控/环境 | Conda `Zeroisle` 命令统一 | `1d96221` | `conda run -n Zeroisle` | 全测试命令统一到该入口 |
-| GAP-ENV-002 | P0 | IN_PROGRESS | 移动端 | 统一 `yarn install` / `yarn android` | `1d96221` | 脚本与执行记录 | 继续约束子项目差异说明 |
+| GAP-ENV-001 | P0 | IN_PROGRESS | 总控/环境 | Conda `ZeroIsle` 命令统一 | `1d96221` | `D:\APP\Anaconda\condabin\conda.bat run -n ZeroIsle`；当前 shell PATH 未注册 conda | 将固定入口写入脚本和开发环境说明 |
+| GAP-ENV-002 | P0 | IN_PROGRESS | 移动端 | 统一 `yarn install` / `yarn android` | 工作区 2026-07-19 复核 | `CI=1` Bundle 成功，复制 43 个资源、`Done in 297.10s`；普通 `yarn android --deviceId HGR3Y9MA --active-arch-only --verbose` 退出码 0，wrapper 自管 Metro、临时 ADB shim、419MB APK 安装和 MainActivity 启动均通过；证据 `.local/android-evidence/yarn_android_sync_20260719.*` | 依赖变更后继续保持普通入口回归，并把 wrapper/ADB shim 约定纳入提交与 CI 复核；`yarn install` 清洁环境演练仍待补 |
 | GAP-ENV-003 | P1 | IN_PROGRESS | 移动端 | 同局域网联调策略（热点/USB/ADB） | `3e961da` | `adb devices -l` 与本地联调记录 | 补无线 ADB 与失败回退文档 |
 | GAP-DOC-ENC-001 | P0 | IN_PROGRESS | 总控/环境 | 统一 docs 活跃文档 UTF-8（无 BOM）并建立编码巡检 | `待提交` | `scripts/tools/check-doc-encoding.ps1` | 执行一次全量编码巡检并固定到每轮提交前 |
-| GAP-PAGE-MATRIX-001 | P0 | IN_PROGRESS | 总控/验证 | 建立逐界面/逐功能/逐子功能执行矩阵并绑定活跃 GAP | `待提交` | `docs/页面能力矩阵.md`、`docs/子批次执行记录-批次01（10页）.md` | 进入 round65 按 10 页批次推进并回填证据 |
+| GAP-PAGE-MATRIX-001 | P0 | IN_PROGRESS | 总控/验证 | 建立逐界面/逐功能/逐子功能执行矩阵并绑定活跃 GAP | `待提交` | `docs/页面能力矩阵.md`；缺失的子批次记录不作为证据 | 进入 round65 按 10 页批次推进并回填证据 |
 | GAP-UI-PROFILE-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 Profile 页面阻断式交互与页内反馈一致性 | `待提交` | `src/screens/settings/ProfileSettings.js` 中 `state.profile.inlineStatus`；后续真机 round65 证据待补 | 继续补 Community/Reminder 页内状态一致性并统一玻璃卡视觉层级 |
 | GAP-UI-COMMUNITY-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 Community 分类筛选可测性与轻毛玻璃层级一致性 | `待提交` | `src/screens/community/CommunityScreen.js` 中 `filter.community.*`；分类区玻璃边界样式更新 | 补 round65 真机分类点击链与离线状态证据 |
 | GAP-UI-REMINDER-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 Reminder 同步状态可测锚点与轻毛玻璃层级一致性 | `待提交` | `src/components/reminder/ReminderListView.js` 中 `state.reminder.syncStatus.*` 与筛选栏/卡片玻璃样式更新 | 补 round65 reminder 同步状态卡真机证据并复核同步链稳定性 |
 | GAP-UI-GROUP-DETAIL-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 GroupDetail 阻断交互与菜单动作可测性 | `待提交` | `src/components/groups/GroupDetail.js` 中 `state.group.inlineStatus.*` 与 `action.group.*` 锚点 | 补 round65 group detail 真机菜单动作链与页内状态证据 |
 | GAP-UI-ADD-REMINDER-001 | P1 | IN_PROGRESS | 移动端/UI | 收口 AddReminder 创建提示状态可测性与操作条玻璃层级一致性 | `待提交` | `src/screens/reminder/AddReminderScreen.js` 中 `state.reminder.createHint.*` 与 `state.reminder.actionBar` | 补 round65 add reminder 真机创建状态证据并复核创建回流链 |
-| GAP-DEVICE-ROUND65-001 | P0 | IN_PROGRESS | 验证 | 补齐 round65 对 AddReminder/GroupDetail/Reminder 回流链的真机证据 | `待提交` | `.local/android-mcp-server/round65_add_group_reminder_followup.xml`、`.local/android-mcp-server/round65_add_group_reminder_followup.png`（已落盘）；XML 命中 `screen.reminderList`、`filter.reminder.*`、`state.reminder.syncStatus` | 继续补 GroupDetail 和 AddReminder 的独立场景证据，覆盖本轮新增状态锚点 |
+| GAP-DEVICE-ROUND65-001 | P0 | IN_PROGRESS | 验证 | 补齐 round65 对 AddReminder/GroupDetail/Reminder 回流链的真机证据 | `待提交` | 原引用 `.local/android-mcp-server/round65_add_group_reminder_followup.xml/.png` 在当前工作区不存在；无有效 round65 文件证据 | 重新采集 GroupDetail、AddReminder 和 Reminder 的独立场景证据，覆盖本轮新增状态锚点 |
+| GAP-SEARCH-001 | P1 | IN_PROGRESS | 移动端/验证 | 搜索提交后必须展示结果页或明确空态，不能回到首页保留未过滤列表 | `待提交` | 修复前 `.local/android-evidence/search_no_match_20260717-030115.xml`；修复后 `.local/android-evidence/search_fix_submitted_20260717-112226.*` 命中结果页空态 | 继续补正常结果、历史、清除历史、图像/语音和网络异常场景 |
 
 ## 3. 已完成里程碑（保留最少）
 | GAP ID | 状态 | 结论 | 提交 |

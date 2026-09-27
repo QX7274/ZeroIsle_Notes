@@ -3,7 +3,7 @@
  * 用于手动触发同步操作
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { syncService } from '../../services/sync/syncService';
@@ -61,7 +61,7 @@ const SyncButton = ({ style, iconOnly = false, showStatus = false }) => {
   }, []);
 
   // 显示同步状态信息
-  const showSyncInfo = () => {
+  const showSyncInfo = useCallback(() => {
     if (!isOnline) {
       setSyncStatus('网络离线，等待网络恢复');
       return;
@@ -73,7 +73,7 @@ const SyncButton = ({ style, iconOnly = false, showStatus = false }) => {
     }
 
     setSyncStatus('关键数据自动同步中');
-  };
+  }, [isOnline, isSyncing]);
 
   // 格式化上次同步时间
   const getFormattedLastSyncTime = () => {
@@ -93,7 +93,7 @@ const SyncButton = ({ style, iconOnly = false, showStatus = false }) => {
   useEffect(() => {
     // 显示同步状态信息
     showSyncInfo();
-  }, [isOnline, isSyncing]);
+  }, [showSyncInfo]);
 
   // 渲染图标指示器
   if (iconOnly) {

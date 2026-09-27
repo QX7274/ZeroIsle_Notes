@@ -1,7 +1,7 @@
 /**
  * 目标管理界面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -130,7 +130,7 @@ const GoalManagerScreen = ({ navigation }) => {
     networkErrorService.clearCurrentError();
   };
 
-  const presentNetworkError = (error, customMessage, onRetry) => {
+  const presentNetworkError = useCallback((error, customMessage, onRetry) => {
     if (networkErrorService.isNetworkError(error)) {
       const enhancedError = {
         ...error,
@@ -143,7 +143,7 @@ const GoalManagerScreen = ({ navigation }) => {
     }
 
     return false;
-  };
+  }, []);
 
   const showFormStatus = (message, type = 'info') => {
     setFormStatus({ message, type });
@@ -165,12 +165,7 @@ const GoalManagerScreen = ({ navigation }) => {
     });
   };
 
-  useEffect(() => {
-    loadGoals();
-    loadCategories();
-  }, []);
-
-  const isUnauthorizedGoalError = (error) => {
+  const isUnauthorizedGoalError = useCallback((error) => {
     const status = error?.response?.status;
     const code = error?.response?.data?.code;
     const detail = error?.response?.data?.detail;
@@ -180,9 +175,9 @@ const GoalManagerScreen = ({ navigation }) => {
       || code === 'token_not_valid'
       || detail === '身份认证信息未提供。'
       || String(message || '').includes('登录状态已失效');
-  };
+  }, []);
 
-  const loadGoals = async (options = {}) => {
+  const loadGoals = useCallback(async (options = {}) => {
     const {
       hasRetriedAuth = false,
     } = options;
@@ -214,9 +209,9 @@ const GoalManagerScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isUnauthorizedGoalError, presentNetworkError]);
 
-  const normalizeCategoryListPayload = (payload) => {
+  const normalizeCategoryListPayload = useCallback((payload) => {
     if (Array.isArray(payload?.data)) {
       return payload.data;
     }
@@ -234,16 +229,21 @@ const GoalManagerScreen = ({ navigation }) => {
     }
 
     return [];
-  };
+  }, []);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       const response = await personalActivityApi.getCategories();
       setCategories(normalizeCategoryListPayload(response));
     } catch (error) {
       setCategories([]);
     }
-  };
+  }, [normalizeCategoryListPayload]);
+
+  useEffect(() => {
+    loadGoals();
+    loadCategories();
+  }, [loadCategories, loadGoals]);
 
   const handleSaveGoal = async () => {
     if (!formData.title.trim()) {

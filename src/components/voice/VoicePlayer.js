@@ -58,6 +58,7 @@ const VoicePlayer = ({
 
   // 引用
   const audioPlayer = useRef(null);
+  const playerActionsRef = useRef({});
 
   // 初始化AudioRecorderPlayer
   useEffect(() => {
@@ -71,22 +72,20 @@ const VoicePlayer = ({
 
   // 组件挂载时检查文件
   useEffect(() => {
-    checkFile();
+    playerActionsRef.current.checkFile?.();
 
     // 组件卸载时清理
     return () => {
-      if (isPlaying) {
-        stopPlayer();
-      }
+      playerActionsRef.current.stopPlayer?.();
     };
   }, [source]);
 
   // 自动播放
   useEffect(() => {
     if (autoPlay && fileExists && !isPlaying) {
-      startPlayer();
+      playerActionsRef.current.startPlayer?.();
     }
-  }, [fileExists, autoPlay]);
+  }, [autoPlay, fileExists, isPlaying]);
 
   // 检查文件是否存在
   const checkFile = async () => {
@@ -224,6 +223,8 @@ const VoicePlayer = ({
       console.error('停止播放失败:', error);
     }
   };
+
+  playerActionsRef.current = { checkFile, startPlayer, stopPlayer };
 
   // 跳转到指定位置
   const seekToPosition = async (seconds) => {

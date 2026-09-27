@@ -18,6 +18,7 @@ import MultiModalSearch from './MultiModalSearch';
 import useOrientation from '../../utils/hooks/useOrientation';
 import { getCurrentRouteName } from '../../navigation/navigationRef';
 import debugLog from '../../native/debugLog';
+import { shouldAutoNavigateSearch } from './searchNavigation';
 
 /**
  * 统一搜索栏组件
@@ -141,11 +142,12 @@ const UnifiedSearchBar = ({
     openReasonRef.current = 'search-complete';
     onSearch?.(results, query, options);
 
-    const resolvedResultScreenName = getResultScreenName();
-    const shouldNavigate = !disableAutoNavigate && (
-      (resolvedResultScreenName === 'CommunitySearch' && Array.isArray(results))
-      || (Array.isArray(results) && results.length > 0)
-    );
+    const shouldNavigate = shouldAutoNavigateSearch({
+      query,
+      results,
+      hasOnSearch: typeof onSearch === 'function',
+      disableAutoNavigate,
+    });
 
     if (shouldNavigate) {
       navigation.navigate(getResultScreenName(), {

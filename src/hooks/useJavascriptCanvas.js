@@ -7,6 +7,34 @@
 
 import { useState, useCallback, useRef } from 'react';
 
+const isPointInPolygon = (point, polygon) => {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+
+    const intersect = ((yi > point.y) !== (yj > point.y))
+      && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+    if (intersect) {inside = !inside;}
+  }
+  return inside;
+};
+
+const isStrokeInsideLasso = (strokePoints, lassoPoints) => {
+  if (!strokePoints || strokePoints.length === 0 || !lassoPoints || lassoPoints.length < 3) {
+    return false;
+  }
+
+  let insideCount = 0;
+  for (const point of strokePoints) {
+    if (isPointInPolygon(point, lassoPoints)) {
+      insideCount++;
+    }
+  }
+
+  return insideCount > strokePoints.length / 2;
+};
+
 export const useJavascriptCanvas = () => {
   const [strokes, setStrokes] = useState([]);
   const [currentTool, setCurrentTool] = useState('pen');
@@ -114,38 +142,6 @@ export const useJavascriptCanvas = () => {
     currentStrokePoints.current = [];
   }, [currentTool, currentColor, currentStrokeWidth, strokes, addStroke]);
 
-  // 检查笔迹是否在套索内
-  const isStrokeInsideLasso = (strokePoints, lassoPoints) => {
-    if (!strokePoints || strokePoints.length === 0 || !lassoPoints || lassoPoints.length < 3) {
-      return false;
-    }
-
-    // 简单的点在多边形内检测算法
-    let insideCount = 0;
-    for (const point of strokePoints) {
-      if (isPointInPolygon(point, lassoPoints)) {
-        insideCount++;
-      }
-    }
-
-    // 如果超过一半的点在套索内，则认为笔迹被选中
-    return insideCount > strokePoints.length / 2;
-  };
-
-  // 点在多边形内检测（射线法）
-  const isPointInPolygon = (point, polygon) => {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].x, yi = polygon[i].y;
-      const xj = polygon[j].x, yj = polygon[j].y;
-
-      const intersect = ((yi > point.y) !== (yj > point.y))
-        && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-      if (intersect) {inside = !inside;}
-    }
-    return inside;
-  };
-
   // 工具栏事件处理
   const onToolChange = useCallback((tool) => {
     setCurrentTool(tool);
@@ -181,4 +177,3 @@ export const useJavascriptCanvas = () => {
     },
   };
 };
-

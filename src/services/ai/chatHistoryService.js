@@ -486,7 +486,7 @@ class ChatHistoryService {
       });
     } catch (error) {
       logService.error('获取AI历史记录失败', error);
-      throw error;
+      return [];
     }
   }
 

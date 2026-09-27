@@ -2,7 +2,7 @@
  * 自动分类组件
  * 提供自动分类、标签推荐、相似笔记查找等功能
  */
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -36,7 +36,7 @@ const AutoClassification = ({
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   // 加载推荐
-  const loadRecommendations = async () => {
+  const loadRecommendations = useCallback(async () => {
     if (!noteId) {return;}
 
     setLoading(true);
@@ -70,14 +70,14 @@ const AutoClassification = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTags, noteId]);
 
   // 初始加载
   useEffect(() => {
     if (noteId) {
       loadRecommendations();
     }
-  }, [noteId]);
+  }, [loadRecommendations, noteId]);
 
   // 选择标签
   const handleTagSelect = (tag) => {

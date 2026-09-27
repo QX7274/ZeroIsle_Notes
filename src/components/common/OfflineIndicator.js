@@ -1,7 +1,7 @@
 /**
  * 离线状态指示器组件
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -28,9 +28,9 @@ const OfflineIndicator = ({ onPress, style }) => {
   const [expanded, setExpanded] = useState(false);
 
   // 动画值
-  const animatedHeight = new Animated.Value(0);
-  const animatedOpacity = new Animated.Value(0);
-  const syncIconRotation = new Animated.Value(0);
+  const animatedHeight = useRef(new Animated.Value(0)).current;
+  const animatedOpacity = useRef(new Animated.Value(0)).current;
+  const syncIconRotation = useRef(new Animated.Value(0)).current;
 
   // 监听网络状态变化
   useEffect(() => {
@@ -69,7 +69,7 @@ const OfflineIndicator = ({ onPress, style }) => {
         useNativeDriver: false,
       }),
     ]).start();
-  }, [expanded]);
+  }, [animatedHeight, animatedOpacity, expanded]);
 
   // 启动旋转动画
   const startRotationAnimation = () => {

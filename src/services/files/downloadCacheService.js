@@ -4,6 +4,7 @@
  */
 
 import RNFS from 'react-native-fs';
+import CryptoJS from 'crypto-js';
 import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
 
@@ -18,7 +19,9 @@ class DownloadCacheService {
    * 初始化缓存目录
    */
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      return;
+    }
     try {
       const exists = await RNFS.exists(this.CACHE_DIR);
       if (!exists) {
@@ -37,11 +40,20 @@ class DownloadCacheService {
    */
   async getCachePath(fileId, extension = '') {
     await this.initialize();
-    const fileName = extension ? `${fileId}.${extension}` : fileId;
+    const cacheKey = this._getCacheKey(fileId);
+    const realm = await realmService.getRealm();
+    const indexedItem = realm.objectForPrimaryKey('FileCacheIndex', `cache_${cacheKey}`);
+
+    if (indexedItem?.path && await RNFS.exists(indexedItem.path)) {
+      // 以索引中的真实路径为准，避免 URL、扩展名和缓存文件名不一致。
+      this._updateLastAccess(fileId).catch(() => {});
+      return indexedItem.path;
+    }
+
+    const safeExtension = this._sanitizeExtension(extension);
+    const fileName = safeExtension ? `${cacheKey}.${safeExtension}` : cacheKey;
     const path = `${this.CACHE_DIR}/${fileName}`;
-    
     if (await RNFS.exists(path)) {
-      // 更新最后访问时间（用于 LRU）
       this._updateLastAccess(fileId).catch(() => {});
       return path;
     }
@@ -53,8 +65,9 @@ class DownloadCacheService {
    */
   async saveToCache(fileId, sourcePath, metadata = {}) {
     await this.initialize();
-    const extension = metadata.extension || '';
-    const fileName = extension ? `${fileId}.${extension}` : fileId;
+    const cacheKey = this._getCacheKey(fileId);
+    const extension = this._sanitizeExtension(metadata.extension || '');
+    const fileName = extension ? `${cacheKey}.${extension}` : cacheKey;
     const destPath = `${this.CACHE_DIR}/${fileName}`;
 
     try {
@@ -65,7 +78,7 @@ class DownloadCacheService {
       await RNFS.copyFile(sourcePath, destPath);
 
       // 3. 记录到 Realm 索引
-      await this._recordInIndex(fileId, {
+      await this._recordInIndex(fileId, cacheKey, {
         path: destPath,
         size: metadata.size || 0,
         mimeType: metadata.mimeType,
@@ -78,6 +91,21 @@ class DownloadCacheService {
     }
   }
 
+  _getCacheKey(fileId) {
+    const value = String(fileId || 'unknown');
+    if (/^[A-Za-z0-9._-]{1,120}$/.test(value) && value !== '.' && value !== '..') {
+      return value;
+    }
+    return `remote_${CryptoJS.SHA256(value).toString()}`;
+  }
+
+  _sanitizeExtension(extension) {
+    return String(extension || '')
+      .replace(/^\./, '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .slice(0, 16);
+  }
+
   /**
    * 执行 LRU 清理
    * @private
@@ -85,9 +113,9 @@ class DownloadCacheService {
   async _enforceLRU(incomingSize) {
     const realm = await realmService.getRealm();
     const cacheItems = realm.objects('FileCacheIndex').sorted('lastAccessedAt', false);
-    
+
     let currentTotalSize = cacheItems.sum('size');
-    
+
     // 如果加上新文件超过上限，开始删除最旧的
     while (currentTotalSize + incomingSize > this.MAX_CACHE_SIZE && cacheItems.length > 0) {
       const oldest = cacheItems[0];
@@ -107,11 +135,11 @@ class DownloadCacheService {
     }
   }
 
-  async _recordInIndex(fileId, data) {
+  async _recordInIndex(fileId, cacheKey, data) {
     const realm = await realmService.getRealm();
     realm.write(() => {
       realm.create('FileCacheIndex', {
-        _id: `cache_${fileId}`,
+        _id: `cache_${cacheKey}`,
         fileId,
         path: data.path,
         size: data.size,
@@ -123,7 +151,7 @@ class DownloadCacheService {
 
   async _updateLastAccess(fileId) {
     const realm = await realmService.getRealm();
-    const item = realm.objectForPrimaryKey('FileCacheIndex', `cache_${fileId}`);
+    const item = realm.objectForPrimaryKey('FileCacheIndex', `cache_${this._getCacheKey(fileId)}`);
     if (item) {
       realm.write(() => {
         item.lastAccessedAt = new Date();
@@ -134,4 +162,3 @@ class DownloadCacheService {
 
 export const downloadCacheService = new DownloadCacheService();
 export default downloadCacheService;
-

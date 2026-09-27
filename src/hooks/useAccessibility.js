@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { AccessibilityInfo, Platform, Appearance } from 'react-native';
+import { AccessibilityInfo, Platform, Appearance, Text } from 'react-native';
 
 /**
  * useAccessibility Hook

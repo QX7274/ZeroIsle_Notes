@@ -73,7 +73,7 @@ const Card = ({
     } else {
       fadeAnim.setValue(1);
     }
-  }, []);
+  }, [animation, animationDuration, fadeAnim, scaleAnim]);
 
   // 处理按压动画
   const handlePressIn = () => {

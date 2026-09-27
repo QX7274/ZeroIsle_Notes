@@ -70,7 +70,7 @@ const SafeDateTimePicker = ({
         setFallbackVisible(true);
       }
     }
-  }, [visible, dateTimePickerError]);
+  }, [dateTimePickerError, value, visible]);
 
   // 处理日期变化
   const handleChange = (event, selectedDate) => {

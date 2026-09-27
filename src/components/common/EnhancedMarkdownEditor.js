@@ -123,7 +123,7 @@ const EnhancedMarkdownEditor = ({
     if (value !== content) {
       setContent(value);
     }
-  }, [value]);
+  }, [content, value]);
 
   const styles = getStyles(colors, dimensions);
 

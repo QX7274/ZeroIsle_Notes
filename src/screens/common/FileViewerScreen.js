@@ -18,6 +18,7 @@ import RNFS from 'react-native-fs';
 import { downloadCacheService } from '../../services/files/downloadCacheService';
 import { fileService } from '../../services/files';
 import { useNavigation } from '@react-navigation/native';
+import { buildFileInfo } from './fileViewerHelpers';
 
 /**
  * 文件查看器屏幕
@@ -161,13 +162,12 @@ const FileViewerScreen = ({ route }) => {
         console.log('File type detection:', { fileName: name, fileType, fileUri: uri, detectedType: fileType, routingDecision: 'renderViewer' });
 
         // 设置文件信息
-        setFileInfo({
-          uri,
-          name: name || stats.name || '未命名文件',
-          size: stats.size,
-          type: fileType,
-          lastModified: stats.mtime,
-        });
+        setFileInfo(buildFileInfo({
+          processedUri,
+          name,
+          stats,
+          fileType,
+        }));
 
         setLoading(false);
       } catch (err) {

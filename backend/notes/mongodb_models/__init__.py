@@ -21,6 +21,7 @@ from .whisper_training_data import WhisperTrainingData
 
 from .annotation import Annotation
 from .drawing_path import DrawingPath
+from .upload_session import UploadSession
 
 # 创建别名
 Attachment = NoteAttachment
@@ -43,5 +44,6 @@ __all__ = [
     'WhisperTrainingData',
 
     'Annotation',
-    'DrawingPath'
+    'DrawingPath',
+    'UploadSession',
 ]

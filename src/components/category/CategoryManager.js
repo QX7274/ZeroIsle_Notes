@@ -3,7 +3,7 @@
  * 综合管理分类的主组件
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -67,17 +67,22 @@ const CategoryManager = ({ onCategorySelect, viewMode: initialViewMode = 'list' 
   const [showStatistics, setShowStatistics] = useState(false);
   const [statistics, setStatistics] = useState(null);
 
+  // 加载分类列表
+  const loadCategories = useCallback(() => {
+    dispatch(fetchCategories());
+  }, [dispatch]);
+
   // 加载分类数据
   useEffect(() => {
     loadCategories();
-  }, []);
+  }, [loadCategories]);
 
   // 监听视图模式变化，加载相应数据
   useEffect(() => {
     if (viewMode === 'tree') {
       dispatch(fetchCategoryTree());
     }
-  }, [viewMode]);
+  }, [dispatch, viewMode]);
 
   // 显示错误和成功消息
   useEffect(() => {
@@ -93,11 +98,6 @@ const CategoryManager = ({ onCategorySelect, viewMode: initialViewMode = 'list' 
       dispatch(clearSuccessMessage());
     }
   }, [successMessage, dispatch]);
-
-  // 加载分类列表
-  const loadCategories = () => {
-    dispatch(fetchCategories());
-  };
 
   // 刷新数据
   const handleRefresh = () => {
@@ -356,7 +356,6 @@ const getStyles = (colors) =>
   });
 
 export default CategoryManager;
-
 
 
 

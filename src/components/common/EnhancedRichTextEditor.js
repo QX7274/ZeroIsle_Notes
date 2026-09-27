@@ -1,7 +1,7 @@
 /**
  * 增强版富文本编辑器组件
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -67,12 +67,12 @@ const EnhancedRichTextEditor = ({
   const { isLoading: isImageUploading, error: imageUploadError, result: imageUploadResult } = useSelector(state => state.notes.imageUpload);
 
   // 处理内容变化
-  const handleContentChange = (text) => {
+  const handleContentChange = useCallback((text) => {
     setContent(text);
     if (onChange) {
       onChange(text);
     }
-  };
+  }, [onChange]);
 
   // 处理选择范围变化
   const handleSelectionChange = (event) => {
@@ -300,7 +300,7 @@ const EnhancedRichTextEditor = ({
   };
 
   // 插入图片
-  const insertImage = (imageUrl) => {
+  const insertImage = useCallback((imageUrl) => {
     try {
       // 判断是否为本地图片路径（离线模式下）
       const isLocalImage = imageUrl.startsWith('file:') || imageUrl.startsWith('content:');
@@ -333,7 +333,7 @@ const EnhancedRichTextEditor = ({
       console.error('插入图片失败:', error);
       Alert.alert('错误', '插入图片失败: ' + error.message);
     }
-  };
+  }, [content, handleContentChange, onImageUpload, selection, showToast]);
 
   // 插入表格
   const insertTable = () => {
@@ -416,7 +416,7 @@ const EnhancedRichTextEditor = ({
         }
       }
     }
-  }, [imageUploadResult, imagePreview, isImageUploading, imageUploadError, content]);
+  }, [content, imagePreview, imageUploadError, imageUploadResult, insertImage, isImageUploading]);
 
   // 渲染表格模态框
   const renderTableModal = () => (

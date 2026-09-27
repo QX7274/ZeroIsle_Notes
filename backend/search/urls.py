@@ -34,8 +34,17 @@ legacy_urls = [
     path('image/', legacy_views.SearchViewSet.as_view({'post': 'image'}), name='search-image'),
     path('knowledge-graph/', legacy_views.SearchViewSet.as_view({'post': 'knowledge_graph'}), name='search-knowledge-graph'),
     path('history/', legacy_views.SearchViewSet.as_view({'get': 'history'}), name='search-history'),
-    path('clear-history/', legacy_views.SearchViewSet.as_view({'delete': 'clear_history'}), name='search-clear-history'),
+    path('clear-history/', legacy_views.SearchViewSet.as_view({'post': 'clear_history', 'delete': 'clear_history'}), name='search-clear-history'),
 ]
+
+# The public autocomplete contract is backed by MongoEngine's SuggestionService.
+# Register it before the Django-model router entry, which cannot safely filter a
+# MongoEngine QuerySet with DjangoFilterBackend.
+legacy_suggestions_url = path(
+    'suggestions/',
+    legacy_views.SearchViewSet.as_view({'get': 'suggestions'}),
+    name='search-suggestions',
+)
 
 # 语义搜索API
 semantic_urls = [
@@ -47,6 +56,7 @@ semantic_urls = [
 ]
 
 urlpatterns = [
+    legacy_suggestions_url,
     # API路由
     path('', include(router.urls)),
 

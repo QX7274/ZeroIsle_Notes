@@ -44,6 +44,11 @@ import { useAutoSaveOnExit } from '../../hooks/useAutoSaveOnExit';
 
 // 导入内存监控服务
 import MemoryMonitor from '../../services/memory/MemoryMonitor';
+import {
+  buildPagedNoteRecord,
+  buildPagedNoteStoragePayload,
+} from './pagedNoteHelpers';
+import { generateNoteDataHash } from '../../services/data/noteDataHash';
 
 
 const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
@@ -145,7 +150,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
           currentPage,
           totalPages,
           scale: zoomLevel,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date(),
         });
       }
     });
@@ -242,7 +247,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
     } else if (noteId) {
       loadNote(noteId);
     }
-  }, [noteId, createNew]);
+  }, [createNew, createNewNote, loadNote, noteId, noteStyle, title]);
 
   // ✅ 监听屏幕焦点变化，失焦时触发一次立即导出
   useEffect(() => {
@@ -335,8 +340,10 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
 
   // ✅ 组件卸载时保存数据
   useEffect(() => {
+    const noteView = noteViewRef.current;
+
     return () => {
-      if (hasUnsavedChanges && noteViewRef.current && noteId) {
+      if (hasUnsavedChanges && noteView && noteId) {
         dispatchExportNote();
       }
       if (autoSaveTimerRef.current) {
@@ -360,7 +367,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         zoomHideTimerRef.current = null;
       }
     };
-  }, []);
+  }, [insertRecognizedText]);
 
   // 处理原生组件就绪事件
   const handleReady = useCallback(async (event) => {
@@ -444,29 +451,11 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       }
 
       console.log('[SkiaPagedCanvasScreenNative] 创建新笔记，ID:', noteId);
-
-      const newNote = {
-        _id: noteId, // 使用字符串，Realm 会自动转换为 ObjectId
-        id: noteId.toString(), // id 字段使用字符串
-        title: title || '新建笔记',
-        content: '',
-        type: 'paged_note',
-        noteType: 'paged_note',
-        file_type: 'paged_note',
-        noteStyle: noteStyle || 'blank',
-        pages: JSON.stringify([{ content: '', pageNumber: 0, strokes: [] }]),
-        totalPages: 1,
-        currentPage: 1,
-        scale: 1.0,
-        scrollPosition: JSON.stringify({ x: 0, y: 0 }),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        user_id: 'current_user',
-        is_deleted: false,
-        is_synced: false,
-        file_uri: `paged_note://${noteId}`,
-        uri: `paged_note://${noteId}`,
-      };
+      const newNote = buildPagedNoteRecord({
+        noteId,
+        title,
+        noteStyle,
+      });
 
       const realm = await realmService.getRealm();
       let savedNote;
@@ -482,15 +471,11 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         // 确保 permanentStorageBridge 已初始化
         if (permanentStorageBridge && typeof permanentStorageBridge.createNote === 'function') {
           await permanentStorageBridge.createNote({
-            _id: noteId,
-            type: 'paged_note',
-            title: title || '新建笔记',
-            pageStyle: noteStyle || 'blank',
-            pages: JSON.stringify([{ content: '', pageNumber: 0, strokes: [] }]),
-            currentPage: 1,
-            totalPages: 1,
-            scale: 1.0,
-            updated_at: new Date().toISOString(),
+            ...buildPagedNoteStoragePayload({
+              noteId,
+              title,
+              noteStyle,
+            }),
           });
           console.log('[PagedNote] 原生永久存储创建成功');
         } else {
@@ -571,6 +556,21 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
     });
   }, [scheduleExportNote, toolbarPropsBase, currentPage]);
 
+  const insertRecognizedText = useCallback((text) => {
+    // 将识别文本插入到笔记中（命令ID: 2）
+    if (noteViewRef.current) {
+      try {
+        UIManager.dispatchViewManagerCommand(
+          findNodeHandle(noteViewRef.current),
+          '2', // insertText 命令
+          [text]
+        );
+      } catch (err) {
+        console.error('[SkiaPagedCanvasScreenNative] 插入文本命令失败:', err);
+      }
+    }
+  }, []);
+
   const handleHandwritingRecognized = useCallback((event) => {
     const { strokeId, recognizedText: legacyText, text, confidence } = event.nativeEvent;
     const recognizedText = typeof text === 'string' && text.length > 0 ? text : legacyText;
@@ -583,7 +583,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         { text: '插入文本', onPress: () => insertRecognizedText(recognizedText) },
       ]);
     }
-  }, []);
+  }, [insertRecognizedText]);
 
   // 处理导出完成事件 - 保存笔迹数据到数据库
   const handleExportComplete = useCallback(async (event) => {
@@ -625,15 +625,15 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         // 如果note不存在，创建一个新的
         if (!note) {
           console.log('[SkiaPagedCanvasScreenNative] Note不存在，创建新的Note记录');
-          note = realm.create('Note', {
-            _id: exportedNoteId,
+          note = realm.create('Note', buildPagedNoteRecord({
+            noteId: exportedNoteId,
             title: title || '分页笔记',
-            type: 'paged_note',
-            noteType: 'paged_note',
-            file_type: 'paged_note',
-            created_at: new Date(),
-            updated_at: new Date(),
-          }, 'modified');
+            noteStyle: noteStyle || 'blank',
+            pages: [],
+            currentPage: noteData.currentPage || currentPage,
+            totalPages: noteData.totalPages || totalPages,
+            scale: noteData.scale || zoomLevel,
+          }), 'modified');
         }
 
         // ✅ data已经是JSON字符串，直接保存
@@ -647,6 +647,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
           scale: noteData.scale || zoomLevel,
           updated_at: new Date(),
         });
+        note.dataHash = generateNoteDataHash(note);
 
         console.log('✅✅✅ [SkiaPagedCanvasScreenNative] 页面数据已保存到数据库', {
           noteId: exportedNoteId,
@@ -681,7 +682,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
             totalPages: noteData.totalPages || totalPages,
             pageStyle: noteData.pageStyle || noteStyle || 'blank',
             scale: noteData.scale || zoomLevel,
-            updated_at: new Date().toISOString(),
+            updated_at: new Date(),
           });
           console.log('[PagedNote] 原生永久存储更新成功');
         } else {
@@ -695,21 +696,6 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       console.error('[SkiaPagedCanvasScreenNative] 错误堆栈:', error.stack);
     }
   }, [title, noteStyle, currentPage, totalPages, zoomLevel]);
-
-  const insertRecognizedText = useCallback((text) => {
-    // 将识别文本插入到笔记中（命令ID: 2）
-    if (noteViewRef.current) {
-      try {
-        UIManager.dispatchViewManagerCommand(
-          findNodeHandle(noteViewRef.current),
-          '2', // insertText 命令
-          [text]
-        );
-      } catch (err) {
-        console.error('[SkiaPagedCanvasScreenNative] 插入文本命令失败:', err);
-      }
-    }
-  }, []);
 
   const handleSave = useCallback(async () => {
     console.log('[SkiaPagedCanvasScreenNative] 保存笔记...');

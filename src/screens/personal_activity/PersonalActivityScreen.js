@@ -191,7 +191,7 @@ const PersonalActivityScreen = ({ navigation }) => {
         </View>
       </View>
     );
-  }, [colors.background, colors.card, colors.primary, colors.text, insets.top, pulse]);
+  }, [colors.background, colors.card, colors.primary, colors.text, colors.textSecondary, insets.top, navigation, pulse]);
 
 
 

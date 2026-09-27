@@ -33,18 +33,16 @@ export const getNotesFromOfflineStorage = async () => {
     } catch (userError) {
       const DEV_SKIP_LOGIN = __DEV__ && Boolean(DEV_MODE_CONFIG?.FEATURES?.SKIP_LOGIN_SCREEN);
       if (DEV_SKIP_LOGIN) {
-        console.log('DEV_SKIP_LOGIN 模式：未获取到用户信息，返回空笔记列表以继续联调');
-        return {
-          success: true,
-          data: [],
-          isFirstUse: true,
-          isOffline: !isOnline,
-          message: '开发调试模式：未登录用户，暂无离线笔记',
+        user = DEV_MODE_CONFIG.DEV_ACCOUNT || {
+          id: 'dev-account-001',
+          username: 'developer',
         };
+        console.log('DEV_SKIP_LOGIN 模式：使用开发者账户上下文读取本地笔记:', user.username || user.id);
       }
-
-      console.warn('获取用户信息失败:', userError);
-      throw userError;
+      if (!user) {
+        console.warn('获取用户信息失败:', userError);
+        throw userError;
+      }
     }
 
     console.log('当前用户:', user.username || user.id);

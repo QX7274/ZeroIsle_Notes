@@ -143,6 +143,8 @@ jest.mock('realm', () => {
         },
     };
 
+    Realm.Object = class RealmObject {};
+
     return Realm;
 });
 

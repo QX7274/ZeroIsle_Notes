@@ -97,18 +97,21 @@ class PersonalActivityDB {
   async saveDraft(draftData) {
     const drafts = await this._getData(DRAFTS_KEY);
     const now = new Date().toISOString();
+    let savedDraft = null;
 
     if (draftData._id) { // Update existing draft
       const index = drafts.findIndex(d => d._id === draftData._id);
       if (index !== -1) {
         drafts[index] = { ...drafts[index], ...draftData, updated_at: now };
+        savedDraft = drafts[index];
       }
     } else { // Create new draft
       const newDraft = { _id: uuidv4(), ...draftData, created_at: now, updated_at: now };
       drafts.push(newDraft);
+      savedDraft = newDraft;
     }
     await this._setData(DRAFTS_KEY, drafts);
-    return newDraft._id ? newDraft : drafts.find(d => d.created_at === now);
+    return savedDraft || drafts.find(d => d.created_at === now) || null;
   }
 
   async deleteDraft(id) {

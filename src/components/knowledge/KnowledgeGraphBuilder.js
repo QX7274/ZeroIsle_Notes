@@ -2,7 +2,7 @@
  * 知识图谱构建组件
  * 提供知识图谱构建和可视化功能
  */
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -25,7 +25,7 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
   const [activeTab, setActiveTab] = useState('graph');
 
   // 构建知识图谱
-  const buildGraph = async () => {
+  const buildGraph = useCallback(async () => {
     if (!noteId) {return;}
 
     setLoading(true);
@@ -57,14 +57,14 @@ const KnowledgeGraphBuilder = ({ noteId, onNodePress }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [noteId]);
 
   // 初始加载
   useEffect(() => {
     if (noteId) {
       buildGraph();
     }
-  }, [noteId]);
+  }, [buildGraph, noteId]);
 
   // 准备图谱数据
   const prepareGraphData = () => {

@@ -6,15 +6,21 @@ apply plugin: "com.google.gms.google-services"
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
 react {
-    // 当前真机 debug 依赖 Metro 的供包链不稳定，导致前台长期停在 Reloading/空根容器。
-    // 将 debug 从 debuggableVariants 中移除后，installDebug 也会内置 JS bundle，
-    // 便于在不依赖 Metro 的情况下恢复真机业务前台继续逐页验收。
-    debuggableVariants = []
+    // Keep the debug variant debuggable so yarn android starts Metro with __DEV__=true.
+    // Release builds remain non-debuggable and never enable developer session restore.
+    debuggableVariants = ["debug"]
     autolinkLibrariesWithApp()
 }
 
 def enableProguardInReleaseBuilds = false
 def jscFlavor = "org.webkit:android-jsc:+"
+def releaseStoreFile = System.getenv("ZEROISLE_RELEASE_STORE_FILE") ?: project.findProperty("ZEROISLE_RELEASE_STORE_FILE")
+def releaseStorePassword = System.getenv("ZEROISLE_RELEASE_STORE_PASSWORD") ?: project.findProperty("ZEROISLE_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("ZEROISLE_RELEASE_KEY_ALIAS") ?: project.findProperty("ZEROISLE_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("ZEROISLE_RELEASE_KEY_PASSWORD") ?: project.findProperty("ZEROISLE_RELEASE_KEY_PASSWORD")
+def hasReleaseSigning = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { value ->
+    value != null && value.toString().trim()
+}
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -84,6 +90,14 @@ android {
             keyAlias "androiddebugkey"
             keyPassword "android"
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     splits {
@@ -107,7 +121,9 @@ android {
             multiDexEnabled true
         }
         release {
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             multiDexEnabled true
@@ -133,6 +149,18 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    def releaseTaskRequested = graph.allTasks.any { task ->
+        task.name.toLowerCase().contains("release")
+    }
+    if (releaseTaskRequested && !hasReleaseSigning) {
+        throw new GradleException(
+            "Release build requires ZEROISLE_RELEASE_STORE_FILE, ZEROISLE_RELEASE_STORE_PASSWORD, " +
+            "ZEROISLE_RELEASE_KEY_ALIAS and ZEROISLE_RELEASE_KEY_PASSWORD."
+        )
     }
 }
 

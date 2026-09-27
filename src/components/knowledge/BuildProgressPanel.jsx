@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Progress, Card, Statistic, Table, Button, Space, message, Spin } from 'antd';
 import { ReloadOutlined, StopOutlined, DownloadOutlined } from '@ant-design/icons';
 import { getTaskStatus } from '../../adapters/knowledgeGraphAdapter';
@@ -7,7 +7,25 @@ import './BuildProgressPanel.css';
 export const BuildProgressPanel = ({ taskId, onComplete }) => {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [intervalId, setIntervalId] = useState(null);
+  const intervalIdRef = useRef(null);
+
+  const fetchTaskStatus = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await getTaskStatus(taskId);
+      setTask(response);
+
+      // 任务完成时清除定时器
+      if (response.status === 'success' || response.status === 'failed') {
+        if (intervalIdRef.current) {clearInterval(intervalIdRef.current);}
+        onComplete?.(response);
+      }
+    } catch (error) {
+      message.error('获取任务状态失败: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [onComplete, taskId]);
 
   useEffect(() => {
     // 立即获取一次状态
@@ -18,30 +36,12 @@ export const BuildProgressPanel = ({ taskId, onComplete }) => {
       fetchTaskStatus();
     }, 1000);
 
-    setIntervalId(id);
+    intervalIdRef.current = id;
 
     return () => {
       if (id) {clearInterval(id);}
     };
-  }, [taskId]);
-
-  const fetchTaskStatus = async () => {
-    try {
-      setLoading(true);
-      const response = await getTaskStatus(taskId);
-      setTask(response);
-
-      // 任务完成时清除定时器
-      if (response.status === 'success' || response.status === 'failed') {
-        if (intervalId) {clearInterval(intervalId);}
-        onComplete?.(response);
-      }
-    } catch (error) {
-      message.error('获取任务状态失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchTaskStatus]);
 
   if (!task) {
     return <Spin tip="加载任务信息..." />;
@@ -172,4 +172,3 @@ export const BuildProgressPanel = ({ taskId, onComplete }) => {
     </div>
   );
 };
-

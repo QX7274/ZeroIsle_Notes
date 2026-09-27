@@ -3,7 +3,7 @@
  * 在应用启动时进行必要的初始化工作
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import simpleAuth from '../../services/auth/simpleAuth';
@@ -14,11 +14,7 @@ const AppInitializer = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [initStatus, setInitStatus] = useState('正在初始化应用...');
 
-  useEffect(() => {
-    initializeApp();
-  }, []);
-
-  const initializeApp = async () => {
+  const initializeApp = useCallback(async () => {
     try {
       setInitStatus('正在初始化认证...');
 
@@ -53,7 +49,11 @@ const AppInitializer = ({ children }) => {
         setIsInitializing(false);
       }, 1000);
     }
-  };
+  }, [colors]);
+
+  useEffect(() => {
+    initializeApp();
+  }, [initializeApp]);
 
   if (isInitializing) {
     return (

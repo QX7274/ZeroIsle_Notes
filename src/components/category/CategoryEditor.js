@@ -3,7 +3,7 @@
  * 用于创建和编辑分类的对话框
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -72,6 +72,15 @@ const CategoryEditor = ({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showParentPicker, setShowParentPicker] = useState(false);
 
+  // 重置表单
+  const resetForm = useCallback(() => {
+    setName('');
+    setDescription('');
+    setColor(colors.primary);
+    setIcon('folder');
+    setParentId(null);
+  }, [colors.primary]);
+
   // 当分类数据变化时更新表单
   useEffect(() => {
     if (category) {
@@ -83,16 +92,7 @@ const CategoryEditor = ({
     } else {
       resetForm();
     }
-  }, [category]);
-
-  // 重置表单
-  const resetForm = () => {
-    setName('');
-    setDescription('');
-    setColor(colors.primary);
-    setIcon('folder');
-    setParentId(null);
-  };
+  }, [category, colors.primary, resetForm]);
 
   // 验证表单
   const validateForm = () => {
@@ -389,7 +389,6 @@ const getStyles = (colors) =>
   });
 
 export default CategoryEditor;
-
 
 
 

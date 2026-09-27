@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import Svg, { Path, Circle, Text as SvgText } from 'react-native-svg';
 import { PanGestureHandler, PinchGestureHandler, State } from 'react-native-gesture-handler';
@@ -18,13 +18,7 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
   const panRef = useRef(null);
   const pinchRef = useRef(null);
 
-  useEffect(() => {
-    if (data) {
-      processData(data);
-    }
-  }, [data]);
-
-  const processData = (data) => {
+  const processData = useCallback((data) => {
     // 简单的布局算法
     const rootNode = {
       id: data.id,
@@ -75,7 +69,13 @@ const MindMap = ({ data, onNodePress, editable = false }) => {
 
     setNodes(processedNodes);
     setConnections(processedConnections);
-  };
+  }, [layout]);
+
+  useEffect(() => {
+    if (data) {
+      processData(data);
+    }
+  }, [data, processData]);
 
   const handleNodePress = (node) => {
     setSelectedNode(node);

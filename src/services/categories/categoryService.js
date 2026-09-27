@@ -238,8 +238,6 @@ class CategoryService {
         }
       });
       return updatedCategory;
-
-      return updatedCategory;
     } catch (error) {
       console.error(`更新分类(ID: ${categoryId})失败:`, error);
       throw error;

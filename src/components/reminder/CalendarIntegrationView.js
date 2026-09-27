@@ -2,7 +2,7 @@
  * 日历集成视图组件
  * 提供将提醒同步到设备日历的功能
  */
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,14 +34,8 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
   });
   const [autoSync, setAutoSync] = useState(false);
 
-  // 初始化
-  useEffect(() => {
-    loadCalendars();
-    checkSyncStatus();
-  }, [reminder]);
-
   // 加载日历列表
-  const loadCalendars = async () => {
+  const loadCalendars = useCallback(async () => {
     try {
       setLoading(true);
       const availableCalendars = await calendarIntegrationService.getCalendars();
@@ -64,10 +58,10 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 检查同步状态
-  const checkSyncStatus = () => {
+  const checkSyncStatus = useCallback(() => {
     if (reminder.calendar_event_id) {
       // 查找日历名称
       const calendarName = calendars.find(cal => cal.id === reminder.calendar_id)?.title || '未知日历';
@@ -84,7 +78,16 @@ const CalendarIntegrationView = ({ reminder, onSyncComplete }) => {
         calendarName: null,
       });
     }
-  };
+  }, [reminder, calendars]);
+
+  // 初始化
+  useEffect(() => {
+    loadCalendars();
+  }, [loadCalendars]);
+
+  useEffect(() => {
+    checkSyncStatus();
+  }, [checkSyncStatus]);
 
   // 同步到日历
   const handleSyncToCalendar = async () => {

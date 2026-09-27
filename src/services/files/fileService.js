@@ -250,7 +250,7 @@ class FileService {
    * @param {Function} options.onProgress 进度回调
    * @returns {Promise<Object>} 上传结果
    */
-  async uploadFile({ uri, name, type, size, onProgress }) {
+  async uploadFile({ uri, name, type, size, noteId, onProgress }) {
     try {
       await this.initialize();
       const safeName = String(name || 'unnamed');
@@ -266,6 +266,7 @@ class FileService {
           name: safeName,
           type: safeType,
           size: safeSize,
+          noteId,
           onProgress,
         });
 
@@ -335,9 +336,9 @@ class FileService {
    * 分片上传实现逻辑
    * @private
    */
-  async _chunkedUpload({ uri, name, type, size, onProgress }) {
+  async _chunkedUpload({ uri, name, type, size, noteId, onProgress }) {
     logService.info(`[FileService] 启动分片上传任务: ${name}`);
-    return await chunkedUploadService.startUpload({ uri, size, name, type, onProgress });
+    return await chunkedUploadService.startUpload({ uri, size, name, type, noteId, onProgress });
   }
 
   /**

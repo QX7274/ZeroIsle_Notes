@@ -34,6 +34,7 @@ const AudioWaveform = ({
   const [bars, setBars] = useState([]);
   const animatedValues = useRef([]);
   const animatedHeights = useRef([]);
+  const waveformActionsRef = useRef({});
   const containerWidth = Dimensions.get('window').width - 40; // 减去边距
   const actualBarCount = Math.min(barCount, Math.floor(containerWidth / (barWidth + barGap)));
 
@@ -63,10 +64,10 @@ const AudioWaveform = ({
   useEffect(() => {
     if (isRecording) {
       // 开始波形动画
-      startWaveformAnimation();
+      waveformActionsRef.current.startWaveformAnimation?.();
     } else {
       // 重置波形
-      resetWaveform();
+      waveformActionsRef.current.resetWaveform?.();
     }
 
     return () => {
@@ -80,17 +81,17 @@ const AudioWaveform = ({
   useEffect(() => {
     if (isPlaying) {
       // 开始播放波形动画
-      startPlaybackAnimation();
+      waveformActionsRef.current.startPlaybackAnimation?.();
     } else {
       // 暂停播放波形动画
-      pausePlaybackAnimation();
+      waveformActionsRef.current.pausePlaybackAnimation?.();
     }
   }, [isPlaying, currentTime, duration]);
 
   // 处理振幅变化
   useEffect(() => {
     if (isRecording && amplitude > 0) {
-      updateWaveformWithAmplitude(amplitude);
+      waveformActionsRef.current.updateWaveformWithAmplitude?.(amplitude);
     }
   }, [amplitude, isRecording]);
 
@@ -250,6 +251,14 @@ const AudioWaveform = ({
       opacity: 0.3,
     }));
     setBars(resetBars);
+  };
+
+  waveformActionsRef.current = {
+    pausePlaybackAnimation,
+    resetWaveform,
+    startPlaybackAnimation,
+    startWaveformAnimation,
+    updateWaveformWithAmplitude,
   };
 
   // 渲染单个波形柱

@@ -4,6 +4,7 @@
  */
 
 import RNFS from 'react-native-fs';
+import { Buffer } from 'buffer';
 import realmService from '../database/realmService';
 import apiClient from '../api/apiClient';
 import { logService } from '../../utils/logService';
@@ -19,6 +20,7 @@ class ChunkedUploadService {
     this.CHUNK_ENDPOINT = '/files/upload/chunk/';
     this.COMPLETE_ENDPOINT = '/files/upload/complete/';
     this.CANCEL_ENDPOINT = '/files/upload/cancel/';
+    this.STATUS_ENDPOINT = '/files/upload/';
 
     this.STATUS = {
       PENDING: 'pending',
@@ -38,7 +40,7 @@ class ChunkedUploadService {
    * @param {string} params.name 文件名
    * @param {Function} params.onProgress 进度回调
    */
-  async startUpload({ uri, size, name, type, onProgress }) {
+  async startUpload({ uri, size, name, type, noteId, onProgress }) {
     const realm = await realmService.getRealm();
     const deviceId = await deviceIdentityService.getDeviceId();
     const clientOpId = `up_${realmService.createObjectId()}`;
@@ -47,15 +49,19 @@ class ChunkedUploadService {
     let session = realm.objects('UploadSession').filtered(`localPath == $0 AND status != "${this.STATUS.COMPLETED}"`, uri)[0];
 
     if (!session) {
-      const initResult = await this._requestUploadInit({ name, size, type, deviceId, clientOpId });
+      const initResult = await this._requestUploadInit({ name, size, type, noteId, deviceId, clientOpId });
       realm.write(() => {
         session = realm.create('UploadSession', {
           _id: `sess_${Date.now()}`,
           sessionId: initResult.sessionId,
           fileId: initResult.fileId || null,
+          noteId: noteId || null,
+          attachmentId: initResult.attachmentId || null,
           localPath: uri,
           fileSize: size,
-          chunkSize: this.DEFAULT_CHUNK_SIZE,
+          chunkSize: Number.isInteger(initResult.chunkSize) && initResult.chunkSize > 0
+            ? initResult.chunkSize
+            : this.DEFAULT_CHUNK_SIZE,
           uploadedBytes: 0,
           status: this.STATUS.UPLOADING,
           updatedAt: new Date(),
@@ -83,7 +89,9 @@ class ChunkedUploadService {
       session = realm.objects('UploadSession').filtered(`localPath == $0 AND status == "${this.STATUS.UPLOADING}"`, localPath)[0];
     }
 
-    if (!session) return false;
+    if (!session) {
+      return false;
+    }
 
     realm.write(() => {
       session.status = this.STATUS.PAUSED;
@@ -107,9 +115,48 @@ class ChunkedUploadService {
       throw new Error('Upload session not found for resume');
     }
 
-    realm.write(() => {
-      session.status = this.STATUS.UPLOADING;
-      session.updatedAt = new Date();
+    const serverStatus = await this._requestUploadStatus(session);
+
+    if (serverStatus.status === this.STATUS.COMPLETED) {
+      realm.write(() => {
+        session.status = this.STATUS.COMPLETED;
+        session.uploadedBytes = serverStatus.uploadedBytes;
+        session.attachmentId = serverStatus.attachmentId || session.attachmentId || null;
+        session.updatedAt = new Date();
+      });
+      return {
+        success: true,
+        path: session.localPath,
+        sessionId: session.sessionId,
+        fileId: serverStatus.fileId || session.fileId || null,
+        attachmentId: serverStatus.attachmentId || session.attachmentId || null,
+        remoteUrl: serverStatus.remoteUrl || serverStatus.url || null,
+      };
+    }
+
+    if (serverStatus.status === this.STATUS.CANCELLED) {
+      realm.write(() => {
+        session.status = this.STATUS.CANCELLED;
+        session.uploadedBytes = serverStatus.uploadedBytes;
+        session.attachmentId = serverStatus.attachmentId || session.attachmentId || null;
+        session.updatedAt = new Date();
+      });
+      return {
+        success: false,
+        cancelled: true,
+        path: session.localPath,
+        sessionId: session.sessionId,
+        fileId: serverStatus.fileId || session.fileId || null,
+        attachmentId: serverStatus.attachmentId || session.attachmentId || null,
+        uploadedBytes: serverStatus.uploadedBytes,
+      };
+    }
+
+      realm.write(() => {
+        session.status = this.STATUS.UPLOADING;
+        session.uploadedBytes = serverStatus.uploadedBytes;
+        session.attachmentId = serverStatus.attachmentId || session.attachmentId || null;
+        session.updatedAt = new Date();
     });
 
     const resumedResult = await this._resumeUpload(session, onProgress);
@@ -139,7 +186,9 @@ class ChunkedUploadService {
       session = realm.objects('UploadSession').filtered(`localPath == $0 AND status != "${this.STATUS.COMPLETED}"`, localPath)[0];
     }
 
-    if (!session) return false;
+    if (!session) {
+      return false;
+    }
 
     realm.write(() => {
       session.status = this.STATUS.CANCELLED;
@@ -172,6 +221,32 @@ class ChunkedUploadService {
     }
   }
 
+  async _requestUploadStatus(session) {
+    try {
+      const response = await apiClient.get(
+        `${this.STATUS_ENDPOINT}${encodeURIComponent(session.sessionId)}/status/`
+      );
+      const status = response?.data || response;
+      const uploadedBytes = Number(status?.uploadedBytes);
+
+      if (!Number.isInteger(uploadedBytes) || uploadedBytes < 0 || uploadedBytes > session.fileSize) {
+        throw new Error('服务端返回了无效的上传偏移量');
+      }
+
+      if (status?.totalSize !== undefined && Number(status.totalSize) !== session.fileSize) {
+        throw new Error('服务端上传会话文件大小不一致');
+      }
+
+      return {
+        ...status,
+        uploadedBytes,
+        status: status?.status || this.STATUS.UPLOADING,
+      };
+    } catch (error) {
+      throw this._normalizeUploadError(error, '读取服务端上传状态失败');
+    }
+  }
+
   /**
    * 恢复上传逻辑
    * @private
@@ -189,6 +264,7 @@ class ChunkedUploadService {
             path: localPath,
             sessionId: session.sessionId,
             fileId: session.fileId || null,
+            attachmentId: session.attachmentId || null,
             uploadedBytes: session.uploadedBytes,
           };
         }
@@ -200,6 +276,7 @@ class ChunkedUploadService {
             path: localPath,
             sessionId: session.sessionId,
             fileId: session.fileId || null,
+            attachmentId: session.attachmentId || null,
             uploadedBytes: session.uploadedBytes,
           };
         }
@@ -234,6 +311,7 @@ class ChunkedUploadService {
 
       realm.write(() => {
         session.status = this.STATUS.COMPLETED;
+        session.attachmentId = completeResult?.attachmentId || session.attachmentId || null;
         session.error = null;
         session.updatedAt = new Date();
       });
@@ -244,6 +322,7 @@ class ChunkedUploadService {
         path: localPath,
         sessionId: session.sessionId,
         fileId: session.fileId || null,
+        attachmentId: session.attachmentId || null,
         remoteUrl: completeResult?.remoteUrl || null,
       };
 
@@ -268,6 +347,18 @@ class ChunkedUploadService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  async _hashLocalFile(localPath) {
+    if (typeof RNFS.hash !== 'function') {
+      throw new Error('当前设备不支持文件完整性校验');
+    }
+
+    const digest = String(await RNFS.hash(localPath, 'sha256')).toLowerCase().trim();
+    if (!/^[a-f0-9]{64}$/.test(digest)) {
+      throw new Error('本地文件完整性校验值格式无效');
+    }
+    return digest;
+  }
+
   _normalizeUploadError(error, defaultMessage) {
     const message = error?.message || defaultMessage || '上传失败';
     const normalizedError = new Error(message);
@@ -280,19 +371,27 @@ class ChunkedUploadService {
     return normalizedError;
   }
 
-  async _requestUploadInit({ name, size, type, deviceId, clientOpId }) {
+  async _requestUploadInit({ name, size, type, noteId, deviceId, clientOpId }) {
     try {
-      const payload = { name, size, type, deviceId, clientOpId };
+      const payload = { name, size, type, noteId: noteId || null, deviceId, clientOpId };
       const response = await apiClient.post(this.INIT_ENDPOINT, payload);
 
       const sessionId = response?.sessionId || response?.data?.sessionId;
       const fileId = response?.fileId || response?.data?.fileId || null;
+      const attachmentId = response?.attachmentId || response?.data?.attachmentId || null;
+      const rawChunkSize = response?.chunkSize ?? response?.data?.chunkSize;
+      const chunkSize = Number(rawChunkSize);
 
       if (!sessionId) {
         throw new Error('初始化上传会话失败：服务端未返回sessionId');
       }
 
-      return { sessionId, fileId };
+      return {
+        sessionId,
+        fileId,
+        attachmentId,
+        chunkSize: Number.isInteger(chunkSize) && chunkSize > 0 ? chunkSize : null,
+      };
     } catch (error) {
       throw this._normalizeUploadError(error, '初始化上传会话失败');
     }
@@ -304,26 +403,22 @@ class ChunkedUploadService {
    */
   async _uploadChunk(session, base64Data, offset) {
     const chunkIndex = Math.floor(offset / session.chunkSize);
-    const isLast = offset + session.chunkSize >= session.fileSize;
-
-    const payload = {
-      sessionId: session.sessionId,
-      fileId: session.fileId || null,
-      offset,
-      chunkIndex,
-      totalSize: session.fileSize,
-      chunkSize: session.chunkSize,
-      data: base64Data,
-      isLast,
-      deviceId: session.deviceId || null,
-      clientOpId: session.clientOpId || null,
-    };
+    const binaryChunk = Buffer.from(base64Data, 'base64');
 
     let attempt = 0;
     while (attempt < this.MAX_RETRIES) {
       try {
-        await apiClient.post(this.CHUNK_ENDPOINT, payload, {
+        await apiClient.post(this.CHUNK_ENDPOINT, binaryChunk, {
           timeout: 60000,
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Upload-Session': session.sessionId,
+            'X-Upload-Offset': String(offset),
+            'X-Upload-Chunk-Index': String(chunkIndex),
+            'X-Upload-Total-Size': String(session.fileSize),
+            'X-Upload-Device-Id': session.deviceId || '',
+            'X-Upload-Client-Op-Id': session.clientOpId || '',
+          },
         });
         return true;
       } catch (error) {
@@ -340,17 +435,20 @@ class ChunkedUploadService {
 
   async _completeUpload(session) {
     try {
+      const sha256 = await this._hashLocalFile(session.localPath);
       const response = await apiClient.post(this.COMPLETE_ENDPOINT, {
         sessionId: session.sessionId,
         fileId: session.fileId || null,
         uploadedBytes: session.uploadedBytes,
         totalSize: session.fileSize,
+        sha256,
         deviceId: session.deviceId || null,
         clientOpId: session.clientOpId || null,
       });
 
       return {
         remoteUrl: response?.url || response?.data?.url || null,
+        attachmentId: response?.attachmentId || response?.data?.attachmentId || null,
       };
     } catch (error) {
       throw this._normalizeUploadError(error, '上传完成确认失败');
@@ -360,4 +458,3 @@ class ChunkedUploadService {
 
 export const chunkedUploadService = new ChunkedUploadService();
 export default chunkedUploadService;
-

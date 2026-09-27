@@ -692,6 +692,7 @@ const AllInOneToolbar = ({
   onLassoComplete,    // 套索完成回调
 }) => {
   const { colors } = useTheme();
+  const handleStreamingAIToolSelectRef = useRef(null);
 
   // 获取响应式配置
   const toolbarConfig = useMemo(() => getToolbarConfig(), []);
@@ -1081,11 +1082,6 @@ const AllInOneToolbar = ({
     }
   };
 
-  // 加载AI历史记录
-  useEffect(() => {
-    loadAIHistory();
-  }, []);
-
   // 当工具改变时通知父组件
   useEffect(() => {
     if (activeTool === DRAWING_TOOLS.SHAPE) {
@@ -1152,7 +1148,7 @@ const AllInOneToolbar = ({
       setAIHistory(historyItems);
     } catch (error) {
       console.error('加载AI历史记录失败:', error);
-      Alert.alert('加载失败', '无法加载AI历史记录，请稍后重试。');
+      setAIHistory([]);
     } finally {
       setIsAIHistoryLoading(false);
     }
@@ -1372,13 +1368,13 @@ const AllInOneToolbar = ({
   };
 
   // 处理绘图工具选择
-  const handleToolSelect = (tool) => {
+  const handleToolSelect = useCallback((tool) => {
     setActiveTool(tool);
     triggerHapticFeedback('light');
     if (tool !== DRAWING_TOOLS.SHAPE) {
       setShowShapePicker(false);
     }
-  };
+  }, [triggerHapticFeedback]);
 
   const isDrawingToolsLocked = isAIProcessing || isClearing;
   const isPageDocActionLocked = isClearing || isAIProcessing || isImagePicking || isAIHistoryLoading || isAIHistoryApplying;
@@ -1549,20 +1545,24 @@ const AllInOneToolbar = ({
     }
   };
 
+  handleStreamingAIToolSelectRef.current = handleStreamingAIToolSelect;
+
   // 处理AI工具选择 (现在调用流式处理)
-  const handleAIToolSelect = (tool) => {
+  const handleAIToolSelect = useCallback((tool) => {
     if (isAIProcessing) {
       return;
     }
-    handleStreamingAIToolSelect(tool);
-  };
+    handleStreamingAIToolSelectRef.current?.(tool);
+  }, [isAIProcessing]);
 
   const handleOpenAIHistory = () => {
     if (isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) {
       return;
     }
     setShowAIHistoryModal(true);
-    loadAIHistory();
+    if (aiHistory.length === 0) {
+      loadAIHistory();
+    }
   };
 
   const handleCloseAIHistory = () => {
@@ -2213,7 +2213,7 @@ const AllInOneToolbar = ({
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
-  ), [showAIToolModal, colors, handleAIToolSelect, isAIProcessing]);
+  ), [colors, handleAIToolSelect, isAIProcessing, showAIToolModal, styles]);
 
   // 渲染AI历史记录模态框
   const renderAIHistoryModal = () => (

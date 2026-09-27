@@ -16,20 +16,15 @@ const InitializationScreen = () => {
   // 获取Redux状态
   const reduxState = useSelector(state => state);
 
-  // 获取主题
-  let theme;
-  try {
-    theme = useTheme().theme;
-  } catch (error) {
-    console.log('初始化屏幕: 主题加载失败', error);
-    theme = {
-      colors: {
-        background: '#FFFFFF',
-        text: '#000000',
-        primary: '#007AFF',
-      },
-    };
-  }
+  // Hooks 必须在每次渲染中以相同顺序调用；useTheme 内部已经提供默认主题。
+  const { theme: contextTheme } = useTheme();
+  const theme = contextTheme || {
+    colors: {
+      background: '#FFFFFF',
+      text: '#000000',
+      primary: '#007AFF',
+    },
+  };
 
   // 添加日志
   const addLog = (message) => {

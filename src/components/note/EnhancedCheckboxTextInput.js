@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -30,23 +30,8 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
   const [parsedContent, setParsedContent] = useState([]);
   const textInputRef = useRef(null);
 
-  // 同步外部value变化
-  useEffect(() => {
-    setLocalValue(value);
-    setParsedContent(parseContent(value));
-  }, [value, cardType]);
-
-  // 处理文本变化
-  const handleTextChange = (text) => {
-    setLocalValue(text);
-    setParsedContent(parseContent(text));
-    if (onChangeText) {
-      onChangeText(text);
-    }
-  };
-
   // 解析不同类型的内容
-  const parseContent = (text) => {
+  const parseContent = useCallback((text) => {
     if (!text) {return [];}
 
     const lines = text.split('\n');
@@ -96,6 +81,21 @@ const EnhancedCheckboxTextInput = React.forwardRef(({
         lineIndex: index,
       };
     });
+  }, [cardType]);
+
+  // 同步外部value变化
+  useEffect(() => {
+    setLocalValue(value);
+    setParsedContent(parseContent(value));
+  }, [value, parseContent]);
+
+  // 处理文本变化
+  const handleTextChange = (text) => {
+    setLocalValue(text);
+    setParsedContent(parseContent(text));
+    if (onChangeText) {
+      onChangeText(text);
+    }
   };
 
   // 切换待办事项状态

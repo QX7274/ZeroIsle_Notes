@@ -187,7 +187,7 @@ describe('authSlice', () => {
       expect(authStorage.saveUser).toHaveBeenCalledWith(profileUser);
     });
 
-    it('should clear dev placeholder token and stay unauthenticated when skip login is disabled', async () => {
+    it('should replace a dev placeholder token with the configured developer session', async () => {
       authUtils.getAuthInfo.mockResolvedValue({
         token: 'dev-token-123456',
         refreshToken: 'dev-token-123456',
@@ -199,13 +199,21 @@ describe('authSlice', () => {
       const result = await thunk(dispatch, () => ({}), undefined);
 
       expect(result.type).toBe('auth/checkAuthState/fulfilled');
-      expect(result.payload).toBeNull();
+      expect(result.payload).toEqual({
+        user: expect.objectContaining({
+          id: 'dev-user-001',
+          username: 'developer',
+          isDeveloper: true,
+        }),
+        token: expect.stringMatching(/^dev-token-/),
+        refreshToken: expect.stringMatching(/^dev-token-/),
+      });
       expect(tokenService.clearTokens).toHaveBeenCalled();
-      expect(tokenService.saveAccessToken).not.toHaveBeenCalled();
-      expect(tokenService.saveRefreshToken).not.toHaveBeenCalled();
+      expect(tokenService.saveAccessToken).toHaveBeenCalledWith(expect.stringMatching(/^dev-token-/));
+      expect(tokenService.saveRefreshToken).toHaveBeenCalledWith(expect.stringMatching(/^dev-token-/));
       expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
         type: 'auth/setIsAuthenticated',
-        payload: false,
+        payload: true,
       }));
     });
   });

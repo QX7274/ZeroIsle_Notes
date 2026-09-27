@@ -64,7 +64,7 @@ class AuthStorage {
       await this.initialize();
 
       if (Platform.OS === 'web') {
-        return localStorage.getItem(key);
+        return globalThis.localStorage.getItem(key);
       }
 
       const realmService = getRealmService();
@@ -88,7 +88,7 @@ class AuthStorage {
       await this.initialize();
 
       if (Platform.OS === 'web') {
-        localStorage.setItem(key, value);
+        globalThis.localStorage.setItem(key, value);
         return true;
       }
 
@@ -125,7 +125,7 @@ class AuthStorage {
       await this.initialize();
 
       if (Platform.OS === 'web') {
-        localStorage.removeItem(key);
+        globalThis.localStorage.removeItem(key);
         return true;
       }
 

@@ -3,7 +3,7 @@
  * 监听应用生命周期事件，在应用进入后台或退出时自动保存数据
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import realmService from '../services/database/realmService';
 
@@ -15,8 +15,27 @@ import realmService from '../services/database/realmService';
 export const useAutoSaveOnExit = (saveCallback, deps = []) => {
   const appState = useRef(AppState.currentState);
   const saveTimeoutRef = useRef(null);
+  const saveCallbackRef = useRef(saveCallback);
   const isSavingRef = useRef(false);
   const hasLoggedRealmUnavailableRef = useRef(false);
+  const clearScheduledSave = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+  }, []);
+  saveCallbackRef.current = saveCallback;
+
+  const dependencySignature = deps.map((dependency) => {
+    if (dependency && typeof dependency === 'object') {
+      try {
+        return JSON.stringify(dependency);
+      } catch {
+        return String(dependency);
+      }
+    }
+    return String(dependency);
+  }).join('|');
 
   useEffect(() => {
     // 创建一个安全的保存函数
@@ -38,8 +57,8 @@ export const useAutoSaveOnExit = (saveCallback, deps = []) => {
         isSavingRef.current = true;
         console.log('🔄 [AutoSave] 应用状态变化，开始保存数据...');
 
-        if (typeof saveCallback === 'function') {
-          await saveCallback();
+        if (typeof saveCallbackRef.current === 'function') {
+          await saveCallbackRef.current();
         }
 
         // 强制刷新Realm数据到磁盘（失败时仅记录，不抛出连锁异常）
@@ -64,9 +83,7 @@ export const useAutoSaveOnExit = (saveCallback, deps = []) => {
         console.log('🚨 [AutoSave] 应用进入后台，触发自动保存');
 
         // 清除之前的保存定时器
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-        }
+        clearScheduledSave();
 
         // 立即保存
         safeSave();
@@ -86,15 +103,13 @@ export const useAutoSaveOnExit = (saveCallback, deps = []) => {
     // 清理函数
     return () => {
       subscription?.remove();
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
+      clearScheduledSave();
 
       // 组件卸载时也保存一次
       console.log('[AutoSave] 组件卸载，执行最后保存');
       safeSave();
     };
-  }, [saveCallback, ...deps]);
+  }, [clearScheduledSave, dependencySignature]);
 };
 
 /**

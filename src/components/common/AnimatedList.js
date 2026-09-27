@@ -2,7 +2,7 @@
  * 动画列表组件
  * 提供带有动画效果的列表
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { Animated, FlatList, StyleSheet, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import * as Animations from '../../utils/animations';
@@ -43,22 +43,8 @@ const AnimatedList = ({
     data.map(() => Animations.createAnimatedValue(0))
   ).current;
 
-  // 当数据变化时更新动画值数组
-  useEffect(() => {
-    if (animatedValues.length !== data.length) {
-      // 如果数据长度变化，重新创建动画值数组
-      animatedValues.length = 0;
-      data.forEach(() => {
-        animatedValues.push(Animations.createAnimatedValue(0));
-      });
-    }
-
-    // 启动动画
-    startAnimation();
-  }, [data]);
-
   // 启动动画
-  const startAnimation = () => {
+  const startAnimation = useCallback(() => {
     // 重置所有动画值
     animatedValues.forEach(value => value.setValue(0));
 
@@ -81,7 +67,21 @@ const AnimatedList = ({
           break;
       }
     }, delay);
-  };
+  }, [animatedValues, animation, delay, duration, itemDelay]);
+
+  // 当数据变化时更新动画值数组
+  useEffect(() => {
+    if (animatedValues.length !== data.length) {
+      // 如果数据长度变化，重新创建动画值数组
+      animatedValues.length = 0;
+      data.forEach(() => {
+        animatedValues.push(Animations.createAnimatedValue(0));
+      });
+    }
+
+    // 启动动画
+    startAnimation();
+  }, [animatedValues, data, startAnimation]);
 
   // 获取动画样式
   const getAnimationStyle = (index) => {

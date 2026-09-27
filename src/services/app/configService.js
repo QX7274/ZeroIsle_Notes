@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
 
   // MongoDB配置
   mongodb: {
-    connectionString: 'mongodb+srv://qianxin7274:zxcvbnm@@081325@cluster0.lo5ybvq.mongodb.net/',
+    connectionString: process.env.ZEROISLE_MONGODB_URI || '',
     dbName: 'ZeroIsle_Notes',
   },
 

@@ -21,8 +21,30 @@ class SearchViewSet(viewsets.ViewSet):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.search_service = SearchService()
-        self.suggestion_service = SuggestionService()
+        self._search_service = None
+        self._suggestion_service = None
+
+    @property
+    def search_service(self):
+        """按需加载搜索服务，避免简单建议请求触发可选向量模型。"""
+        if self._search_service is None:
+            self._search_service = SearchService()
+        return self._search_service
+
+    @search_service.setter
+    def search_service(self, value):
+        self._search_service = value
+
+    @property
+    def suggestion_service(self):
+        """按需加载建议服务。"""
+        if self._suggestion_service is None:
+            self._suggestion_service = SuggestionService()
+        return self._suggestion_service
+
+    @suggestion_service.setter
+    def suggestion_service(self, value):
+        self._suggestion_service = value
 
     @action(detail=False, methods=['get'])
     def query(self, request):

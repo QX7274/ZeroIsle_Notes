@@ -89,6 +89,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Unit tests (Jest)
+        run: yarn test --runInBand --watch=false --ci --no-cache
+
       - name: Lint check (ESLint)
         run: yarn lint
 
@@ -97,10 +100,44 @@ jobs:
       - name: Bundle verification
         run: yarn bundle:verify
 
+  # --- Release Security Gate ---
+  security-scan:
+    name: Release Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Reject tracked secrets and debug signing assets
+        shell: bash
+        run: |
+          set -eu
+          while IFS= read -r path; do
+            case "$path" in
+              *.env*.example)
+                continue
+                ;;
+              .env|.env.*|*/.env|*/.env.*|*.keystore|*.jks|*.p12|*.pfx|*/google-services.json)
+                echo "Forbidden tracked release asset: $path"
+                exit 1
+                ;;
+            esac
+          done < <(git ls-files)
+
+      - name: Reject hardcoded MongoDB credentials
+        shell: bash
+        run: |
+          set -eu
+          if rg -n --hidden -g '!.git/**' -g '!*.md' \
+            'mongodb\+srv://[^[:space:]<"]+:[^[:space:]<"]+@' .; then
+            echo "Hardcoded MongoDB credential detected."
+            exit 1
+          fi
+
   # --- Docker Build & Push ---
   build-push-docker:
     name: Build & Push Docker Image
-    needs: [backend-test, frontend-build]
+    needs: [backend-test, frontend-build, security-scan]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

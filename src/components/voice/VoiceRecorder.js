@@ -54,6 +54,7 @@ const VoiceRecorder = ({
   // 引用
   const audioRecorderPlayer = useRef(null);
   const recordingTimeout = useRef(null);
+  const stopRecordingRef = useRef(null);
 
   // 初始化AudioRecorderPlayer
   useEffect(() => {
@@ -71,9 +72,7 @@ const VoiceRecorder = ({
 
     // 组件卸载时清理
     return () => {
-      if (isRecording) {
-        stopRecording(true);
-      }
+      stopRecordingRef.current?.(true);
       if (recordingTimeout.current) {
         clearTimeout(recordingTimeout.current);
       }
@@ -284,6 +283,8 @@ const VoiceRecorder = ({
       console.error('停止录音失败:', error);
     }
   };
+
+  stopRecordingRef.current = stopRecording;
 
   // 取消录音
   const cancelRecording = () => {

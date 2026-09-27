@@ -33,5 +33,16 @@ module.exports = {
     clearInterval: 'readonly',
     process: 'readonly',
     __DEV__: 'readonly',
+    globalThis: 'readonly',
   },
+  overrides: [
+    {
+      files: ['e2e/**/*.js'],
+      globals: {
+        by: 'readonly',
+        device: 'readonly',
+        element: 'readonly',
+      },
+    },
+  ],
 };

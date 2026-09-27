@@ -380,10 +380,11 @@ export const useDrawing = ({
 
   // ========== 清理定时器 ==========
   useEffect(() => {
+    const timers = laserTimers.current;
     return () => {
       // 清理所有激光笔定时器
-      laserTimers.current.forEach(timer => clearTimeout(timer));
-      laserTimers.current.clear();
+      timers.forEach(timer => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 

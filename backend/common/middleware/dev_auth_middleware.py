@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.utils.functional import SimpleLazyObject
@@ -12,6 +13,11 @@ from users.mongodb_models import User
 import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def get_dev_user_password():
+    """Read the development user's password from local environment only."""
+    return os.environ.get('ZEROISLE_DEV_USER_PASSWORD', '')
 
 
 def get_dev_user(request):
@@ -55,8 +61,12 @@ def get_dev_user(request):
                 is_staff=True,
                 is_superuser=True,
             )
-            # 设置一个简单的密码
-            dev_user.set_password('developer123')
+            # 开发用户不得携带仓库内默认密码。
+            dev_password = get_dev_user_password()
+            if dev_password:
+                dev_user.set_password(dev_password)
+            else:
+                dev_user.set_unusable_password()
             dev_user.save()
             logger.info(f'开发用户创建成功: {dev_user.username}')
         

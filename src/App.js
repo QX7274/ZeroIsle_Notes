@@ -4,7 +4,7 @@
  * 统一的启动屏幕管理所有初始化阶段，但保留必要的服务检测
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar, Platform, LogBox, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -43,6 +43,7 @@ import GlobalNetworkErrorHandler from './components/common/GlobalNetworkErrorHan
 import tokenService from './services/auth/tokenService';
 import { handleUnauthorizedError } from './services/auth/authUtils';
 import { DEV_MODE_CONFIG } from './config';
+import tryRestoreDevSession from './services/auth/devSessionRestore';
 import debugLog from './native/debugLog';
 
 const DEV_SUPPRESSED_LOG_PREFIXES = [
@@ -220,7 +221,7 @@ const DebugRenderProbe = ({ name, children }) => {
 const useAppInitialization = () => {
   const dispatch = useDispatch();
 
-  const initializeApp = async () => {
+  const initializeApp = useCallback(async () => {
     try {
       console.log('========= 开始应用初始化 =========');
       const infiniteCanvasStorage = require('./services/offline/infiniteCanvasStorage').default;
@@ -276,36 +277,59 @@ const useAppInitialization = () => {
         console.log('阶段3: DEV_SKIP_LOGIN 已启用，跳过认证检查');
       } else {
         try {
-          // 检查令牌是否过期
-          const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
+          const restoredDevSession = await tryRestoreDevSession();
+          if (restoredDevSession?.token && restoredDevSession?.user) {
+            console.log('阶段3: 已恢复开发者账号会话，跳过后续认证检查');
+            dispatch({ type: 'auth/setUserInfo', payload: restoredDevSession.user });
+            dispatch({ type: 'auth/setAuthToken', payload: restoredDevSession.token });
+            dispatch({ type: 'auth/setAuthRefreshToken', payload: restoredDevSession.refreshToken });
+            dispatch({ type: 'auth/setIsAuthenticated', payload: true });
+            try {
+              const authStorage = require('./services/auth/authStorage').default || require('./services/auth/authStorage');
+              await authStorage.saveUser(restoredDevSession.user);
+              await authStorage.saveToken({
+                access_token: restoredDevSession.token,
+                refresh_token: restoredDevSession.refreshToken,
+              });
+            } catch (persistError) {
+              console.warn('阶段3: 保存开发者账号会话失败，但继续启动', persistError);
+            }
+          } else {
+            // 检查令牌是否过期
+            const isTokenExpired = await tokenService.isAccessTokenExpiredOrExpiring();
 
-          if (isTokenExpired) {
-            console.log('访问令牌已过期或即将过期，尝试刷新...');
+            if (isTokenExpired) {
+              console.log('访问令牌已过期或即将过期，尝试刷新...');
 
-            // 尝试刷新令牌（带3秒超时）
-            const refreshPromise = tokenService.refreshAccessToken();
-            const timeoutPromise = new Promise((resolve) =>
-              setTimeout(() => resolve(null), 3000)
+              // 尝试刷新令牌（带3秒超时）
+              const refreshPromise = tokenService.refreshAccessToken();
+              const timeoutPromise = new Promise((resolve) =>
+                setTimeout(() => resolve(null), 3000)
+              );
+
+              const newTokenData = await Promise.race([refreshPromise, timeoutPromise]);
+
+              if (!newTokenData) {
+                console.log('刷新令牌失败或超时，清除认证状态');
+                await handleUnauthorizedError();
+              } else {
+                console.log('令牌刷新成功');
+              }
+            }
+
+            // 检查Redux认证状态（带3秒超时）
+            const checkStatePromise = dispatch(checkAuthState()).unwrap();
+            const stateTimeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('认证状态检查超时')), 3000)
             );
 
-            const newTokenData = await Promise.race([refreshPromise, timeoutPromise]);
-
-            if (!newTokenData) {
-              console.log('刷新令牌失败或超时，清除认证状态');
-              await handleUnauthorizedError();
-            } else {
-              console.log('令牌刷新成功');
-            }
+            await Promise.race([checkStatePromise, stateTimeoutPromise]);
+            console.log('✓ 认证状态检查完成');
           }
 
-          // 检查Redux认证状态（带3秒超时）
-          const checkStatePromise = dispatch(checkAuthState()).unwrap();
-          const stateTimeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('认证状态检查超时')), 3000)
-          );
-
-          await Promise.race([checkStatePromise, stateTimeoutPromise]);
-          console.log('✓ 认证状态检查完成');
+          if (restoredDevSession?.token && restoredDevSession?.user) {
+            console.log('✓ 开发者账号认证状态检查完成');
+          }
         } catch (authError) {
           console.error('认证检查失败:', authError);
           // 认证失败也继续，会进入登录页面
@@ -327,7 +351,7 @@ const useAppInitialization = () => {
       // 即使出错也继续运行
       return { success: false, error };
     }
-  };
+  }, [dispatch]);
 
   return { initializeApp };
 };
@@ -361,7 +385,7 @@ const AppContainer = () => {
     isDarkMode = false;
   }
 
-  const beginInitialization = async (trigger = 'splashComplete') => {
+  const beginInitialization = useCallback(async (trigger = 'splashComplete') => {
     if (initStartedRef.current) {
       console.log(`应用初始化已开始，忽略重复触发: ${trigger}`);
       debugLog('warn', 'AppRoot', {
@@ -415,13 +439,13 @@ const AppContainer = () => {
         trigger,
       });
     }
-  };
+  }, [initializeApp]);
 
   // 处理SplashScreen完成
-  const handleSplashComplete = async () => {
+  const handleSplashComplete = useCallback(async () => {
     console.log('SplashScreen动画完成，开始应用初始化...');
     await beginInitialization('splashComplete');
-  };
+  }, [beginInitialization]);
 
   useEffect(() => {
     if (isAppReady) {
@@ -440,7 +464,7 @@ const AppContainer = () => {
     }, 4500);
 
     return () => clearTimeout(splashFallbackTimer);
-  }, [isAppReady]);
+  }, [beginInitialization, isAppReady]);
 
   // 创建 Paper 主题
   const paperTheme = isDarkMode ? createPaperDarkTheme(theme) : createPaperLightTheme(theme);

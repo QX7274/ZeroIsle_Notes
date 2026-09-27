@@ -5,7 +5,7 @@
 
 import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
-import crypto from 'crypto-js';
+import { generateNoteDataHash } from './noteDataHash';
 
 class DataIntegrityService {
   constructor() {
@@ -127,7 +127,7 @@ class DataIntegrityService {
     });
 
     // 分页笔记验证规则
-    this.validationRules.set('paged', {
+    const pagedNoteRules = {
       requiredFields: ['title', 'pages'],
       optionalFields: ['currentPage', 'totalPages', 'pageStyle', 'scale'],
       maxContentLength: 10000000, // 10MB
@@ -141,7 +141,9 @@ class DataIntegrityService {
           return false;
         }
       },
-    });
+    };
+    this.validationRules.set('paged', pagedNoteRules);
+    this.validationRules.set('paged_note', pagedNoteRules);
   }
 
   /**
@@ -380,20 +382,7 @@ class DataIntegrityService {
    */
   generateDataHash(note) {
     try {
-      const hashData = {
-        title: note.title,
-        content: note.content,
-        type: note.type,
-        strokeData: note.strokeData,
-        viewport: note.viewport,
-        pdfAnnotations: note.pdfAnnotations,
-        audioTranscription: note.audioTranscription,
-        wordContent: note.wordContent,
-        pages: note.pages,
-      };
-
-      const hashString = JSON.stringify(hashData);
-      return crypto.SHA256(hashString).toString();
+      return generateNoteDataHash(note);
     } catch (error) {
       logService.error('生成数据哈希失败', error);
       return null;

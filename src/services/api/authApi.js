@@ -605,12 +605,12 @@ export const resetPassword = async (data) => {
  * @param {object} data - 包含email或phone的对象，以及type
  * @returns {Promise} - 发送结果
  */
-export const sendVerificationCode = async (data) => {
+export const sendVerificationCode = async (data, type) => {
   try {
     console.log('发送验证码请求数据:', data);
 
     // 确保data是对象
-    const requestData = typeof data === 'object' ? data : { phone: data, type: arguments[1] || 'login' };
+    const requestData = typeof data === 'object' ? data : { phone: data, type: type || 'login' };
 
     const response = await instance.post(API_ENDPOINTS.AUTH.SEND_VERIFICATION_CODE, requestData);
     const responseData = response?.data || response;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -51,16 +51,12 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       iconName: 'info-outline',
     };
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const readStorageItem = async (key) => {
+  const readStorageItem = useCallback(async (key) => {
     const item = await realmService.findOne('StorageItem', { key });
     return item?.value ?? null;
-  };
+  }, []);
 
-  const upsertStorageItem = async (key, value) => {
+  const upsertStorageItem = useCallback(async (key, value) => {
     const now = new Date();
     const existingItem = await realmService.findOne('StorageItem', { key });
 
@@ -78,9 +74,9 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       created_at: now,
       updated_at: now,
     });
-  };
+  }, []);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
       const savedEngine = await readStorageItem(STORAGE_KEYS.AI_ENGINE);
@@ -109,7 +105,7 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [readStorageItem]);
 
   const saveSettings = async () => {
     try {
@@ -128,6 +124,10 @@ const AIAssistantSettingsScreen = ({ navigation }) => {
       showToast.error('保存设置失败，请稍后重试');
     }
   };
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const configureBaiduAI = async () => {
     if (!hasKeys) {

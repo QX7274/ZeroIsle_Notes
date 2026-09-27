@@ -5,6 +5,7 @@
 import os
 import tempfile
 import logging
+from datetime import datetime
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -358,6 +359,11 @@ def transcribe_audio(request):
             except Exception as e:
                 logger.error(f"添加转录文本到笔记失败: {str(e)}")
 
+        # 只有真实 datetime 才能安全转换为 JSON 字符串；避免把 ORM/测试
+        # double 的任意对象泄漏到 DRF JSON 编码器。
+        created_at = transcription.created_at
+        created_at_iso = created_at.isoformat() if isinstance(created_at, datetime) else ''
+
         # 返回结果
         return Response({
             'id': str(transcription.id),
@@ -367,7 +373,7 @@ def transcribe_audio(request):
             'language': language_code,
             'engine': engine,
             'has_diarization': enable_diarization and transcription.is_speaker_diarization,
-            'created_at': transcription.created_at.isoformat()
+            'created_at': created_at_iso
         })
 
     except Exception as e:

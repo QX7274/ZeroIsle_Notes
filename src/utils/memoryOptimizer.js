@@ -117,13 +117,9 @@ class MemoryOptimizer {
    * 获取内存使用情况
    */
   async getMemoryUsage() {
-    try {
-      // 这里可以集成更精确的内存监控
-      // 目前返回一个估算值
-      return 0.5; // 固定估算值，避免随机回退
-    } catch (error) {
-      return 0.5; // 默认50%
-    }
+    // 这里可以集成更精确的内存监控
+    // 目前返回一个估算值
+    return 0.5; // 固定估算值，避免随机回退
   }
 
   /**
@@ -199,5 +195,4 @@ const memoryOptimizer = new MemoryOptimizer();
 module.exports = memoryOptimizer;
 module.exports.default = memoryOptimizer;
 module.exports.MemoryOptimizer = MemoryOptimizer;
-
 

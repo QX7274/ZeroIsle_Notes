@@ -10,6 +10,10 @@ import dataIntegrityService from '../data/dataIntegrityService';
 import autoBackupService from '../backup/autoBackupService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const isVirtualNoteUri = filePath => (
+  typeof filePath === 'string' && filePath.startsWith('paged_note://')
+);
+
 class DataRecoveryService {
   constructor() {
     this.initialized = false;
@@ -131,7 +135,7 @@ class DataRecoveryService {
           note.videoPath,
           note.imagePath,
           note.wordPath,
-        ].filter(path => path && path.length > 0);
+        ].filter(path => path && path.length > 0 && !isVirtualNoteUri(path));
 
         for (const filePath of filePaths) {
           try {

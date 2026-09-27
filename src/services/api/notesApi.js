@@ -9,6 +9,9 @@ import networkErrorService from '../networkErrorService';
 import RNFS from 'react-native-fs';
 import RNBlobUtil from 'react-native-blob-util';
 import { Platform } from 'react-native';
+import { API_URL } from '../../config';
+import { generateNoteDataHash } from '../data/noteDataHash';
+import { deviceIdentityService } from '../app/deviceIdentityService';
 
 // Helpers for metadata computation
 const normalizeFilePath = (uri) => {
@@ -61,6 +64,222 @@ const getFileSizeBytes = async (uri) => {
   } catch (_) {
     return null;
   }
+};
+
+const NOTE_REALM_FIELDS = [
+  '_id', 'id', 'title', 'content', 'created_at', 'updated_at', 'updatedAt',
+  'deviceId', 'clientOpId', 'is_deleted', 'is_synced', 'syncStatus', 'deleted_at',
+  'user_id', 'category_id', 'tags', 'color', 'is_pinned', 'is_archived', 'is_locked',
+  'password', 'metadata', 'dataHash', 'type', 'noteType', 'file_type', 'file_name', 'file_uri',
+  'uri', 'path', 'file_path', 'url', 'canvasStyle', 'scale', 'translateX', 'translateY',
+  'paths', 'images', 'strokeData', 'viewport', 'noteStyle', 'pageStyle', 'currentPage',
+  'totalPages', 'pages', 'pdfPath', 'pdfCurrentPage', 'pdfTotalPages', 'pdfScale',
+  'pdfAnnotations', 'pdfScrollPosition', 'pdfBookmarks',
+];
+
+const toPlainRecord = (record) => {
+  if (!record) {return record;}
+  if (typeof record.toJSON === 'function') {
+    return record.toJSON();
+  }
+  return { ...record };
+};
+
+const normalizeNoteId = (note, fallbackId = null) => {
+  const id = note?._id || note?.id || fallbackId;
+  return id == null ? null : String(id);
+};
+
+const toRealmNotePayload = (note, noteId, overrides = {}) => {
+  const source = { ...toPlainRecord(note), ...overrides };
+  const id = normalizeNoteId(source, noteId);
+  if (!id) {
+    throw new Error('无效的笔记ID');
+  }
+
+  const now = new Date();
+  const payload = {
+    ...Object.fromEntries(NOTE_REALM_FIELDS
+      .filter(field => source[field] !== undefined)
+      .map(field => [field, source[field]])),
+    _id: id,
+    id,
+    title: String(source.title || ''),
+    content: String(source.content || ''),
+    created_at: source.created_at ? new Date(source.created_at) : now,
+    updated_at: now,
+    updatedAt: now,
+    tags: Array.isArray(source.tags) ? source.tags.map(String) : [],
+    is_deleted: Boolean(source.is_deleted),
+    is_synced: Boolean(source.is_synced),
+    syncStatus: source.syncStatus || 'pending',
+  };
+
+  if (payload.metadata && typeof payload.metadata !== 'string') {
+    payload.metadata = JSON.stringify(payload.metadata);
+  }
+
+  return payload;
+};
+
+const createNoteMutationMetadata = async (note) => ({
+  deviceId: note?.deviceId || await deviceIdentityService.getDeviceId(),
+  clientOpId: note?.clientOpId || `note_${realmService.createObjectId()}`,
+});
+
+const enqueueNoteMutation = async (realm, note, operation, metadata) => {
+  const plainNote = toPlainRecord(note);
+  const noteId = normalizeNoteId(plainNote);
+  if (!noteId) {
+    throw new Error('无法为缺少ID的笔记创建同步队列项');
+  }
+
+  const now = new Date();
+  const queueId = `offline_note_${noteId}_${metadata.clientOpId}`;
+  realm.write(() => {
+    realm.create('OfflineQueue', {
+      _id: queueId,
+      entity_id: noteId,
+      entity_type: 'Note',
+      operation,
+      data: JSON.stringify({
+        ...plainNote,
+        _id: noteId,
+        id: noteId,
+        deviceId: metadata.deviceId,
+        clientOpId: metadata.clientOpId,
+      }),
+      status: 'pending',
+      retry_count: 0,
+      created_at: now,
+      updated_at: now,
+      updatedAt: now,
+      deviceId: metadata.deviceId,
+      device_id: metadata.deviceId,
+      clientOpId: metadata.clientOpId,
+      user_id: plainNote.user_id || null,
+      priority: 0,
+    }, 'modified');
+  });
+
+  return queueId;
+};
+
+const getNoteFromRealm = async (realm, noteId) => {
+  if (!noteId) {
+    throw new Error('无效的笔记ID');
+  }
+  const note = realm.objectForPrimaryKey('Note', String(noteId));
+  if (!note) {
+    throw new Error('未找到笔记');
+  }
+  return note;
+};
+
+const getBackupMetadata = (backup) => {
+  try {
+    return backup?.metadata ? JSON.parse(backup.metadata) : {};
+  } catch (_) {
+    return {};
+  }
+};
+
+const getNoteBackups = (realm, noteId) => {
+  const backups = realm.objects('NoteBackup')
+    .filtered('note_id == $0', String(noteId));
+  return Array.from(backups).sort((left, right) => {
+    const leftTime = new Date(left.created_at || 0).getTime();
+    const rightTime = new Date(right.created_at || 0).getTime();
+    if (rightTime !== leftTime) {
+      return rightTime - leftTime;
+    }
+
+    // Autosaves can share the same millisecond on fast devices; use the
+    // persisted version number to keep history newest-first deterministically.
+    const leftVersion = Number(getBackupMetadata(left).versionNumber || 0);
+    const rightVersion = Number(getBackupMetadata(right).versionNumber || 0);
+    return rightVersion - leftVersion;
+  });
+};
+
+const createNoteBackup = (realm, note, { backupType = 'auto', description = '' } = {}) => {
+  const noteId = normalizeNoteId(note);
+  const previousBackups = getNoteBackups(realm, noteId);
+  const versionNumber = previousBackups.length + 1;
+  const now = new Date();
+  const snapshot = toPlainRecord(note);
+  const backup = {
+    _id: String(realmService.createObjectId()),
+    note_id: noteId,
+    backup_data: JSON.stringify(snapshot),
+    backup_type: backupType,
+    created_at: now,
+    lastBackupAt: now,
+    size: JSON.stringify(snapshot).length,
+    user_id: snapshot.user_id || null,
+    metadata: JSON.stringify({ versionNumber, description }),
+  };
+  return realm.create('NoteBackup', backup, 'modified');
+};
+
+const backupToVersion = (backup, fallbackVersionNumber) => {
+  let snapshot = {};
+  try {
+    snapshot = JSON.parse(backup.backup_data || '{}');
+  } catch (_) {
+    throw new Error('历史版本数据损坏');
+  }
+  const metadata = getBackupMetadata(backup);
+  const noteId = normalizeNoteId(snapshot, backup.note_id);
+  return {
+    ...snapshot,
+    id: noteId,
+    _id: noteId,
+    version_id: backup._id,
+    versionId: backup._id,
+    version_number: Number(metadata.versionNumber || fallbackVersionNumber),
+    description: metadata.description || '',
+    is_auto_save: backup.backup_type === 'auto',
+    created_at: backup.created_at,
+    updated_at: backup.lastBackupAt || backup.created_at,
+  };
+};
+
+const findBackupByVersionId = (backups, versionId) => {
+  const exact = backups.find(backup => String(backup._id) === String(versionId));
+  if (exact) {return exact;}
+  const requestedNumber = Number(versionId);
+  if (Number.isFinite(requestedNumber)) {
+    return backups.find((backup, index) => {
+      const metadata = getBackupMetadata(backup);
+      return Number(metadata.versionNumber || (backups.length - index)) === requestedNumber;
+    });
+  }
+  return null;
+};
+
+const isOfflineUploadError = (error) => Boolean(
+  error?.isOfflineError ||
+  error?.isNetworkError ||
+  error?.code === 'ERR_NETWORK' ||
+  error?.code === 'ECONNABORTED'
+);
+
+const getFormPart = (formData, names) => {
+  const parts = Array.isArray(formData?._parts) ? formData._parts : [];
+  const match = parts.find(part => Array.isArray(part) && names.includes(part[0]));
+  return match ? match[1] : null;
+};
+
+const normalizeAttachmentResponse = (response) => {
+  const attachment = response?.data && typeof response.data === 'object' && !response.file
+    ? response.data
+    : response;
+  const url = attachment?.url || attachment?.file_url || attachment?.file || attachment?.uri;
+  if (!url) {
+    throw new Error('上传成功但服务端未返回图片地址');
+  }
+  return { success: true, url, attachment };
 };
 
 // 使用导入的离线存储服务
@@ -864,22 +1083,26 @@ const notesApi = {
   },
   createNote: async (noteData) => {
     try {
+      const mutationMetadata = await createNoteMutationMetadata(noteData);
       // 保存到离线存储
       const realm = await realmService.getRealm();
       let persistedNote;
       realm.write(() => {
         const payload = { ...noteData };
-        if (!payload._id && !payload.id) {
-          const createdId = realmService.createObjectId();
-          payload._id = createdId;
-          payload.id = createdId;
-        } else {
-          payload._id = payload._id || payload.id;
-          payload.id = payload.id || payload._id;
-        }
+        const createdId = payload._id || payload.id || realmService.createObjectId();
+        payload._id = createdId;
+        payload.id = createdId;
+        payload.deviceId = mutationMetadata.deviceId;
+        payload.clientOpId = mutationMetadata.clientOpId;
+        payload.type = payload.type || 'text';
+        const normalizedPayload = toRealmNotePayload(payload, createdId, {
+          created_at: payload.created_at || new Date(),
+        });
+        normalizedPayload.dataHash = generateNoteDataHash(normalizedPayload);
         // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-        persistedNote = realm.create('Note', payload, 'modified');
+        persistedNote = realm.create('Note', normalizedPayload, 'modified');
       });
+      await enqueueNoteMutation(realm, persistedNote, 'create', mutationMetadata);
       return { success: true, data: { ...persistedNote, id: persistedNote.id || persistedNote._id, _id: persistedNote._id || persistedNote.id } };
     } catch (error) {
       throw error;
@@ -887,6 +1110,7 @@ const notesApi = {
   },
   updateNote: async (id, noteData) => {
     try {
+      const mutationMetadata = await createNoteMutationMetadata(noteData);
       // 确保tags是数组格式
       const safeNoteData = { ...noteData };
       if (safeNoteData.tags && typeof safeNoteData.tags === 'object' && !Array.isArray(safeNoteData.tags)) {
@@ -901,10 +1125,21 @@ const notesApi = {
       const realm = await realmService.getRealm();
       let result;
       realm.write(() => {
+        const currentNote = realm.objectForPrimaryKey('Note', id);
+        const mergedPayload = {
+          ...toPlainRecord(currentNote),
+          ...safeNoteData,
+          _id: id,
+          id,
+          deviceId: mutationMetadata.deviceId,
+          clientOpId: mutationMetadata.clientOpId,
+          dataHash: generateNoteDataHash({ ...toPlainRecord(currentNote), ...safeNoteData }),
+        };
         // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-        result = realm.create('Note', { ...safeNoteData, _id: id }, 'modified');
+        result = realm.create('Note', toRealmNotePayload(mergedPayload, id), 'modified');
       });
-      return { success: true, data: { ...safeNoteData, id } };
+      await enqueueNoteMutation(realm, result, 'update', mutationMetadata);
+      return { success: true, data: { ...toPlainRecord(result), id, _id: id } };
     } catch (error) {
       throw error;
     }
@@ -913,14 +1148,18 @@ const notesApi = {
     try {
       // 从离线存储删除
       const realm = await realmService.getRealm();
+      const note = realm.objectForPrimaryKey('Note', id);
+      const mutationMetadata = await createNoteMutationMetadata(note || { _id: id });
       realm.write(() => {
-        const note = realm.objectForPrimaryKey('Note', id);
         if (!note) {
           throw new Error('Note not found');
         }
         note.is_deleted = true;
         note.deleted_at = new Date();
+        note.deviceId = mutationMetadata.deviceId;
+        note.clientOpId = mutationMetadata.clientOpId;
       });
+      await enqueueNoteMutation(realm, note, 'delete', mutationMetadata);
       return { success: true };
     } catch (error) {
       throw error;
@@ -929,26 +1168,151 @@ const notesApi = {
   recognizeHandwriting: async () => {
     throw new Error('recognizeHandwriting 尚未实现，禁止返回占位成功结果');
   },
-  uploadImage: async () => {
-    throw new Error('uploadImage 尚未实现，禁止返回占位成功结果');
+  uploadImage: async (imageData, noteId = null) => {
+    const image = getFormPart(imageData, ['image', 'file']) || imageData?.image || imageData;
+    const resolvedNoteId = noteId || getFormPart(imageData, ['note_id', 'note']);
+    const localUri = image?.uri || image?.fileCopyUri || image?.path || null;
+
+    if (!image || !resolvedNoteId) {
+      throw new Error('上传图片需要有效的图片文件和笔记ID');
+    }
+
+    const payload = new FormData();
+    payload.append('file', image);
+    payload.append('note', String(resolvedNoteId));
+
+    try {
+      const response = await instance.post(API_ENDPOINTS.NOTES.ATTACHMENTS, payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return normalizeAttachmentResponse(response);
+    } catch (error) {
+      if (isOfflineUploadError(error) && localUri) {
+        return {
+          success: true,
+          url: localUri,
+          isOffline: true,
+          attachment: {
+            note: String(resolvedNoteId),
+            file: localUri,
+            isOffline: true,
+          },
+        };
+      }
+      throw error;
+    }
   },
-  autoSaveNote: async () => {
-    throw new Error('autoSaveNote 尚未实现，禁止返回占位成功结果');
+  autoSaveNote: async (id, noteData = {}) => {
+    const realm = await realmService.getRealm();
+    const currentNote = await getNoteFromRealm(realm, id);
+    let savedNote;
+    realm.write(() => {
+      const payload = toRealmNotePayload(currentNote, id, {
+        ...noteData,
+        dataHash: generateNoteDataHash({ ...toPlainRecord(currentNote), ...noteData }),
+      });
+      savedNote = realm.create('Note', payload, 'modified');
+      createNoteBackup(realm, savedNote, { backupType: 'auto', description: '自动保存' });
+    });
+    return toPlainRecord(savedNote);
   },
-  getNoteHistory: async () => {
-    throw new Error('getNoteHistory 尚未实现，禁止返回占位成功结果');
+  getNoteHistory: async (id) => {
+    const realm = await realmService.getRealm();
+    await getNoteFromRealm(realm, id);
+    const backups = getNoteBackups(realm, id);
+    return backups.map((backup, index) => backupToVersion(backup, backups.length - index));
   },
-  getNoteVersion: async () => {
-    throw new Error('getNoteVersion 尚未实现，禁止返回占位成功结果');
+  getNoteVersion: async (id, versionId) => {
+    const realm = await realmService.getRealm();
+    await getNoteFromRealm(realm, id);
+    const backups = getNoteBackups(realm, id);
+    const backup = findBackupByVersionId(backups, versionId);
+    if (!backup) {
+      throw new Error('未找到历史版本');
+    }
+    return backupToVersion(backup, backups.length - backups.indexOf(backup));
   },
-  restoreNoteVersion: async () => {
-    throw new Error('restoreNoteVersion 尚未实现，禁止返回占位成功结果');
+  restoreNoteVersion: async (id, versionId) => {
+    const realm = await realmService.getRealm();
+    const currentNote = await getNoteFromRealm(realm, id);
+    const backups = getNoteBackups(realm, id);
+    const backup = findBackupByVersionId(backups, versionId);
+    if (!backup) {
+      throw new Error('未找到历史版本');
+    }
+
+    const restoredVersion = backupToVersion(backup, backups.length - backups.indexOf(backup));
+    let restoredNote;
+    realm.write(() => {
+      createNoteBackup(realm, currentNote, { backupType: 'manual', description: `恢复前备份 v${restoredVersion.version_number}` });
+      restoredNote = realm.create('Note', toRealmNotePayload(currentNote, id, {
+        title: restoredVersion.title,
+        content: restoredVersion.content,
+        tags: restoredVersion.tags,
+        metadata: restoredVersion.metadata,
+        type: restoredVersion.type,
+        dataHash: generateNoteDataHash(restoredVersion),
+        is_synced: false,
+        syncStatus: 'pending',
+      }), 'modified');
+    });
+    return toPlainRecord(restoredNote);
   },
-  saveOfflineNote: async () => {
-    throw new Error('saveOfflineNote 尚未实现，禁止返回占位成功结果');
+  saveOfflineNote: async (note) => {
+    const source = toPlainRecord(note);
+    const noteId = normalizeNoteId(source) || String(realmService.createObjectId());
+    const clientOpId = source.clientOpId || `offline_${realmService.createObjectId()}`;
+    const realm = await realmService.getRealm();
+    let savedNote;
+    realm.write(() => {
+      savedNote = realm.create('Note', toRealmNotePayload(source, noteId, {
+        clientOpId,
+        dataHash: generateNoteDataHash(source),
+        is_synced: false,
+        syncStatus: 'offline',
+      }), 'modified');
+
+      const queuedItems = Array.from(realm.objects('OfflineQueue'));
+      const hasPendingOperation = queuedItems.some(item => (
+        item.clientOpId === clientOpId && item.status !== 'synced'
+      ));
+      if (!hasPendingOperation) {
+        const now = new Date();
+        realm.create('OfflineQueue', {
+          _id: `offline_note_${noteId}_${clientOpId}`,
+          entity_id: noteId,
+          entity_type: 'Note',
+          operation: source._id || source.id ? 'update' : 'create',
+          data: JSON.stringify(toPlainRecord(savedNote)),
+          status: 'pending',
+          retry_count: 0,
+          created_at: now,
+          updated_at: now,
+          updatedAt: now,
+          clientOpId,
+          user_id: source.user_id || null,
+          priority: 0,
+        }, 'modified');
+      }
+    });
+
+    return {
+      success: true,
+      note: { ...toPlainRecord(savedNote), isOffline: true },
+      isOffline: true,
+    };
   },
   getNoteCategories: async () => {
-    throw new Error('getNoteCategories 尚未实现，禁止返回占位成功结果');
+    const realm = await realmService.getRealm();
+    const categories = Array.from(realm.objects('Category'))
+      .filter(category => category.is_deleted !== true)
+      .map(toPlainRecord)
+      .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN'));
+    return {
+      success: true,
+      data: categories,
+      isOffline: true,
+    };
   },
 };
 

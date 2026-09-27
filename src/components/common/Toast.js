@@ -2,7 +2,7 @@
  * 通用Toast提示组件
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectToast, hideToast } from '../../redux/slices/uiSlice';
@@ -44,7 +44,7 @@ const shouldSuppressToast = (value) => {
 const Toast = () => {
   const toast = useSelector(selectToast);
   const dispatch = useDispatch();
-  const fadeAnim = new Animated.Value(0);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const { colors } = useTheme();
   // 获取动态样式
   const dynamicStyles = getStyles(colors);

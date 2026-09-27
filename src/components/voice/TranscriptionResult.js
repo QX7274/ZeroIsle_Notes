@@ -50,7 +50,7 @@ const TranscriptionResult = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [transcription]);
+  }, [fadeAnim, transcription]);
 
   // 处理转写数据变化
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,61 @@ import { format, subDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import reminderApi from '../../services/api/reminderApi';
 
+const mapCategoryStats = (categories) => {
+  if (!categories || typeof categories !== 'object') {
+    return [];
+  }
+
+  return Object.values(categories).map((category) => ({
+    name: category?.name || '未分类',
+    count: category?.count ?? 0,
+  }));
+};
+
+const getMonthKeys = (dates) => {
+  const uniqueKeys = new Set();
+  dates.forEach((date) => {
+    uniqueKeys.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
+  });
+  return Array.from(uniqueKeys);
+};
+
+const loadDailyStats = async (range) => {
+  const days = range === 'day' ? 1 : range === 'month' ? 30 : 7;
+  const now = new Date();
+  const dateList = Array.from({ length: days }, (_, index) => subDays(now, index)).reverse();
+  const months = getMonthKeys(dateList);
+  const calendarResponses = await Promise.all(
+    months.map((monthKey) => {
+      const [year, month] = monthKey.split('-');
+      return reminderApi.getCalendarData(Number(year), Number(month));
+    })
+  );
+
+  const calendarData = calendarResponses.reduce((acc, response) => {
+    if (response?.data && typeof response.data === 'object') {
+      Object.entries(response.data).forEach(([day, items]) => {
+        if (!acc[day]) {
+          acc[day] = [];
+        }
+        if (Array.isArray(items)) {
+          acc[day].push(...items);
+        }
+      });
+    }
+    return acc;
+  }, {});
+
+  return dateList.map((date) => {
+    const dayKey = String(date.getDate());
+    const count = Array.isArray(calendarData[dayKey]) ? calendarData[dayKey].length : 0;
+    return {
+      date: format(date, 'MM-dd', { locale: zhCN }),
+      count,
+    };
+  });
+};
+
 const AnalyticsScreen = () => {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -28,11 +83,7 @@ const AnalyticsScreen = () => {
     categoryStats: [],
   });
 
-  useEffect(() => {
-    loadStats();
-  }, [timeRange]);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     setLoading(true);
     try {
       const [statisticsResponse, dailyStats] = await Promise.all([
@@ -59,62 +110,11 @@ const AnalyticsScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
 
-  const mapCategoryStats = (categories) => {
-    if (!categories || typeof categories !== 'object') {
-      return [];
-    }
-
-    return Object.values(categories).map((category) => ({
-      name: category?.name || '未分类',
-      count: category?.count ?? 0,
-    }));
-  };
-
-  const loadDailyStats = async (range) => {
-    const days = range === 'day' ? 1 : range === 'month' ? 30 : 7;
-    const now = new Date();
-    const dateList = Array.from({ length: days }, (_, index) => subDays(now, index)).reverse();
-    const months = getMonthKeys(dateList);
-    const calendarResponses = await Promise.all(
-      months.map((monthKey) => {
-        const [year, month] = monthKey.split('-');
-        return reminderApi.getCalendarData(Number(year), Number(month));
-      })
-    );
-
-    const calendarData = calendarResponses.reduce((acc, response) => {
-      if (response?.data && typeof response.data === 'object') {
-        Object.entries(response.data).forEach(([day, items]) => {
-          if (!acc[day]) {
-            acc[day] = [];
-          }
-          if (Array.isArray(items)) {
-            acc[day].push(...items);
-          }
-        });
-      }
-      return acc;
-    }, {});
-
-    return dateList.map((date) => {
-      const dayKey = String(date.getDate());
-      const count = Array.isArray(calendarData[dayKey]) ? calendarData[dayKey].length : 0;
-      return {
-        date: format(date, 'MM-dd', { locale: zhCN }),
-        count,
-      };
-    });
-  };
-
-  const getMonthKeys = (dates) => {
-    const uniqueKeys = new Set();
-    dates.forEach((date) => {
-      uniqueKeys.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
-    });
-    return Array.from(uniqueKeys);
-  };
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   if (loading) {
     return (

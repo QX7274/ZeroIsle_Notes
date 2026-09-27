@@ -1,6 +1,8 @@
 
 import { NativeModules, NativeEventEmitter } from 'react-native';
-const { AIAssistant } = NativeModules;
+const { AIAssistant, BaiduAIAssistant } = NativeModules;
+const AIAssistantModule = AIAssistant;
+const BaiduAIAssistantModule = BaiduAIAssistant;
 import apiClient from '../services/api/apiClient';
 import tokenService from '../services/auth/tokenService';
 

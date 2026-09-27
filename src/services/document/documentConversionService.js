@@ -400,7 +400,6 @@ class DocumentConversionService {
 
       const {
         onProgress = null,
-        timeout = this.timeout,
         method = 'upload', // 'upload' 或 'base64'
         signal = null, // AbortController signal
       } = options;
@@ -499,123 +498,6 @@ class DocumentConversionService {
    */
   async convertDocumentNonBlocking(filePath, options = {}) {
     return this.convertToPDFNonBlocking(filePath, options);
-  }
-
-  /**
-   * 传统转换方法（保持向后兼容）
-   */
-  async convertToPDFTraditional(filePath, options = {}) {
-    try {
-      console.log('DocumentConversionService: 开始转换文档:', filePath);
-
-      const {
-        onProgress = null,
-        timeout = this.timeout,
-        method = 'upload', // 'upload' 或 'base64'
-        signal = null, // AbortController signal
-      } = options;
-
-      // 检查文件是否存在
-      const fileExists = await RNFS.exists(filePath);
-      if (!fileExists) {
-        throw new Error(`文件不存在: ${filePath}`);
-      }
-
-      // 获取文件信息
-      const fileStats = await RNFS.stat(filePath);
-      const fileName = filePath.split('/').pop();
-      const fileExtension = fileName.split('.').pop().toLowerCase();
-
-      console.log('DocumentConversionService: 文件信息:', {
-        fileName,
-        fileExtension,
-        size: fileStats.size,
-      });
-
-      // 检查文件类型
-      const supportedFormats = ['ppt', 'pptx', 'doc', 'docx'];
-      if (!supportedFormats.includes(fileExtension)) {
-        throw new Error(`不支持的文件格式: ${fileExtension}`);
-      }
-
-      // 进度回调
-      if (onProgress) {
-        onProgress({
-          stage: 'preparing',
-          progress: 10,
-          message: '正在准备文件...',
-        });
-      }
-
-      let result;
-
-      if (method === 'websocket') {
-        // 使用WebSocket方法（实时进度）
-        result = await this.convertViaWebSocket(filePath, fileName, fileExtension, onProgress);
-      } else if (method === 'base64') {
-        // 使用Base64方法
-        result = await this.convertViaBase64(filePath, fileName, fileExtension, onProgress, signal);
-      } else {
-        // 使用文件上传方法
-        result = await this.convertViaUpload(filePath, fileName, fileExtension, onProgress, signal);
-      }
-
-      if (result.success) {
-        console.log('DocumentConversionService: 转换成功');
-
-        if (onProgress) {
-          onProgress({
-            stage: 'complete',
-            progress: 100,
-            message: '转换完成！',
-          });
-        }
-
-        return {
-          success: true,
-          pdfBase64: result.pdf_base64,
-          fileInfo: result.file_info || {
-            original_name: fileName,
-            file_type: fileExtension,
-            pages: 1,
-            conversion_method: 'unknown',
-            output_size: 0,
-          },
-          originalFile: filePath,
-          convertedSize: result.file_info?.output_size || 0,
-          conversionMethod: result.file_info?.conversion_method || 'unknown',
-          timestamp: result.timestamp || new Date().toISOString(),
-        };
-      } else {
-        throw new Error(result.error || '转换失败');
-      }
-
-    } catch (error) {
-      // 使用统一的网络错误处理器
-      networkErrorService.handleDocumentConversionError(error, {
-        context: `文档转换: ${fileName}`,
-        onRetry: () => {
-          // 可以在这里实现重试逻辑
-          console.log('用户选择重试文档转换');
-        },
-      });
-
-      if (onProgress) {
-        onProgress({
-          stage: 'error',
-          progress: 0,
-          message: `转换失败: ${error.message || '未知错误'}`,
-        });
-      }
-
-      return {
-        success: false,
-        error: error.message || '转换失败',
-        errorType: 'conversion_error',
-        originalFile: filePath,
-        timestamp: new Date().toISOString(),
-      };
-    }
   }
 
   /**
@@ -723,6 +605,7 @@ class DocumentConversionService {
    */
   async convertViaUpload(filePath, fileName, fileExtension, onProgress, signal) {
     let abortController = null;
+    let timeoutId = null;
 
     try {
       console.log('DocumentConversionService: 使用文件上传方式转换');
@@ -837,7 +720,7 @@ class DocumentConversionService {
       console.log('DocumentConversionService: 计算的超时时间:', calculatedTimeout + 'ms', '文件大小:', fileSizeMB.toFixed(2) + 'MB');
 
       // 设置超时定时器
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (abortController) {
           abortController.abort();
         }
@@ -921,7 +804,7 @@ class DocumentConversionService {
 
     } catch (error) {
       // 清除超时定时器
-      if (typeof timeoutId !== 'undefined') {
+      if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
 

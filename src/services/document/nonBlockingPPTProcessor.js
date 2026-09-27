@@ -461,8 +461,8 @@ class NonBlockingPPTProcessor {
       };
 
       // 使用MessageChannel来模拟requestIdleCallback
-      if (typeof MessageChannel !== 'undefined') {
-        const channel = new MessageChannel();
+      if (typeof globalThis.MessageChannel !== 'undefined') {
+        const channel = new globalThis.MessageChannel();
         channel.port2.onmessage = () => runTask();
         channel.port1.postMessage(null);
       } else {

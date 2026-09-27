@@ -13,7 +13,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from common.authentication import DevOrJWTAuthentication
 
 
 def _parse_limit_param(query_params, default=100, min_value=1, max_value=500):
@@ -55,7 +55,7 @@ class SyncDataView(APIView):
     数据同步视图
     处理前端数据与MongoDB Atlas的同步
     """
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [DevOrJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -141,7 +141,7 @@ class SyncKeyDataView(APIView):
     专门用于同步用户关键数据（用户信息和设置）
     这些数据会自动同步，无需用户手动操作
     """
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [DevOrJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -209,7 +209,7 @@ class SyncNotesView(APIView):
     笔记同步视图
     用于手动同步笔记数据
     """
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [DevOrJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -268,7 +268,7 @@ class SyncRemindersView(APIView):
     """
     提醒同步视图
     """
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [DevOrJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -327,7 +327,7 @@ class SyncSettingsView(APIView):
     """
     设置同步视图
     """
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [DevOrJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):

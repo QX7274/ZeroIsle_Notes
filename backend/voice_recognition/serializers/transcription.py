@@ -70,7 +70,7 @@ class TranscriptionDetailSerializer(serializers.ModelSerializer):
 class TranscriptionCreateSerializer(serializers.ModelSerializer):
     """转录创建序列化器"""
     audio_file_id = serializers.PrimaryKeyRelatedField(
-        queryset=None,
+        queryset=AudioFile.objects.all(),
         source='audio_file',
         write_only=True
     )

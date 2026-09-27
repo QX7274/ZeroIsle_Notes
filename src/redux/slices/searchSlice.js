@@ -362,9 +362,9 @@ export const knowledgeGraphSearch = createAsyncThunk(
 export const fetchSearchHistory = createAsyncThunk(
   'search/fetchSearchHistory',
   async (params = {}, { rejectWithValue, getState }) => {
-    try {
-      const { limit = 10, scope = 'home', useLocalOnly = false } = params;
+    const { limit = 10, scope = 'home', useLocalOnly = false } = params;
 
+    try {
       // 如果指定使用本地历史记录，直接返回当前状态中的历史记录
       if (useLocalOnly) {
         const state = getState();

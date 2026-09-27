@@ -390,6 +390,8 @@ DOWNLOAD_TOKEN_TTL_SECONDS = int(os.environ.get('DOWNLOAD_TOKEN_TTL_SECONDS', 60
 
 # 文件上传配置
 MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 20))
+# 分片附件的总大小上限；每个分片仍由服务端按 1MB 逐块校验和落盘。
+MAX_CHUNKED_ATTACHMENT_MB = int(os.environ.get('MAX_CHUNKED_ATTACHMENT_MB', 500))
 ALLOWED_UPLOAD_EXTENSIONS = ['.doc', '.docx', '.ppt', '.pptx', '.pdf', '.md', '.txt']
 
 # 对象存储（可选）

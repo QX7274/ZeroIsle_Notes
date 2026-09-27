@@ -384,18 +384,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     fontSize: 16,
   },
-  button: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
   confirmButton: {
     // backgroundColor will be set dynamically
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

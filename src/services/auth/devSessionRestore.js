@@ -1,11 +1,11 @@
-import authApi from '../api/authApi';
 import authStorage from './authStorage';
 import tokenService from './tokenService';
 import { saveAuthInfo } from './authUtils';
-import { API_URL, API_VERSION, DEV_MODE_CONFIG } from '../../config';
+import authApi from '../api/authApi';
+import { DEV_MODE_CONFIG } from '../../config';
 
-const DEV_DIRECT_LOGIN_PHONE = '13800138000';
-const DEV_DIRECT_LOGIN_CODE = '1234';
+const DEV_DIRECT_LOGIN_USERNAME = DEV_MODE_CONFIG?.DEV_ACCOUNT?.username || 'developer';
+const getDevDirectLoginPassword = () => process.env.ZEROISLE_DEV_PASSWORD || '';
 
 export const shouldAttemptDevSessionRestore = () => (
   __DEV__
@@ -47,56 +47,15 @@ export const tryRestoreDevSession = async (options = {}) => {
   try {
     console.log('DevSessionRestore: 尝试恢复开发态真实认证');
 
-    // 优先走当前已验证可用的直登口径，避免验证码发送链在真机联调时
-    // 因网络/限流/权限细节导致静默恢复失败，进而让社区详情误退回匿名态。
-    const directLoginHttpResponse = await fetch(`${API_URL}/api/${API_VERSION}/auth/login/`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        phone: DEV_DIRECT_LOGIN_PHONE,
-        identifier: DEV_DIRECT_LOGIN_PHONE,
-        verification_code: DEV_DIRECT_LOGIN_CODE,
-      }),
-    });
-
-    const directPayload = await directLoginHttpResponse.json();
-    const directAccessToken = directPayload?.access || directPayload?.token || null;
-    const directRefreshToken = directPayload?.refresh || null;
-    const directUser = directPayload?.user || null;
-
-    if (directLoginHttpResponse.ok && directAccessToken && directUser) {
-      await saveAuthInfo(directAccessToken, directRefreshToken, directUser);
-
-      return {
-        token: directAccessToken,
-        refreshToken: directRefreshToken,
-        user: directUser,
-      };
-    }
-
-    console.log('DevSessionRestore: 直登口径未命中，回退验证码链');
-
-    const verificationResponse = await authApi.sendVerificationCode({
-      phone: DEV_DIRECT_LOGIN_PHONE,
-      purpose: 'login',
-    });
-
-    const verificationCode =
-      verificationResponse?.data?.code
-      || verificationResponse?.code
-      || '';
-
-    if (!verificationCode) {
-      console.log('DevSessionRestore: 未获取到验证码');
+    const devDirectLoginPassword = getDevDirectLoginPassword();
+    if (!devDirectLoginPassword) {
+      console.warn('DevSessionRestore: 未配置 ZEROISLE_DEV_PASSWORD，跳过开发者直登');
       return null;
     }
 
-    const loginResponse = await authApi.loginWithCode({
-      phone: DEV_DIRECT_LOGIN_PHONE,
-      code: verificationCode,
+    const loginResponse = await authApi.login({
+      username: DEV_DIRECT_LOGIN_USERNAME,
+      password: devDirectLoginPassword,
     });
 
     const payload = loginResponse?.data || loginResponse;
@@ -105,7 +64,7 @@ export const tryRestoreDevSession = async (options = {}) => {
     const user = payload?.user || null;
 
     if (!accessToken || !user) {
-      console.log('DevSessionRestore: 登录返回缺少 token 或 user');
+      console.log('DevSessionRestore: 开发者账号登录返回缺少 token 或 user');
       return null;
     }
 

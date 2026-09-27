@@ -3,9 +3,11 @@
  * 使用统一的令牌格式，避免开发环境和生产环境的不匹配
  */
 
-import { RealmStorage } from '../storage/RealmStorage';
+import RealmStorage from '../../utils/realmStorage';
 import tokenService from './tokenService';
 import authStorage from './authStorage';
+import { API_URL } from '../../config';
+import { logService } from '../../utils/logService';
 
 class SimpleAuth {
   constructor() {
