@@ -810,25 +810,39 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
   console.log('[SkiaPagedCanvasScreenNative] 渲染组件，isLoading:', isLoading, 'error:', error, 'noteId:', noteId);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} testID="screen.pagedCanvas">
+      {/* 状态锚点：零尺寸载体，不参与布局；仅由既有状态变量派生 */}
+      <View testID={`state.pagedCanvas.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.pagedCanvas.error.visibility.${error ? 'visible' : 'hidden'}`} />
+      <View testID={`state.pagedCanvas.dirty.visibility.${hasUnsavedChanges ? 'visible' : 'hidden'}`} />
+      <View testID={`state.pagedCanvas.regionSelect.visibility.${isSelectingRegion ? 'visible' : 'hidden'}`} />
+      <View testID={`state.pagedCanvas.zoomIndicator.visibility.${showZoomIndicator ? 'visible' : 'hidden'}`} />
+      <View testID={`state.pagedCanvas.page.current.${currentPage}`} />
+      <View testID={`state.pagedCanvas.page.total.${totalPages}`} />
       <ViewerLayout
 
         colors={colors}
         headerLeft={
-          <BackButton
-            onPress={handleGoBackWrapper}
-            color={colors.primary}
-            background={colors.primary + '20'}
-          />
+          /* BackButton 位于禁改的公共组件内，锚点挂在布局等价的宿主 View 上 */
+          <View testID="action.pagedCanvas.back" pointerEvents="box-none">
+            <BackButton
+              onPress={handleGoBackWrapper}
+              color={colors.primary}
+              background={colors.primary + '20'}
+            />
+          </View>
         }
         headerRight={
-          <SaveButton
-            onSave={handleSave}
-            text="保存"
-            showSuccessToast={true}
-            showErrorAlert={true}
-            style={styles.saveButton}
-          />
+          /* SaveButton 位于禁改的公共组件内，锚点挂在布局等价的宿主 View 上 */
+          <View testID="action.pagedCanvas.save" pointerEvents="box-none">
+            <SaveButton
+              onSave={handleSave}
+              text="保存"
+              showSuccessToast={true}
+              showErrorAlert={true}
+              style={styles.saveButton}
+            />
+          </View>
         }
         title={title || '分页笔记（原生）'}
         showExternalToolbar={true}
@@ -940,6 +954,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
             onResponderGrant={handleRegionTouchStart}
             onResponderMove={handleRegionTouchMove}
             onResponderRelease={handleRegionTouchEnd}
+            testID="overlay.pagedCanvas.region"
           >
             {selectionRect && (
               <View
@@ -966,7 +981,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
                     pendingOCRResolverRef.current('');
                     pendingOCRResolverRef.current = null;
                   }
-                }} style={{ paddingHorizontal: 16, paddingVertical: 10, color: colors.text }}>Cancel</Text>
+                }} style={{ paddingHorizontal: 16, paddingVertical: 10, color: colors.text }} testID="action.pagedCanvas.region.cancel">Cancel</Text>
                 <Text onPress={async () => {
                   try {
                     if (!selectionRect || !noteViewRef.current) {throw new Error('No region selected');}
@@ -986,7 +1001,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
                     setSelectionRect(null);
                     selectionStartRef.current = null;
                   }
-                }} style={{ paddingHorizontal: 16, paddingVertical: 10, color: colors.primary, fontWeight: '600', borderLeftWidth: 1, borderLeftColor: colors.border }}>Recognize</Text>
+                }} style={{ paddingHorizontal: 16, paddingVertical: 10, color: colors.primary, fontWeight: '600', borderLeftWidth: 1, borderLeftColor: colors.border }} testID="action.pagedCanvas.region.recognize">Recognize</Text>
               </View>
             </View>
           </View>

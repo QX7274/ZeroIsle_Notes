@@ -337,6 +337,12 @@ const PostDetailScreen = ({ route, navigation }) => {
       <View testID={`state.community.postDetail.busy.visibility.${busy ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.postDetail.comments.count.${comments.length}`} />
       <View testID={`state.community.postDetail.comments.total.${commentsTotal}`} />
+      {/* 自动化取证锚点：零尺寸，不参与布局，承载回复/键盘输入区状态 */}
+      <View testID={`state.community.postDetail.replying.${replyTarget ? 'true' : 'false'}`} />
+      <View testID={`state.community.postDetail.replyBanner.visibility.${replyTarget ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.postDetail.commentText.empty.${commentText.trim() ? 'false' : 'true'}`} />
+      <View testID={`state.community.postDetail.submittingComment.visibility.${submittingComment ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.postDetail.commentDraft.length.${commentText.length}`} />
       {renderHeader()}
       <KeyboardAvoidingView
         style={styles.keyboardArea}
@@ -487,13 +493,13 @@ const PostDetailScreen = ({ route, navigation }) => {
           </View>
         </ScrollView>
 
-        <View style={[styles.commentInputContainer, styles.glassBlock, { borderColor: `${theme.primary}16` }]}>
+        <View style={[styles.commentInputContainer, styles.glassBlock, { borderColor: `${theme.primary}16` }]} testID="panel.community.postDetail.commentInput">
           <View
             style={styles.commentInputSafeArea}
             testID={`state.community.postDetail.bottomInset.${Math.max(insets.bottom, SPACING.SMALL)}`}
           />
           {replyTarget && (
-            <View style={[styles.replyBanner, { backgroundColor: `${theme.primary}14`, borderColor: `${theme.primary}26` }]}>
+            <View style={[styles.replyBanner, { backgroundColor: `${theme.primary}14`, borderColor: `${theme.primary}26` }]} testID="panel.community.postDetail.replyBanner">
               <View style={styles.replyBannerTextWrap}>
                 <Text style={[styles.replyBannerTitle, { color: theme.primary }]}>正在回复 {replyTarget.author}</Text>
                 <Text style={[styles.replyBannerContent, { color: theme.textSecondary }]} numberOfLines={1}>

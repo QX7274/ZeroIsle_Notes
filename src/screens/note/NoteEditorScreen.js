@@ -5,7 +5,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { MarkdownEditorIntegration } from '../../components/common';
 import realmService from '../../services/database/realmService';
 import { addBlockIdsToMarkdown } from '../../utils/markdownBlockUtils';
-import { Realm } from '@realm/react';
+// BSON 类型直接从 realm 包导出，避免依赖未声明的 @realm/react
+import { BSON } from 'realm';
 import BlockReferenceModal from '../../components/common/BlockReferenceModal';
 
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
@@ -139,7 +140,7 @@ const NoteEditorScreen = ({ route, navigation }) => {
             text: 'Create',
             onPress: async () => {
               const newNote = await realmService.create('Note', {
-                _id: new Realm.BSON.UUID().toHexString(),
+                _id: new BSON.UUID().toHexString(),
                 title: title,
                 content: '',
                 created_at: new Date(),
@@ -255,10 +256,10 @@ const NoteEditorScreen = ({ route, navigation }) => {
           {saveSuccess && (
             <Icon name="check-circle" size={20} color={theme.colors.success || '#4CAF50'} style={{ marginRight: 8 }} />
           )}
-          <TouchableOpacity onPress={handleOpenHistory}>
+          <TouchableOpacity onPress={handleOpenHistory} testID="action.noteEditor.tool.history">
             <Icon name="history" size={24} color={theme.colors.primary} style={{ marginRight: 15 }} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleSave(content)} disabled={isSaving}>
+          <TouchableOpacity onPress={() => handleSave(content)} disabled={isSaving} testID="action.noteEditor.save">
             <Icon
               name="save"
               size={24}
@@ -291,16 +292,20 @@ const NoteEditorScreen = ({ route, navigation }) => {
     }
 
     return (
-      <TouchableOpacity onPress={() => navigation.push('NoteEditor', { noteId: item._id })} style={styles.backlinkCard}>
+      <TouchableOpacity onPress={() => navigation.push('NoteEditor', { noteId: item._id })} style={styles.backlinkCard} testID={`item.noteEditor.backlink.${item._id}`}>
         <Text style={styles.backlinkTitle}>{item.title}</Text>
         <Text style={styles.backlinkContext} numberOfLines={2}>{context}</Text>
       </TouchableOpacity>
     );
   };
 
+  // 编辑器状态锚点：仅由既有状态派生，不引入新的状态变量
+  const editorState = isSaving ? 'saving' : (saveSuccess ? 'saved' : 'idle');
+
   if (!note) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} testID="screen.noteEditor">
+        <View testID="state.noteEditor.state.loading" />
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={{ marginTop: 10, color: theme.colors.textSecondary }}>正在加载笔记...</Text>
       </View>
@@ -308,15 +313,23 @@ const NoteEditorScreen = ({ route, navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
-      <MarkdownEditorIntegration
-        value={content}
-        onChange={setContent}
-        onSave={() => handleSave(content)}
-        onWikiLinkPress={handleWikiLinkPress}
-        onBlockReferencePress={handleBlockReferencePress}
-        onOpenBlockReferenceSearch={() => setShowBlockReferenceModal(true)}
-      />
+    <View style={styles.container} testID="screen.noteEditor">
+      <View testID={`state.noteEditor.state.${editorState}`} />
+      <View testID={`state.noteEditor.dirty.visibility.${isDirty ? 'visible' : 'hidden'}`} />
+      <View testID={`state.noteEditor.history.visibility.${showHistory ? 'visible' : 'hidden'}`} />
+      <View testID={`state.noteEditor.diff.visibility.${diffVisible ? 'visible' : 'hidden'}`} />
+
+      {/* 内容编辑器集成体未对外暴露 testID 通道，这里用布局等价的宿主 View 提供稳定的内容区锚点 */}
+      <View style={styles.editorContentHost} testID="input.noteEditor.content">
+        <MarkdownEditorIntegration
+          value={content}
+          onChange={setContent}
+          onSave={() => handleSave(content)}
+          onWikiLinkPress={handleWikiLinkPress}
+          onBlockReferencePress={handleBlockReferencePress}
+          onOpenBlockReferenceSearch={() => setShowBlockReferenceModal(true)}
+        />
+      </View>
 
       <VersionHistoryDrawer
         noteId={noteId}
@@ -333,10 +346,10 @@ const NoteEditorScreen = ({ route, navigation }) => {
         transparent={false}
         onRequestClose={handleCloseDiff}
       >
-        <View style={styles.diffModalContainer}>
+        <View style={styles.diffModalContainer} testID="modal.noteEditor.diff">
           <View style={styles.diffModalHeader}>
             <Text style={styles.diffModalTitle}>版本差异</Text>
-            <TouchableOpacity onPress={handleCloseDiff} style={styles.diffModalCloseButton}>
+            <TouchableOpacity onPress={handleCloseDiff} style={styles.diffModalCloseButton} testID="action.noteEditor.diff.close">
               <Icon name="close" size={22} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
@@ -375,6 +388,10 @@ const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  // 内容区宿主：仅作为 testID 锚点载体，透传 flex 布局，不改变原有布局分配
+  editorContentHost: {
+    flex: 1,
   },
   backlinksContainer: {
     padding: 15,

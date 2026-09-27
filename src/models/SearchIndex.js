@@ -5,6 +5,12 @@
 import Realm from 'realm';
 
 /**
+ * 向量检索单次参与余弦相似度计算的候选条数上限（原有硬编码 500，抽出为常量便于说明与测试）。
+ * 该上限保证了向量检索路径不会全量物化整张 SearchIndex 表。
+ */
+const VECTOR_SCAN_LIMIT = 500;
+
+/**
  * 搜索索引模型定义
  */
 class SearchIndex extends Realm.Object {
@@ -457,11 +463,14 @@ class SearchIndex extends Realm.Object {
       }
     }
 
-    // 执行查询
+    // 执行查询（user_id / is_deleted / entity_type 均为数据库层原生条件下推）
     const results = realm.objects('SearchIndex').filtered(queryStr);
 
     // 计算余弦相似度并过滤 (注意：此操作为 CPU 密集型，仅用于小规模 embedding)
-    const resultsWithSimilarity = Array.from(results.slice(0, 500)).map(index => {
+    // 已有全量物化评估（里程碑 5.1 续）：`results.slice(0, VECTOR_SCAN_LIMIT)` 是
+    // Realm 的惰性子集，Array.from 只会读出上限 500 条，不会把整张索引表物化，
+    // 因此这里保持原写法不变，仅在超过上限时静默丢弃尾部候选（既有语义，未改动）。
+    const resultsWithSimilarity = Array.from(results.slice(0, VECTOR_SCAN_LIMIT)).map(index => {
       // 解析嵌入向量
       const indexEmbedding = JSON.parse(index.embedding);
 

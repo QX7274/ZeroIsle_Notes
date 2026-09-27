@@ -3,7 +3,8 @@
  */
 
 import Realm from 'realm';
-const { materializePage } = require('./utils/queryPagination');
+const { materializePage, filterPageInWindows } = require('./utils/queryPagination');
+const { escapeRealmString } = require('./utils/realmQuery');
 
 /**
  * AI聊天模型定义
@@ -334,34 +335,43 @@ class AIChat extends Realm.Object {
   static search(realm, userId, searchText, options = {}) {
     const { is_deleted = false } = options;
 
-    // 基本查询
-    let query = `user_id = "${userId}" AND is_deleted = ${is_deleted}`;
-    query += ` AND (title CONTAINS[c] "${searchText}")`;
+    // 输入防御：非字符串（undefined / null / 数字）统一按空关键词处理，
+    // 避免历史实现把 "undefined" 当成关键词拼进查询；同时转义字面量，
+    // 防止 userId / searchText 中的双引号把查询串提前闭合导致 Realm 抛错。
+    const keyword = typeof searchText === 'string' ? searchText : '';
+    const lowerKeyword = keyword.toLowerCase();
 
-    let results = realm.objects('AIChat').filtered(query).sorted('updated_at', true);
+    // 基本查询（数据库层先收窄：user_id / is_deleted / title 都是原生可表达条件）
+    let query = `user_id = "${escapeRealmString(userId)}" AND is_deleted = ${is_deleted}`;
+    query += ` AND (title CONTAINS[c] "${escapeRealmString(keyword)}")`;
 
-    // 由于消息内容存储为JSON字符串，需要在应用层面进行搜索
-    // 这里先获取所有结果，然后过滤包含搜索文本的消息
-    const allResults = Array.from(results);
-    const filteredResults = allResults.filter(chat => {
+    const results = realm.objects('AIChat').filtered(query).sorted('updated_at', true);
+
+    // 由于消息内容存储为JSON字符串，Realm 无法在数据库层做全文匹配，
+    // 只能在应用层过滤（这是本方法不可避免的 JS 过滤点）。
+    const matchesMessages = chat => {
       try {
         const messages = JSON.parse(chat.messages);
         return messages.some(msg =>
-          msg.content && msg.content.toLowerCase().includes(searchText.toLowerCase())
+          msg.content && msg.content.toLowerCase().includes(lowerKeyword)
         );
       } catch (e) {
         return false;
       }
-    });
+    };
 
     // 分页
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      return filteredResults.slice(skip, skip + limit);
+      // 有界窗口扫描：按 updated_at 顺序逐窗口 materialize，取满 skip + limit 条匹配即停止，
+      // 不再先把整表读成数组；结果与「全量过滤后再 slice」逐条一致。
+      return filterPageInWindows(results, matchesMessages, { skip, limit });
     }
 
-    return filteredResults;
+    // 未分页：外层契约要求返回「全部匹配项」数组，因此这里无法避免把匹配项全部读出，
+    // 但按窗口推进，避免同时驻留「整表数组 + 过滤结果数组」两份数据。
+    return filterPageInWindows(results, matchesMessages, {});
   }
 }
 

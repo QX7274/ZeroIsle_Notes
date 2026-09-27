@@ -302,6 +302,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
       <TouchableOpacity
         style={[styles.resultItem, { backgroundColor: colors.card }]}
         onPress={() => handleResultPress(item)}
+        testID={`item.searchResult.${item.id}`}
       >
         <View style={[styles.resultIconContainer, { backgroundColor: colors.primaryLight }]}>
           <Icon name={iconName} size={24} color={colors.primary} />
@@ -349,7 +350,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
 
   // 渲染空状态
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
+    <View style={styles.emptyContainer} testID="state.searchResults.empty">
       <Icon name="search-off" size={64} color={colors.textSecondary} />
       <Text
         variant="body"
@@ -373,7 +374,15 @@ const SearchResultsScreen = ({ navigation, route }) => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} testID="screen.searchResults">
+      {/* 自动化取证锚点：零尺寸、无样式，不参与布局，仅承载页面状态 */}
+      <View testID={`state.searchResults.state.${isLoading ? 'loading' : error ? 'error' : filteredResults.length > 0 ? 'ready' : 'empty'}`} />
+      <View testID={`state.searchResults.history.visibility.${showHistory ? 'visible' : 'hidden'}`} />
+      <View testID={`state.searchResults.filters.visibility.${showFilters ? 'visible' : 'hidden'}`} />
+      <View testID={`state.searchResults.refreshing.visibility.${isRefreshing ? 'visible' : 'hidden'}`} />
+      <View testID={`state.searchResults.results.count.${filteredResults.length}`} />
+      <View testID={`state.searchResults.results.total.${results.length}`} />
+      <View testID={`state.searchResults.filters.modified.${Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v !== null && v !== 'all' && v !== 'relevance') ? 'true' : 'false'}`} />
       <View style={styles.header}>
         <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.searchResults.back" style={styles.backButton} />
         <Text
@@ -388,6 +397,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => setShowHistory(!showHistory)}
+            testID="action.searchResults.toggleHistory"
           >
             <Icon
               name="history"
@@ -399,6 +409,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => setShowFilters(!showFilters)}
+            testID="action.searchResults.toggleFilters"
           >
             <Icon
               name="filter-list"
@@ -408,7 +419,7 @@ const SearchResultsScreen = ({ navigation, route }) => {
             {Object.values(filters).some(v =>
               Array.isArray(v) ? v.length > 0 : v !== null && v !== 'all' && v !== 'relevance'
             ) && (
-              <View style={[styles.filterBadge, { backgroundColor: colors.primary }]} />
+              <View style={[styles.filterBadge, { backgroundColor: colors.primary }]} testID="state.searchResults.filters.badge.visible" />
             )}
           </TouchableOpacity>
         </View>
@@ -437,11 +448,11 @@ const SearchResultsScreen = ({ navigation, route }) => {
       )}
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
+        <View style={styles.loadingContainer} testID="state.searchResults.loading">
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : error ? (
-        <View style={styles.errorContainer}>
+        <View style={styles.errorContainer} testID="state.searchResults.error">
           <Icon name="error" size={48} color={colors.error} />
           <Text
             variant="body"
@@ -468,12 +479,13 @@ const SearchResultsScreen = ({ navigation, route }) => {
               tintColor={colors.primary}
             />
           }
+          testID="list.searchResults.results"
         />
       )}
 
       {/* 结果统计 */}
       {!isLoading && !error && filteredResults.length > 0 && (
-        <View style={[styles.resultsStats, { backgroundColor: colors.card }]}>
+        <View style={[styles.resultsStats, { backgroundColor: colors.card }]} testID="panel.searchResults.stats">
           <Text
             variant="caption"
             color="textSecondary"

@@ -80,8 +80,9 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
   };
 
   // 渲染历史项
-  const renderHistoryItem = ({ item }) => (
+  const renderHistoryItem = ({ item, index }) => (
     <TouchableOpacity
+      testID={`item.searchHistory.${index}`}
       style={styles.historyItem}
       onPress={() => onHistoryItemPress(item)}
     >
@@ -123,7 +124,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
       <View style={[
         styles.container,
         { backgroundColor: colors.background },
-      ]}>
+      ]} testID="state.search.history.empty">
         <Text
           style={[
             styles.emptyText,
@@ -141,7 +142,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
     <View style={[
       styles.container,
       { backgroundColor: colors.background },
-    ]}>
+    ]} testID="panel.search.history">
       <View style={styles.header}>
         <Text
           style={[
@@ -152,6 +153,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
           搜索历史
         </Text>
         <TouchableOpacity
+          testID="action.search.history.clear"
           style={styles.clearButton}
           onPress={handleClearHistory}
         >
@@ -172,6 +174,7 @@ const SearchHistory = ({ onHistoryItemPress, visible = true, searchScope = 'home
         keyExtractor={(item, index) => `history-${index}-${item.timestamp}`}
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        testID="list.searchHistory"
       />
     </View>
   );

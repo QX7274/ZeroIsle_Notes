@@ -369,7 +369,7 @@ const CreatePostScreen = ({ navigation }) => {
     return (
       <Modal visible={dialogState.visible} transparent animationType="fade" onRequestClose={closeDialog}>
         <View style={styles.dialogOverlay}>
-          <View style={styles.dialogCard}>
+          <View style={styles.dialogCard} testID="modal.community.createPost.dialog">
             <View style={[styles.dialogIconWrap, { backgroundColor: `${accentColor}14` }]}>
               <Icon name={iconName} size={30} color={accentColor} />
             </View>
@@ -377,11 +377,12 @@ const CreatePostScreen = ({ navigation }) => {
             <Text style={styles.dialogMessage}>{dialogState.message}</Text>
             <View style={styles.dialogButtonRow}>
               {dialogState.secondaryText ? (
-                <TouchableOpacity style={styles.dialogSecondaryButton} onPress={closeDialog}>
+                <TouchableOpacity style={styles.dialogSecondaryButton} onPress={closeDialog} testID="action.community.createPost.dialog.secondary">
                   <Text style={styles.dialogSecondaryText}>{dialogState.secondaryText}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
+                testID="action.community.createPost.dialog.primary"
                 style={[styles.dialogPrimaryButton, { backgroundColor: accentColor }]}
                 onPress={async () => {
                   const handler = dialogState.onPrimary;
@@ -414,6 +415,12 @@ const CreatePostScreen = ({ navigation }) => {
       <View testID={`state.community.createPost.categoryPicker.visibility.${showCategoryPicker ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.createPost.tagPicker.visibility.${showTagPicker ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.createPost.attachments.visibility.${attachments.length > 0 ? 'visible' : 'hidden'}`} />
+      {/* 自动化取证锚点：零尺寸，不参与布局 */}
+      <View testID="screen.community.createPost" />
+      <View testID={`state.community.createPost.dialog.visibility.${dialogState.visible ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.createPost.selectedTagCount.${selectedTags.length}`} />
+      <View testID={`state.community.createPost.title.empty.${title ? 'false' : 'true'}`} />
+      <View testID={`state.community.createPost.content.empty.${content ? 'false' : 'true'}`} />
 
       <View style={styles.header}>
         <ScreenHeaderBackButton onPress={() => navigation.goBack()} testID="action.community.backFromCreatePost" style={styles.backButton} />
@@ -633,7 +640,7 @@ const CreatePostScreen = ({ navigation }) => {
               </View>
             )}
           </ScrollView>
-          <Button title="关闭" onPress={() => setShowCategoryPicker(false)} type="outline" />
+          <Button title="关闭" onPress={() => setShowCategoryPicker(false)} type="outline" testID="action.community.closeCategoryPicker" />
         </View>
       ) : null}
 
@@ -671,7 +678,7 @@ const CreatePostScreen = ({ navigation }) => {
               )}
             </View>
           </ScrollView>
-          <Button title="完成" onPress={() => setShowTagPicker(false)} type="outline" />
+          <Button title="完成" onPress={() => setShowTagPicker(false)} type="outline" testID="action.community.closeTagPicker" />
         </View>
       ) : null}
     </View>

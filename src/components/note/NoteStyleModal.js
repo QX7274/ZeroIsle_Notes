@@ -181,8 +181,8 @@ const NoteStyleModal = ({ visible, onClose, onSelect }) => {
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <View style={styles.overlay} testID="overlay.noteStyle">
+        <View style={[styles.container, { backgroundColor: colors.surface }]} testID="modal.noteStyle">
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>
               选择笔记样式
@@ -190,6 +190,7 @@ const NoteStyleModal = ({ visible, onClose, onSelect }) => {
             <TouchableOpacity
               style={styles.closeButton}
               onPress={onClose}
+              testID="action.noteStyle.close"
             >
               <Text style={[styles.closeButtonText, { color: colors.textLight }]}>
                 ×
@@ -215,6 +216,7 @@ const NoteStyleModal = ({ visible, onClose, onSelect }) => {
                     },
                   ]}
                   onPress={() => setSelectedStyle(style.id)}
+                  testID={`option.noteStyle.${style.id}`}
                 >
                   {renderStylePreview(style)}
 
@@ -251,12 +253,14 @@ const NoteStyleModal = ({ visible, onClose, onSelect }) => {
               placeholderTextColor={colors.textLight}
               value={noteName}
               onChangeText={setNoteName}
+              testID="input.noteStyle.name"
             />
 
 
             <TouchableOpacity
               style={[styles.button, styles.confirmButton, { backgroundColor: colors.primary }]}
               onPress={handleConfirm}
+              testID="action.noteStyle.create"
             >
               <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>
                 创建笔记

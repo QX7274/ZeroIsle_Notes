@@ -136,6 +136,11 @@ const CommunitySearchScreen = ({ navigation, route }) => {
       <View testID={`state.community.search.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.search.error.visibility.${error ? 'visible' : 'hidden'}`} />
       <View testID={`state.community.search.results.count.${communityResults.length}`} />
+      <View testID={`state.community.search.results.visibility.${searchPerformed ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.search.helper.visibility.${!searchPerformed && showHistory ? 'visible' : 'hidden'}`} />
+      <View testID={`state.community.search.results.posts.count.${communityResults.filter((item) => item.type === 'post').length}`} />
+      <View testID={`state.community.search.results.users.count.${communityResults.filter((item) => item.type === 'user').length}`} />
+      <View testID={`state.community.search.results.tags.count.${communityResults.filter((item) => item.type === 'tag').length}`} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : null}

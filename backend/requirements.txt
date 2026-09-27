@@ -26,6 +26,8 @@ django-celery-results==2.5.1  # 存储结果
 # 数据库
 pymongo==4.6.1  # MongoDB驱动
 mongoengine==0.27.0  # MongoDB ODM
+django-rest-framework-mongoengine==3.4.1  # DRF 的 MongoEngine 序列化/视图支持（common/serializers.py、common/views/task_status.py 顶层导入）
+mongomock==4.3.0  # 测试环境后端（conftest.py、settings/testing.py 顶层导入）
 motor==3.3.2  # MongoDB异步驱动
 py2neo==2021.2.4  # Neo4j图数据库
 neo4j==5.15.0  # Neo4j官方驱动
@@ -103,6 +105,10 @@ colorama==0.4.6  # 终端颜色
 python-slugify==8.0.1  # URL友好的字符串
 
 # 测试和开发
+setuptools<81  # 实测 80.10.2 可用；drf-yasg 依赖 pkg_resources，setuptools>=81 已移除该模块会导致启动失败
+tenacity==9.1.4  # ai_assistant/services/{baidu,xunfei}_service.py 顶层导入
+firebase-admin==7.7.0  # notification/services/push_service.py 顶层导入
+
 pytest==7.4.3
 pytest-django==4.5.2
 pytest-cov==4.1.0  # 测试覆盖率

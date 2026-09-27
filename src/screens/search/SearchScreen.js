@@ -120,7 +120,15 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} testID="screen.search">
+      {/* 自动化取证锚点：零尺寸、无样式，不参与布局，仅承载页面状态 */}
+      <View testID={`state.search.performed.${searchPerformed ? 'true' : 'false'}`} />
+      <View testID={`state.search.history.visibility.${showHistory ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.results.visibility.${searchPerformed ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.error.visibility.${error ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.helpModal.visibility.${showHelpModal ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.results.count.${Array.isArray(results) ? results.length : 0}`} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : null}
@@ -134,7 +142,7 @@ const SearchScreen = ({ navigation, route }) => {
             onCancel={handleCancel}
             initialQuery={initialQuery}
           />
-          <TouchableOpacity onPress={() => setShowHelpModal(true)} style={styles.helpButton}>
+          <TouchableOpacity onPress={() => setShowHelpModal(true)} style={styles.helpButton} testID="action.search.openHelp">
             <Icon name="help-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -164,8 +172,8 @@ const SearchScreen = ({ navigation, route }) => {
           animationType="fade"
           onRequestClose={() => setShowHelpModal(false)}
         >
-          <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowHelpModal(false)}>
-            <View style={[styles.helpModalContainer, { backgroundColor: colors.card }]}>
+          <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowHelpModal(false)} testID="action.search.help.close">
+            <View style={[styles.helpModalContainer, { backgroundColor: colors.card }]} testID="modal.search.help">
               <Text style={styles.helpTitle}>Advanced Search</Text>
               <Text style={styles.helpText}>You can use the following operators to refine your search:</Text>
               <Text style={styles.helpExample}><Text style={styles.operator}>is:</Text>note, pdf, etc.</Text>

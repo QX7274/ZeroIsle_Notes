@@ -3,7 +3,11 @@
  */
 
 import Realm from 'realm';
-const { materializePage } = require('./utils/queryPagination');
+const {
+  materializePage,
+  tryFilterSortPageInWindows,
+} = require('./utils/queryPagination');
+const { escapeRealmString, isRawJsonEmbeddable } = require('./utils/realmQuery');
 
 /**
  * 思维导图模型定义
@@ -401,11 +405,17 @@ class MindMap extends Realm.Object {
   static findSharedWithUser(realm, userId, options = {}) {
     const { permission = null } = options;
 
-    // 获取所有未删除的思维导图
-    let results = realm.objects('MindMap').filtered('is_deleted = false');
+    // 数据库层收窄：is_deleted 是原生条件；shared_with 是 JSON 字符串，无法在数据库层解析，
+    // 但当 userId 能被 JSON.stringify 原样嵌入时，可以用 CONTAINS 先做一次「超集」收窄
+    // （原始 JSON 文本包含该 id ⇒ 解析后一定存在 user_id === userId 的分享项），
+    // 是否真正命中仍由应用层的 JSON 解析判断，因此不会改变返回结果。
+    let query = 'is_deleted = false';
+    if (isRawJsonEmbeddable(userId)) {
+      query += ` AND shared_with CONTAINS[c] "${escapeRealmString(userId)}"`;
+    }
 
-    // 过滤分享给指定用户的思维导图
-    results = Array.from(results).filter(mindMap => {
+    // 过滤分享给指定用户的思维导图（shared_with 只能在应用层解析 JSON）
+    const isSharedWithUser = mindMap => {
       try {
         const sharedWith = JSON.parse(mindMap.shared_with || '[]');
         const share = sharedWith.find(s => s.user_id === userId);
@@ -421,31 +431,61 @@ class MindMap extends Realm.Object {
       } catch (e) {
         return false;
       }
-    });
+    };
 
-    // 排序
-    if (options.sort) {
-      const sortField = Object.keys(options.sort)[0];
-      const sortDirection = options.sort[sortField] === -1;
-      results.sort((a, b) => {
-        if (sortDirection) {
-          return b[sortField] > a[sortField] ? 1 : -1;
-        } else {
-          return a[sortField] > b[sortField] ? 1 : -1;
-        }
-      });
-    } else {
-      results.sort((a, b) => b.updated_at - a.updated_at);
+    const results = realm.objects('MindMap').filtered(query);
+
+    // 排序（同时把排序键下推到 Realm：窗口扫描必须按最终输出顺序推进，
+    // 提前结束才不会漏掉本应排进当前页、但位于扫描窗口之后的记录）
+    const sortField = options.sort ? Object.keys(options.sort)[0] : 'updated_at';
+    const descending = options.sort ? options.sort[sortField] === -1 : true;
+    const comparator = (a, b) => {
+      if (options.sort) {
+        return descending
+          ? (b[sortField] > a[sortField] ? 1 : -1)
+          : (a[sortField] > b[sortField] ? 1 : -1);
+      }
+      return b.updated_at - a.updated_at;
+    };
+
+    let sorted = null;
+    try {
+      sorted = results.sorted(sortField, descending);
+    } catch (e) {
+      // 排序字段无法下推（例如 Realm 不支持的属性）=> 走下面的全量路径
+      sorted = null;
     }
 
     // 分页
+    if (options.skip !== undefined && options.limit !== undefined && sorted) {
+      const skip = options.skip || 0;
+      const limit = options.limit || 20;
+      // 有界窗口：只物化取满当前页所需的窗口；只要页内/页边界出现并列排序键，
+      // 或排序未能下推，就返回 null 并回退到全量实现，保证结果与旧实现逐条一致。
+      const boundedPage = tryFilterSortPageInWindows(sorted, isSharedWithUser, comparator, {
+        skip,
+        limit,
+        sortField,
+        requireDistinctKeys: true,
+      });
+      if (boundedPage) {
+        return boundedPage;
+      }
+    }
+
+    // 全量路径：未分页 / 排序无法下推 / 并列键无法只靠前缀判定时使用。
+    // 这里仍是已知的全量物化点（返回数组的契约要求），但语义与历史实现完全一致：
+    // 从「未排序的原始 Results」开始物化，排序完全由 JS 完成（与旧实现同源同序）。
+    let materialized = Array.from(results).filter(isSharedWithUser);
+    materialized.sort(comparator);
+
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = results.slice(skip, skip + limit);
+      materialized = materialized.slice(skip, skip + limit);
     }
 
-    return results;
+    return materialized;
   }
 
   /**

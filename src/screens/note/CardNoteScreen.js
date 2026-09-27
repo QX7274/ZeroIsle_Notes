@@ -856,20 +856,20 @@ const CardNoteScreen = ({ route, navigation }) => {
   const renderToolbar = () => {
     return (
       <View style={[styles.toolbar, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity style={styles.toolButton} onPress={() => setShowStylePicker(true)}>
+        <TouchableOpacity style={styles.toolButton} onPress={() => setShowStylePicker(true)} testID="action.cardNote.tool.style">
           <Icon name="palette" size={20} color={colors.primary} />
           <Text style={[styles.toolButtonText, { color: colors.text }]}>样式</Text>
         </TouchableOpacity>
 
         {(cardStyle === 'xiaohongshu' || cardStyle === 'zhihu') && (
-          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('image')}>
+          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('image')} testID="action.cardNote.tool.image">
             <Icon name="image" size={20} color={colors.primary} />
             <Text style={[styles.toolButtonText, { color: colors.text }]}>图片</Text>
           </TouchableOpacity>
         )}
 
         {cardStyle === 'douyin' && (
-          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('cover')}>
+          <TouchableOpacity style={styles.toolButton} onPress={() => handleChooseImage('cover')} testID="action.cardNote.tool.cover">
             <Icon name="videocam" size={20} color={colors.primary} />
             <Text style={[styles.toolButtonText, { color: colors.text }]}>封面</Text>
           </TouchableOpacity>
@@ -878,8 +878,18 @@ const CardNoteScreen = ({ route, navigation }) => {
     );
   };
 
+  // 页面状态锚点：仅由既有状态变量派生，不引入新的状态
+  const editorState = isRecording ? 'recording' : (isListening ? 'listening' : 'idle');
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} testID="screen.cardNote">
+      {/* 状态锚点：零尺寸载体，不参与布局 */}
+      <View testID={`state.cardNote.state.${editorState}`} />
+      <View testID={`state.cardNote.stylePicker.visibility.${showStylePicker ? 'visible' : 'hidden'}`} />
+      <View testID={`state.cardNote.cardStyle.${cardStyle}`} />
+      <View testID={`state.cardNote.audio.visibility.${audioFiles.length > 0 ? 'visible' : 'hidden'}`} />
+      <View testID={`state.cardNote.voicePaused.visibility.${isVoicePaused ? 'visible' : 'hidden'}`} />
+      <View testID={`state.cardNote.noteCreated.${noteCreated ? 'created' : 'none'}`} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -900,28 +910,34 @@ const CardNoteScreen = ({ route, navigation }) => {
           }}
           showToolbar={true}
           headerLeft={
-            <BackButton
-              onPress={() => {
-                saveNote();
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
-                } else {
-                  navigation.navigate('Home');
-                }
-              }}
-              color={colors.primary}
-              background={colors.primary + '20'}
-            />
+            /* BackButton 位于禁改的公共组件内，锚点挂在布局等价的宿主 View 上 */
+            <View testID="action.cardNote.back" pointerEvents="box-none">
+              <BackButton
+                onPress={() => {
+                  saveNote();
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate('Home');
+                  }
+                }}
+                color={colors.primary}
+                background={colors.primary + '20'}
+              />
+            </View>
           }
           headerRight={
             <View style={styles.headerRight}>
-              <SaveButton
-                onSave={saveNote}
-                text="保存"
-                showSuccessToast={true}
-                showErrorAlert={true}
-                style={[styles.saveButton, { backgroundColor: colors.primary }]}
-              />
+              {/* SaveButton 位于禁改的公共组件内，锚点挂在布局等价的宿主 View 上 */}
+              <View testID="action.cardNote.save" pointerEvents="box-none">
+                <SaveButton
+                  onSave={saveNote}
+                  text="保存"
+                  showSuccessToast={true}
+                  showErrorAlert={true}
+                  style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                />
+              </View>
               <Text style={[styles.wordCount, { color: colors.onSurface }]}>
                 {wordCount}字
               </Text>
@@ -944,6 +960,7 @@ const CardNoteScreen = ({ route, navigation }) => {
               multiline={false}
               returnKeyType="next"
               onSubmitEditing={() => contentInputRef.current?.focus()}
+              testID="input.cardNote.title"
             />
 
             {/* 工具栏 */}
@@ -971,12 +988,14 @@ const CardNoteScreen = ({ route, navigation }) => {
                 }]}
                 multiline
                 textAlignVertical="top"
+                testID="input.cardNote.content"
               />
 
               {/* 音频播放提示 */}
               {audioFiles.length > 0 && (
                 <TouchableOpacity
                   style={[styles.audioHint, { backgroundColor: colors.primaryContainer }]}
+                  testID="action.cardNote.audio.manage"
                   onPress={() => {
                     Alert.alert(
                       '音频文件管理',
@@ -1015,6 +1034,7 @@ const CardNoteScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={styles.voiceCloseButton}
                   onPress={stopSpeechRecognition}
+                  testID="action.cardNote.voice.close"
                 >
                   <Icon name="close" size={16} color={colors.onSurfaceVariant} />
                 </TouchableOpacity>
@@ -1034,6 +1054,7 @@ const CardNoteScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={[styles.voiceControlButton, { backgroundColor: isVoicePaused ? colors.primary : colors.outline }]}
                   onPress={isVoicePaused ? resumeVoiceRecognition : pauseVoiceRecognition}
+                  testID="action.cardNote.voice.pauseToggle"
                 >
                   <Icon
                     name={isVoicePaused ? 'play-arrow' : 'pause'}
@@ -1050,6 +1071,7 @@ const CardNoteScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={[styles.voiceControlButton, { backgroundColor: colors.error }]}
                   onPress={stopSpeechRecognition}
+                  testID="action.cardNote.voice.stop"
                 >
                   <Icon name="stop" size={16} color={colors.onError} />
                   <Text style={[styles.voiceControlText, { color: colors.onError }]}>
@@ -1064,13 +1086,14 @@ const CardNoteScreen = ({ route, navigation }) => {
 
       {/* 样式选择器模态框 */}
       {showStylePicker && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.stylePickerModal, { backgroundColor: colors.surface }]}>
+        <View style={styles.modalOverlay} testID="overlay.cardNote.stylePicker">
+          <View style={[styles.stylePickerModal, { backgroundColor: colors.surface }]} testID="modal.cardNote.stylePicker">
             <Text style={[styles.modalTitle, { color: colors.text }]}>选择卡片样式</Text>
 
             <TouchableOpacity
               style={[styles.styleOption, cardStyle === 'default' && styles.styleOptionActive]}
               onPress={() => handleStyleChange('default')}
+              testID="option.cardNote.style.default"
             >
               <Icon name="note" size={24} color={colors.primary} />
               <Text style={[styles.styleOptionText, { color: colors.text }]}>默认样式</Text>
@@ -1079,6 +1102,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[styles.styleOption, cardStyle === 'xiaohongshu' && styles.styleOptionActive]}
               onPress={() => handleStyleChange('xiaohongshu')}
+              testID="option.cardNote.style.xiaohongshu"
             >
               <Icon name="photo-library" size={24} color="#FF2442" />
               <Text style={[styles.styleOptionText, { color: colors.text }]}>小红书风格</Text>
@@ -1087,6 +1111,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[styles.styleOption, cardStyle === 'douyin' && styles.styleOptionActive]}
               onPress={() => handleStyleChange('douyin')}
+              testID="option.cardNote.style.douyin"
             >
               <Icon name="video-library" size={24} color="#000" />
               <Text style={[styles.styleOptionText, { color: colors.text }]}>抖音风格</Text>
@@ -1095,6 +1120,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[styles.styleOption, cardStyle === 'zhihu' && styles.styleOptionActive]}
               onPress={() => handleStyleChange('zhihu')}
+              testID="option.cardNote.style.zhihu"
             >
               <Icon name="question-answer" size={24} color="#0084FF" />
               <Text style={[styles.styleOptionText, { color: colors.text }]}>知乎风格</Text>
@@ -1103,6 +1129,7 @@ const CardNoteScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[styles.modalCloseButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowStylePicker(false)}
+              testID="action.cardNote.stylePicker.close"
             >
               <Text style={[styles.modalCloseButtonText, { color: colors.onPrimary }]}>关闭</Text>
             </TouchableOpacity>
@@ -1125,6 +1152,7 @@ const CardNoteScreen = ({ route, navigation }) => {
         ]}
         onPress={handleVoiceAction}
         activeOpacity={0.8}
+        testID="action.cardNote.voice.toggle"
       >
         <Icon
           name={voiceButtonIcon}

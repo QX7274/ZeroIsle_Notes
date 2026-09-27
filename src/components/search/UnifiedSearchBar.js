@@ -204,7 +204,11 @@ const UnifiedSearchBar = ({
 
   return (
     <>
+      {/* 自动化取证锚点：零尺寸、无样式，不参与布局，仅承载搜索栏作用域与可见性 */}
+      <View testID={`state.search.bar.scope.${searchScope}`} />
+      <View testID={`state.search.bar.modal.visibility.${showSearch ? 'visible' : 'hidden'}`} />
       <TouchableOpacity
+        testID="action.search.bar.open"
         style={[
           styles.searchBar,
           {

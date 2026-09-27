@@ -728,6 +728,10 @@ const CommunityScreen = ({ navigation }) => {
         <View testID={`state.community.busy.visibility.${interactionBusy ? 'visible' : 'hidden'}`} />
         <View testID={`state.community.actionSource.visibility.${actionSource ? 'visible' : 'hidden'}`} />
         <View testID={`state.community.activeCategory.${activeCategory}`} />
+        {/* 自动化取证锚点：零尺寸，不参与布局。根 View 已被 pageState 占用，页面根锚点单独登记 */}
+        <View testID="screen.community" />
+        <View testID={`state.community.refreshing.visibility.${refreshing ? 'visible' : 'hidden'}`} />
+        <View testID={`state.community.posts.count.${posts.length}`} />
 
         <View style={styles.header}>
           <View style={styles.headerTitleWrap}>

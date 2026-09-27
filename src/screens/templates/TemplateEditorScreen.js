@@ -3,7 +3,8 @@ import { View, TextInput, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/common';
 import realmService from '../../services/database/realmService';
-import { Realm } from '@realm/react';
+// BSON 类型直接从 realm 包导出，避免依赖未声明的 @realm/react
+import { BSON } from 'realm';
 
 const TemplateEditorScreen = ({ route, navigation }) => {
   const { templateId } = route.params || {};
@@ -34,7 +35,7 @@ const TemplateEditorScreen = ({ route, navigation }) => {
         realm.create('Template', { _id: templateId, title, content }, 'modified');
       } else {
         realm.create('Template', {
-          _id: new Realm.BSON.UUID().toHexString(),
+          _id: new BSON.UUID().toHexString(),
           title,
           content,
         });

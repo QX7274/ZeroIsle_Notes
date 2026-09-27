@@ -119,9 +119,10 @@ const SearchResults = ({
 
   // 渲染过滤器
   const renderFilters = () => (
-    <View style={styles.filtersContainer}>
+    <View style={styles.filtersContainer} testID="panel.search.results.filters">
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <TouchableOpacity
+          testID="filter.search.results.all"
           style={[
             styles.filterButton,
             activeFilter === 'all' && [
@@ -144,6 +145,7 @@ const SearchResults = ({
         {availableTypes.map((type) => (
           <TouchableOpacity
             key={type}
+            testID={`filter.search.results.${type}`}
             style={[
               styles.filterButton,
               activeFilter === type && [
@@ -184,7 +186,7 @@ const SearchResults = ({
     const resultDateText = getResultDateText(item);
 
     return (
-      <TouchableOpacity onPress={() => handleResultPress(item)}>
+      <TouchableOpacity onPress={() => handleResultPress(item)} testID={`item.searchResult.${item.type}.${item.id}`}>
         <Card style={styles.resultCard}>
           <View style={styles.resultHeader}>
             <View style={styles.resultTypeContainer}>
@@ -241,7 +243,7 @@ const SearchResults = ({
   // 渲染加载状态
   if (isLoading) {
     return (
-      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]} testID="state.search.results.loading">
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
           搜索中...
@@ -262,7 +264,7 @@ const SearchResults = ({
     }
 
     return (
-      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]} testID="state.search.results.error">
         <Icon name="error" size={48} color={theme.error} />
         <Text style={[styles.errorText, { color: theme.text }]}>
           搜索失败
@@ -277,7 +279,7 @@ const SearchResults = ({
   // 渲染空结果
   if (results.length === 0) {
     return (
-      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]} testID="state.search.results.empty">
         <Icon name="search-off" size={48} color={theme.textSecondary} />
         <Text style={[styles.emptyText, { color: theme.text }]}>
           未找到匹配结果
@@ -291,7 +293,9 @@ const SearchResults = ({
 
   // 渲染结果列表
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} testID="panel.search.results">
+      <View testID={`state.search.results.count.${filteredResults.length}`} />
+      <View testID={`state.search.results.filter.${activeFilter}`} />
       {renderFilters()}
 
       <FlatList
@@ -305,6 +309,7 @@ const SearchResults = ({
             {activeFilter !== 'all' ? ` (${getResultTypeLabel(activeFilter)})` : ''}
           </Text>
         }
+        testID="list.search.results"
       />
     </View>
   );

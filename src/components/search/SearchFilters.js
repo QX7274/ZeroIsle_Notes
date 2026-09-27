@@ -145,10 +145,10 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
       onRequestClose={() => setShowTagsModal(false)}
     >
       <View style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]} testID="modal.search.filters.tags">
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">选择标签</Text>
-            <TouchableOpacity onPress={() => setShowTagsModal(false)}>
+            <TouchableOpacity onPress={() => setShowTagsModal(false)} testID="action.search.filters.tags.close">
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -158,6 +158,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
+                testID={`option.search.filters.tag.${item.id}`}
                 style={[
                   styles.tagItem,
                   filters.tags.includes(item.id) && { backgroundColor: colors.primaryLight },
@@ -181,12 +182,14 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
           <View style={styles.modalFooter}>
             <TouchableOpacity
+              testID="action.search.filters.tags.clear"
               style={[styles.footerButton, { borderColor: colors.border }]}
               onPress={() => updateFilter('tags', [])}
             >
               <Text variant="body" size="medium" color="textSecondary">清除</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID="action.search.filters.tags.confirm"
               style={[styles.footerButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowTagsModal(false)}
             >
@@ -207,10 +210,10 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
       onRequestClose={() => setShowTypeModal(false)}
     >
       <View style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]} testID="modal.search.filters.type">
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">内容类型</Text>
-            <TouchableOpacity onPress={() => setShowTypeModal(false)}>
+            <TouchableOpacity onPress={() => setShowTypeModal(false)} testID="action.search.filters.type.close">
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -220,6 +223,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
+                testID={`option.search.filters.type.${item.id}`}
                 style={[
                   styles.optionItem,
                   filters.contentType === item.id && { backgroundColor: colors.primaryLight },
@@ -263,10 +267,10 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
       onRequestClose={() => setShowSortModal(false)}
     >
       <View style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]} testID="modal.search.filters.sort">
           <View style={styles.modalHeader}>
             <Text variant="heading" level="h6">排序方式</Text>
-            <TouchableOpacity onPress={() => setShowSortModal(false)}>
+            <TouchableOpacity onPress={() => setShowSortModal(false)} testID="action.search.filters.sort.close">
               <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -276,6 +280,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
+                testID={`option.search.filters.sort.${item.id}`}
                 style={[
                   styles.optionItem,
                   filters.sortBy === item.id && { backgroundColor: colors.primaryLight },
@@ -311,7 +316,14 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]} testID="panel.search.filters">
+      {/* 自动化取证锚点：零尺寸、无样式，不参与布局，仅承载过滤条件状态 */}
+      <View testID={`state.search.filters.contentType.${filters.contentType}`} />
+      <View testID={`state.search.filters.sortBy.${filters.sortBy}`} />
+      <View testID={`state.search.filters.tags.count.${filters.tags.length}`} />
+      <View testID={`state.search.filters.tagsModal.visibility.${showTagsModal ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.filters.typeModal.visibility.${showTypeModal ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.filters.sortModal.visibility.${showSortModal ? 'visible' : 'hidden'}`} />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -319,6 +331,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
       >
         {/* 内容类型过滤器 */}
         <TouchableOpacity
+          testID="filter.search.filters.contentType"
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
@@ -339,6 +352,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
         {/* 标签过滤器 */}
         <TouchableOpacity
+          testID="filter.search.filters.tags"
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
@@ -368,6 +382,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
         {/* 日期范围过滤器 - 开始日期 */}
         <TouchableOpacity
+          testID="filter.search.filters.dateFrom"
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
@@ -392,6 +407,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
         {/* 日期范围过滤器 - 结束日期 */}
         <TouchableOpacity
+          testID="filter.search.filters.dateTo"
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
@@ -416,6 +432,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
         {/* 排序选项 */}
         <TouchableOpacity
+          testID="filter.search.filters.sortBy"
           style={[
             styles.filterChip,
             { backgroundColor: colors.card, borderColor: colors.border },
@@ -436,6 +453,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
         {/* 重置按钮 */}
         <TouchableOpacity
+          testID="action.search.filters.reset"
           style={[
             styles.filterChip,
             { backgroundColor: colors.errorLight, borderColor: colors.error },
@@ -456,6 +474,7 @@ const SearchFilters = ({ onApplyFilters, initialFilters = {} }) => {
 
       {/* 应用按钮 */}
       <TouchableOpacity
+        testID="action.search.filters.apply"
         style={[styles.applyButton, { backgroundColor: colors.primary }]}
         onPress={applyFilters}
       >

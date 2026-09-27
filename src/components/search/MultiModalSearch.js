@@ -623,9 +623,10 @@ const MultiModalSearch = ({
 
   // 渲染文本搜索
   const renderTextSearch = () => (
-    <View style={styles.textSearchContainer}>
+    <View style={styles.textSearchContainer} testID="panel.search.modal.textSearch">
       <TextInput
         ref={searchInputRef}
+        testID="input.search.modal.query"
         style={[
           styles.searchInput,
           {
@@ -649,6 +650,7 @@ const MultiModalSearch = ({
       />
 
       <TouchableOpacity
+        testID="action.search.modal.submit"
         style={[styles.searchButton, { backgroundColor: colors.primary }]}
         onPress={handleSearch}
         disabled={isLoading}
@@ -670,7 +672,7 @@ const MultiModalSearch = ({
 
   // 渲染语音搜索
   const renderVoiceSearch = () => (
-    <View style={styles.voiceSearchContainer}>
+    <View style={styles.voiceSearchContainer} testID="panel.search.modal.voiceSearch">
       <View style={styles.recordingInfo}>
         {isListening ? (
           <Text
@@ -714,6 +716,7 @@ const MultiModalSearch = ({
       </View>
 
       <TouchableOpacity
+        testID="action.search.modal.voice.toggle"
         style={[
           styles.recordButton,
           isListening ? { backgroundColor: colors.error } : { backgroundColor: colors.primary },
@@ -730,8 +733,9 @@ const MultiModalSearch = ({
 
       {/* 录音播放控件 */}
       {recordingUri && !isListening && (
-        <View style={[styles.recordingControls, { backgroundColor: colors.surface }]}>
+        <View style={[styles.recordingControls, { backgroundColor: colors.surface }]} testID="panel.search.modal.recordingControls">
           <TouchableOpacity
+            testID="action.search.modal.voice.play"
             style={[styles.playButton, { backgroundColor: colors.primary }]}
             onPress={isPlaying ? stopPlaying : playRecording}
           >
@@ -755,6 +759,7 @@ const MultiModalSearch = ({
 
       {recognizedText && !isListening && (
         <TouchableOpacity
+          testID="action.search.modal.voice.submit"
           style={[styles.searchButton, { backgroundColor: colors.primary, marginTop: 16 }]}
           onPress={handleSearch}
           disabled={isLoading}
@@ -771,15 +776,16 @@ const MultiModalSearch = ({
 
   // 渲染图片搜索
   const renderImageSearch = () => (
-    <View style={styles.imageSearchContainer}>
+    <View style={styles.imageSearchContainer} testID="panel.search.modal.imageSearch">
       {selectedImage ? (
-        <View style={styles.selectedImageContainer}>
+        <View style={styles.selectedImageContainer} testID="panel.search.modal.selectedImage">
           <Image
             source={{ uri: selectedImage.uri }}
             style={styles.selectedImage}
             resizeMode="contain"
           />
           <TouchableOpacity
+            testID="action.search.modal.image.clear"
             style={[styles.removeImageButton, { backgroundColor: colors.error }]}
             onPress={() => setSelectedImage(null)}
           >
@@ -787,6 +793,7 @@ const MultiModalSearch = ({
           </TouchableOpacity>
 
           <TouchableOpacity
+            testID="action.search.modal.image.submit"
             style={[
               styles.searchButton,
               {
@@ -807,8 +814,9 @@ const MultiModalSearch = ({
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.imageSourceButtons}>
+        <View style={styles.imageSourceButtons} testID="panel.search.modal.imageSource">
           <TouchableOpacity
+            testID="action.search.modal.image.camera"
             style={[styles.imageSourceButton]}
             onPress={() => selectImage('camera')}
           >
@@ -824,6 +832,7 @@ const MultiModalSearch = ({
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
+            testID="action.search.modal.image.gallery"
             style={[styles.imageSourceButton]}
             onPress={() => selectImage('gallery')}
           >
@@ -853,8 +862,21 @@ const MultiModalSearch = ({
           paddingBottom: Math.max(insets.bottom, 12),
         },
       ]}
+      testID="screen.search.modal"
     >
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      {/* 自动化取证锚点：零尺寸、无样式，不参与布局，仅承载多模态搜索状态 */}
+      <View testID={`state.search.modal.scope.${searchScope}`} />
+      <View testID={`state.search.modal.mode.${reduxSearchMode}`} />
+      <View testID={`state.search.modal.loading.visibility.${isLoading ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.modal.error.visibility.${error ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.modal.query.empty.${searchQuery ? 'false' : 'true'}`} />
+      <View testID={`state.search.modal.suggestions.visibility.${showSuggestions ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.modal.history.visibility.${showHistory ? 'visible' : 'hidden'}`} />
+      <View testID={`state.search.modal.history.count.${searchHistory.length}`} />
+      <View testID={`state.search.modal.voice.listening.${isListening ? 'true' : 'false'}`} />
+      <View testID={`state.search.modal.voice.recognized.${recognizedText ? 'true' : 'false'}`} />
+      <View testID={`state.search.modal.image.selected.${selectedImage ? 'true' : 'false'}`} />
+      <View style={[styles.header, { borderBottomColor: colors.border }]} testID="panel.search.modal.header">
         <ScreenHeaderBackButton onPress={handleCancel} testID="action.search.modal.back" />
 
         <View style={styles.headerTitleWrap}>
@@ -862,17 +884,18 @@ const MultiModalSearch = ({
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{scopeMeta.subtitle}</Text>
         </View>
 
-        <View style={[styles.scopeBadge, { borderColor: `${colors.primary}24`, backgroundColor: `${colors.primary}12` }]}>
+        <View style={[styles.scopeBadge, { borderColor: `${colors.primary}24`, backgroundColor: `${colors.primary}12` }]} testID="panel.search.modal.scopeBadge">
           <Icon name="travel-explore" size={16} color={colors.primary} />
           <Text style={[styles.scopeBadgeText, { color: colors.primary }]}>{scopeMeta.badge}</Text>
         </View>
       </View>
 
-      <View style={styles.modeBar}>
+      <View style={styles.modeBar} testID="panel.search.modal.modeBar">
         <View style={styles.searchModeButtons}>
           {['text', 'voice', 'image'].map((mode) => (
             <TouchableOpacity
               key={mode}
+              testID={`filter.search.modal.mode.${mode}`}
               style={[
                 styles.searchModeButton,
                 {
@@ -906,7 +929,7 @@ const MultiModalSearch = ({
         {reduxSearchMode === 'image' && renderImageSearch()}
 
         {reduxSearchMode === 'text' && !searchQuery && (
-          <View style={[styles.helperCard, { backgroundColor: colors.card, borderColor: `${colors.primary}18` }]}>
+          <View style={[styles.helperCard, { backgroundColor: colors.card, borderColor: `${colors.primary}18` }]} testID="panel.search.modal.helper">
             <View style={[styles.helperIcon, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}24` }]}>
               <Icon name="manage-search" size={24} color={colors.primary} />
             </View>
@@ -921,7 +944,7 @@ const MultiModalSearch = ({
 
         {/* 快速搜索历史 - 在输入框下方显示 */}
         {reduxSearchMode === 'text' && !searchQuery && searchHistory.length > 0 && (
-          <View style={[styles.quickHistoryContainer, { backgroundColor: colors.surface }]}>
+          <View style={[styles.quickHistoryContainer, { backgroundColor: colors.surface }]} testID="panel.search.modal.quickHistory">
             <Text style={[styles.quickHistoryTitle, { color: colors.textSecondary }]}>
               最近搜索
             </Text>
@@ -933,6 +956,7 @@ const MultiModalSearch = ({
               {searchHistory.slice(0, 8).map((item, index) => (
                 <TouchableOpacity
                   key={`quick-${item.query}-${index}`}
+                  testID={`item.searchHistory.quick.${index}`}
                   style={[styles.quickHistoryChip, {
                     backgroundColor: colors.primary + '15',
                     borderColor: colors.primary + '30',
@@ -951,7 +975,7 @@ const MultiModalSearch = ({
 
         {/* 完整搜索历史面板 */}
         {reduxSearchMode === 'text' && !searchQuery && showHistory && (
-          <View style={[styles.historyContainer, { elevation: 0 }]}>
+          <View style={[styles.historyContainer, { elevation: 0 }]} testID="panel.search.modal.history">
             <SearchHistory
               onHistoryItemPress={handleHistoryItemPress}
               visible={true}
@@ -962,7 +986,7 @@ const MultiModalSearch = ({
       </View>
 
       {error && (
-        <View style={[styles.errorContainer, { backgroundColor: colors.errorLight }]}>
+        <View style={[styles.errorContainer, { backgroundColor: colors.errorLight }]} testID="state.search.modal.error">
           <Icon name="error" size={20} color={colors.error} />
           <Text
             variant="body"

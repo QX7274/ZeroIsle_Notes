@@ -56,8 +56,9 @@ const SearchSuggestions = ({ query, onSuggestionPress, visible = true }) => {
   }
 
   // 渲染建议项
-  const renderSuggestionItem = ({ item }) => (
+  const renderSuggestionItem = ({ item, index }) => (
     <TouchableOpacity
+      testID={`item.searchSuggestion.${index}`}
       style={[
         styles.suggestionItem,
         { borderBottomColor: colors.border },
@@ -83,7 +84,7 @@ const SearchSuggestions = ({ query, onSuggestionPress, visible = true }) => {
       <View style={[
         styles.container,
         { backgroundColor: colors.card },
-      ]}>
+      ]} testID="state.search.suggestions.loading">
         <ActivityIndicator
           size="small"
           color={colors.primary}
@@ -99,7 +100,7 @@ const SearchSuggestions = ({ query, onSuggestionPress, visible = true }) => {
       <View style={[
         styles.container,
         { backgroundColor: colors.card },
-      ]}>
+      ]} testID="state.search.suggestions.error">
         <Text
           style={[
             styles.errorText,
@@ -122,7 +123,7 @@ const SearchSuggestions = ({ query, onSuggestionPress, visible = true }) => {
     <View style={[
       styles.container,
       { backgroundColor: colors.card },
-    ]}>
+    ]} testID="panel.search.suggestions">
       <FlatList
         data={suggestions}
         renderItem={renderSuggestionItem}
@@ -130,6 +131,7 @@ const SearchSuggestions = ({ query, onSuggestionPress, visible = true }) => {
         keyboardShouldPersistTaps="always"
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        testID="list.searchSuggestions"
       />
     </View>
   );
