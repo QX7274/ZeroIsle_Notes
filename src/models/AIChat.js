@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * AI聊天模型定义
@@ -275,7 +276,7 @@ class AIChat extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -296,7 +297,7 @@ class AIChat extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -317,7 +318,7 @@ class AIChat extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;

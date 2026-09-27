@@ -113,18 +113,27 @@
 
 ### 5.1 Realm 查询与分页（避免全量 materialize）
 - **风险点**：存在 Array.from 全量转换再 slice 的查询路径（需全局排查）。
+- **已完成（2026-09-27）**：
+  - 新增 `src/models/utils/queryPagination.js`，把分页前置到 Realm `Results.slice`，只 materialize 当前页。
+  - 15 个模型文件的 40 处列表分页改为 `materializePage(results, { skip, limit })`；`RealmService.objects()`/`find()` 先分页再转普通对象；`mindMapApi.getMindMaps()` 与 `notesApi.saveOfflineNote()` 幂等判定同批改造。
+  - 新增 `src/models/__tests__/queryPagination.test.js`：用 10 万条计数伪 Results 断言只物化当前页（修复前 100000 → 修复后 20/10）。
 - **待完成**：
-  - 列表查询统一走 Results 层 slice（分页前置）
-  - 列表字段裁剪（轻量字段 + 延迟加载正文）
-  - 若需要搜索：建立本地索引或增量索引更新策略
+  - `KnowledgeGraph`/`InfiniteCanvas`/`MindMap`/`AIChat`/`SearchIndex` 仍有“先全量物化再 JS 过滤”的路径（Realm 不支持对映射字段做 JS 谓词过滤，需要拆分查询条件或补索引）。
+  - 列表字段裁剪（轻量字段 + 延迟加载正文）。
+  - 若需要搜索：建立本地索引或增量索引更新策略。
 - **验收**：
-  - 首屏 P95、滚动 FPS、JS Heap 峰值达标
+  - 首屏 P95、滚动 FPS、JS Heap 峰值达标（真机 10 万条基线仍未产出）
 
 ---
 
 ## 建议的后续实施顺序（不偏离既定里程碑）
 1. 完成里程碑 3：冲突审计接线 + deviceId 服务 + offlineQueue 幂等
 2. 进入里程碑 4：UploadSession + chunkedUploadService + cache/LRU
-3. 并行补齐 10 万条性能基线与查询整改（只改相关查询路径）
+3. 并行补齐 10 万条性能基线与查询整改（只改相关查询路径）——查询层分页前置已完成，剩余 JS 谓词过滤路径与真机基线待补
 4. 最后完成 Realm App 控制台配置联调与灰度策略
+
+## 2026-09-27 进展补充
+- 里程碑 5.1 查询层分页前置已完成并有 10 万条回归（见上）。
+- 冷启动未处理 Promise rejection（Firebase 降级）已修复：`await initializeApp()` + 缺配置时降级返回 `false`，并纳入 LogBox 忽略清单。
+- Mac 接续开发链路已打通并可复现：JDK17 + Android SDK 34/35 + 平板尺寸 Android 14 模拟器 + `assembleDebug` + Metro；`RISK-UI-REMINDER-001` 的底部 CTA 阻塞已在该环境复验通过（Windows 平板真机复验仍待补）。
 

@@ -1272,11 +1272,11 @@ const notesApi = {
         syncStatus: 'offline',
       }), 'modified');
 
-      const queuedItems = Array.from(realm.objects('OfflineQueue'));
-      const hasPendingOperation = queuedItems.some(item => (
-        item.clientOpId === clientOpId && item.status !== 'synced'
-      ));
-      if (!hasPendingOperation) {
+      // 幂等判定直接走 Realm 查询，避免离线队列全量 materialize（RISK-PERF-002）
+      const pendingOperation = realm
+        .objects('OfflineQueue')
+        .filtered('clientOpId == $0 AND status != "synced"', clientOpId)[0];
+      if (!pendingOperation) {
         const now = new Date();
         realm.create('OfflineQueue', {
           _id: `offline_note_${noteId}_${clientOpId}`,

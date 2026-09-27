@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 标签模型定义
@@ -187,7 +188,7 @@ class Tag extends Realm.Object {
       if (options.skip !== undefined && options.limit !== undefined) {
         const skip = options.skip || 0;
         const limit = options.limit || 100;
-        results = Array.from(results).slice(skip, skip + limit);
+        results = materializePage(results, { skip, limit });
       }
 
       return results;
@@ -316,7 +317,7 @@ class Tag extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND count > 0`)
       .sorted('count', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -331,7 +332,7 @@ class Tag extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND name CONTAINS[c] "${query}"`)
       .sorted('count', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 }
 

@@ -1,7 +1,15 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
+
+// google-services.json 属于本地/CI 注入资产（已被 .gitignore 排除）。
+// 缺失时跳过 Firebase 插件，让新机器和无密钥环境仍能完成 Debug 构建；
+// 需要 Firebase 能力时把 android/app/google-services.json.example 复制为真实配置。
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+} else {
+    logger.lifecycle("google-services.json 缺失：跳过 com.google.gms.google-services（本机构建不启用 Firebase）")
+}
 
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 

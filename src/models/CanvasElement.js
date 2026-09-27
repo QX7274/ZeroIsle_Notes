@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 画布元素模型定义
@@ -370,7 +371,7 @@ class CanvasElement extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 1000;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;

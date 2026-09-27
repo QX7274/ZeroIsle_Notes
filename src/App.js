@@ -174,6 +174,9 @@ LogBox.ignoreLogs([
   '创建通知渠道超时，但应用将继续运行',
   '通知渠道创建失败，但应用将继续运行',
   '提醒通知服务初始化部分失败，但应用将继续运行',
+  // 无 Firebase 配置的设备（本地构建 / 无 Google Play 服务）按本地通知降级，不再作为阻断警告弹出
+  '缺少可用的 Firebase 配置，推送能力降级为本地通知',
+  'Firebase 未完成初始化，将以本地通知降级继续运行',
   'PersistBootstrapGate: 持久化恢复超过',
   'PersistBootstrapGate: 当前以降级模式继续启动',
 ]);

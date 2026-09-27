@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 知识图谱模型定义
@@ -416,7 +417,7 @@ class KnowledgeGraph extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND last_opened_at != null`)
       .sorted('last_opened_at', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**

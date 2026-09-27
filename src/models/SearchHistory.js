@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 搜索历史模型定义
@@ -167,7 +168,7 @@ class SearchHistory extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -184,7 +185,7 @@ class SearchHistory extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false`)
       .sorted('last_used_at', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -198,7 +199,7 @@ class SearchHistory extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND use_count > 1`)
       .sorted('use_count', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -212,7 +213,7 @@ class SearchHistory extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND is_favorite = true`)
       .sorted('last_used_at', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -309,7 +310,7 @@ class SearchHistory extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND query BEGINSWITH[c] "${prefix}"`)
       .sorted([['use_count', true], ['last_used_at', true]]);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 }
 

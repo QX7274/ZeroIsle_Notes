@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 同步信息模型定义
@@ -226,7 +227,7 @@ class SyncInfo extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -256,7 +257,7 @@ class SyncInfo extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -286,7 +287,7 @@ class SyncInfo extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -316,7 +317,7 @@ class SyncInfo extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;

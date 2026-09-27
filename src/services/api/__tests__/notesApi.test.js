@@ -24,6 +24,9 @@ const makeCollection = (schemaName, values) => {
     if (query.includes('status != "synced"')) {
       result = result.filter((item) => item.status !== 'synced');
     }
+    if (query.includes('clientOpId == $0')) {
+      result = result.filter((item) => item.clientOpId === args[0]);
+    }
     if (query.includes('is_deleted == false') || query.includes('is_deleted = false')) {
       result = result.filter((item) => item.is_deleted === false || item.is_deleted == null);
     }

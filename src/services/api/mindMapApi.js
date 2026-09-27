@@ -2,6 +2,7 @@
  * 思维导图本地优先 API 服务
  */
 import realmService from '../database/realmService';
+import { materializePage } from '../../models/utils/queryPagination';
 
 const MIND_MAP_SCHEMA = 'MindMap';
 const MIND_MAP_NODE_SCHEMA = 'MindMapNode';
@@ -174,6 +175,19 @@ const buildMindMapDetail = async (realm, mindMapRecord) => {
   };
 };
 
+const mapMindMapListItem = (item) => ({
+  _id: item._id,
+  id: item._id,
+  title: item.title,
+  description: item.description || '',
+  layout_type: item.layout_type || 'tree',
+  theme: item.theme || 'default',
+  node_count: item.node_count || 0,
+  edge_count: item.edge_count || 0,
+  created_at: toIsoString(item.created_at),
+  updated_at: toIsoString(item.updated_at),
+});
+
 const listMindMapItems = async (realm, params = {}) => {
   const search = ensureString(params.search || '').trim().toLowerCase();
   const page = Number.isFinite(Number(params.page)) ? Number(params.page) : 1;
@@ -182,37 +196,30 @@ const listMindMapItems = async (realm, params = {}) => {
     : null;
   const skip = Number.isFinite(Number(params.skip)) ? Number(params.skip) : pageSize ? (page - 1) * pageSize : 0;
 
-  let results = realm
+  const results = realm
     .objects(MIND_MAP_SCHEMA)
     .filtered('is_deleted == false')
     .sorted('updated_at', true);
 
-  let items = Array.from(results).map((item) => ({
-    _id: item._id,
-    id: item._id,
-    title: item.title,
-    description: item.description || '',
-    layout_type: item.layout_type || 'tree',
-    theme: item.theme || 'default',
-    node_count: item.node_count || 0,
-    edge_count: item.edge_count || 0,
-    created_at: toIsoString(item.created_at),
-    updated_at: toIsoString(item.updated_at),
-  }));
+  // 无关键词搜索时：分页前置到 Results 层，只 materialize 当前页（RISK-PERF-002）
+  if (!search) {
+    return {
+      results: materializePage(results, { skip, limit: pageSize }).map(mapMindMapListItem),
+      count: results.length,
+    };
+  }
 
-  if (search) {
-    items = items.filter((item) =>
+  // 关键词搜索需要逐条读取标题/描述（Realm 不支持对映射字段做 JS 谓词过滤），保留原语义
+  const items = Array.from(results)
+    .map(mapMindMapListItem)
+    .filter((item) =>
       item.title.toLowerCase().includes(search) ||
       item.description.toLowerCase().includes(search)
     );
-  }
-
-  const count = items.length;
-  const pagedItems = pageSize ? items.slice(skip, skip + pageSize) : items;
 
   return {
-    results: pagedItems,
-    count,
+    results: pageSize ? items.slice(skip, skip + pageSize) : items,
+    count: items.length,
   };
 };
 

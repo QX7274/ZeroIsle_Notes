@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 分类模型定义
@@ -120,7 +121,7 @@ class Category extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 100;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;

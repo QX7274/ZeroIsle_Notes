@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 文件模型定义
@@ -333,7 +334,7 @@ class File extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 50;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -377,7 +378,7 @@ class File extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND last_accessed_at != null`)
       .sorted('last_accessed_at', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -392,7 +393,7 @@ class File extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND size >= ${minSize}`)
       .sorted('size', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -435,7 +436,7 @@ class File extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;

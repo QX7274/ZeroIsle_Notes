@@ -4,6 +4,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 离线队列模型定义
@@ -137,7 +138,7 @@ class OfflineQueue extends Realm.Object {
 
     // 分页
     if (options.limit) {
-      results = Array.from(results).slice(0, options.limit);
+      results = materializePage(results, { limit: options.limit });
     }
 
     return results;
@@ -168,7 +169,7 @@ class OfflineQueue extends Realm.Object {
 
     // 分页
     if (options.limit) {
-      results = Array.from(results).slice(0, options.limit);
+      results = materializePage(results, { limit: options.limit });
     }
 
     return results;
@@ -199,7 +200,7 @@ class OfflineQueue extends Realm.Object {
 
     // 分页
     if (options.limit) {
-      results = Array.from(results).slice(0, options.limit);
+      results = materializePage(results, { limit: options.limit });
     }
 
     return results;

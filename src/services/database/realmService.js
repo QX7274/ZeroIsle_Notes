@@ -15,6 +15,7 @@ import {
   SYNC_ENABLED,
   getSyncRealmConfig,
 } from './realmConfig';
+import { materializePage, paginateResults } from '../../models/utils/queryPagination';
 
 class RealmService {
   constructor() {
@@ -364,17 +365,13 @@ class RealmService {
         objects = objects.sorted(field, ascending);
       }
 
-      // 转换为普通对象数组
-      const results = Array.from(objects).map(obj => this.realmObjectToPlain(obj));
-
-      // 应用分页
+      // 分页前置：只 materialize 需要的一页，避免 10 万条记录全量转换（RISK-PERF-002）
       if (options.skip !== undefined || options.limit !== undefined) {
-        const skip = options.skip || 0;
-        const limit = options.limit || results.length;
-        return results.slice(skip, skip + limit);
+        return materializePage(objects, options).map(obj => this.realmObjectToPlain(obj));
       }
 
-      return results;
+      // 转换为普通对象数组
+      return Array.from(objects).map(obj => this.realmObjectToPlain(obj));
     } catch (error) {
       console.error(`查询${schemaName}对象失败`, error);
       throw error;
@@ -821,19 +818,10 @@ class RealmService {
         objects = objects.sorted(sortField, sortDirection);
       }
 
-      // 转换为普通对象数组并进行后处理（如JSON字段解析）
-      const plainData = Array.from(objects).map(obj => this._postProcessRecord(collectionName, this.realmObjectToPlain(obj)));
+      // 分页前置：先取页再转换，避免把整个集合 materialize 成普通对象（RISK-PERF-002）
+      const page = paginateResults(objects, { skip: skipOption, limit: limitOption });
 
-      // 分页
-      let result = plainData;
-      if (skipOption) {
-        result = result.slice(skipOption);
-      }
-      if (limitOption) {
-        result = result.slice(0, limitOption);
-      }
-
-      return result;
+      return Array.from(page).map(obj => this._postProcessRecord(collectionName, this.realmObjectToPlain(obj)));
     } catch (error) {
       console.error(`查找多个${collectionName}失败`, error);
       throw error;

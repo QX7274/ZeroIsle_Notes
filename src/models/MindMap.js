@@ -3,6 +3,7 @@
  */
 
 import Realm from 'realm';
+const { materializePage } = require('./utils/queryPagination');
 
 /**
  * 思维导图模型定义
@@ -375,7 +376,7 @@ class MindMap extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
@@ -458,7 +459,7 @@ class MindMap extends Realm.Object {
       .filtered(`user_id = "${userId}" AND is_deleted = false AND last_opened_at != null`)
       .sorted('last_opened_at', true);
 
-    return Array.from(results).slice(0, limit);
+    return materializePage(results, { limit });
   }
 
   /**
@@ -482,7 +483,7 @@ class MindMap extends Realm.Object {
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
       const limit = options.limit || 20;
-      results = Array.from(results).slice(skip, skip + limit);
+      results = materializePage(results, { skip, limit });
     }
 
     return results;
