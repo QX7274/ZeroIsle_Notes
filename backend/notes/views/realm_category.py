@@ -9,6 +9,7 @@ from django.utils import timezone
 from notes.mongodb_models import Category, Note
 from notes.serializers import CategorySerializer
 from common.permissions import IsOwnerOrReadOnly
+from common.mongo_user import get_mongo_user, mongo_user_required_response
 import uuid
 import logging
 
@@ -24,14 +25,20 @@ class RealmCategoryViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """获取当前用户的分类列表"""
-        categories = Category.objects.filter(user=request.user, is_deleted=False)
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
+        categories = Category.objects.filter(user=mongo_user, is_deleted=False)
         serializer = CategorySerializer(categories, many=True)
         return response.Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个分类详情"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            category = Category.objects.get(id=pk, user=request.user, is_deleted=False)
+            category = Category.objects.get(id=pk, user=mongo_user, is_deleted=False)
             serializer = CategorySerializer(category)
             return response.Response(serializer.data)
         except Category.DoesNotExist:
@@ -42,6 +49,9 @@ class RealmCategoryViewSet(viewsets.ViewSet):
 
     def create(self, request):
         """创建分类"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid():
             # 处理父分类
@@ -49,7 +59,7 @@ class RealmCategoryViewSet(viewsets.ViewSet):
             parent_id = serializer.validated_data.get('parent')
             if parent_id:
                 try:
-                    parent = Category.objects.get(id=parent_id, user=request.user, is_deleted=False)
+                    parent = Category.objects.get(id=parent_id, user=mongo_user, is_deleted=False)
                 except Category.DoesNotExist:
                     return response.Response(
                         {"detail": "父分类不存在或已删除"},
@@ -59,7 +69,7 @@ class RealmCategoryViewSet(viewsets.ViewSet):
             # 创建分类
             category_data = {
                 'id': uuid.uuid4(),
-                'user': request.user,
+                'user': mongo_user,
                 'name': serializer.validated_data['name'],
                 'description': serializer.validated_data.get('description', ''),
                 'color': serializer.validated_data.get('color'),
@@ -80,8 +90,11 @@ class RealmCategoryViewSet(viewsets.ViewSet):
 
     def update(self, request, pk=None):
         """更新分类"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            category = Category.objects.get(id=pk, user=request.user, is_deleted=False)
+            category = Category.objects.get(id=pk, user=mongo_user, is_deleted=False)
             serializer = CategorySerializer(data=request.data)
 
             if serializer.is_valid():
@@ -90,7 +103,7 @@ class RealmCategoryViewSet(viewsets.ViewSet):
                 parent_id = serializer.validated_data.get('parent')
                 if parent_id:
                     try:
-                        parent = Category.objects.get(id=parent_id, user=request.user, is_deleted=False)
+                        parent = Category.objects.get(id=parent_id, user=mongo_user, is_deleted=False)
 
                         # 检查是否会形成循环引用
                         if str(parent.id) == str(category.id):
@@ -137,8 +150,11 @@ class RealmCategoryViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         """删除分类"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            category = Category.objects.get(id=pk, user=request.user, is_deleted=False)
+            category = Category.objects.get(id=pk, user=mongo_user, is_deleted=False)
 
             # 检查是否有子分类
             if Category.objects.filter(parent=category, is_deleted=False).count() > 0:
@@ -170,9 +186,12 @@ class RealmCategoryViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'])
     def notes(self, request, pk=None):
         """获取分类下的笔记"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            category = Category.objects.get(id=pk, user=request.user, is_deleted=False)
-            notes = Note.objects.filter(category=category, user=request.user, is_deleted=False)
+            category = Category.objects.get(id=pk, user=mongo_user, is_deleted=False)
+            notes = Note.objects.filter(category=category, user=mongo_user, is_deleted=False)
 
             # 分页
             page = int(request.query_params.get('page', 1))
@@ -201,7 +220,10 @@ class RealmCategoryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def tree(self, request):
         """获取分类树"""
-        categories = Category.objects.filter(user=request.user, is_deleted=False)
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
+        categories = Category.objects.filter(user=mongo_user, is_deleted=False)
 
         # 构建分类树
         category_dict = {}

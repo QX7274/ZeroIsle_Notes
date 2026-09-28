@@ -15,6 +15,7 @@ import uuid
 from django.utils import timezone
 from notes.serializers import NoteSerializer, NoteListSerializer, NoteDetailSerializer
 from common.permissions import IsOwnerOrReadOnly
+from common.mongo_user import get_mongo_user
 # 如果需要mongodb_service，请确保正确导入
 # from mongodb_service import mongodb_service
 import uuid
@@ -33,26 +34,13 @@ class RealmNoteViewSet(viewsets.ViewSet):
 
     def _get_mongo_user(self, request):
         """
-        从请求中获取对应的 MongoDB 用户对象
-        优先使用中间件注入的 request.mongo_user
-        """
-        # 优先使用中间件注入的 mongo_user
-        if hasattr(request, 'mongo_user') and request.mongo_user:
-            return request.mongo_user
+        从请求中获取对应的 MongoDB 用户对象。
 
-        # 降级方案：手动查找（兼容旧代码）
-        try:
-            from users.mongodb_models import User as MongoUser
-            django_user = request.user
-            if not django_user or not django_user.is_authenticated:
-                return None
-            mongo_user = MongoUser.objects(username=django_user.username).first()
-            if not mongo_user:
-                logger.warning(f"未找到对应的MongoDB用户: {django_user.username}")
-            return mongo_user
-        except Exception as e:
-            logger.error(f"获取 MongoDB 用户失败: {e}", exc_info=True)
-            return None
+        实现已提取到 common.mongo_user.get_mongo_user（行为与提取前逐字一致：
+        优先 request.mongo_user，其次按 username 查，查不到/异常返回 None）。
+        保留本方法是为了不改变既有调用点与子类覆写点。
+        """
+        return get_mongo_user(request)
 
     def get_queryset(self):
         """获取当前用户可访问的笔记查询集"""

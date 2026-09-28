@@ -295,6 +295,23 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-29 进展补充（第六轮：500MB 内存实证 + 后端测试可运行化，暴露两个生产缺陷）
+- **500MB 附件客户端内存实证（新）**：设备实测 512MB 缓存分段写入，峰值增量 **≈88.6MB（512MB 的 ~17%）**，
+  远低于「基线 + 150MB」验收线，且不随文件大小线性增长；`128 段 × 4MB`、写入 43.6s。
+  仍不能证明：真机 release 峰值、真实 LRU 淘汰（512MB 未触发 2GB 配额）、端到端上传速率。
+- **`RISK-BE-002` 关闭**：定位到 mongomock 4.3.0 吞掉 `uuidRepresentation` 且其文档校验未透传 `codec_options`，
+  用测试专用垫片修掉（不影响生产/真实 Mongo），`backend/sync/tests` 前后一致。
+- **`RISK-BE-004` 修复（生产缺陷）**：`realm_tag.py`/`realm_category.py` 原先把 **Django** `request.user`
+  传进 mongoengine 引用（与已修好的 `realm_note.py` 不一致）→ 创建必 500。已抽取 `backend/common/mongo_user.py`
+  统一解析并补用户隔离测试。
+- **新登记 `RISK-BE-003`（P0，待决策）**：`users` 的 `UUIDField(binary=False)` 让主键落库为**字符串**，
+  而 `ReferenceField` 写的是含 **UUID** 的 DBRef → **一切引用反解失败**，任何序列化 `user` 的响应都会 500。
+  Lead 已 first-hand 复现，并验证「改 `dbref` 选项」两种配置都无效，因此只能改主键存储口径 + 数据迁移（破坏性变更），
+  **未擅自修改**，需要产品决策。这正是「让 `backend/notes/tests` 能跑起来」的直接收益：它此前掩盖了 17 条真实失败。
+- 后端现状：根目录门禁 `21 passed / 2 skipped` 未回归；`backend/notes/tests` 由「35 failed + 3 errors（跑不起来）」
+  变为 `26 failed / 37 passed / 3 skipped`，剩余失败已逐条归类。
+- 最近访问链路：补上「文件历史直达」入口（共 10 个入口）。
+- 门禁：全量 Jest `77/77 suites、680/680 tests`；`eslint .` `0 errors / 1204 warnings`。
 ## 2026-09-29 进展补充（第五轮：开发清库隐患修复 + 迁移真机验证）
 - **`RISK-DEV-WIPE-001` 关闭**：`realmConfig.js` 的 `deleteRealmIfMigrationNeeded` 改为「仅当显式常量开启」，
   开发构建与生产一致走迁移。设备端到端复验：v19 构建（`pm clear` 后）建立 100,000 条样本的 55MB 库 →

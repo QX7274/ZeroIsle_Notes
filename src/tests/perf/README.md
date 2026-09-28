@@ -156,6 +156,8 @@ node node_modules/eslint/bin/eslint.js src/tests/perf
 > 因此下列数值只作为**同环境可复现的相对基线**，不能与真机 release 绝对值比较；
 > 真机 release 采集仍是验收步骤（见第 5 节）。
 
+### 7.1 10 万条数据的列表首屏
+
 **造数**：设置 → 离线数据 → 「生成性能测试数据（10 万条）」（dev-only，分批 1000、幂等）。
 实测造数结果 `{created:0, skipped:100000, batches:50, elapsedMs:4839}`（幂等：第二次执行全部跳过），
 即设备 Realm 内共 **100,007 条**笔记（10 万条样本 + 7 条真实笔记）。
@@ -176,6 +178,36 @@ node node_modules/eslint/bin/eslint.js src/tests/perf
 
 **证据**：`.local/android-evidence/round70_perf100k_clean.{xml,png}`（10 万条首页）、
 `.local/android-evidence/round70_perf100k_home.png`；日志见本文件第 8 节引用。
+
+### 7.2 500MB 附件缓存分段写入的内存实测（2026-09-29）
+
+工具：dev-only `src/services/dev/cachePerfService.js`（设置 → 离线数据 → 「生成 500MB 测试文件并写入缓存（内存采样）」；
+本轮为可靠采样，改用等价的临时启动触发，采完已回滚）。设备同 7.1，**debug 构建 + swiftshader**，
+且设备内已有 10 万条笔记（Realm mmap 占大头，故只看**增量**）。
+
+采样方式：外部 `adb shell dumpsys meminfo com.zeroisle_notes`，按日志时间点对齐
+（`[cachePerf] file progress` / `write progress` / 压测收尾日志）。应用内 `peakRssKb` 为 `null` ——
+RN 没有进程 RSS 接口，内存只能外部采样，这也是该工具专门打印周期性进度日志的原因。
+
+| 阶段 | TOTAL PSS (KB) | Native Heap (KB) |
+|---|---|---|
+| 基线（触发前） | 522,509 | 252,980 |
+| 生成 512MB 测试文件（已写 ≥64MB） | 586,731 | 275,996 |
+| 写入缓存（16s） | **613,273** | 322,292 |
+| 写入缓存（32s） | 601,601 | 327,868 |
+| 写入缓存（收尾） | 579,989 | 303,240 |
+| 完成 | 545,669 | 297,776 |
+
+- **峰值增量 = 613,273 − 522,509 = 90,764 KB ≈ 88.6 MB，约为 512MB 的 17%**，
+  远低于验收线「基线 + 150MB」；且峰值**不随文件大小线性增长**（写入 4MB 分段、阈值 8MB）。
+- 压测返回：`{success:true, writtenBytes:536870912, segments:128, chunkWriteSize:4194304, elapsedMs:43608}`；
+  512MB 文件生成耗时约 480s（模拟器磁盘慢，非应用瓶颈），128 段 × 4MB。
+- 生成阶段本身也只用 ~64MB 增量，说明「造大文件」与「写缓存」两条路径都是有界的。
+
+**结论**：客户端 500MB 级附件的**分段写入内存上界**已取得设备证据，未发现整块驻留。
+仍不能证明的：真机 release 峰值（本机为 debug+软件渲染）、**真实 LRU 淘汰**（512MB 未触发 2GB 配额）、
+以及端到端上传速率（需后端）。
+
 
 ## 8. 维护提示
 

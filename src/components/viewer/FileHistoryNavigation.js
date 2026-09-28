@@ -10,6 +10,8 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import fileHistoryService from '../../services/fileHistoryService';
+// 「最近访问」记录（WS-W）：从文件历史直达既有笔记时写入 last_opened_at
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
 
 /**
  * 文件历史导航组件
@@ -64,6 +66,17 @@ const FileHistoryNavigation = ({
     const effectiveCurrentFileId = currentFileId || noteId;
     if (file.id === effectiveCurrentFileId || file.noteId === effectiveCurrentFileId) {
       return; // 当前文件，不需要切换
+    }
+
+    // 记录「最近访问」（WS-W）：只对「笔记类」历史条目写访问时间。
+    // - fileHistoryService.addFile 对笔记类条目写入 id = noteId、noteId = noteId（见 fileHistoryService.js:87）；
+    //   历史遗留条目用 noteType 判定并回退到 file.id；
+    // - 纯文件条目（无 noteId、无 noteType，id 是生成的 ObjectId）不写，避免为文件 id 做无意义查询，
+    //   也不会把「渲染一个文件」误记成「打开笔记」；
+    // - markNoteOpenedAt 内部还要求 Note 真实存在，且跳过 temp_ 前缀/空 id；不 await、失败只 warn，
+    //   不影响下面的跳转逻辑。
+    if (file.noteId || file.noteType) {
+      markNoteOpenedAt(file.noteId || file.id);
     }
 
     if (onFileSelect) {

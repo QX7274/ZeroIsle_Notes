@@ -10,6 +10,7 @@ from django.utils import timezone
 from notes.mongodb_models import Tag, Note, Category
 from notes.serializers import TagSerializer
 from common.permissions import IsOwnerOrReadOnly
+from common.mongo_user import get_mongo_user, mongo_user_required_response
 import uuid
 import logging
 
@@ -25,14 +26,20 @@ class RealmTagViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """获取当前用户的标签列表"""
-        tags = Tag.objects.filter(user=request.user, is_deleted=False)
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
+        tags = Tag.objects.filter(user=mongo_user, is_deleted=False)
         serializer = TagSerializer(tags, many=True)
         return response.Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """获取单个标签详情"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
             serializer = TagSerializer(tag)
             return response.Response(serializer.data)
         except Tag.DoesNotExist:
@@ -43,6 +50,9 @@ class RealmTagViewSet(viewsets.ViewSet):
 
     def create(self, request):
         """创建标签"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         serializer = TagSerializer(data=request.data)
         if serializer.is_valid():
             # 处理分类
@@ -50,7 +60,7 @@ class RealmTagViewSet(viewsets.ViewSet):
             category_id = serializer.validated_data.get('category')
             if category_id:
                 try:
-                    category = Category.objects.get(id=category_id, user=request.user, is_deleted=False)
+                    category = Category.objects.get(id=category_id, user=mongo_user, is_deleted=False)
                 except Category.DoesNotExist:
                     return response.Response(
                         {"detail": "分类不存在或已删除"},
@@ -58,7 +68,7 @@ class RealmTagViewSet(viewsets.ViewSet):
                     )
 
             # 检查标签名是否已存在
-            if Tag.objects.filter(user=request.user, name=serializer.validated_data['name'], is_deleted=False).count() > 0:
+            if Tag.objects.filter(user=mongo_user, name=serializer.validated_data['name'], is_deleted=False).count() > 0:
                 return response.Response(
                     {"detail": "标签名已存在"},
                     status=status.HTTP_400_BAD_REQUEST
@@ -67,7 +77,7 @@ class RealmTagViewSet(viewsets.ViewSet):
             # 创建标签
             tag_data = {
                 'id': uuid.uuid4(),
-                'user': request.user,
+                'user': mongo_user,
                 'name': serializer.validated_data['name'],
                 'color': serializer.validated_data.get('color'),
                 'category': category,
@@ -87,8 +97,11 @@ class RealmTagViewSet(viewsets.ViewSet):
 
     def update(self, request, pk=None):
         """更新标签"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
             serializer = TagSerializer(data=request.data)
 
             if serializer.is_valid():
@@ -97,7 +110,7 @@ class RealmTagViewSet(viewsets.ViewSet):
                 category_id = serializer.validated_data.get('category')
                 if category_id:
                     try:
-                        category = Category.objects.get(id=category_id, user=request.user, is_deleted=False)
+                        category = Category.objects.get(id=category_id, user=mongo_user, is_deleted=False)
                     except Category.DoesNotExist:
                         return response.Response(
                             {"detail": "分类不存在或已删除"},
@@ -105,7 +118,7 @@ class RealmTagViewSet(viewsets.ViewSet):
                         )
 
                 # 检查标签名是否已存在
-                if serializer.validated_data['name'] != tag.name and Tag.objects.filter(user=request.user, name=serializer.validated_data['name'], is_deleted=False).count() > 0:
+                if serializer.validated_data['name'] != tag.name and Tag.objects.filter(user=mongo_user, name=serializer.validated_data['name'], is_deleted=False).count() > 0:
                     return response.Response(
                         {"detail": "标签名已存在"},
                         status=status.HTTP_400_BAD_REQUEST
@@ -132,8 +145,11 @@ class RealmTagViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         """删除标签"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
 
             # 检查是否有笔记使用此标签
             if Note.objects.filter(tags=tag, is_deleted=False).count() > 0:
@@ -158,9 +174,12 @@ class RealmTagViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'])
     def notes(self, request, pk=None):
         """获取标签下的笔记"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
-            notes = Note.objects.filter(tags=tag, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
+            notes = Note.objects.filter(tags=tag, user=mongo_user, is_deleted=False)
 
             # 分页
             page = int(request.query_params.get('page', 1))
@@ -189,12 +208,15 @@ class RealmTagViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """获取标签统计信息"""
-        tags = Tag.objects.filter(user=request.user, is_deleted=False)
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
+        tags = Tag.objects.filter(user=mongo_user, is_deleted=False)
 
         # 统计每个标签下的笔记数量
         tag_stats = []
         for tag in tags:
-            count = Note.objects.filter(tags=tag, user=request.user, is_deleted=False).count()
+            count = Note.objects.filter(tags=tag, user=mongo_user, is_deleted=False).count()
             if count > 0:
                 tag_stats.append({
                     'id': str(tag.id),
@@ -211,8 +233,11 @@ class RealmTagViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def add_to_note(self, request, pk=None):
         """将标签添加到笔记"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
             note_id = request.data.get('note_id')
 
             if not note_id:
@@ -222,7 +247,7 @@ class RealmTagViewSet(viewsets.ViewSet):
                 )
 
             try:
-                note = Note.objects.get(id=note_id, user=request.user, is_deleted=False)
+                note = Note.objects.get(id=note_id, user=mongo_user, is_deleted=False)
 
                 # 检查标签是否已添加
                 if tag in note.tags:
@@ -252,8 +277,11 @@ class RealmTagViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def remove_from_note(self, request, pk=None):
         """从笔记中移除标签"""
+        mongo_user = get_mongo_user(request)
+        if not mongo_user:
+            return mongo_user_required_response()
         try:
-            tag = Tag.objects.get(id=pk, user=request.user, is_deleted=False)
+            tag = Tag.objects.get(id=pk, user=mongo_user, is_deleted=False)
             note_id = request.data.get('note_id')
 
             if not note_id:
@@ -263,7 +291,7 @@ class RealmTagViewSet(viewsets.ViewSet):
                 )
 
             try:
-                note = Note.objects.get(id=note_id, user=request.user, is_deleted=False)
+                note = Note.objects.get(id=note_id, user=mongo_user, is_deleted=False)
 
                 # 检查标签是否已添加
                 if tag not in note.tags:

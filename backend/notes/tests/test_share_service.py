@@ -7,10 +7,18 @@ from ..mongodb_models.note import Note
 from ..mongodb_models.note_share import NoteShare
 from users.mongodb_models import User
 
+from .helpers import reset_mongo_test_data
+
 class ShareServiceTests(TestCase):
 
     def setUp(self):
-        self.user = User.objects.create(username='testuser', email='test@example.com')
+        reset_mongo_test_data()
+        # password 是 MongoUser 的 required 字段，必须补齐
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            password='hashed-test-password',
+        )
         self.note = Note.objects.create(title='Test Note', content='Some content', user=self.user)
         self.share_service = ShareService()
 

@@ -4,17 +4,22 @@ from django.contrib.auth import get_user_model
 from notes.models import Note, NoteVersion
 from notes.services.note_service import NoteService
 
+from .helpers import mongo_user_for, reset_mongo_test_data
+
 User = get_user_model()
 
 class NoteServiceTest(TestCase):
     def setUp(self):
+        reset_mongo_test_data()
         self.user = User.objects.create_user(username='testuser', password='password')
+        # mongoengine 文档引用的是镜像出的 MongoUser，不是 Django user
+        self.mongo_user = mongo_user_for(self.user)
         # mongoengine 的 Note 文档没有 type 字段（见 notes/mongodb_models/note.py），
         # 传它会直接 FieldDoesNotExist；这里只保留文档真实声明的字段。
         self.note = Note.objects.create(
             title="Original Title",
             content="Original Content",
-            user=self.user,
+            user=self.mongo_user,
         )
 
     def test_create_note_version(self):
