@@ -9,6 +9,8 @@
 import uuid
 import secrets
 import hashlib
+from datetime import timezone as datetime_timezone
+
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 from mongoengine import Document, StringField, DateTimeField, BooleanField, IntField
@@ -130,16 +132,43 @@ class NoteShare(Document):
         self.view_count += 1
         return True
 
+    @staticmethod
+    def _to_aware_utc(value):
+        """
+        把 datetime 归一化为 aware UTC；naive 值按 UTC 解释。
+
+        背景（本机实测缺陷）：mongoengine.connect 未传 tz_aware=True（pymongo 默认 False），
+        写库时 aware 值按 UTC 存储，读回时拿到的是 **naive** datetime；
+        而 USE_TZ=True 下 django.utils.timezone.now() 是 **aware**，
+        直接比较会抛 TypeError: can't compare offset-naive and offset-aware datetimes。
+        这里只在比较处做局部归一化，不打开全局 tz_aware=True（避免改变全项目时间语义）。
+
+        Args:
+            value: datetime 或 None
+
+        Returns:
+            datetime | None: aware UTC 时间
+        """
+        if value is None:
+            return None
+        # tzinfo 为 None 或 utcoffset() 为 None 都视为 naive
+        if value.tzinfo is None or value.utcoffset() is None:
+            return value.replace(tzinfo=datetime_timezone.utc)
+        return value.astimezone(datetime_timezone.utc)
+
     def is_expired(self):
         """
         判断是否已过期
+
+        读库默认 tz_aware=False 会把 expires_at 归一成 naive（UTC 语义），
+        因此两侧统一成 aware UTC 后再比较，避免 naive/aware 比较异常。
 
         Returns:
             bool: 是否过期
         """
         if not self.expires_at:
             return False
-        return self.expires_at < timezone.now()
+        return self._to_aware_utc(self.expires_at) < self._to_aware_utc(timezone.now())
 
     def is_view_limit_reached(self):
         """

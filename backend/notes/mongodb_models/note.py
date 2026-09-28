@@ -56,5 +56,21 @@ class Note(Document):
         'ordering': ['-updated_at']
     }
 
+    @property
+    def word_count(self):
+        """
+        字数统计（计算属性，不落库）。
+
+        口径：**非空白字符数**——统计 str.isspace() 为假的字符个数，
+        空格 / 制表符 / 换行 / 全角空格（U+3000）均不计入；
+        CJK 与 ASCII 一视同仁（按字符计，不按自然语言词数计）；空内容或纯空白为 0。
+
+        对外的只读契约：NoteListSerializer.word_count / NoteDetailSerializer.word_count
+        （backend/notes/serializers/note.py:32,48）与客户端
+        src/screens/note/CardNoteScreen.js:193 都消费该字段。
+        """
+        content = self.content or ''
+        return sum(1 for char in content if not char.isspace())
+
     def __str__(self):
         return f"{self.title} ({self.id})"

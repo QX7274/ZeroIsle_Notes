@@ -12,8 +12,14 @@ class User(Document):
     """
     用户文档模型
     """
-    # 共享链与 testing/mongomock 联调场景下，显式使用非二进制 UUID，避免引用反解与编码口径不一致。
-    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), binary=False, verbose_name='用户ID')
+    # 主键口径必须与 notes/mongodb_models/*（UUIDField(primary_key=True)，默认 binary=True）一致：
+    # 历史上这里写 binary=False 会把 _id 落库成字符串，而引用（Note.user/Category.user/Tag.user）
+    # 反解时按 UUID/Binary 查询 → DoesNotExist（RISK-BE-003）。去掉 binary=False 即修复新数据。
+    #
+    # 注意：旧库中已存在的「字符串 _id」用户及其引用不会自动改写，需要执行迁移脚本：
+    #   python -m scripts.migrate_user_uuid_to_binary            # 先 dry-run 复核
+    #   python -m scripts.migrate_user_uuid_to_binary --apply    # 再执行
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4(), verbose_name='用户ID')
     username = StringField(max_length=150, required=True, unique=True, verbose_name='用户名')
     email = EmailField(sparse=True, required=False, verbose_name='邮箱地址')
     phone = StringField(max_length=20, sparse=True, verbose_name='手机号')

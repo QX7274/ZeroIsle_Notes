@@ -295,6 +295,22 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-29 进展补充（第七轮：后端回归网从「跑不起来」到 0 failed，并修出 4 个后端缺陷）
+- **`backend/notes/tests` 恢复为可信回归网**：`35 failed + 3 errors（且多为「跑不起来」）→ **0 failed / 64 passed / 3 skipped**。
+  过程链路：环境修复（`RISK-BE-002`）→ 用例对齐已删除 API → 修 `RISK-BE-003`（主键口径）→ 修分享过期 500 + 补 `word_count`。
+  **价值在于「能跑」**：它此前掩盖了 4 个真实缺陷，现在全部暴露并被修复。
+- **`RISK-BE-003` 关闭**：`users` 的 `binary=False` 是全仓库唯一一处口径分叉（其余模型都是 `binary=True`），
+  导致所有「指向 User 的引用」反解失败 → 任何序列化 `user` 的响应 500。已对齐口径；
+  同刻 A/B 归因：`binary=False` 时 20 failed / dereference 错误 73 行，`binary=True` 时 1 failed / **0 行**。
+  另交付**幂等迁移脚本**（默认 dry-run、`--apply` 才写、`_id` 按「读→重插→删旧」改写、引用同改），
+  5 条迁移测试全绿，并附上线步骤（备份→dry-run→apply→复核→回滚）。**未对任何真实库执行 apply**。
+- **两个新缺陷已修**：①分享 `is_expired()` 的 naive/aware 比较 → `TypeError`，任何带 `expires_at` 的分享都会 500；
+  ②`word_count` 被序列化器声明、被客户端消费，但文档没有该字段 → 接口从不返回；已补计算属性并把口径写成
+  「非空白字符数（CJK/ASCII 均按字符计）」，附 6 组输入断言。
+- **判定并记录**：他人私密笔记 PUT 返回 404 属**有意不泄露存在性**，已把用例改为 404 并新增「公开笔记 → 403」对照。
+- **新登记**：`RISK-BE-005`（`NoteDetailSerializer.tags` 与列表接口结构不一致，P2）、
+  `RISK-BE-006`（`backend/users/tests` 既有 19 failed / 5 errors，P2）。
+- 门禁：前端 `77/77 suites、680/680 tests`；Lint `0 errors / 1204 warnings`；后端门禁 `21 passed / 2 skipped`。
 ## 2026-09-29 进展补充（第六轮：500MB 内存实证 + 后端测试可运行化，暴露两个生产缺陷）
 - **500MB 附件客户端内存实证（新）**：设备实测 512MB 缓存分段写入，峰值增量 **≈88.6MB（512MB 的 ~17%）**，
   远低于「基线 + 150MB」验收线，且不随文件大小线性增长；`128 段 × 4MB`、写入 43.6s。
