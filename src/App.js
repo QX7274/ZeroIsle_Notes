@@ -177,6 +177,8 @@ LogBox.ignoreLogs([
   // 无 Firebase 配置的设备（本地构建 / 无 Google Play 服务）按本地通知降级，不再作为阻断警告弹出
   '缺少可用的 Firebase 配置，推送能力降级为本地通知',
   'Firebase 未完成初始化，将以本地通知降级继续运行',
+  // 列表预览元数据回填是预期的自愈过程，不作为阻断警告弹出
+  '条笔记缺少预览元数据',
   'PersistBootstrapGate: 持久化恢复超过',
   'PersistBootstrapGate: 当前以降级模式继续启动',
 ]);

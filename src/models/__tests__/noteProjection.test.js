@@ -79,7 +79,7 @@ function createRows(count, factory) {
 }
 
 describe('noteProjection 轻量字段裁剪', () => {
-  it('NOTE_SUMMARY_FIELDS 覆盖列表所需轻量字段，且明确不含 content', () => {
+  it('NOTE_SUMMARY_FIELDS 覆盖卡片渲染所需小标量字段，且明确不含 content/pages/strokeData', () => {
     expect(NOTE_SUMMARY_FIELDS).toEqual(
       expect.arrayContaining([
         '_id',
@@ -101,22 +101,56 @@ describe('noteProjection 轻量字段裁剪', () => {
         'thumbnail_path',
         'version',
         'parent_id',
+        // 里程碑 5.1 续：NoteItem 封面/标题/文件路由需要的描述性小标量字段
+        'file_uri',
+        'uri',
+        'file_name',
+        'original_type',
+        'original_file_name',
+        'is_converted',
+        'noteType',
+        'note_type',
+        'name',
+        'fileName',
+        'fileType',
+        'url',
+        'path',
+        'updatedAt',
+        'createdAt',
+        'noteStyle',
+        'canvasStyle',
+        'is_pinned',
+        'syncStatus',
       ]),
     );
+    // 大字段绝不能进白名单：列表预览走 metadata，正文/页面/笔迹按 id 延迟加载
     expect(NOTE_SUMMARY_FIELDS).not.toContain('content');
+    expect(NOTE_SUMMARY_FIELDS).not.toContain('pages');
+    expect(NOTE_SUMMARY_FIELDS).not.toContain('strokeData');
+    expect(NOTE_SUMMARY_FIELDS).not.toContain('attachments');
   });
 
-  it('toNoteSummary 只投影白名单字段 + hasContent/contentLength，不读取 content', () => {
+  it('toNoteSummary 只投影白名单字段 + 派生标记，不读取 content/pages/strokeData', () => {
     const counter = { count: 0 };
     const summary = toNoteSummary(createRowFactory(counter)(7));
 
     expect(Object.keys(summary).sort()).toEqual(
-      [...NOTE_SUMMARY_FIELDS, 'hasContent', 'contentLength'].sort(),
+      [
+        ...NOTE_SUMMARY_FIELDS,
+        'hasContent',
+        'contentLength',
+        'previewText',
+        'hasPages',
+        'hasStrokeData',
+      ].sort(),
     );
     expect(summary._id).toBe('note-7');
     expect(summary.tags).toEqual(['标签-1']);
     expect(summary.hasContent).toBeNull();
     expect(summary.contentLength).toBeNull();
+    expect(summary.previewText).toBeNull();
+    expect(summary.hasPages).toBeNull();
+    expect(summary.hasStrokeData).toBeNull();
     expect(counter.count).toBe(0);
   });
 
@@ -340,5 +374,134 @@ describe('Note.findByUserSummaries（10 万条笔记列表主路径）', () => {
 
     expect(page).toHaveLength(10);
     expect(collection.stats.materialized).toBe(10);
+  });
+});
+
+describe('noteProjection 预览元数据（只读 metadata，不读正文/页面/笔迹）', () => {
+  const STRICT_FIELDS = ['content', 'pages', 'strokeData'];
+
+  /**
+   * 构造「一旦被读取就抛错并计数」的行对象：
+   * content / pages / strokeData 都定义为会抛错的 getter，
+   * 投影若真的去读它们，测试会立刻失败而不会静默通过。
+   * @param {{content: number, pages: number, strokeData: number}} counter
+   * @param {Object} [overrides]
+   * @returns {Object}
+   */
+  const createStrictRow = (counter, overrides = {}) => {
+    const row = {
+      _id: 'note-preview',
+      title: '标题',
+      type: 'text',
+      tags: [],
+      category_id: null,
+      color: null,
+      is_favorite: false,
+      is_archived: false,
+      is_deleted: false,
+      is_synced: true,
+      created_at: new Date(1700000000000),
+      updated_at: new Date(1700000000000),
+      user_id: 'user-1',
+      metadata: '{}',
+      file_path: null,
+      file_size: null,
+      file_type: null,
+      thumbnail_path: null,
+      version: 1,
+      parent_id: null,
+      ...overrides,
+    };
+
+    STRICT_FIELDS.forEach((field) => {
+      Object.defineProperty(row, field, {
+        enumerable: true,
+        configurable: true,
+        get() {
+          counter[field] += 1;
+          throw new Error(`列表投影不得读取 ${field}`);
+        },
+      });
+    });
+
+    return row;
+  };
+
+  const emptyCounter = () => ({ content: 0, pages: 0, strokeData: 0 });
+
+  it('summary 暴露 previewText/hasPages/hasStrokeData，且三个大字段的 getter 访问次数为 0', () => {
+    const counter = emptyCounter();
+    const summary = toNoteSummary(createStrictRow(counter, {
+      metadata: JSON.stringify({
+        contentLength: 12,
+        previewText: '预览文本',
+        hasPages: true,
+        hasStrokeData: false,
+      }),
+    }));
+
+    expect(summary.previewText).toBe('预览文本');
+    expect(summary.hasPages).toBe(true);
+    expect(summary.hasStrokeData).toBe(false);
+    expect(counter).toEqual(emptyCounter());
+  });
+
+  it('metadata 缺失或值类型非法时三个字段均为 null（未知，不误判）', () => {
+    const counter = emptyCounter();
+    const rows = [
+      createStrictRow(counter, { _id: 'a', metadata: '{}' }),
+      createStrictRow(counter, { _id: 'b', metadata: 'not-json' }),
+      createStrictRow(counter, { _id: 'c', metadata: null }),
+      createStrictRow(counter, {
+        _id: 'd',
+        metadata: JSON.stringify({ previewText: 123, hasPages: 'yes', hasStrokeData: 1 }),
+      }),
+    ];
+
+    const summaries = materializeNoteSummaries(rows);
+
+    expect(summaries.map(item => [item.previewText, item.hasPages, item.hasStrokeData])).toEqual([
+      [null, null, null],
+      [null, null, null],
+      [null, null, null],
+      [null, null, null],
+    ]);
+    expect(counter).toEqual(emptyCounter());
+  });
+
+  it('空串 previewText / false 徽标是「已知为空」，与缺失（null）区分', () => {
+    const counter = emptyCounter();
+    const summary = toNoteSummary(createStrictRow(counter, {
+      metadata: JSON.stringify({
+        contentLength: 0,
+        hasContent: false,
+        previewText: '',
+        hasPages: false,
+        hasStrokeData: false,
+      }),
+    }));
+
+    expect(summary.previewText).toBe('');
+    expect(summary.hasPages).toBe(false);
+    expect(summary.hasStrokeData).toBe(false);
+    expect(counter).toEqual(emptyCounter());
+  });
+
+  it('写入侧（buildNotePreview + mergePreviewMetadata）产出的 metadata 能被 summary 直接消费', () => {
+    const { buildNotePreview, mergePreviewMetadata } = require('../utils/notePreview');
+    const counter = emptyCounter();
+    const metadata = mergePreviewMetadata(
+      '{"keep":1}',
+      buildNotePreview({ content: '# 预览', pages: '[]', strokeData: '[]' }),
+    );
+
+    const summary = toNoteSummary(createStrictRow(counter, { metadata }));
+
+    expect(summary.previewText).toBe('预览');
+    expect(summary.hasContent).toBe(true);
+    expect(summary.contentLength).toBe('# 预览'.length);
+    expect(summary.hasPages).toBe(false);
+    expect(summary.hasStrokeData).toBe(false);
+    expect(counter).toEqual(emptyCounter());
   });
 });

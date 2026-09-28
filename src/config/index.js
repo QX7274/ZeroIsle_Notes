@@ -215,6 +215,20 @@ export const UPLOAD_LIMITS = {
   ALLOWED_DOCUMENT_TYPES: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
 };
 
+// 附件下载缓存配置 - downloadCacheService 初始化时读取（非法值会被服务忽略并回退默认）
+export const CACHE_CONFIG = {
+  // 缓存目录上限（字节），默认 2GB
+  MAX_CACHE_SIZE: 2 * 1024 * 1024 * 1024,
+  // 写入前预留的余量比例，取值 [0, 1)，默认 10%
+  RESERVE_RATIO: 0.1,
+  // 超过该大小（字节）走有界分段写入
+  CHUNK_WRITE_THRESHOLD: 8 * 1024 * 1024,
+  // 单个分段大小（字节）
+  CHUNK_WRITE_SIZE: 1024 * 1024,
+  // 单个分段大小上界（字节）
+  MAX_CHUNK_WRITE_SIZE: 4 * 1024 * 1024,
+};
+
 // 特性开关
 export const FEATURES = {
   KNOWLEDGE_GRAPH: true,
@@ -271,6 +285,7 @@ export default {
   TIMEOUTS,
   PAGINATION,
   UPLOAD_LIMITS,
+  CACHE_CONFIG,
   FEATURES,
   ANALYTICS_EVENTS,
 };

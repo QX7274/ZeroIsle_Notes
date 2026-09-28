@@ -26,6 +26,8 @@ export const NoteSchema = {
     is_synced: { type: 'bool', default: false },
     syncStatus: 'string?', // 添加同步状态字段
     deleted_at: 'date?',
+    // 可空：历史/无主笔记会落 null 或空串。与 src/models/Note.js 的声明保持一致，
+    // 读取侧统一使用 (user_id == 当前用户 OR user_id == nil OR user_id == "")（RISK-SCHEMA-001）。
     user_id: 'string?',
     category_id: 'string?',
     tags: { type: 'list', objectType: 'string' },

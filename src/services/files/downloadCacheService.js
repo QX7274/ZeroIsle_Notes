@@ -8,6 +8,7 @@ import CryptoJS from 'crypto-js';
 import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
 import { selectEvictions, totalSize } from './cacheLruIndex';
+import { CACHE_CONFIG } from '../../config';
 
 const CACHE_INTEGRITY_ERROR = 'CACHE_INTEGRITY_MISMATCH';
 const CACHE_INDEX_PREFIX = 'cache_';
@@ -17,14 +18,45 @@ const DEFAULT_CHUNK_WRITE_THRESHOLD = 8 * 1024 * 1024; // 8MB 以上走分段写
 const DEFAULT_CHUNK_WRITE_SIZE = 1024 * 1024; // 单个分段默认 1MB
 const MAX_CHUNK_WRITE_SIZE = 4 * 1024 * 1024; // 单个分段上界 4MB
 
-class DownloadCacheService {
+const isPositiveNumber = (value) => Number.isFinite(value) && value > 0;
+const isValidReserveRatio = (value) => Number.isFinite(value) && value >= 0 && value < 1;
+
+/**
+ * 解析缓存默认值：优先读取 src/config 的 CACHE_CONFIG，非法值回退到内置默认
+ * @param {Object} [config] 缓存配置对象，缺省使用 CACHE_CONFIG
+ * @returns {Object} 归一化后的默认配额与分段写入参数
+ */
+export const resolveCacheDefaults = (config = CACHE_CONFIG) => {
+  const source = config || {};
+  const maxChunkWriteSize = isPositiveNumber(source.MAX_CHUNK_WRITE_SIZE)
+    ? source.MAX_CHUNK_WRITE_SIZE
+    : MAX_CHUNK_WRITE_SIZE;
+  const declaredChunkWriteSize = isPositiveNumber(source.CHUNK_WRITE_SIZE)
+    ? source.CHUNK_WRITE_SIZE
+    : DEFAULT_CHUNK_WRITE_SIZE;
+
+  return {
+    maxCacheSize: isPositiveNumber(source.MAX_CACHE_SIZE) ? source.MAX_CACHE_SIZE : DEFAULT_MAX_CACHE_SIZE,
+    reserveRatio: isValidReserveRatio(source.RESERVE_RATIO) ? source.RESERVE_RATIO : DEFAULT_RESERVE_RATIO,
+    chunkWriteThreshold: isPositiveNumber(source.CHUNK_WRITE_THRESHOLD)
+      ? source.CHUNK_WRITE_THRESHOLD
+      : DEFAULT_CHUNK_WRITE_THRESHOLD,
+    // 分段大小不能超过上界
+    chunkWriteSize: Math.min(declaredChunkWriteSize, maxChunkWriteSize),
+    maxChunkWriteSize,
+  };
+};
+
+export class DownloadCacheService {
   constructor(options = {}) {
     this.CACHE_DIR = `${RNFS.CachesDirectoryPath}/attachments`;
-    this.MAX_CACHE_SIZE = DEFAULT_MAX_CACHE_SIZE;
-    this.RESERVE_RATIO = DEFAULT_RESERVE_RATIO;
-    this.CHUNK_WRITE_THRESHOLD = DEFAULT_CHUNK_WRITE_THRESHOLD;
-    this.CHUNK_WRITE_SIZE = DEFAULT_CHUNK_WRITE_SIZE;
-    this.MAX_CHUNK_WRITE_SIZE = MAX_CHUNK_WRITE_SIZE;
+    // 初始化时读取 src/config 的缓存配置，非法值自动回退内置默认（2GB / 10%）
+    const defaults = resolveCacheDefaults();
+    this.MAX_CACHE_SIZE = defaults.maxCacheSize;
+    this.RESERVE_RATIO = defaults.reserveRatio;
+    this.CHUNK_WRITE_THRESHOLD = defaults.chunkWriteThreshold;
+    this.CHUNK_WRITE_SIZE = defaults.chunkWriteSize;
+    this.MAX_CHUNK_WRITE_SIZE = defaults.maxChunkWriteSize;
     this.initialized = false;
     this.configure(options);
   }
@@ -56,6 +88,22 @@ class DownloadCacheService {
       this.CHUNK_WRITE_SIZE = Math.min(options.chunkWriteSize, this.MAX_CHUNK_WRITE_SIZE);
     }
     return this;
+  }
+
+  /**
+   * 设置缓存配额（对外配置入口）
+   * 仅接受合法值：maxCacheSize 为正数、reserveRatio 取值 [0, 1)；
+   * 非法值一律忽略并保持当前值，语义与 configure 一致。
+   * @param {Object} [quota]
+   * @param {number} [quota.maxCacheSize] 缓存上限（字节）
+   * @param {number} [quota.reserveRatio] 预留比例，取值 [0, 1)
+   * @returns {this}
+   */
+  setCacheQuota(quota = {}) {
+    return this.configure({
+      maxCacheSize: quota.maxCacheSize,
+      reserveRatio: quota.reserveRatio,
+    });
   }
 
   /**

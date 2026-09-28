@@ -6,6 +6,7 @@ const stores = {
   NoteBackup: new Map(),
   OfflineQueue: new Map(),
   Category: new Map(),
+  SearchIndex: new Map(),
 };
 
 let objectIdCounter = 0;
@@ -115,6 +116,14 @@ jest.mock('../../../config', () => ({
   API_URL: 'http://localhost:8000',
 }));
 
+// 搜索索引模型：断言 notesApi 保存成功后触发增量索引，而不真正写 Realm
+jest.mock('../../../models/SearchIndex', () => ({
+  __esModule: true,
+  default: {
+    createOrUpdate: jest.fn(),
+  },
+}));
+
 class TestFormData {
   constructor() {
     this._parts = [];
@@ -128,11 +137,13 @@ class TestFormData {
 global.FormData = TestFormData;
 
 const notesApi = require('../notesApi').default;
+const SearchIndex = require('../../../models/SearchIndex').default;
 
 describe('notesApi P0 contracts', () => {
   beforeEach(() => {
     Object.values(stores).forEach((store) => store.clear());
     apiClient.post.mockReset();
+    SearchIndex.createOrUpdate.mockReset();
     objectIdCounter = 0;
     require('../../database/realmService').default.createObjectId.mockImplementation(() => `generated-${++objectIdCounter}`);
   });
@@ -351,5 +362,122 @@ describe('notesApi P0 contracts', () => {
 
     expect(created.success).toBe(true);
     expect(stores.Note.get('owner-note-2').user_id).toBeUndefined();
+  });
+
+  it('createNote 落库 metadata 含 previewText 预览字段，并写入搜索增量索引', async () => {
+    await notesApi.createNote({
+      _id: 'preview-note-1',
+      title: '预览标题',
+      content: '# 标题\n**正文**内容',
+      pages: '[{"id":1}]',
+      strokeData: '',
+    });
+
+    const metadata = JSON.parse(stores.Note.get('preview-note-1').metadata);
+    expect(metadata.previewText).toBe('标题 正文内容');
+    expect(metadata.contentLength).toBeGreaterThan(0);
+    expect(metadata.hasContent).toBe(true);
+    expect(metadata.hasPages).toBe(true);
+    expect(metadata.hasStrokeData).toBe(false);
+
+    expect(SearchIndex.createOrUpdate).toHaveBeenCalledWith(
+      realm,
+      expect.objectContaining({ entity_id: 'preview-note-1', entity_type: 'note' }),
+    );
+  });
+
+  it('saveOfflineNote 落库 metadata 含 previewText，并写入搜索增量索引', async () => {
+    await notesApi.saveOfflineNote({
+      id: 'preview-offline-1',
+      title: '离线预览',
+      content: '> 引用内容',
+      clientOpId: 'op-preview-1',
+    });
+
+    const metadata = JSON.parse(stores.Note.get('preview-offline-1').metadata);
+    expect(metadata.previewText).toBe('引用内容');
+    expect(metadata.hasContent).toBe(true);
+
+    expect(SearchIndex.createOrUpdate).toHaveBeenCalledWith(
+      realm,
+      expect.objectContaining({ entity_id: 'preview-offline-1', entity_type: 'note' }),
+    );
+  });
+
+  it('updateNote 增量刷新 previewText，并保留调用方已有的 metadata 键', async () => {
+    await notesApi.createNote({ _id: 'preview-note-2', title: '标题', content: '旧内容' });
+
+    await notesApi.updateNote('preview-note-2', {
+      content: '**新内容**',
+      metadata: JSON.stringify({ customKey: 'keep-me' }),
+    });
+
+    const metadata = JSON.parse(stores.Note.get('preview-note-2').metadata);
+    expect(metadata.customKey).toBe('keep-me');
+    expect(metadata.previewText).toBe('新内容');
+    expect(SearchIndex.createOrUpdate).toHaveBeenCalledWith(
+      realm,
+      expect.objectContaining({ entity_id: 'preview-note-2', entity_type: 'note' }),
+    );
+  });
+
+  it('deleteNote 成功后同步移除搜索索引', async () => {
+    await notesApi.createNote({ _id: 'preview-note-3', title: '待删除', content: '内容' });
+    const softDelete = jest.fn();
+    stores.SearchIndex.set('idx-3', {
+      _id: 'idx-3',
+      entity_id: 'preview-note-3',
+      entity_type: 'note',
+      softDelete,
+    });
+
+    await notesApi.deleteNote('preview-note-3');
+
+    expect(softDelete).toHaveBeenCalledWith(realm);
+    expect(stores.Note.get('preview-note-3').is_deleted).toBe(true);
+  });
+
+  it('索引写入失败不阻断保存', async () => {
+    SearchIndex.createOrUpdate.mockImplementation(() => {
+      throw new Error('索引写入失败');
+    });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const created = await notesApi.createNote({
+      _id: 'preview-note-4',
+      title: '索引失败',
+      content: '正文',
+    });
+
+    expect(created.success).toBe(true);
+    expect(stores.Note.get('preview-note-4')).toBeDefined();
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+  });
+
+  it('importNote 落库前打标：导入笔记的 metadata 含 previewText 预览字段', async () => {
+    const formData = {
+      _parts: [
+        ['type', 'pdf'],
+        ['file', { uri: 'file:///tmp/imported.pdf', name: 'imported.pdf' }],
+      ],
+    };
+
+    const result = await notesApi.importNote(formData);
+
+    expect(result.success).toBe(true);
+    const stored = stores.Note.get(result.data.note_id);
+    const metadata = JSON.parse(stored.metadata);
+    // 预览元数据（写入侧打标）
+    expect(metadata.previewText).toBe('导入的pdf文件: imported.pdf');
+    expect(metadata.hasContent).toBe(true);
+    expect(metadata.contentLength).toBe('导入的pdf文件: imported.pdf'.length);
+    expect(metadata.hasPages).toBe(false);
+    expect(metadata.hasStrokeData).toBe(false);
+    // 导入自身的 metadata 键必须保留（增量合并，不整体覆盖）
+    expect(metadata).toHaveProperty('pdfPath');
+    expect(metadata).toHaveProperty('lastOpenedPage', 1);
+    expect(metadata).toHaveProperty('pageCount');
   });
 });

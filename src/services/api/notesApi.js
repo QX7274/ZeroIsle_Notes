@@ -16,6 +16,8 @@ import { Platform } from 'react-native';
 import { API_URL } from '../../config';
 import { generateNoteDataHash } from '../data/noteDataHash';
 import { deviceIdentityService } from '../app/deviceIdentityService';
+import { buildNotePreview, mergePreviewMetadata } from '../../models/utils/notePreview';
+import { upsertNoteIndexSafe, removeNoteIndexSafe } from '../search/noteIndexService';
 
 // Helpers for metadata computation
 const normalizeFilePath = (uri) => {
@@ -124,6 +126,28 @@ const toRealmNotePayload = (note, noteId, overrides = {}) => {
   }
 
   return payload;
+};
+
+/**
+ * 把列表预览元数据增量合并进即将落库的笔记 metadata（里程碑 5.1 续）。
+ *
+ * 列表页（noteProjection.toNoteSummary）只解析 metadata 就能拿到
+ * previewText / hasContent / hasPages / hasStrokeData，无需再读 content/pages/strokeData。
+ * 合并是增量式的：调用方与历史已有的 metadata 键全部保留，只覆盖预览相关键。
+ *
+ * @param {Object} payload 即将落库的笔记（含 content/pages/strokeData/metadata）
+ * @returns {Object} 新的 payload（metadata 为合并后的 JSON 字符串）
+ */
+const withPreviewMetadata = (payload) => {
+  const source = payload || {};
+  return {
+    ...source,
+    metadata: mergePreviewMetadata(source.metadata, buildNotePreview({
+      content: source.content,
+      pages: source.pages,
+      strokeData: source.strokeData,
+    })),
+  };
 };
 
 /**
@@ -353,11 +377,13 @@ const getAllNotes = async (params = {}) => {
  *
  * 这是可选入口：getAllNotes() 的行为与返回结构完全不变。
  *
- * 接线前置说明：HomeScreen 的列表预览仍直接读取 item.content
+ * 接线说明：summary 不含正文，但已通过写入侧打标补齐列表预览所需字段
+ * （previewText / hasContent / contentLength / hasPages / hasStrokeData，
+ * 见 src/models/utils/notePreview.js 与 toNoteSummary），列表页据此即可渲染
+ * 预览文字与徽标，无需再读 content/pages/strokeData。
+ * 注意：HomeScreen 当前仍直接读取 item.content
  * （src/screens/common/HomeScreen.js:1848-1886 的 renderContentPreview / renderCover），
- * 而 summary 按设计不含正文。因此 UI 全量切到 summary 之前，必须先补
- * 「正文预览字段」（例如 metadata.contentLength + 首行摘要），
- * 本轮只提供可用入口，不静默改动 UI 契约。
+ * 切换到 summary 属于 UI 侧改动，需要单独排期，本入口不静默改动 UI 契约。
  *
  * @param {Object} [options]
  * @param {number} [options.skip] 跳过条数
@@ -877,10 +903,13 @@ const importNote = async (formData) => {
     // 保存到离线存储
     console.log('尝试保存笔记到离线存储');
     const realm = await realmService.getRealm();
+    // 写入侧打标：导入笔记同样产出列表预览元数据（与 createNote/updateNote 同一个 helper），
+    // 否则首页轻量 summary 无法渲染这些条目的摘要（WS-L 的未打标保护会整体回退全量查询）。
+    const taggedNote = withPreviewMetadata(note);
     let savedNote;
     realm.write(() => {
       // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-      savedNote = realm.create('Note', note, 'modified');
+      savedNote = realm.create('Note', taggedNote, 'modified');
     });
     console.log('✅ 笔记保存成功:', {
       id: savedNote._id,
@@ -1147,7 +1176,8 @@ const notesApi = {
       const realm = await realmService.getRealm();
       let persistedNote;
       realm.write(() => {
-        const payload = { ...noteData };
+        // 写入侧打标：把预览元数据（previewText/徽标）合并进 metadata
+        const payload = withPreviewMetadata({ ...noteData });
         const createdId = payload._id || payload.id || realmService.createObjectId();
         payload._id = createdId;
         payload.id = createdId;
@@ -1165,6 +1195,8 @@ const notesApi = {
         persistedNote = realm.create('Note', normalizedPayload, 'modified');
       });
       await enqueueNoteMutation(realm, persistedNote, 'create', mutationMetadata);
+      // 增量索引：新建的笔记立刻可搜（失败只告警，不阻断保存）
+      upsertNoteIndexSafe(realm, persistedNote);
       return { success: true, data: { ...persistedNote, id: persistedNote.id || persistedNote._id, _id: persistedNote._id || persistedNote.id } };
     } catch (error) {
       throw error;
@@ -1191,7 +1223,8 @@ const notesApi = {
       let result;
       realm.write(() => {
         const currentNote = realm.objectForPrimaryKey('Note', id);
-        const mergedPayload = {
+        // 写入侧打标：对「历史 metadata + 本次更新」做增量合并，保留调用方已有键
+        const mergedPayload = withPreviewMetadata({
           ...toPlainRecord(currentNote),
           ...safeNoteData,
           _id: id,
@@ -1199,7 +1232,7 @@ const notesApi = {
           deviceId: mutationMetadata.deviceId,
           clientOpId: mutationMetadata.clientOpId,
           dataHash: generateNoteDataHash({ ...toPlainRecord(currentNote), ...safeNoteData }),
-        };
+        });
         if (ownerId) {
           mergedPayload.user_id = ownerId;
         }
@@ -1207,6 +1240,8 @@ const notesApi = {
         result = realm.create('Note', toRealmNotePayload(mergedPayload, id), 'modified');
       });
       await enqueueNoteMutation(realm, result, 'update', mutationMetadata);
+      // 增量索引：更新后的标题/正文/标签立刻反映到搜索
+      upsertNoteIndexSafe(realm, result);
       return { success: true, data: { ...toPlainRecord(result), id, _id: id } };
     } catch (error) {
       throw error;
@@ -1228,6 +1263,8 @@ const notesApi = {
         note.clientOpId = mutationMetadata.clientOpId;
       });
       await enqueueNoteMutation(realm, note, 'delete', mutationMetadata);
+      // 索引同步：软删搜索索引，避免已删除笔记继续被搜到（失败只告警）
+      removeNoteIndexSafe(realm, id);
       return { success: true };
     } catch (error) {
       throw error;
@@ -1336,9 +1373,11 @@ const notesApi = {
     const noteId = normalizeNoteId(source) || String(realmService.createObjectId());
     const clientOpId = source.clientOpId || `offline_${realmService.createObjectId()}`;
     const realm = await realmService.getRealm();
+    // 写入侧打标：离线保存同样产出列表预览元数据
+    const payloadSource = withPreviewMetadata(source);
     let savedNote;
     realm.write(() => {
-      savedNote = realm.create('Note', toRealmNotePayload(source, noteId, {
+      savedNote = realm.create('Note', toRealmNotePayload(payloadSource, noteId, {
         clientOpId,
         dataHash: generateNoteDataHash(source),
         is_synced: false,
@@ -1368,6 +1407,9 @@ const notesApi = {
         }, 'modified');
       }
     });
+
+    // 增量索引：离线保存的笔记在本地可搜（失败只告警，不阻断保存）
+    upsertNoteIndexSafe(realm, savedNote);
 
     return {
       success: true,

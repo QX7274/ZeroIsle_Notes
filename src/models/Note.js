@@ -28,7 +28,10 @@ class Note extends Realm.Object {
       created_at: { type: 'date', indexed: true },
       updated_at: { type: 'date', indexed: true },
       deleted_at: { type: 'date', optional: true },
-      user_id: { type: 'string', indexed: true },
+      // 与运行时 schema（src/services/database/realmModels.js）保持一致：user_id 可空。
+      // 历史写入路径会落 null / 空串（无主笔记），读取侧按「当前用户 + 无主」谓词兼容，
+      // 因此这里必须声明为可空，避免声明与真实数据形态不一致（RISK-SCHEMA-001）。
+      user_id: { type: 'string?', indexed: true },
       metadata: { type: 'string', default: '{}' }, // 存储为JSON字符串
       file_path: { type: 'string', optional: true },
       file_size: { type: 'int', optional: true },

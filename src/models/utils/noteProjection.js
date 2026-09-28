@@ -12,22 +12,34 @@
  *    materializePage，先取当前页再投影（10 万条集合下只物化一页）；
  * 3. `loadNoteContent(realm, noteId)`：进入详情时按 id 单独取正文。
  *
- * hasContent / contentLength 的取舍（重要）：
- * Realm 不读 `content` 就无法得到真实长度，而读 content 正是本模块要避免的开销。
- * 因此这里按以下优先级处理，且全过程不访问 content：
+ * hasContent / contentLength / previewText / hasPages / hasStrokeData 的取舍（重要）：
+ * Realm 不读 `content` / `pages` / `strokeData` 就无法得到这些事实，
+ * 而读它们正是本模块要避免的开销。因此写入侧（src/services/api/notesApi.js）
+ * 保存时会用 src/models/utils/notePreview.js 的 buildNotePreview + mergePreviewMetadata
+ * 把预览元数据打进 metadata，列表侧只解析 metadata，全过程不读大字段。
+ *
+ * hasContent / contentLength 按以下优先级处理：
  *   1) metadata（标量 JSON 字符串，读取成本远低于正文）中若声明了
  *      contentLength / content_length / charCount，则直接采用，并由此推出 hasContent；
  *   2) metadata 中若显式声明了布尔 `hasContent`，则采用它，contentLength 保持 null；
  *   3) 两者都没有时，hasContent / contentLength 一律为 null（表示「未知」，而不是 false/0，
  *      避免把「未知」误判成「无正文」）；
- *   4) 无论哪种情况，summary 上都挂有一个非枚举的 `loadContent()` 惰性闭包，
+ *   4) previewText / hasPages / hasStrokeData 同样只从 metadata 读取；
+ *      缺失或类型非法时一律为 null（表示「未知」，而不是 ''/false），避免误判；
+ *   5) 无论哪种情况，summary 上都挂有一个非枚举的 `loadContent()` 惰性闭包，
  *      只有调用方真正需要这一条的正文时才回调读取 `note.content`
  *      （非枚举 => 不会进入 JSON.stringify / Redux 序列化结果）。
  */
 
 const { materializePage } = require('./queryPagination');
 
-/** 列表页需要的轻量字段白名单；明确不含 content（正文由 loadNoteContent 延迟加载） */
+/**
+ * 列表页需要的轻量字段白名单。
+ *
+ * 全部是**小标量**（id / 标题 / 类型 / 大小 / 时间 / 文件路径等），
+ * 明确不含 content / pages / strokeData / attachments 等大字段——
+ * 正文预览由 metadata.previewText 提供，需要正文时用 loadNoteContent / notesApi.getById 延迟加载。
+ */
 const NOTE_SUMMARY_FIELDS = Object.freeze([
   '_id',
   'title',
@@ -41,6 +53,8 @@ const NOTE_SUMMARY_FIELDS = Object.freeze([
   'is_synced',
   'created_at',
   'updated_at',
+  'updatedAt',
+  'createdAt',
   'user_id',
   'file_path',
   'file_size',
@@ -48,6 +62,24 @@ const NOTE_SUMMARY_FIELDS = Object.freeze([
   'thumbnail_path',
   'version',
   'parent_id',
+  // 卡片渲染（NoteItem 的封面/标题/文件路由）需要的描述性字段，全部为小标量
+  'file_uri',
+  'uri',
+  'file_name',
+  'original_type',
+  'original_file_name',
+  'is_converted',
+  'noteType',
+  'note_type',
+  'name',
+  'fileName',
+  'fileType',
+  'url',
+  'path',
+  'noteStyle',
+  'canvasStyle',
+  'is_pinned',
+  'syncStatus',
 ]);
 
 /** metadata 中可能声明正文体积的键（写入方约定，按优先级排列） */
@@ -55,6 +87,17 @@ const METADATA_CONTENT_LENGTH_KEYS = Object.freeze([
   'contentLength',
   'content_length',
   'charCount',
+]);
+
+/**
+ * metadata 中列表预览 / 徽标相关的键。
+ * 由写入侧 src/models/utils/notePreview.js 的 buildNotePreview 产出、
+ * mergePreviewMetadata 合并（见 notesApi 的 createNote/updateNote/saveOfflineNote）。
+ */
+const METADATA_PREVIEW_KEYS = Object.freeze([
+  'previewText',
+  'hasPages',
+  'hasStrokeData',
 ]);
 
 /** 笔记 schema 名 */
@@ -130,6 +173,31 @@ function resolveContentFacts(metadata) {
 }
 
 /**
+ * 从 metadata 取预览文本；缺失或类型非法时为 null（未知，不误判）
+ * @param {Object|null} metadata
+ * @returns {string|null}
+ */
+function resolvePreviewText(metadata) {
+  if (!metadata || typeof metadata.previewText !== 'string') {
+    return null;
+  }
+  return metadata.previewText;
+}
+
+/**
+ * 从 metadata 取布尔标记（hasPages / hasStrokeData）；缺失或类型非法时为 null
+ * @param {Object|null} metadata
+ * @param {string} key
+ * @returns {boolean|null}
+ */
+function resolveMetadataFlag(metadata, key) {
+  if (!metadata || typeof metadata[key] !== 'boolean') {
+    return null;
+  }
+  return metadata[key];
+}
+
+/**
  * 把一条笔记投影成列表页 summary。
  *
  * 关键约束：整个过程只读取 NOTE_SUMMARY_FIELDS 白名单字段 + metadata，
@@ -149,9 +217,14 @@ function toNoteSummary(note) {
     summary[field] = field === 'tags' ? copyListField(note[field]) : note[field];
   }
 
-  const facts = resolveContentFacts(parseMetadata(note.metadata));
+  // metadata 是标量 JSON 字符串：解析一次，派生正文事实与预览/徽标标记
+  const metadata = parseMetadata(note.metadata);
+  const facts = resolveContentFacts(metadata);
   summary.hasContent = facts.hasContent;
   summary.contentLength = facts.contentLength;
+  summary.previewText = resolvePreviewText(metadata);
+  summary.hasPages = resolveMetadataFlag(metadata, 'hasPages');
+  summary.hasStrokeData = resolveMetadataFlag(metadata, 'hasStrokeData');
 
   // 惰性兜底：只有调用方显式调用时才读取这一条的正文；
   // 定义为非枚举，保证 JSON.stringify / 展开运算符不会意外触发正文读取。
@@ -218,10 +291,13 @@ function loadNoteContent(realm, noteId) {
 module.exports = {
   NOTE_SUMMARY_FIELDS,
   METADATA_CONTENT_LENGTH_KEYS,
+  METADATA_PREVIEW_KEYS,
   toNoteSummary,
   materializeNoteSummaries,
   loadNoteContent,
   resolveContentFacts,
+  resolvePreviewText,
+  resolveMetadataFlag,
 };
 
 module.exports.default = toNoteSummary;

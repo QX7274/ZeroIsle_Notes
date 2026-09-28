@@ -62,9 +62,16 @@
   - `src/services/sync/syncManager.js` 在 `syncAll`、`pullFromServer`、单条操作 catch 处分类并标注
     `error.syncCategory/syncRetryable/syncUserMessage`（不改变原有抛出行为）
   - 测试：`src/services/sync/__tests__/syncErrorRecovery.test.js`，`51 passed`
+- **已完成（2026-09-29 续）真实接线**：
+  - `syncManager.syncPendingOperations` 的单条操作已由 `_executeOperationWithRetry` 用 `createRetryController` 包裹
+    （退避重试、耗尽后沿用既有失败标记语义、不可重试错误短路）
+  - 新增 `cancelPendingRetries()`：可中止进行中的退避等待，取消不吞错、不算成功，剩余操作保持 pending
+  - Client Reset 备份改为复用 `realmBackupService.backupRealmFile`（与 `realmConfig.onError` 的 ClientReset 回调同一实现），
+    并加同一会话去重；备份失败显式抛错，不静默丢数据
+  - `src/services/sync` 合计 `66 passed`
 - **仍待完成**：
-  - 在同步入口用 `createRetryController` 真实包裹单条操作重放（当前只在单测中验证）
-  - Realm Sync 启用后接入真实 Client Reset 回调并调用 `createClientResetRecovery`
+  - Realm Sync 启用后接入真实 Client Reset 回调链路（本仓库 realm 20.1.0 无 ClientResetError 导出，
+    当前为「错误分类兜底备份 + `onError` 回调」双触发，跨触发点去重需改 `realmConfig.js`）
 - **验收**：
   - 弱网/断网/切后台 200 次不崩溃
   - Sync 失败可自动恢复率 >= 95%
@@ -125,9 +132,16 @@
   - 测试：`src/services/files/__tests__/cacheLruIndex.test.js`（新增）、
     `src/services/files/__tests__/downloadCacheService.test.js`（扩展），合计 `34 passed`。
 - **non-blocking I/O** ✅（有界）：分片/分段读写均按固定大小分批，单次读入内存有上界。
+- **已完成（2026-09-29 续）调用方接线**：
+  - 新增 `src/services/files/cacheSaveMetadata.js`：从文件/附件记录提取可得的 `sha256`（64 位 hex 归一化）与
+    期望字节大小，取不到/非法一律不传，保持「可选校验」
+  - `FileViewerScreen` 调用 `saveToCache` 时接入该 metadata（含本地 `stat` 大小用于配额）
+  - 配额配置入口：`src/config/index.js` 新增 `CACHE_CONFIG`；`downloadCacheService` 新增 `resolveCacheDefaults` 与
+    `setCacheQuota`，默认仍 2GB / 10% 预留
+  - 安全加固：期望大小不再读取 `contentLength`（那是「正文字符数」，与字节数不等价，会误判为缓存损坏）
+  - `src/services/files` + `src/screens/common` 合计 `56 passed`
 - **仍待完成**：
-  - 上游下载链路未传 `sha256`，完整性校验目前是「可选能力」；
-  - 真实对象存储、客户端认证下载、断网恢复与 500MB 真机内存/吞吐验收仍未执行。
+  - 真实对象存储、客户端认证下载、断网恢复与 500MB 真机内存/吞吐验收仍未执行（需真机与后端）。
 
 ### 4.3 对服务端的最小依赖 ✅ 已具备
 - 后端已提供 `init/chunk/complete/cancel/status/download`，支持单 `Range`（`206/416`）、
@@ -164,12 +178,27 @@
   - `src/services/offline/getNotes.js` 新增 `getNoteSummariesFromOfflineStorage({ skip, limit })`；
     `src/services/api/notesApi.js` 新增显式入口 `getAllNotesSummaries({ skip, limit })`。
   - 测试：`src/models/__tests__/noteProjection.test.js`（10 万条伪 Results 只物化一页、content getter 零访问）。
+- **已完成（2026-09-29）列表 UI 接线 + 预览元数据 + 增量索引**：
+  - 预览元数据：新增 `src/models/utils/notePreview.js`（`buildNotePreview` 剥离 markdown + 截断 80 字 +
+    `contentLength/hasContent/hasPages/hasStrokeData`；`mergePreviewMetadata` 增量合并）；
+    `notesApi` 的 `createNote/updateNote/saveOfflineNote/importNote` 落库前打标
+  - summary 增强：`toNoteSummary` 增加 `previewText/hasPages/hasStrokeData`（只读 metadata，绝不触碰大字段），
+    `NOTE_SUMMARY_FIELDS` 补齐 19 个卡片渲染需要的小标量字段（仍不含 content/pages/strokeData）
+  - UI 切换：新增 `src/screens/common/noteItemProjection.js` 让卡片同时兼容「完整对象」与「summary」；
+    HomeScreen 的 `loadNotesListPayload` 优先取 `getAllNotesSummaries`，异常/空数组自动回退 `getAllNotes`；
+    需要正文的路径（导航参数、导出 TXT）改为按 id 延迟加载（`resolveItemContent` + `notesApi.getById`）；
+    排序不再用 `content?.length` 兜底
+  - 存量数据：新增 `src/services/notes/backfillNotePreviewMetadata.js`（分批、幂等、可注入、带统计），
+    并在「我的 → 离线数据」提供「补齐列表预览元数据」入口
+  - 自愈：检测到未打标时本次回退全量渲染（不回归），同时后台幂等回填一次，成功后自动重载切回轻量路径
+    （`createPreviewSelfHealController`：in-flight 去重 + 会话级尝试上限 + 防循环 + 卸载取消）
+  - 笔记增量索引：新增 `src/services/search/noteIndexService.js`（`upsertNoteIndex/removeNoteIndex` + Safe 版本），
+    `notesApi` 的创建/更新/离线保存/删除已接入，不再只依赖手动「重建搜索索引」
 - **仍待完成**：
-  - **UI 全量切换前置条件**：HomeScreen 列表预览仍读取 `item.content`
-    （`src/screens/common/HomeScreen.js:1848-1886`），summary 按设计不含正文；
-    需要先补「正文预览字段」（例如 metadata 中存首行摘要 + contentLength），才能把列表切到 summary。
-  - 写入侧补 `metadata.contentLength`，否则列表拿到的 hasContent/contentLength 为 null。
-  - 若需要搜索：建立本地索引或增量索引更新策略。
+  - 部分「直写 Realm」的入口（CardNoteScreen / SaveButton / PDFViewerNative / notesSlice offlineNote 等）仍未打标；
+    新写入的这类笔记会由首页自愈在下次启动补齐（会话内额度 1 次，属刻意防循环取舍）
+  - 列表分页 + Realm 侧排序：当前轻量列表一次性取该用户全部 summary，排序仍在 JS 侧；
+    10 万条下的首屏/FPS/内存真机基线仍未产出
 - **验收**：
   - 首屏 P95、滚动 FPS、JS Heap 峰值达标（真机 10 万条基线仍未产出）
 
@@ -231,3 +260,28 @@
 - 设备复验（已通过）：平板尺寸 Android 14 模拟器 `emulator-5554` / 2560x1600，
   冷启动命中 `screen.home`，`从离线存储获取到笔记数量: 3`，首页渲染三张笔记卡片；
   证据 `.local/android-evidence/round67_final_home.{xml,png}`。10 万条性能基线与 500MB 附件仍未产出。
+
+## 2026-09-29 进展补充（规划项收口轮）
+- 里程碑 2.3 真实接线：单条操作由 `createRetryController` 包裹、新增 `cancelPendingRetries()`；
+  Client Reset 备份复用 `realmBackupService.backupRealmFile` 并加同会话去重；`src/services/sync` `66 passed`。
+- 里程碑 4.2 完整性接线：`cacheSaveMetadata` + `FileViewerScreen` 传入可得 sha256/期望大小；
+  `CACHE_CONFIG` + `resolveCacheDefaults/setCacheQuota`；不再把 `contentLength`（字符数）当字节数；
+  `src/services/files + src/screens/common` `56 passed`。
+- 里程碑 5.1 收口：预览元数据（`notePreview`）、summary 增强（`previewText/hasPages/hasStrokeData` +
+  19 个卡片字段）、UI 切换（`getAllNotesSummaries` + 自动回退 + 正文按 id 延迟加载）、
+  存量回填（`backfillNotePreviewMetadata` + 设置页入口）、未打标自愈（`createPreviewSelfHealController`）、
+  笔记增量索引（`noteIndexService`）。
+- 里程碑 5.1 验收门禁：新增 `src/tests/perf/listMaterializationBudget.test.js`（34 例），
+  对 10 万条伪 Results 断言各列表入口「只物化一页」，并附基线表与真机量化步骤说明（`src/tests/perf/README.md`）。
+- 风险收口：`RISK-SCHEMA-001` 已通过统一 `user_id` 可空声明解决（`src/models/Note.js` 与
+  `src/services/database/realmModels.js` 一致，运行时本就是 `string?`，无需迁移）。
+- 门禁：全量 Jest `68/68 suites、578/578 tests`（本轮起点 57/441）退出码 0；
+  `eslint .` 为 `0 errors / 1204 warnings` 退出码 0；`CI=1` 开发态 bundle 成功（37,552,785 bytes、48 assets）。
+- 设备复验（已通过，平板尺寸 Android 14 模拟器 `emulator-5554` / 2560x1600）：
+  1. 自愈链路：`3/3 条笔记缺少预览元数据（未打标）` → 本次回退全量渲染（`从离线存储获取到笔记数量: 3`）
+     → `[previewSelfHeal] 回填完成：更新 3 条，触发一次列表重载` → `使用轻量 summary 列表，条数: 3`（`source: 'summary'`）。
+  2. 已打标后的冷启动直接走轻量路径，无未打标回退、无 LogBox 遮罩（`Console Warning` 命中数 0）。
+  3. 从轻量列表点击笔记可正常进入 `screen.pagedCanvas` 并显示标题（验证正文延迟加载/按 id 打开路径）。
+  证据 `.local/android-evidence/round68_*.{xml,png}`。
+- 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
+  真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。

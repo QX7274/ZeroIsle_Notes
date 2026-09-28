@@ -7,10 +7,53 @@ import realmService from '../database/realmService';
 import { mongoDBService } from '../database/mongoDBAdapter';
 import { logService } from '../../utils/logService';
 import networkService from '../network/networkService';
-import { classifySyncError } from './syncErrorRecovery';
+import {
+  classifySyncError,
+  createRetryController,
+  SYNC_ERROR_CATEGORIES,
+} from './syncErrorRecovery';
+
+/**
+ * 描述错误信息（用于构造带上下文的 Client Reset 备份错误）
+ * @param {*} error 错误对象
+ * @returns {string} 错误描述
+ */
+function describeError(error) {
+  if (!error) {
+    return '未知原因';
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return error.message || String(error);
+}
+
+/**
+ * 构造带上下文的 Client Reset 备份错误（保留原始错误为 cause）
+ * @param {string} reason 失败原因
+ * @param {string} realmPath Realm 路径
+ * @param {string|null} operationId 触发操作 ID
+ * @param {*} cause 原始错误
+ * @returns {Error} 备份错误
+ */
+function createClientResetBackupError(reason, realmPath, operationId, cause) {
+  const error = new Error(`Client Reset 备份失败：${reason} (realmPath=${realmPath}, operation=${operationId || 'unknown'})`);
+  error.realmPath = realmPath;
+  error.operationId = operationId;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
 
 /**
  * 同步管理器类
+ *
+ * Client Reset 备份触发点说明：
+ * - 真实 Realm 回调触发点是 realmConfig.getSyncRealmConfig 的 sync.onError（error.name === 'ClientReset'）
+ * - 本类的 clientReset 分支是「同步错误分类」的兜底触发（realm 20.1.0 未导出 ClientResetError，
+ *   只能靠 classifySyncError 判定 category === 'clientReset'）
+ * - 二者共用同一备份实现 realmBackupService.backupRealmFile；本类在同一会话内去重，避免重复备份
  */
 class SyncManager {
   constructor() {
@@ -22,6 +65,13 @@ class SyncManager {
     this.pendingOperations = [];
     this.syncInterval = null;
     this.networkListener = null;
+    // 单条操作的重试接线：重试参数可注入，便于测试零等待运行
+    this.retryOptions = {};
+    this.activeRetryControllers = new Set();
+    this.pendingRetriesCancelled = false;
+    // Client Reset 备份接线：文件系统依赖保持可注入，避免 Jest 下硬依赖原生模块
+    this.clientResetRecoveryOptions = {};
+    this.clientResetState = null;
   }
 
   /**
@@ -255,17 +305,28 @@ class SyncManager {
 
       logService.info(`开始同步 ${operations.length} 个待处理操作`);
 
+      // 本次同步重新开始，重置上一次的取消标记（取消只作用于进行中的重试）
+      this.pendingRetriesCancelled = false;
+
       // 处理每个操作
       const realm = await realmService.getRealm();
 
-      for (const operation of operations) {
+      for (let index = 0; index < operations.length; index += 1) {
+        const operation = operations[index];
+
+        // 取消发生在退避等待中时，不再启动新的操作，剩余操作保持待处理留待下次同步
+        if (this._isRetryCancelled()) {
+          logService.warn(`同步重试已取消，停止处理剩余 ${operations.length - index} 个待处理操作`);
+          break;
+        }
+
         try {
           if (!['create', 'update', 'delete'].includes(operation.type)) {
             logService.warn(`未知的操作类型: ${operation.type}`);
             continue;
           }
 
-          await this._executePendingOperation(operation);
+          await this._executeOperationWithRetry(operation);
 
           // 标记操作为已完成
           realm.write(() => {
@@ -325,6 +386,251 @@ class SyncManager {
     }
 
     return classification;
+  }
+
+  /**
+   * 设置单条操作的重试参数（maxRetries/baseMs/maxMs/jitter/sleep/random 等）
+   * 参数直接透传给 createRetryController，便于测试注入 sleep 实现以避免真实等待
+   * @param {Object} options createRetryController 支持的选项
+   */
+  setRetryOptions(options = {}) {
+    this.retryOptions = { ...this.retryOptions, ...(options || {}) };
+  }
+
+  /**
+   * 取消进行中的同步重试
+   * 接线点：停止同步 / 组件卸载等场景调用，可中止正在退避等待的 run()；
+   * 取消不会吞掉错误，也不会把被取消的操作当成成功（外层 catch 仍按失败处理），
+   * 同时阻止本次同步继续启动新的重试。
+   * @returns {number} 被取消的重试控制器数量
+   */
+  cancelPendingRetries() {
+    this.pendingRetriesCancelled = true;
+
+    const controllers = Array.from(this.activeRetryControllers);
+    controllers.forEach(controller => {
+      try {
+        controller.cancel();
+      } catch (error) {
+        // 单个控制器取消失败不影响其它控制器，仅记录日志
+        logService.error('取消同步重试控制器失败', error);
+      }
+    });
+
+    if (controllers.length > 0) {
+      logService.warn(`已取消 ${controllers.length} 个进行中的同步重试`);
+    }
+
+    return controllers.length;
+  }
+
+  /**
+   * 当前同步是否已被取消
+   * @returns {boolean} 是否已取消
+   * @private
+   */
+  _isRetryCancelled() {
+    return this.pendingRetriesCancelled === true;
+  }
+
+  /**
+   * 设置 Client Reset 备份依赖（realmPath/backupRealmFile）
+   * 不注入 backupRealmFile 时懒加载 realmBackupService.backupRealmFile（与 realmConfig.onError 同一实现），
+   * 注入后 Jest 下零原生依赖
+   * @param {Object} options 备份选项
+   */
+  setClientResetRecoveryOptions(options = {}) {
+    this.clientResetRecoveryOptions = { ...this.clientResetRecoveryOptions, ...(options || {}) };
+  }
+
+  /**
+   * 获取最近一次 Client Reset 备份状态
+   * @returns {Object|null} { backupAt, backupPath, description, operationId, error }
+   */
+  getClientResetState() {
+    return this.clientResetState ? { ...this.clientResetState } : null;
+  }
+
+  /**
+   * 解析 Realm 文件路径：优先使用注入值，其次 realmService，最后回退 realm.path
+   * @returns {Promise<string>} Realm 文件路径
+   * @private
+   */
+  async _resolveRealmPath() {
+    const injected = this.clientResetRecoveryOptions?.realmPath;
+    if (typeof injected === 'string' && injected.trim().length > 0) {
+      return injected.trim();
+    }
+
+    if (typeof realmService.getRealmPath === 'function') {
+      const resolved = await realmService.getRealmPath();
+      if (typeof resolved === 'string' && resolved.trim().length > 0) {
+        return resolved.trim();
+      }
+    }
+
+    const realm = await realmService.getRealm();
+    const realmPath = realm && realm.path !== undefined && realm.path !== null
+      ? String(realm.path)
+      : '';
+
+    if (realmPath.trim().length > 0) {
+      return realmPath.trim();
+    }
+
+    throw new Error('Client Reset 备份失败：无法确定 Realm 文件路径');
+  }
+
+  /**
+   * 解析 Client Reset 备份实现
+   * 优先使用注入实现；未注入时懒加载 realmBackupService.backupRealmFile，
+   * 与 realmConfig.onError 的 Client Reset 回调共用同一备份实现，避免两处实现/命名不一致。
+   * 懒加载保证 Jest 下模块导入阶段不会硬依赖 react-native-fs。
+   * @returns {Function} backupRealmFile(realmPath) => Promise<{success: boolean, path: string}>
+   * @private
+   */
+  _resolveRealmBackupFile() {
+    const injected = this.clientResetRecoveryOptions?.backupRealmFile;
+    if (typeof injected === 'function') {
+      return injected;
+    }
+
+    const recoveryModule = require('../recovery/realmBackupService');
+    if (recoveryModule && typeof recoveryModule.backupRealmFile === 'function') {
+      return recoveryModule.backupRealmFile;
+    }
+
+    throw new Error('Client Reset 备份失败：realmBackupService.backupRealmFile 不可用');
+  }
+
+  /**
+   * Client Reset 主动备份（同步错误分类兜底路径）
+   *
+   * 与真实 Realm 回调的关系：
+   * - realmConfig.getSyncRealmConfig 的 sync.onError（error.name === 'ClientReset'）是真实回调触发点
+   * - 本方法在 classifySyncError 判定 category === 'clientReset' 时兜底触发（realm 20.1.0 无 ClientResetError 导出）
+   * - 二者共用同一备份实现 realmBackupService.backupRealmFile（默认懒加载，单测可注入）
+   *
+   * 同一会话内已成功备份过则跳过重复备份（仅 warn）；备份失败必须显式抛出，绝不静默继续以免丢数据。
+   *
+   * @param {Object} operation 触发备份的同步操作
+   * @param {Error} error 原始错误（用于日志定位）
+   * @returns {Promise<Object|null>} { backupPath, description, success }；已去重跳过时返回 null
+   * @private
+   */
+  async _recoverFromClientReset(operation, error) {
+    const operationId = operation?._id ? String(operation._id) : null;
+
+    // 同一会话内已有成功备份：只提示不重复备份（若上次备份失败则不跳过，仍需备份保护数据）
+    if (this.clientResetState && this.clientResetState.backupPath) {
+      logService.warn(`[sync] 本会话已完成 Client Reset 备份（${this.clientResetState.backupPath}），跳过重复备份：操作 ${operationId || 'unknown'}`);
+      return null;
+    }
+
+    const reason = error && error.message ? error.message : String(error);
+    const realmPath = await this._resolveRealmPath();
+    const backupRealmFile = this._resolveRealmBackupFile();
+    const backupAt = new Date();
+
+    logService.warn(`[sync] 检测到 Client Reset（操作 ${operationId || 'unknown'}）：${reason}，先备份 Realm 文件：${realmPath}`);
+
+    let backupResult;
+    try {
+      backupResult = await backupRealmFile(realmPath);
+    } catch (backupError) {
+      // 备份实现抛错：包装为带上下文的错误并显式抛出，避免在未备份的情况下继续重置
+      const wrappedError = createClientResetBackupError(describeError(backupError), realmPath, operationId, backupError);
+      this.clientResetState = {
+        backupAt,
+        backupPath: null,
+        description: null,
+        operationId,
+        error: wrappedError,
+      };
+      logService.error(`[sync] Client Reset 备份失败，已中止操作 ${operationId || 'unknown'} 的重置流程`, wrappedError);
+      throw wrappedError;
+    }
+
+    // realmBackupFile 可能以 { success: false } 表示失败而不抛错，这里显式判败，避免生成“看似成功”的状态
+    const backupPath = backupResult && backupResult.success === true && typeof backupResult.path === 'string' && backupResult.path.trim().length > 0
+      ? backupResult.path
+      : '';
+
+    if (!backupPath) {
+      const invalidResultError = createClientResetBackupError('备份实现未返回有效备份路径', realmPath, operationId, null);
+      invalidResultError.backupResult = backupResult;
+      this.clientResetState = {
+        backupAt,
+        backupPath: null,
+        description: null,
+        operationId,
+        error: invalidResultError,
+      };
+      logService.error(`[sync] Client Reset 备份失败，已中止操作 ${operationId || 'unknown'} 的重置流程`, invalidResultError);
+      throw invalidResultError;
+    }
+
+    const description = `Client Reset 前备份：${realmPath} -> ${backupPath}`;
+    this.clientResetState = {
+      backupAt,
+      backupPath,
+      description,
+      operationId,
+      error: null,
+    };
+    logService.warn(`[sync] Client Reset 备份完成：${description}`);
+
+    return { backupPath, description, success: true };
+  }
+
+  /**
+   * 用 createRetryController 包裹单条操作的执行
+   * - 可重试错误按指数退避重试，耗尽后抛出最后一次错误
+   * - 不可重试错误（auth/permission/clientReset/unknown 等）短路，不吞错
+   * - 取消后立即抛出最后一次错误（不当作成功）
+   * - clientReset 分类在短路后先做 Realm 备份，备份失败显式抛出
+   * @param {Object} operation 同步操作
+   * @param {Object} [options] 本次调用的重试选项（覆盖实例配置）
+   * @returns {Promise<*>} 操作执行结果
+   * @private
+   */
+  async _executeOperationWithRetry(operation, options = {}) {
+    const retryOptions = { ...this.retryOptions, ...(options || {}) };
+    const externalShouldAbort = typeof retryOptions.shouldAbort === 'function' ? retryOptions.shouldAbort : null;
+
+    const controller = createRetryController({
+      ...retryOptions,
+      // 取消标记优先：cancelPendingRetries() 后立即停止重试
+      shouldAbort: () => this._isRetryCancelled() || (externalShouldAbort ? Boolean(externalShouldAbort()) : false),
+    });
+
+    this.activeRetryControllers.add(controller);
+
+    let attempts = 0;
+    try {
+      return await controller.run(() => {
+        attempts += 1;
+        return this._executePendingOperation(operation);
+      });
+    } catch (error) {
+      // 记录实际尝试次数，便于失败排查（不改变既有失败分支的落库字段）
+      if (error && typeof error === 'object' && !Object.isFrozen(error)) {
+        try {
+          error.syncAttempts = attempts;
+        } catch (assignError) {
+          // 错误对象不可扩展时忽略，不影响主流程
+        }
+      }
+
+      const classification = classifySyncError(error);
+      if (classification.category === SYNC_ERROR_CATEGORIES.CLIENT_RESET) {
+        await this._recoverFromClientReset(operation, error);
+      }
+
+      throw error;
+    } finally {
+      this.activeRetryControllers.delete(controller);
+    }
   }
 
   _normalizeOperation(operation) {
@@ -829,6 +1135,8 @@ class SyncManager {
     }
   }
 }
+
+export { SyncManager };
 
 // 创建单例实例（延迟初始化，避免导入即注册网络监听导致双重同步入口）
 const syncManager = new SyncManager();

@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { PDFViewer as EnhancedPDFViewer, DocViewer as EnhancedDocViewer, MarkdownViewer as EnhancedMarkdownViewer, PPTViewer as EnhancedPPTViewer } from '../../screens/viewers';
 import RNFS from 'react-native-fs';
 import { downloadCacheService } from '../../services/files/downloadCacheService';
+import { buildCacheSaveMetadata } from '../../services/files/cacheSaveMetadata';
 import { fileService } from '../../services/files';
 import { useNavigation } from '@react-navigation/native';
 import { buildFileInfo } from './fileViewerHelpers';
@@ -79,10 +80,14 @@ const FileViewerScreen = ({ route }) => {
             });
 
             if (success) {
+              // 从文件记录（路由参数）中提取实际可得的 sha256/size 作为可选完整性校验
+              const cacheMetadata = buildCacheSaveMetadata(route.params, {
+                size: (await RNFS.stat(destPath)).size,
+              });
               processedUri = await downloadCacheService.saveToCache(uri, destPath, {
                 name,
                 extension: uri.split('.').pop().toLowerCase(),
-                size: (await RNFS.stat(destPath)).size,
+                ...cacheMetadata,
               });
               isRemote = false;
               // 清理临时文件
@@ -182,7 +187,8 @@ const FileViewerScreen = ({ route }) => {
     return () => {
       console.log('Component mount/unmount:', { component: 'FileViewerScreen', state: 'unmount' });
     };
-  }, [uri, name, type]);
+    // route.params 用于提取文件记录中的可选完整性校验字段
+  }, [uri, name, type, route.params]);
 
   // 切换手写模式
   const toggleHandwritingMode = () => {

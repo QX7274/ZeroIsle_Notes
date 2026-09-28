@@ -18,6 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import networkService from '../../services/network/networkService';
 import { Button } from '../../components/common';
 import { rebuildSearchIndex } from '../../services/search/searchIndexRebuildService';
+import { backfillNotePreviewMetadata } from '../../services/notes/backfillNotePreviewMetadata';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import { showToast } from '../../components/common/ToastHelper';
 
@@ -197,6 +198,47 @@ const OfflineDataScreen = ({ navigation }) => {
           setStatusCard({
             tone: 'error',
             message: `搜索索引重建失败：${errorMessage}`,
+          });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleBackfillNotePreviewMetadata = () => {
+    openDialog({
+      tone: 'warning',
+      title: '补齐列表预览元数据',
+      message: '该操作会扫描本地笔记，为缺少预览元数据的笔记补齐摘要与徽标信息（已补齐的会自动跳过）。数据量大时可能需要较长时间。是否继续？',
+      primaryText: '开始',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        try {
+          const result = await backfillNotePreviewMetadata({ batchSize: 200 });
+          const scanned = Number(result?.scanned || 0);
+          const updated = Number(result?.updated || 0);
+          const failed = Number(result?.failed || 0);
+          if (failed > 0) {
+            setStatusCard({
+              tone: 'error',
+              message: `预览元数据补齐完成：扫描 ${scanned} 条，更新 ${updated} 条，失败 ${failed} 条。失败条目可稍后重试。`,
+            });
+            showToast.error(`补齐完成，${failed} 条失败`);
+          } else {
+            setStatusCard({
+              tone: 'success',
+              message: `预览元数据补齐完成：扫描 ${scanned} 条，更新 ${updated} 条。首页列表将使用轻量数据源。`,
+            });
+            showToast.success(`已补齐 ${updated} 条笔记的预览元数据`);
+          }
+        } catch (e) {
+          const errorMessage = e?.message || '预览元数据补齐失败。';
+          setStatusCard({
+            tone: 'error',
+            message: `预览元数据补齐失败：${errorMessage}`,
           });
           showToast.error(errorMessage);
         } finally {
@@ -463,6 +505,15 @@ const OfflineDataScreen = ({ navigation }) => {
           />
 
           <Button
+            title="补齐列表预览元数据"
+            onPress={handleBackfillNotePreviewMetadata}
+            type="outline"
+            style={styles.backfillPreviewButton}
+            icon="view-list"
+            disabled={isLoading}
+          />
+
+          <Button
             title="清除离线数据"
             onPress={handleClearOfflineData}
             type="outline"
@@ -587,6 +638,11 @@ const styles = StyleSheet.create({
     margin: 16,
   },
   rebuildIndexButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  backfillPreviewButton: {
     marginLeft: 16,
     marginRight: 16,
     marginBottom: 8,

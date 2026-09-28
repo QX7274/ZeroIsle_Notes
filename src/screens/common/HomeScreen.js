@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
   FlatList,
@@ -40,6 +40,23 @@ import TemplatePickerModal from '../../components/common/TemplatePickerModal';
 import fileHistoryService from '../../services/fileHistoryService';
 import networkErrorService from '../../services/networkErrorService';
 import Realm from 'realm';
+// 列表投影兼容层（里程碑 5.1）：让卡片同时支持「完整笔记对象」与「轻量 summary」两种数据源
+import {
+  getItemPreviewText,
+  itemHasContent,
+  itemHasPages,
+  itemHasStrokeData,
+  getItemContentLikeText,
+  isUntaggedSummary,
+  resolveFullNote,
+  resolveItemContent,
+} from './noteItemProjection';
+// 未打标自愈（里程碑 5.1 收尾）：检测到未打标 summary 时后台幂等回填，成功后自动重载切回轻量路径
+import {
+  backfillNotePreviewMetadata,
+  createPreviewSelfHealController,
+  withPreviewSelfHealFlag,
+} from '../../services/notes/backfillNotePreviewMetadata';
 
 const FALLBACK_COLORS = {
   primary: '#007AFF',
@@ -49,6 +66,108 @@ const FALLBACK_COLORS = {
   background: '#F2F2F2',
   border: '#E5E5EA',
   shadow: 'rgba(0,0,0,0.1)',
+};
+
+/**
+ * 列表页单次加载的轻量 summary 条数上限（里程碑 5.1）。
+ *
+ * 分页在 Realm Results 层完成：每一页只物化这一页的 summary（不含 content/pages/strokeData）。
+ * 取满一页说明可能还有后续数据，loadNotesListPayload 会按 skip 继续取，直到取回完整列表。
+ */
+const LIST_SUMMARY_LIMIT = 500;
+
+/** summary 分页累计的安全上限：上游若忽略 skip 也不会死循环 */
+const MAX_LIST_SUMMARIES = 100000;
+
+/**
+ * 会话级「未打标自愈」控制器（模块级：跨 HomeScreen 重挂载共享尝试次数，
+ * 严格按「每个应用会话最多尝试 N 次」约束，避免反复全表扫描）。
+ *
+ * 通过 bridge 与当前挂载实例解耦：
+ * - reload：调用当前实例的 loadNotes（复用既有加载路径）；
+ * - mounted：实例卸载后不再触发，也不重载，避免卸载后 setState。
+ */
+const previewSelfHealBridge = {
+  reload: null,
+  mounted: false,
+};
+
+const previewSelfHealController = createPreviewSelfHealController({
+  backfill: () => backfillNotePreviewMetadata({ batchSize: 200 }),
+  reload: () => (previewSelfHealBridge.reload ? previewSelfHealBridge.reload() : null),
+  isCancelled: () => !previewSelfHealBridge.mounted,
+});
+
+/**
+ * 列表数据源（里程碑 5.1）：优先轻量 summary，异常或空结果自动回退到既有 notesApi.getAllNotes()。
+ *
+ * 契约与 getAllNotes() 保持一致（{ success, data, isOffline }），因此调用方无需分支处理。
+ *
+ * 重要：summary 形态下 content / pages / strokeData 字段**不存在**（undefined），
+ * 需要正文的路径必须用 resolveItemContent(item, notesApi.getById) 按 id 延迟加载，
+ * 绝不能直接读 item.content。
+ *
+ * 分页：先按 { skip: 0, limit: LIST_SUMMARY_LIMIT } 取第一页；只有恰好取满一页时才继续取下一页，
+ * 目的是「绝不静默截断」——返回的要么是完整列表，要么通过回退交给 getAllNotes()。
+ *
+ * @returns {Promise<Object>} { success, data, isOffline }
+ */
+const loadNotesListPayload = async () => {
+  try {
+    const collected = [];
+    let skip = 0;
+
+    for (;;) {
+      const page = await notesApi.getAllNotesSummaries({ skip, limit: LIST_SUMMARY_LIMIT });
+      if (!page || page.success !== true || !Array.isArray(page.data)) {
+        throw new Error('summary 列表返回结构非法');
+      }
+      if (page.data.length === 0) {
+        break;
+      }
+
+      collected.push(...page.data);
+
+      if (page.data.length < LIST_SUMMARY_LIMIT) {
+        break;
+      }
+      if (collected.length >= MAX_LIST_SUMMARIES) {
+        console.warn('HomeScreen: summary 列表达到安全上限，停止继续分页:', MAX_LIST_SUMMARIES);
+        break;
+      }
+      skip += page.data.length;
+    }
+
+    if (collected.length === 0) {
+      console.log('HomeScreen: 轻量 summary 列表为空，回退到 getAllNotes()');
+      return notesApi.getAllNotes();
+    }
+
+    // 未打标保护（重要）：存量笔记（写入侧打标上线前创建）以及 notesApi.importNote
+    // 导入的笔记，metadata 里没有 previewText/contentLength，summary 无法在「不读正文」
+    // 的前提下渲染摘要；若直接使用 summary，首页摘要会整体消失（相对今天的行为是回归）。
+    // 这里显式回退到 getAllNotes() 并记录日志（不是静默降级），保持与今天一致的渲染；
+    // 存量数据补齐 previewText 后会自动切回轻量路径。
+    // 注意用 console.log 而不是 console.warn：这是「首次启动尚未回填」的预期状态，
+    // 会自愈，不应在 debug 构建里弹出 LogBox 警告遮罩（真机复验时曾遮挡页面）。
+    const untaggedCount = collected.filter(isUntaggedSummary).length;
+    if (untaggedCount > 0) {
+      console.log(
+        `HomeScreen: ${untaggedCount}/${collected.length} 条笔记缺少预览元数据（未打标），` +
+        '回退到 getAllNotes() 并触发后台自愈回填',
+      );
+      // 本次仍回退全量渲染（不回归），同时给结果打上自愈标记，
+      // 由 loadNotes 触发一次后台幂等回填；成功（updated > 0）后自动重载切回轻量路径。
+      return withPreviewSelfHealFlag(notesApi.getAllNotes(), untaggedCount);
+    }
+
+    console.log('HomeScreen: 使用轻量 summary 列表，条数:', collected.length);
+    return { success: true, data: collected, isOffline: true, source: 'summary' };
+  } catch (summaryError) {
+    console.warn('HomeScreen: 加载轻量 summary 失败，回退到 getAllNotes():', summaryError);
+  }
+
+  return notesApi.getAllNotes();
 };
 
 const HomeScreen = ({ navigation }) => {
@@ -65,6 +184,8 @@ const HomeScreen = ({ navigation }) => {
   const notesState = useSelector(state => state.notes);
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  // 自愈控制器需要重载列表时，通过 ref 复用最新的 loadNotes（避免闭包/依赖漂移）
+  const loadNotesRef = useRef(null);
 
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
@@ -353,15 +474,16 @@ const HomeScreen = ({ navigation }) => {
 
       case 'size_desc':
         return sorted.sort((a, b) => {
-          const sizeA = a.size || a.fileSize || a.content?.length || 0;
-          const sizeB = b.size || b.fileSize || b.content?.length || 0;
+          // 不再回退到 content.length：summary 形态没有正文，读它等于把大字段拉回列表
+          const sizeA = a.size || a.fileSize || a.file_size || 0;
+          const sizeB = b.size || b.fileSize || b.file_size || 0;
           return sizeB - sizeA;
         });
 
       case 'size_asc':
         return sorted.sort((a, b) => {
-          const sizeA = a.size || a.fileSize || a.content?.length || 0;
-          const sizeB = b.size || b.fileSize || b.content?.length || 0;
+          const sizeA = a.size || a.fileSize || a.file_size || 0;
+          const sizeB = b.size || b.fileSize || b.file_size || 0;
           return sizeA - sizeB;
         });
 
@@ -993,9 +1115,23 @@ Week 4: □□□□□□□
         }, 10000); // 10秒超时，增加超时时间
       });
 
-      // 首先尝试从本地存储获取笔记，带超时
-      const offlineResponsePromise = notesApi.getAllNotes();
-      const offlineResponse = await Promise.race([offlineResponsePromise, timeoutPromise]);
+      // 首先尝试从本地存储获取「轻量 summary」列表（里程碑 5.1：列表字段裁剪 + 正文延迟加载）。
+      // summary 不含 content/pages/strokeData；任何异常或空结果都会自动回退到全量 getAllNotes()，
+      // 因此最坏情况与改动前完全一致。
+      const offlineResponse = await Promise.race([loadNotesListPayload(), timeoutPromise]);
+
+      // 未打标自愈（里程碑 5.1 收尾）：检测到未打标 summary 时，本次保持全量渲染（不回归），
+      // 同时触发一次后台幂等回填；updated > 0 时控制器会重载一次列表切回轻量路径。
+      // 控制器自带 in-flight 去重 + 会话尝试上限，失败只记日志，不弹窗、不阻塞用户操作。
+      if (offlineResponse && offlineResponse.needsPreviewSelfHeal) {
+        console.log(
+          `HomeScreen: 检测到 ${offlineResponse.untaggedCount || 0} 条未打标 summary，` +
+          '本次回退全量渲染，并触发一次后台自愈回填',
+        );
+        previewSelfHealController.handleUntagged('home-list').catch((selfHealError) => {
+          console.warn('HomeScreen: 未打标自愈调度异常，已忽略:', selfHealError);
+        });
+      }
 
       // 如果超时，尝试从AsyncStorage备份恢复
       if (offlineResponse.timeout) {
@@ -1079,6 +1215,24 @@ Week 4: □□□□□□□
     }
     // 不在这里设置 setIsLoading(false)，因为调用方会在 finally 块中设置
   }, [dispatch, startIntelligentPreload]);
+
+  // 始终保持 reloadNotesRef 指向最新的 loadNotes（自愈重载复用同一条加载路径）
+  useEffect(() => {
+    loadNotesRef.current = loadNotes;
+  }, [loadNotes]);
+
+  // 将会话级自愈控制器接到当前挂载实例：卸载后不再触发/重载（不 setState after unmount）
+  useEffect(() => {
+    previewSelfHealBridge.reload = () => {
+      const reload = loadNotesRef.current;
+      return reload ? reload() : null;
+    };
+    previewSelfHealBridge.mounted = true;
+    return () => {
+      previewSelfHealBridge.mounted = false;
+      previewSelfHealBridge.reload = null;
+    };
+  }, []);
 
   // 加载排序偏好和初始化离线存储
   useEffect(() => {
@@ -1845,13 +1999,13 @@ Week 4: □□□□□□□
   // 优化的笔记项组件，使用memo避免不必要的重新渲染
   const NoteItem = memo(({ item, index, onPress, onLongPress }) => {
     const renderContentPreview = () => {
-      if (!item.content || typeof item.content !== 'string') {return null;}
-      // Remove markdown for a cleaner preview
-      const plainText = item.content.replace(/[#*`>~=\[\]_]/g, '').replace(/\s+/g, ' ').trim();
-      if (!plainText) {return null;}
+      // summary 形态直接用写入侧生成的 previewText，避免为渲染预览而读取正文；
+      // 老形态回退到实时剥离 markdown（行为与改动前一致）
+      const previewText = getItemPreviewText(item);
+      if (!previewText) {return null;}
       return (
         <Text style={styles.noteSnippet} numberOfLines={3}>
-          {plainText}
+          {previewText}
         </Text>
       );
     };
@@ -1868,25 +2022,15 @@ Week 4: □□□□□□□
         type: item.type,
         noteType: item.noteType,
         title: item.title,
-        hasContent: !!item.content,
-        hasStrokeData: !!item.strokeData,
-        hasPages: !!item.pages,
+        hasContent: itemHasContent(item),
+        hasStrokeData: itemHasStrokeData(item),
+        hasPages: itemHasPages(item),
       });
 
-      // 安全地获取内容，处理可能的循环引用
+      // 安全地获取内容（兼容 summary 形态与循环引用），仅在需要做类型判断时使用
       let content = '';
       try {
-        if (item.content) {
-          if (typeof item.content === 'string') {
-            content = item.content;
-          } else if (typeof item.content === 'object' && item.content !== null) {
-            if (item.content.reference === 'circular') {
-              content = ''; // 处理循环引用
-            } else {
-              content = String(item.content);
-            }
-          }
-        }
+        content = getItemContentLikeText(item);
       } catch (error) {
         console.warn('处理笔记内容失败:', error);
         content = '';
@@ -2078,8 +2222,8 @@ Week 4: □□□□□□□
       }
     };
 
-    // 处理文件点击
-    const handleFilePress = (item) => {
+    // 处理文件点击（异步：轻量 summary 的正文需要按 id 延迟加载）
+    const handleFilePress = async (item) => {
       // 统一提取可能的文件 uri
       const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
 
@@ -2168,10 +2312,12 @@ Week 4: □□□□□□□
 
       if (item.type === 'card' || item.noteType === 'card') {
         const noteId = item._id || item.id || `temp_${Date.now()}`;
+        // summary 形态没有 content：按 id 延迟加载正文，失败回退空串（不阻断导航）
+        const content = await resolveItemContent(item, notesApi.getById);
         navigation.navigate('CardNote', {
           noteId,
           title: item.title || '新建卡片笔记',
-          content: item.content || '',
+          content,
         });
         return;
       }
@@ -2185,10 +2331,12 @@ Week 4: □□□□□□□
 
       // 如果有内容但没有明确类型，当作卡片笔记处理
       const noteId = item._id || item.id || `temp_${Date.now()}`;
+      // summary 形态没有 content：按 id 延迟加载正文，失败回退空串（不阻断导航）
+      const content = await resolveItemContent(item, notesApi.getById);
       navigation.navigate('CardNote', {
         noteId,
         title: item.title || '笔记',
-        content: item.content || '',
+        content,
       });
     };
 
@@ -2335,7 +2483,8 @@ Week 4: □□□□□□□
   };
 
   // 更新笔记标题的辅助函数 - 立即更新UI，后台执行数据操作
-  const updateNoteTitle = (note, newTitle) => {
+  // 异步：列表项可能是轻量 summary，重命名前需要按 id 取回完整笔记
+  const updateNoteTitle = async (note, newTitle) => {
     try {
       console.log('更新笔记标题:', newTitle);
 
@@ -2347,9 +2496,20 @@ Week 4: □□□□□□□
         return false;
       }
 
+      // summary 形态（content 为 undefined）不含正文/页面数据：先按 id 取回完整笔记，
+      // 避免把 summary 直接塞进只应持有完整 Note 的 Redux（后续读取会缺正文）。
+      // 取回失败时退回 summary，行为与改动前一致（updateNote thunk 完成后仍会回填完整对象）。
+      let baseNote = note;
+      if (note.content === undefined) {
+        const fullNote = await resolveFullNote(note, notesApi.getById);
+        if (fullNote) {
+          baseNote = fullNote;
+        }
+      }
+
       // 创建更新后的笔记对象
       const updatedNote = {
-        ...note,
+        ...baseNote,
         title: newTitle,
         updated_at: new Date().toISOString(),
       };
@@ -2433,7 +2593,10 @@ Week 4: □□□□□□□
                 const fileName = `${note.title || '笔记'}.txt`;
                 const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
 
-                await RNFS.writeFile(destPath, note.content || '', 'utf8');
+                // 导出前按 id 延迟加载正文：summary 形态没有 content，
+                // 失败回退空串，绝不阻断导出流程（里程碑 5.1）
+                const content = await resolveItemContent(note, notesApi.getById);
+                await RNFS.writeFile(destPath, content, 'utf8');
                 Alert.alert('成功', `笔记已导出到: ${destPath}`);
               }
             } catch (error) {
@@ -2622,8 +2785,8 @@ Week 4: □□□□□□□
         item={item}
         index={index}
         onPress={() => {
-          const handleFilePress = (item) => {
-            // 处理文件点击的逻辑...
+          const handleFilePress = async (item) => {
+            // 处理文件点击的逻辑（异步：轻量 summary 的正文需要按 id 延迟加载）
             const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
             const name = item.file_name || item.title || '';
             const uri = possibleUris[0] || '';
@@ -2663,24 +2826,26 @@ Week 4: □□□□□□□
               // 处理其他类型的笔记
               const noteId = item._id || item.id;
               const noteType = item.noteType || item.note_type || 'card';
+              // summary 形态没有 content：先按 id 延迟加载正文，失败回退空串（不阻断导航）
+              const content = await resolveItemContent(item, notesApi.getById);
 
               if (noteType === 'paged_note') {
                 navigation.navigate('FluidPagedNote', {
                   noteId,
                   title: item.title || '分页笔记',
-                  content: item.content || '',
+                  content,
                 });
               } else if (noteType === 'canvas') {
                 navigation.navigate('InfiniteCanvas', {
                   noteId,
                   title: item.title || '无限画布',
-                  content: item.content || '',
+                  content,
                 });
               } else {
                 navigation.navigate('CardNote', {
                   noteId,
                   title: item.title || '笔记',
-                  content: item.content || '',
+                  content,
                 });
               }
             }
