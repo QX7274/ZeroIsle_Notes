@@ -20,6 +20,10 @@ export const NoteSchema = {
     created_at: 'date',
     updated_at: 'date',
     updatedAt: 'date?',
+    // 「最近访问」排序的落库来源（WS-T）：打开笔记时单字段写入。
+    // 可空：历史笔记（迁移前创建）与从未打开过的笔记为 null，排序时按 updated_at 兜底
+    // （见 Note.REALM_SORTABLE_FIELDS 与 getNotes.resolveListSortPolicy）。
+    last_opened_at: 'date?',
     deviceId: 'string?',
     clientOpId: 'string?',
     is_deleted: { type: 'bool', default: false },

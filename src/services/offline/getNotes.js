@@ -294,15 +294,67 @@ export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
   return Note.findByUserSummaries(realm, userId, pageOptions);
 };
 
+/**
+ * 记录「最近访问」：打开笔记时**单字段**写入 Note.last_opened_at（WS-T）。
+ *
+ * 为什么落库：列表「最近访问」排序要能下推 Realm 才能分页；fileHistoryService 的访问历史
+ * 在 JS 内存里，无法参与 Realm 排序。写入本字段后，
+ * 排序 = [last_opened_at desc, updated_at desc] 完全由 Realm 完成。
+ *
+ * 约束（刻意保持轻量）：
+ * - 只写 last_opened_at 一个字段，不刷新 updated_at / metadata / dataHash，也不入离线同步队列
+ *   （访问时间是本机使用信号，不参与跨端同步；避免把「打开过」变成一次待同步写）；
+ * - 独立 realm.write，失败只 console.warn，绝不抛错、绝不阻断打开流程；
+ * - 临时 id（temp_ 前缀）与空 id 直接跳过。
+ *
+ * @param {string} noteId 笔记 id
+ * @param {{realm?: Object}} [options] 可注入 realm（便于单测；缺省用 realmService.getRealm()）
+ * @returns {Promise<boolean>} 是否写入成功（笔记不存在或跳过时为 false）
+ */
+export const markNoteOpenedAt = async (noteId, options = {}) => {
+  const id = noteId === null || noteId === undefined || noteId === '' ? null : String(noteId);
+  if (!id || id.startsWith('temp_')) {
+    return false;
+  }
+
+  try {
+    const realm = options.realm || await realmService.getRealm();
+    if (!realm
+      || typeof realm.write !== 'function'
+      || typeof realm.objectForPrimaryKey !== 'function') {
+      return false;
+    }
+
+    let wrote = false;
+    realm.write(() => {
+      const note = realm.objectForPrimaryKey(NOTE_SCHEMA, id);
+      if (!note) {
+        return;
+      }
+      note.last_opened_at = new Date();
+      wrote = true;
+    });
+    return wrote;
+  } catch (error) {
+    console.warn('[getNotes] 写入 last_opened_at 失败，已忽略:', error);
+    return false;
+  }
+};
+
 // ---------------------------------------------------------------------------
 // 列表分页决策（里程碑 5.1 续）
 //
 // 只有「能把排序下推 Realm」的排序才允许分页：分页要求数据库侧的排序就是最终的展示顺序，
 // 否则第 N 页取回后再用 JS 比较器重排，会出现跨页乱序/重复/漏项。
 //
-// - updated_desc / updated_asc：时间字段可下推。代价是无法再叠加 fileHistoryService 的
-//   「最近访问」权重（访问时间不在 Realm 里）。分页模式下按纯 updated_at 排序，顺序稳定、
-//   不丢数据；若后续把 lastOpenedAt 落库即可恢复该权重。
+// - updated_desc / recent_desc（最近访问）：WS-T 把访问时间落库为 Note.last_opened_at 后，
+//   排序 = [last_opened_at desc, updated_at desc] —— 打开过的笔记按访问时间，历史/从未打开的
+//   （last_opened_at 为 null）排在后面并按 updated_at 兜底。两把键都能整体下推 Realm，
+//   因此「最近访问」也走分页，不再一次性取回全部 summary。
+//   语义差异：旧实现用 max(updated_at, fileHistory.lastOpened) 取较新者，
+//   现在访问时间优先（访问过的排在未访问过的前面）；fileHistoryService 退为
+//   title/type/size 等「不可下推排序」的 JS 侧参考，不再参与分页排序。
+// - updated_asc（最早更新）：保持纯 updated_at asc，不掺入访问时间（避免「最早访问」混淆语义）。
 // - created_desc / created_asc：纯时间字段，与既有 JS 比较器完全等价。
 // - title_asc / title_desc：Realm 字符串按码点排序，既有实现是 localeCompare('zh-CN',
 //   { numeric: true })（中文按拼音、数字按数值）。两者顺序不一致，分页会改变可见顺序，
@@ -314,13 +366,35 @@ export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
 /** 列表分页默认页大小 */
 export const DEFAULT_LIST_PAGE_SIZE = 50;
 
-/** Realm 可下推排序的 UI 排序 id */
+/**
+ * 「最近访问」排序（WS-T）：last_opened_at desc（Realm 的 null 值在降序中排最后），
+ * 未访问过（null）的笔记用 updated_at desc 兜底，保证顺序确定且可整体下推。
+ */
+const RECENT_DESC_SORT = Object.freeze({
+  field: 'last_opened_at',
+  descending: true,
+  secondary: { field: 'updated_at', descending: true },
+});
+
+/** 「最早访问」：last_opened_at asc（null 排最前），未访问过的按 updated_at asc 兜底 */
+const RECENT_ASC_SORT = Object.freeze({
+  field: 'last_opened_at',
+  descending: false,
+  secondary: { field: 'updated_at', descending: false },
+});
+
+/** Realm 可下推排序的 UI 排序 id（全部走分页） */
 const PAGINATED_SORT_OPTIONS = Object.freeze({
-  updated_desc: { field: 'updated_at', descending: true },
+  updated_desc: RECENT_DESC_SORT,
+  recent_desc: RECENT_DESC_SORT,
+  recent_asc: RECENT_ASC_SORT,
   updated_asc: { field: 'updated_at', descending: false },
   created_desc: { field: 'created_at', descending: true },
   created_asc: { field: 'created_at', descending: false },
 });
+
+/** 「最近访问」家族：排序以 last_opened_at 为主键 */
+const RECENT_SORT_KEYS = Object.freeze(['updated_desc', 'recent_desc', 'recent_asc']);
 
 /** 不可下推排序的原因（用于日志/报告，避免「静默不分页」） */
 const NON_PAGINATED_SORT_REASONS = Object.freeze({
@@ -342,13 +416,17 @@ export const resolveListSortPolicy = (sortOption) => {
   const key = sortOption || 'updated_desc';
 
   if (PAGINATED_SORT_OPTIONS[key]) {
+    const isRecent = RECENT_SORT_KEYS.includes(key);
     return {
       key,
       paginated: true,
       sort: { ...PAGINATED_SORT_OPTIONS[key] },
-      reason: key.startsWith('created')
-        ? `${key} 可下推 Realm（纯创建时间，与既有 JS 比较器等价），每页只物化一页`
-        : `${key} 可下推 Realm（时间字段）；分页模式下不再叠加 fileHistory 的「最近访问」权重`,
+      reason: isRecent
+        ? `${key} 可下推 Realm：[last_opened_at 主键 + 未访问过（null）按 updated_at 兜底]；` +
+          '访问时间已落库（WS-T），因此「最近访问」也走分页'
+        : key.startsWith('created')
+          ? `${key} 可下推 Realm（纯创建时间，与既有 JS 比较器等价），每页只物化一页`
+          : `${key} 可下推 Realm（updated_at 时间字段），每页只物化一页`,
     };
   }
 
@@ -361,12 +439,12 @@ export const resolveListSortPolicy = (sortOption) => {
     };
   }
 
-  // 未知排序：sortNotes 的 default 分支等价于 updated_desc，按可下推处理
+  // 未知排序：按默认「最近访问」处理（与 UI 默认 updated_desc 一致）
   return {
     key,
     paginated: true,
-    sort: { field: 'updated_at', descending: true },
-    reason: `未知排序「${key}」按默认 updated_at 降序处理（与 sortNotes 默认分支一致）`,
+    sort: { ...RECENT_DESC_SORT },
+    reason: `未知排序「${key}」按默认「最近访问」处理（last_opened_at 主键 + updated_at 兜底）`,
   };
 };
 
@@ -391,43 +469,71 @@ const toComparableSortValue = (value, field) => {
 };
 
 /**
- * 可下推排序在 JS 侧的「等价比较器」。
+ * 归一化比较器使用的排序键列表（主键 + 可选次级键）。
+ * @param {Object} sort
+ * @returns {Array<{field: string, descending: boolean}>}
+ */
+const normalizeComparatorKeys = (sort) => {
+  const keys = [];
+  if (sort && typeof sort.field === 'string') {
+    keys.push({ field: sort.field, descending: Boolean(sort.descending) });
+  }
+  if (sort && sort.secondary && typeof sort.secondary.field === 'string') {
+    keys.push({ field: sort.secondary.field, descending: Boolean(sort.secondary.descending) });
+  }
+  if (keys.length === 0) {
+    keys.push({ field: 'updated_at', descending: true });
+  }
+  return keys;
+};
+
+/**
+ * 可下推排序在 JS 侧的「等价比较器」（支持主键 + 次级键，如「最近访问」）。
  *
  * 用途：Redux 的 notes adapter 自带 sortComparer（固定按 updated_at desc），
- * 因此 created_at 等排序在 Redux 里会被重排。列表渲染前用这里返回的比较器按同一把
- * 排序键排列「已加载的 summary 子集」，既能继续反映新建/删除，又保证与 Realm 的分页边界一致。
+ * 因此 created_at / last_opened_at 等排序在 Redux 里会被重排。列表渲染前用这里返回的
+ * 比较器按同一组排序键排列「已加载的 summary 子集」，既能继续反映新建/删除，
+ * 又保证与 Realm 的分页边界一致。
+ *
+ * null 语义与 Realm/Mongo 对齐：日期字段 null 折算为 0（epoch），
+ * 因此降序时空值自然排最后、升序时排最前。
  *
  * 纯函数，便于单测。
  *
- * @param {{field: string, descending: boolean}} sort
+ * @param {{field: string, descending: boolean, secondary?: {field: string, descending: boolean}}} sort
  * @returns {(a: Object, b: Object) => number}
  */
 export const resolveSortComparator = (sort) => {
-  const field = (sort && sort.field) || 'updated_at';
-  const descending = Boolean(sort && sort.descending);
-  // 每个条目只折算一次排序键：10 万条下避免 O(n log n) 次 Date 解析
+  const keys = normalizeComparatorKeys(sort);
+  // 每个条目每把键只折算一次：10 万条下避免 O(n log n) 次 Date 解析
   const keyCache = new Map();
 
-  const keyOf = (item) => {
+  const keysOf = (item) => {
     if (!item) {
-      return '';
+      return keys.map(() => '');
     }
     if (keyCache.has(item)) {
       return keyCache.get(item);
     }
-    const key = toComparableSortValue(item[field], field);
-    keyCache.set(item, key);
-    return key;
+    const values = keys.map((key) => toComparableSortValue(item[key.field], key.field));
+    keyCache.set(item, values);
+    return values;
   };
 
   return (left, right) => {
-    const a = keyOf(left);
-    const b = keyOf(right);
-    if (a === b) {
-      return 0;
+    const aKeys = keysOf(left);
+    const bKeys = keysOf(right);
+
+    for (let index = 0; index < keys.length; index += 1) {
+      const a = aKeys[index];
+      const b = bKeys[index];
+      if (a === b) {
+        continue;
+      }
+      const order = a > b ? 1 : -1;
+      return keys[index].descending ? -order : order;
     }
-    const order = a > b ? 1 : -1;
-    return descending ? -order : order;
+    return 0;
   };
 };
 

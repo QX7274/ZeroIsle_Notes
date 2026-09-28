@@ -23,6 +23,16 @@ import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButt
 import { showToast } from '../../components/common/ToastHelper';
 // 性能基线造数 / 清理（WS-R，仅 dev 生效；服务在非 __DEV__ 会直接抛错）
 import { seedPerfNotes, clearPerfNotes } from '../../services/dev/perfSeedService';
+// 500MB 附件缓存链路设备级验证（WS-S，仅 dev 生效；服务在非 __DEV__ 会直接抛错）
+import {
+  DEFAULT_PERF_FILE_SIZE,
+  DEFAULT_PERF_CACHE_FILE_ID,
+  getDefaultLargeFilePath,
+  createLargeFile,
+  runCacheWriteBenchmark,
+  cleanupLargeFile,
+} from '../../services/dev/cachePerfService';
+import { downloadCacheService } from '../../services/files/downloadCacheService';
 
 /** 是否 dev 构建：性能测试数据入口只在 dev 显示，生产构建 UI 保持不变 */
 const IS_DEV = typeof __DEV__ === 'undefined' ? false : Boolean(__DEV__);
@@ -30,6 +40,11 @@ const IS_DEV = typeof __DEV__ === 'undefined' ? false : Boolean(__DEV__);
 /** 10 万条性能样本参数（与 src/tests/perf/README.md 的采集步骤一致） */
 const PERF_SEED_COUNT = 100000;
 const PERF_SEED_BATCH_SIZE = 1000;
+
+/** 500MB 缓存压测参数（与 src/services/dev/cachePerfService 的默认值一致） */
+const CACHE_PERF_FILE_SIZE = DEFAULT_PERF_FILE_SIZE;
+const CACHE_PERF_FILE_SIZE_MB = Math.round(DEFAULT_PERF_FILE_SIZE / (1024 * 1024));
+const CACHE_PERF_CACHE_FILE_ID = DEFAULT_PERF_CACHE_FILE_ID;
 
 /**
  * 把耗时格式化成便于阅读的字符串
@@ -42,6 +57,22 @@ const formatElapsed = (elapsedMs) => {
     return '未知';
   }
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
+};
+
+/**
+ * 把字节数格式化成便于阅读的字符串（压测结果展示用）
+ * @param {number} bytes
+ * @returns {string}
+ */
+const formatBytes = (bytes) => {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) {
+    return '未知';
+  }
+  if (value >= 1024 * 1024 * 1024) {
+    return (value / (1024 * 1024 * 1024)).toFixed(2) + 'GB';
+  }
+  return (value / (1024 * 1024)).toFixed(1) + 'MB';
 };
 
 const OfflineDataScreen = ({ navigation }) => {
@@ -356,6 +387,112 @@ const OfflineDataScreen = ({ navigation }) => {
     });
   };
 
+  const handleCacheWriteBenchmark = () => {
+    openDialog({
+      tone: 'warning',
+      title: '500MB 缓存写入压测',
+      message: '将在设备上生成 ' + CACHE_PERF_FILE_SIZE_MB + 'MB 测试文件，并按有界分段写入附件缓存，'
+        + '用于采样 dumpsys meminfo。生成与写入期间请保持本页在前台；'
+        + '日志会打印 [cachePerf] write start/progress/finish 供外部对齐采样点。是否继续？',
+      primaryText: '开始',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        const filePath = getDefaultLargeFilePath();
+        setStatusCard({ tone: 'info', message: '正在生成 ' + CACHE_PERF_FILE_SIZE_MB + 'MB 测试文件…' });
+        try {
+          const created = await createLargeFile({
+            path: filePath,
+            sizeBytes: CACHE_PERF_FILE_SIZE,
+            onProgress: (progress) => {
+              setStatusCard({
+                tone: 'info',
+                message: '正在生成测试文件（' + formatBytes(progress.writtenBytes) + '/' + formatBytes(progress.sizeBytes) + '，'
+                  + progress.segments + ' 段）…',
+              });
+            },
+          });
+
+          setStatusCard({ tone: 'info', message: '测试文件已生成，开始写入缓存（内存采样窗口打开）…' });
+          const benchmark = await runCacheWriteBenchmark({
+            filePath: created.path,
+            sizeBytes: created.sizeBytes,
+            onProgress: (progress) => {
+              setStatusCard({
+                tone: 'info',
+                message: '缓存写入中（elapsed ' + formatElapsed(progress.elapsedMs) + '，rss '
+                  + (progress.rssKb === null ? 'n/a' : progress.rssKb + 'KB') + '）…',
+              });
+            },
+          });
+
+          const stats = await downloadCacheService.getCacheStats();
+          if (!benchmark.success) {
+            setStatusCard({
+              tone: 'error',
+              message: '缓存写入失败：' + (benchmark.error || '未知错误')
+                + '；当前缓存占用 ' + formatBytes(stats.totalSize) + '（' + stats.count + ' 项）。',
+            });
+            showToast.error('缓存写入失败');
+            return;
+          }
+
+          setStatusCard({
+            tone: 'success',
+            message: '缓存写入完成：size=' + formatBytes(benchmark.sizeBytes)
+              + '，segments=' + benchmark.segments
+              + '，elapsed=' + formatElapsed(benchmark.elapsedMs)
+              + '，peakRss=' + (benchmark.peakRssKb === null ? 'n/a' : benchmark.peakRssKb + 'KB')
+              + '；清空后缓存占用 ' + formatBytes(stats.totalSize) + '（' + stats.count + ' 项）。',
+          });
+          showToast.success('500MB 缓存写入完成');
+        } catch (e) {
+          const errorMessage = e?.message || '生成/写入 500MB 测试文件失败。';
+          setStatusCard({ tone: 'error', message: '500MB 缓存压测失败：' + errorMessage });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleCleanupCachePerfFile = () => {
+    openDialog({
+      tone: 'error',
+      title: '清理 500MB 测试文件',
+      message: '将删除设备上的 500MB 测试文件，并从附件缓存中移除对应条目。是否继续？',
+      primaryText: '清理',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        setStatusCard({ tone: 'info', message: '正在清理 500MB 测试文件…' });
+        try {
+          const removed = await cleanupLargeFile(getDefaultLargeFilePath());
+          const removedCacheEntry = await downloadCacheService.removeFromCache(CACHE_PERF_CACHE_FILE_ID);
+          const stats = await downloadCacheService.getCacheStats();
+          setStatusCard({
+            tone: removed ? 'success' : 'error',
+            message: '测试文件' + (removed ? '已删除' : '删除失败')
+              + '；缓存条目' + (removedCacheEntry ? '已移除' : '不存在')
+              + '；当前缓存占用 ' + formatBytes(stats.totalSize) + '（' + stats.count + ' 项）。',
+          });
+          if (removed) {
+            showToast.success('测试文件已清理');
+          } else {
+            showToast.error('测试文件清理失败');
+          }
+        } catch (e) {
+          const errorMessage = e?.message || '清理 500MB 测试文件失败。';
+          setStatusCard({ tone: 'error', message: '清理失败：' + errorMessage });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
   const handleClearOfflineData = () => {
     openDialog({
       tone: 'error',
@@ -642,6 +779,26 @@ const OfflineDataScreen = ({ navigation }) => {
                 disabled={isLoading}
                 testID="action.settings.offline.clearPerfNotes"
               />
+
+              <Button
+                title={'生成 500MB 测试文件并写入缓存（内存采样）'}
+                onPress={handleCacheWriteBenchmark}
+                type="outline"
+                style={styles.cachePerfButton}
+                icon="memory"
+                disabled={isLoading}
+                testID="action.settings.offline.cachePerfBenchmark"
+              />
+
+              <Button
+                title="清理 500MB 测试文件"
+                onPress={handleCleanupCachePerfFile}
+                type="outline"
+                style={styles.cachePerfCleanupButton}
+                icon="delete-sweep"
+                disabled={isLoading}
+                testID="action.settings.offline.clearCachePerfFile"
+              />
             </>
           ) : null}
 
@@ -785,6 +942,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   perfClearButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  cachePerfButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  cachePerfCleanupButton: {
     marginLeft: 16,
     marginRight: 16,
     marginBottom: 8,

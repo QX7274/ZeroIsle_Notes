@@ -183,6 +183,25 @@ describe('buildPerfFixtureNote 样本字段形态', () => {
     expect(metadata.hasContent).toBe(true);
   });
 
+  it('样本不产生文件型误触字段（不带 file_uri/uri，type 也不是文件型）', () => {
+    const baseTime = 1700000000000;
+    // 覆盖类型循环的全部取值：只测第一条会漏掉其余 type
+    const samples = Array.from({ length: 20 }, (_, index) =>
+      buildPerfFixtureNote({ index, userId: 'user-1', baseTime }),
+    );
+
+    const FILE_FIELDS = ['file_uri', 'uri', 'path', 'file_path', 'url', 'file_name', 'file_type'];
+    // 与 HomeScreen.handleFilePress 的文件型判定保持一致
+    const FILE_VIEWER_TYPES = ['pdf', 'doc', 'docx', 'word', 'ppt', 'pptx', 'markdown', 'txt', 'text'];
+
+    samples.forEach((sample) => {
+      FILE_FIELDS.forEach((field) => {
+        expect(sample[field]).toBeUndefined();
+      });
+      expect(FILE_VIEWER_TYPES).not.toContain(String(sample.type).toLowerCase());
+    });
+  });
+
   it('正文长度有长短差异', () => {
     const baseTime = 1700000000000;
     const longOne = buildPerfFixtureNote({ index: 10, userId: 'user-1', baseTime });

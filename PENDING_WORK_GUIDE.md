@@ -295,6 +295,27 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-29 进展补充（第四轮：500MB 验证工具、访问时间落库、后端真实存储与测试环境治理）
+- **500MB 附件（客户端可验证部分）**：新增 dev-only `cachePerfService`（有界分段生成 512MB 文件、
+  调用 `saveToCache` 并每 2s 打印可采样的进度、配额淘汰纯逻辑校验、幂等清理）+ 设置页两个入口；
+  性能样本类型改为 `note/card/canvas/paged_note`，消除「样本被当作文件打开」的误触
+  （根因是 `type` 命中文件型分支，不是 `file_uri`）。
+  真机上传速率与真实 LRU 淘汰仍需后端/多条目预置，属外部条件。
+- **列表最后一个功能缺口关闭**：新增 `last_opened_at`（Note schema，运行时 + models 双份同步），
+  `schemaVersion` 19→20，迁移分支**只记日志、不遍历全表**（单测断言迁移期 `objects()` 调用次数为 0）；
+  打开笔记时单字段写入（不入同步队列，属设备本地语义）；`updated_desc/recent_*` 现在下推
+  `[last_opened_at desc, updated_at desc]` 并**走分页**，不再为「最近访问」一次性取回全部 summary。
+- **后端真实存储验证**：新增 `backend/notes/tests/test_chunked_upload_local_storage.py`（6 passed），
+  用 Django `FileSystemStorage` 真实落盘/读盘验证分片拼装、8MB 真实文件、206/416 Range 与 `open_range` 契约
+  （此前契约用例把 storage 全部 mock，真实磁盘 I/O 未被验证）。
+- **后端测试环境治理**：修掉 `backend/sync/tests/test_sync_urls.py` 的失效路径（原指向不存在的
+  `backend/urls.py`，且断言只认字面量 `include('sync.urls')`，URLconf 早已改为路由表 + 循环 include）
+  → 该文件 4 passed；修掉 `backend/notes/tests/test_note_service.py` 传入 Note 文档不存在的 `type` 字段。
+  仍受阻的部分已登记为 `RISK-BE-002`（pymongo4 + mongomock + mongoengine 的 UUID 编码不兼容，30 项失败）
+  与需真实 Mongo 的 9 项失败。
+- **新登记 `RISK-DEV-WIPE-001`**：开发构建 `deleteRealmIfMigrationNeeded` 启用，schema 变更会**清空本地库**；
+  本轮 19→20 升级即清掉了 100,007 条性能样本，也使得「真机迁移验证」在 dev 构建下不可能完成。
+- 门禁：全量 Jest `76/76 suites、662/662 tests`；`eslint .` `0 errors / 1204 warnings`。
 ## 2026-09-29 进展补充（第三轮：后端本机验收 + 10 万条基线 + 死路由修复）
 - **后端在本机恢复验收**：Conda 环境 `ZeroIsle` 位于 `/opt/anaconda3/envs/ZeroIsle`（Django 4.2.20）。
   根目录 `python -X utf8 -m pytest -q -rs` → **21 passed / 2 skipped**（跳过项仍是登录/注册外部 HTTP）；

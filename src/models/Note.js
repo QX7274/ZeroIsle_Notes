@@ -4,7 +4,7 @@
 
 import Realm from 'realm';
 const { materializePage } = require('./utils/queryPagination');
-const { materializeNoteSummaries } = require('./utils/noteProjection');
+const { toNoteSummary } = require('./utils/noteProjection');
 
 /**
  * Realm 可下推的排序字段白名单（里程碑 5.1：列表分页要求排序在 Realm 侧完成）。
@@ -16,6 +16,7 @@ const { materializeNoteSummaries } = require('./utils/noteProjection');
 const REALM_SORTABLE_FIELDS = Object.freeze([
   'updated_at',
   'created_at',
+  'last_opened_at',
   'title',
   'type',
   'file_size',
@@ -32,17 +33,43 @@ const SORT_FIELD_ALIASES = Object.freeze({
 });
 
 /**
- * 归一化排序入参，产出 Realm 可直接下推的 { field, descending }。
+ * 归一化次级排序键（可选的第二把排序键）。
+ *
+ * 用途（WS-T）：「最近访问」= last_opened_at desc，但历史/从未打开的笔记该字段为 null，
+ * 只按它排会让这部分笔记顺序不确定；因此追加 updated_at 作为次级键，
+ * 形成「有访问时间按访问时间、没有的按更新时间」的确定性顺序，且仍可整体下推 Realm
+ * （Realm 的 sorted() 支持 [[field, desc], [field2, desc2]] 多键）。
+ *
+ * @param {Object|null} secondary
+ * @returns {{field: string, descending: boolean}|null}
+ */
+const normalizeSecondarySort = (secondary) => {
+  if (!secondary || typeof secondary !== 'object' || typeof secondary.field !== 'string') {
+    return null;
+  }
+  if (!REALM_SORTABLE_FIELDS.includes(secondary.field)) {
+    return null;
+  }
+  return {
+    field: secondary.field,
+    descending: secondary.descending === true || secondary.direction === -1,
+  };
+};
+
+/**
+ * 归一化排序入参，产出 Realm 可直接下推的 { field, descending }（可带 secondary）。
  *
  * 兼容三种写法：
  * - { field: 'created_at', descending: true }  （新式：显式声明可下推字段）
+ * - { field: 'last_opened_at', descending: true, secondary: { field: 'updated_at', descending: true } }
+ *                                              （多键：用于「最近访问」+ 未访问兜底）
  * - { title: 1 } / { title: -1 }               （历史 Mongo 风格，-1 = 降序）
  * - 'updated_desc' / 'title_asc' / 'created_at'（字符串简写）
  *
  * 无法解析或不在白名单内时返回 null，由调用方回退默认 updated_at desc。
  *
  * @param {Object|string|null} sort
- * @returns {{field: string, descending: boolean}|null}
+ * @returns {{field: string, descending: boolean, secondary?: {field: string, descending: boolean}}|null}
  */
 const normalizeRealmSort = (sort) => {
   if (!sort) {
@@ -62,12 +89,15 @@ const normalizeRealmSort = (sort) => {
   }
 
   if (typeof sort.field === 'string') {
-    return REALM_SORTABLE_FIELDS.includes(sort.field)
-      ? {
-        field: sort.field,
-        descending: sort.descending === true || sort.direction === -1,
-      }
-      : null;
+    if (!REALM_SORTABLE_FIELDS.includes(sort.field)) {
+      return null;
+    }
+    const primary = {
+      field: sort.field,
+      descending: sort.descending === true || sort.direction === -1,
+    };
+    const secondary = normalizeSecondarySort(sort.secondary);
+    return secondary ? { ...primary, secondary } : primary;
   }
 
   const field = Object.keys(sort)[0];
@@ -101,6 +131,9 @@ class Note extends Realm.Object {
       created_at: { type: 'date', indexed: true },
       updated_at: { type: 'date', indexed: true },
       deleted_at: { type: 'date', optional: true },
+      // 「最近访问」落库字段（WS-T），与运行时 schema（realmModels.js）保持一致：
+      // 打开笔记时单字段写入；可空，历史数据由 Realm 迁移自动补 null。
+      last_opened_at: { type: 'date', optional: true },
       // 与运行时 schema（src/services/database/realmModels.js）保持一致：user_id 可空。
       // 历史写入路径会落 null / 空串（无主笔记），读取侧按「当前用户 + 无主」谓词兼容，
       // 因此这里必须声明为可空，避免声明与真实数据形态不一致（RISK-SCHEMA-001）。
@@ -372,7 +405,13 @@ class Note extends Realm.Object {
       );
     }
     if (sortSpec) {
-      results = results.sorted(sortSpec.field, sortSpec.descending);
+      // 多键排序（如「最近访问」= last_opened_at desc, updated_at desc）同样完全下推 Realm
+      results = sortSpec.secondary
+        ? results.sorted([
+          [sortSpec.field, sortSpec.descending],
+          [sortSpec.secondary.field, sortSpec.secondary.descending],
+        ])
+        : results.sorted(sortSpec.field, sortSpec.descending);
     } else {
       results = results.sorted(DEFAULT_SORT_FIELD, DEFAULT_SORT_DESCENDING);
     }
@@ -421,7 +460,22 @@ class Note extends Realm.Object {
       ? { skip: options.skip || 0, limit: options.limit || 20 }
       : {};
 
-    return materializeNoteSummaries(results, pageOptions);
+    // 与 materializeNoteSummaries 完全等价（先 materializePage 取当前页，再 toNoteSummary 投影），
+    // 只是额外把 last_opened_at 这个标量随页带出（WS-T）：
+    // 「最近访问」排序 = [last_opened_at, updated_at]，前端 Redux adapter 会按 updated_at 重排，
+    // 少了这个标量就无法在客户端复现 Realm 的分页顺序，跨页会出现乱序。
+    // 理想做法是把它加进 NOTE_SUMMARY_FIELDS（src/models/utils/noteProjection.js，本任务 scope 外），
+    // 这里先做等价的「按页补充标量」，物化上界仍是当前页。
+    return materializePage(results, pageOptions)
+      .map((note) => {
+        const summary = toNoteSummary(note);
+        if (!summary) {
+          return null;
+        }
+        summary.last_opened_at = note.last_opened_at === undefined ? null : note.last_opened_at;
+        return summary;
+      })
+      .filter((summary) => summary !== null);
   }
 
   /**

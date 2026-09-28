@@ -45,8 +45,16 @@ export const MAX_PERF_SEED_COUNT = 200000;
 
 const LOG_PREFIX = '[perfSeed]';
 
-/** 样本类型循环：贴近真实笔记/文档列表的混合形态 */
-const FIXTURE_TYPES = Object.freeze(['text', 'markdown', 'card', 'pdf', 'canvas']);
+/**
+ * 样本类型循环：只使用「普通笔记」类型。
+ *
+ * 回归（首页误触「文件错误」）：HomeScreen.handleFilePress 会把
+ * type === 'text' / 'markdown' / 'pdf' / 'doc(x)' / 'ppt(x)' 的条目判定为文件型，
+ * 在没有 file_uri/uri 时直接弹「文件错误：路径不存在或导入失败，请删除后重新导入」。
+ * 性能样本本来就不带任何文件路径字段，因此这里必须避开文件型 type，
+ * 只用 note / card / canvas / paged_note 这类普通笔记类型做区分。
+ */
+const FIXTURE_TYPES = Object.freeze(['note', 'card', 'canvas', 'paged_note']);
 
 /**
  * 是否处于 dev 构建。放在函数里读取，便于单测临时改写 global.__DEV__。

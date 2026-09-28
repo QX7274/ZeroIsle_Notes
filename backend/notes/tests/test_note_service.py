@@ -9,11 +9,12 @@ User = get_user_model()
 class NoteServiceTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='testuser', password='password')
+        # mongoengine 的 Note 文档没有 type 字段（见 notes/mongodb_models/note.py），
+        # 传它会直接 FieldDoesNotExist；这里只保留文档真实声明的字段。
         self.note = Note.objects.create(
             title="Original Title",
             content="Original Content",
             user=self.user,
-            type="text"
         )
 
     def test_create_note_version(self):

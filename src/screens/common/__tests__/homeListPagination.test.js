@@ -1,11 +1,12 @@
 /**
- * 首页列表分页决策（里程碑 5.1 续 / WS-P）
+ * 首页列表分页决策（里程碑 5.1 续 / WS-P、WS-T）
  *
  * 纯逻辑住在 src/services/offline/getNotes.js（列表查询的所有者，且在本任务 write scope 内），
  * 用例按任务要求放在 src/screens/common/__tests__。
  *
  * 覆盖：
- * 1. 哪些排序可下推 Realm 并可分页（updated_at / created_at），哪些不可（title/type/size）；
+ * 1. 哪些排序可下推 Realm 并可分页（最近访问/updated_at/created_at），哪些不可（title/type/size）；
+ *    WS-T 之后「最近访问」= [last_opened_at, updated_at] 双键，同样可下推并分页；
  * 2. 分页状态机：页未满 -> hasMore=false；页满 -> hasMore=true；不可下推 -> hasMore 恒为 false；
  * 3. 10 万条下的推进次数与「不会一次读全表」的语义（每页条数 <= pageSize）。
  */
@@ -49,6 +50,27 @@ describe('resolveSortComparator 与 Realm 等价的排序比较器', () => {
     expect(second).toEqual(first);
   });
 
+  test('最近访问（双键）：访问过的按访问时间，null 排最后并按 updated_at 兜底', () => {
+    const comparator = resolveSortComparator({
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'updated_at', descending: true },
+    });
+    const rows = [
+      { _id: 'never-opened-new', last_opened_at: null, updated_at: '2024-05-01T00:00:00.000Z' },
+      { _id: 'opened-old', last_opened_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
+      { _id: 'opened-new', last_opened_at: '2024-06-01T00:00:00.000Z', updated_at: '2023-01-01T00:00:00.000Z' },
+      { _id: 'never-opened-old', last_opened_at: null, updated_at: '2024-02-01T00:00:00.000Z' },
+    ];
+
+    expect([...rows].sort(comparator).map((item) => item._id)).toEqual([
+      'opened-new',
+      'opened-old',
+      'never-opened-new',
+      'never-opened-old',
+    ]);
+  });
+
   test('字符串字段与缺失值不会抛错', () => {
     const rows = [
       { _id: 'a', title: 'b' },
@@ -62,11 +84,33 @@ describe('resolveSortComparator 与 Realm 等价的排序比较器', () => {
 });
 
 describe('resolveListSortPolicy 排序可下推判定', () => {
-  test('时间型排序可下推 Realm 并可分页', () => {
+  test('「最近访问」排序（WS-T）：last_opened_at 主键 + updated_at 兜底，且可下推分页', () => {
+    const expectedRecentDesc = {
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'updated_at', descending: true },
+    };
+
     expect(resolveListSortPolicy('updated_desc')).toMatchObject({
       paginated: true,
-      sort: { field: 'updated_at', descending: true },
+      sort: expectedRecentDesc,
     });
+    expect(resolveListSortPolicy('recent_desc')).toMatchObject({
+      paginated: true,
+      sort: expectedRecentDesc,
+    });
+    expect(resolveListSortPolicy('recent_asc')).toMatchObject({
+      paginated: true,
+      sort: {
+        field: 'last_opened_at',
+        descending: false,
+        secondary: { field: 'updated_at', descending: false },
+      },
+    });
+    expect(resolveListSortPolicy('updated_desc').reason).toContain('last_opened_at');
+  });
+
+  test('时间型排序可下推 Realm 并可分页', () => {
     expect(resolveListSortPolicy('updated_asc')).toMatchObject({
       paginated: true,
       sort: { field: 'updated_at', descending: false },
@@ -94,14 +138,20 @@ describe('resolveListSortPolicy 排序可下推判定', () => {
     expect(resolveListSortPolicy('type').reason).toContain('复合');
   });
 
-  test('未知/空排序按默认 updated_at 降序处理（与 sortNotes 默认分支一致）', () => {
+  test('未知/空排序按默认「最近访问」处理（与 UI 默认 updated_desc 一致）', () => {
+    const expectedRecentDesc = {
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'updated_at', descending: true },
+    };
+
     expect(resolveListSortPolicy(undefined)).toMatchObject({
       paginated: true,
-      sort: { field: 'updated_at', descending: true },
+      sort: expectedRecentDesc,
     });
     expect(resolveListSortPolicy('something_new')).toMatchObject({
       paginated: true,
-      sort: { field: 'updated_at', descending: true },
+      sort: expectedRecentDesc,
     });
   });
 });
@@ -123,7 +173,12 @@ describe('createListPaginationState / applyListPageResult 状态机', () => {
 
     expect(state).toMatchObject({
       paginated: true,
-      sort: { field: 'updated_at', descending: true },
+      // WS-T：默认 updated_desc = 「最近访问」双键
+      sort: {
+        field: 'last_opened_at',
+        descending: true,
+        secondary: { field: 'updated_at', descending: true },
+      },
       pageSize: 50,
       skip: 0,
       hasMore: true,

@@ -33,6 +33,8 @@ const createRow = (index) => ({
   is_synced: true,
   created_at: new Date(1700000000000 + index),
   updated_at: new Date(1700000000000 + index),
+  // 「最近访问」落库字段（WS-T）：默认 null（从未打开过）
+  last_opened_at: null,
   user_id: 'user-1',
   metadata: '{}',
   file_path: null,
@@ -82,10 +84,19 @@ const createRealm = (rows) => {
 };
 
 describe('Note.normalizeRealmSort（排序归一化）', () => {
-  test('白名单只含 schema 中的标量字段', () => {
+  test('白名单只含 schema 中的标量字段（含 WS-T 的 last_opened_at）', () => {
     expect(REALM_SORTABLE_FIELDS).toEqual(
-      expect.arrayContaining(['updated_at', 'created_at', 'title', 'type', 'file_size']),
+      expect.arrayContaining([
+        'updated_at',
+        'created_at',
+        'last_opened_at',
+        'title',
+        'type',
+        'file_size',
+      ]),
     );
+    expect(REALM_SORTABLE_FIELDS).not.toContain('content');
+    expect(REALM_SORTABLE_FIELDS).not.toContain('pages');
   });
 
   test('兼容新式、Mongo 风格与字符串三种写法', () => {
@@ -98,6 +109,30 @@ describe('Note.normalizeRealmSort（排序归一化）', () => {
     expect(normalizeRealmSort('updated_desc')).toEqual({ field: 'updated_at', descending: true });
     expect(normalizeRealmSort('title_asc')).toEqual({ field: 'title', descending: false });
     expect(normalizeRealmSort('created_at')).toEqual({ field: 'created_at', descending: true });
+  });
+
+  test('多键（最近访问）：主键 last_opened_at + 次级键 updated_at', () => {
+    expect(normalizeRealmSort({
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'updated_at', descending: true },
+    })).toEqual({
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'updated_at', descending: true },
+    });
+
+    // 次级键非法（不在白名单 / 结构不对）时退化为单键，不影响主键下推
+    expect(normalizeRealmSort({
+      field: 'last_opened_at',
+      descending: true,
+      secondary: { field: 'content', descending: true },
+    })).toEqual({ field: 'last_opened_at', descending: true });
+    expect(normalizeRealmSort({
+      field: 'last_opened_at',
+      descending: true,
+      secondary: 'updated_at',
+    })).toEqual({ field: 'last_opened_at', descending: true });
   });
 
   test('未知字段 / 非法入参返回 null（由调用方回退默认排序）', () => {
@@ -130,6 +165,27 @@ describe('Note.findByUserSummaries 排序下推与分页物化', () => {
     // 排序参数原样下推
     expect(sortedArgs).toEqual([['created_at', true]]);
     // summary 不含正文
+    expect(page[0]).not.toHaveProperty('content');
+  });
+
+  test('多键排序整体下推：Realm.sorted 收到 [[last_opened_at,true],[updated_at,true]]', () => {
+    const { sortedArgs, realm } = createRealm(createRows(10));
+
+    const page = Note.findByUserSummaries(realm, 'user-1', {
+      skip: 0,
+      limit: 5,
+      sort: {
+        field: 'last_opened_at',
+        descending: true,
+        secondary: { field: 'updated_at', descending: true },
+      },
+    });
+
+    expect(sortedArgs).toEqual([
+      [[['last_opened_at', true], ['updated_at', true]], undefined],
+    ]);
+    // summary 需要带上排序键，前端才能复现 Realm 的分页顺序（WS-T）
+    expect(page[0]).toHaveProperty('last_opened_at', null);
     expect(page[0]).not.toHaveProperty('content');
   });
 

@@ -149,6 +149,7 @@ jest.mock('../../auth/authStorage', () => ({
 const {
   getNotesFromOfflineStorage,
   getNoteSummariesFromOfflineStorage,
+  markNoteOpenedAt,
 } = require('../getNotes');
 
 describe('getNotesFromOfflineStorage 列表主链', () => {
@@ -337,5 +338,79 @@ describe('getNoteSummariesFromOfflineStorage 列表字段裁剪', () => {
     expect(userCall).toBeDefined();
     expect(userCall.query).toContain('user_id = "dev-account-001"');
     expect(userCall.query).toContain('user_id = ""');
+  });
+});
+
+/**
+ * WS-T：「最近访问」落库。打开笔记时单字段写 Note.last_opened_at，
+ * 让列表「最近访问」排序可以下推 Realm 并分页。
+ */
+describe('markNoteOpenedAt 最近访问落库（WS-T）', () => {
+  /** 记录被赋值的字段名，用于证明「只写一个字段」 */
+  const createTrackedRealm = (note) => {
+    const assigned = [];
+    const proxy = note
+      ? new Proxy(note, {
+        set(target, key, value) {
+          assigned.push(String(key));
+          target[key] = value;
+          return true;
+        },
+      })
+      : null;
+
+    return {
+      assigned,
+      realm: {
+        write: jest.fn((callback) => callback()),
+        objectForPrimaryKey: jest.fn(() => proxy),
+      },
+    };
+  };
+
+  test('单字段写入：只写 last_opened_at，不刷新 updated_at / metadata', async () => {
+    const note = {
+      _id: 'note-1',
+      title: '标题',
+      content: '正文',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      metadata: '{"previewText":"正文"}',
+      last_opened_at: null,
+    };
+    const { assigned, realm } = createTrackedRealm(note);
+
+    await expect(markNoteOpenedAt('note-1', { realm })).resolves.toBe(true);
+
+    expect(assigned).toEqual(['last_opened_at']);
+    expect(note.last_opened_at).toBeInstanceOf(Date);
+    expect(note.updated_at).toBe('2024-01-01T00:00:00.000Z');
+    expect(note.metadata).toBe('{"previewText":"正文"}');
+    expect(realm.objectForPrimaryKey).toHaveBeenCalledWith('Note', 'note-1');
+  });
+
+  test('笔记不存在 / 空 id / 临时 id / realm 不可用：返回 false 且不抛错', async () => {
+    const realm = createTrackedRealm(null).realm;
+
+    await expect(markNoteOpenedAt('missing', { realm })).resolves.toBe(false);
+    await expect(markNoteOpenedAt('', { realm })).resolves.toBe(false);
+    await expect(markNoteOpenedAt(null, { realm })).resolves.toBe(false);
+    await expect(markNoteOpenedAt(undefined, { realm })).resolves.toBe(false);
+    await expect(markNoteOpenedAt('temp_1700000000', { realm })).resolves.toBe(false);
+    await expect(markNoteOpenedAt('note-1', { realm: {} })).resolves.toBe(false);
+  });
+
+  test('realm 抛错时只告警，不抛给调用方（不得阻断打开流程）', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const realm = {
+      write: () => {
+        throw new Error('realm 不可用');
+      },
+      objectForPrimaryKey: () => null,
+    };
+
+    await expect(markNoteOpenedAt('note-1', { realm })).resolves.toBe(false);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
   });
 });

@@ -63,6 +63,7 @@ import {
   resolveListSortPolicy,
   resolveSortComparator,
   computeHasMore,
+  markNoteOpenedAt,
 } from '../../services/offline/getNotes';
 // 写入侧打标（HomeScreen 自己直写 Realm 的三处）：直接用 notePreview 既有导出
 import { buildNotePreview, mergePreviewMetadata } from '../../models/utils/notePreview';
@@ -184,11 +185,13 @@ const previewSelfHealController = createPreviewSelfHealController({
  * 需要正文的路径必须用 resolveItemContent(item, notesApi.getById) 按 id 延迟加载，
  * 绝不能直接读 item.content。
  *
- * 分页（WS-P）：
- * - 当前排序可下推 Realm（updated_desc/asc、created_desc/asc）时，只取第一页
- *   （LIST_PAGE_SIZE），后续页由「触底/加载更多」按 skip 追加 —— 首页首屏不再 O(n) 物化；
- * - 排序无法下推 Realm（title/type/size，含「最近访问」权重）时，保持既有
- *   「一次性取全量 summary + JS 侧 sortNotes」，避免跨页顺序不一致（详见 resolveListSortPolicy）。
+ * 分页（WS-P / WS-T）：
+ * - 当前排序可下推 Realm 时，只取第一页（LIST_PAGE_SIZE），后续页由「触底/加载更多」
+ *   按 skip 追加 —— 首页首屏不再 O(n) 物化。可下推集合 = updated_desc/recent_desc/asc
+ *   （last_opened_at 主键 + updated_at 兜底，WS-T 落库后「最近访问」也能分页）、
+ *   updated_asc、created_desc/asc；
+ * - 排序无法下推 Realm（title/type/size）时，保持既有「一次性取全量 summary + JS 侧 sortNotes」，
+ *   避免跨页顺序不一致（详见 resolveListSortPolicy）。
  * - 任何异常 / 空结果依然回退 getAllNotes()，保证最坏情况与今天一致。
  *
  * @param {string} [sortOption] 当前 UI 排序 id
@@ -2539,6 +2542,9 @@ Week 4: □□□□□□□
 
     // 处理文件点击（异步：轻量 summary 的正文需要按 id 延迟加载）
     const handleFilePress = async (item) => {
+      // 记录「最近访问」（WS-T）：单字段写入 Note.last_opened_at，不 await、不阻塞导航
+      markNoteOpenedAt(item && (item._id || item.id));
+
       // 统一提取可能的文件 uri
       const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
 
@@ -3102,6 +3108,8 @@ Week 4: □□□□□□□
         onPress={() => {
           const handleFilePress = async (item) => {
             // 处理文件点击的逻辑（异步：轻量 summary 的正文需要按 id 延迟加载）
+            // 记录「最近访问」（WS-T）：单字段写入 Note.last_opened_at，不 await、不阻塞导航
+            markNoteOpenedAt(item && (item._id || item.id));
             const possibleUris = [item.file_uri, item.uri, item.path, item.file_path, item.url].filter(Boolean);
             const name = item.file_name || item.title || '';
             const uri = possibleUris[0] || '';

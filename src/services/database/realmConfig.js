@@ -29,7 +29,7 @@ export const MONGODB_CONFIG = {
  */
 export const getRealmConfig = () => {
   // 基本配置 - 不使用同步功能
-  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本: 19');
+  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本: 20');
   if (__DEV__) {
     console.log('⚠️ [RealmConfig] 开发模式启用 deleteRealmIfMigrationNeeded，将清空并重建本地 Realm 数据库');
   } else {
@@ -37,7 +37,7 @@ export const getRealmConfig = () => {
   }
   const config = {
     schema: getAllSchemas(),
-    schemaVersion: 19, // 增加上传会话的 noteId/attachmentId 字段
+    schemaVersion: 20, // 增加 Note.last_opened_at（「最近访问」排序落库，WS-T）
     path: `${MONGODB_CONFIG.dbName}.realm`,
     deleteRealmIfMigrationNeeded: __DEV__, // 开发环境清库
     migration: (oldRealm, newRealm) => {
@@ -60,6 +60,17 @@ export const getRealmConfig = () => {
       if (oldRealm.schemaVersion < 19) {
         console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 19');
         console.info('✅ [安全迁移] 添加 UploadSession.noteId/attachmentId 字段');
+      }
+
+      if (oldRealm.schemaVersion < 20) {
+        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 20');
+        // 只新增「可选属性」Note.last_opened_at（date?）：
+        // - Realm 会为既有对象自动补 null，**不需要遍历全表写值**（避免大库迁移阻塞/写放大）；
+        // - 对既有数据无损、可解释、可回滚：该字段只是「最近访问」排序的加速信息，
+        //   为 null 时排序按 updated_at 兜底（见 src/models/Note.js 与 getNotes.resolveListSortPolicy）；
+        // - 兼容性风险：Realm 不允许 schemaVersion 回退，旧客户端（19）直接读新库会因属性未知而打不开，
+        //   降级安装需清库或使用同版本客户端；升级路径本身无数据丢失。
+        console.info('✅ [安全迁移] 添加 Note.last_opened_at 可选字段（历史笔记为 null，按 updated_at 兜底）');
       }
 
       // 处理syncStatus和lastBackupAt字段添加的迁移

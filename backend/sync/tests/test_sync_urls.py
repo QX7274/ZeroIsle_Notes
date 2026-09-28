@@ -1,5 +1,6 @@
 import ast
 import unittest
+from pathlib import Path
 
 from django.conf import settings
 import django
@@ -16,6 +17,11 @@ if not settings.configured:
         USE_TZ=True,
     )
     django.setup()
+
+# Django 项目包位于 <repo>/backend/backend/，仓库里**没有** backend/urls.py。
+# 以前的用例硬编码相对路径 'backend/urls.py'，导致从任何工作目录运行都会 FileNotFoundError。
+# 这里改为基于 __file__ 解析，避免依赖调用方的工作目录。
+ROOT_URLS_PATH = Path(__file__).resolve().parents[2] / 'backend' / 'urls.py'
 
 from sync.urls import urlpatterns
 from sync.views import (
@@ -50,51 +56,32 @@ class SyncUrlsContractTests(unittest.TestCase):
             self.assertIs(actual[route_name][1], view_cls)
 
     def test_project_root_urls_include_sync_module(self):
-        with open('backend/urls.py', 'r', encoding='utf-8') as f:
-            content = f.read()
+        content = ROOT_URLS_PATH.read_text(encoding='utf-8')
 
         tree = ast.parse(content)
+
+        # 根 URLconf 目前有两种挂载风格，二者都应被接受：
+        # 1) 直接 include('sync.urls')；
+        # 2) 在「路由表」中以 (f'{api_prefix}sync/', 'sync.urls') 元组登记，再由循环 include(module_path)。
+        #    历史用例只认第 1 种字面量写法，URLconf 重构后会误报「sync 未挂载」。
         include_sync_found = False
-
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-
-            if not isinstance(node.func, ast.Attribute):
-                continue
-
-            if not isinstance(node.func.value, ast.Name):
-                continue
-
-            if node.func.value.id != 'urlpatterns' or node.func.attr != 'append':
-                continue
-
-            if not node.args:
-                continue
-
-            arg0 = node.args[0]
-            if not isinstance(arg0, ast.Call):
-                continue
-
-            if not isinstance(arg0.func, ast.Name) or arg0.func.id != 'path':
-                continue
-
-            has_sync_include = False
-            for sub in ast.walk(arg0):
-                if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id == 'include':
-                    if sub.args and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == 'sync.urls':
-                        has_sync_include = True
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'include':
+                if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == 'sync.urls':
+                    include_sync_found = True
+                    break
+            if isinstance(node, (ast.Tuple, ast.List)):
+                for element in node.elts:
+                    if isinstance(element, ast.Constant) and element.value == 'sync.urls':
+                        include_sync_found = True
                         break
-
-            if has_sync_include:
-                include_sync_found = True
+            if include_sync_found:
                 break
 
-        self.assertTrue(include_sync_found, 'backend/urls.py 必须包含 include(\'sync.urls\') 的 sync 主路由挂载')
+        self.assertTrue(include_sync_found, 'backend/backend/urls.py 必须在根 URLconf 中挂载 sync.urls（include 或路由表登记）')
 
     def test_project_root_api_prefix_and_sync_path_contract(self):
-        with open('backend/urls.py', 'r', encoding='utf-8') as f:
-            content = f.read()
+        content = ROOT_URLS_PATH.read_text(encoding='utf-8')
 
         tree = ast.parse(content)
 
@@ -108,6 +95,25 @@ class SyncUrlsContractTests(unittest.TestCase):
                         if isinstance(node.value, ast.Constant):
                             api_prefix_value = node.value.value
 
+            # 风格 2：路由表登记 (f'{api_prefix}sync/', 'sync.urls')，
+            # 实际 path() 由循环 path(route, include(module_path)) 构造，因此不能在 path() 上找字面量。
+            if isinstance(node, (ast.Tuple, ast.List)) and len(node.elts) == 2:
+                route_node, module_node = node.elts
+                if (
+                    isinstance(module_node, ast.Constant)
+                    and module_node.value == 'sync.urls'
+                    and isinstance(route_node, ast.JoinedStr)
+                ):
+                    raw_segments = []
+                    for seg in route_node.values:
+                        if isinstance(seg, ast.Constant) and isinstance(seg.value, str):
+                            raw_segments.append(seg.value)
+                        elif isinstance(seg, ast.FormattedValue) and isinstance(seg.value, ast.Name):
+                            raw_segments.append('{' + seg.value.id + '}')
+                    if ''.join(raw_segments) == '{api_prefix}sync/':
+                        has_sync_path_with_api_prefix = True
+
+            # 风格 1：path(f'{api_prefix}sync/', include('sync.urls'))
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'path':
                 if not node.args:
                     continue
@@ -123,16 +129,20 @@ class SyncUrlsContractTests(unittest.TestCase):
                     elif isinstance(seg, ast.FormattedValue) and isinstance(seg.value, ast.Name):
                         raw_segments.append('{' + seg.value.id + '}')
 
-                joined = ''.join(raw_segments)
-                if joined == '{api_prefix}sync/':
-                    for sub in ast.walk(node):
-                        if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id == 'include':
-                            if sub.args and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == 'sync.urls':
-                                has_sync_path_with_api_prefix = True
-                                break
+                if ''.join(raw_segments) != '{api_prefix}sync/':
+                    continue
+
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id == 'include':
+                        if sub.args and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == 'sync.urls':
+                            has_sync_path_with_api_prefix = True
+                            break
 
         self.assertEqual(api_prefix_value, 'api/v1/')
-        self.assertTrue(has_sync_path_with_api_prefix, "sync 主路由必须通过 api_prefix 拼接为 /api/v1/sync/")
+        self.assertTrue(
+            has_sync_path_with_api_prefix,
+            "sync 主路由必须通过 api_prefix 拼接为 /api/v1/sync/（include 或路由表登记）",
+        )
 
     def test_sync_url_route_names_and_paths_are_unique(self):
         route_names = [pattern.name for pattern in urlpatterns]
