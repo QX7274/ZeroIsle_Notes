@@ -7,6 +7,79 @@ const { materializePage } = require('./utils/queryPagination');
 const { materializeNoteSummaries } = require('./utils/noteProjection');
 
 /**
+ * Realm 可下推的排序字段白名单（里程碑 5.1：列表分页要求排序在 Realm 侧完成）。
+ *
+ * Realm 的 `sorted(field, descending)` 只接受 schema 中声明的标量字段，未知字段会直接抛错；
+ * 这里显式白名单化，未知字段统一回退默认排序，避免列表因为一个排序参数而整体失败。
+ * 字段与 Note schema（src/models/Note.js / src/services/database/realmModels.js）一一对应。
+ */
+const REALM_SORTABLE_FIELDS = Object.freeze([
+  'updated_at',
+  'created_at',
+  'title',
+  'type',
+  'file_size',
+]);
+
+/** 默认排序：updated_at 降序（与历史行为一致） */
+const DEFAULT_SORT_FIELD = 'updated_at';
+const DEFAULT_SORT_DESCENDING = true;
+
+/** 排序字符串里的字段别名（'updated_desc' -> updated_at） */
+const SORT_FIELD_ALIASES = Object.freeze({
+  updated: 'updated_at',
+  created: 'created_at',
+});
+
+/**
+ * 归一化排序入参，产出 Realm 可直接下推的 { field, descending }。
+ *
+ * 兼容三种写法：
+ * - { field: 'created_at', descending: true }  （新式：显式声明可下推字段）
+ * - { title: 1 } / { title: -1 }               （历史 Mongo 风格，-1 = 降序）
+ * - 'updated_desc' / 'title_asc' / 'created_at'（字符串简写）
+ *
+ * 无法解析或不在白名单内时返回 null，由调用方回退默认 updated_at desc。
+ *
+ * @param {Object|string|null} sort
+ * @returns {{field: string, descending: boolean}|null}
+ */
+const normalizeRealmSort = (sort) => {
+  if (!sort) {
+    return null;
+  }
+
+  if (typeof sort === 'string') {
+    const matched = /^(.+)_(asc|desc)$/.exec(sort);
+    const rawField = matched ? matched[1] : sort;
+    const field = SORT_FIELD_ALIASES[rawField] || rawField;
+    const descending = matched ? matched[2] === 'desc' : DEFAULT_SORT_DESCENDING;
+    return REALM_SORTABLE_FIELDS.includes(field) ? { field, descending } : null;
+  }
+
+  if (typeof sort !== 'object') {
+    return null;
+  }
+
+  if (typeof sort.field === 'string') {
+    return REALM_SORTABLE_FIELDS.includes(sort.field)
+      ? {
+        field: sort.field,
+        descending: sort.descending === true || sort.direction === -1,
+      }
+      : null;
+  }
+
+  const field = Object.keys(sort)[0];
+  if (!field) {
+    return null;
+  }
+  return REALM_SORTABLE_FIELDS.includes(field)
+    ? { field, descending: sort[field] === -1 }
+    : null;
+};
+
+/**
  * 笔记模型定义
  */
 class Note extends Realm.Object {
@@ -290,13 +363,18 @@ class Note extends Realm.Object {
 
     let results = realm.objects('Note').filtered(query);
 
-    // 排序
-    if (options.sort) {
-      const sortField = Object.keys(options.sort)[0];
-      const sortOrder = options.sort[sortField] === -1;
-      results = results.sorted(sortField, sortOrder);
+    // 排序：仅在白名单字段上做 Realm 侧下推；未传 sort 时保持历史行为（updated_at desc）
+    const sortSpec = normalizeRealmSort(options.sort);
+    if (options.sort && !sortSpec) {
+      console.warn(
+        `Note._queryUserResults: 排序字段无法下推 Realm，回退 ${DEFAULT_SORT_FIELD} desc:`,
+        options.sort,
+      );
+    }
+    if (sortSpec) {
+      results = results.sorted(sortSpec.field, sortSpec.descending);
     } else {
-      results = results.sorted('updated_at', true);
+      results = results.sorted(DEFAULT_SORT_FIELD, DEFAULT_SORT_DESCENDING);
     }
 
     return results;
@@ -440,3 +518,4 @@ class Note extends Realm.Object {
 }
 
 export default Note;
+export { REALM_SORTABLE_FIELDS, DEFAULT_SORT_FIELD, DEFAULT_SORT_DESCENDING, normalizeRealmSort };

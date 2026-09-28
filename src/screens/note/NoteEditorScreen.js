@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { MarkdownEditorIntegration } from '../../components/common';
 import realmService from '../../services/database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { addBlockIdsToMarkdown } from '../../utils/markdownBlockUtils';
 // BSON 类型直接从 realm 包导出，避免依赖未声明的 @realm/react
 import { BSON } from 'realm';
@@ -139,13 +140,13 @@ const NoteEditorScreen = ({ route, navigation }) => {
           {
             text: 'Create',
             onPress: async () => {
-              const newNote = await realmService.create('Note', {
+              const newNote = await realmService.create('Note', withPreviewMetadata({
                 _id: new BSON.UUID().toHexString(),
                 title: title,
                 content: '',
                 created_at: new Date(),
                 updated_at: new Date(),
-              });
+              }));
               navigation.push('NoteEditor', { noteId: newNote._id });
             },
           },

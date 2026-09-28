@@ -8,6 +8,7 @@ import notesApi from '../api/notesApi';
 import RNFS from 'react-native-fs';
 import uiSafeProcessor from './uiSafeProcessor';
 import realmService from '../database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 
 class NonBlockingPPTProcessor {
   constructor() {
@@ -416,7 +417,7 @@ class NonBlockingPPTProcessor {
         try {
           realm.write(() => {
             // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-            result = realm.create('Note', noteData, 'modified');
+            result = realm.create('Note', withPreviewMetadata(noteData), 'modified');
             console.log('NonBlockingPPTProcessor: 数据库写入完成');
           });
           clearTimeout(timeout);

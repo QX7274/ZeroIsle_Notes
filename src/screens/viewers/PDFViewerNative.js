@@ -29,6 +29,7 @@ import { NativeModules } from 'react-native';
 const RNNativePDFView = requireNativeComponent('NativePDFView');
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import permanentStorageBridge from '../../native/permanentStorageBridge';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
@@ -242,14 +243,14 @@ const PDFViewerNative = ({ route, navigation }) => {
           // 如果不存在，创建新记录
           if (!note) {
             console.log('📝 [PDFViewerNative] 创建新的 Note 记录');
-            note = realm.create('Note', {
+            note = realm.create('Note', withPreviewMetadata({
               _id: noteId,
               title: title || 'PDF文档',
               type: 'pdf',
               file_type: 'pdf',
               created_at: new Date(),
               updated_at: new Date(),
-            }, 'modified');
+            }), 'modified');
           }
 
           // 保存所有 PDF 状态
@@ -828,7 +829,7 @@ const PDFViewerNative = ({ route, navigation }) => {
           } else {
             console.warn('⚠️ [实时保存] Note 不存在，创建新记录');
             // 如果不存在，创建新记录（使用0-based索引和'modified'模式）
-            realm.create('Note', {
+            realm.create('Note', withPreviewMetadata({
               _id: noteId,
               title: title || 'PDF文档',
               type: 'pdf',
@@ -853,7 +854,7 @@ const PDFViewerNative = ({ route, navigation }) => {
               }),
               created_at: new Date(),
               updated_at: new Date(),
-            }, 'modified');
+            }), 'modified');
             console.log('✅ [实时保存] 新Note记录已创建并保存笔迹');
           }
         });
@@ -988,7 +989,7 @@ const convertOldFormatToNew = (oldFormatArray, totalPages) => {
         // 如果note不存在，创建一个新的
         if (!note) {
           console.log('[PDFViewerNative] Note不存在，创建新的Note记录');
-          note = realm.create('Note', {
+          note = realm.create('Note', withPreviewMetadata({
             _id: noteId,
             title: title || 'PDF文档',
             type: 'pdf',
@@ -996,7 +997,7 @@ const convertOldFormatToNew = (oldFormatArray, totalPages) => {
             pdfPath: uri,
             created_at: new Date(),
             updated_at: new Date(),
-          }, 'modified');
+          }), 'modified');
         }
 
         // ✅ annotationsData从Java端已经是JSON字符串，不需要再stringify

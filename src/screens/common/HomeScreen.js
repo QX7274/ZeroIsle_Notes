@@ -57,6 +57,15 @@ import {
   createPreviewSelfHealController,
   withPreviewSelfHealFlag,
 } from '../../services/notes/backfillNotePreviewMetadata';
+// 列表分页（里程碑 5.1 续 / WS-P）：Realm 可下推排序判定 + 分页状态 + 离线 summary 查询
+import {
+  getNoteSummariesFromOfflineStorage,
+  resolveListSortPolicy,
+  resolveSortComparator,
+  computeHasMore,
+} from '../../services/offline/getNotes';
+// 写入侧打标（HomeScreen 自己直写 Realm 的三处）：直接用 notePreview 既有导出
+import { buildNotePreview, mergePreviewMetadata } from '../../models/utils/notePreview';
 
 const FALLBACK_COLORS = {
   primary: '#007AFF',
@@ -78,6 +87,36 @@ const LIST_SUMMARY_LIMIT = 500;
 
 /** summary 分页累计的安全上限：上游若忽略 skip 也不会死循环 */
 const MAX_LIST_SUMMARIES = 100000;
+
+/**
+ * 首页列表分页页大小（里程碑 5.1 续）。
+ * 仅对「可下推 Realm 的排序」（updated_at / created_at）生效；其它排序保持一次性全量 + JS 排序。
+ */
+const LIST_PAGE_SIZE = 50;
+
+/** 触底判定的容差（px）：滚动到距底部该距离内即触发「加载更多」 */
+const LIST_END_THRESHOLD = 240;
+
+/**
+ * 给 HomeScreen 自己直写 Realm 的笔记补上列表预览元数据（里程碑 5.1）。
+ *
+ * 直接用 notePreview 的既有导出（buildNotePreview + mergePreviewMetadata），
+ * 不改动这些写入点既有的字段与行为，只是增量合并 metadata。
+ *
+ * @param {Object} note 即将落库的笔记对象
+ * @returns {Object} 带预览 metadata 的新对象（不修改入参）
+ */
+const withLocalPreviewMetadata = (note) => {
+  const source = note || {};
+  return {
+    ...source,
+    metadata: mergePreviewMetadata(source.metadata, buildNotePreview({
+      content: source.content,
+      pages: source.pages,
+      strokeData: source.strokeData,
+    })),
+  };
+};
 
 /**
  * 会话级「未打标自愈」控制器（模块级：跨 HomeScreen 重挂载共享尝试次数，
@@ -107,13 +146,57 @@ const previewSelfHealController = createPreviewSelfHealController({
  * 需要正文的路径必须用 resolveItemContent(item, notesApi.getById) 按 id 延迟加载，
  * 绝不能直接读 item.content。
  *
- * 分页：先按 { skip: 0, limit: LIST_SUMMARY_LIMIT } 取第一页；只有恰好取满一页时才继续取下一页，
- * 目的是「绝不静默截断」——返回的要么是完整列表，要么通过回退交给 getAllNotes()。
+ * 分页（WS-P）：
+ * - 当前排序可下推 Realm（updated_desc/asc、created_desc/asc）时，只取第一页
+ *   （LIST_PAGE_SIZE），后续页由「触底/加载更多」按 skip 追加 —— 首页首屏不再 O(n) 物化；
+ * - 排序无法下推 Realm（title/type/size，含「最近访问」权重）时，保持既有
+ *   「一次性取全量 summary + JS 侧 sortNotes」，避免跨页顺序不一致（详见 resolveListSortPolicy）。
+ * - 任何异常 / 空结果依然回退 getAllNotes()，保证最坏情况与今天一致。
  *
- * @returns {Promise<Object>} { success, data, isOffline }
+ * @param {string} [sortOption] 当前 UI 排序 id
+ * @returns {Promise<Object>} { success, data, isOffline, paginated?, hasMore? }
  */
-const loadNotesListPayload = async () => {
+const loadNotesListPayload = async (sortOption) => {
+  const policy = resolveListSortPolicy(sortOption);
+
+  // —— 可下推排序：Realm 侧排序 + 只取第一页 ——
+  if (policy.paginated) {
+    try {
+      const page = await getNoteSummariesFromOfflineStorage({
+        skip: 0,
+        limit: LIST_PAGE_SIZE,
+        sort: policy.sort,
+      });
+      const data = Array.isArray(page) ? page : [];
+      const untaggedCount = data.filter(isUntaggedSummary).length;
+
+      if (untaggedCount > 0) {
+        // 未打标保护：本次回退全量渲染（不回归），并触发一次后台自愈回填
+        console.log(
+          `HomeScreen: 首页 ${untaggedCount}/${data.length} 条缺少预览元数据（未打标），` +
+          '回退到 getAllNotes() 并触发后台自愈回填',
+        );
+        return withPreviewSelfHealFlag(notesApi.getAllNotes(), untaggedCount);
+      }
+
+      console.log(`HomeScreen: 使用轻量 summary 首页（${policy.reason}），条数:`, data.length);
+      return {
+        success: true,
+        data,
+        isOffline: true,
+        source: 'summary-page',
+        paginated: true,
+        hasMore: computeHasMore(data.length, LIST_PAGE_SIZE),
+      };
+    } catch (pageError) {
+      console.warn('HomeScreen: 加载 summary 首页失败，回退到 getAllNotes():', pageError);
+      return notesApi.getAllNotes();
+    }
+  }
+
+  // —— 不可下推排序：保持既有一次性全量（顺序由 JS 侧 sortNotes 决定）——
   try {
+    console.log(`HomeScreen: 当前排序无法下推 Realm（${policy.reason}），一次性加载全量 summary`);
     const collected = [];
     let skip = 0;
 
@@ -184,8 +267,23 @@ const HomeScreen = ({ navigation }) => {
   const notesState = useSelector(state => state.notes);
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  // 列表分页状态（仅 Realm 可下推排序生效；不可下推排序一次性全量，hasMore 恒为 false）
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(null);
   // 自愈控制器需要重载列表时，通过 ref 复用最新的 loadNotes（避免闭包/依赖漂移）
   const loadNotesRef = useRef(null);
+  // 分页游标：当前排序下已从 Realm 取回的条数（= 下一页的 skip）。
+  // 不用 allNotes.length，避免新建/删除笔记后偏移错位导致漏项。
+  const listCursorRef = useRef(0);
+  // 与 sortOption 同步的 ref：避免把 sortOption 加进 loadNotes 依赖而让初始化 effect 反复重跑
+  const sortOptionRef = useRef(sortOption);
+  // 当前列表数据对应的排序 key（避免「仅 ref 同步」触发重复加载）
+  const loadedSortKeyRef = useRef(sortOption);
+  // 是否已滚动过（外层 ScrollView）：FlatList 的 onEndReached 在挂载时会立即触发，
+  // 用它兜底，避免未滚动就自动连续加载全部页
+  const listScrolledRef = useRef(false);
+  const nearBottomRef = useRef(false);
 
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
@@ -606,15 +704,18 @@ const HomeScreen = ({ navigation }) => {
 
     const realm = await realmService.getRealm();
     let newNote;
+    // 写入侧打标（里程碑 5.1）：模板笔记同样产出列表预览元数据，
+    // 否则首页轻量 summary 无法渲染这条笔记的摘要（会触发未打标保护整体回退）
+    const templateNote = withLocalPreviewMetadata({
+      _id: new Realm.BSON.UUID().toHexString(),
+      title: template.title,
+      content: content,
+      created_at: new Date(),
+      updated_at: new Date(),
+      type: 'markdown', // 确保新笔记是Markdown类型
+    });
     realm.write(() => {
-      newNote = realm.create('Note', {
-        _id: new Realm.BSON.UUID().toHexString(),
-        title: template.title,
-        content: content,
-        created_at: new Date(),
-        updated_at: new Date(),
-        type: 'markdown', // 确保新笔记是Markdown类型
-      });
+      newNote = realm.create('Note', templateNote);
     });
 
     if (newNote) {
@@ -1118,7 +1219,19 @@ Week 4: □□□□□□□
       // 首先尝试从本地存储获取「轻量 summary」列表（里程碑 5.1：列表字段裁剪 + 正文延迟加载）。
       // summary 不含 content/pages/strokeData；任何异常或空结果都会自动回退到全量 getAllNotes()，
       // 因此最坏情况与改动前完全一致。
-      const offlineResponse = await Promise.race([loadNotesListPayload(), timeoutPromise]);
+      const offlineResponse = await Promise.race([
+        loadNotesListPayload(sortOptionRef.current),
+        timeoutPromise,
+      ]);
+
+      // 记录本次数据的排序 / 分页状态：timeout 与各类回退分支一律视为「已取全量、无更多」
+      const paginatedPayload = Boolean(offlineResponse && offlineResponse.paginated === true);
+      listCursorRef.current = paginatedPayload && Array.isArray(offlineResponse.data)
+        ? offlineResponse.data.length
+        : 0;
+      setHasMore(Boolean(offlineResponse && offlineResponse.hasMore));
+      setLoadMoreError(null);
+      loadedSortKeyRef.current = sortOptionRef.current;
 
       // 未打标自愈（里程碑 5.1 收尾）：检测到未打标 summary 时，本次保持全量渲染（不回归），
       // 同时触发一次后台幂等回填；updated > 0 时控制器会重载一次列表切回轻量路径。
@@ -1247,6 +1360,9 @@ Week 4: □□□□□□□
           const savedSortOption = await AsyncStorage.getItem('home_sort_preference');
           if (savedSortOption) {
             setSortOption(savedSortOption);
+            // 同步 ref / 已加载标记：让首次加载直接使用偏好排序，避免多加载一次
+            sortOptionRef.current = savedSortOption;
+            loadedSortKeyRef.current = savedSortOption;
             console.log('已加载排序偏好:', savedSortOption);
           }
         } catch (sortError) {
@@ -1344,16 +1460,133 @@ Week 4: □□□□□□□
       fileHistoryCacheLength: fileHistoryCache.length,
     });
 
-    if (allNotes && allNotes.length > 0) {
-      const sortedNotes = sortNotes(allNotes, sortOption);
-      console.log('HomeScreen: 排序完成，结果:', sortedNotes.length, '条笔记');
-      console.log('HomeScreen: 排序后前3条:', sortedNotes.slice(0, 3).map(n => n.title || n.name));
-      setNotes(sortedNotes);
-    } else {
+    if (!allNotes || allNotes.length === 0) {
       console.log('HomeScreen: 没有笔记可显示，设置空数组');
       setNotes([]);
+      return;
     }
+
+    const policy = resolveListSortPolicy(sortOption);
+    if (policy.paginated) {
+      // 可下推排序：顺序由 Realm 决定（分页边界也按它切）。这里用同一把「等价比较器」排列
+      // 已加载的 summary：既能反映 Redux 的新建/删除，又不会像 sortNotes 的复合比较器
+      // （含 fileHistory 的最近访问权重）那样把分页顺序打乱。
+      const comparator = resolveSortComparator(policy.sort);
+      const ordered = [...allNotes].sort(comparator);
+      console.log('HomeScreen: 按 Realm 等价排序排列已加载 summary:', ordered.length, '条');
+      setNotes(ordered);
+      return;
+    }
+
+    const sortedNotes = sortNotes(allNotes, sortOption);
+    console.log('HomeScreen: 排序完成，结果:', sortedNotes.length, '条笔记');
+    console.log('HomeScreen: 排序后前3条:', sortedNotes.slice(0, 3).map(n => n.title || n.name));
+    setNotes(sortedNotes);
   }, [allNotes, sortOption, isLoading, notesState.isLoading, fileHistoryCache, forceUpdate, sortNotes]);
+
+  // 排序偏好变化：重新加载数据源
+  // - 可下推排序：重新取第一页（Realm 侧排序），并重置分页游标
+  // - 不可下推排序：重新取全量 summary，再由上面的 effect 用 JS sortNotes 排列
+  const isInitialSortEffectRef = useRef(true);
+  useEffect(() => {
+    sortOptionRef.current = sortOption;
+
+    if (isInitialSortEffectRef.current) {
+      isInitialSortEffectRef.current = false;
+      return;
+    }
+    if (loadedSortKeyRef.current === sortOption) {
+      return; // 数据已是该排序（例如初始化时已按偏好加载），避免重复加载
+    }
+
+    console.log('HomeScreen: 排序变化，重新加载列表:', sortOption);
+    listCursorRef.current = 0;
+    nearBottomRef.current = false;
+    setHasMore(false);
+    setLoadMoreError(null);
+    const reload = loadNotesRef.current;
+    if (reload) {
+      reload();
+    }
+  }, [sortOption]);
+
+  // 列表触底 / 点击「加载更多」：仅在可下推排序且 hasMore 时追加下一页
+  const handleLoadMore = useCallback(async () => {
+    const policy = resolveListSortPolicy(sortOptionRef.current);
+    if (!policy.paginated || !hasMore || isLoadingMore) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
+    nearBottomRef.current = false; // 加载完成后必须重新滚动到触底才会再触发，避免连续自动翻页
+    const skip = listCursorRef.current;
+
+    try {
+      const page = await getNoteSummariesFromOfflineStorage({
+        skip,
+        limit: LIST_PAGE_SIZE,
+        sort: policy.sort,
+      });
+      const data = Array.isArray(page) ? page : [];
+      listCursorRef.current = skip + data.length;
+
+      if (data.some(isUntaggedSummary)) {
+        // 后续页出现未打标：交给自愈控制器（不丢弃本页数据，也不静默截断）
+        console.log('HomeScreen: 后续页存在未打标 summary，触发后台自愈回填');
+        previewSelfHealController.handleUntagged('home-list-more').catch((selfHealError) => {
+          console.warn('HomeScreen: 未打标自愈调度异常，已忽略:', selfHealError);
+        });
+      }
+
+      // 按 id 去重后再追加：分页窗口在用户新建/删除笔记后可能偏移，addOne 重复 id 会告警
+      const existingIds = new Set((allNotes || []).map((item) => String(item && (item._id || item.id))));
+      let appended = 0;
+      data.forEach((note) => {
+        const noteId = String((note && (note._id || note.id)) || '');
+        if (noteId && existingIds.has(noteId)) {
+          return;
+        }
+        existingIds.add(noteId);
+        appended += 1;
+        dispatch(addNote(note));
+      });
+
+      setHasMore(computeHasMore(data.length, LIST_PAGE_SIZE));
+      console.log('HomeScreen: 已加载更多笔记:', data.length, '条（新增', appended, '），游标:', listCursorRef.current);
+    } catch (moreError) {
+      // 失败不丢已有数据、不静默截断：保留 hasMore 并给出可重试入口
+      console.warn('HomeScreen: 加载更多失败，可点击重试:', moreError);
+      setLoadMoreError((moreError && moreError.message) || '加载失败，请重试');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [allNotes, hasMore, isLoadingMore, dispatch]);
+
+  // 外层 ScrollView 负责滚动（FlatList scrollEnabled=false），触底加载挂在这里
+  const handleListScroll = useCallback((event) => {
+    if (!hasMore || isLoadingMore) {
+      return;
+    }
+    const nativeEvent = event && event.nativeEvent;
+    if (!nativeEvent || !nativeEvent.contentOffset || !nativeEvent.layoutMeasurement || !nativeEvent.contentSize) {
+      return;
+    }
+    listScrolledRef.current = true;
+    const distanceToBottom = nativeEvent.contentSize.height
+      - (nativeEvent.contentOffset.y + nativeEvent.layoutMeasurement.height);
+    nearBottomRef.current = distanceToBottom <= LIST_END_THRESHOLD;
+    if (nearBottomRef.current) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore, hasMore, isLoadingMore]);
+
+  // FlatList 的 onEndReached 在「非滚动列表」里挂载时就会触发，用「刚滚动到触底」兜底
+  const handleEndReached = useCallback(() => {
+    if (listScrolledRef.current && nearBottomRef.current) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore]);
 
   // 非阻塞方式加载笔记
   const loadNotesNonBlocking = async () => {
@@ -1574,12 +1807,13 @@ Week 4: □□□□□□□
             tags: [],
           };
 
-          // 保存到离线存储
+          // 保存到离线存储（写入侧打标：补列表预览元数据，避免首页 summary 摘要为空）
+          const taggedLocalNote = withLocalPreviewMetadata(localNote);
           try {
             const realm = await realmService.getRealm();
             realm.write(() => {
               // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-              realm.create('Note', localNote, 'modified');
+              realm.create('Note', taggedLocalNote, 'modified');
             });
             console.log('HomeScreen: PDF文件保存成功:', {
               action: 'saveNote',
@@ -1591,8 +1825,8 @@ Week 4: □□□□□□□
             console.warn('HomeScreen: PDF文件保存失败:', e);
           }
 
-          // 使用addNote添加单个笔记，避免覆盖现有数据
-          dispatch(addNote(localNote));
+          // 使用addNote添加单个笔记，避免覆盖现有数据（用打标后的对象，保证 Redux 与本地库一致）
+          dispatch(addNote(taggedLocalNote));
           console.log('HomeScreen: PDF文件导入完成，笔记ID:', localNote._id);
 
           setIsLoading(false);
@@ -1832,19 +2066,21 @@ Week 4: □□□□□□□
           metadata: JSON.stringify({ filePath: file.uri || file.fileCopyUri, fileSize: file.size || null, lastOpenedTime: new Date().toISOString() }),
           tags: [],
         };
+        // 写入侧打标：Markdown/TXT 导入同样补列表预览元数据
+        const taggedLocalNote = withLocalPreviewMetadata(localNote);
         try {
           const realm = await realmService.getRealm();
           realm.write(() => {
             // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-            realm.create('Note', localNote, 'modified');
+            realm.create('Note', taggedLocalNote, 'modified');
           });
           console.log('HomeScreen: Markdown文件保存成功:', { action: 'saveNote', id: localNote._id || localNote.id, type: localNote.file_type || localNote.type });
         } catch (e) {
           console.warn('HomeScreen: Markdown文件保存失败:', e);
         }
 
-        // 使用addNote添加单个笔记，避免覆盖现有数据
-        dispatch(addNote(localNote));
+        // 使用addNote添加单个笔记，避免覆盖现有数据（用打标后的对象，保证 Redux 与本地库一致）
+        dispatch(addNote(taggedLocalNote));
         console.log('HomeScreen: Markdown文件导入完成，笔记ID:', localNote._id);
 
         // 日志已在上面的try-catch块中输出
@@ -2974,6 +3210,8 @@ Week 4: □□□□□□□
         contentContainerStyle={styles.scrollContentContainer}
         showsVerticalScrollIndicator={true}
         bounces={true}
+        onScroll={handleListScroll}
+        scrollEventThrottle={16}
       >
         {validNotes.length > 0 ? (
           <FlatList
@@ -3007,6 +3245,10 @@ Week 4: □□□□□□□
               index,
             })}
             scrollEnabled={false} // 禁用FlatList的滚动，由外层ScrollView处理
+            // 分页（WS-P）：触底加载下一页；非滚动列表里 onEndReached 可能提前触发，
+            // 因此 handleEndReached 里用「刚滚动到触底」兜底，真正可靠的触发点是外层 ScrollView 的 onScroll
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
             // 性能优化配置
             removeClippedSubviews={true}
             maxToRenderPerBatch={6}
@@ -3017,6 +3259,37 @@ Week 4: □□□□□□□
         ) : (
           renderEmptyState()
         )}
+
+        {/* 分页（WS-P）：hasMore 为真时必须有可见的「加载更多」，绝不静默截断 */}
+        {hasMore || isLoadingMore || loadMoreError ? (
+          <View style={styles.loadMoreContainer} testID="state.home.loadMore.container">
+            {loadMoreError ? (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMore}
+                disabled={isLoadingMore}
+                testID="action.home.loadMoreRetry"
+              >
+                <Icon name="refresh" size={16} color={colors.primary} />
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>加载失败，点击重试</Text>
+              </TouchableOpacity>
+            ) : isLoadingMore ? (
+              <View style={styles.loadMoreButton} testID="state.home.loadMore.loading">
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.loadMoreText, { color: colors.textSecondary }]}>正在加载更多...</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMore}
+                testID="action.home.loadMore"
+              >
+                <Icon name="chevron-down" size={16} color={colors.primary} />
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>加载更多</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* 悬浮按钮 - 固定在右下角，横屏时调整位置 */}
@@ -3266,6 +3539,24 @@ const getStyles = (colors) => StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 16,
+  },
+  // 分页「加载更多」（里程碑 5.1 续 / WS-P）
+  loadMoreContainer: {
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  loadMoreText: {
+    marginLeft: 6,
+    fontSize: 13,
   },
   noteDate: {
     fontSize: 9,

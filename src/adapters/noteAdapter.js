@@ -4,6 +4,7 @@
  */
 
 import { Note } from '../models';
+import { withPreviewMetadata } from '../models/utils/notePreview';
 import realmService from '../services/database/realmService';
 import { logService } from '../utils/logService';
 import { offlineSyncService } from '../services/offline/offlineSyncService';
@@ -123,7 +124,7 @@ export const createNote = async (noteData, userId) => {
     let note;
     realm.write(() => {
       // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-      note = realm.create('Note', backendNote, 'modified');
+      note = realm.create('Note', withPreviewMetadata(backendNote), 'modified');
     });
 
     // 添加到同步队列

@@ -4,6 +4,7 @@
  */
 
 import realmService from '../database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { logService } from '../../utils/logService';
 import { fileService } from '../files/fileService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -501,7 +502,7 @@ class AutoBackupService {
         // 恢复笔记
         for (const noteData of notes) {
           // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-          realm.create('Note', noteData, 'modified');
+          realm.create('Note', withPreviewMetadata(noteData), 'modified');
         }
       });
 

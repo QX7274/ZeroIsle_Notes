@@ -4,6 +4,7 @@
  */
 
 import realmService from '../database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { mongoDBService } from '../database/mongoDBAdapter';
 import { logService } from '../../utils/logService';
 import networkService from '../network/networkService';
@@ -1031,11 +1032,11 @@ class SyncManager {
             localNote.updated_at = new Date();
           } else {
             // 创建新笔记 - 使用'modified'模式以防并发问题
-            realm.create('Note', {
+            realm.create('Note', withPreviewMetadata({
               ...serverNote,
               is_synced: true,
               updated_at: new Date(),
-            }, 'modified');
+            }), 'modified');
           }
         });
       });

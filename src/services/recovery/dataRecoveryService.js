@@ -8,6 +8,7 @@ import { logService } from '../../utils/logService';
 import { fileService } from '../files/fileService';
 import dataIntegrityService from '../data/dataIntegrityService';
 import autoBackupService from '../backup/autoBackupService';
+import { assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const isVirtualNoteUri = filePath => (
@@ -403,9 +404,9 @@ class DataRecoveryService {
         const validation = await dataIntegrityService.validateNote(note);
         const repairedNote = await dataIntegrityService.repairNote(note, validation);
 
-        // 更新笔记
+        // 更新笔记（守卫：repairedNote 可能带 metadata，不能覆盖已打标的预览元数据）
         realm.write(() => {
-          Object.assign(note, repairedNote);
+          assignNoteWithPreviewMetadata(note, repairedNote);
         });
 
         result.recovered++;

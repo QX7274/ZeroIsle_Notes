@@ -11,6 +11,7 @@ import { networkService } from '../network/networkService';
 import { logService } from '../../utils/logService';
 import { fileService } from '../files/fileService';
 import permanentStorageManager from './permanentStorageManager';
+import { withPreviewMetadata, assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 import {
   findDocuments,
   findOneDocument,
@@ -168,7 +169,7 @@ class NoteService {
         let noteId;
         realm.write(() => {
           // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-          const savedNote = realm.create('Note', note, 'modified');
+          const savedNote = realm.create('Note', withPreviewMetadata(note), 'modified');
           noteId = savedNote._id;
         });
         note._id = noteId;
@@ -380,7 +381,8 @@ class NoteService {
         realm.write(() => {
           const note = realm.objectForPrimaryKey('Note', noteId);
           if (note) {
-            Object.assign(note, update);
+            // 守卫：updateData 可能携带 metadata（'{}'），不能让更新覆盖已打标的预览元数据
+            assignNoteWithPreviewMetadata(note, update);
             updatedNote = note;
           }
         });

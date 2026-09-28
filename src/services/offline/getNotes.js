@@ -264,14 +264,13 @@ export const getNotesFromOfflineStorage = async (options = {}) => {
  * 复用 Note.findByUserSummaries：过滤/排序/分页语义与主查询一致，
  * 只投影 NOTE_SUMMARY_FIELDS 白名单字段，全程不读取 content。
  *
- * 注意：本入口只提供能力，不改变 HomeScreen 的现有契约。
- * HomeScreen 列表预览仍读取 item.content
- * （src/screens/common/HomeScreen.js:1848-1886 的 renderContentPreview / renderCover），
- * 而 summary 按设计不含正文；UI 全量切换前需要先补「正文预览字段」。
+ * 里程碑 5.1 续（列表分页）：支持传入 Realm 可下推的 sort（{ field, descending }），
+ * 由 Note._queryUserResults 白名单校验后下推到 Realm.sorted()，从而做到「每页只物化一页」。
  *
  * @param {Object} [options]
  * @param {number} [options.skip] 跳过条数
  * @param {number} [options.limit] 单页条数（列表页应始终传入，避免整表投影）
+ * @param {{field: string, descending: boolean}} [options.sort] Realm 可下推排序
  * @returns {Promise<Array<Object>>} summary 数组（不含 content）
  */
 export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
@@ -281,15 +280,214 @@ export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
 
   // 归一化分页：只要显式传了 skip/limit 就按分页处理，保证 10 万条下只物化一页
   const hasPaging = options.skip !== undefined || options.limit !== undefined;
-  let pageOptions = {};
+  const pageOptions = {};
   if (hasPaging) {
     const rawSkip = Number(options.skip);
     const rawLimit = Number(options.limit);
-    pageOptions = {
-      skip: Number.isFinite(rawSkip) && rawSkip > 0 ? Math.floor(rawSkip) : 0,
-      limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : RECENT_FALLBACK_LIMIT,
-    };
+    pageOptions.skip = Number.isFinite(rawSkip) && rawSkip > 0 ? Math.floor(rawSkip) : 0;
+    pageOptions.limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : RECENT_FALLBACK_LIMIT;
+  }
+  if (options.sort) {
+    pageOptions.sort = options.sort;
   }
 
   return Note.findByUserSummaries(realm, userId, pageOptions);
+};
+
+// ---------------------------------------------------------------------------
+// 列表分页决策（里程碑 5.1 续）
+//
+// 只有「能把排序下推 Realm」的排序才允许分页：分页要求数据库侧的排序就是最终的展示顺序，
+// 否则第 N 页取回后再用 JS 比较器重排，会出现跨页乱序/重复/漏项。
+//
+// - updated_desc / updated_asc：时间字段可下推。代价是无法再叠加 fileHistoryService 的
+//   「最近访问」权重（访问时间不在 Realm 里）。分页模式下按纯 updated_at 排序，顺序稳定、
+//   不丢数据；若后续把 lastOpenedAt 落库即可恢复该权重。
+// - created_desc / created_asc：纯时间字段，与既有 JS 比较器完全等价。
+// - title_asc / title_desc：Realm 字符串按码点排序，既有实现是 localeCompare('zh-CN',
+//   { numeric: true })（中文按拼音、数字按数值）。两者顺序不一致，分页会改变可见顺序，
+//   因此保持一次性全量 + JS 排序。
+// - type：复合比较器（类型优先级 + updated_at/访问时间），无法整体下推。
+// - size_desc / size_asc：size 来自 size/fileSize/file_size（甚至回退正文长度），非单一字段。
+// ---------------------------------------------------------------------------
+
+/** 列表分页默认页大小 */
+export const DEFAULT_LIST_PAGE_SIZE = 50;
+
+/** Realm 可下推排序的 UI 排序 id */
+const PAGINATED_SORT_OPTIONS = Object.freeze({
+  updated_desc: { field: 'updated_at', descending: true },
+  updated_asc: { field: 'updated_at', descending: false },
+  created_desc: { field: 'created_at', descending: true },
+  created_asc: { field: 'created_at', descending: false },
+});
+
+/** 不可下推排序的原因（用于日志/报告，避免「静默不分页」） */
+const NON_PAGINATED_SORT_REASONS = Object.freeze({
+  title_asc: 'Realm 字符串按码点排序，与既有 localeCompare(zh-CN) 不一致，保持一次性全量 + JS 排序',
+  title_desc: 'Realm 字符串按码点排序，与既有 localeCompare(zh-CN) 不一致，保持一次性全量 + JS 排序',
+  type: '类型排序是「类型优先级 + updated_at/最近访问」的复合比较器，无法整体下推 Realm',
+  size_desc: 'size 来自 size/fileSize/file_size 多来源（甚至回退正文长度），不是单一 Realm 字段',
+  size_asc: 'size 来自 size/fileSize/file_size 多来源（甚至回退正文长度），不是单一 Realm 字段',
+});
+
+/**
+ * 解析 UI 排序对应的「分页策略」：能否下推 Realm、下推参数、以及原因。
+ * 纯函数，供 HomeScreen 与单测共用。
+ *
+ * @param {string} [sortOption] HomeScreen 的 sortOption
+ * @returns {{key: string, paginated: boolean, sort: {field: string, descending: boolean}|null, reason: string}}
+ */
+export const resolveListSortPolicy = (sortOption) => {
+  const key = sortOption || 'updated_desc';
+
+  if (PAGINATED_SORT_OPTIONS[key]) {
+    return {
+      key,
+      paginated: true,
+      sort: { ...PAGINATED_SORT_OPTIONS[key] },
+      reason: key.startsWith('created')
+        ? `${key} 可下推 Realm（纯创建时间，与既有 JS 比较器等价），每页只物化一页`
+        : `${key} 可下推 Realm（时间字段）；分页模式下不再叠加 fileHistory 的「最近访问」权重`,
+    };
+  }
+
+  if (NON_PAGINATED_SORT_REASONS[key]) {
+    return {
+      key,
+      paginated: false,
+      sort: null,
+      reason: NON_PAGINATED_SORT_REASONS[key],
+    };
+  }
+
+  // 未知排序：sortNotes 的 default 分支等价于 updated_desc，按可下推处理
+  return {
+    key,
+    paginated: true,
+    sort: { field: 'updated_at', descending: true },
+    reason: `未知排序「${key}」按默认 updated_at 降序处理（与 sortNotes 默认分支一致）`,
+  };
+};
+
+/**
+ * 把排序字段值转成可比较的标量（与 Realm 的语义对齐：日期用时间戳，其余用字符串）。
+ * @param {*} value
+ * @param {string} field
+ * @returns {number|string}
+ */
+const toComparableSortValue = (value, field) => {
+  if (field.endsWith('_at')) {
+    if (value === null || value === undefined) {
+      return 0;
+    }
+    const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    return Number.isFinite(time) ? time : 0;
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+};
+
+/**
+ * 可下推排序在 JS 侧的「等价比较器」。
+ *
+ * 用途：Redux 的 notes adapter 自带 sortComparer（固定按 updated_at desc），
+ * 因此 created_at 等排序在 Redux 里会被重排。列表渲染前用这里返回的比较器按同一把
+ * 排序键排列「已加载的 summary 子集」，既能继续反映新建/删除，又保证与 Realm 的分页边界一致。
+ *
+ * 纯函数，便于单测。
+ *
+ * @param {{field: string, descending: boolean}} sort
+ * @returns {(a: Object, b: Object) => number}
+ */
+export const resolveSortComparator = (sort) => {
+  const field = (sort && sort.field) || 'updated_at';
+  const descending = Boolean(sort && sort.descending);
+  // 每个条目只折算一次排序键：10 万条下避免 O(n log n) 次 Date 解析
+  const keyCache = new Map();
+
+  const keyOf = (item) => {
+    if (!item) {
+      return '';
+    }
+    if (keyCache.has(item)) {
+      return keyCache.get(item);
+    }
+    const key = toComparableSortValue(item[field], field);
+    keyCache.set(item, key);
+    return key;
+  };
+
+  return (left, right) => {
+    const a = keyOf(left);
+    const b = keyOf(right);
+    if (a === b) {
+      return 0;
+    }
+    const order = a > b ? 1 : -1;
+    return descending ? -order : order;
+  };
+};
+
+/**
+ * 一页是否已满 => 可能还有后续页。
+ * 纯函数：列表「加载更多」的可见性由它决定（页未满即到底，绝不静默截断）。
+ *
+ * @param {number} pageLength 本页实际条数
+ * @param {number} pageSize 请求的页大小
+ * @returns {boolean}
+ */
+export const computeHasMore = (pageLength, pageSize) => {
+  const length = Number(pageLength);
+  const size = Number(pageSize);
+  if (!Number.isFinite(length) || !Number.isFinite(size) || size <= 0) {
+    return false;
+  }
+  return length >= size;
+};
+
+/**
+ * 创建列表分页状态机（纯逻辑，便于单测）。
+ *
+ * @param {string} sortOption UI 排序 id
+ * @param {number} [pageSize=DEFAULT_LIST_PAGE_SIZE]
+ * @returns {{key: string, paginated: boolean, sort: Object|null, reason: string, pageSize: number, skip: number, hasMore: boolean}}
+ */
+export const createListPaginationState = (sortOption, pageSize = DEFAULT_LIST_PAGE_SIZE) => {
+  const policy = resolveListSortPolicy(sortOption);
+  const size = Number(pageSize);
+  const normalizedSize = Number.isFinite(size) && size > 0 ? Math.floor(size) : DEFAULT_LIST_PAGE_SIZE;
+
+  return {
+    key: policy.key,
+    paginated: policy.paginated,
+    sort: policy.sort,
+    reason: policy.reason,
+    pageSize: normalizedSize,
+    skip: 0,
+    // 只有可下推排序才允许「加载更多」；不可下推排序一次性全量加载，hasMore 恒为 false
+    hasMore: policy.paginated,
+  };
+};
+
+/**
+ * 用一页结果推进分页状态（纯函数）。
+ * @param {Object} state createListPaginationState 的返回值
+ * @param {number} pageLength 本页实际条数
+ * @returns {Object} 新状态（skip 前进，hasMore 由「页是否满」决定）
+ */
+export const applyListPageResult = (state, pageLength) => {
+  if (!state || !state.paginated) {
+    return { ...(state || {}), skip: 0, hasMore: false };
+  }
+  const length = Number(pageLength);
+  const safeLength = Number.isFinite(length) && length > 0 ? Math.floor(length) : 0;
+
+  return {
+    ...state,
+    skip: Number(state.skip || 0) + safeLength,
+    hasMore: computeHasMore(safeLength, state.pageSize),
+  };
 };

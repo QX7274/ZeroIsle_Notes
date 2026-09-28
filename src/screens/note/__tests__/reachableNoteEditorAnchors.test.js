@@ -19,6 +19,7 @@ const {
   render,
   fireEvent,
   act,
+  waitFor,
 } = require('@testing-library/react-native');
 
 // ---------------------------------------------------------------------------
@@ -416,5 +417,50 @@ describe('SkiaPagedCanvasScreenNative 锚点（可达链路）', () => {
     expect(getByTestId('state.pagedCanvas.error.visibility.visible')).toBeTruthy();
     expect(getByTestId('state.pagedCanvas.loading.visibility.hidden')).toBeTruthy();
     expect(getByTestId('screen.pagedCanvas')).toBeTruthy();
+  });
+});
+
+describe('直写入口预览打标（RISK-LIST-UNTAGGED-001）', () => {
+  it('SkiaPagedCanvasScreenNative 新建分页笔记的落库 payload 已带预览元数据', async () => {
+    const realm = createFakeRealm();
+    mockRealmService.getRealm.mockImplementation(async () => realm);
+
+    renderPagedCanvas({
+      noteId: 'paged-preview-note-1',
+      createNew: true,
+      title: '分页预览标题',
+    });
+
+    await waitFor(() => {
+      expect(realm.create.mock.calls.some(([schema]) => schema === 'Note')).toBe(true);
+    });
+
+    const [, payload] = realm.create.mock.calls.find(([schema]) => schema === 'Note');
+    expect(JSON.parse(payload.metadata)).toMatchObject({
+      previewText: '',
+      contentLength: 0,
+      hasContent: false,
+    });
+  });
+
+  it('CardNoteScreen 保存卡片笔记的落库 payload 已带预览元数据', async () => {
+    const realm = createFakeRealm();
+    mockRealmService.getRealm.mockImplementation(async () => realm);
+
+    const { UNSAFE_getByType } = renderCardNote({
+      noteId: 'card-preview-note-1',
+      title: '卡片预览标题',
+      content: '# 卡片正文',
+    });
+
+    await act(async () => {
+      await UNSAFE_getByType(SaveButton).props.onSave();
+    });
+
+    const [, payload] = realm.create.mock.calls.find(([schema]) => schema === 'Note');
+    expect(JSON.parse(payload.metadata)).toMatchObject({
+      previewText: '卡片正文',
+      hasContent: true,
+    });
   });
 });

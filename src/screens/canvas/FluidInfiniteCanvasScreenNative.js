@@ -34,6 +34,11 @@ const INFINITE_CANVAS_COMMANDS = {
 const RNNativeInfiniteCanvasView = requireNativeComponent('NativeInfiniteCanvasView');
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
+import {
+  buildNotePreview,
+  mergePreviewMetadata,
+  withPreviewMetadata,
+} from '../../models/utils/notePreview';
 import permanentStorageBridge from '../../native/permanentStorageBridge';
 import { recognizeTextInRegion } from '../../native/recognitionBridge';
 import { useDispatch } from 'react-redux';
@@ -112,7 +117,7 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
       let savedNote;
       realm.write(() => {
         // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-        savedNote = realm.create('Note', newCanvas, 'modified');
+        savedNote = realm.create('Note', withPreviewMetadata(newCanvas), 'modified');
       });
 
       dispatch(addNote(savedNote));
@@ -632,13 +637,13 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
         let note = realm.objectForPrimaryKey('Note', canvasObjectId);
 
         if (!note) {
-          note = realm.create('Note', {
+          note = realm.create('Note', withPreviewMetadata({
             _id: canvasObjectId,
             title: title || '无限画布',
             type: 'canvas',
             created_at: new Date(),
             updated_at: new Date(),
-          }, 'modified');
+          }), 'modified');
         }
 
         const strokeDataStr = typeof data === 'string' ? data : JSON.stringify(data);
@@ -649,6 +654,12 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
           canvasStyle: loadedCanvasStyle,
           updated_at: new Date(),
         });
+        // 大字段在同一事务内补写，重算预览元数据，保证徽标与实际数据一致
+        note.metadata = mergePreviewMetadata(note.metadata, buildNotePreview({
+          content: note.content,
+          pages: note.pages,
+          strokeData: note.strokeData,
+        }));
       });
 
       setHasUnsavedChanges(false);

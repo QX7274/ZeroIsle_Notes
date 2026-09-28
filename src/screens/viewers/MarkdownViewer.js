@@ -16,6 +16,7 @@ import LoadingIndicator, { LoadingMessages, ErrorIndicator } from '../../compone
 import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
 import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
 import fileHistoryService from '../../services/fileHistoryService';
+import { assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 
 function MarkdownViewer({ route, navigation }) {
   const { uri, title = 'Markdown', noteId, fromFileHistory } = route.params || {};
@@ -67,7 +68,8 @@ function MarkdownViewer({ route, navigation }) {
         realm.write(() => {
           const note = realm.objectForPrimaryKey('Note', noteId);
           if (note) {
-            Object.assign(note, {
+            // 守卫：保存正文后同步刷新预览元数据（不覆盖既有 metadata 键）
+            assignNoteWithPreviewMetadata(note, {
               content,
               updated_at: new Date().toISOString(),
             });
@@ -298,7 +300,8 @@ function MarkdownViewer({ route, navigation }) {
                     realm.write(() => {
                       const note = realm.objectForPrimaryKey('Note', noteId);
                       if (note) {
-                        Object.assign(note, {
+                        // 守卫：metadata 走增量合并并刷新预览标记，避免覆盖 previewText
+                        assignNoteWithPreviewMetadata(note, {
                           metadata: JSON.stringify(metadata),
                         });
                         console.log('已更新笔记元数据，保存本地缓存路径');

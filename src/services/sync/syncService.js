@@ -12,6 +12,8 @@
 
 import realmService from '../database/realmService';
 import { logService } from '../../utils/logService';
+// 直写 Realm 的笔记入口统一打标预览元数据（RISK-LIST-UNTAGGED-001）
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { networkService } from '../network/networkService';
 import apiClient from '../api/apiClient';
 import { SYNC_EVENTS } from './syncEvents';
@@ -831,7 +833,7 @@ class SyncService {
             if (existingNote) {
               await realmService.update('Note', existingNote._id, note);
             } else {
-              await realmService.create('Note', note);
+              await realmService.create('Note', withPreviewMetadata(note));
             }
             summary.notes.processed++;
             totalCount++;

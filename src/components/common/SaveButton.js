@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
+import { withPreviewMetadata, assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 
 const SaveButton = ({
   onSave,
@@ -164,7 +165,7 @@ export const SaveUtils = {
       // 使用整体存储
       const writeRealm = await SaveUtils._getWritableRealm(realmService);
       writeRealm.write(() => {
-        writeRealm.create('Note', documentData);
+        writeRealm.create('Note', withPreviewMetadata(documentData));
       });
       console.log('SaveUtils: Word文档整体保存成功');
       return true;
@@ -207,7 +208,7 @@ export const SaveUtils = {
       // 使用整体存储
       const writeRealm = await SaveUtils._getWritableRealm(realmService);
       writeRealm.write(() => {
-        writeRealm.create('Note', pdfData);
+        writeRealm.create('Note', withPreviewMetadata(pdfData));
       });
       console.log('SaveUtils: PDF注释整体保存成功');
       return true;
@@ -249,7 +250,7 @@ export const SaveUtils = {
       // 使用整体存储
       const writeRealm = await SaveUtils._getWritableRealm(realmService);
       writeRealm.write(() => {
-        writeRealm.create('Note', markdownData);
+        writeRealm.create('Note', withPreviewMetadata(markdownData));
       });
       console.log('SaveUtils: Markdown内容整体保存成功');
       return true;
@@ -292,7 +293,7 @@ export const SaveUtils = {
       // 使用整体存储
       const writeRealm = await SaveUtils._getWritableRealm(realmService);
       writeRealm.write(() => {
-        writeRealm.create('Note', pptData);
+        writeRealm.create('Note', withPreviewMetadata(pptData));
       });
       console.log('SaveUtils: PPT注释整体保存成功');
       return true;
@@ -360,7 +361,8 @@ export const SaveUtils = {
       realm.write(() => {
         const note = realm.objectForPrimaryKey('Note', noteId);
         if (note) {
-          Object.assign(note, noteData);
+          // 守卫：保存正文后同步刷新预览元数据（不覆盖既有 metadata 键）
+          assignNoteWithPreviewMetadata(note, noteData);
         }
       });
       console.log('SaveUtils: 笔记内容保存成功');

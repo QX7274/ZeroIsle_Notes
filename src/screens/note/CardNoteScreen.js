@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import nativeAudioService from '../../services/audio/nativeAudioService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { useTheme } from '../../context/ThemeContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { addNote, updateOneNote } from '../../redux/slices/notesSlice';
@@ -307,7 +308,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       let savedNote;
       realm.write(() => {
         // ✅ 使用'modified'模式：如果对象存在则更新，不存在则创建
-        savedNote = realm.create('Note', newNote, 'modified');
+        savedNote = realm.create('Note', withPreviewMetadata(newNote), 'modified');
       });
 
       if (savedNote) {
@@ -527,7 +528,7 @@ const CardNoteScreen = ({ route, navigation }) => {
       let savedNote;
       realm.write(() => {
         // ✅ 使用'modified'模式：如果对象存在则更新，不存在则创建
-        savedNote = realm.create('Note', noteData, 'modified');
+        savedNote = realm.create('Note', withPreviewMetadata(noteData), 'modified');
       });
 
       if (savedNote) {

@@ -204,10 +204,81 @@ function mergePreviewMetadata(metadata, preview) {
   return JSON.stringify({ ...base, ...additions });
 }
 
+/**
+ * 把列表预览元数据增量合并进即将落库的笔记 payload（写入侧唯一实现）。
+ *
+ * 列表页（noteProjection.toNoteSummary）只解析 metadata 就能拿到
+ * previewText / hasContent / hasPages / hasStrokeData，无需再读 content/pages/strokeData。
+ * 合并是增量式的：调用方与历史已有的 metadata 键全部保留，只覆盖预览相关键；
+ * 调用方已给的 previewText 等键会被本次计算结果覆盖（这是刷新预览的预期行为）。
+ *
+ * @param {Object} payload 即将落库的笔记（含 content/pages/strokeData/metadata）
+ * @returns {Object} 新的 payload（metadata 为合并后的 JSON 字符串）
+ */
+function withPreviewMetadata(payload) {
+  const source = payload || {};
+  return {
+    ...source,
+    metadata: mergePreviewMetadata(source.metadata, buildNotePreview({
+      content: source.content,
+      pages: source.pages,
+      strokeData: source.strokeData,
+    })),
+  };
+}
+
+/**
+ * 把 patch 的字段写入 target，但 **metadata 走增量合并**（更新路径的系统化守卫）。
+ *
+ * 背景（设备复验定位的真实缺陷）：更新路径历史写法是
+ *   Object.assign(existingNote, updateData);
+ * 而 updateData.metadata 常常是默认的 '{}'，会把创建时已经打好的
+ * previewText / hasContent / hasPages / hasStrokeData 整块覆盖掉，
+ * 导致首页轻量列表把这条笔记判成「未打标」并整体回退全量渲染。
+ *
+ * 语义：
+ * 1. 非 metadata 字段按 patch 原样写入（与 Object.assign 一致，含 undefined）；
+ * 2. metadata = 「target 既有 metadata」∪「patch.metadata」，绝不整体覆盖；
+ *    patch 未提供 metadata（或值为 null/坏 JSON）时，target 既有 metadata 原样保留；
+ * 3. 用合并后的 content / pages / strokeData 重新计算预览标记并写回，
+ *    因此更新正文/页面后 previewText 自动刷新；
+ * 4. 直接修改并返回 target（调用方通常已在 realm.write 事务里）。
+ *
+ * @param {Object} target 目标对象（Realm Note 或普通对象）
+ * @param {Object} [patch] 待写入的字段（可含 metadata，JSON 字符串或对象）
+ * @returns {Object} target
+ */
+function assignNoteWithPreviewMetadata(target, patch) {
+  if (!target || typeof target !== 'object') {
+    return target;
+  }
+
+  const source = isPlainObject(patch) ? patch : {};
+
+  // 1) 非 metadata 字段：保持 Object.assign 的既有语义
+  Object.keys(source).forEach((key) => {
+    if (key !== 'metadata') {
+      target[key] = source[key];
+    }
+  });
+
+  // 2) metadata：既有 ∪ patch（patch 未提供时保持既有），再刷新预览标记
+  const mergedWithPatch = mergePreviewMetadata(target.metadata, normalizeMetadataObject(source.metadata));
+  target.metadata = mergePreviewMetadata(mergedWithPatch, buildNotePreview({
+    content: target.content,
+    pages: target.pages,
+    strokeData: target.strokeData,
+  }));
+
+  return target;
+}
+
 module.exports = {
   DEFAULT_PREVIEW_LENGTH,
   buildNotePreview,
   mergePreviewMetadata,
+  withPreviewMetadata,
+  assignNoteWithPreviewMetadata,
   stripMarkdown,
   truncateText,
   isNonEmptyValue,

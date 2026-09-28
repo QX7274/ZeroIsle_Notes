@@ -4,6 +4,7 @@ let useArrayCollection = false;
 
 const filteredCalls = [];
 const sliceCalls = [];
+const sortedCalls = [];
 let contentAccessCount = 0;
 
 /**
@@ -55,7 +56,10 @@ const makeResultsLike = (records) => {
       filteredCalls.push({ query, args });
       return makeResultsLike(applyQuery(records, query, args));
     }),
-    sorted: jest.fn(() => makeResultsLike(records)),
+    sorted: jest.fn((field, descending) => {
+      sortedCalls.push([field, descending]);
+      return makeResultsLike(records);
+    }),
     slice: jest.fn((start, end) => {
       const from = start === undefined ? 0 : start;
       const to = end === undefined ? records.length : end;
@@ -154,6 +158,7 @@ describe('getNotesFromOfflineStorage 列表主链', () => {
     useArrayCollection = false;
     filteredCalls.length = 0;
     sliceCalls.length = 0;
+    sortedCalls.length = 0;
     contentAccessCount = 0;
     jest.clearAllMocks();
   });
@@ -281,6 +286,7 @@ describe('getNoteSummariesFromOfflineStorage 列表字段裁剪', () => {
     useArrayCollection = false;
     filteredCalls.length = 0;
     sliceCalls.length = 0;
+    sortedCalls.length = 0;
     contentAccessCount = 0;
     jest.clearAllMocks();
   });
@@ -299,6 +305,27 @@ describe('getNoteSummariesFromOfflineStorage 列表字段裁剪', () => {
       expect(Object.prototype.hasOwnProperty.call(summary, 'content')).toBe(false);
       expect(summary._id).toMatch(/^note-/);
     });
+  });
+
+  test('可下推 sort 会传到 Realm.sorted（分页 + Realm 侧排序）', async () => {
+    noteRecords = [makeNote(1), makeNote(2)];
+
+    await getNoteSummariesFromOfflineStorage({
+      skip: 0,
+      limit: 50,
+      sort: { field: 'created_at', descending: true },
+    });
+
+    expect(sortedCalls).toEqual([['created_at', true]]);
+    expect(sliceCalls).toEqual([[0, 50]]);
+  });
+
+  test('未传 sort 时仍按默认 updated_at desc 下推（既有契约不变）', async () => {
+    noteRecords = [makeNote(1)];
+
+    await getNoteSummariesFromOfflineStorage({ skip: 0, limit: 50 });
+
+    expect(sortedCalls).toEqual([['updated_at', true]]);
   });
 
   test('summary 查询同样带 user_id 隔离', async () => {

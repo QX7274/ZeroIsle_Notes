@@ -5,6 +5,7 @@
 import { mongoDBService } from '../database/mongoDBAdapter';
 // 已移除 offlineStorageService 导入，现在直接使用 realmService
 import realmService from '../database/realmService';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { networkService } from '../network/networkService';
 import { logService } from '../../utils/logService';
 
@@ -167,7 +168,7 @@ class SyncService {
       updateRealm.write(() => {
         for (const note of latestNotes) {
           // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-          updateRealm.create('Note', note, 'modified');
+          updateRealm.create('Note', withPreviewMetadata(note), 'modified');
         }
       });
 

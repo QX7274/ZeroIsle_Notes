@@ -7,6 +7,8 @@ import { mongoDBService } from './mongoDBAdapter';
 import realmService from './realmService';
 import { networkService } from '../network/networkService';
 import { offlineSyncService } from '../offline/offlineSyncService';
+// 直写 Realm 的笔记入口统一打标预览元数据（RISK-LIST-UNTAGGED-001）
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 
 import { eventEmitter } from '../utils/eventEmitter';
 
@@ -764,12 +766,12 @@ class DataService {
 
           if (!localNote) {
             // 如果本地不存在，创建新笔记 - 使用正确的模型名称 'Note'
-            await realmService.create('Note', {
+            await realmService.create('Note', withPreviewMetadata({
               ...serverNote,
               _id: serverNote.id,
               user_id: userId,
               is_synced: true,
-            });
+            }));
             console.log(`创建新笔记: ${serverNote.id}`);
           } else if (new Date(serverNote.updated_at) > new Date(localNote.updated_at)) {
             // 如果服务器版本更新，更新本地笔记 - 使用正确的模型名称 'Note'

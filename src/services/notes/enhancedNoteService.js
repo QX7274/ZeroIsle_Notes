@@ -13,6 +13,7 @@ import { fileService } from '../files/fileService';
 import offlineDataService from '../storage/offlineDataService';
 import { deviceIdentityService } from '../app/deviceIdentityService';
 import { generateNoteDataHash } from '../data/noteDataHash';
+import { withPreviewMetadata, assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 
 class EnhancedNoteService {
   constructor() {
@@ -472,13 +473,15 @@ _generateClientOpId() {
         // 检查是否已存在
         const existingNote = realm.objectForPrimaryKey('Note', note._id);
         if (existingNote) {
-          // 更新现有笔记，但不修改主键
+          // 更新现有笔记，但不修改主键。
+          // 守卫：updateData.metadata 常常是默认的 '{}'，直接 Object.assign 会把创建时打好的
+          // previewText/hasContent/hasPages/hasStrokeData 整块覆盖，导致首页轻量列表判为未打标。
           const { _id, ...updateData } = note; // 排除主键
-          Object.assign(existingNote, updateData);
+          assignNoteWithPreviewMetadata(existingNote, updateData);
           savedNote = existingNote;
         } else {
           // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-          savedNote = realm.create('Note', note, 'modified');
+          savedNote = realm.create('Note', withPreviewMetadata(note), 'modified');
         }
       });
 

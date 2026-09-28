@@ -16,7 +16,7 @@ import { Platform } from 'react-native';
 import { API_URL } from '../../config';
 import { generateNoteDataHash } from '../data/noteDataHash';
 import { deviceIdentityService } from '../app/deviceIdentityService';
-import { buildNotePreview, mergePreviewMetadata } from '../../models/utils/notePreview';
+import { withPreviewMetadata } from '../../models/utils/notePreview';
 import { upsertNoteIndexSafe, removeNoteIndexSafe } from '../search/noteIndexService';
 
 // Helpers for metadata computation
@@ -126,28 +126,6 @@ const toRealmNotePayload = (note, noteId, overrides = {}) => {
   }
 
   return payload;
-};
-
-/**
- * 把列表预览元数据增量合并进即将落库的笔记 metadata（里程碑 5.1 续）。
- *
- * 列表页（noteProjection.toNoteSummary）只解析 metadata 就能拿到
- * previewText / hasContent / hasPages / hasStrokeData，无需再读 content/pages/strokeData。
- * 合并是增量式的：调用方与历史已有的 metadata 键全部保留，只覆盖预览相关键。
- *
- * @param {Object} payload 即将落库的笔记（含 content/pages/strokeData/metadata）
- * @returns {Object} 新的 payload（metadata 为合并后的 JSON 字符串）
- */
-const withPreviewMetadata = (payload) => {
-  const source = payload || {};
-  return {
-    ...source,
-    metadata: mergePreviewMetadata(source.metadata, buildNotePreview({
-      content: source.content,
-      pages: source.pages,
-      strokeData: source.strokeData,
-    })),
-  };
 };
 
 /**
@@ -785,7 +763,7 @@ const importNote = async (formData) => {
         noteId = realmService.createObjectId();
 
         realm.write(() => {
-          realm.create('Note', {
+          realm.create('Note', withPreviewMetadata({
             _id: noteId,
             title: formData.title || fileName || '未命名文件',
             type: fileType,
@@ -796,7 +774,7 @@ const importNote = async (formData) => {
             pdfPath: fileType === 'pdf' ? fileUri : null,
             created_at: new Date(),
             updated_at: new Date(),
-          }, 'modified');
+          }), 'modified');
         });
 
         console.log('✅ [notesApi] 创建新的永久 Note 记录:', noteId, '文件:', fileName);
@@ -1316,7 +1294,7 @@ const notesApi = {
         ...noteData,
         dataHash: generateNoteDataHash({ ...toPlainRecord(currentNote), ...noteData }),
       });
-      savedNote = realm.create('Note', payload, 'modified');
+      savedNote = realm.create('Note', withPreviewMetadata(payload), 'modified');
       createNoteBackup(realm, savedNote, { backupType: 'auto', description: '自动保存' });
     });
     return toPlainRecord(savedNote);
@@ -1350,7 +1328,7 @@ const notesApi = {
     let restoredNote;
     realm.write(() => {
       createNoteBackup(realm, currentNote, { backupType: 'manual', description: `恢复前备份 v${restoredVersion.version_number}` });
-      restoredNote = realm.create('Note', toRealmNotePayload(currentNote, id, {
+      restoredNote = realm.create('Note', withPreviewMetadata(toRealmNotePayload(currentNote, id, {
         title: restoredVersion.title,
         content: restoredVersion.content,
         tags: restoredVersion.tags,
@@ -1359,7 +1337,7 @@ const notesApi = {
         dataHash: generateNoteDataHash(restoredVersion),
         is_synced: false,
         syncStatus: 'pending',
-      }), 'modified');
+      })), 'modified');
     });
     return toPlainRecord(restoredNote);
   },

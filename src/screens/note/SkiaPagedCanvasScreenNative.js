@@ -50,6 +50,11 @@ import {
 } from './pagedNoteHelpers';
 import { generateNoteDataHash } from '../../services/data/noteDataHash';
 import { resolveLocalOwnerId } from '../../services/offline/getNotes';
+import {
+  buildNotePreview,
+  mergePreviewMetadata,
+  withPreviewMetadata,
+} from '../../models/utils/notePreview';
 
 
 const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
@@ -465,7 +470,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       let savedNote;
       realm.write(() => {
         // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-        savedNote = realm.create('Note', newNote, 'modified');
+        savedNote = realm.create('Note', withPreviewMetadata(newNote), 'modified');
       });
 
       dispatch(addNote(savedNote));
@@ -631,7 +636,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         // 如果note不存在，创建一个新的
         if (!note) {
           console.log('[SkiaPagedCanvasScreenNative] Note不存在，创建新的Note记录');
-          note = realm.create('Note', buildPagedNoteRecord({
+          note = realm.create('Note', withPreviewMetadata(buildPagedNoteRecord({
             noteId: exportedNoteId,
             title: title || '分页笔记',
             noteStyle: noteStyle || 'blank',
@@ -640,7 +645,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
             totalPages: noteData.totalPages || totalPages,
             scale: noteData.scale || zoomLevel,
             userId: ownerId,
-          }), 'modified');
+          })), 'modified');
         }
 
         // ✅ data已经是JSON字符串，直接保存
@@ -654,6 +659,12 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
           scale: noteData.scale || zoomLevel,
           updated_at: new Date(),
         });
+        // 大字段在同一事务内补写，重算预览元数据，保证徽标与实际数据一致
+        note.metadata = mergePreviewMetadata(note.metadata, buildNotePreview({
+          content: note.content,
+          pages: note.pages,
+          strokeData: note.strokeData,
+        }));
         note.dataHash = generateNoteDataHash(note);
 
         console.log('✅✅✅ [SkiaPagedCanvasScreenNative] 页面数据已保存到数据库', {

@@ -10,6 +10,7 @@ if (!notesApi) {
   console.error('notesApi导入失败，请检查文件路径和导出');
 }
 import realmService from '../../services/database/realmService';
+import { withPreviewMetadata, assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
 
 // 创建实体适配器，用于规范化状态
 const notesAdapter = createEntityAdapter({
@@ -109,7 +110,7 @@ export const createNote = createAsyncThunk(
         const realm = await realmService.getRealm();
         realm.write(() => {
           // 使用'modified'模式：如果Note已存在则更新，不存在则创建
-          realm.create('Note', offlineNote, 'modified');
+          realm.create('Note', withPreviewMetadata(offlineNote), 'modified');
         });
         console.log('离线笔记保存成功:', noteId);
       } catch (offlineError) {
@@ -130,7 +131,8 @@ export const createNote = createAsyncThunk(
             realm.write(() => {
               const note = realm.objectForPrimaryKey('Note', noteId);
               if (note) {
-                Object.assign(note, {
+                // 守卫：API 响应可能带 metadata（'{}'），不能覆盖已打标的预览元数据
+                assignNoteWithPreviewMetadata(note, {
                   ...response.data,
                   isOffline: false,
                 });
@@ -333,7 +335,8 @@ export const syncOfflineNotes = createAsyncThunk(
           realm.write(() => {
             const note = realm.objectForPrimaryKey('Note', note.id);
             if (note) {
-              Object.assign(note, {
+              // 守卫：同步响应可能带 metadata（'{}'），不能覆盖已打标的预览元数据
+              assignNoteWithPreviewMetadata(note, {
             ...response,
                 isOffline: false,
               });

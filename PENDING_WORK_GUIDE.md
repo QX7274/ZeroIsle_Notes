@@ -194,11 +194,18 @@
     （`createPreviewSelfHealController`：in-flight 去重 + 会话级尝试上限 + 防循环 + 卸载取消）
   - 笔记增量索引：新增 `src/services/search/noteIndexService.js`（`upsertNoteIndex/removeNoteIndex` + Safe 版本），
     `notesApi` 的创建/更新/离线保存/删除已接入，不再只依赖手动「重建搜索索引」
+- **已完成（2026-09-29 续）**：
+  - **直写 Realm 入口全部打标**：`withPreviewMetadata` 抽为 `notePreview.js` 单一实现，
+    20 处 `realm.create('Note')` 直写点（含 `updateRealm/writeRealm` 变量名与 dataService/syncService 遗漏点）全部接入（`RISK-LIST-UNTAGGED-001` 关闭）
+  - **更新路径不再抹标**：新增守卫 `assignNoteWithPreviewMetadata(target, patch)`（metadata 增量合并 + 刷新预览标记），
+    替换 8 处会携带 metadata 的 `Object.assign` 更新路径；根因是 `enhancedNoteService.saveToRealm` 更新分支
+    用 `metadata:'{}'` 覆盖了打标结果（设备复验定位）
+  - **列表分页 + Realm 侧排序**：`REALM_SORTABLE_FIELDS` 白名单下推；可下推排序首屏只取 1 页（50 条 summary），
+    触底/按钮加载更多、去重、失败可重试、不静默截断；`title/type/size` 明确不分页并打印 reason
 - **仍待完成**：
-  - 部分「直写 Realm」的入口（CardNoteScreen / SaveButton / PDFViewerNative / notesSlice offlineNote 等）仍未打标；
-    新写入的这类笔记会由首页自愈在下次启动补齐（会话内额度 1 次，属刻意防循环取舍）
-  - 列表分页 + Realm 侧排序：当前轻量列表一次性取该用户全部 summary，排序仍在 JS 侧；
-    10 万条下的首屏/FPS/内存真机基线仍未产出
+  - 10 万条下的首屏 P95 / 滚动 FPS / JS Heap 真机基线仍未产出（`src/tests/perf/README.md` 已给执行步骤）
+  - `updated_*` 分页后不再叠加 fileHistory 的「最近访问」权重（需把 `lastOpenedAt` 落库）
+  - `notesApi.autoSaveNote` 走 `realm.create 'modified'`，预览可能偏旧（不抹标），未在本次扩大改动
 - **验收**：
   - 首屏 P95、滚动 FPS、JS Heap 峰值达标（真机 10 万条基线仍未产出）
 
@@ -285,3 +292,20 @@
   证据 `.local/android-evidence/round68_*.{xml,png}`。
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
+
+## 2026-09-29 进展补充（第二轮：写路径彻底打标 + 列表分页）
+- 直写入口打标：WS-O 处理 20 处 `realm.create('Note')`（含 `updateRealm/writeRealm` 与 dataService/syncService），
+  `withPreviewMetadata` 收敛为 `notePreview.js` 单一实现。
+- **设备复验抓到第二层真实缺陷**：新建笔记并保存后重启仍报 1 条未打标。设备内临时诊断打印原始 Realm 行：
+  `metadata = "{}"`、`clientOpId = "op_..."`（来自 `enhancedNoteService`）——
+  根因是 `saveToRealm` 的**更新分支** `Object.assign(existingNote, updateData)` 把 `metadata:'{}'` 覆盖上去。
+  WS-Q 新增守卫 `assignNoteWithPreviewMetadata` 并替换 8 处更新路径。
+- 列表分页 + Realm 侧排序（WS-P）：`REALM_SORTABLE_FIELDS` 白名单 + `resolveListSortPolicy` +
+  触底/按钮加载更多（去重、失败可重试、不静默截断）；不可下推排序保持一次性全量并打印 reason。
+- 门禁：全量 Jest `73/73 suites、623/623 tests` 退出码 0；`eslint .` `0 errors / 1204 warnings`；
+  `CI=1` 开发态 bundle 成功（37,587,803 bytes、48 assets）。
+- 设备终验（平板 Android 14 模拟器 `emulator-5554`）：
+  1. 基线：`使用轻量 summary 首页，条数: 6`；
+  2. UI 新建分页笔记 `guarded` → 保存 → 强停重启 → `使用轻量 summary 首页，条数: 7`，
+     **无「未打标」回退、无自愈触发**（证明写路径已彻底打标）；
+  3. 首页渲染 7 张卡片、无 LogBox 遮罩；证据 `.local/android-evidence/round69_guarded_home.{xml,png}`。

@@ -143,4 +143,43 @@ describe('EnhancedNoteService data integrity', () => {
     );
     service.destroy();
   });
+
+  it('更新分支不会抹掉已打标的预览元数据（设备复验缺陷回归）', async () => {
+    const service = new EnhancedNoteService();
+
+    // 1. 创建：写入侧打标，metadata 已含 previewText
+    const created = await service.createNote({
+      _id: 'note-preview-guard',
+      title: 'diagproof',
+      content: '创建正文',
+      type: 'paged_note',
+    });
+    expect(JSON.parse(created.metadata).previewText).toBe('创建正文');
+
+    // 模拟历史写入者留下的自定义键（必须一起保住）
+    created.metadata = JSON.stringify({ ...JSON.parse(created.metadata), customKey: 'keep-me' });
+
+    // 2. 走 saveToRealm 的更新分支：updateData.metadata 是默认的 '{}'
+    //    （修复前 Object.assign 会把上面的 previewText/customKey 整块覆盖）
+    await service.saveToRealm({
+      _id: 'note-preview-guard',
+      title: 'diagproof',
+      content: '更新后的正文',
+      metadata: '{}',
+      currentPage: 3,
+      updated_at: new Date(),
+    });
+
+    const stored = mockStores.Note.get('note-preview-guard');
+    const metadata = JSON.parse(stored.metadata);
+    expect(metadata.previewText).toBe('更新后的正文');
+    expect(metadata.hasContent).toBe(true);
+    expect(metadata.contentLength).toBe('更新后的正文'.length);
+    expect(metadata.customKey).toBe('keep-me');
+    // 其它字段照常更新
+    expect(stored.currentPage).toBe(3);
+    expect(stored.title).toBe('diagproof');
+
+    service.destroy();
+  });
 });
