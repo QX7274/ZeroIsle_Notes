@@ -121,6 +121,8 @@ describe('noteProjection 轻量字段裁剪', () => {
         'canvasStyle',
         'is_pinned',
         'syncStatus',
+        // WS-U：「最近访问」排序键（小标量日期）正式并入白名单
+        'last_opened_at',
       ]),
     );
     // 大字段绝不能进白名单：列表预览走 metadata，正文/页面/笔迹按 id 延迟加载
@@ -230,6 +232,29 @@ describe('noteProjection 轻量字段裁剪', () => {
 
 describe('Note.findByUserSummaries（10 万条笔记列表主路径）', () => {
   const loadNote = () => require('../Note').default || require('../Note');
+
+  it('summary 精确键集 = 白名单 + 派生标记（last_opened_at 走白名单，无旁路补标量）', () => {
+    const Note = loadNote();
+    const counter = { count: 0 };
+    const collection = createCountingResults(createRows(5, createRowFactory(counter)));
+    const realm = { objects: () => collection };
+
+    const page = Note.findByUserSummaries(realm, 'user-1', { skip: 0, limit: 3 });
+
+    expect(page).toHaveLength(3);
+    expect(Object.keys(page[0]).sort()).toEqual(
+      [
+        ...NOTE_SUMMARY_FIELDS,
+        'hasContent',
+        'contentLength',
+        'previewText',
+        'hasPages',
+        'hasStrokeData',
+      ].sort(),
+    );
+    // WS-T 的旁路补标量已移除：last_opened_at 只能来自白名单投影
+    expect(NOTE_SUMMARY_FIELDS).toContain('last_opened_at');
+  });
 
   it('只物化当前页，返回 summary 且不含 content', () => {
     const Note = loadNote();

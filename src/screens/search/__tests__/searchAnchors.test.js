@@ -252,6 +252,13 @@ jest.mock('react-redux', () => ({
   useSelector: (selector) => selector(mockReduxState),
 }));
 
+// WS-U：「最近访问」记录 —— 只把 markNoteOpenedAt 换成 spy，其余实现保持真实，
+// 避免影响同文件其它用例（它们不依赖这个函数）。
+jest.mock('../../../services/offline/getNotes', () => {
+  const actual = jest.requireActual('../../../services/offline/getNotes');
+  return { ...actual, markNoteOpenedAt: jest.fn(() => Promise.resolve(true)) };
+});
+
 jest.mock('../../../redux/slices/searchSlice', () => ({
   localSearch: mockLocalSearch,
   search: jest.fn((payload) => ({ type: 'search/search', payload })),
@@ -375,6 +382,19 @@ describe('SearchResultsScreen 锚点', () => {
     expect(getByTestId('state.searchResults.state.empty')).toBeTruthy();
     expect(getByTestId('state.searchResults.empty')).toBeTruthy();
     expect(getByTestId('state.searchResults.results.count.0')).toBeTruthy();
+  });
+
+  it('打开结果时记录最近访问（WS-U）：笔记类写 last_opened_at，tag 不写', () => {
+    const getNotesModule = require('../../../services/offline/getNotes');
+    const { getByTestId } = mount({ results, query: '示例' });
+
+    fireEvent.press(getByTestId('item.searchResult.note-1'));
+    expect(getNotesModule.markNoteOpenedAt).toHaveBeenCalledWith('note-1');
+    expect(mockNavigation.navigate).toHaveBeenCalled();
+
+    fireEvent.press(getByTestId('item.searchResult.tag-2'));
+    expect(getNotesModule.markNoteOpenedAt).not.toHaveBeenCalledWith('tag-2');
+    expect(getNotesModule.markNoteOpenedAt).toHaveBeenCalledTimes(1);
   });
 
   it('历史与过滤开关提供操作锚点，点击后可见性状态切换', () => {

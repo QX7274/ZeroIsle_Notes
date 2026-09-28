@@ -30,6 +30,8 @@ const RNNativePDFView = requireNativeComponent('NativePDFView');
 import { useTheme } from '../../context/ThemeContext';
 import realmService from '../../services/database/realmService';
 import { withPreviewMetadata } from '../../models/utils/notePreview';
+// 「最近访问」记录（WS-U）：打开既有 PDF 笔记时单字段写 last_opened_at
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
 import permanentStorageBridge from '../../native/permanentStorageBridge';
 import ViewerLayout from '../../components/viewer/ViewerLayout';
 import BackButton from '../../components/viewer/BackButton';
@@ -120,6 +122,10 @@ const PDFViewerNative = ({ route, navigation }) => {
         console.log('🔍 [PDFViewerNative] 查找保存的 Note:', noteId, '找到:', !!note);
 
         if (note) {
+          // 记录「最近访问」（WS-U）：noteId 命中既有 Note 才算「打开笔记」；
+          // 为裸文件打开而自动建档的路径不会走到这里，因此不会误记新建。
+          markNoteOpenedAt(noteId);
+
           console.log('📖 [PDFViewerNative] PDF阅读状态信息:', {
             savedCurrentPage: note.pdfCurrentPage,
             savedTotalPages: note.pdfTotalPages,

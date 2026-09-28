@@ -49,7 +49,7 @@ import {
   buildPagedNoteStoragePayload,
 } from './pagedNoteHelpers';
 import { generateNoteDataHash } from '../../services/data/noteDataHash';
-import { resolveLocalOwnerId } from '../../services/offline/getNotes';
+import { resolveLocalOwnerId, markNoteOpenedAt } from '../../services/offline/getNotes';
 import {
   buildNotePreview,
   mergePreviewMetadata,
@@ -251,6 +251,8 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       // 创建新笔记并保存
       createNewNote();
     } else if (noteId) {
+      // 记录「最近访问」（WS-U）：打开既有分页笔记才写；createNew 分支不记（新建不算访问）
+      markNoteOpenedAt(noteId);
       loadNote(noteId);
     }
   }, [createNew, createNewNote, loadNote, noteId, noteStyle, title]);

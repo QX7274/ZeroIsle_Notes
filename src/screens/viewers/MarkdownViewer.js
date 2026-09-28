@@ -17,6 +17,8 @@ import SaveButton, { SaveUtils } from '../../components/common/SaveButton';
 import FileHistoryNavigation from '../../components/viewer/FileHistoryNavigation';
 import fileHistoryService from '../../services/fileHistoryService';
 import { assignNoteWithPreviewMetadata } from '../../models/utils/notePreview';
+// 「最近访问」记录（WS-U）：打开既有 Markdown 笔记时单字段写 last_opened_at
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
 
 function MarkdownViewer({ route, navigation }) {
   const { uri, title = 'Markdown', noteId, fromFileHistory } = route.params || {};
@@ -173,6 +175,11 @@ function MarkdownViewer({ route, navigation }) {
 
   useEffect(() => {
     console.log('MarkdownViewer: 组件挂载，开始加载内容');
+
+    // 记录「最近访问」（WS-U）：route 提供 noteId 说明是从笔记入口打开的既有笔记；
+    // markNoteOpenedAt 内部只在 Note 存在时单字段写入（裸文件打开/自动建档不会误记），
+    // 不 await、失败只 warn，不影响内容加载。
+    markNoteOpenedAt(noteId);
 
     // 添加到文件历史记录
     if (uri && title) {

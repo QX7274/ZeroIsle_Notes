@@ -4,7 +4,7 @@
 
 import Realm from 'realm';
 const { materializePage } = require('./utils/queryPagination');
-const { toNoteSummary } = require('./utils/noteProjection');
+const { materializeNoteSummaries } = require('./utils/noteProjection');
 
 /**
  * Realm 可下推的排序字段白名单（里程碑 5.1：列表分页要求排序在 Realm 侧完成）。
@@ -460,22 +460,10 @@ class Note extends Realm.Object {
       ? { skip: options.skip || 0, limit: options.limit || 20 }
       : {};
 
-    // 与 materializeNoteSummaries 完全等价（先 materializePage 取当前页，再 toNoteSummary 投影），
-    // 只是额外把 last_opened_at 这个标量随页带出（WS-T）：
-    // 「最近访问」排序 = [last_opened_at, updated_at]，前端 Redux adapter 会按 updated_at 重排，
-    // 少了这个标量就无法在客户端复现 Realm 的分页顺序，跨页会出现乱序。
-    // 理想做法是把它加进 NOTE_SUMMARY_FIELDS（src/models/utils/noteProjection.js，本任务 scope 外），
-    // 这里先做等价的「按页补充标量」，物化上界仍是当前页。
-    return materializePage(results, pageOptions)
-      .map((note) => {
-        const summary = toNoteSummary(note);
-        if (!summary) {
-          return null;
-        }
-        summary.last_opened_at = note.last_opened_at === undefined ? null : note.last_opened_at;
-        return summary;
-      })
-      .filter((summary) => summary !== null);
+    // 统一走 materializeNoteSummaries（先取当前页，再按 NOTE_SUMMARY_FIELDS 投影）：
+    // last_opened_at 已在白名单内（WS-U），不再需要任何旁路补标量；
+    // 物化上界恒等于当前页大小。
+    return materializeNoteSummaries(results, pageOptions);
   }
 
   /**

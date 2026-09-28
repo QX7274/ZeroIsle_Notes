@@ -189,6 +189,21 @@ describe('Note.findByUserSummaries 排序下推与分页物化', () => {
     expect(page[0]).not.toHaveProperty('content');
   });
 
+  test('last_opened_at 由白名单投影带出（WS-U 去掉旁路补标量后仍随页返回）', () => {
+    const openedAt = new Date(1700000001000);
+    const rows = createRows(3).map((row, index) => ({
+      ...row,
+      last_opened_at: index === 1 ? openedAt : null,
+    }));
+    const { realm } = createRealm(rows);
+
+    const page = Note.findByUserSummaries(realm, 'user-1', { skip: 0, limit: 3 });
+
+    expect(page[1].last_opened_at).toEqual(openedAt);
+    expect(page[0].last_opened_at).toBeNull();
+    expect(page[2].last_opened_at).toBeNull();
+  });
+
   test('未传 sort 时保持历史行为：updated_at desc', () => {
     const { sortedArgs, realm } = createRealm(createRows(10));
 

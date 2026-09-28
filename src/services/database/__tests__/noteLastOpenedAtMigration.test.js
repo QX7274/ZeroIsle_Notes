@@ -20,11 +20,11 @@ describe('Note.last_opened_at schema 与 v20 迁移契约（WS-T）', () => {
     const config = getRealmConfig();
     const oldRealm = { schemaVersion: 19, objects: jest.fn(() => []) };
     const newRealm = { schemaVersion: 20, objects: jest.fn(() => []) };
-    const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     expect(() => config.migration(oldRealm, newRealm)).not.toThrow();
 
-    const logged = info.mock.calls.map((call) => call.join(' ')).join('\n');
+    const logged = logSpy.mock.calls.map((call) => call.join(' ')).join('\n');
     expect(logged).toContain('迁移到版本 20');
     expect(logged).toContain('last_opened_at');
 
@@ -32,12 +32,12 @@ describe('Note.last_opened_at schema 与 v20 迁移契约（WS-T）', () => {
     expect(oldRealm.objects).not.toHaveBeenCalled();
     expect(newRealm.objects).not.toHaveBeenCalled();
 
-    info.mockRestore();
+    logSpy.mockRestore();
   });
 
   test('任意旧版本（含远古库）迁移都不抛错，最终仍落到版本 20', () => {
     const config = getRealmConfig();
-    const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     [1, 5, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19].forEach((oldVersion) => {
@@ -47,13 +47,13 @@ describe('Note.last_opened_at schema 与 v20 迁移契约（WS-T）', () => {
       expect(() => config.migration(oldRealm, newRealm)).not.toThrow();
     });
 
-    info.mockRestore();
+    logSpy.mockRestore();
     warn.mockRestore();
   });
 
   test('迁移分支不修改 newRealm.schemaVersion（由 Realm 自身管理）', () => {
     const config = getRealmConfig();
-    const info = jest.spyOn(console, 'info').mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const oldRealm = { schemaVersion: 19, objects: () => [] };
     const newRealm = { schemaVersion: 20, objects: () => [] };
 
@@ -61,6 +61,6 @@ describe('Note.last_opened_at schema 与 v20 迁移契约（WS-T）', () => {
 
     expect(oldRealm.schemaVersion).toBe(19);
     expect(newRealm.schemaVersion).toBe(20);
-    info.mockRestore();
+    logSpy.mockRestore();
   });
 });

@@ -55,6 +55,9 @@ const NOTE_SUMMARY_FIELDS = Object.freeze([
   'updated_at',
   'updatedAt',
   'createdAt',
+  // 「最近访问」排序键（WS-T/WS-U）：小标量日期，随 summary 一并投影，
+  // 让前端能用与 Realm 相同的 [last_opened_at, updated_at] 顺序复现分页边界。
+  'last_opened_at',
   'user_id',
   'file_path',
   'file_size',

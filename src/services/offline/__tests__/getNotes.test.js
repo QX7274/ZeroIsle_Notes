@@ -150,6 +150,8 @@ const {
   getNotesFromOfflineStorage,
   getNoteSummariesFromOfflineStorage,
   markNoteOpenedAt,
+  markNoteOpenedFromParams,
+  shouldMarkNoteOpened,
 } = require('../getNotes');
 
 describe('getNotesFromOfflineStorage 列表主链', () => {
@@ -412,5 +414,87 @@ describe('markNoteOpenedAt 最近访问落库（WS-T）', () => {
     expect(warn).toHaveBeenCalled();
 
     warn.mockRestore();
+  });
+
+  test('shouldMarkNoteOpened：新建流程 / 空值 / 临时 id 都不算访问（负向守卫）', () => {
+    expect(shouldMarkNoteOpened('note-1')).toBe(true);
+    expect(shouldMarkNoteOpened('note-1', { isNew: false })).toBe(true);
+    expect(shouldMarkNoteOpened('note-1', { isNew: true })).toBe(false);
+    expect(shouldMarkNoteOpened('temp_1700000000')).toBe(false);
+    expect(shouldMarkNoteOpened('')).toBe(false);
+    expect(shouldMarkNoteOpened(null)).toBe(false);
+    expect(shouldMarkNoteOpened(undefined)).toBe(false);
+  });
+
+  test('isNew=true 时一个字段都不写（新建不误记访问）', async () => {
+    const note = { _id: 'note-1', last_opened_at: null, updated_at: 'keep', metadata: 'keep' };
+    const { assigned, realm } = createTrackedRealm(note);
+
+    await expect(markNoteOpenedAt('note-1', { realm, isNew: true })).resolves.toBe(false);
+
+    expect(assigned).toEqual([]);
+    expect(realm.write).not.toHaveBeenCalled();
+    expect(note.last_opened_at).toBeNull();
+  });
+
+  test('入口 1（编辑器/画布/查看器的 route.params）：既有 noteId → 只写 last_opened_at', async () => {
+    // CardNoteScreen / SkiaPagedCanvasScreenNative / FluidInfiniteCanvasScreenNative /
+    // PDFViewerNative / MarkdownViewer 打开既有笔记时传的就是 route.params
+    const note = {
+      _id: 'note-42',
+      last_opened_at: null,
+      updated_at: 'keep-updated-at',
+      metadata: '{"previewText":"x"}',
+    };
+    const { assigned, realm } = createTrackedRealm(note);
+
+    await expect(
+      markNoteOpenedFromParams({ noteId: 'note-42', title: '标题' }, { realm }),
+    ).resolves.toBe(true);
+
+    expect(assigned).toEqual(['last_opened_at']);
+    expect(note.last_opened_at).toBeInstanceOf(Date);
+    expect(note.updated_at).toBe('keep-updated-at');
+    expect(note.metadata).toBe('{"previewText":"x"}');
+  });
+
+  test('入口 1 负向：createNew / isNew（新建流程）不写访问时间', async () => {
+    const note = { _id: 'note-42', last_opened_at: null };
+    const createNew = createTrackedRealm(note);
+    await expect(
+      markNoteOpenedFromParams({ noteId: 'note-42', createNew: true }, { realm: createNew.realm }),
+    ).resolves.toBe(false);
+    expect(createNew.assigned).toEqual([]);
+
+    const isNew = createTrackedRealm(note);
+    await expect(
+      markNoteOpenedFromParams({ noteId: 'note-42', isNew: true }, { realm: isNew.realm }),
+    ).resolves.toBe(false);
+    expect(isNew.assigned).toEqual([]);
+  });
+
+  test('入口 2（搜索结果页）：命中既有 Note → 只写 last_opened_at；非笔记实体 id 不写', async () => {
+    // 搜索结果页点击时传的是 result.id || result._id
+    const note = { _id: 'note-99', last_opened_at: null, updated_at: 'keep' };
+    const { assigned, realm } = createTrackedRealm(note);
+
+    await expect(markNoteOpenedAt('note-99', { realm })).resolves.toBe(true);
+    expect(assigned).toEqual(['last_opened_at']);
+
+    // tag / knowledge 的 id 在 Note 表里找不到 → 不写（搜索结果页也会先按类型过滤）
+    const notFound = createTrackedRealm(null);
+    await expect(markNoteOpenedAt('tag-1', { realm: notFound.realm })).resolves.toBe(false);
+    expect(notFound.assigned).toEqual([]);
+  });
+
+  test('裸文件打开（没有 noteId）不写访问时间', async () => {
+    const { assigned, realm } = createTrackedRealm(null);
+
+    await expect(
+      markNoteOpenedFromParams({ uri: 'file:///tmp/a.pdf', title: 'a.pdf' }, { realm }),
+    ).resolves.toBe(false);
+
+    expect(assigned).toEqual([]);
+    expect(realm.write).not.toHaveBeenCalled();
   });
 });

@@ -295,6 +295,47 @@ export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
 };
 
 /**
+ * 「是否应记录这次打开」的纯判定（所有打开入口共用的守卫，WS-U）。
+ *
+ * 只有「用户主动打开一篇既有笔记」才算访问：
+ * - 新建流程（isNew / createNew）不记 —— 产品语义上不是「访问」；
+ * - 空 id、临时 id（temp_ 前缀）不记（这类 id 还没有落库的 Note）。
+ *
+ * 纯函数、无副作用，便于单测与被各入口复用。
+ *
+ * @param {string} noteId
+ * @param {{isNew?: boolean}} [options]
+ * @returns {boolean}
+ */
+export const shouldMarkNoteOpened = (noteId, options = {}) => {
+  if (options.isNew === true) {
+    return false;
+  }
+  const id = noteId === null || noteId === undefined || noteId === '' ? null : String(noteId);
+  if (!id || id.startsWith('temp_')) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * 路由参数 → 「打开既有笔记」记录（各屏幕统一入口，WS-U）。
+ *
+ * 约定：params.noteId/_id/id 是笔记 id；params.createNew / params.isNew 表示新建流程。
+ * 新建流程直接跳过，因此屏幕不需要自己判断。
+ *
+ * @param {Object} params 路由参数（route.params）
+ * @param {{realm?: Object}} [options]
+ * @returns {Promise<boolean>}
+ */
+export const markNoteOpenedFromParams = (params, options = {}) => {
+  const source = params || {};
+  const noteId = source.noteId || source._id || source.id;
+  const isNew = source.createNew === true || source.isNew === true;
+  return markNoteOpenedAt(noteId, { ...options, isNew });
+};
+
+/**
  * 记录「最近访问」：打开笔记时**单字段**写入 Note.last_opened_at（WS-T）。
  *
  * 为什么落库：列表「最近访问」排序要能下推 Realm 才能分页；fileHistoryService 的访问历史
@@ -305,17 +346,20 @@ export const getNoteSummariesFromOfflineStorage = async (options = {}) => {
  * - 只写 last_opened_at 一个字段，不刷新 updated_at / metadata / dataHash，也不入离线同步队列
  *   （访问时间是本机使用信号，不参与跨端同步；避免把「打开过」变成一次待同步写）；
  * - 独立 realm.write，失败只 console.warn，绝不抛错、绝不阻断打开流程；
- * - 临时 id（temp_ 前缀）与空 id 直接跳过。
+ * - 临时 id（temp_ 前缀）与空 id 直接跳过；
+ * - 新建流程（isNew/createNew）不算访问：见 shouldMarkNoteOpened。
  *
  * @param {string} noteId 笔记 id
- * @param {{realm?: Object}} [options] 可注入 realm（便于单测；缺省用 realmService.getRealm()）
+ * @param {{realm?: Object, isNew?: boolean}} [options]
+ *        realm 可注入（便于单测；缺省用 realmService.getRealm()）；
+ *        isNew=true 表示「这是新建笔记的流程」，直接跳过，不写访问时间
  * @returns {Promise<boolean>} 是否写入成功（笔记不存在或跳过时为 false）
  */
 export const markNoteOpenedAt = async (noteId, options = {}) => {
-  const id = noteId === null || noteId === undefined || noteId === '' ? null : String(noteId);
-  if (!id || id.startsWith('temp_')) {
+  if (!shouldMarkNoteOpened(noteId, options)) {
     return false;
   }
+  const id = String(noteId);
 
   try {
     const realm = options.realm || await realmService.getRealm();

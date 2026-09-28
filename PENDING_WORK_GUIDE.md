@@ -295,6 +295,23 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-29 进展补充（第五轮：开发清库隐患修复 + 迁移真机验证）
+- **`RISK-DEV-WIPE-001` 关闭**：`realmConfig.js` 的 `deleteRealmIfMigrationNeeded` 改为「仅当显式常量开启」，
+  开发构建与生产一致走迁移。设备端到端复验：v19 构建（`pm clear` 后）建立 100,000 条样本的 55MB 库 →
+  部署 v20 构建（不清数据）→ 日志 `禁用 deleteRealmIfMigrationNeeded，保留数据并执行迁移`、
+  列表渲染 `[PERF] 性能样本 #47/48/49`、幂等造数复查 `{created:0, skipped:100000}` ⇒ **零数据丢失**，
+  且「wipe 关闭时仍能打开旧版本库」本身即证明迁移回调执行成功。
+- **迁移可观测性**：`SCHEMA_VERSION` 抽为单一来源（此前启动日志把 20 写死，配置成 19 时也打印 20，
+  会直接误导迁移排查）；迁移日志由 `console.info` 改为 `console.log`；打开后新增
+  `diskSchemaVersion / configuredSchemaVersion / migrated` 回读日志。
+- **最近访问链路收尾（WS-U）**：`last_opened_at` 正式并入 `NOTE_SUMMARY_FIELDS` 并删除旁路补标量
+  （summary 键集 = 白名单 + 派生标记，不再漂移）；打开入口从 2 个扩到 9 个
+  （首页列表、搜索结果、CardNote、Skia 分页画布、无限画布、NoteEditor、PDF、Markdown），
+  并新增 `shouldMarkNoteOpened` 守卫：`createNew/isNew`、`temp_`/空 id、裸文件打开、自动保存与后台恢复都不写。
+  未接入口（文件历史组件、Doc/PPT 查看器）已在报告说明原因。
+- 门禁：全量 Jest `76/76 suites、675/675 tests`（本轮起点 662）；`eslint .` `0 errors / 1204 warnings`；
+  后端根目录 pytest `21 passed / 2 skipped`、真实存储集成 `6 passed`、sync 路由契约 `4 passed`。
+- 设备证据：`.local/android-evidence/` 本轮序列（v19 造数 → v20 迁移）以 logcat 为准，见开发记录。
 ## 2026-09-29 进展补充（第四轮：500MB 验证工具、访问时间落库、后端真实存储与测试环境治理）
 - **500MB 附件（客户端可验证部分）**：新增 dev-only `cachePerfService`（有界分段生成 512MB 文件、
   调用 `saveToCache` 并每 2s 打印可采样的进度、配额淘汰纯逻辑校验、幂等清理）+ 设置页两个入口；

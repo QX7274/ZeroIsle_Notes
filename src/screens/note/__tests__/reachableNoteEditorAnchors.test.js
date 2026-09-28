@@ -144,6 +144,17 @@ jest.mock('../../../services/data/noteDataHash', () => ({
   generateNoteDataHash: jest.fn(() => 'mock-hash'),
 }));
 
+// WS-U：「最近访问」记录 —— 只把两个写入/守卫入口换成 spy，其余实现保持真实
+// （SkiaPagedCanvas 还从该模块取 resolveLocalOwnerId）。
+jest.mock('../../../services/offline/getNotes', () => {
+  const actual = jest.requireActual('../../../services/offline/getNotes');
+  return {
+    ...actual,
+    markNoteOpenedAt: jest.fn(() => Promise.resolve(true)),
+    markNoteOpenedFromParams: jest.fn(() => Promise.resolve(true)),
+  };
+});
+
 jest.mock('../../../services/memory/MemoryMonitor', () => ({
   __esModule: true,
   default: {
@@ -462,5 +473,43 @@ describe('直写入口预览打标（RISK-LIST-UNTAGGED-001）', () => {
       previewText: '卡片正文',
       hasContent: true,
     });
+  });
+});
+
+/**
+ * WS-U：打开既有笔记要记录「最近访问」，新建流程不得误记。
+ * 屏幕层只负责「把打开时机交给守卫」，跳过新建的策略由 getNotes 的守卫单测覆盖。
+ */
+describe('打开笔记记录最近访问（WS-U）', () => {
+  const getNotesModule = require('../../../services/offline/getNotes');
+
+  it('CardNoteScreen 打开既有笔记：把 route.params 交给 markNoteOpenedFromParams', () => {
+    renderCardNote({ noteId: 'note-card-open-1' });
+
+    expect(getNotesModule.markNoteOpenedFromParams).toHaveBeenCalledWith(
+      expect.objectContaining({ noteId: 'note-card-open-1' }),
+    );
+  });
+
+  it('CardNoteScreen 新建（createNew）：仍交由守卫判定（守卫内部按 createNew 跳过写入）', () => {
+    renderCardNote({ noteId: 'note-card-new-1', createNew: true });
+
+    expect(getNotesModule.markNoteOpenedFromParams).toHaveBeenCalledWith(
+      expect.objectContaining({ noteId: 'note-card-new-1', createNew: true }),
+    );
+  });
+
+  it('SkiaPagedCanvas 打开既有分页笔记：写 last_opened_at', () => {
+    renderPagedCanvas({ noteId: 'note-paged-open-1' });
+
+    expect(getNotesModule.markNoteOpenedAt).toHaveBeenCalledWith('note-paged-open-1');
+  });
+
+  it('SkiaPagedCanvas 新建（createNew）不写访问时间（负向断言）', () => {
+    renderPagedCanvas({ noteId: 'note-paged-new-1', createNew: true });
+
+    // 只断言「没有为本次新建的 id 写入」：同文件其它用例的挂载可能仍有异步续跑，
+    // 用具体 id 断言可避免跨用例串扰导致误判。
+    expect(getNotesModule.markNoteOpenedAt).not.toHaveBeenCalledWith('note-paged-new-1');
   });
 });

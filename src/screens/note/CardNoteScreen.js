@@ -28,6 +28,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import BackButton from '../../components/viewer/BackButton';
 import SaveButton from '../../components/common/SaveButton';
 import networkErrorService from '../../services/networkErrorService';
+// 「最近访问」记录（WS-U）：只有打开既有笔记时才写，createNew/isNew 由守卫跳过
+import { markNoteOpenedFromParams } from '../../services/offline/getNotes';
 
 /**
  * 卡片笔记屏幕
@@ -254,6 +256,13 @@ const CardNoteScreen = ({ route, navigation }) => {
       isMounted = false;
     };
   }, [noteId, initialTitle, initialContent, route.params?.createNew, route.params?.isNew]);
+
+  // 记录「最近访问」（WS-U）：单独成 effect，依赖 route.params 本身，
+  // 避免污染上面的加载 effect 依赖；createNew/isNew（新建流程）由守卫跳过，
+  // 内部只在 Note 存在时单字段写入、失败只 warn，不 await、不阻塞加载。
+  useEffect(() => {
+    markNoteOpenedFromParams(route.params);
+  }, [route.params]);
 
   // 监听键盘状态
   useEffect(() => {

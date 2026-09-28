@@ -13,6 +13,8 @@ import BlockReferenceModal from '../../components/common/BlockReferenceModal';
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
 import DiffView from './components/DiffView';
 import { compareVersions, restoreVersion } from '../../services/api/noteVersionApi';
+// 「最近访问」记录（WS-U）：加载到既有笔记时单字段写 last_opened_at
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
 
 const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -65,6 +67,8 @@ const NoteEditorScreen = ({ route, navigation }) => {
         const realm = await realmService.getRealm();
         const noteObject = realm.objectForPrimaryKey('Note', noteId);
         if (noteObject) {
+          // 记录「最近访问」（WS-U）：只有真正加载到既有笔记时才写（未命中不写）
+          markNoteOpenedAt(noteId);
           setNote(noteObject);
           setContent(noteObject.content || '');
           setIsDirty(false);

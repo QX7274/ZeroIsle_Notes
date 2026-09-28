@@ -39,6 +39,7 @@ import {
   mergePreviewMetadata,
   withPreviewMetadata,
 } from '../../models/utils/notePreview';
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
 import permanentStorageBridge from '../../native/permanentStorageBridge';
 import { recognizeTextInRegion } from '../../native/recognitionBridge';
 import { useDispatch } from 'react-redux';
@@ -244,6 +245,8 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
       createNewCanvas();
     } else if (noteObjectId) {
       console.log('🔍 [画布] 调用 loadCanvas');
+      // 记录「最近访问」（WS-U）：打开既有画布才写；createNew 分支不记（新建不算访问）
+      markNoteOpenedAt(noteObjectId);
       loadCanvas(noteObjectId);
     } else {
       console.log('🔍 [画布] 没有调用任何函数 - createNew:', createNew, 'noteObjectId:', noteObjectId);

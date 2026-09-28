@@ -19,6 +19,11 @@ import { UnifiedSearchBar } from '../../components/search';
 import SearchFilters from '../../components/search/SearchFilters';
 import SearchHistory from '../../components/search/SearchHistory';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
+// 「最近访问」记录（WS-U）：点击搜索结果打开既有笔记时单字段写 last_opened_at
+import { markNoteOpenedAt } from '../../services/offline/getNotes';
+
+/** 非笔记实体的搜索结果类型：它们没有对应的 Note，不记录访问时间 */
+const NON_NOTE_RESULT_TYPES = Object.freeze(['tag', 'knowledge']);
 
 const SearchResultsScreen = ({ navigation, route }) => {
   const themeContext = useTheme();
@@ -213,6 +218,13 @@ const SearchResultsScreen = ({ navigation, route }) => {
   // 处理结果点击 - 增强版文件跳转
   const handleResultPress = (result) => {
     console.log('点击搜索结果:', result);
+
+    // 记录「最近访问」（WS-U）：这是用户主动打开一条搜索结果；
+    // tag/knowledge 不是笔记实体，跳过。markNoteOpenedAt 内部只在 Note 存在时
+    // 单字段写入，且不 await、失败只 warn，不影响跳转。
+    if (result && !NON_NOTE_RESULT_TYPES.includes(String(result.type || '').toLowerCase())) {
+      markNoteOpenedAt(result.id || result._id);
+    }
 
     try {
       switch (result.type) {

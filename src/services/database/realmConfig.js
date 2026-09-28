@@ -23,93 +23,119 @@ export const MONGODB_CONFIG = {
 };
 
 /**
+ * 开发构建下是否允许「迁移时直接清库」。
+ *
+ * 历史上这里写的是 `deleteRealmIfMigrationNeeded: __DEV__`，导致**开发构建每次 schema 变更都会
+ * 静默清空本地 Realm**（2026-09-29 实测：19→20 升级清掉 100,007 条性能样本与 7 条测试笔记），
+ * 后果有两个：
+ * 1. 开发者的本地数据反复丢失，与生产行为严重不一致；
+ * 2. 真机「迁移是否安全」根本无法验证 —— 数据先被清掉，迁移分支永远不会执行。
+ *
+ * 现在默认与生产一致：保留数据并执行 `migration`。确需清库时（例如本地库出现无法解释的
+ * 脏数据）把下面常量临时改成 true 并重启应用；改完请记得改回。
+ */
+const DELETE_REALM_IF_MIGRATION_NEEDED_DEV = false;
+
+/**
+ * 当前 Realm schema 版本（**单一来源**）。
+ *
+ * 之前这个值在 `schemaVersion` 与启动日志里各写一份字面量，日志里的 20 是硬编码的，
+ * 即使实际配置成 19 也会打印「Schema 版本: 20」——排查迁移问题时会被直接误导。
+ * 现在统一引用本常量。
+ *
+ * 20：新增 Note.last_opened_at（「最近访问」排序落库，WS-T）。
+ */
+const SCHEMA_VERSION = 20;
+
+/**
  * 获取Realm配置
  * @param {Object} options 选项
  * @returns {Object} Realm配置
  */
 export const getRealmConfig = () => {
   // 基本配置 - 不使用同步功能
-  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本: 20');
-  if (__DEV__) {
-    console.log('⚠️ [RealmConfig] 开发模式启用 deleteRealmIfMigrationNeeded，将清空并重建本地 Realm 数据库');
+  console.log('✅ [RealmConfig] 正在配置 Realm，Schema 版本:', SCHEMA_VERSION);
+  if (__DEV__ && DELETE_REALM_IF_MIGRATION_NEEDED_DEV) {
+    console.log('⚠️ [RealmConfig] 开发模式显式启用了 deleteRealmIfMigrationNeeded，将清空并重建本地 Realm 数据库');
   } else {
-    console.log('✅ [RealmConfig] 生产模式禁用 deleteRealmIfMigrationNeeded，保留数据并执行迁移');
+    console.log('✅ [RealmConfig] 禁用 deleteRealmIfMigrationNeeded，保留数据并执行迁移');
   }
   const config = {
     schema: getAllSchemas(),
-    schemaVersion: 20, // 增加 Note.last_opened_at（「最近访问」排序落库，WS-T）
+    schemaVersion: SCHEMA_VERSION,
     path: `${MONGODB_CONFIG.dbName}.realm`,
-    deleteRealmIfMigrationNeeded: __DEV__, // 开发环境清库
+    // 开发构建也默认走迁移，避免每次 schema 变更丢数据（RISK-DEV-WIPE-001）
+    deleteRealmIfMigrationNeeded: __DEV__ && DELETE_REALM_IF_MIGRATION_NEEDED_DEV,
     migration: (oldRealm, newRealm) => {
       // 处理架构迁移 - 安全模式，保留所有数据
-      console.info('✅ [安全迁移] 执行Realm架构迁移', {
+      console.log('✅ [安全迁移] 执行Realm架构迁移', {
         oldVersion: oldRealm.schemaVersion,
         newVersion: newRealm.schemaVersion,
       });
 
       if (oldRealm.schemaVersion < 17) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 17');
-        console.info('✅ [安全迁移] 统一列表字段声明（list/objectType），不变更业务字段语义');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 17');
+        console.log('✅ [安全迁移] 统一列表字段声明（list/objectType），不变更业务字段语义');
       }
 
       if (oldRealm.schemaVersion < 18) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 18');
-        console.info('✅ [安全迁移] 添加 Note.dataHash 字段');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 18');
+        console.log('✅ [安全迁移] 添加 Note.dataHash 字段');
       }
 
       if (oldRealm.schemaVersion < 19) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 19');
-        console.info('✅ [安全迁移] 添加 UploadSession.noteId/attachmentId 字段');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 19');
+        console.log('✅ [安全迁移] 添加 UploadSession.noteId/attachmentId 字段');
       }
 
       if (oldRealm.schemaVersion < 20) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 20');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 20');
         // 只新增「可选属性」Note.last_opened_at（date?）：
         // - Realm 会为既有对象自动补 null，**不需要遍历全表写值**（避免大库迁移阻塞/写放大）；
         // - 对既有数据无损、可解释、可回滚：该字段只是「最近访问」排序的加速信息，
         //   为 null 时排序按 updated_at 兜底（见 src/models/Note.js 与 getNotes.resolveListSortPolicy）；
         // - 兼容性风险：Realm 不允许 schemaVersion 回退，旧客户端（19）直接读新库会因属性未知而打不开，
         //   降级安装需清库或使用同版本客户端；升级路径本身无数据丢失。
-        console.info('✅ [安全迁移] 添加 Note.last_opened_at 可选字段（历史笔记为 null，按 updated_at 兜底）');
+        console.log('✅ [安全迁移] 添加 Note.last_opened_at 可选字段（历史笔记为 null，按 updated_at 兜底）');
       }
 
       // 处理syncStatus和lastBackupAt字段添加的迁移
       if (oldRealm.schemaVersion < 14) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 14');
-        console.info('✅ [安全迁移] 添加syncStatus和lastBackupAt字段');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 14');
+        console.log('✅ [安全迁移] 添加syncStatus和lastBackupAt字段');
 
         // 新字段会自动创建，无需特殊处理
-        console.info('✅ [安全迁移] syncStatus和lastBackupAt字段添加完成');
+        console.log('✅ [安全迁移] syncStatus和lastBackupAt字段添加完成');
 
         // 处理updatedAt/deviceId/clientOpId字段添加的迁移
         if (oldRealm.schemaVersion < 15) {
-          console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 15');
-          console.info('✅ [安全迁移] 添加updatedAt/deviceId/clientOpId字段');
+          console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 15');
+          console.log('✅ [安全迁移] 添加updatedAt/deviceId/clientOpId字段');
           // 新字段为可选字段，无需遍历写入
-          console.info('✅ [安全迁移] 字段添加完成');
+          console.log('✅ [安全迁移] 字段添加完成');
         }
       }
 
       // 处理File和NoteBackup模型添加的迁移
       if (oldRealm.schemaVersion < 13) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 13');
-        console.info('✅ [安全迁移] 添加File和NoteBackup模型');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 13');
+        console.log('✅ [安全迁移] 添加File和NoteBackup模型');
 
         // 新模型会自动创建，无需特殊处理
-        console.info('✅ [安全迁移] File和NoteBackup模型添加完成');
+        console.log('✅ [安全迁移] File和NoteBackup模型添加完成');
       }
 
       // 处理Note主键添加的迁移
       if (oldRealm.schemaVersion < 12) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 12');
-        console.info('✅ [安全迁移] 处理Note主键添加');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 12');
+        console.log('✅ [安全迁移] 处理Note主键添加');
 
         try {
           // 处理Note模式的主键添加
           const oldNoteObjects = oldRealm.objects('Note');
           const newNoteObjects = newRealm.objects('Note');
 
-          console.info(`✅ [安全迁移] 处理 Note 模式，共 ${oldNoteObjects.length} 个对象`);
+          console.log(`✅ [安全迁移] 处理 Note 模式，共 ${oldNoteObjects.length} 个对象`);
 
           // 为现有的Note对象添加主键
           for (let i = 0; i < Math.min(oldNoteObjects.length, newNoteObjects.length); i++) {
@@ -124,7 +150,7 @@ export const getRealmConfig = () => {
             }
           }
 
-          console.info('✅ [安全迁移] Note主键添加完成');
+          console.log('✅ [安全迁移] Note主键添加完成');
         } catch (error) {
           console.warn('⚠️ [安全迁移] 处理Note主键添加时出错:', error);
         }
@@ -132,15 +158,15 @@ export const getRealmConfig = () => {
 
       // 处理OfflineQueue主键添加的迁移
       if (oldRealm.schemaVersion < 11) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 11');
-        console.info('✅ [安全迁移] 处理OfflineQueue主键添加');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 11');
+        console.log('✅ [安全迁移] 处理OfflineQueue主键添加');
 
         try {
           // 处理OfflineQueue模式的主键添加
           const oldOfflineQueueObjects = oldRealm.objects('OfflineQueue');
           const newOfflineQueueObjects = newRealm.objects('OfflineQueue');
 
-          console.info(`✅ [安全迁移] 处理 OfflineQueue 模式，共 ${oldOfflineQueueObjects.length} 个对象`);
+          console.log(`✅ [安全迁移] 处理 OfflineQueue 模式，共 ${oldOfflineQueueObjects.length} 个对象`);
 
           // 为现有的OfflineQueue对象添加主键
           for (let i = 0; i < Math.min(oldOfflineQueueObjects.length, newOfflineQueueObjects.length); i++) {
@@ -155,7 +181,7 @@ export const getRealmConfig = () => {
             }
           }
 
-          console.info('✅ [安全迁移] OfflineQueue主键添加完成');
+          console.log('✅ [安全迁移] OfflineQueue主键添加完成');
         } catch (error) {
           console.warn('⚠️ [安全迁移] 处理OfflineQueue主键添加时出错:', error);
         }
@@ -163,8 +189,8 @@ export const getRealmConfig = () => {
 
       // 处理从ObjectId到string的迁移
       if (oldRealm.schemaVersion < 10) {
-        console.info('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 10');
-        console.info('✅ [安全迁移] 处理ObjectId到string的字段类型迁移');
+        console.log('✅ [安全迁移] 从版本', oldRealm.schemaVersion, '迁移到版本 10');
+        console.log('✅ [安全迁移] 处理ObjectId到string的字段类型迁移');
 
         // 处理所有模式的ObjectId字段迁移
         const schemasToMigrate = [
@@ -178,7 +204,7 @@ export const getRealmConfig = () => {
             const oldObjects = oldRealm.objects(schemaName);
             const newObjects = newRealm.objects(schemaName);
 
-            console.info(`✅ [安全迁移] 处理 ${schemaName} 模式，共 ${oldObjects.length} 个对象`);
+            console.log(`✅ [安全迁移] 处理 ${schemaName} 模式，共 ${oldObjects.length} 个对象`);
 
             // 遍历所有对象，转换ObjectId字段为字符串
             for (let i = 0; i < Math.min(oldObjects.length, newObjects.length); i++) {
@@ -204,7 +230,7 @@ export const getRealmConfig = () => {
           }
         }
 
-        console.info('✅ [安全迁移] ObjectId到string迁移完成');
+        console.log('✅ [安全迁移] ObjectId到string迁移完成');
       }
 
       // 处理其他字段的默认值设置
@@ -212,7 +238,7 @@ export const getRealmConfig = () => {
         const oldObjects = oldRealm.objects('Note');
         const newObjects = newRealm.objects('Note');
 
-        console.info('✅ [安全迁移] 保留', oldObjects.length, '条笔记数据');
+        console.log('✅ [安全迁移] 保留', oldObjects.length, '条笔记数据');
 
         // 遍历所有笔记，确保新字段有默认值
         for (let i = 0; i < newObjects.length; i++) {
@@ -237,7 +263,7 @@ export const getRealmConfig = () => {
           }
         }
 
-        console.info('✅ [安全迁移] 迁移完成，所有数据已保留');
+        console.log('✅ [安全迁移] 迁移完成，所有数据已保留');
       }
     },
   };
@@ -333,7 +359,22 @@ export const getSyncRealmConfig = (user) => {
 export const openRealm = async () => {
   try {
     const config = getRealmConfig();
-    return await Realm.open(config);
+    const realm = await Realm.open(config);
+
+    // 打开后回读磁盘上的真实 schemaVersion，便于排查迁移问题：
+    // 只有「磁盘版本 ≠ 配置版本」时 Realm 才会调用 migration，把两者打出来才能确认迁移是否真的跑过。
+    // 用 console.log 而非 console.info —— 迁移/打开路径的日志需要稳定出现在 logcat。
+    try {
+      console.log('✅ [RealmConfig] Realm 已打开', {
+        diskSchemaVersion: realm.schemaVersion,
+        configuredSchemaVersion: SCHEMA_VERSION,
+        migrated: realm.schemaVersion === SCHEMA_VERSION ? 'no' : 'yes',
+      });
+    } catch (logError) {
+      console.warn('⚠️ [RealmConfig] 读取 schemaVersion 失败', logError?.message || logError);
+    }
+
+    return realm;
   } catch (error) {
     console.error('打开Realm数据库失败', error);
     throw error;
