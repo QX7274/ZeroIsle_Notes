@@ -27,6 +27,33 @@ describe('pagedNoteHelpers', () => {
     expect(record.dataHash).toBe(generateNoteDataHash(record));
   });
 
+  test('buildPagedNoteRecord 不再写入 current_user 哨兵；传入 userId 时写入该值', () => {
+    const withoutOwner = buildPagedNoteRecord({
+      noteId: 'note-3',
+      title: '无 owner',
+    });
+
+    expect(withoutOwner.user_id).not.toBe('current_user');
+    expect(withoutOwner.user_id === undefined || withoutOwner.user_id === null).toBe(true);
+
+    const emptyOwner = buildPagedNoteRecord({
+      noteId: 'note-4',
+      title: '空 owner',
+      userId: '',
+    });
+
+    expect(emptyOwner.user_id === undefined || emptyOwner.user_id === null).toBe(true);
+
+    const withOwner = buildPagedNoteRecord({
+      noteId: 'note-5',
+      title: '有 owner',
+      userId: 'dev-account-001',
+    });
+
+    expect(withOwner.user_id).toBe('dev-account-001');
+    expect(withOwner.dataHash).toBe(generateNoteDataHash(withOwner));
+  });
+
   test('buildPagedNoteStoragePayload keeps update timestamps as Date objects', () => {
     const updatedAt = new Date('2026-07-10T12:00:00.000Z');
     const payload = buildPagedNoteStoragePayload({

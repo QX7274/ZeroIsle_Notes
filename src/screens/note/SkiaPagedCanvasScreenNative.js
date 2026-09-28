@@ -49,6 +49,7 @@ import {
   buildPagedNoteStoragePayload,
 } from './pagedNoteHelpers';
 import { generateNoteDataHash } from '../../services/data/noteDataHash';
+import { resolveLocalOwnerId } from '../../services/offline/getNotes';
 
 
 const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
@@ -451,10 +452,13 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       }
 
       console.log('[SkiaPagedCanvasScreenNative] 创建新笔记，ID:', noteId);
+      // owner 由调用方注入，避免再落 'current_user' 哨兵 / 无主记录
+      const ownerId = await resolveLocalOwnerId();
       const newNote = buildPagedNoteRecord({
         noteId,
         title,
         noteStyle,
+        userId: ownerId,
       });
 
       const realm = await realmService.getRealm();
@@ -619,6 +623,8 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         console.error('❌❌❌ [PagedNote] Schema 缺少关键字段！需要完全重启应用！');
       }
 
+      // owner 必须在 write 回调外解析（回调是同步的），避免再落 'current_user' 哨兵 / 无主记录
+      const ownerId = await resolveLocalOwnerId();
       realm.write(() => {
         let note = realm.objectForPrimaryKey('Note', exportedNoteId);
 
@@ -633,6 +639,7 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
             currentPage: noteData.currentPage || currentPage,
             totalPages: noteData.totalPages || totalPages,
             scale: noteData.scale || zoomLevel,
+            userId: ownerId,
           }), 'modified');
         }
 

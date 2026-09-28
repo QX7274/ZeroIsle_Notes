@@ -7,6 +7,7 @@ import realmService from '../database/realmService';
 import { mongoDBService } from '../database/mongoDBAdapter';
 import { logService } from '../../utils/logService';
 import networkService from '../network/networkService';
+import { classifySyncError } from './syncErrorRecovery';
 
 /**
  * 同步管理器类
@@ -225,6 +226,7 @@ class SyncManager {
       }
     } catch (error) {
       logService.error('同步所有数据失败', error);
+      this._classifyAndLogError(error, 'syncAll');
       this.isSyncing = false;
       throw error;
     }
@@ -275,6 +277,7 @@ class SyncManager {
           });
         } catch (error) {
           logService.error(`同步操作失败: ${operation._id}`, error);
+          this._classifyAndLogError(error, `单条操作 ${operation._id}`);
 
           // 标记操作为失败
           realm.write(() => {
@@ -296,6 +299,32 @@ class SyncManager {
       logService.error('同步待处理操作失败', error);
       throw error;
     }
+  }
+
+  /**
+   * 对同步错误进行分类并记录日志，同时把分类结果挂回错误对象
+   * 接线点：syncAll / pullFromServer 的顶层 catch，以及 syncPendingOperations 的单条操作 catch
+   * @param {Error} error 原始错误
+   * @param {string} scene 场景描述（用于日志定位）
+   * @returns {Object} classifySyncError 的分类结果
+   * @private
+   */
+  _classifyAndLogError(error, scene) {
+    const classification = classifySyncError(error);
+    logService.warn(`[sync] ${scene} 错误分类: ${classification.category} (retryable=${classification.retryable}) - ${classification.userMessage}`);
+
+    // 把分类结果附加到错误对象，便于 UI 层或重试控制器直接复用；不可扩展的错误对象跳过
+    if (error && typeof error === 'object' && !Object.isFrozen(error)) {
+      try {
+        error.syncCategory = classification.category;
+        error.syncRetryable = classification.retryable;
+        error.syncUserMessage = classification.userMessage;
+      } catch (assignError) {
+        // 附加分类信息失败不影响同步主流程
+      }
+    }
+
+    return classification;
   }
 
   _normalizeOperation(operation) {
@@ -662,6 +691,7 @@ class SyncManager {
       }
     } catch (error) {
       logService.error('从服务器拉取数据失败', error);
+      this._classifyAndLogError(error, 'pullFromServer');
       this.isSyncing = false;
       throw error;
     }

@@ -4,6 +4,7 @@
 
 import Realm from 'realm';
 const { materializePage } = require('./utils/queryPagination');
+const { materializeNoteSummaries } = require('./utils/noteProjection');
 
 /**
  * 笔记模型定义
@@ -229,12 +230,17 @@ class Note extends Realm.Object {
   }
 
   /**
-   * 静态方法 - 查找用户的笔记
+   * 私有辅助 - 组装用户笔记的过滤 + 排序集合（不做分页，保持惰性）
+   *
+   * 抽出来是为了让 findByUser / findByUserSummaries 共用同一套过滤与排序语义，
+   * 两者唯一的差别只是「是否做字段裁剪」。
+   *
    * @param {Realm} realm Realm实例
    * @param {string} userId 用户ID
    * @param {Object} options 选项
+   * @returns {Object} Realm Results（惰性、已排序，未分页）
    */
-  static findByUser(realm, userId, options = {}) {
+  static _queryUserResults(realm, userId, options = {}) {
     const {
       is_deleted = false,
       is_archived = false,
@@ -245,7 +251,9 @@ class Note extends Realm.Object {
       search = null,
     } = options;
 
-    let query = `user_id = "${userId}" AND is_deleted = ${is_deleted}`;
+    // 同时匹配当前用户与「无主」历史笔记。运行时 schema 为 user_id: 'string?'（可空），
+    // 历史/分页笔记可能落成 null，也可能落成空串，因此两种都要覆盖。
+    let query = `(user_id = "${userId}" OR user_id = nil OR user_id = "") AND is_deleted = ${is_deleted}`;
 
     if (is_archived !== null) {
       query += ` AND is_archived = ${is_archived}`;
@@ -288,6 +296,18 @@ class Note extends Realm.Object {
       results = results.sorted('updated_at', true);
     }
 
+    return results;
+  }
+
+  /**
+   * 静态方法 - 查找用户的笔记（契约不变：未传分页时返回惰性 Results）
+   * @param {Realm} realm Realm实例
+   * @param {string} userId 用户ID
+   * @param {Object} options 选项
+   */
+  static findByUser(realm, userId, options = {}) {
+    let results = Note._queryUserResults(realm, userId, options);
+
     // 分页
     if (options.skip !== undefined && options.limit !== undefined) {
       const skip = options.skip || 0;
@@ -299,6 +319,31 @@ class Note extends Realm.Object {
   }
 
   /**
+   * 静态方法 - 列表页轻量投影（里程碑 5.1：字段裁剪 + 正文延迟加载）
+   *
+   * 过滤/排序/分页语义与 findByUser 完全一致，但只物化当前页并投影成
+   * NOTE_SUMMARY_FIELDS 白名单字段，全程不读取 content；需要正文时用
+   * loadNoteContent(realm, id) 或 summary.loadContent() 单独取。
+   *
+   * 与 findByUser 的差别：本方法始终返回数组（summary 数组）；
+   * 未传 skip/limit 时投影整个结果集，列表页应始终传入分页参数。
+   *
+   * @param {Realm} realm Realm实例
+   * @param {string} userId 用户ID
+   * @param {Object} options 选项（同 findByUser，支持 skip/limit）
+   * @returns {Array<Object>} summary 数组（不含 content）
+   */
+  static findByUserSummaries(realm, userId, options = {}) {
+    const results = Note._queryUserResults(realm, userId, options);
+    const paged = options.skip !== undefined && options.limit !== undefined;
+    const pageOptions = paged
+      ? { skip: options.skip || 0, limit: options.limit || 20 }
+      : {};
+
+    return materializeNoteSummaries(results, pageOptions);
+  }
+
+  /**
    * 静态方法 - 查找已删除的笔记
    * @param {Realm} realm Realm实例
    * @param {string} userId 用户ID
@@ -306,7 +351,7 @@ class Note extends Realm.Object {
    */
   static findDeleted(realm, userId, options = {}) {
     let results = realm.objects('Note')
-      .filtered(`user_id = "${userId}" AND is_deleted = true`)
+      .filtered(`(user_id = "${userId}" OR user_id = nil OR user_id = "") AND is_deleted = true`)
       .sorted('deleted_at', true);
 
     // 分页
@@ -327,7 +372,7 @@ class Note extends Realm.Object {
    */
   static findArchived(realm, userId, options = {}) {
     let results = realm.objects('Note')
-      .filtered(`user_id = "${userId}" AND is_archived = true AND is_deleted = false`)
+      .filtered(`(user_id = "${userId}" OR user_id = nil OR user_id = "") AND is_archived = true AND is_deleted = false`)
       .sorted('updated_at', true);
 
     // 分页
@@ -348,7 +393,7 @@ class Note extends Realm.Object {
    */
   static findFavorites(realm, userId, options = {}) {
     let results = realm.objects('Note')
-      .filtered(`user_id = "${userId}" AND is_favorite = true AND is_deleted = false`)
+      .filtered(`(user_id = "${userId}" OR user_id = nil OR user_id = "") AND is_favorite = true AND is_deleted = false`)
       .sorted('updated_at', true);
 
     // 分页

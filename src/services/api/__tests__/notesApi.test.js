@@ -89,6 +89,7 @@ jest.mock('../../app/deviceIdentityService', () => ({
 
 jest.mock('../../offline/getNotes', () => ({
   getNotesFromOfflineStorage: jest.fn(async () => ({ data: [] })),
+  resolveLocalOwnerId: jest.fn(async () => 'dev-account-001'),
 }));
 
 jest.mock('../../networkErrorService', () => ({
@@ -295,5 +296,60 @@ describe('notesApi P0 contracts', () => {
       ],
       isOffline: true,
     });
+  });
+
+  it('createNote 在 user_id 缺失时回填解析到的本地 owner，并与离线队列一致', async () => {
+    const created = await notesApi.createNote({
+      _id: 'owner-note-1',
+      title: '无主修复',
+      content: '正文',
+    });
+
+    expect(stores.Note.get('owner-note-1').user_id).toBe('dev-account-001');
+    expect(created.data.user_id).toBe('dev-account-001');
+    expect([...stores.OfflineQueue.values()][0].user_id).toBe('dev-account-001');
+  });
+
+  it('updateNote 为无主历史笔记回填 owner', async () => {
+    stores.Note.set('legacy-note', {
+      _id: 'legacy-note',
+      id: 'legacy-note',
+      title: '历史标题',
+      content: '历史正文',
+      user_id: '',
+      is_deleted: false,
+    });
+
+    await notesApi.updateNote('legacy-note', { title: '新标题' });
+
+    expect(stores.Note.get('legacy-note').user_id).toBe('dev-account-001');
+  });
+
+  it('saveOfflineNote 在 user_id 缺失时回填 owner，Note 与 OfflineQueue 保持一致', async () => {
+    const saved = await notesApi.saveOfflineNote({
+      id: 'offline-owner-1',
+      title: '离线无主',
+      content: '待同步',
+      clientOpId: 'op-owner-1',
+    });
+
+    expect(stores.Note.get('offline-owner-1').user_id).toBe('dev-account-001');
+    const queueItem = [...stores.OfflineQueue.values()][0];
+    expect(queueItem.entity_id).toBe('offline-owner-1');
+    expect(queueItem.user_id).toBe('dev-account-001');
+    expect(saved.note.user_id).toBe('dev-account-001');
+  });
+
+  it('owner 解析失败时不阻断保存，且不写入错误 owner', async () => {
+    require('../../offline/getNotes').resolveLocalOwnerId.mockResolvedValueOnce(null);
+
+    const created = await notesApi.createNote({
+      _id: 'owner-note-2',
+      title: '解析失败',
+      content: '正文',
+    });
+
+    expect(created.success).toBe(true);
+    expect(stores.Note.get('owner-note-2').user_id).toBeUndefined();
   });
 });

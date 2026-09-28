@@ -4,7 +4,11 @@
 import instance from './apiClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import realmService from '../database/realmService';
-import { getNotesFromOfflineStorage } from '../offline/getNotes';
+import {
+  getNotesFromOfflineStorage,
+  getNoteSummariesFromOfflineStorage,
+  resolveLocalOwnerId,
+} from '../offline/getNotes';
 import networkErrorService from '../networkErrorService';
 import RNFS from 'react-native-fs';
 import RNBlobUtil from 'react-native-blob-util';
@@ -120,6 +124,28 @@ const toRealmNotePayload = (note, noteId, overrides = {}) => {
   }
 
   return payload;
+};
+
+/**
+ * 解析笔记 owner：显式 user_id 优先；缺失/为空串时回退到与读取侧同一个
+ * resolveLocalOwnerId（authStorage + DEV 兜底），避免读写两套口径漂移。
+ *
+ * 解析失败返回 null 且不抛错：调用方据此保持「无主」本地保存，
+ * 绝不因 owner 解析失败阻断保存，也不写入错误的 owner。
+ *
+ * @param {string} [explicitUserId]
+ * @returns {Promise<string|null>}
+ */
+const resolveNoteOwnerId = async (explicitUserId) => {
+  if (explicitUserId !== undefined && explicitUserId !== null && String(explicitUserId) !== '') {
+    return String(explicitUserId);
+  }
+  try {
+    return await resolveLocalOwnerId();
+  } catch (error) {
+    console.warn('解析本地笔记 owner 失败，本次写入保持无主:', error);
+    return null;
+  }
 };
 
 const createNoteMutationMetadata = async (note) => ({
@@ -318,6 +344,36 @@ const getAllNotes = async (params = {}) => {
     };
   } catch (error) {
     console.error('获取笔记列表失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取当前用户笔记的轻量 summary 列表（里程碑 5.1：列表字段裁剪的显式入口）
+ *
+ * 这是可选入口：getAllNotes() 的行为与返回结构完全不变。
+ *
+ * 接线前置说明：HomeScreen 的列表预览仍直接读取 item.content
+ * （src/screens/common/HomeScreen.js:1848-1886 的 renderContentPreview / renderCover），
+ * 而 summary 按设计不含正文。因此 UI 全量切到 summary 之前，必须先补
+ * 「正文预览字段」（例如 metadata.contentLength + 首行摘要），
+ * 本轮只提供可用入口，不静默改动 UI 契约。
+ *
+ * @param {Object} [options]
+ * @param {number} [options.skip] 跳过条数
+ * @param {number} [options.limit] 单页条数
+ * @returns {Promise<Object>} { success, data: Array, isOffline }
+ */
+const getAllNotesSummaries = async ({ skip, limit } = {}) => {
+  try {
+    const summaries = await getNoteSummariesFromOfflineStorage({ skip, limit });
+    return {
+      success: true,
+      data: Array.isArray(summaries) ? summaries : [],
+      isOffline: true,
+    };
+  } catch (error) {
+    console.error('获取笔记摘要列表失败:', error);
     throw error;
   }
 };
@@ -970,6 +1026,7 @@ const getById = async (id) => {
 // 导出API对象
 const notesApi = {
   getAllNotes,
+  getAllNotesSummaries,
   importNote,
   getById, // 添加getById方法
   // 添加其他API方法
@@ -1084,6 +1141,8 @@ const notesApi = {
   createNote: async (noteData) => {
     try {
       const mutationMetadata = await createNoteMutationMetadata(noteData);
+      // 缺失/空 user_id 时回填 owner，避免再产生无主记录
+      const ownerId = await resolveNoteOwnerId(noteData && noteData.user_id);
       // 保存到离线存储
       const realm = await realmService.getRealm();
       let persistedNote;
@@ -1095,6 +1154,9 @@ const notesApi = {
         payload.deviceId = mutationMetadata.deviceId;
         payload.clientOpId = mutationMetadata.clientOpId;
         payload.type = payload.type || 'text';
+        if (ownerId) {
+          payload.user_id = ownerId;
+        }
         const normalizedPayload = toRealmNotePayload(payload, createdId, {
           created_at: payload.created_at || new Date(),
         });
@@ -1123,6 +1185,9 @@ const notesApi = {
 
       // 更新到离线存储
       const realm = await realmService.getRealm();
+      // 无主历史笔记在更新时补 owner：显式 user_id > 现有 owner > 当前用户解析
+      const existingNote = realm.objectForPrimaryKey('Note', id);
+      const ownerId = await resolveNoteOwnerId(safeNoteData.user_id || (existingNote && existingNote.user_id));
       let result;
       realm.write(() => {
         const currentNote = realm.objectForPrimaryKey('Note', id);
@@ -1135,6 +1200,9 @@ const notesApi = {
           clientOpId: mutationMetadata.clientOpId,
           dataHash: generateNoteDataHash({ ...toPlainRecord(currentNote), ...safeNoteData }),
         };
+        if (ownerId) {
+          mergedPayload.user_id = ownerId;
+        }
         // 使用'modified'模式：如果Note已存在则更新，不存在则创建
         result = realm.create('Note', toRealmNotePayload(mergedPayload, id), 'modified');
       });
@@ -1260,6 +1328,11 @@ const notesApi = {
   },
   saveOfflineNote: async (note) => {
     const source = toPlainRecord(note);
+    // 无主笔记补 owner，保证 Note 与 OfflineQueue 的 user_id 一致
+    const ownerId = await resolveNoteOwnerId(source.user_id);
+    if (ownerId) {
+      source.user_id = ownerId;
+    }
     const noteId = normalizeNoteId(source) || String(realmService.createObjectId());
     const clientOpId = source.clientOpId || `offline_${realmService.createObjectId()}`;
     const realm = await realmService.getRealm();
