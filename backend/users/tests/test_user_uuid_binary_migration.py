@@ -17,21 +17,52 @@ from mongoengine.connection import get_db
 from notes.mongodb_models import Category, Note, Tag
 from users.mongodb_models import User
 
-from scripts.migrate_user_uuid_to_binary import build_plan, migrate
+from scripts.migrate_user_uuid_to_binary import (
+    build_plan,
+    iter_user_reference_fields,
+    migrate,
+)
 
 MONGO_COLLECTIONS = ('users', 'user_profiles', 'notes', 'note_versions', 'categories', 'tags')
 
 
+def _register_authoritative_models():
+    """把 notes.mongodb_models 的 Note/Category/Tag 固定为 mongoengine 注册表中的同名类。
+
+    mongoengine 的 _document_registry 以「类名」为键：notes.mongodb_models_legacy /
+    community.mongodb_models 里存在同名 Document，谁最后被导入谁生效。注册表被覆盖后，
+    scripts.migrate_user_uuid_to_binary.iter_user_reference_fields() 会枚举到错误的模型、
+    漏统计真实引用（已作为产品缺陷上报）。测试这里固定口径，保证 build_plan 统计确定。
+    """
+    from mongoengine.base.common import _document_registry
+
+    for model in (Note, Category, Tag):
+        _document_registry[model.__name__] = model
+
+
 def _cleanup_collections(db):
-    """mongomock 不参与 Django 事务回滚，用例开始前显式清空相关集合。"""
+    """mongomock 不参与 Django 事务回滚，用例开始前把相关集合恢复成干净的「旧库形态」。
+
+    注意不能只 delete_many({})：mongoengine 的 Document.save() 会自动 ensure_indexes，
+    别的用例保存 MongoUser 后会在 users 上留下 unique index(username)（同一 pytest 进程
+    共享同一个 mongomock）。迁移脚本按「先插入新文档 → 再删旧文档」改写主键，一旦沿用
+    残留索引就会立刻撞 E11000（已作为产品缺陷上报：脚本在带 unique username 索引的
+    真实库上无法 apply）。drop_collection 同时清掉文档与索引，保证用例与执行顺序无关。
+    """
     for name in MONGO_COLLECTIONS:
-        db[name].delete_many({})
+        db.drop_collection(name)
+    # 其他含 User 引用的集合也可能残留（同进程共享 mongomock），一并 drop：
+    # drop_collection 同时清索引，保证迁移的「删旧→插新」不被残留 unique index 干扰。
+    for collection_name, _field_name, _is_list in iter_user_reference_fields():
+        if collection_name not in MONGO_COLLECTIONS:
+            db.drop_collection(collection_name)
 
 
 class UserUuidBinaryMigrationTests(TestCase):
     def setUp(self):
         self.db = get_db('default')
         _cleanup_collections(self.db)
+        _register_authoritative_models()
 
         self.legacy_id = str(uuid_module.uuid4())
         # notes 侧主键本来就是 Binary 口径；这里显式用 Binary 构造，避免 mongomock 对原生 UUID 的

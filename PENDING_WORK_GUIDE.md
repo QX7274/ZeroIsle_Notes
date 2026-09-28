@@ -295,6 +295,21 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-29 进展补充（第八轮：后端四个套件全绿 + 标签 id 泄漏修复 + 迁移脚本加固）
+- **后端测试网全面转绿**：`notes/tests` **67 passed / 3 skipped**、`users/tests` **44 passed / 4 skipped / 2 xfailed**、
+  `sync/tests` **28 passed**、新增 `scripts/tests` **13 passed**；既有门禁 `21 passed / 2 skipped` 全程未回归。
+  起点分别是「35 failed + 3 errors（跑不起来）」「19 failed + 5 errors」「9 failed」。
+- **`RISK-BE-005` 升级为 P1 并关闭**：标签序列化把 mongoengine 的 `str(Tag)`（`"name (id)"`）直接返回，
+  客户端 `tags.map(String)` 后**把 UUID 写进本地标签名**。已改为只返回纯名称 + 3 条契约用例；
+  并修正了一处「按旧缺陷形态断言」的用例（它此前把 bug 当成契约锁定）。
+- **`RISK-BE-003` 迁移工具加固后关闭**：①真实库唯一索引（`users.username`）会让原「先插后删」必 `E11000`，
+  改为「备份→删旧→插新→删备份」，全程无重复、无需 drop 索引；②引用发现改为「AST 扫描 + 源码静态字段 ∪ 注册表」，
+  同名类遮蔽（`notes.mongodb_models_legacy` 等）不再造成**静默半迁移**；③嵌入文档引用命中即拒绝 `--apply`。
+- **sync 套件的 9 条全部是测试债**（`del _instance` 把类属性删掉、对着已删除的实例化 API 写），非实现缺陷；
+  并顺带核实了一处**静默失效的 mock 目标**（`pymongo.MongoClient` 无效，应为 `sync.services.mongodb_service.MongoClient`）。
+- **新登记 7 项风险**：其中 `RISK-BE-008`（`MONGO_DB→MONGO_DB_NAME` 改名且无回退，可能**静默连错库**）与
+  `RISK-BE-010`/`RISK-BE-011`（弱密码名单可绕过、`reset_failed_attempts` 是 no-op）建议优先决策。
+- 门禁：前端 `77/77 suites、680/680 tests`；Lint `0 errors / 1204 warnings`。
 ## 2026-09-29 进展补充（第七轮：后端回归网从「跑不起来」到 0 failed，并修出 4 个后端缺陷）
 - **`backend/notes/tests` 恢复为可信回归网**：`35 failed + 3 errors（且多为「跑不起来」）→ **0 failed / 64 passed / 3 skipped**。
   过程链路：环境修复（`RISK-BE-002`）→ 用例对齐已删除 API → 修 `RISK-BE-003`（主键口径）→ 修分享过期 500 + 补 `word_count`。

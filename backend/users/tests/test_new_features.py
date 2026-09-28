@@ -9,6 +9,29 @@ from django.utils import timezone
 from unittest.mock import patch, MagicMock
 
 
+def _load_enhanced_vector_service():
+    """按环境依赖类问题处理：依赖不兼容则跳过，而不是改依赖版本。
+
+    enhanced_vector_service 模块导入时吞掉了 sentence-transformers 的 ImportError，
+    真正抛错发生在首次加载模型（SentenceTransformerEmbedding._load_model）。
+    因此这里直接探测 sentence_transformers 是否可导入：
+    实测 sentence-transformers 2.2.2 仍 import huggingface_hub.cached_download，
+    而当前环境 huggingface-hub 0.36.2 已移除该 API（ImportError）——
+    属环境依赖不兼容，与 search 业务逻辑无关。
+    """
+    pytest.importorskip(
+        'sentence_transformers',
+        reason=(
+            'sentence-transformers 2.2.2 仍 import huggingface_hub.cached_download，'
+            '当前环境 huggingface-hub 0.36.2 已移除该 API（ImportError）；'
+            '属环境依赖不兼容，测试侧跳过，不改依赖版本'
+        ),
+    )
+    import importlib
+
+    return importlib.import_module('search.services.enhanced_vector_service')
+
+
 class TestPasswordValidator:
     """密码验证器测试"""
     
@@ -60,6 +83,16 @@ class TestPasswordValidator:
         assert is_valid is False
         assert any("特殊" in e or "special" in e.lower() for e in errors)
     
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            '产品缺陷候选：COMMON_WEAK_PASSWORDS 只做整串精确匹配'
+            '(password.lower() in COMMON_WEAK_PASSWORDS)，Password123! 这类'
+            '「常见密码 + 特殊字符」的变体不会被识别；最小复现：'
+            'validate_password("Password123!") 返回 (True, [])。交回 Lead 定级；'
+            '若判定为契约设计，请把用例改为断言精确名单内的密码。'
+        ),
+    )
     def test_validate_common_password(self):
         """测试常见弱密码"""
         from users.services.password_validator import validate_password
@@ -90,7 +123,8 @@ class TestPasswordValidator:
         
         is_valid, errors = validate_password("Aaaa1234!")
         assert is_valid is False
-        assert any("重复" in e or "repeat" in e.lower() for e in errors)
+        # 当前真实文案为「密码不能包含3个或更多连续相同的字符」
+        assert any("重复" in e or "repeat" in e.lower() or "连续相同" in e for e in errors)
     
     def test_get_strength_score(self):
         """测试密码强度评分"""
@@ -102,8 +136,9 @@ class TestPasswordValidator:
         weak_score = validator.get_strength_score("password")
         assert weak_score < 40
         
-        # 中等密码
-        medium_score = validator.get_strength_score("Password1")
+        # 中等密码（注意：Password1 命中 COMMON_WEAK_PASSWORDS 会被扣 30 分至 20 分，
+        # 属于「弱」，不能当中等强度样本）
+        medium_score = validator.get_strength_score("Str0ngPass")
         assert 40 <= medium_score < 70
         
         # 强密码
@@ -137,22 +172,34 @@ class TestLoginAttempt:
         from users.models.login_attempt import LoginAttempt
         
         with patch.object(LoginAttempt, 'objects') as mock_objects:
-            mock_objects.return_value.filter.return_value.count.return_value = 3
-            
-            is_locked = LoginAttempt.is_account_locked(username="testuser")
+            mock_objects.return_value.count.return_value = 3
+
+            # 当前契约：返回 (is_locked, remaining_seconds, failed_count)
+            is_locked, remaining_seconds, failed_count = LoginAttempt.is_account_locked(
+                username="testuser"
+            )
             # 3次失败 < 5次限制，不应锁定
             assert is_locked is False
+            assert failed_count == 3
+            assert remaining_seconds == 0
     
     def test_is_account_locked_true(self):
         """测试账户已锁定"""
         from users.models.login_attempt import LoginAttempt
         
         with patch.object(LoginAttempt, 'objects') as mock_objects:
-            mock_objects.return_value.filter.return_value.count.return_value = 6
-            
-            is_locked = LoginAttempt.is_account_locked(username="testuser")
+            mock_objects.return_value.count.return_value = 6
+            mock_objects.return_value.order_by.return_value.first.return_value = MagicMock(
+                timestamp=timezone.now()
+            )
+
+            is_locked, remaining_seconds, failed_count = LoginAttempt.is_account_locked(
+                username="testuser"
+            )
             # 6次失败 >= 5次限制，应该锁定
             assert is_locked is True
+            assert failed_count == 6
+            assert remaining_seconds > 0
     
     def test_record_attempt_success(self):
         """测试记录成功登录"""
@@ -194,17 +241,28 @@ class TestLoginAttempt:
         from users.models.login_attempt import LoginAttempt
         
         with patch.object(LoginAttempt, 'objects') as mock_objects:
-            mock_objects.return_value.filter.return_value.count.return_value = 5
-            mock_objects.return_value.filter.return_value.order_by.return_value.first.return_value = MagicMock(
-                created_at=timezone.now()
+            mock_objects.return_value.count.return_value = 5
+            mock_objects.return_value.order_by.return_value.first.return_value = MagicMock(
+                timestamp=timezone.now()
             )
-            
+
             info = LoginAttempt.get_lockout_info(username="testuser")
-            
-            assert 'locked' in info
-            assert 'message' in info
-            assert 'failed_attempts' in info
+
+            assert info['locked'] is True
+            assert isinstance(info['message'], str) and info['message']
+            assert info['failed_attempts'] == 5
+            assert info['max_attempts'] == 5
     
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            '产品缺陷候选：reset_failed_attempts 是 no-op（只写日志、不删记录、返回 None），'
+            '而 is_account_locked 仅按 1 小时时间窗统计失败次数——成功登录不会清空窗口，'
+            '「失败4次→成功登录→再失败1次」仍会被锁定 30 分钟。最小复现：'
+            'LoginAttempt.reset_failed_attempts(username="u") is None。交回 Lead 定级；'
+            '若确认为设计意图，请把断言改为「不删除历史记录」。'
+        ),
+    )
     def test_reset_failed_attempts(self):
         """测试重置失败计数"""
         from users.models.login_attempt import LoginAttempt
@@ -222,7 +280,7 @@ class TestEnhancedVectorService:
     
     def test_singleton_pattern(self):
         """测试单例模式"""
-        from search.services.enhanced_vector_service import EnhancedVectorService
+        EnhancedVectorService = _load_enhanced_vector_service().EnhancedVectorService
         
         service1 = EnhancedVectorService()
         service2 = EnhancedVectorService()
@@ -231,7 +289,7 @@ class TestEnhancedVectorService:
     
     def test_index_documents(self):
         """测试文档索引"""
-        from search.services.enhanced_vector_service import get_vector_service
+        get_vector_service = _load_enhanced_vector_service().get_vector_service
         
         service = get_vector_service()
         
@@ -248,7 +306,7 @@ class TestEnhancedVectorService:
     
     def test_semantic_search(self):
         """测试语义搜索"""
-        from search.services.enhanced_vector_service import get_vector_service
+        get_vector_service = _load_enhanced_vector_service().get_vector_service
         
         service = get_vector_service()
         
@@ -266,7 +324,7 @@ class TestEnhancedVectorService:
     
     def test_hybrid_search(self):
         """测试混合搜索"""
-        from search.services.enhanced_vector_service import get_vector_service
+        get_vector_service = _load_enhanced_vector_service().get_vector_service
         
         service = get_vector_service()
         

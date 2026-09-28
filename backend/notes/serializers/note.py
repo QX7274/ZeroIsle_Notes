@@ -22,19 +22,44 @@ class NoteSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
+def _note_tag_names(obj):
+    """返回笔记的标签**名称**列表。
+
+    背景（RISK-BE-005）：此前 tags 声明为 `ListField(child=CharField())`，DRF 会对 mongoengine 的
+    `Tag` 文档调用 `str()`，而 `Tag.__str__` 是 `"name (id)"` —— 于是接口返回
+    `"工作 (a0b07759-1d69-433f-b774-fe5cf720a3ad)"` 这种把 id 混进名称的字符串。
+    客户端 `src/services/api/notesApi.js` 对该字段做 `tags.map(String)` 后直接落库，
+    结果是 app 里显示的标签带着一串 UUID。
+    这里显式只取名称；引用悬空（被删除的标签）时跳过，不让序列化整体 500。
+    """
+    result = []
+    for tag in (getattr(obj, 'tags', None) or []):
+        name = getattr(tag, 'name', None)
+        if name:
+            result.append(str(name))
+        else:
+            # mongoengine 在引用无法反解时会抛错；这里已拿到对象，取不到 name 属异常数据，忽略即可
+            continue
+    return result
+
+
 class NoteListSerializer(serializers.Serializer):
     """笔记列表序列化器"""
     id = serializers.UUIDField(read_only=True)
     title = serializers.CharField(max_length=255)
     category = serializers.UUIDField(source='category.id', allow_null=True)
     category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
-    tags = serializers.ListField(child=serializers.CharField(), read_only=True)
+    # 只返回标签名称（不再泄漏 id，见 _note_tag_names 的说明）
+    tags = serializers.SerializerMethodField()
     word_count = serializers.IntegerField(read_only=True)
     is_favorite = serializers.BooleanField(default=False)
     is_public = serializers.BooleanField(default=False)
     view_count = serializers.IntegerField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+
+    def get_tags(self, obj):
+        return _note_tag_names(obj)
 
 class NoteDetailSerializer(serializers.Serializer):
     """笔记详情序列化器"""
@@ -43,7 +68,8 @@ class NoteDetailSerializer(serializers.Serializer):
     content = serializers.CharField()
     category = serializers.UUIDField(source='category.id', allow_null=True)
     category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
-    tags = serializers.ListField(child=serializers.CharField(), read_only=True)
+    # 只返回标签名称（不再泄漏 id，见 _note_tag_names 的说明）
+    tags = serializers.SerializerMethodField()
     user = UserSerializer(read_only=True)
     word_count = serializers.IntegerField(read_only=True)
     is_favorite = serializers.BooleanField(default=False)
@@ -53,6 +79,10 @@ class NoteDetailSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     last_viewed_at = serializers.DateTimeField(read_only=True, allow_null=True)
+
+    def get_tags(self, obj):
+        return _note_tag_names(obj)
+
 
 class NoteCreateUpdateSerializer(serializers.Serializer):
     """笔记创建和更新序列化器"""

@@ -120,14 +120,13 @@ class RealmNoteViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['title'], '新笔记')
         self.assertEqual(response.data['content'], '新笔记内容')
-        # 当前契约（notes/serializers/note.py NoteDetailSerializer）：
+        # 当前契约（notes/serializers/note.py）：
         # - category 是 source='category.id' 的扁平 UUID 字符串；
-        # - tags 目前是 ListField(child=CharField())，mongoengine 的 Tag 会被 str() 成 "name (id)"。
-        #   （对比 NoteListSerializer 用的是 TagSerializer(many=True)；若之后统一成嵌套 dict，
-        #     这里应同步改为 response.data['tags'][0]['id']。）
+        # - tags 只返回**纯名称**（RISK-BE-005：此前 ListField(child=CharField()) 会把 mongoengine 的 Tag
+        #   经 str() 变成 "name (id)"，标签名里混进 UUID，客户端 tags.map(String) 后直接落库）。
         self.assertEqual(response.data['category'], str(self.category.id))
         self.assertEqual(len(response.data['tags']), 1)
-        self.assertEqual(response.data['tags'][0], str(self.tag))
+        self.assertEqual(response.data['tags'][0], '测试标签')
         self.assertTrue(response.data['is_favorite'])
         self.assertFalse(response.data['is_public'])
 
