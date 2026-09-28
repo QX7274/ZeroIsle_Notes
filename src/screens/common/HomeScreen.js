@@ -118,6 +118,44 @@ const withLocalPreviewMetadata = (note) => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// 首屏就绪埋点（WS-R / 10 万条性能验收基线）
+//
+// 数据就绪并完成一次渲染调度后，打印一行稳定可 grep 的日志：
+//   [PERF] 首屏就绪 ms=<n> source=<summary-page|fallback> count=<n>
+// - ms 由 App.js 在模块加载时写入的 global.__APP_START_TS__ 推算；
+// - source 只区分「轻量 summary 首页」与「其余回退路径」，保持口径稳定；
+// - 每个应用会话只打印一次（由组件内 ref 守卫），不会每次重渲染都刷屏。
+// ---------------------------------------------------------------------------
+
+/** 首屏就绪日志前缀（接受采集时直接 grep 这一行） */
+const PERF_FIRST_SCREEN_LOG_PREFIX = '[PERF] 首屏就绪';
+
+/**
+ * 把内部数据源标识映射为稳定的埋点取值。
+ * @param {string} [source] loadNotesListPayload 返回的 source
+ * @returns {'summary-page'|'fallback'}
+ */
+const toPerfReadySource = (source) => (source === 'summary-page' ? 'summary-page' : 'fallback');
+
+/**
+ * 打印首屏就绪日志。没有启动时间戳（非 App 入口 / 单测）时静默跳过，
+ * 避免打印出误导性的 ms 数值。
+ * @param {Object} params
+ * @param {number} [params.appStartTs] App 模块加载时间戳
+ * @param {string} params.source 'summary-page' | 'fallback'
+ * @param {number} params.count 就绪时的列表条数
+ */
+const emitFirstScreenReadyLog = ({ appStartTs, source, count }) => {
+  const startedAt = Number(appStartTs);
+  if (!Number.isFinite(startedAt) || startedAt <= 0) {
+    return;
+  }
+  console.log(
+    `${PERF_FIRST_SCREEN_LOG_PREFIX} ms=${Date.now() - startedAt} source=${source} count=${count}`,
+  );
+};
+
 /**
  * 会话级「未打标自愈」控制器（模块级：跨 HomeScreen 重挂载共享尝试次数，
  * 严格按「每个应用会话最多尝试 N 次」约束，避免反复全表扫描）。
@@ -276,14 +314,13 @@ const HomeScreen = ({ navigation }) => {
   // 分页游标：当前排序下已从 Realm 取回的条数（= 下一页的 skip）。
   // 不用 allNotes.length，避免新建/删除笔记后偏移错位导致漏项。
   const listCursorRef = useRef(0);
-  // 与 sortOption 同步的 ref：避免把 sortOption 加进 loadNotes 依赖而让初始化 effect 反复重跑
-  const sortOptionRef = useRef(sortOption);
-  // 当前列表数据对应的排序 key（避免「仅 ref 同步」触发重复加载）
-  const loadedSortKeyRef = useRef(sortOption);
   // 是否已滚动过（外层 ScrollView）：FlatList 的 onEndReached 在挂载时会立即触发，
   // 用它兜底，避免未滚动就自动连续加载全部页
   const listScrolledRef = useRef(false);
   const nearBottomRef = useRef(false);
+  // 首屏就绪埋点（WS-R）：数据就绪 + 完成一次渲染调度后只打印一次
+  const firstScreenReadyLoggedRef = useRef(false);
+  const [firstScreenReadyPayload, setFirstScreenReadyPayload] = useState(null);
 
   // 获取屏幕方向信息
   const { orientation, isLandscape, screenWidth, screenHeight } = useOrientation();
@@ -318,6 +355,12 @@ const HomeScreen = ({ navigation }) => {
   const [showNoteStyleModal, setShowNoteStyleModal] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [sortOption, setSortOption] = useState('updated_desc');
+  // 与 sortOption 同步的 ref：避免把 sortOption 加进 loadNotes 依赖而让初始化 effect 反复重跑。
+  // 注意：这两个 ref 必须声明在 sortOption 之后（WS-R 修正了原先「先用后声明」的 TDZ 顺序，
+  // 原顺序会让组件首次渲染直接抛 ReferenceError）。
+  const sortOptionRef = useRef(sortOption);
+  // 当前列表数据对应的排序 key（避免「仅 ref 同步」触发重复加载）
+  const loadedSortKeyRef = useRef(sortOption);
   const [renameDialogVisible, setRenameDialogVisible] = useState(false);
   const [noteToRename, setNoteToRename] = useState(null);
   const [fileHistoryCache, setFileHistoryCache] = useState([]);
@@ -1283,12 +1326,22 @@ Week 4: □□□□□□□
 
       console.log('获取笔记响应:', offlineResponse);
 
+      // 首屏就绪埋点（WS-R）：只认轻量 summary 首页为 summary-page，
+      // 其余（不可下推排序的一次性全量 / 最近导入 / 全量回退 / 空列表）统一记 fallback。
+      const perfReadySource = toPerfReadySource(offlineResponse && offlineResponse.source);
+      const perfReadyCount = Array.isArray(offlineResponse && offlineResponse.data)
+        ? offlineResponse.data.length
+        : 0;
+
       if (offlineResponse && offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
         // 如果有笔记，使用这些笔记
         console.log('使用获取到的笔记数据:', offlineResponse.data.length, '条笔记');
 
         // 使用导出的action creator设置笔记
         dispatch(setNotesAction(offlineResponse.data));
+
+        // 首屏就绪埋点（WS-R）：数据已 dispatch，渲染提交后由上面的 effect 打印一次
+        setFirstScreenReadyPayload({ source: perfReadySource, count: perfReadyCount });
 
         // 调试：检查canvas类型的笔记
         const canvasNotes = offlineResponse.data.filter(note => note.type === 'canvas');
@@ -1310,6 +1363,8 @@ Week 4: □□□□□□□
         // 如果没有笔记，返回空数组
         console.log('没有笔记，返回空数组');
         dispatch(setNotesAction([]));
+        // 首屏就绪埋点（WS-R）：空列表同样是「数据就绪」，count=0 记录一次
+        setFirstScreenReadyPayload({ source: perfReadySource, count: 0 });
         setIsLoading(false);
         return; // 提前返回，避免重复设置 isLoading
       }
@@ -1333,6 +1388,30 @@ Week 4: □□□□□□□
   useEffect(() => {
     loadNotesRef.current = loadNotes;
   }, [loadNotes]);
+
+  // 首屏就绪埋点（WS-R）：数据就绪的 state 提交后（= 完成一次渲染调度）再打印一次。
+  // requestAnimationFrame 保证日志落在本次渲染提交之后（真机上即首帧之后）；
+  // ref 守卫保证每个应用会话只打印一次，后续重渲染/排序/自愈重载都不会重复刷。
+  useEffect(() => {
+    if (!firstScreenReadyPayload || firstScreenReadyLoggedRef.current) {
+      return undefined;
+    }
+    firstScreenReadyLoggedRef.current = true;
+
+    const appStartTs = typeof global !== 'undefined' ? global.__APP_START_TS__ : undefined;
+    const emit = () => emitFirstScreenReadyLog({
+      appStartTs,
+      source: firstScreenReadyPayload.source,
+      count: firstScreenReadyPayload.count,
+    });
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(emit);
+    } else {
+      emit();
+    }
+    return undefined;
+  }, [firstScreenReadyPayload]);
 
   // 将会话级自愈控制器接到当前挂载实例：卸载后不再触发/重载（不 setState after unmount）
   useEffect(() => {

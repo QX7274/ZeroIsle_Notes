@@ -46,6 +46,21 @@ import { DEV_MODE_CONFIG } from './config';
 import tryRestoreDevSession from './services/auth/devSessionRestore';
 import debugLog from './native/debugLog';
 
+// ---------------------------------------------------------------------------
+// 首屏计时基线（WS-R / 10 万条性能验收）
+//
+// App 模块加载即记录进程内启动时间戳，HomeScreen 在「轻量 summary 首页数据就绪并
+// 完成一次渲染调度」后打印一行可 grep 的 [PERF] 首屏就绪日志：
+//   [PERF] 首屏就绪 ms=<n> source=<summary-page|fallback> count=<n>
+// 时间戳本身写入 global（体积极小），日志只在 __DEV__ 打印，不影响生产行为。
+// ---------------------------------------------------------------------------
+if (typeof global !== 'undefined' && !global.__APP_START_TS__) {
+  global.__APP_START_TS__ = Date.now();
+}
+if (__DEV__) {
+  console.log('[PERF] App 启动时间戳已记录 ts=', global.__APP_START_TS__);
+}
+
 const DEV_SUPPRESSED_LOG_PREFIXES = [
   'App组件渲染中...',
   'Store状态:',

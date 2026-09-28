@@ -203,7 +203,9 @@
   - **列表分页 + Realm 侧排序**：`REALM_SORTABLE_FIELDS` 白名单下推；可下推排序首屏只取 1 页（50 条 summary），
     触底/按钮加载更多、去重、失败可重试、不静默截断；`title/type/size` 明确不分页并打印 reason
 - **仍待完成**：
-  - 10 万条下的首屏 P95 / 滚动 FPS / JS Heap 真机基线仍未产出（`src/tests/perf/README.md` 已给执行步骤）
+  - 10 万条基线：**首屏已产出**（模拟器 debug，10 万条 vs 7 条同区间，首屏恒只加载 50 条，见
+    `src/tests/perf/README.md` 第 7 节）；**滚动 FPS 与 JS Heap 峰值仍未取得可信结论**（本机模拟器为
+    swiftshader 软件渲染且宿主过载），需在真机 release 构建上按第 5 节重采
   - `updated_*` 分页后不再叠加 fileHistory 的「最近访问」权重（需把 `lastOpenedAt` 落库）
   - `notesApi.autoSaveNote` 走 `realm.create 'modified'`，预览可能偏旧（不抹标），未在本次扩大改动
 - **验收**：
@@ -292,6 +294,21 @@
   证据 `.local/android-evidence/round68_*.{xml,png}`。
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
+
+## 2026-09-29 进展补充（第三轮：后端本机验收 + 10 万条基线 + 死路由修复）
+- **后端在本机恢复验收**：Conda 环境 `ZeroIsle` 位于 `/opt/anaconda3/envs/ZeroIsle`（Django 4.2.20）。
+  根目录 `python -X utf8 -m pytest -q -rs` → **21 passed / 2 skipped**（跳过项仍是登录/注册外部 HTTP）；
+  定向 `backend/notes/tests/test_chunked_upload_contract.py` → **15 passed**；
+  `backend/sync/tests/test_dev_sync_auth.py` → **2 passed**。
+  即此前「本机无 Django/Conda 环境」的结论已不成立，后端回归在本机可复现。
+- **10 万条基线（首屏）**：dev-only 造数工具落地（设置 → 离线数据 → 生成/清除性能测试数据），
+  设备实测 100,007 条下首屏 10021–15912 ms（n=6，中位 ≈11471），与 7 条时的 10478–11278 ms 同区间，
+  且首屏恒只加载 50 条 summary；滚动 FPS 因模拟器软件渲染不可用，仍需真机 release 复采。
+- **修复死路由**：`OfflineData` 在 `SettingsNavigator` 注册但**没有任何入口导航到它**，
+  本轮在「应用设置 → 数据」新增「离线数据」入口（并让 `SettingItem` 支持 `testID`），
+  使离线模式/索引重建/性能造数等既有能力重新可达。
+- **修复 TDZ 隐患**：`HomeScreen` 里 `useRef(sortOption)` 早于 `useState` 声明；Hermes 不强制 TDZ 所以设备未崩，
+  但在 JSC/iOS 会直接 ReferenceError，已把两个 ref 移到 `sortOption` 之后（lint 未开该规则，故此前未被发现）。
 
 ## 2026-09-29 进展补充（第二轮：写路径彻底打标 + 列表分页）
 - 直写入口打标：WS-O 处理 20 处 `realm.create('Note')`（含 `updateRealm/writeRealm` 与 dataService/syncService），

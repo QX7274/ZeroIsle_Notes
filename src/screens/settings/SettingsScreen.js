@@ -29,7 +29,7 @@ import { navigationRef } from '../../navigation/navigationRef';
 import { CommonActions } from '@react-navigation/native';
 import { showToast } from '../../components/common/ToastHelper';
 
-const SettingItem = React.memo(({ icon, title, description, onPress, value, type = 'navigate', colors, getIconColor }) => {
+const SettingItem = React.memo(({ icon, title, description, onPress, value, type = 'navigate', colors, getIconColor, testID }) => {
   const scaleAnim = useMemo(() => new Animated.Value(1), []);
   const handlePressIn = useCallback(() => {
     Animated.spring(scaleAnim, {
@@ -51,6 +51,7 @@ const SettingItem = React.memo(({ icon, title, description, onPress, value, type
 
   return (
     <Pressable
+      testID={testID}
       onPress={type !== 'switch' ? onPress : undefined}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
@@ -368,6 +369,7 @@ const SettingsScreen = ({ navigation }) => {
             {renderSettingItem({ icon: 'save', title: '自动保存', description: '编辑笔记时自动保存', onPress: handleAutoSaveToggle, value: settings.autoSave, type: 'switch' })}
             {renderSettingItem({ icon: 'sync', title: '数据同步', description: '管理云端数据同步', onPress: () => navigateTo('SyncSettings') })}
             {renderSettingItem({ icon: 'cleaning-services', title: '清理缓存', description: `当前缓存大小: ${cacheSize}`, onPress: handleClearCache })}
+            {renderSettingItem({ icon: 'storage', title: '离线数据', description: '离线模式、搜索索引重建与本地数据管理', onPress: () => navigation.navigate('OfflineData'), testID: 'entry.settings.main.offlineData' })}
           </View>
         </View>
 

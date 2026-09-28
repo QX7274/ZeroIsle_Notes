@@ -149,7 +149,35 @@ node node_modules/eslint/bin/eslint.js src/tests/perf
 3. **服务层其它列表查询**：`src/services/**` 中除 `realmService.objects` / `realmService.find`
    之外的查询（如云同步分页），本轮未逐一构造 10 万条假 Results。
 
-## 7. 维护提示
+## 7. 实测基线（2026-09-29，平板尺寸 Android 14 模拟器）
+
+> **证据口径**：设备为 `emulator-5554` / `sdk_gphone64_arm64` / Android 14 / 2560x1600，
+> **debug 构建 + swiftshader 软件渲染（无 GPU 加速）+ 宿主同时运行其它项目负载**。
+> 因此下列数值只作为**同环境可复现的相对基线**，不能与真机 release 绝对值比较；
+> 真机 release 采集仍是验收步骤（见第 5 节）。
+
+**造数**：设置 → 离线数据 → 「生成性能测试数据（10 万条）」（dev-only，分批 1000、幂等）。
+实测造数结果 `{created:0, skipped:100000, batches:50, elapsedMs:4839}`（幂等：第二次执行全部跳过），
+即设备 Realm 内共 **100,007 条**笔记（10 万条样本 + 7 条真实笔记）。
+
+| 指标 | 结果 | 说明 |
+|---|---|---|
+| 首屏就绪（10 万条，n=6） | 15912 / 10488 / 11778 / 15539 / 10021 / 11165 ms；min 10021、中位 ≈11471、max 15912 | 日志 `[PERF] 首屏就绪 ms=<n> source=summary-page count=50` |
+| 首屏就绪（7 条，n=2，对照） | 11278 / 10478 ms | 与 10 万条基本一致 |
+| 首屏加载条数 | 恒为 **50**（= `LIST_PAGE_SIZE`） | 证明首屏开销是 O(一页) 而非 O(n) |
+| 应用内存（`dumpsys meminfo`） | TOTAL PSS **540,256 KB ≈ 528 MB**；Native Heap 253,904 KB ≈ 248 MB | debug 构建 + 37MB dev bundle + Realm mmap；未做 release 对照 |
+| 滚动帧（`dumpsys gfxinfo`） | 43 帧 / Janky 97.67% / 50th 150ms / GPU 直方图 38 帧落在 4950ms | **不可作为应用性能结论**：软件渲染 + 宿主过载导致 RenderThread 阻塞；真机 release 需重采 |
+
+**结论**：
+1. 列表层已达成「与数据量解耦」——7 条与 10 万条的首屏耗时处于同一区间，且首屏只物化 50 条；
+2. 滚动 FPS 与 JS Heap 峰值**仍未取得可信结论**（本机模拟器为软件渲染且宿主过载），
+   必须在真机 release 构建上按第 5 节重采；
+3. 内存绝对值受 debug 构建与 Realm mmap 影响，只能做「同环境前后对比」，不能直接作为 500MB/内存验收依据。
+
+**证据**：`.local/android-evidence/round70_perf100k_clean.{xml,png}`（10 万条首页）、
+`.local/android-evidence/round70_perf100k_home.png`；日志见本文件第 8 节引用。
+
+## 8. 维护提示
 
 - 若上游调整 `DEFAULT_FILTER_WINDOW`，测试直接引用导出常量，断言与报表会自动跟随；
 - `SearchIndex` 的 `VECTOR_SCAN_LIMIT` 未导出，测试内以同名常量镜像（500），

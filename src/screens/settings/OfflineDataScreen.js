@@ -21,6 +21,28 @@ import { rebuildSearchIndex } from '../../services/search/searchIndexRebuildServ
 import { backfillNotePreviewMetadata } from '../../services/notes/backfillNotePreviewMetadata';
 import ScreenHeaderBackButton from '../../components/common/ScreenHeaderBackButton';
 import { showToast } from '../../components/common/ToastHelper';
+// 性能基线造数 / 清理（WS-R，仅 dev 生效；服务在非 __DEV__ 会直接抛错）
+import { seedPerfNotes, clearPerfNotes } from '../../services/dev/perfSeedService';
+
+/** 是否 dev 构建：性能测试数据入口只在 dev 显示，生产构建 UI 保持不变 */
+const IS_DEV = typeof __DEV__ === 'undefined' ? false : Boolean(__DEV__);
+
+/** 10 万条性能样本参数（与 src/tests/perf/README.md 的采集步骤一致） */
+const PERF_SEED_COUNT = 100000;
+const PERF_SEED_BATCH_SIZE = 1000;
+
+/**
+ * 把耗时格式化成便于阅读的字符串
+ * @param {number} elapsedMs
+ * @returns {string}
+ */
+const formatElapsed = (elapsedMs) => {
+  const ms = Number(elapsedMs);
+  if (!Number.isFinite(ms) || ms < 0) {
+    return '未知';
+  }
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
+};
 
 const OfflineDataScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -240,6 +262,92 @@ const OfflineDataScreen = ({ navigation }) => {
             tone: 'error',
             message: `预览元数据补齐失败：${errorMessage}`,
           });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleSeedPerfNotes = () => {
+    openDialog({
+      tone: 'warning',
+      title: '生成性能测试数据',
+      message: `将在本地生成 ${PERF_SEED_COUNT} 条性能测试笔记（分批写入、幂等，重复执行不会重复造数）。数据量较大，可能占用较多存储并需要一些时间，仅供性能验收使用。是否继续？`,
+      primaryText: '生成',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        setStatusCard({ tone: 'info', message: `正在生成性能测试数据（0/${PERF_SEED_COUNT}）…` });
+        try {
+          const result = await seedPerfNotes({
+            count: PERF_SEED_COUNT,
+            batchSize: PERF_SEED_BATCH_SIZE,
+            onProgress: (stats) => {
+              // 节流：每 10 批或最后一批刷新一次进度，避免 100 批触发 100 次重渲染
+              if (stats.batches % 10 === 0 || stats.processed >= stats.total) {
+                setStatusCard({
+                  tone: 'info',
+                  message: `正在生成性能测试数据（${stats.processed}/${stats.total}，已写入 ${stats.created} 条）…`,
+                });
+              }
+            },
+          });
+          setStatusCard({
+            tone: result.failed > 0 ? 'error' : 'success',
+            message: `性能测试数据生成完成：新增 ${result.created} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条，共 ${result.batches} 批，用时 ${formatElapsed(result.elapsedMs)}。`,
+          });
+          if (result.failed > 0) {
+            showToast.error(`生成完成，${result.failed} 条失败`);
+          } else {
+            showToast.success(`已生成 ${result.created} 条性能测试数据`);
+          }
+        } catch (e) {
+          const errorMessage = e?.message || '生成性能测试数据失败。';
+          setStatusCard({ tone: 'error', message: `生成性能测试数据失败：${errorMessage}` });
+          showToast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleClearPerfNotes = () => {
+    openDialog({
+      tone: 'error',
+      title: '清除性能测试数据',
+      message: '将只删除本工具生成的性能测试笔记（带 [PERF] / perf-fixture- 标记），不会影响你已有的笔记。是否继续？',
+      primaryText: '清除',
+      secondaryText: '取消',
+      onPrimary: async () => {
+        setIsLoading(true);
+        setStatusCard({ tone: 'info', message: '正在清除性能测试数据…' });
+        try {
+          const result = await clearPerfNotes({
+            batchSize: PERF_SEED_BATCH_SIZE,
+            onProgress: (stats) => {
+              if (stats.batches % 10 === 0) {
+                setStatusCard({
+                  tone: 'info',
+                  message: `正在清除性能测试数据（已删除 ${stats.deleted} 条）…`,
+                });
+              }
+            },
+          });
+          setStatusCard({
+            tone: result.failed > 0 ? 'error' : 'success',
+            message: `性能测试数据清除完成：删除 ${result.deleted} 条，失败 ${result.failed} 条，共 ${result.batches} 批，用时 ${formatElapsed(result.elapsedMs)}。`,
+          });
+          if (result.failed > 0) {
+            showToast.error(`清除完成，${result.failed} 条失败`);
+          } else {
+            showToast.success(`已清除 ${result.deleted} 条性能测试数据`);
+          }
+        } catch (e) {
+          const errorMessage = e?.message || '清除性能测试数据失败。';
+          setStatusCard({ tone: 'error', message: `清除性能测试数据失败：${errorMessage}` });
           showToast.error(errorMessage);
         } finally {
           setIsLoading(false);
@@ -513,6 +621,30 @@ const OfflineDataScreen = ({ navigation }) => {
             disabled={isLoading}
           />
 
+          {IS_DEV ? (
+            <>
+              <Button
+                title="生成性能测试数据（10 万条）"
+                onPress={handleSeedPerfNotes}
+                type="outline"
+                style={styles.perfSeedButton}
+                icon="speed"
+                disabled={isLoading}
+                testID="action.settings.offline.seedPerfNotes"
+              />
+
+              <Button
+                title="清除性能测试数据"
+                onPress={handleClearPerfNotes}
+                type="outline"
+                style={styles.perfClearButton}
+                icon="delete-sweep"
+                disabled={isLoading}
+                testID="action.settings.offline.clearPerfNotes"
+              />
+            </>
+          ) : null}
+
           <Button
             title="清除离线数据"
             onPress={handleClearOfflineData}
@@ -643,6 +775,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   backfillPreviewButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  perfSeedButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  perfClearButton: {
     marginLeft: 16,
     marginRight: 16,
     marginBottom: 8,
