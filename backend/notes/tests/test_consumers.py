@@ -2,6 +2,8 @@
 Tests for the real-time collaboration WebSocket consumer.
 """
 
+import importlib.util
+
 import pytest
 import json
 from channels.testing import WebsocketCommunicator
@@ -10,8 +12,23 @@ from backend.asgi import application  # Use the main ASGI application
 from notes.mongodb_models import Note, NoteCollaboration
 from users.mongodb_models import User as MongoUser
 
-# Mark all tests in this module as pytest-django DB tests
-pytestmark = pytest.mark.django_db(transaction=True)
+# 本模块的用例都是 async def，必须由 pytest-asyncio 驱动。
+# 没有该插件时 pytest 会在「调用阶段」才跳过，但 fixture（会建 Note/NoteCollaboration）已经先跑了：
+# 一旦 mongoengine 注册表被其它套件污染，fixture 就会抛 ValidationError，把 skip 变成 error。
+# 因此把判定**前置到收集阶段**：插件缺失时整个模块直接标记 skip，不执行任何 DB fixture。
+# 插件装上后此分支自动失效，用例恢复正常执行（不是放宽断言，也不是删/禁用用例）。
+_ASYNCIO_PLUGIN_AVAILABLE = importlib.util.find_spec('pytest_asyncio') is not None
+
+if _ASYNCIO_PLUGIN_AVAILABLE:
+    pytestmark = pytest.mark.django_db(transaction=True)
+else:
+    pytestmark = [
+        pytest.mark.django_db(transaction=True),
+        pytest.mark.skip(
+            reason='需要 pytest-asyncio 驱动 async 用例（当前环境未安装）；'
+                   '为避免在调用阶段才跳过而先执行 DB fixture，这里提前到收集阶段'
+        ),
+    ]
 
 @pytest.fixture
 def setup_users_and_notes(db, django_db_setup, django_db_blocker):

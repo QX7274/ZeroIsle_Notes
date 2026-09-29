@@ -153,12 +153,28 @@ class VerificationCode(Document):
 
 class UserProfile(Document):
     """
-    用户资料文档模型
+    用户资料文档模型（RISK-BE-012：user_profiles 集合的唯一定义）
+
+    历史上 users/models/user_profile.py 还定义了一个同名、同集合（user_profiles）
+    但 schema 不同的 Document（缺 django_user_id，但有 company/position/bio_extended），
+    导致 signals/utils/mongo_auth 与 views/profile.py 对同一文档的字段认知不一致，
+    profile 侧写入存在丢映射字段的风险。
+
+    现在统一到本模型：把轻量侧独有的字段并入这里，另一个同名类只做转发、不再定义 Document，
+    保证「同一个集合只有一个 Document 定义」。
     """
+
+    GENDER_CHOICES = (
+        ('male', '男'),
+        ('female', '女'),
+        ('other', '其他'),
+        ('unknown', '未知'),
+    )
+
     user = ReferenceField(User, required=True, unique=True, verbose_name='用户')
-    django_user_id = StringField(verbose_name='Django用户ID')  # 添加Django用户ID字段
+    django_user_id = StringField(verbose_name='Django用户ID')
     nickname = StringField(max_length=50, verbose_name='昵称')
-    gender = StringField(max_length=10, choices=('male', 'female', 'other', 'unknown'), default='unknown', verbose_name='性别')
+    gender = StringField(max_length=10, choices=GENDER_CHOICES, default='unknown', verbose_name='性别')
     birthday = DateTimeField(verbose_name='生日')
     location = StringField(max_length=100, verbose_name='位置')
     website = URLField(verbose_name='个人网站')
@@ -167,6 +183,11 @@ class UserProfile(Document):
     work = ListField(DictField(), verbose_name='工作经历')
     skills = ListField(StringField(), verbose_name='技能')
     interests = ListField(StringField(), verbose_name='兴趣')
+    # 以下三个字段原先只定义在 users/models/user_profile.py 的同名 Document 上，
+    # 统一并入本模型，避免「字段对不上但共写同一集合」导致的数据丢失。
+    company = StringField(max_length=100, verbose_name='公司')
+    position = StringField(max_length=100, verbose_name='职位')
+    bio_extended = StringField(verbose_name='扩展简介')
     created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
     updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
 
@@ -188,6 +209,18 @@ class UserProfile(Document):
         """保存前更新更新时间"""
         self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
+
+    @property
+    def age(self):
+        """计算用户年龄（原 users/models/user_profile.py 的能力，统一后保留）"""
+        from datetime import date
+
+        if not self.birthday:
+            return None
+        today = date.today()
+        return today.year - self.birthday.year - (
+            (today.month, today.day) < (self.birthday.month, self.birthday.day)
+        )
 
 class UserSettings(Document):
     """

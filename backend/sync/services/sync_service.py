@@ -69,6 +69,12 @@ class SyncService:
     def sync_notes(user_id, notes_data, client_timestamp=None, conflict_strategy='latest'):
         """
         同步笔记数据 (P0-SYNC1 Refactored)
+
+        冲突语义（RISK-BE-009）：
+        - diverged：服务端与客户端时间戳存在 >1s 的分歧（仅表示"检测到分歧"）
+        - conflict：本地改动最终未被采纳（服务端获胜 / 本地写入被丢弃），只有这种情况计入 results['conflicts']
+        - 客户端最终覆盖成功属于"已解决的分歧"，conflicts 计 0
+        - created/updated/unchanged/deleted/failed 的既有口径不变
         """
         try:
             if not mongodb_service.initialized:
@@ -92,8 +98,15 @@ class SyncService:
                     operation = note.get('_operation', 'update')
 
                     if operation == 'delete':
+                        # 删除类同步：本地删除按既有契约直接采纳（不参与冲突决策），因此不计 conflict
                         bulk_operations.append(DeleteOne({'_id': note_id, 'user_id': user_id}))
-                        results['details'].append({'id': note_id_str, 'status': 'deleted'})
+                        results['details'].append({
+                            'id': note_id_str,
+                            'status': 'deleted',
+                            'diverged': False,
+                            'conflict': False,
+                            'reason': 'client_delete_applied',
+                        })
                         continue
 
                     # 移除元数据
@@ -102,22 +115,35 @@ class SyncService:
 
                     server_note = server_notes.get(note_id_str)
                     decision = 'proceed'
+                    # RISK-BE-009：把「检测到分歧」与「本地改动未被采纳」分开。
+                    #   diverged: 服务端/客户端时间戳存在 >1s 分歧（原实现直接把它计入 conflicts，语义偏了）
+                    #   conflict: 本地改动最终未被采纳（服务端获胜），只有这种情况才计入 results['conflicts']
+                    diverged = False
 
                     if server_note:
-                        # 冲突检测
+                        # 分歧检测（合并决策逻辑保持不变）
                         server_updated_at = server_note.get('updated_at')
                         client_updated_at = datetime.fromisoformat(client_updated_at_str.replace('Z', '+00:00')) if client_updated_at_str else None
 
                         if server_updated_at and client_updated_at and abs((server_updated_at - client_updated_at).total_seconds()) > 1:
-                            results['conflicts'] += 1
+                            diverged = True
                             if conflict_strategy == SyncService.CONFLICT_STRATEGY_SERVER:
                                 decision = 'ignore_client'
                             elif conflict_strategy == SyncService.CONFLICT_STRATEGY_LATEST and server_updated_at > client_updated_at:
                                 decision = 'ignore_client_latest'
 
                     if decision.startswith('ignore'):
+                        # 本地改动未被采纳 => 计入 conflicts（服务端获胜）
+                        results['conflicts'] += 1
                         results['unchanged'] += 1
-                        results['details'].append({'id': note_id_str, 'status': 'conflict_ignored', 'decision': decision})
+                        results['details'].append({
+                            'id': note_id_str,
+                            'status': 'conflict_ignored',
+                            'decision': decision,
+                            'diverged': True,
+                            'conflict': True,
+                            'reason': 'client_change_not_applied',
+                        })
                         continue
 
                     # 准备写入
@@ -127,12 +153,29 @@ class SyncService:
                         '$setOnInsert': {'created_at': server_timestamp}
                     }
                     bulk_operations.append(UpdateOne({'_id': note_id, 'user_id': user_id}, update_data, upsert=True))
-                    results['details'].append({'id': note_id_str, 'status': 'processed', 'decision': 'upsert'})
+                    detail = {
+                        'id': note_id_str,
+                        'status': 'processed',
+                        'decision': 'upsert',
+                        'diverged': diverged,
+                        'conflict': False,
+                    }
+                    if diverged:
+                        # 有分歧但按策略采纳了本地改动：属于「已解决的分歧」，不计 conflict
+                        detail['resolution'] = 'client_wins'
+                    results['details'].append(detail)
 
                 except Exception as e:
                     logger.error(f"处理笔记同步时出错: {str(e)}")
                     results['failed'] += 1
-                    results['details'].append({'id': note.get('_id', 'unknown'), 'status': 'failed', 'error': str(e)})
+                    # details 统一带 diverged/conflict 判别字段，便于调用方区分四类结果
+                    results['details'].append({
+                        'id': note.get('_id', 'unknown'),
+                        'status': 'failed',
+                        'error': str(e),
+                        'diverged': False,
+                        'conflict': False,
+                    })
 
             if bulk_operations:
                 try:

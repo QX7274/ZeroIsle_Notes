@@ -96,6 +96,10 @@ class SyncServiceTests(unittest.TestCase):
         self.assertEqual(len(details), 1)
         self.assertEqual(details[0]['status'], 'conflict_ignored')
         self.assertEqual(details[0]['decision'], 'ignore_client')
+        # RISK-BE-009：本地改动未被采纳才计 conflict，且 details 给出原因
+        self.assertTrue(details[0]['conflict'])
+        self.assertTrue(details[0]['diverged'])
+        self.assertEqual(details[0]['reason'], 'client_change_not_applied')
 
     def test_sync_documents_conflict_resolution_client_wins(self):
         """Test conflict resolution with 'client' strategy (client changes are forced)."""
@@ -116,14 +120,19 @@ class SyncServiceTests(unittest.TestCase):
         result = SyncService.sync_notes('test_user', client_docs, conflict_strategy='client')
 
         self.assertTrue(result['success'])
-        # 当前实现会先统计「检测到时间差」的冲突，再按 client 策略强制覆盖
-        self.assertEqual(result['data']['conflicts'], 1)
+        # RISK-BE-009：客户端最终覆盖成功 = 本地改动被采纳 => conflicts 为 0（属于「已解决的分歧」）
+        self.assertEqual(result['data']['conflicts'], 0)
         self.assertEqual(result['data']['updated'], 1)
         self.assertEqual(result['data']['unchanged'], 0)
         self.mock_collection.bulk_write.assert_called_once()
         operations = self.mock_collection.bulk_write.call_args[0][0]
         self.assertEqual(operations[0].__class__.__name__, 'UpdateOne')
         self.assertEqual(operations[0]._filter['_id'], doc_id)
+        details = result['data']['details']
+        self.assertEqual(details[0]['status'], 'processed')
+        self.assertFalse(details[0]['conflict'])
+        self.assertTrue(details[0]['diverged'])
+        self.assertEqual(details[0]['resolution'], 'client_wins')
 
     def test_sync_documents_conflict_resolution_latest_wins(self):
         """Test conflict resolution where the latest timestamp wins."""
@@ -144,13 +153,18 @@ class SyncServiceTests(unittest.TestCase):
         result = SyncService.sync_notes('test_user', client_docs, conflict_strategy='latest')
 
         self.assertTrue(result['success'])
-        self.assertEqual(result['data']['conflicts'], 1)
+        # RISK-BE-009：latest 且客户端较新 => 采纳本地改动 => conflicts 为 0
+        self.assertEqual(result['data']['conflicts'], 0)
         self.assertEqual(result['data']['updated'], 1)
         self.mock_collection.bulk_write.assert_called_once()
         operations = self.mock_collection.bulk_write.call_args[0][0]
         self.assertEqual(operations[0].__class__.__name__, 'UpdateOne')
         self.assertTrue(getattr(operations[0], '_upsert', False))
-        self.assertEqual(result['data']['details'][0]['status'], 'processed')
+        details = result['data']['details']
+        self.assertEqual(details[0]['status'], 'processed')
+        self.assertFalse(details[0]['conflict'])
+        self.assertTrue(details[0]['diverged'])
+        self.assertEqual(details[0]['resolution'], 'client_wins')
 
     def test_sync_deleted_docs(self):
         """Test that documents marked for deletion are removed."""

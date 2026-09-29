@@ -1,60 +1,20 @@
+"""用户资料模型（RISK-BE-012：同一个集合只由一个 Document 定义）。
+
+历史问题
+========
+本模块曾定义了一个与 users.mongodb_models.UserProfile **同名、同集合
+（user_profiles）但 schema 不同**的 Document：它没有 django_user_id
+（signals/utils/mongo_auth 依赖的映射字段），却多了 company/position/bio_extended。
+于是 views/profile.py 与 signals/utils 对同一份文档的字段认知不一致，
+profile 侧写入可能丢掉 django_user_id 等映射字段。
+
+现状
+====
+规范模型统一为 users.mongodb_models.UserProfile（已并入轻量侧的三个字段），
+本模块只做转发，保证 users.models.UserProfile is users.mongodb_models.UserProfile，
+既有 from users.models import UserProfile 的导入路径不受影响。
 """
-用户资料模型
-"""
 
-from mongoengine import Document, StringField, DateTimeField, DateField, URLField, DictField, ReferenceField
-from django.utils import timezone
-from ..mongodb_models import User
+from ..mongodb_models import UserProfile  # noqa: F401  (re-export，保持既有导入路径)
 
-class UserProfile(Document):
-    """
-    用户资料模型
-    存储用户的扩展资料信息
-    """
-    GENDER_CHOICES = (
-        ('male', '男'),
-        ('female', '女'),
-        ('other', '其他'),
-        ('unknown', '未知'),
-    )
-
-    user = ReferenceField(User, required=True, unique=True, verbose_name='用户')
-    nickname = StringField(max_length=50, required=False, verbose_name='昵称')
-    gender = StringField(max_length=10, choices=GENDER_CHOICES, default='unknown', verbose_name='性别')
-    birthday = DateField(required=False, verbose_name='生日')
-    location = StringField(max_length=100, required=False, verbose_name='位置')
-    website = URLField(required=False, verbose_name='个人网站')
-    company = StringField(max_length=100, required=False, verbose_name='公司')
-    position = StringField(max_length=100, required=False, verbose_name='职位')
-    bio_extended = StringField(required=False, verbose_name='扩展简介')
-    social_links = DictField(default={}, verbose_name='社交链接')
-    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
-    updated_at = DateTimeField(default=timezone.now, verbose_name='更新时间')
-
-    meta = {
-        'collection': 'user_profiles',
-        'ordering': ['-updated_at'],
-        'indexes': [
-            'user',
-            'created_at',
-            'updated_at'
-        ],
-        'verbose_name': '用户资料',
-        'verbose_name_plural': '用户资料'
-    }
-
-    def __str__(self):
-        return f"{self.user.username} 的资料"
-
-    def save(self, *args, **kwargs):
-        self.updated_at = timezone.now()
-        return super(UserProfile, self).save(*args, **kwargs)
-
-    @property
-    def age(self):
-        """计算用户年龄"""
-        from datetime import date
-        if not self.birthday:
-            return None
-        today = date.today()
-        return today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+__all__ = ['UserProfile']

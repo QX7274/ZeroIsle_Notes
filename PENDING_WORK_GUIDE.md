@@ -295,6 +295,23 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-30 进展补充（第十轮：按顺序清完剩余风险，并连带修出 4 个后端缺陷）
+- **按顺序实施的三项全部关闭**：
+  ① `RISK-BE-007`（被同名包遮蔽的死代码 `notes/serializers.py`）：先证明「17 个被导入符号包里全部存在」，再删除；
+     两个 OCR 序列化器经多重证据判定为废弃能力（无 model、`ocr_service.py` 已不存在、无路由/调用）。notes `67→73 passed`。
+  ② `RISK-BE-009`（conflicts 计数语义）：定义为「**本地改动未被采纳**」——客户端胜 0 / 服务端胜 1 / ≤1s 0；
+     `details` 新增 `diverged`/`conflict` 判别字段。sync `47→56 passed`。
+  ③ `RISK-BE-012`（同名 UserProfile 双 schema）：统一为唯一 Document（轻量侧字段并入 canonical、旧路径改为转发），
+     `gdpr_service` 改用真实字段查询。users `58→65 passed`。
+- **三项带出的 4 个连带缺陷（本轮一并关闭）**：
+  `RISK-BE-014` profile 序列化器用错基类 ⇒ `/profile` 必 500（改用 `DocumentSerializer` + 端到端 HTTP 用例）；
+  `RISK-BE-015` 权限判定拿 MongoUser 与 Django User 比较 ⇒ **本人也 403**（统一身份口径 + 10 条权限矩阵用例）；
+  `RISK-BE-016` DRF `get_object_or_404` 访问 mongoengine QuerySet 的 `model` ⇒ 非 owner 详情返回 500（覆写为 404）；
+  `RISK-BE-017` 迁移脚本的模块发现会**永久污染 mongoengine 注册表**（按类名索引被 legacy 同名类覆盖）⇒
+     多目录合并跑多出 3 个 error（脚本侧 `try/finally` 快照回填根治 + 测试侧双保险）。
+- **量化结果**：后端四套件从 `notes 67 / users 58 / sync 47 / scripts 13` 变为 **`73 / 80 / 56 / 17`**；
+  合并跑由 `140 passed + 3 errors` 变为 **`146 passed / 3 skipped / 0 error`**（与分别单跑一致）。
+- 门禁：前端 `78/78 suites、686/686 tests`；`eslint .` `0 errors / 1204 warnings`；后端门禁 `21 passed / 2 skipped`。
 ## 2026-09-30 进展补充（第九轮：按优先级实施 + iOS/Android 平板双端实测）
 - **iOS 首次真正可构建、可运行**：修复 **9 处**独立阻塞（详见 `RISK-IOS-BUILD-001`）——
   Podfile 重复 `React` 声明、部署目标需 ≥15.1、全局 `use_modular_headers!` 与 `ReactCommon` 冲突、

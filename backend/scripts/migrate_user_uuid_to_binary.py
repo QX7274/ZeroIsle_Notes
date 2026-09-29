@@ -156,6 +156,11 @@ _DISCOVERY_CACHE = None
 def ensure_document_modules_imported(root=None, force=False):
     """导入所有可能定义 Document 的模块，让注册表尽可能完整。
 
+    注意（RISK-BE-017）：本函数是**低层导入助手**，它会 import 遗留同名模块并因此**改写**
+    mongoengine 的 _document_registry（按类名索引）。需要「无副作用」的发现请调用
+    collect_user_reference_fields() / iter_user_reference_fields() / build_plan() ——
+    它们在枚举完成后会回填注册表快照。
+
     :returns: (imported, failed) —— failed 里的模块已经逐个告警，不静默。
     """
     global _DISCOVERY_CACHE
@@ -387,45 +392,77 @@ def _reference_target(field):
     return None
 
 
-def iter_user_reference_fields(root=None):
-    """产出所有指向 User 的引用字段：(collection, field_name, is_list)。
+_ENUMERATION_CACHE = None
 
-    先确保「所有定义了 Document 的模块」都已导入，再用 mongoengine 注册表枚举，
-    因此 service/views 里定义的 Document 也不会漏。
+
+def collect_user_reference_fields(root=None):
+    """枚举所有指向 User 的引用字段，并在返回前回填 _document_registry 快照（RISK-BE-017）。
+
+    为什么需要回填：为了发现全部 Document，本函数会 import 所有定义 Document 的模块，
+    其中包含 notes/mongodb_models_legacy.py 这类**同名遗留模块**；mongoengine 的
+    _document_registry 按**类名**索引，legacy 的 Note/NoteCollaboration… 会覆盖规范类，
+    而且覆盖在进程内永久生效 —— 之后任何 ReferenceField("Note") 都会解析到 legacy 类，
+    连带把同进程其它套件/代码弄坏（task-41 的 3 个 error）。
+
+    回填策略（边界见 docstring 末尾）：
+    - 进入前快照 registry，枚举完成后把**快照里已有的键**逐个回填（只恢复被覆盖的键）；
+    - 枚举期间**新增**的键保留 —— 删除会让后续 get_document("X") 抛 NotRegistered；
+    - 枚举本身仍在「已被 legacy 覆盖」的注册表状态下进行，因此发现能力与之前完全一致；
+    - try/finally 保证异常路径同样回填。
+
+    :returns: 排序后的 [(collection, field_name, is_list), ...]
     """
     from mongoengine.base.common import _document_registry
     from users.mongodb_models import User
 
-    imported, failed = ensure_document_modules_imported(root)
-    seen = set()
-    for model in list(_document_registry.values()):
-        if not hasattr(model, '_get_collection_name'):
-            continue
-        collection = model._get_collection_name()
-        if not collection or collection == USERS_COLLECTION:
-            continue
-        for field_name, field in model._fields.items():
-            target = _reference_target(field)
-            if not target:
+    snapshot = dict(_document_registry)
+    try:
+        imported, failed = ensure_document_modules_imported(root)
+        found = set()
+        for model in list(_document_registry.values()):
+            if not hasattr(model, '_get_collection_name'):
                 continue
-            is_list, document_type = target
-            if document_type is not User:
+            collection = model._get_collection_name()
+            if not collection or collection == USERS_COLLECTION:
                 continue
-            key = (collection, field_name, is_list)
-            if key not in seen:
-                seen.add(key)
-                yield key
+            for field_name, field in model._fields.items():
+                target = _reference_target(field)
+                if not target:
+                    continue
+                is_list, document_type = target
+                if document_type is not User:
+                    continue
+                found.add((collection, field_name, is_list))
 
-    # 静态提取兜底（对**所有候选模块**做，而不只是导入失败的）：
-    # mongoengine 的 _document_registry 以「类名」为键，不同 app 里的同名 Document
-    # （例如 community.mongodb_models.Note 与 notes.mongodb_models.Note）会互相覆盖，
-    # 后导入者生效；只信注册表会漏掉被覆盖模型的 User 引用字段。
-    # 静态提取直接读源码，与注册表谁生效无关，因此这里取并集，避免半迁移。
-    for module_name in sorted(set(imported) | set(failed)):
-        for key in sorted(static_user_reference_fields(module_name)):
-            if key not in seen:
-                seen.add(key)
-                yield key
+        # 静态提取兜底（对**所有候选模块**做，而不只是导入失败的）：
+        # 注册表按类名索引会被同名类覆盖，只信注册表会漏掉被覆盖模型的 User 引用字段；
+        # 静态提取直接读源码，与注册表谁生效无关，因此这里取并集，避免半迁移。
+        for module_name in sorted(set(imported) | set(failed)):
+            found.update(static_user_reference_fields(module_name))
+
+        return sorted(found)
+    finally:
+        # 只回填快照里已有的键：恢复被覆盖的规范类，保留新增项（避免 NotRegistered）
+        for name, model in snapshot.items():
+            _document_registry[name] = model
+
+
+def iter_user_reference_fields(root=None):
+    """产出所有指向 User 的引用字段：(collection, field_name, is_list)。
+
+    枚举结果在 root 为 None 时缓存：回填注册表后重新枚举会少掉「仅存在于遗留同名模块」的
+    注册项，缓存保证多次调用拿到同一份完整结果（发现能力不回退）。
+    """
+    global _ENUMERATION_CACHE
+
+    if root is None and _ENUMERATION_CACHE is not None:
+        yield from _ENUMERATION_CACHE
+        return
+
+    fields = collect_user_reference_fields(root)
+    if root is None:
+        _ENUMERATION_CACHE = fields
+    yield from fields
 
 
 def collect_legacy_user_ids(db):
