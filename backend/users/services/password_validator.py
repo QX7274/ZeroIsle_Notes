@@ -16,13 +16,96 @@ REQUIRE_LOWERCASE = True
 REQUIRE_DIGIT = True
 REQUIRE_SPECIAL = True
 
-# 常见弱密码列表
+# 常见弱密码列表（整串精确匹配，历史行为保留）
 COMMON_WEAK_PASSWORDS = {
     'password', 'password123', '123456', '12345678', '123456789',
     'qwerty', 'abc123', 'monkey', 'master', 'dragon', 'letmein',
     'iloveyou', 'admin', 'welcome', 'login', 'princess', 'sunshine',
     'password1', 'qwerty123', '1234567890', '000000', '111111',
 }
+
+# ---------------------------------------------------------------------------
+# 弱口令词根判定（RISK-BE-010）
+#
+# 旧规则只做「整串精确匹配」，'Password123!' / 'P@ssw0rd' / 'PASSWORD123' 这类
+# 「常见弱密码 + 后缀/大小写/字符替换」变体全部放行，弱口令策略形同虚设。
+#
+# 新规则 = 既有整串名单 + 归一化后的词根包含判定：
+#   1. 原口令小写后命中 COMMON_WEAK_PASSWORDS；
+#   2. 归一化（小写 + leet 还原 + 去非字母数字）后命中整串名单；
+#   3. 归一化后包含任一 COMMON_WEAK_ROOTS 词根。
+#
+# 设计取舍（避免误伤强口令）：
+# - 只收录「不做任何修饰就已经是高危弱口令」的强信号词；
+# - **刻意不收录** 'pass' / 'word' / 'secret' / 'hello' 这类会出现在长口令里的普通子串，
+#   否则 "Str0ngPassphrase!2026" 会因为含 'pass' 被误判为弱口令；
+# - 已知边界（需产品确认）：包含词根的长口令（如 "MyPasswordIsVeryLong!2026"）仍判弱；
+#   若产品希望放行此类长口令，需要额外引入长度/熵豁免，本次不做。
+COMMON_WEAK_ROOTS = (
+    'password', 'passwd', 'qwerty', 'azerty', 'letmein', 'iloveyou',
+    'admin', 'administrator', 'welcome', 'monkey', 'dragon', 'master',
+    'sunshine', 'princess', 'login', 'football', 'baseball', 'soccer',
+    'superman', 'batman', 'starwars', 'trustno1', 'whatever', 'freedom',
+    'shadow', 'michael', 'jordan', 'hunter', 'ranger', 'buster',
+    'harley', 'tigger', 'charlie', 'donald', 'matthew', 'joshua',
+    'amanda', 'ashley', 'nicole', 'chelsea',
+    'abc123', '123456', '12345678', '123456789', '111111', '000000', '654321',
+    'woaini', 'nihao',
+)
+
+# 常见 leet 替换：把 'P@ssw0rd' 归一化回 'password'
+LEET_TRANSLATION = str.maketrans({
+    '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b',
+    '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't',
+})
+
+_NON_ALNUM_RE = re.compile(r'[^a-z0-9]')
+
+
+def normalize_password_variants(password):
+    """返回口令归一化后的可比形态（去重）：
+    - 去符号但保留数字（'abc123456' 这类数字词根仍可命中）；
+    - leet 还原后再去符号（'P@ssw0rd' → 'password'）。
+
+    Args:
+        password: 原始口令
+
+    Returns:
+        tuple: 归一化形态（可能为空元组）
+    """
+    if not password:
+        return ()
+
+    lowered = password.lower()
+    stripped = _NON_ALNUM_RE.sub('', lowered)
+    leet_normalized = _NON_ALNUM_RE.sub('', lowered.translate(LEET_TRANSLATION))
+    return tuple({stripped, leet_normalized})
+
+
+def is_common_weak_password(password):
+    """判定是否为常见弱口令（RISK-BE-010）。
+
+    Args:
+        password: 原始口令
+
+    Returns:
+        bool: True 表示命中弱口令规则
+    """
+    if not password:
+        return False
+
+    if password.lower() in COMMON_WEAK_PASSWORDS:
+        return True
+
+    for variant in normalize_password_variants(password):
+        if not variant:
+            continue
+        if variant in COMMON_WEAK_PASSWORDS:
+            return True
+        if any(root in variant for root in COMMON_WEAK_ROOTS):
+            return True
+
+    return False
 
 
 class PasswordValidationError(Exception):
@@ -102,8 +185,8 @@ class PasswordValidator:
         if self.require_special and not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~]', password):
             errors.append('密码必须包含至少一个特殊字符')
         
-        # 检查常见弱密码
-        if password.lower() in COMMON_WEAK_PASSWORDS:
+        # 检查常见弱密码（RISK-BE-010：整串名单 + 归一化后的词根包含判定）
+        if is_common_weak_password(password):
             errors.append('密码过于常见，请使用更复杂的密码')
         
         # 检查密码是否包含用户名
@@ -185,8 +268,8 @@ class PasswordValidator:
         if not self._has_sequential_chars(password, 3):
             score += 5
         
-        # 扣分项
-        if password.lower() in COMMON_WEAK_PASSWORDS:
+        # 扣分项（与 validate 共用同一套弱密码判定，避免两处口径不一致）
+        if is_common_weak_password(password):
             score -= 30
         
         return max(0, min(100, score))

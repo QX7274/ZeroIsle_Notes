@@ -82,6 +82,12 @@ __pycache__/
 # Ruby / CocoaPods
 **/Pods/
 /vendor/bundle/
+# 由 pod install 生成，可通过 pod install 重新生成（Podfile.lock 则要提交，用于锁定 113 个 pod 版本）
+ios/*.xcworkspace/
+ios/build/
+
+# 后端运行期数据（向量库等），由服务/测试写入，不应入库
+backend/data/
 
 # Temporary files created by Metro to check the health of the file watcher
 .metro-health-check*

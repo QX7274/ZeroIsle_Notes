@@ -3,7 +3,20 @@
  * 处理应用程序所需的各种权限请求
  */
 import { Platform, PermissionsAndroid } from 'react-native';
-import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import messaging from '@react-native-firebase/messaging';
+
+/**
+ * iOS 通知权限判定。
+ *
+ * 背景：react-native-permissions v5 起 **iOS 侧不再提供 NOTIFICATIONS 权限项**
+ * （该常量只存在于 Android 侧），因此 `PERMISSIONS.IOS.NOTIFICATIONS` 是 undefined。
+ * 旧实现把它直接传给原生模块，iOS 上必定红屏：
+ *   No "(null)" permission handler detected. -[RNPermissions handlerForPermission:]
+ * 这里改用项目已在使用的 @react-native-firebase/messaging（与 src/services/firebase/firebaseInit.js 保持一致）。
+ */
+const isIosNotificationGranted = (status) =>
+  status === messaging.AuthorizationStatus.AUTHORIZED ||
+  status === messaging.AuthorizationStatus.PROVISIONAL;
 
 /**
  * 检查通知权限
@@ -13,8 +26,8 @@ export const checkNotificationPermission = async () => {
   try {
     // iOS平台
     if (Platform.OS === 'ios') {
-      const result = await check(PERMISSIONS.IOS.NOTIFICATIONS);
-      return result === RESULTS.GRANTED;
+      const status = await messaging().hasPermission();
+      return isIosNotificationGranted(status);
     }
 
     // Android平台
@@ -54,8 +67,8 @@ export const requestNotificationPermission = async (timeout = 5000) => {
       try {
         // iOS平台
         if (Platform.OS === 'ios') {
-          const result = await request(PERMISSIONS.IOS.NOTIFICATIONS);
-          resolve(result === RESULTS.GRANTED);
+          const status = await messaging().requestPermission();
+          resolve(isIosNotificationGranted(status));
           return;
         }
 

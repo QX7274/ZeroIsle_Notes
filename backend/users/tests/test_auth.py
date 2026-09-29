@@ -31,33 +31,33 @@ class UserAuthTest(TestCase):
         self.test_user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='TestPassword123!'
+            password='Str0ng!Fixture#2026'
         )
         
         # 测试数据
         self.valid_user_data = {
             'username': 'newuser',
             'email': 'newuser@example.com',
-            'password': 'TestPassword123!',
-            'confirm_password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026',
+            'confirm_password': 'Str0ng!Fixture#2026'
         }
         
         self.valid_login_data = {
             'username': 'testuser',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
 
         self.email_login_data = {
             'email': 'test@example.com',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
         self.phone_user_data = {
             'username': 'phoneuser',
             'phone': '13800138000',
-            'password': 'TestPassword123!',
-            'confirm_password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026',
+            'confirm_password': 'Str0ng!Fixture#2026'
         }
     
     def test_user_register_with_username(self):
@@ -128,12 +128,12 @@ class UserAuthTest(TestCase):
         phone_user = User.objects.create_user(
             username='phoneuser',
             phone='13800138000',
-            password='TestPassword123!'
+            password='Str0ng!Fixture#2026'
         )
         
         login_data = {
             'phone': '13800138000',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
         response = self.client.post(
@@ -153,13 +153,13 @@ class UserAuthTest(TestCase):
         # 创建一个只有用户名的用户
         binding_user = User.objects.create_user(
             username='bindinguser',
-            password='TestPassword123!'
+            password='Str0ng!Fixture#2026'
         )
         
         # 登录
         login_data = {
             'username': 'bindinguser',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
         response = self.client.post(
@@ -175,7 +175,7 @@ class UserAuthTest(TestCase):
         bind_email_url = reverse('bind-email')
         bind_email_data = {
             'email': 'binding@example.com',
-            'password': 'TestPassword123!'  # 验证身份
+            'password': 'Str0ng!Fixture#2026'  # 验证身份
         }
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
@@ -190,7 +190,7 @@ class UserAuthTest(TestCase):
         # 使用邮箱登录
         email_login_data = {
             'email': 'binding@example.com',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
         self.client.credentials()  # 清除认证头
@@ -217,7 +217,7 @@ class UserAuthTest(TestCase):
         bind_phone_data = {
             'phone': '13900139000',
             'code': '1234',  # 模拟验证码
-            'password': 'TestPassword123!'  # 验证身份
+            'password': 'Str0ng!Fixture#2026'  # 验证身份
         }
         
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
@@ -232,7 +232,7 @@ class UserAuthTest(TestCase):
         # 使用手机号登录
         phone_login_data = {
             'phone': '13900139000',
-            'password': 'TestPassword123!'
+            'password': 'Str0ng!Fixture#2026'
         }
         
         self.client.credentials()  # 清除认证头

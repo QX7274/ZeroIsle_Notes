@@ -6,6 +6,7 @@ Django基础设置文件
 import os
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import quote_plus
 
 # 导入 AI 配置
 from .ai_config import *
@@ -115,10 +116,180 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 连接到MongoDB
-mongo_uri = os.environ.get('MONGO_URI')  # 强制通过环境变量配置，在开发未设置时走本地连接分支
-mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
+# ---------- RISK-BE-008：MongoDB 环境变量统一解析（settings 层） ----------
+# 口径：新名优先 -> 旧名兜底（大声弃用 WARNING）-> 默认值（显式 INFO）
+# 变量对照表：MONGO_DB -> MONGO_DB_NAME；MONGO_HOST/MONGO_PORT/MONGO_USER/MONGO_PASSWORD -> MONGO_URI
+DEFAULT_DB_NAME = 'ZeroIsle_Notes'
+DEFAULT_MONGO_HOST = 'localhost'
+DEFAULT_MONGO_PORT = 27017
+
+LEGACY_MONGO_ENV_MAPPING = (
+    ('MONGO_DB', 'MONGO_DB_NAME'),
+    ('MONGO_HOST', 'MONGO_URI'),
+    ('MONGO_PORT', 'MONGO_URI'),
+    ('MONGO_USER', 'MONGO_URI'),
+    ('MONGO_PASSWORD', 'MONGO_URI'),
+)
+LEGACY_MONGO_ENV_REMEDIATION = '；'.join(f'{old} -> {new}' for old, new in LEGACY_MONGO_ENV_MAPPING)
+
+MONGO_SOURCE_NEW = 'new'
+MONGO_SOURCE_LEGACY = 'legacy'
+MONGO_SOURCE_DEFAULT = 'default'
+
+
+def _mongo_env_text(value):
+    """归一化环境变量取值（None/空白视为未设置）。"""
+    return '' if value is None else str(value).strip()
+
+
+def _mongo_env_is_set(env, name):
+    return _mongo_env_text(env.get(name)) != ''
+
+
+def _mongo_normalize_port(raw_port, log):
+    """端口容错：非法值回退默认端口并告警，避免旧配置把启动打挂。"""
+    if not raw_port:
+        return DEFAULT_MONGO_PORT
+    try:
+        return int(raw_port)
+    except (TypeError, ValueError):
+        log.warning('MONGO_PORT 不是合法端口(%s)，已回退默认端口 %s', raw_port, DEFAULT_MONGO_PORT)
+        return DEFAULT_MONGO_PORT
+
+
+def mongo_legacy_vars_in_use(env=None):
+    """返回真正被兜底使用的旧变量名列表（仅当对应新名为空时才算）。"""
+    env = os.environ if env is None else env
+    used = []
+    if _mongo_env_is_set(env, 'MONGO_DB') and not _mongo_env_is_set(env, 'MONGO_DB_NAME'):
+        used.append(('MONGO_DB', 'MONGO_DB_NAME'))
+    if not _mongo_env_is_set(env, 'MONGO_URI'):
+        for legacy in ('MONGO_HOST', 'MONGO_PORT', 'MONGO_USER', 'MONGO_PASSWORD'):
+            if _mongo_env_is_set(env, legacy):
+                used.append((legacy, 'MONGO_URI'))
+    return used
+
+
+def mongo_build_uri_from_legacy(env=None, log=None):
+    """用旧名拼出与旧 kwargs 等价的 URI；没有任何旧连接参数时返回空串。"""
+    env = os.environ if env is None else env
+    log = log or logger
+
+    legacy_present = any(
+        _mongo_env_is_set(env, name)
+        for name in ('MONGO_HOST', 'MONGO_PORT', 'MONGO_USER', 'MONGO_PASSWORD')
+    )
+    if not legacy_present:
+        return ''
+
+    host = _mongo_env_text(env.get('MONGO_HOST')) or DEFAULT_MONGO_HOST
+    port = _mongo_normalize_port(_mongo_env_text(env.get('MONGO_PORT')), log)
+    user = _mongo_env_text(env.get('MONGO_USER'))
+    password = _mongo_env_text(env.get('MONGO_PASSWORD'))
+    db_name = _mongo_env_text(env.get('MONGO_DB'))
+
+    credentials = f'{quote_plus(user)}:{quote_plus(password)}@' if (user and password) else ''
+    auth = '?authSource=admin' if credentials else ''
+    return f'mongodb://{credentials}{host}:{port}/{db_name}{auth}'
+
+
+def mongo_announce_config(config, log=None):
+    """弃用告警 + 库名来源显式日志（settings 与 sync 服务共用同一文案）。"""
+    log = log or logger
+
+    for old, new in config.get('legacy_vars') or ():
+        log.warning(
+            '检测到已弃用的 MongoDB 环境变量 %s，请迁移到 %s；当前已按旧名兜底解析，连接仍可正常工作。变量对照表：%s',
+            old, new, LEGACY_MONGO_ENV_REMEDIATION,
+        )
+
+    if config.get('db_name_source') == MONGO_SOURCE_DEFAULT:
+        log.info('未设置 MONGO_DB_NAME（也未设置旧名 MONGO_DB），正在使用默认库名: %s', DEFAULT_DB_NAME)
+    else:
+        source_label = 'MONGO_DB_NAME' if config.get('db_name_source') == MONGO_SOURCE_NEW else 'MONGO_DB(已弃用，请迁移到 MONGO_DB_NAME)'
+        log.info('MongoDB 库名来源 %s: %s', source_label, config.get('db_name'))
+
+
+def resolve_mongo_config(env=None, log=None):
+    """解析 MongoDB 连接配置：新名优先 -> 旧名兜底 -> 默认值。
+
+    Returns:
+        dict: {uri, uri_source, db_name, db_name_source, legacy_vars}
+    """
+    env = os.environ if env is None else env
+    log = log or logger
+
+    legacy_vars = mongo_legacy_vars_in_use(env)
+
+    configured_uri = _mongo_env_text(env.get('MONGO_URI'))
+    if configured_uri:
+        uri, uri_source = configured_uri, MONGO_SOURCE_NEW
+    else:
+        legacy_uri = mongo_build_uri_from_legacy(env, log=log)
+        if legacy_uri:
+            uri, uri_source = legacy_uri, MONGO_SOURCE_LEGACY
+        else:
+            uri, uri_source = '', MONGO_SOURCE_DEFAULT
+
+    configured_db = _mongo_env_text(env.get('MONGO_DB_NAME'))
+    legacy_db = _mongo_env_text(env.get('MONGO_DB'))
+    if configured_db:
+        db_name, db_name_source = configured_db, MONGO_SOURCE_NEW
+    elif legacy_db:
+        db_name, db_name_source = legacy_db, MONGO_SOURCE_LEGACY
+    else:
+        db_name, db_name_source = DEFAULT_DB_NAME, MONGO_SOURCE_DEFAULT
+
+    config = {
+        'uri': uri,
+        'uri_source': uri_source,
+        'db_name': db_name,
+        'db_name_source': db_name_source,
+        'legacy_vars': legacy_vars,
+    }
+    mongo_announce_config(config, log)
+    return config
+
+
+def apply_resolved_mongo_env(config, env=None):
+    """把旧名兜底解析出的等价「新名配置」回填环境变量（setdefault）。
+
+    目的：让 settings 层与下游直接读 os.environ 的模块（sync.services.mongodb_service 的 guard 与
+    initialize）口径一致 —— settings 已解析并大声告警后，下游不应再把同一份旧配置判为「缺失新名」
+    而失败或另连默认库。仅当值来自旧名兜底时回填；默认值（本地 localhost / 默认库名）不回填，
+    保持 sync 服务「缺 MONGO_URI 即报错」的既有契约。
+
+    Returns:
+        list[str]: 实际写入的变量名
+    """
+    env = os.environ if env is None else env
+    applied = []
+
+    if config.get('uri') and config.get('uri_source') == MONGO_SOURCE_LEGACY and not _mongo_env_is_set(env, 'MONGO_URI'):
+        env['MONGO_URI'] = config['uri']
+        applied.append('MONGO_URI')
+
+    if config.get('db_name_source') == MONGO_SOURCE_LEGACY and not _mongo_env_is_set(env, 'MONGO_DB_NAME'):
+        env['MONGO_DB_NAME'] = config['db_name']
+        applied.append('MONGO_DB_NAME')
+
+    return applied
+
+
+# 连接到MongoDB（RISK-BE-008：新名优先 -> 旧名兜底 + 大声弃用告警 -> 默认值）
+_mongo_config = resolve_mongo_config(log=logger)
+mongo_uri = _mongo_config['uri']
+mongo_db_name = _mongo_config['db_name']
 MONGO_DB_NAME = mongo_db_name
+# 暴露解析后的 URI，供下游（sync 服务等）沿用同一份配置口径
+MONGO_URI = mongo_uri
+# 回填旧名兜底得到的等价新名配置，避免「settings 认旧名、sync 服务对旧名报错」的分裂
+_mongo_env_applied = apply_resolved_mongo_env(_mongo_config)
+if _mongo_env_applied:
+    logger.info(
+        '已按旧变量名兜底解析并回填环境变量: %s（变量对照表：%s）',
+        ', '.join(_mongo_env_applied), LEGACY_MONGO_ENV_REMEDIATION,
+    )
 
 # 断开所有现有连接
 mongoengine.disconnect_all()

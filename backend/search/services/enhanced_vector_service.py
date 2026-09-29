@@ -379,20 +379,15 @@ class EnhancedVectorService:
             else:
                 self.embedding_model = TfidfEmbedding()
             
-            # 初始化向量存储
-            if self.store_type == 'faiss':
-                dimension = self.embedding_model.get_dimension()
-                self.vector_store = FAISSVectorStore(dimension)
-            else:
-                self.vector_store = InMemoryVectorStore()
-            
+            # 向量存储延迟初始化：faiss 后端需要先知道向量维度，而那会触发嵌入模型加载
+            # （sentence-transformer 首次使用要下载权重）。推迟到真正索引/检索时再建，
+            # 避免「只实例化服务」的路径被模型下载/联网重试拖住（RISK-SEARCH-001 的连带问题）。
+            self.vector_store = None
+
             # 设置存储路径
             base_dir = Path(getattr(settings, 'BASE_DIR', '.'))
             self.store_path = base_dir / 'data' / 'vector_store.pkl'
             os.makedirs(self.store_path.parent, exist_ok=True)
-            
-            # 尝试加载已保存的向量
-            self.vector_store.load(str(self.store_path))
             
             self._initialized = True
             logger.info(f"增强向量服务初始化完成，模型类型: {self.model_type}")
@@ -401,6 +396,18 @@ class EnhancedVectorService:
     def get_instance(cls) -> 'EnhancedVectorService':
         """获取服务实例"""
         return cls()
+
+    def _ensure_vector_store(self):
+        """按需初始化向量存储（首次真正使用时才加载嵌入模型/读取持久化文件）。"""
+        if self.vector_store is not None:
+            return self.vector_store
+
+        if self.store_type == 'faiss':
+            self.vector_store = FAISSVectorStore(self.embedding_model.get_dimension())
+        else:
+            self.vector_store = InMemoryVectorStore()
+        self.vector_store.load(str(self.store_path))
+        return self.vector_store
     
     def index_documents(self, documents: List[Dict[str, Any]], batch_size: int = 32):
         """
@@ -430,13 +437,13 @@ class EnhancedVectorService:
             
             try:
                 vectors = self.embedding_model.encode(texts)
-                self.vector_store.add(ids, vectors, metadata)
+                self._ensure_vector_store().add(ids, vectors, metadata)
             except Exception as e:
                 logger.error(f"索引文档批次失败: {e}")
         
         # 保存
         self.vector_store.save(str(self.store_path))
-        logger.info(f"索引完成，总数: {self.vector_store.count()}")
+        logger.info(f"索引完成，总数: {self.vector_store.count()}")  # noqa: E501
     
     def semantic_search(
         self, 
@@ -463,7 +470,7 @@ class EnhancedVectorService:
             query_vector = self.embedding_model.encode([query])[0]
             
             # 搜索
-            results = self.vector_store.search(query_vector, top_k=top_k)
+            results = self._ensure_vector_store().search(query_vector, top_k=top_k)
             
             # 过滤和格式化结果
             formatted_results = []
@@ -555,13 +562,14 @@ class EnhancedVectorService:
     
     def delete_documents(self, ids: List[str]):
         """删除文档"""
-        self.vector_store.delete(ids)
-        self.vector_store.save(str(self.store_path))
+        store = self._ensure_vector_store()
+        store.delete(ids)
+        store.save(str(self.store_path))
     
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         return {
-            'total_documents': self.vector_store.count(),
+            'total_documents': self._ensure_vector_store().count(),
             'model_type': self.model_type,
             'embedding_dimension': self.embedding_model.get_dimension() if hasattr(self.embedding_model, 'get_dimension') else None,
         }

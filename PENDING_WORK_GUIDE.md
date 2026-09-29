@@ -295,6 +295,19 @@
 - 仍未闭环（需外部条件，非本机可完成）：Realm App/JWT/Flexible Sync 真实配置与双设备冲突、
   真实 Mongo/对象存储的 500MB 附件验收、10 万条真机首屏 P95/FPS/JS Heap 基线、Windows 平板真机复验。
 
+## 2026-09-30 进展补充（第九轮：按优先级实施 + iOS/Android 平板双端实测）
+- **iOS 首次真正可构建、可运行**：修复 **9 处**独立阻塞（详见 `RISK-IOS-BUILD-001`）——
+  Podfile 重复 `React` 声明、部署目标需 ≥15.1、全局 `use_modular_headers!` 与 `ReactCommon` 冲突、
+  `react-native-slider` 旧架构链接缺符号、pbxproj 路径错误、`AppDelegate.mm` 缺导入且类型非法、
+  `react-native-permissions` 未配置 `setup_permissions`、权限头文件搜索路径、以及**客户端用了 v5 已移除的
+  `PERMISSIONS.IOS.NOTIFICATIONS`**（JS 传 `null` 导致红屏）。现已在 iPad Pro 13-inch 模拟器渲染出完整首页。
+- **Android 平板实测**：2560x1600 冷启动平板复验首页与提醒链路；`RISK-UI-REMINDER-001` 的 `state.reminder.actionBar`
+  与两个 CTA 实测均在屏内。
+- **按优先级实施的四项功能**：`RISK-BE-008`（静默连错库）、`RISK-UI-REMINDER-001`（提醒操作栏）、
+  `RISK-SEARCH-001`/`RISK-BE-013`（向量搜索依赖）、`RISK-BE-010`/`RISK-BE-011`（弱口令与锁定重置）全部关闭。
+- **顺带修掉的安全缺陷**：锁定判定把 naive 时间按 `Asia/Shanghai` 解释而存储为 UTC，8 小时错位导致
+  「刚失败 5 次」判不出账户锁定。
+- 门禁：前端 `78/78 suites、686/686 tests`；后端 notes `67/3skip`、users `58`、sync `47`、scripts `13`、门禁 `21/2`。
 ## 2026-09-29 进展补充（第八轮：后端四个套件全绿 + 标签 id 泄漏修复 + 迁移脚本加固）
 - **后端测试网全面转绿**：`notes/tests` **67 passed / 3 skipped**、`users/tests` **44 passed / 4 skipped / 2 xfailed**、
   `sync/tests` **28 passed**、新增 `scripts/tests` **13 passed**；既有门禁 `21 passed / 2 skipped` 全程未回归。

@@ -1,6 +1,9 @@
 #import "AppDelegate.h"
 
 #import <React/RCTBundleURLProvider.h>
+// RCTViewManager 在下面 extraViewManagersForBridge: 的返回类型里用到了；
+// 之前靠间接包含侥幸编过，当前配置下会报 "no type or protocol named 'RCTViewManager'"，显式引入即可。
+#import <React/RCTViewManager.h>
 #import <UserNotifications/UserNotifications.h>
 #import <RNCPushNotificationIOS.h>
 
@@ -29,7 +32,7 @@
 }
 
 // 所有原生视图管理器已通过 RCT_EXPORT_MODULE 自动注册，无需手动注册
-- (NSArray<id<RCTViewManager>> *)extraViewManagersForBridge:(RCTBridge *)bridge
+- (NSArray<RCTViewManager *> *)extraViewManagersForBridge:(RCTBridge *)bridge
 {
   return @[];
 }

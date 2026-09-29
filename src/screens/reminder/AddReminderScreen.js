@@ -39,7 +39,13 @@ const AddReminderScreen = ({ route, navigation }) => {
   const theme = themeContext.theme;
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const actionBarHeight = 96;
+  /**
+   * 底部操作栏的下内边距 = 安全区底部（手势条/三键导航）与 16 的较大值。
+   *
+   * 只在这里应用一次底部安全区：外层 SafeAreaView 改为 edges=[top,left,right]，
+   * 保证「取消/创建」这一行永远在系统导航栏之上（见 RISK-UI-REMINDER-001）。
+   */
+  const actionBarBottomPadding = Math.max(16, Number(insets?.bottom) || 0);
 
   const [saving, setSaving] = useState(false);
   const [inlineHint, setInlineHint] = useState('');
@@ -420,6 +426,9 @@ const AddReminderScreen = ({ route, navigation }) => {
   // 渲染主界面
   return (
     <SafeAreaView
+      // 底部安全区交给操作栏自己处理（只在 CTA 所在元素上应用一次），
+      // 避免容器 + 操作栏双重 padding，也避免某些宿主容器不传递底部 inset 时 CTA 贴到导航栏上。
+      edges={['top', 'left', 'right']}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       testID="screen.reminder"
     >
@@ -446,8 +455,13 @@ const AddReminderScreen = ({ route, navigation }) => {
           <View style={styles.headerRight} />
         </View>
         <ScrollView
+          // 关键：滚动区必须有 flex 约束（flexGrow/flexShrink/flexBasis/minHeight），
+          // 否则 Android 上 ScrollView 会按内容高度撑开，把同级的操作栏顶出可视区
+          // （RISK-UI-REMINDER-001 的历史根因，见 reminderLayout.REMINDER_SCROLL_LAYOUT）。
           style={REMINDER_SCROLL_LAYOUT}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: actionBarHeight + 32 }]}
+          // 操作栏是同一个 flex 列里的普通流兄弟节点（不是覆盖层），
+          // 因此不需要为它预留高度；这里只保留常规内容内边距与安全区留白。
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, actionBarBottomPadding) }]}
           keyboardShouldPersistTaps="handled"
         >
         {inlineHint ? (
@@ -778,6 +792,8 @@ const AddReminderScreen = ({ route, navigation }) => {
           {
             backgroundColor: theme.colors.card + 'EB',
             borderTopColor: theme.colors.primary + '16',
+            // 底部安全区只在这里应用一次：CTA 永远在系统导航栏之上
+            paddingBottom: actionBarBottomPadding,
           },
         ]}
         testID="state.reminder.actionBar"
@@ -1026,7 +1042,7 @@ const styles = StyleSheet.create({
   actionBar: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 16,
+    // paddingBottom 由组件按安全区动态计算（见 actionBarBottomPadding），不在样式表里写死
     borderTopWidth: 1,
   },
   actionButtons: {

@@ -56,6 +56,8 @@ logger = logging.getLogger(__name__)
 mongoengine.disconnect_all()
 
 # 测试数据库名称
+# 注：base.py 已按 RISK-BE-008 口径解析（新名优先 -> 旧名兜底 + 弃用告警）并回填 os.environ，
+# 因此这里的 MONGO_URI 也能拿到旧名兜底拼出的等价 URI；测试库名仍固定用 MONGO_TEST_DB，避免污染真实库。
 test_db_name = os.environ.get('MONGO_TEST_DB', 'ZeroIsle_Notes_Test')
 MONGO_DB_NAME = test_db_name
 MONGO_URI = os.environ.get('MONGO_URI', '')

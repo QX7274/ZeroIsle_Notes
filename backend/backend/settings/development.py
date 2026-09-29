@@ -33,12 +33,12 @@ except Exception:
     MIDDLEWARE = list(globals().get('MIDDLEWARE', []))
     MIDDLEWARE.append('common.middleware.dev_auth_middleware.DevAuthMiddleware')
 
-# MongoDB Realm配置
-# 开发环境必须与 base.py 保持同一数据库口径，避免 PyMongo / MongoEngine 分别落到不同库
-mongo_uri = os.environ.get('MONGO_URI')
-mongo_db_name = os.environ.get('MONGO_DB', 'ZeroIsle_Notes')
+# MongoDB Realm配置（RISK-BE-008：与 base.py 共用同一解析口径 —— 新名优先、旧名兜底并大声弃用告警）
+# 直接复用 base.py 解析出的 MONGO_URI / MONGO_DB_NAME，避免 PyMongo / MongoEngine 分别落到不同库
+mongo_uri = MONGO_URI
+mongo_db_name = MONGO_DB_NAME
 
-if mongo_uri and 'mongodb+srv' in mongo_uri:
+if mongo_uri:
     MONGO_CLIENT = MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=30000,
@@ -46,11 +46,12 @@ if mongo_uri and 'mongodb+srv' in mongo_uri:
         socketTimeoutMS=30000
     )
 else:
+    # 无 URI 且无旧连接参数：保持本地开发默认分支
     MONGO_CLIENT = MongoClient(
-        host=os.environ.get('MONGO_HOST', 'localhost'),
-        port=int(os.environ.get('MONGO_PORT', 27017)),
-        username=os.environ.get('MONGO_USER', ''),
-        password=os.environ.get('MONGO_PASSWORD', ''),
+        host=DEFAULT_MONGO_HOST,
+        port=DEFAULT_MONGO_PORT,
+        username='',
+        password='',
         authSource='admin'
     )
 
@@ -58,7 +59,7 @@ MONGO_DB = MONGO_CLIENT[mongo_db_name]
 
 # 断开所有现有连接并重新连接
 mongoengine.disconnect_all()
-if mongo_uri and 'mongodb+srv' in mongo_uri:
+if mongo_uri:
     mongoengine.connect(
         db=mongo_db_name,
         host=mongo_uri,
@@ -67,10 +68,10 @@ if mongo_uri and 'mongodb+srv' in mongo_uri:
 else:
     mongoengine.connect(
         db=mongo_db_name,
-        host=os.environ.get('MONGO_HOST', 'localhost'),
-        port=int(os.environ.get('MONGO_PORT', 27017)),
-        username=os.environ.get('MONGO_USER', ''),
-        password=os.environ.get('MONGO_PASSWORD', ''),
+        host=DEFAULT_MONGO_HOST,
+        port=DEFAULT_MONGO_PORT,
+        username='',
+        password='',
         authentication_source='admin',
         alias='default'
     )

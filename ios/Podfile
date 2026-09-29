@@ -5,8 +5,30 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+# 部署目标必须 ≥ 15.1：依赖 react-native-audio-recorder-player 的 podspec 声明 s.platforms = { :ios => "15.1" }，
+# 用 RN 默认的 min_ios_version_supported（13.4）会让 pod install 直接失败：
+#   [!] CocoaPods could not find compatible versions for pod "AudioRecorderPlayer":
+#       Specs satisfying ... were found, but they required a higher minimum deployment target.
+# 同时 ios/ZeroIsle_Notes.xcodeproj 的 IPHONEOS_DEPLOYMENT_TARGET 也要保持一致（否则 app target 与 Pods 不匹配）。
+platform :ios, '15.1'
+
+# react-native-firebase 的官方静态链接开关：让 RNFB 相关 pod 以静态库方式集成并自带 module map，
+# 从而满足「Swift pod 需要依赖方定义 modules」的要求，**无需**全局 use_modular_headers!。
+# 全局开启会给所有 pod 生成 modulemap，与 React Native 自带 modulemap 冲突：
+#   error: Redefinition of module 'ReactCommon'
+# 不开则会直接失败：
+#   [!] The Swift pod `FirebaseCoreInternal` depends upon `GoogleUtilities`, which does not define modules.
+$RNFirebaseAsStaticPod = true
+
 prepare_react_native_project!
+
+# 注意：这里**不能**用全局 use_modular_headers!。
+# Firebase 的 Swift pod 确实需要 module map（否则作为静态库集成会失败）：
+#   [!] The Swift pod `FirebaseCoreInternal` depends upon `GoogleUtilities`, which does not define modules.
+# 但全局开启会给所有 pod 生成 modulemap，与 React Native 自带 modulemap 冲突：
+#   error: Redefinition of module 'ReactCommon'
+#     .../ReactCommon.modulemap:1:8  note: Previously defined here .../React-RuntimeApple.modulemap:1:8
+# 因此改为在 post_install 里**只给缺 module map 的 Google/Firebase 目标**打开 DEFINES_MODULE（见下）。
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -23,6 +45,32 @@ target 'ZeroIsle_Notes' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
+  # react-native-permissions 需要显式声明用到的权限，否则运行时会直接红屏：
+  #   No permission handler detected. ... -[RNPermissions handlerForPermission:]
+  # 这里按 src/utils/permissions.js 实际请求的权限清单配置（Camera/Microphone/Location/Notifications/PhotoLibrary）。
+  # 注意：RN 0.75 的 Podfile 上下文里**没有** node_require 辅助方法（会报 undefined method），
+  # 因此直接按绝对路径 require。
+  require File.join(File.dirname(__FILE__), '..', 'node_modules', 'react-native-permissions', 'scripts', 'setup.rb')
+  setup_permissions([
+    'Camera',
+    'LocationWhenInUse',
+    'Microphone',
+    'Notifications',
+    'PhotoLibrary',
+  ])
+
+  # FirebaseCoreInternal（Swift）由 @react-native-firebase/app 传递引入，它依赖 GoogleUtilities，
+  # 而 GoogleUtilities 默认不生成 module map，静态库集成时 CocoaPods 会直接失败：
+  #   [!] The Swift pod `FirebaseCoreInternal` depends upon `GoogleUtilities`, which does not define modules.
+  # 这里按 CocoaPods 的提示，**只对具体依赖**开启 modular headers；
+  # 不能用全局 use_modular_headers!（会让 ReactCommon 等 RN 自带 modulemap 重复定义而编译失败）。
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'FirebaseCoreExtension', :modular_headers => true
+  pod 'FirebaseInstallations', :modular_headers => true
+  pod 'FirebaseMessaging', :modular_headers => true
+
   target 'ZeroIsle_NotesTests' do
     inherit! :complete
     # Pods for testing
@@ -36,8 +84,81 @@ target 'ZeroIsle_Notes' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # ---- 修复 react-native-slider 在「旧架构」下无法编译 ----
+    # 该库的 podspec 只在 RCT_NEW_ARCH_ENABLED == '1' 时才注册 "common" subspec：
+    #     if new_arch_enabled
+    #       s.subspec "common" { ss.source_files = "common/cpp/**/*.{cpp,h}"
+    #                            ss.pod_target_xcconfig = { HEADER_SEARCH_PATHS => "$(PODS_TARGET_SRCROOT)/common/cpp" } }
+    #     end
+    # 但它**无条件**编译 ios/RNCSliderComponentView.mm，而该文件第 5 行 import 了
+    #     <react/renderer/components/RNCSlider/RNCSliderComponentDescriptor.h>
+    # 该头文件位于库的 common/cpp/ 下，旧架构下没有被加入搜索路径，于是构建直接失败：
+    #     fatal error: 'react/renderer/components/RNCSlider/RNCSliderComponentDescriptor.h' file not found
+    # 这里在 Pods 工程上为 react-native-slider 目标补上该搜索路径（不改 node_modules，重装依赖也不丢）。
+    # ---- react-native-permissions：把已启用的权限子目录加进头文件搜索路径 ----
+    # setup_permissions 只改写了 podspec 的 source_files/frameworks，让 ios/<Permission>/*.mm 参与编译；
+    # 但 RNPermissions.mm 是用 #if __has_include("RNPermissionHandlerCamera.h") 这类**引号包含**来判断
+    # 某个权限处理器是否可用的，而处理器头文件位于 ios/<Permission>/ 子目录里，不在默认搜索路径中。
+    # 结果：处理器类虽然被编进二进制，运行时仍然报
+    #   No permission handler detected. Check that you have correctly set up setup_permissions in your Podfile.
+    # 这里把每个权限子目录显式加入 HEADER_SEARCH_PATHS。
+    permissions_ios_root = File.expand_path(File.join(__dir__, "..", "node_modules", "react-native-permissions", "ios"))
+    # 注意：这里必须**只**包含 setup_permissions 里启用的权限目录。
+    # RNPermissions.mm 用 __has_include 判断处理器是否存在——若把 21 个目录全加进来，
+    # 它会引用所有处理器类，而实际只编译了启用的那几个，链接会失败：
+    #   Undefined symbols: "_OBJC_CLASS_$_RNPermissionHandlerAppTrackingTransparency" ...
+    configured_permissions = ["Camera", "LocationWhenInUse", "Microphone", "Notifications", "PhotoLibrary"]
+    permission_dirs = configured_permissions.select { |d| File.directory?(File.join(permissions_ios_root, d)) }
+    installer.pods_project.targets.each do |target|
+      next unless ["react-native-permissions", "RNPermissions"].include?(target.name)
+
+      target.build_configurations.each do |build_config|
+        paths = build_config.build_settings["HEADER_SEARCH_PATHS"] || ["$(inherited)"]
+        paths = [paths] if paths.is_a?(String)
+        permission_dirs.each do |dir|
+          extra = "\"$(PODS_TARGET_SRCROOT)/ios/" + dir + "\""
+          paths << extra unless paths.include?(extra)
+        end
+        build_config.build_settings["HEADER_SEARCH_PATHS"] = paths
+      end
+      Pod::UI.puts("  - react-native-permissions: 已为 " + permission_dirs.size.to_s + " 个权限目录加入头文件搜索路径")
+    end
+
+    # 只加头文件路径还不够：该库的 common/cpp 里**定义了** RNCSliderComponentName 等符号，
+    # 旧架构下这些 .cpp 不会被编译，链接必然失败：
+    #   Undefined symbols: "facebook::react::RNCSliderComponentName"
+    # 因此这里把 common/cpp 下的 .cpp 源码补进 react-native-slider 目标（等价于补回它本该注册的 subspec）。
+    slider_root = File.expand_path(File.join(__dir__, '..', 'node_modules', '@react-native-community', 'slider'))
+    cpp_sources = Dir.glob(File.join(slider_root, 'common', 'cpp', '**', '*.cpp'))
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'react-native-slider'
+
+      target.build_configurations.each do |build_config|
+        paths = build_config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+        paths = [paths] if paths.is_a?(String)
+        extra = '"$(PODS_TARGET_SRCROOT)/common/cpp"'
+        paths << extra unless paths.include?(extra)
+        build_config.build_settings['HEADER_SEARCH_PATHS'] = paths
+      end
+
+      if cpp_sources.any?
+        group = installer.pods_project.main_group.find_subpath('react-native-slider/common', true)
+        cpp_sources.each do |src|
+          ref = group.new_file(src)
+          target.source_build_phase.add_file_reference(ref)
+        end
+        Pod::UI.puts "  - react-native-slider: 已补入 #{cpp_sources.size} 个 common/cpp 源文件（旧架构链接修复）".green
+      end
+    end
   end
 end
 
-pod 'React', :path => '../node_modules/react-native'
-# SQLite 已移除，因为项目已迁移到 MongoDB
+# 注意：这里**不要**再写 `pod 'React', :path => '../node_modules/react-native'`。
+# 上面的 use_react_native!(path: config[:reactNativePath]) 已经引入了 React（路径带结尾斜杠），
+# 再显式声明一次会形成「同一 pod 两个不同 source」：
+#   [!] There are multiple dependencies with different sources for `React` in `Podfile`:
+#       - React (from `../node_modules/react-native`)
+#       - React (from `../node_modules/react-native/`)
+# CocoaPods 会因此直接中止 pod install，iOS 工程无法生成 Pods/workspace，也就无法构建。
+# （历史遗留：SQLite 已移除，因为项目已迁移到 MongoDB）
