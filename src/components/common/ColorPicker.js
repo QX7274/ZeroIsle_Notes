@@ -20,6 +20,7 @@ import {
   Pressable,
   TextInput,
   Platform,
+  NativeModules,
   Vibration,
   Alert,
   ActivityIndicator,
@@ -40,6 +41,29 @@ import screenUtilsBridge from '../../native/screenUtilsBridge'; // 取色器桥�
 // 存储键
 const STORAGE_KEYS = {
   RECENT_COLORS: '@zeroislenotes:picker_recent_colors',
+};
+
+/**
+ * 取色器能力探测。
+ *
+ * 为什么必须探测而不是按平台写死：ScreenUtils 只有 iOS 原生实现（ios/ScreenUtils.m），
+ * Android 的 android/ 下根本没有这个模块。此前按钮无条件渲染，
+ * 用户点下去必然走到 catch 并弹出「无法启动取色器」——一个必然失败的按钮。
+ * 这里以「原生模块是否真的导出了 pickColor」为唯一判据，
+ * 将来 Android 补上模块后无需改前端代码即自动可用。
+ */
+const detectEyedropperCapability = () => {
+  const viaBridge = typeof screenUtilsBridge.isPickColorAvailable === 'function'
+    ? screenUtilsBridge.isPickColorAvailable()
+    : false;
+  const screenUtils = NativeModules ? NativeModules.ScreenUtils : null;
+  const available = viaBridge || !!(screenUtils && typeof screenUtils.pickColor === 'function');
+
+  return {
+    available,
+    // hint 用来说明「为什么不可用」，让用户知道这是版本/平台限制而不是他点错了。
+    hint: available ? null : '当前平台暂未提供屏幕取色能力，请改用色板或 HEX 输入',
+  };
 };
 
 // 预定义颜色（保留占位，当前版本未展示预设色网格）
@@ -200,6 +224,11 @@ const ColorPicker = ({
   const handleEyedropper = async () => {
     if (isPickingColor) {return;}
 
+    // 双保险：即使上层被强制传了 showEyedropper，能力缺失时也不发起必失败的调用。
+    if (!detectEyedropperCapability().available) {
+      return;
+    }
+
     setIsPickingColor(true);
 
     try {
@@ -233,6 +262,13 @@ const ColorPicker = ({
   const safeSaturation = clampPercent(saturation);
   const safeValue = clampPercent(value);
 
+  // 取色能力：能力缺失时入口以「禁用 + 说明原因」诚实降级，
+  // 而不是渲染一个点了必然抛错的按钮（Android 现状）。
+  // 入口本身仍受父级 showEyedropper 控制，避免调用方显式关闭后又被强行加回来。
+  const eyedropperCapability = detectEyedropperCapability();
+  const eyedropperAvailable = eyedropperCapability.available;
+  const eyedropperDisabled = !eyedropperAvailable || isPickingColor;
+
   const hueColor = hsvToRgb(safeHue, 100, 100);
   const boardSize = 260;
   const cursorX = (safeSaturation / 100) * boardSize;
@@ -257,22 +293,31 @@ const ColorPicker = ({
             <Text style={[styles.title, { color: colors.text }]}>选择颜色</Text>
             {showEyedropper && (
               <TouchableOpacity
+                testID="colorPicker.eyedropper"
                 style={[
                   styles.iconButton,
                   { borderColor: colors.border },
-                  isPickingColor && styles.iconButtonDisabled,
+                  eyedropperDisabled && styles.iconButtonDisabled,
                 ]}
                 onPress={handleEyedropper}
-                disabled={isPickingColor}
+                disabled={eyedropperDisabled}
                 accessibilityRole="button"
                 accessibilityLabel="屏幕取色器"
-                accessibilityHint="从屏幕拾取颜色并回填当前颜色"
-                accessibilityState={{ disabled: isPickingColor, busy: isPickingColor }}
+                accessibilityHint={
+                  eyedropperAvailable
+                    ? '从屏幕拾取颜色并回填当前颜色'
+                    : eyedropperCapability.hint
+                }
+                accessibilityState={{ disabled: eyedropperDisabled, busy: isPickingColor }}
               >
                 {isPickingColor ? (
                   <ActivityIndicator size="small" color={colors.text} />
                 ) : (
-                  <MaterialCommunityIcons name="eyedropper" size={20} color={colors.text} />
+                  <MaterialCommunityIcons
+                    name="eyedropper"
+                    size={20}
+                    color={eyedropperAvailable ? colors.text : colors.textDisabled}
+                  />
                 )}
               </TouchableOpacity>
             )}

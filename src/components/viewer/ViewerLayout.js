@@ -24,6 +24,9 @@ const ViewerLayout = ({
   // 工具栏相关props
   toolbarProps = {},
   showExternalToolbar = true, // 是否显示工具栏
+  // 工具栏模式：决定哪些工具组可见（canvas / paged / pdf / markdown / file-viewer）。
+  // 不传时沿用 toolbarProps.mode，最后回落到 canvas，避免调用方漏传时静默按 canvas 渲染。
+  toolbarMode,
 }) => (
   <View style={[styles.container, { backgroundColor: colors?.background }, style]}>
     {/* 工具栏区域 */}
@@ -71,7 +74,12 @@ const ViewerLayout = ({
     {showExternalToolbar && (
       <View style={styles.toolbarContainer}>
         <AllInOneToolbar
+          // 必须先展开 toolbarProps，再显式指定 mode：
+          // 反过来的话，只要 toolbarProps 里存在 mode 键（哪怕是 '' 或 null），
+          // 就会把整条回退链（toolbarProps.mode -> toolbarMode -> 'canvas'）覆盖掉，
+          // 导致调用点漏传/传空时工具栏静默按 canvas 渲染（拿不到 PDF 书签组等）。
           {...toolbarProps}
+          mode={toolbarProps.mode || toolbarMode || 'canvas'}
         />
       </View>
     )}
@@ -153,4 +161,3 @@ const styles = StyleSheet.create({
 });
 
 export default ViewerLayout;
-
