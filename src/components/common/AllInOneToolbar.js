@@ -13,13 +13,12 @@ import {
   Vibration,
   TextInput,
   KeyboardAvoidingView,
-  PanResponder,
   Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ColorPicker from './ColorPicker'; // 企业级颜色选择器组件
 import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Svg, { Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import { Text } from './Typography';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,14 +26,29 @@ import { noteAIService } from '../../services/notes/noteAIService';
 import { chatHistoryService as aiHistoryService } from '../../services/ai/chatHistoryService';
 import { bookmarkService } from '../../services/notes/bookmarkService';
 import { launchImageLibrary } from 'react-native-image-picker';
-import screenUtils from '../../native/screenUtilsBridge';
 import Clipboard from '@react-native-clipboard/clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 集成增强组件
 import PenSelector from '../toolbar/PenSelector';
-import ShapeToolSelector, { ShapeTypes, generateShapePath } from '../toolbar/ShapeToolSelector';
+import HandFeelPanel from '../toolbar/HandFeelPanel';
+import ShapeToolSelector, { ShapeTypes } from '../toolbar/ShapeToolSelector';
 import { PenTypes, handwritingService } from '../../services/handwritingService';
+// 偏好持久化纯逻辑层（清洗 / 加载竞态 / 最近颜色规整）。上提到顶部而不是在组件体内 require：
+// 组件体内的 require 会让 react-hooks 把局部变量当成依赖项，逼出不必要的 eslint-disable。
+import {
+  createPreferencesLoader,
+  deriveTouchedFields,
+  pickRecentColors,
+  toSwatchList,
+} from './AllInOneToolbarPrefs';
+// WS-B：工具栏纯布局逻辑（断点 / 宽度估算 / popover 夹取），无 React 依赖、可独立单测
+import {
+  resolveToolbarLayout,
+  estimateToolbarWidth,
+  resolvePopoverPosition,
+  TOOLBAR_BREAKPOINTS,
+} from './AllInOneToolbarLayout';
 
 // 常用预设颜色
 const PRESET_COLORS = [
@@ -189,15 +203,6 @@ const KEYBOARD_SHORTCUTS = Object.freeze({
   'S': DRAWING_TOOLS.LASSO,
   'U': DRAWING_TOOLS.SHAPE,
   'T': DRAWING_TOOLS.TEXT,
-});
-
-// 功能快捷键（需要Ctrl/Cmd）
-const FUNCTION_SHORTCUTS = Object.freeze({
-  'Z': 'undo',           // Ctrl+Z
-  'Y': 'redo',           // Ctrl+Y
-  'Shift+Z': 'redo',     // Ctrl+Shift+Z
-  'A': 'selectAll',
-  'D': 'duplicate',
 });
 
 // 工具预设 - 快速切换场景
@@ -617,6 +622,16 @@ const TOOL_CONFIG = {
     image: true,
     bookmarks: false, // Bookmarks are handled per-page, not on infinite canvas
   },
+  paged: {
+    drawing: true,
+    editing: true,
+    styling: true,
+    ai: true,
+    shapes: true,
+    text: true,
+    image: true,
+    bookmarks: true, // 分页笔记按页存书签，工具栏需要暴露书签组
+  },
   pdf: {
     drawing: true,
     editing: true,
@@ -690,15 +705,514 @@ const AllInOneToolbar = ({
   // 套索工具相关props
   onLassoSelect,      // 套索选择回调
   onLassoComplete,    // 套索完成回调
+
+  // WS-B：安全区注入点。放在这里而不是从 theme 里读，
+  // 是因为调用方（ViewerLayout / 各笔记页）才持有 SafeAreaInsets 的权威来源。
+  defaultInsetsForToolbar,
+
+  // WS-C：原生上报的套索选中笔迹 id。分页/无限画布屏幕已通过 toolbarProps 透传进来。
+  selectedStrokeIds = [],
+
+  // WS-C：选中笔迹的后续操作通道（删除/复制/移动）。
+  // 目前四个屏幕都还没有实现该回调，因此工具栏会**自动降级**为只读提示，
+  // 而不是给用户一个点了没反应的按钮。父级一旦传了它，操作条即自动启用。
+  onSelectedStrokesAction,
 }) => {
   const { colors } = useTheme();
   const handleStreamingAIToolSelectRef = useRef(null);
 
-  // 获取响应式配置
-  const toolbarConfig = useMemo(() => getToolbarConfig(), []);
+  // ==================== 工作流代码插入区（互不越界，勿删标记） ====================
+  // 说明：本轮工具栏优化由三条工作流并行完成，它们只允许在各自标记内追加代码，
+  // 主渲染 JSX 由 Lead 统一集成，避免多方同时改同一段 JSX 造成冲突。
 
-  // 动态生成样式
-  const styles = useMemo(() => createStyles(toolbarConfig), [toolbarConfig]);
+  // ==== WS-A:BEGIN（手感与手势：pan 工具、手感面板状态、补偿 effect） ====
+  //
+  // 本区域只提供「常量 + 处理函数 + 补偿 effect」，JSX 由 Lead 统一集成。
+  // 之所以全用「普通函数声明」而不是 useCallback：插入区位于所有 useState 之前，
+  // 一旦在依赖数组里引用后面声明的值（notifyToolPayloadChange 等）就会在渲染期
+  // 触发 TDZ ReferenceError；普通函数每次渲染重建，天然拿到最新状态且无依赖数组。
+
+  // 平移/手掌工具 id。与 bridge 的 TOOL_TO_INTERACTION_MODE.pan 保持同一个字符串，
+  // 否则手势模式会落回 mixed，用户点「手掌」后依然在画线。
+  const PAN_TOOL_ID = 'pan';
+
+  // 手感面板自持开关状态，工具栏只用 ref 命令式开合：
+  // 这样 AllInOneToolbar 顶层不必新增 useState（拖动滑块的实时更新不会牵动整条工具栏重渲染）。
+  // 本轮只允许改插入区、不能动文件顶部的 import，故用 require 取面板组件
+  // （Metro/Babel 下与顶部 import 等价，模块只求值一次；Lead 集成时可上提到顶部 import）。
+  // HandFeelPanel 已在文件顶部 import（避免组件体内 require 造成的依赖噪声）。
+  const handFeelPanelRef = useRef(null);
+
+  // 标尺/网格/形状的覆盖层快照，用于比对"是否真的变了"。
+  const overlaySnapshotRef = useRef(null);
+
+  // 补偿 effect：修复 showRuler/showGrid/activeShape 被重置的真实缺陷。
+  // 现有那个工具变化 effect 的依赖数组里没有这三项，于是
+  //  - 预设切换（applyPreset 只 setShowGrid/setShowRuler、完全不 notify）在同一次更新里
+  //    若其它依赖值没变，原生就永远收不到这次覆盖层变化；
+  //  - 先开网格再点其它也会因为 payload 被后续 notify 覆盖回去而丢状态。
+  // 这里额外盯住这三项：任意一项变化就重新下发一次完整载荷，
+  // 不修改原 effect（属共享区域）。
+  // 刻意不写依赖数组：deps 里引用 notifyToolPayloadChange 会在渲染期 TDZ 崩溃（见上方说明），
+  // 而函数体本身足够轻（一次浅比较），notifyToolPayloadChange 内部还有 isSameToolConfig 去重。
+  useEffect(() => {
+    const snapshot = { showRuler, showGrid, activeShape };
+    const previous = overlaySnapshotRef.current;
+    const overlayChanged = previous
+      ? (
+        previous.showRuler !== snapshot.showRuler ||
+        previous.showGrid !== snapshot.showGrid ||
+        previous.activeShape !== snapshot.activeShape
+      )
+      : false;
+
+    overlaySnapshotRef.current = snapshot;
+
+    // 首次挂载不做补偿：挂载时已有主 effect 下发初始配置，重复下发只会多打一次桥。
+    if (!overlayChanged) {
+      return;
+    }
+
+    notifyToolPayloadChange({
+      showRuler: snapshot.showRuler,
+      showGrid: snapshot.showGrid,
+    });
+  });
+
+  // 打开手感面板：面板自己管可见性，工具栏只发命令。
+  function openHandFeelPanel() {
+    if (handFeelPanelRef.current && typeof handFeelPanelRef.current.open === 'function') {
+      handFeelPanelRef.current.open();
+    }
+    triggerHapticFeedback('light');
+  }
+
+  // 手掌/平移工具：切换 activeTool 并立刻下发 tool=pan。
+  // interactionMode 不在前端写死，交给 bridge 依据 TOOL_TO_INTERACTION_MODE 推导成 gesture，
+  // 避免"前端一套映射、bridge 一套映射"两边漂移。
+  function handlePanToolPress() {
+    setActiveTool(PAN_TOOL_ID);
+    triggerHapticFeedback('light');
+    notifyToolPayloadChange({ type: PAN_TOOL_ID, tool: PAN_TOOL_ID });
+  }
+
+  // 手感面板实时下发。面板已经做过 60ms 节流，这里只负责同步工具栏本地状态。
+  function handleHandFeelChange(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+
+    // 必须回写工具栏的粗细/不透明度状态：否则面板调完粗细后，
+    // 下一次工具切换会用旧的 activeStrokeWidth 把原生刚设好的值静默写回去。
+    if (typeof payload.strokeWidth === 'number') {
+      setActiveStrokeWidth(payload.strokeWidth);
+    }
+    if (typeof payload.opacity === 'number') {
+      setStrokeOpacity(payload.opacity);
+    }
+
+    if (onToolConfigChange) {
+      onToolConfigChange(payload);
+    }
+  }
+
+  // Lead 集成用片段（放在绘制工具组内）：
+  //   <TouchableOpacity
+  //     style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton,
+  //       activeTool === PAN_TOOL_ID && { backgroundColor: colors.primary + '30' }]}
+  //     activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+  //     onPress={handlePanToolPress}
+  //     disabled={isDrawingToolsLocked}
+  //     accessibilityLabel="手掌/平移工具"
+  //     accessibilityHint="单指拖动画面，不留下墨迹"
+  //     accessibilityRole="button"
+  //     accessibilityState={{ selected: activeTool === PAN_TOOL_ID, disabled: isDrawingToolsLocked, busy: false }}
+  //   >
+  //     <MaterialIcon name="pan" color={...} size={toolbarConfig.iconSize} />
+  //   </TouchableOpacity>
+  //
+  //   <TouchableOpacity ... onPress={openHandFeelPanel} accessibilityLabel="手感" ...>
+  //     <MaterialIcon name="tune-variant" color={colors.text} size={toolbarConfig.iconSize} />
+  //   </TouchableOpacity>
+  //
+  //   面板挂载（与 PenSelector 同级）：
+  //   <HandFeelPanel
+  //     ref={handFeelPanelRef}
+  //     toolConfig={currentToolConfig}
+  //     onChange={handleHandFeelChange}
+  //   />
+
+  // ==== WS-A:END ====
+
+  // ==== WS-C:BEGIN（未接通收口：偏好加载、最近颜色、选中态降级） ====
+  //
+  // 与 WS-A 同样的约束：本区域位于所有 useState 之前，effect 的依赖数组里
+  // 一旦引用下方声明的 activeColor / setActiveColor 等，会在渲染期 TDZ 崩溃。
+  // 因此这里所有 effect 都不写依赖数组（函数体轻、内部自行去重），
+  // 需要读最新值的地方一律用「函数式 setState」或 ref。
+
+  // 本轮新增的纯逻辑层（偏好清洗/加载竞态/最近颜色规整）。
+  // 顶部 import 区是三条工作流共享的区域，为遵守「只改自己标记区」的纪律，
+  // 这里用 require 取（Metro/Babel 下与顶部 import 等价，模块只求值一次）；
+  // Lead 集成时可上提到文件顶部 import。
+  // createPreferencesLoader / deriveTouchedFields / pickRecentColors / toSwatchList
+  // 已在文件顶部 import（原因同上）。
+
+  // 偏好加载器：整个组件生命周期只建一次。
+  // 修复缺陷 1 —— 原先 loadPreferences / savePreferences 之间没有任何「加载完成」标志，
+  // 挂载 1 秒后的防抖保存会把刚从 AsyncStorage 读回的颜色与粗细重新写成默认值。
+  const preferencesLoaderRef = useRef(null);
+  if (!preferencesLoaderRef.current) {
+    preferencesLoaderRef.current = createPreferencesLoader({
+      // 测试与真机都走注入式 storage：单测里注入假实现，绝不真的读写磁盘。
+      storage: AsyncStorage,
+      // 这里的默认值必须与下方 useState 初值一致，否则「用户是否动过」会误判。
+      readDefaultPrefs: () => ({
+        lastColor: initialColor,
+        lastStrokeWidth: initialStrokeWidth,
+        lastTool: initialTool,
+        showRuler: false,
+        showGrid: false,
+      }),
+    });
+  }
+
+  // 首次偏好加载是否已经结束。加载结束前一切「用默认值落盘」的行为都必须被拦住。
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
+  // 最近颜色镜像：缺陷 2 是「只写不读」——addRecentColor 会写 AsyncStorage，
+  // 但组件从未渲染 recentColors。这里把加载结果放进 state 供 renderRecentColors 消费。
+  const [recentPalette, setRecentPalette] = useState([]);
+
+  const hydrationWriteDoneRef = useRef(false);
+
+  // 挂载时加载一次偏好（loader 内部保证并发/重复调用只真正读一次磁盘）。
+  useEffect(() => {
+    let cancelled = false;
+    const loader = preferencesLoaderRef.current;
+
+    loader.load().then((result) => {
+      if (cancelled) {
+        return;
+      }
+
+      // 逐字段回填，并做「用户是否已经动过」判定：
+      // 若在异步读盘期间用户已经改过该字段（当前值 != 默认值），保留用户值；
+      // 否则采用磁盘值。这正是任务要求的 isUserTouched 语义
+      // （判定逻辑抽在 AllInOneToolbarPrefs.deriveTouchedFields，有独立单测覆盖）。
+      setActiveColor((current) => (
+        deriveTouchedFields({ lastColor: current }, { lastColor: initialColor }).length > 0
+          ? current
+          : result.preferences.lastColor
+      ));
+      setActiveStrokeWidth((current) => (
+        deriveTouchedFields({ lastStrokeWidth: current }, { lastStrokeWidth: initialStrokeWidth }).length > 0
+          ? current
+          : result.preferences.lastStrokeWidth
+      ));
+      setActiveTool((current) => (
+        deriveTouchedFields({ lastTool: current }, { lastTool: initialTool }).length > 0
+          ? current
+          : result.preferences.lastTool
+      ));
+      setShowRuler((current) => (
+        deriveTouchedFields({ showRuler: current }, { showRuler: false }).length > 0
+          ? current
+          : result.preferences.showRuler
+      ));
+      setShowGrid((current) => (
+        deriveTouchedFields({ showGrid: current }, { showGrid: false }).length > 0
+          ? current
+          : result.preferences.showGrid
+      ));
+
+      setRecentPalette(result.recentColors);
+      if (result.currentPreset) {
+        setCurrentPreset(result.currentPreset);
+      }
+      setPreferencesHydrated(true);
+    }).catch(() => {
+      // loader 已经吞掉读取异常并把 loaded 置位；这里只需避免 UI 卡在「未加载」态。
+      if (!cancelled) {
+        setPreferencesHydrated(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // 刻意只挂载时跑一次：initialColor / initialStrokeWidth / initialTool 是
+    // 父级在挂载那一刻给的初值，写进依赖数组会在父级回传新值时把用户当前
+    // 正在用的颜色/工具再次覆盖（比缺依赖更危险）。deriveTouchedFields 是纯函数，
+    // 稳定不变，无需进入依赖数组。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 加载完成后的防御性补写（缺陷 1 的第二道闸）。
+  // 若磁盘读取慢于外层 1 秒防抖，外层会先用「挂载时的默认值」落盘一次。
+  // 这里在读盘结束、状态已回填之后补写一次，保证磁盘的最终值是用户偏好。
+  // 只写一次：依赖数组不写是 TDZ 约束，因此用 ref 自己去重。
+  useEffect(() => {
+    if (!preferencesHydrated || hydrationWriteDoneRef.current) {
+      return;
+    }
+    hydrationWriteDoneRef.current = true;
+
+    if (!preferencesLoaderRef.current.canPersist()) {
+      return;
+    }
+
+    const payload = {
+      lastColor: activeColor,
+      lastStrokeWidth: activeStrokeWidth,
+      lastTool: activeTool,
+      showRuler,
+      showGrid,
+    };
+
+    AsyncStorage
+      .setItem(STORAGE_KEYS.TOOLBAR_PREFERENCES, JSON.stringify(payload))
+      .catch(() => {});
+  });
+
+  // 缺陷 2 的另一半：addRecentColor 只更新组件内的 recentColors，
+  // 工具栏上的最近颜色条必须跟着变，否则用户本会话新选的颜色要等重启才出现。
+  // 用 key 比对而不是依赖数组：依赖数组引用 recentColors 会在渲染期 TDZ 崩溃。
+  const recentMirrorKeyRef = useRef('');
+  // 依赖数组里写 recentColors 会不会 TDZ？
+  // 不会：模块顶层 import 的 require 与函数声明都不提升 useState 的返回值，
+  // 但依赖数组是在「渲染已经走到 setRecentPalette 这一行之后」才被求值的
+  // （useEffect 调用本身在 recentColors 的 useState 之后执行），
+  // 所以这里可以安全地写 recentColors；下面的注释保留来由以免后人误删。
+  // 之所以仍然用 key 去重：recentColors 的数组身份每次都变，只有内容变了才需要镜像，
+  // 否则每次渲染都会 setRecentPalette（同值 setState 虽会 bail out，但会多一次调度）。
+  useEffect(() => {
+    const source = Array.isArray(recentColors) ? recentColors : [];
+    const key = source.join('|');
+    if (!key || key === recentMirrorKeyRef.current) {
+      return;
+    }
+
+    recentMirrorKeyRef.current = key;
+    setRecentPalette(pickRecentColors(source, 10));
+    // 只依赖 recentColors：pickRecentColors 现在是模块顶层 import 的纯函数，
+    // 它不是响应式值，放进依赖数组会被 react-hooks 判为无效依赖（已实测报 error）。
+  }, [recentColors]);
+
+  /**
+   * 最近颜色条。
+   *
+   * 为什么放在工具栏上「再渲染一份」：ColorPicker 内部虽然也有最近颜色，
+   * 但它必须点开颜色面板才可见，等于「最近颜色」在工具栏上手不可及。
+   * 这里渲染的是持久化在 STORAGE_KEYS.RECENT_COLORS 里的同一份数据。
+   *
+   * Lead 接线位置：主 return 的根 <View> 内，与 renderPresetSelector() 同级。
+   */
+  const renderRecentColors = () => {
+    const swatches = toSwatchList(pickRecentColors(recentPalette, 6));
+    if (swatches.length === 0) {
+      return null;
+    }
+
+    return (
+      <View
+        testID="toolbar.recentColors"
+        accessibilityRole="toolbar"
+        accessibilityLabel="最近使用的颜色"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+        }}
+      >
+        <Text style={{ color: colors.textSecondary, fontSize: 10, marginRight: 6 }}>最近</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {swatches.map(({ color, key }) => (
+            <TouchableOpacity
+              key={key}
+              testID={`toolbar.recentColor.${color.replace('#', '')}`}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                marginRight: 6,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: color,
+              }}
+              onPress={() => {
+                setActiveColor(color);
+                notifyToolPayloadChange({ color });
+                triggerHapticFeedback('light');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`最近颜色 ${color}`}
+              accessibilityHint="把该颜色设为当前画笔颜色"
+              accessibilityState={{ disabled: false, busy: false }}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  /**
+   * 套索选中笔迹的操作条。
+   *
+   * 核实结论（不是猜测）：
+   *  - 原生确实会上报选中结果（SkiaPagedCanvasScreenNative 的 onStrokesSelected ->
+   *    selectedStrokeIds，并且已经通过 toolbarProps 传进本组件），
+   *    但工具栏侧此前没有任何消费方，选中态在 UI 上完全不可见；
+   *  - onLassoSelect / onLassoComplete 是「工具栏 -> 原生」方向的下发通道，
+   *    由 useNativeToolbarBridge 实现并已在父级接线，工具栏内部本就不需要调用它们；
+   *  - 本组件没有任何安全的「删除/复制选中笔迹」命令通道：onToolConfigChange 只承载
+   *    绘图工具配置，bridge 也没有暴露 deleteSelectedStrokes 之类的派发器。
+   *
+   * 因此按任务要求选择 (b) 诚实降级 + 预留回调，而不是伪造 IPC 命令：
+   *  - 父级传入 onSelectedStrokesAction 时才启用按钮（拥有真实通道的容器才用得上）；
+   *  - 未传入时按钮 disabled 且 hint 写明「当前版本暂不支持」，不给虚假高亮。
+   *
+   * Lead 接线位置：主 return 的根 <View> 内，与 renderPresetSelector() 同级，调用
+   *   {renderSelectedStrokesBar(selectedStrokeIds, onSelectedStrokesAction)}
+   * 并且需要在组件 props 解构里新增
+   *   selectedStrokeIds = [],
+   *   onSelectedStrokesAction,
+   */
+  const renderSelectedStrokesBar = (strokeIds, strokesActionHandler) => {
+    const ids = Array.isArray(strokeIds) ? strokeIds : [];
+    if (ids.length === 0) {
+      // 没有选中内容时整条不浮出，避免留下一条永远不可用的工具条。
+      return null;
+    }
+
+    const actionEnabled = typeof strokesActionHandler === 'function';
+    const actions = [
+      { id: 'delete', label: '删除选中笔迹', icon: 'delete-outline' },
+      { id: 'duplicate', label: '复制选中笔迹', icon: 'content-copy' },
+      { id: 'done', label: '完成选择', icon: 'check' },
+    ];
+
+    return (
+      <View
+        testID="toolbar.selectedStrokesBar"
+        accessibilityRole="toolbar"
+        accessibilityLabel={`已选中 ${ids.length} 条笔迹`}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 11, marginRight: 8 }}>
+          {`已选中 ${ids.length} 条`}
+        </Text>
+        {actions.map((action) => (
+          <TouchableOpacity
+            key={action.id}
+            testID={`toolbar.selectedStrokesAction.${action.id}`}
+            style={[
+              styles.toolButton,
+              !actionEnabled && styles.disabledToolButton,
+            ]}
+            disabled={!actionEnabled}
+            onPress={actionEnabled
+              ? () => {
+                strokesActionHandler(action.id, ids);
+                triggerHapticFeedback('light');
+              }
+              : undefined}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            accessibilityHint={
+              actionEnabled
+                ? undefined
+                : '当前版本暂不支持，需要由画布容器提供命令通道'
+            }
+            accessibilityState={{ disabled: !actionEnabled, busy: false }}
+          >
+            <MaterialIcon
+              name={action.icon}
+              size={toolbarConfig.iconSize}
+              color={actionEnabled ? colors.text : colors.textDisabled}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
+  // ==== WS-C:END ====
+
+  // ==================== 工作流代码插入区结束 ====================
+
+
+  // 获取响应式配置。
+  // WS-B 集成修正：原先这里是 getToolbarConfig()（只看 SCREEN_WIDTH 的几个阈值），
+  // 而 WS-B 交付的 resolveToolbarLayout 只能算出配置却没人用 —— 等于没接通。
+  // 现在这里真实采用响应式布局结果：断点分档 + 安全区 + 44dp 触达 + 分组间距。
+  const wsbBaseToolbarConfig = getToolbarConfig();
+  const wsbScreenWidth = (typeof SCREEN_WIDTH === 'number' && SCREEN_WIDTH > 0)
+    ? SCREEN_WIDTH
+    : wsbBaseToolbarConfig.buttonSize * 10;
+  const wsbLayout = resolveToolbarLayout(wsbScreenWidth, {
+    insets: defaultInsetsForToolbar,
+  });
+
+  // toolbarConfig 是主 return 与 createStyles 唯一消费的配置对象，
+  // 因此把响应式结果叠在这里，才算真正接通（31 处 toolbarConfig.* 引用同时生效）。
+  const toolbarConfig = useMemo(() => ({
+    ...wsbBaseToolbarConfig,
+    tier: wsbLayout.tier,
+    buttonSize: wsbLayout.buttonSize,
+    iconSize: wsbLayout.iconSize,
+    hitSlop: wsbLayout.hitSlop,
+    // 注意字段映射：纯逻辑层的 horizontalPadding 对应旧配置的 padding，
+    // groupGap 对应 spacing；createStyles 读的是旧字段名，所以在这里对齐。
+    padding: wsbLayout.horizontalPadding,
+    spacing: wsbLayout.groupGap,
+    showLabels: wsbLayout.showLabels,
+  }), [wsbBaseToolbarConfig, wsbLayout]);
+
+  // 动态生成样式。换行模式下要给容器更高的上限（否则多行会被 maxHeight 裁掉），
+  // 这也是本轮「工具栏被裁切」隐患的根因：单行时的 maxHeight 是定值。
+  const styles = useMemo(
+    () => createStyles(toolbarConfig, { wrapped: wsbLayout.tier === 'wide' }),
+    [toolbarConfig, wsbLayout.tier],
+  );
+
+  // 工具栏是否需要在窄屏上横滑：用布局纯函数估算「全部工具组一行是否放得下」。
+  // 这是 estimateToolbarWidth / TOOLBAR_BREAKPOINTS 的实际用途——
+  // 宽屏(>=1200) 下单行容得下就隐藏提示，窄屏才提示用户「还可以往右滑」，
+  // 避免用户以为常用工具（颜色/粗细）不存在。
+  const toolbarNeedsScroll = useMemo(() => {
+    // 必须传「每组各自的按钮数」而不是组数：一个绘图组就有 6 个按钮，
+    // 只按组数估算会严重低估，导致溢出提示永不出现（集成期用真机实测发现）。
+    // 这里的数字与主 return 中各 toolGroup 内的按钮数保持一致。
+    const buttonsPerGroup = [
+      2, // bookmarks：添加书签 / 书签列表
+      1, // preset：场景预设
+      3, // history：撤销 / 重做 / 清除
+      6, // drawing：画笔/铅笔/刷子/荧光笔/激光笔 + 手掌平移
+      2, // erase：橡皮擦 / 套索
+      5, // style：颜色 / 粗细 / 笔触类型 / 手感 + 间距
+      4, // assist：更多形状 / 标尺 / 网格 / 防误触 / 手指书写（含隐藏项）
+      2, // ai：AI 工具 / AI 历史
+      3, // page：形状 / 文本 / 图片
+    ];
+    const estimated = estimateToolbarWidth(toolbarConfig, buttonsPerGroup);
+    return estimated > SCREEN_WIDTH;
+  }, [toolbarConfig]);
+
+  // 平板/宽屏改用「多行换行」而不是横滑：真机实测发现单行横滑时平板上
+  // 颜色/粗细/手感永远在屏幕外，用户根本发现不了这些功能。
+  // 平板有足够纵向空间，换行能让全部工具一次可见。
+  const shouldWrapToolbar = SCREEN_WIDTH >= TOOLBAR_BREAKPOINTS.wide;
+
+  // 只有「确实溢出但又不换行」时才提示右侧还有内容。
+  // 曾经写成 `SCREEN_WIDTH < TOOLBAR_BREAKPOINTS.wide`，结果平板上（最需要提示）反而消失；
+  // 现在平板走换行分支，提示只服务于窄屏横滑场景，语义清晰。
+  const shouldHintOverflow = toolbarNeedsScroll && !shouldWrapToolbar;
   const [activeTool, setActiveTool] = useState(initialTool);
   const [activeColor, setActiveColor] = useState(initialColor);
   const [activeStrokeWidth, setActiveStrokeWidth] = useState(initialStrokeWidth);
@@ -800,6 +1314,9 @@ const AllInOneToolbar = ({
   const [showPenSelector, setShowPenSelector] = useState(false);
   const [selectedPenType, setSelectedPenType] = useState(PenTypes.FOUNTAIN);
   const [strokeOpacity, setStrokeOpacity] = useState(1);
+  // 手写输入体验：防误触（掌托）与手指模式（本轮接通到原生）
+  const [palmRejectionEnabled, setPalmRejectionEnabled] = useState(true);
+  const [fingerMode, setFingerMode] = useState('gesture_only');
 
   // 增强形状选择器状态
   const [showEnhancedShapeSelector, setShowEnhancedShapeSelector] = useState(false);
@@ -874,6 +1391,12 @@ const AllInOneToolbar = ({
     if (typeof currentToolConfig.opacity === 'number') {
       setStrokeOpacity(currentToolConfig.opacity);
     }
+    if (typeof currentToolConfig.palmRejectionEnabled === 'boolean') {
+      setPalmRejectionEnabled(currentToolConfig.palmRejectionEnabled);
+    }
+    if (typeof currentToolConfig.fingerMode === 'string' && currentToolConfig.fingerMode) {
+      setFingerMode(currentToolConfig.fingerMode);
+    }
   }, [currentToolConfig]);
 
   const buildCurrentToolPayload = useCallback((overrides = {}) => {
@@ -905,8 +1428,12 @@ const AllInOneToolbar = ({
       shape: overrides.shape || (nextTool === DRAWING_TOOLS.SHAPE ? activeShape : 'freehand'),
       recognitionEnabled: overrides.recognitionEnabled ?? currentToolConfig?.recognitionEnabled ?? true,
       recognitionDebounceMs: overrides.recognitionDebounceMs ?? currentToolConfig?.recognitionDebounceMs ?? 180,
-      palmRejectionEnabled: overrides.palmRejectionEnabled ?? currentToolConfig?.palmRejectionEnabled ?? true,
-      fingerMode: overrides.fingerMode || currentToolConfig?.fingerMode || 'gesture_only',
+      palmRejectionEnabled: overrides.palmRejectionEnabled ?? palmRejectionEnabled,
+      fingerMode: overrides.fingerMode || fingerMode,
+      // 标尺/网格此前只改本地 state、从不下发原生（RISK-NAV-002 同源死接线）。
+      // 现在作为覆盖层配置随 toolConfig 一并送到原生画布。
+      showRuler: overrides.showRuler ?? showRuler,
+      showGrid: overrides.showGrid ?? showGrid,
       ...overrides,
     };
   }, [
@@ -915,7 +1442,11 @@ const AllInOneToolbar = ({
     activeStrokeWidth,
     activeTool,
     currentToolConfig,
+    fingerMode,
+    palmRejectionEnabled,
     selectedPenType,
+    showGrid,
+    showRuler,
     strokeOpacity,
   ]);
 
@@ -929,7 +1460,8 @@ const AllInOneToolbar = ({
       'penProfile', 'pressureSensitivity', 'velocitySensitivity',
       'taperIn', 'taperOut', 'smoothing', 'shape',
       'recognitionEnabled', 'recognitionDebounceMs',
-      'palmRejectionEnabled', 'fingerMode', 'mode', 'blendMode',
+      'palmRejectionEnabled', 'fingerMode', 'showRuler', 'showGrid',
+      'mode', 'blendMode',
       'fadeOutDuration', 'animationSteps',
     ];
 
@@ -1118,6 +1650,8 @@ const AllInOneToolbar = ({
     activeStrokeWidth,
     activeTool,
     notifyToolPayloadChange,
+    fingerMode,
+    palmRejectionEnabled,
     selectedPenType,
     strokeOpacity,
   ]);
@@ -1663,6 +2197,15 @@ const AllInOneToolbar = ({
   const renderStrokeWidthPopover = () => {
     if (!showStrokeWidthPopover) {return null;}
 
+    // popover 定位只算一次：锚点取「工具栏正下方居中」（宽度 0、y 为工具栏底边），
+    // 由布局纯函数做左右/上下夹取，保证任何屏幕宽度下都完整可见。
+    const strokeWidthPopoverPosition = resolvePopoverPosition(
+      { x: SCREEN_WIDTH / 2, y: toolbarConfig.height, width: 0, height: 0 },
+      { width: 280, height: 190 },
+      { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+      { margin: 8 },
+    );
+
     return (
       <Modal
         visible={showStrokeWidthPopover}
@@ -1691,10 +2234,11 @@ const AllInOneToolbar = ({
               {
                 backgroundColor: colors.card,
                 borderColor: colors.border,
-                // 动态定位：工具栏正下方居中显示，增加更多间距
-                top: toolbarConfig.height + 70,
-                left: '50%',
-                marginLeft: -140, // 280宽度的一半
+                // 动态定位：交给布局纯函数做左右/上下夹取。
+                // 原先写死 top=height+70 / left='50%' / marginLeft=-140：
+                // 小屏与分屏下 popover 会有一半漂到屏幕外，用户看不到滑块。
+                ...strokeWidthPopoverPosition,
+                marginLeft: 0,
               },
             ]}
             onPress={(e) => {
@@ -1892,6 +2436,86 @@ const AllInOneToolbar = ({
       }
     }
   }, [handleToolSelect, onUndo, onRedo, canUndo, canRedo]);
+
+  // ==== WS-B:BEGIN（布局优化：断点、popover 夹取、按压反馈包装、分组 testID） ====
+  //
+  // 说明（为什么这样写）：
+  // 1. 这里遵循「先接入纯逻辑、不动机主 return 的 JSX」的纪律。
+  //    本区只做定义 + 覆盖后的 toolbarConfig 计算，主 JSX 由 Lead 在集成步骤消费；
+  //    这样既避免与其它 workstream 抢同一段 JSX 造成冲突，也让改动可被单独回退。
+  // 2. resolveToolbarLayout 是纯函数（见 ./AllInOneToolbarLayout），
+  //    非法屏幕宽度会回落 compact 且不抛错，所以旋转/分屏的中间帧也安全。
+  // 3. getToolbarConfig() 保留为回落路径：ScreenLayout 未提供宽度时用它原有的结果。
+
+  // 说明（集成修正）：wsbBaseToolbarConfig / wsbLayout / toolbarConfig 的计算已移到
+  // 下方 toolbarConfig 定义处（那里才是主 return 与 createStyles 的消费点）。
+  // 本区只保留「按压反馈包装」与「分组 testID」两个局部定义。
+  //
+  // 可复用按压反馈包装：统一按下时的背景/透明度变化，并补齐 44dp 触达区域。
+  // 为什么抽成组件：工具栏里有几十处 Pressable，逐处写 hitSlop 易漏且不一致。
+  const ToolbarPressable = ({
+    children,
+    style,
+    onPress,
+    onLongPress,
+    disabled = false,
+    accessibilityLabel,
+    testID,
+    hitSlop,
+    pressedOpacity = 0.6,
+    pressedBackgroundColor,
+    ...rest
+  }) => {
+    // 这里不用 useMemo：resolvedHitSlop 只是一个字面量对象的拼装，
+    // 而且 wsbLayout 属于外层作用域，把它写进依赖数组反而会被 lint 判为无效依赖。
+    let resolvedHitSlop = hitSlop;
+    if (typeof hitSlop === 'number') {
+      resolvedHitSlop = { top: hitSlop, bottom: hitSlop, left: hitSlop, right: hitSlop };
+    } else if (!hitSlop || typeof hitSlop !== 'object') {
+      // 未显式传入时，采用当前断点算出的触达扩展量，保证 >= 44dp 的可点区域。
+      resolvedHitSlop = {
+        top: wsbLayout.hitSlop,
+        bottom: wsbLayout.hitSlop,
+        left: wsbLayout.hitSlop,
+        right: wsbLayout.hitSlop,
+      };
+    }
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ disabled }}
+        testID={testID}
+        disabled={disabled}
+        hitSlop={resolvedHitSlop}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        style={({ pressed }) => [
+          style,
+          pressed && !disabled && { opacity: pressedOpacity },
+          pressed && !disabled && pressedBackgroundColor
+            ? { backgroundColor: pressedBackgroundColor }
+            : null,
+        ]}
+        {...rest}
+      >
+        {children}
+      </Pressable>
+    );
+  };
+
+  ToolbarPressable.displayName = 'ToolbarPressable';
+
+  // 分组 testID 生成器：让 UI 测试能稳定定位「第 N 组」而不依赖样式。
+  const getToolbarGroupTestID = (groupKey) => `all-in-one-toolbar-group-${String(groupKey || 'unknown')}`;
+
+  // 说明（2026-10-03 集成修正）：原先这里用一个 globalThis.__wsbToolbarLayoutExports
+  // 汇总引用来绕开 no-unused-vars，但那是「为了消音而写」，且每次渲染都写全局对象。
+  // 现在 responsiveToolbarConfig / ToolbarPressable / getToolbarGroupTestID 都已在
+  // 主 return 里真实消费（toolbarConfig 用的就是响应式配置），该汇总已删除。
+
+  // ==== WS-B:END ====
 
   // 渲染形状选择器
   const renderShapePicker = () => (
@@ -2789,15 +3413,42 @@ const AllInOneToolbar = ({
       {renderStreamingAIResultModal()}
       {renderPresetSelector()}
 
-      {/* 主工具栏 */}
-      <View style={[styles.container, { backgroundColor: colors.card }]}>
+      {/* 最近颜色条：把 ColorPicker 内部那份「最近使用」搬到工具栏上直接可见 */}
+      {renderRecentColors()}
 
-        {/* 绘图工具 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarSection} contentContainerStyle={styles.toolbarContentContainer}>
+      {/* 套索选中笔迹的操作条：没有选中内容时不渲染 */}
+      {renderSelectedStrokesBar(selectedStrokeIds, onSelectedStrokesAction)}
+
+      {/* 主工具栏 */}
+      <View style={[styles.container, { backgroundColor: colors.card }]} testID="toolbar.allInOne">
+
+        {/* 绘图工具。
+            两种排布策略，按可用宽度切换：
+            ① 平板/宽屏（shouldWrapToolbar）：**多行换行**，9 组工具一次全部可见。
+               这是本轮最关键的一处布局修正——真机实测发现单行横滑时，
+               颜色/粗细/手感这些常用工具永远在屏幕外，用户以为功能不存在；
+               平板本来就有纵向空间，换行比横滑更符合「按得到」的目标。
+            ② 窄屏：保持单行横滑，并显示右侧溢出提示。
+            注意横滑时内容容器必须左对齐（不能用 justifyContent:'center' + flexGrow:1），
+            否则内容被居中、左端被推出视口且滚动不到。 */}
+        <ScrollView
+          horizontal={!shouldWrapToolbar}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={!shouldWrapToolbar}
+          style={styles.toolbarSection}
+          contentContainerStyle={[
+            styles.toolbarContentContainer,
+            shouldWrapToolbar
+              ? styles.toolbarContentContainerWrapped
+              : (toolbarNeedsScroll
+                ? styles.toolbarContentContainerScrollable
+                : styles.toolbarContentContainerCentered),
+          ]}
+        >
           {/* 书签按钮 */}
           {toolConfigForMode.bookmarks && (
             <>
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('bookmarks')}>
                 <TouchableOpacity
                   style={[styles.toolButton, isBookmarkActionLocked && styles.disabledToolButton]}
                   activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
@@ -2838,7 +3489,7 @@ const AllInOneToolbar = ({
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 预设工具组 - 企业级功能 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('preset')}>
                 <TouchableOpacity
                   style={[
                     styles.toolButton,
@@ -2870,7 +3521,7 @@ const AllInOneToolbar = ({
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 编辑工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('history')}>
                 <TouchableOpacity
                   style={[
                     styles.toolButton,
@@ -2936,7 +3587,7 @@ const AllInOneToolbar = ({
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 绘图工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('drawing')}>
                 <TouchableOpacity
                   style={[
                     styles.toolButton,
@@ -3041,12 +3692,37 @@ const AllInOneToolbar = ({
                     size={toolbarConfig.iconSize}
                   />
                 </TouchableOpacity>
+
+                {/* 手掌/平移：单指拖动画面而不留墨迹。
+                    与画笔同组是因为它属于「用哪只手写」的选择，而不是编辑动作；
+                    它下发的是 pan 工具，交给 bridge 推导出 gesture 交互模式。 */}
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    activeTool === PAN_TOOL_ID && styles.activeToolButton,
+                    activeTool === PAN_TOOL_ID && { backgroundColor: colors.primary + '30' },
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={handlePanToolPress}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="手掌/平移工具"
+                  accessibilityHint="单指拖动画面，不留下墨迹"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeTool === PAN_TOOL_ID, disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <MaterialIcon
+                    name="pan"
+                    color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === PAN_TOOL_ID ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
               </View>
 
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 橡皮擦和套索工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('erase')}>
                 <TouchableOpacity
                   style={[
                     styles.toolButton,
@@ -3097,7 +3773,7 @@ const AllInOneToolbar = ({
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 样式工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('style')}>
                 <TouchableOpacity
                   style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
                   activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
@@ -3168,12 +3844,35 @@ const AllInOneToolbar = ({
                     size={toolbarConfig.iconSize}
                   />
                 </TouchableOpacity>
+
+                {/* 手感：压感/速度/平滑/起收笔/不透明度/粗细 + 实时笔迹预览。
+                    这些字段原本只能靠切换笔型间接触发，用户无法微调；
+                    面板自行持有开关状态，工具栏顶层因此不必新增 state。 */}
+                <TouchableOpacity
+                  style={[
+                    styles.toolButton,
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                  ]}
+                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  onPress={openHandFeelPanel}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="手感"
+                  accessibilityHint="调节压感、平滑、起收笔等手感参数"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: false }}
+                >
+                  <MaterialIcon
+                    name="tune-variant"
+                    color={isDrawingToolsLocked ? colors.textDisabled : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </TouchableOpacity>
               </View>
 
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 形状和辅助工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('assist')}>
                 {/* 增强形状选择器入口 */}
                 <TouchableOpacity
                   style={[
@@ -3191,8 +3890,11 @@ const AllInOneToolbar = ({
                     triggerHapticFeedback('light');
                   }}
                   disabled={isTextAndShapeLocked}
-                  accessibilityLabel="形状工具"
-                  accessibilityHint="选择形状进行绘制"
+                  // 工具栏上「形状」有两个入口：这里打开完整形状库弹窗，末尾那个打开内联快捷条。
+                  // 两者刻意用不同标签：既让读屏用户能区分，也避免 UI 测试同时命中两个同名节点
+                  // （修复前两个入口都叫「形状工具」，属于真实的可达性缺陷）。
+                  accessibilityLabel="更多形状"
+                  accessibilityHint="打开完整形状库选择形状"
                   accessibilityRole="button"
                   accessibilityState={{
                     selected: activeTool === DRAWING_TOOLS.SHAPE,
@@ -3206,19 +3908,26 @@ const AllInOneToolbar = ({
                   />
                 </TouchableOpacity>
 
-                {/* 标尺切换 */}
-                <TouchableOpacity
-                  style={[
+                {/* 标尺切换。
+                    改用 Pressable 而不是 TouchableOpacity：touchable 只在内容盒内响应，
+                    而按断点算出的按钮本身就偏小；Pressable 的 hitSlop 能把有效触达补到 44dp，
+                    并给出按压反馈（快速连点时用户能确认点到了）。 */}
+                <Pressable
+                  style={({ pressed }) => [
                     styles.toolButton,
                     showRuler && { backgroundColor: colors.primary + '20' },
                     isDrawingToolsLocked && styles.disabledToolButton,
+                    pressed && !isDrawingToolsLocked && { opacity: TOOL_BUTTON_ACTIVE_OPACITY },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  hitSlop={toolbarConfig.hitSlop || 8}
                   onPress={() => {
                     if (isDrawingToolsLocked) {
                       return;
                     }
-                    setShowRuler(!showRuler);
+                    const next = !showRuler;
+                    setShowRuler(next);
+                    // 下发到原生：让标尺真正渲染，而不是只高亮按钮
+                    notifyToolPayloadChange({ showRuler: next });
                     triggerHapticFeedback('light');
                   }}
                   disabled={isDrawingToolsLocked}
@@ -3231,21 +3940,25 @@ const AllInOneToolbar = ({
                     color={showRuler ? colors.primary : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </Pressable>
 
-                {/* 网格切换 */}
-                <TouchableOpacity
-                  style={[
+                {/* 网格切换（与标尺同样改为 Pressable + hitSlop） */}
+                <Pressable
+                  style={({ pressed }) => [
                     styles.toolButton,
                     showGrid && { backgroundColor: colors.primary + '20' },
                     isDrawingToolsLocked && styles.disabledToolButton,
+                    pressed && !isDrawingToolsLocked && { opacity: TOOL_BUTTON_ACTIVE_OPACITY },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
+                  hitSlop={toolbarConfig.hitSlop || 8}
                   onPress={() => {
                     if (isDrawingToolsLocked) {
                       return;
                     }
-                    setShowGrid(!showGrid);
+                    const next = !showGrid;
+                    setShowGrid(next);
+                    // 下发到原生：让网格真正渲染，而不是只高亮按钮
+                    notifyToolPayloadChange({ showGrid: next });
                     triggerHapticFeedback('light');
                   }}
                   disabled={isDrawingToolsLocked}
@@ -3258,7 +3971,69 @@ const AllInOneToolbar = ({
                     color={showGrid ? colors.primary : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </Pressable>
+
+                {/* 防误触（掌托）开关：开启后只有手写笔能书写，手指留给滚动 */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.toolButton,
+                    palmRejectionEnabled && { backgroundColor: colors.primary + '20' },
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    pressed && !isDrawingToolsLocked && { opacity: TOOL_BUTTON_ACTIVE_OPACITY },
+                  ]}
+                  hitSlop={toolbarConfig.hitSlop || 8}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    const next = !palmRejectionEnabled;
+                    setPalmRejectionEnabled(next);
+                    notifyToolPayloadChange({ palmRejectionEnabled: next });
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked}
+                  accessibilityLabel="防误触"
+                  accessibilityHint="开启后手掌与手指不会留下墨迹"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked, busy: isDrawingToolsLocked, selected: palmRejectionEnabled }}
+                >
+                  <MaterialIcon
+                    name={palmRejectionEnabled ? 'hand-back-right-off' : 'hand-back-right'}
+                    color={palmRejectionEnabled ? colors.primary : colors.text}
+                    size={toolbarConfig.iconSize}
+                  />
+                </Pressable>
+
+                {/* 手指书写模式：防误触关闭后，选择手指是书写还是手势 */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.toolButton,
+                    !palmRejectionEnabled && fingerMode === 'draw' && { backgroundColor: colors.primary + '20' },
+                    isDrawingToolsLocked && styles.disabledToolButton,
+                    pressed && !(isDrawingToolsLocked || palmRejectionEnabled) && { opacity: TOOL_BUTTON_ACTIVE_OPACITY },
+                  ]}
+                  hitSlop={toolbarConfig.hitSlop || 8}
+                  onPress={() => {
+                    if (isDrawingToolsLocked) {
+                      return;
+                    }
+                    const next = fingerMode === 'draw' ? 'gesture_only' : 'draw';
+                    setFingerMode(next);
+                    notifyToolPayloadChange({ fingerMode: next });
+                    triggerHapticFeedback('light');
+                  }}
+                  disabled={isDrawingToolsLocked || palmRejectionEnabled}
+                  accessibilityLabel="手指书写"
+                  accessibilityHint="允许用手指书写（需先关闭防误触）"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDrawingToolsLocked || palmRejectionEnabled, busy: false, selected: !palmRejectionEnabled && fingerMode === 'draw' }}
+                >
+                  <MaterialIcon
+                    name="gesture-tap"
+                    color={(isDrawingToolsLocked || palmRejectionEnabled) ? colors.textDisabled : (fingerMode === 'draw' ? colors.primary : colors.text)}
+                    size={toolbarConfig.iconSize}
+                  />
+                </Pressable>
               </View>
             </>
           )}
@@ -3268,7 +4043,7 @@ const AllInOneToolbar = ({
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* AI工具组 */}
-              <View style={styles.toolGroup}>
+              <View style={styles.toolGroup} testID={getToolbarGroupTestID('ai')}>
                 <TouchableOpacity
                   style={[
                     styles.toolButton,
@@ -3324,7 +4099,7 @@ const AllInOneToolbar = ({
           )}
 
           {/* 形状、文本、图片工具组 */}
-          <View style={styles.toolGroup}>
+          <View style={styles.toolGroup} testID={getToolbarGroupTestID('page')}>
             {toolConfigForMode.shapes && (
               <TouchableOpacity
                 style={[
@@ -3409,6 +4184,27 @@ const AllInOneToolbar = ({
           </View>
         </ScrollView>
 
+        {/* 溢出提示：窄屏放不下全部工具组时，明确告诉用户右侧还有内容可滑。
+            没有这个提示时，用户会以为「颜色/粗细」这些常用工具根本不存在。 */}
+        {shouldHintOverflow && (
+          <View
+            testID="toolbar.overflowHint"
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 18,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: colors.card,
+            }}
+          >
+            <MaterialIcon name="chevron-right" size={16} color={colors.textSecondary || colors.text} />
+          </View>
+        )}
+
         {/* 形状选择器 */}
         {showShapePicker && renderShapePicker()}
 
@@ -3435,6 +4231,13 @@ const AllInOneToolbar = ({
 
         {/* 文本输入模态框 */}
         {showTextInputModal && renderTextInputModal()}
+
+        {/* 手感参数面板：与笔触选择器同级，未传 visible 时面板自持开关状态 */}
+        <HandFeelPanel
+          ref={handFeelPanelRef}
+          toolConfig={currentToolConfig}
+          onChange={handleHandFeelChange}
+        />
 
         {/* 增强笔触选择器 */}
         <PenSelector
@@ -3489,7 +4292,9 @@ const AllInOneToolbar = ({
 };
 
 // 样式定义函数（动态生成）
-const createStyles = (config) => StyleSheet.create({
+const createStyles = (config, options = {}) => {
+  const wrapped = !!options.wrapped;
+  return StyleSheet.create({
   container: {
     paddingVertical: 0,
     paddingHorizontal: 4,
@@ -3502,7 +4307,9 @@ const createStyles = (config) => StyleSheet.create({
     marginHorizontal: 0,
     marginVertical: 0,
     minHeight: config.height,
-    maxHeight: config.height + 4,
+    // 单行时保持原来的紧凑高度；换行（平板）时放开上限，否则第二行会被裁掉。
+    // 单行高度按「按钮 + 上下内边距」估，换行按 3 行留余量。
+    maxHeight: wrapped ? undefined : config.height + 4,
     position: 'relative',
   },
   toolbarSection: {
@@ -3510,8 +4317,25 @@ const createStyles = (config) => StyleSheet.create({
   },
   toolbarContentContainer: {
     alignItems: 'center',
+  },
+  // 内容放得下：居中，视觉更稳。
+  toolbarContentContainerCentered: {
     justifyContent: 'center',
     flexGrow: 1,
+  },
+  // 内容溢出：必须左对齐且不 flexGrow，否则居中会把左端推出视口、滚动也够不着。
+  toolbarContentContainerScrollable: {
+    justifyContent: 'flex-start',
+    flexGrow: 0,
+    paddingHorizontal: 2,
+  },
+  // 平板/宽屏：换行成多行，全部工具一次可见，不再需要横滑。
+  toolbarContentContainerWrapped: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 2,
   },
   toolGroup: {
     flexDirection: 'row',
@@ -4053,6 +4877,7 @@ const createStyles = (config) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-}); // end of createStyles
+  });
+}; // end of createStyles
 
 export default AllInOneToolbar;

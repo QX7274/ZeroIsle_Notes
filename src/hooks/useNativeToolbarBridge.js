@@ -8,7 +8,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UIManager, findNodeHandle } from 'react-native';
 import {
-  CLEAR_TYPES,
   DEFAULT_RECOGNITION_DEBOUNCE_MS,
   INTERACTION_MODES,
   SURFACE_COMPONENTS,
@@ -18,6 +17,14 @@ import {
   normalizeRecognitionSelection,
 } from '../config/nativeCommandMap';
 import { recognizeHandwriting } from '../native/recognitionBridge';
+// 手感字段口径与面板共用同一个纯函数模块，避免"面板显示 70%、原生拿到 0.7/undefined"
+// 这类两端各写一份默认值导致的漂移（该模块无原生依赖，不会把 RN 拖进纯逻辑单测）。
+import {
+  DEFAULT_HIGHLIGHTER_OPACITY,
+  HAND_FEEL_FIELDS,
+  buildHandFeelPatch,
+  normalizeHandFeelState,
+} from '../components/toolbar/handFeel';
 
 const PROFILE_DEFAULTS = Object.freeze({
   fountain: {
@@ -215,6 +222,65 @@ const dispatchCommand = (viewRef, viewType, commandName, args = []) => {
   return true;
 };
 
+/**
+ * 手感字段白名单（对外导出，供面板/工具栏与测试共用）。
+ * 复用 handFeel 模块的定义而不是在 bridge 里再写一份数组：
+ * 一旦字段增删，两端会同时变化，不会出现"面板多了一个字段、bridge 悄悄丢掉"。
+ */
+export { HAND_FEEL_FIELDS };
+
+/**
+ * 生成一次"手感变更"的完整载荷。
+ *
+ * 与 buildHandwritingToolConfig 的分工：
+ * - 这里只负责"手感这一层"的归一化（白名单 + clamp 到 [0,1]，strokeWidth 走 1~50）；
+ * - 真正的合并仍由 buildHandwritingToolConfig 完成，所以本函数可以用它的返回值
+ *   直接喂给 setToolConfig。
+ *
+ * 为什么以 currentConfig 为底而不是只输出 patch：
+ * 面板上 7 个滑块是一组相互影响的参数，缺项必须按"当前笔型的默认值"补齐，
+ * 否则父组件收到的载荷里会出现 undefined 而把原生侧的值清掉。
+ *
+ * @param {object} currentConfig 当前工具配置（工具/笔型/手感现状）
+ * @param {object} patch 本次改动的字段；白名单之外的键一律丢弃
+ * @returns {object} 只含合法手感字段的载荷
+ */
+export const buildHandFeelPayload = (currentConfig = {}, patch = {}) => {
+  const current = currentConfig && typeof currentConfig === 'object' ? currentConfig : {};
+  const patchInput = patch && typeof patch === 'object' ? patch : {};
+
+  // 原生的粗细叫 size，面板叫 strokeWidth：这里显式对齐，避免"面板调了粗细、
+  // 下发后原生仍是旧值"这种同源死接线。opacity 同理兜住荧光笔的半透明默认值。
+  const baseState = normalizeHandFeelState({
+    ...current,
+    strokeWidth: current.strokeWidth ?? current.size,
+    opacity: current.opacity ?? (current.tool === 'highlighter' ? DEFAULT_HIGHLIGHTER_OPACITY : undefined),
+  });
+
+  const sanitizedPatch = {};
+  HAND_FEEL_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(patchInput, field)) {
+      sanitizedPatch[field] = patchInput[field];
+    }
+  });
+
+  // size 是原生别名，允许面板/调用方沿用；它不属于手感白名单，需单独映射过来
+  if (
+    !Object.prototype.hasOwnProperty.call(sanitizedPatch, 'strokeWidth') &&
+    Object.prototype.hasOwnProperty.call(patchInput, 'size')
+  ) {
+    sanitizedPatch.strokeWidth = patchInput.size;
+  }
+
+  const payload = buildHandFeelPatch(baseState, sanitizedPatch);
+
+  // 笔型是"手感默认值的来源"，显式传入时必须透传；不传时留给 bridge 沿用旧值，
+  // 否则用户拖一下不透明度就会把当前笔型弹回默认钢笔。
+  return typeof patchInput.penProfile === 'string' && PROFILE_DEFAULTS[patchInput.penProfile]
+    ? { ...payload, penProfile: patchInput.penProfile }
+    : payload;
+};
+
 export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) => {
   const {
     onAIToolSelect: onAIToolSelectExternal,
@@ -231,9 +297,26 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
     initialToolConfig,
   } = options;
 
+  // 内联对象是调用方的常规写法（renderHook({ initialToolConfig: {...} }) / 父组件直接传字面量），
+  // 按引用做依赖会让 initialConfig 每次渲染都重算，进而让下方挂载 effect 每次重跑、
+  // setCurrentToolConfig -> 再渲染 -> 无限更新（实测会刷出上千条 Maximum update depth）。
+  // 这里改成按「序列化后的值」判断是否真的变了：内容相同的不同对象不再触发重算。
+  const initialToolConfigKey = useMemo(() => {
+    try {
+      // 兜底成 '{}' 而不是 null：下面的 JSON.parse 需要拿到合法输入，
+      // 且不可序列化的配置应当退化成"用默认初值"，而不是让渲染卡死。
+      return JSON.stringify(initialToolConfig || {}) || '{}';
+    } catch (error) {
+      return '{}';
+    }
+  }, [initialToolConfig]);
+
+  // 依赖就是 initialToolConfigKey 本身，函数体只从它派生输入。
+  // 这样既保留「按值而非引用判断」的语义（修掉自激更新），也不需要
+  // 用 eslint-disable 去压 exhaustive-deps —— 依赖列表与函数体真正读取的值一致。
   const initialConfig = useMemo(
-    () => buildHandwritingToolConfig(initialToolConfig || {}),
-    [initialToolConfig]
+    () => buildHandwritingToolConfig(JSON.parse(initialToolConfigKey)),
+    [initialToolConfigKey]
   );
 
   const [canUndo, setCanUndo] = useState(Boolean(historyState?.canUndo ?? canUndoExternal));
@@ -294,7 +377,17 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
     return nextConfig;
   }, [nativeViewRef, viewType]);
 
+  // 挂载语义：只在首次挂载把初始配置推给原生。
+  // 如果把它绑在 initialConfig 上，任何一次无关重渲染只要让 initialConfig 换了引用
+  // （内联 initialToolConfig 必然如此）就会重新下发一次 setToolConfig，
+  // 状态又被 setCurrentToolConfig 写回 -> 触发下一轮渲染，形成自激循环。
+  const didApplyInitialConfigRef = useRef(false);
   useEffect(() => {
+    if (didApplyInitialConfigRef.current) {
+      return;
+    }
+
+    didApplyInitialConfigRef.current = true;
     applyToolConfig(initialConfig);
   }, [applyToolConfig, initialConfig]);
 

@@ -25,7 +25,19 @@ jest.mock('react-native', () => {
         },
         View: 'View',
         Text: 'Text',
-        Image: 'Image',
+        // @react-native-community/slider 在渲染期调用 Image.resolveAssetSource，
+        // 老 mock 把 Image 写成了字符串，导致任何包含 Slider 的组件无法被渲染测试
+        // （工具栏的全部渲染级测试都因此从未真正跑起来过）。
+        // RNTL 会用 <Image testID="image"> 探测宿主组件名，所以这里必须是真组件而不是字符串。
+        Image: Object.assign(
+            function Image(props) {
+                // jest.mock 工厂不允许引用外部变量，这里用 require 在调用时才解析 React
+                // （require 本身在工厂允许列表内）。
+                const ReactLocal = require('react');
+                return ReactLocal.createElement('Image', props, props?.children ?? null);
+            },
+            { resolveAssetSource: () => ({ uri: '', width: 0, height: 0, scale: 1 }) }
+        ),
         ScrollView: 'ScrollView',
         TextInput: 'TextInput',
         Switch: 'Switch',
@@ -50,6 +62,21 @@ jest.mock('react-native', () => {
         TouchableOpacity: 'TouchableOpacity',
         TouchableHighlight: 'TouchableHighlight',
         TouchableWithoutFeedback: 'TouchableWithoutFeedback',
+        // react-native-svg 的 SvgTouchableMixin 会读 RN 的 Touchable.Mixin；
+        // 该 mock 以前没有这个导出，导致任何 import react-native-svg 的组件在测试里
+        // 直接抛 "Cannot destructure property 'Mixin' of Touchable as it is undefined"。
+        // 这里补最小占位，让组件能被渲染测试覆盖（不改变真机行为）。
+        Touchable: {
+            Mixin: {
+                touchableGetInitialState: () => ({}),
+                touchableHandleStartShouldSetResponder: () => true,
+                touchableHandleResponderGrant: () => {},
+                touchableHandleResponderMove: () => {},
+                touchableHandleResponderRelease: () => {},
+                touchableHandleResponderTerminate: () => {},
+                touchableHandleResponderTerminationRequest: () => false,
+            },
+        },
         Dimensions: {
             get: () => ({ width: 375, height: 812 }),
             addEventListener: () => ({ remove: () => { } }),
@@ -64,6 +91,14 @@ jest.mock('react-native', () => {
             get: () => 1,
         },
         requireNativeComponent: (name) => name,
+        // react-native-svg 的属性提取逻辑直接调用 RN 的 processColor；
+        // 补一个「原样返回」的实现，缺失时任何 svg 组件都会在 import 阶段崩掉。
+        processColor: (color) => color,
+        // react-native-svg 在模块加载期就会 Object.keys(PanResponder.create({}).panHandlers)，
+        // 缺这个导出会让整个 svg 包 import 失败。
+        PanResponder: {
+            create: () => ({ panHandlers: {} }),
+        },
         I18nManager: {
             isRTL: false,
             allowRTL: jest.fn(),
