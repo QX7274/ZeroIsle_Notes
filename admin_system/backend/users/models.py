@@ -34,12 +34,45 @@ class UserProfile(Document):
     bio = StringField(verbose_name='个人简介')
     is_active = BooleanField(default=True, verbose_name='是否激活')
     is_staff = BooleanField(default=False, verbose_name='是否管理员')
+    # is_superuser 同样由主后端声明（backend/users/mongodb_models.py:34）并写入 users 集合。
+    # 管理后台此前未声明它，而 mongoengine 的 Document.__getattr__ 对未知字段会抛
+    # FieldDoesNotExist —— 即使写成 getattr(user, 'is_superuser', False) 也会抛，
+    # 因为默认值只在 AttributeError 时生效，而这里抛的是 FieldDoesNotExist。
+    # 影响：任何读取该字段的权限判定（如 analytics 的 _is_admin）都会 500。
+    is_superuser = BooleanField(default=False, verbose_name='是否超级用户')
     status = StringField(choices=USER_STATUS_CHOICES, default='active', verbose_name='状态')
     preferences = DictField(verbose_name='用户偏好设置')
     wechat_id = StringField(max_length=100, unique=True, sparse=True, verbose_name='微信ID')
     qq_id = StringField(max_length=100, unique=True, sparse=True, verbose_name='QQ ID')
     date_joined = DateTimeField(default=timezone.now, verbose_name='注册时间')
     last_login = DateTimeField(verbose_name='最后登录时间')
+
+    # --- 与主后端 users 集合对齐的字段（只读用途）---
+    #
+    # 为什么必须显式声明：mongoengine 的 Document.__getattr__ 对**未声明**字段会抛
+    # FieldDoesNotExist，而且 getattr(obj, name, default) **屏蔽不掉** ——
+    # 默认值只在抛 AttributeError 时生效，这里抛的是 FieldDoesNotExist。
+    # 因此只要代码里读到某个未声明字段，接口就会 500。
+    #
+    # 这些字段在 users 集合中确实存在（主后端 backend/users/mongodb_models.py 声明并写入），
+    # 管理后台此前未声明它们，构成了同类隐患。此处补齐，使管理端能安全读取。
+    first_name = StringField(max_length=30, default='', verbose_name='名')
+    last_name = StringField(max_length=150, default='', verbose_name='姓')
+    is_verified = BooleanField(default=False, verbose_name='是否已验证')
+    last_login_ip = StringField(max_length=100, verbose_name='最后登录IP')
+    django_user_id = StringField(max_length=36, sparse=True, verbose_name='Django用户ID')
+    # 第三方登录凭证（只读展示；管理后台不参与登录，故不用于鉴权）
+    wechat_openid = StringField(max_length=100, sparse=True, verbose_name='微信OpenID')
+    wechat_unionid = StringField(max_length=100, verbose_name='微信UnionID')
+    wechat_avatar = URLField(verbose_name='微信头像URL')
+    qq_openid = StringField(max_length=100, sparse=True, verbose_name='QQ OpenID')
+    qq_avatar = URLField(verbose_name='QQ头像URL')
+    # Realm 同步相关（阶段3 已确认本集合与主后端共用）
+    realm_id = StringField(max_length=100, sparse=True, verbose_name='Realm ID')
+    realm_api_key = StringField(max_length=100, sparse=True, verbose_name='Realm API Key')
+    realm_app_id = StringField(max_length=100, sparse=True, verbose_name='Realm App ID')
+    realm_sync_enabled = BooleanField(default=True, verbose_name='是否启用Realm同步')
+    realm_last_sync_time = DateTimeField(verbose_name='最后同步时间')
 
     # 统计字段
     note_count = IntField(default=0, verbose_name='笔记数量')
