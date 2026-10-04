@@ -49,7 +49,6 @@ import {
   getSyncHistory
 } from '../../services/syncService';
 
-const { Title, Text } = Typography;
 const { Option } = Select;
 const { confirm } = Modal;
 

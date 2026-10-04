@@ -39,10 +39,9 @@ import {getUserStats,
   getUserGrowth} from '../../services/userService';
 import moment from 'dayjs';
 
-const { Title, Text } = Typography;
+const {Text} = Typography;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
-const { Option } = Select;
 
 const UserAnalytics = () => {
   const [loading, setLoading] = useState(true);

@@ -21,7 +21,7 @@ import {getCategories,
   deleteCategory,
   getCategoryStats} from '../../services/categoryService';
 
-const { Title, Text } = Typography;
+const {Title} = Typography;
 const { confirm } = Modal;
 
 const CategoryManagement = () => {

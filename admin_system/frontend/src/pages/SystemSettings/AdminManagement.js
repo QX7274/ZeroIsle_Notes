@@ -3,7 +3,7 @@ import { Table, Card, Button, Space, Input, Modal, Form, message, Typography, Po
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, UserOutlined, LockOutlined } from '@ant-design/icons';
 import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getRoles } from '../../services/settingsService';
 
-const { Title, Text } = Typography;
+const {Title} = Typography;
 const { confirm } = Modal;
 const { Option } = Select;
 

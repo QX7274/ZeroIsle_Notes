@@ -18,8 +18,8 @@ import dayjs from 'dayjs';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const { TextArea } = Input;
-const { Title, Text, Paragraph } = Typography;
+
+const {Title} = Typography;
 const { TabPane } = Tabs;
 
 const AnnouncementManagement = () => {

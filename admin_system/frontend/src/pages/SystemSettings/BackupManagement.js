@@ -42,7 +42,6 @@ import moment from 'dayjs';
 
 const { TextArea } = Input;
 const { Option } = Select;
-const { Title, Text } = Typography;
 
 const BackupManagement = () => {
   const [form] = Form.useForm();

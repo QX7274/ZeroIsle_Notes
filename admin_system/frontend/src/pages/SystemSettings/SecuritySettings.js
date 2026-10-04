@@ -3,7 +3,7 @@ import { Form, Input, Button, Card, Switch, InputNumber, Select, message, Spin, 
 import { getSecurityConfig, updateSecurityConfig } from '../../services/settingsService';
 
 const { Option } = Select;
-const { Title, Text } = Typography;
+const {Title} = Typography;
 
 const SecuritySettings = () => {
   const [form] = Form.useForm();

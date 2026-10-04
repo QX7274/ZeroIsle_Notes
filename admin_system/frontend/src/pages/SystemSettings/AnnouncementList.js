@@ -48,10 +48,9 @@ import {getAnnouncements,
 import moment from 'dayjs';
 import ReactQuill from 'react-quill';
 
-const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-const { Title, Text, Paragraph } = Typography;
+const {Title, Text} = Typography;
 const { TabPane } = Tabs;
 
 const AnnouncementList = () => {

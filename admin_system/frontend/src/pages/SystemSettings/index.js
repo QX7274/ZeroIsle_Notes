@@ -9,8 +9,6 @@ import AnnouncementList from './AnnouncementList';
 import BackupManagement from './BackupManagement';
 import '../../styles/SystemSettings.css';
 
-const { Title, Text } = Typography;
-
 const SystemSettings = () => {
   return (
     <div className="system-settings-container">

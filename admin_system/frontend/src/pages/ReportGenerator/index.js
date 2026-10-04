@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import '../../styles/ReportGenerator.css';
 
-const { Title, Text, Paragraph } = Typography;
+const {Title, Text} = Typography;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 const { Option } = Select;

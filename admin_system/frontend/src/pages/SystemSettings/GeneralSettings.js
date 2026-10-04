@@ -13,7 +13,7 @@ import {
 import { getSystemConfig, updateSystemConfig } from '../../services/settingsService';
 
 const { Option } = Select;
-const { Title, Text } = Typography;
+const {Title} = Typography;
 
 const GeneralSettings = () => {
   const [form] = Form.useForm();

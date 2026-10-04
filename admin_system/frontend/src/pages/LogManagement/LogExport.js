@@ -39,7 +39,7 @@ import moment from 'dayjs';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const { Title, Text, Paragraph } = Typography;
+const {Text} = Typography;
 const { confirm } = Modal;
 
 const LogExport = () => {

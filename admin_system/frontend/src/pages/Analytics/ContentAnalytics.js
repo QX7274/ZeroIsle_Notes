@@ -25,7 +25,6 @@ import moment from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { TabPane } = Tabs;
-const { Option } = Select;
 
 const ContentAnalytics = () => {
   const [loading, setLoading] = useState(false);

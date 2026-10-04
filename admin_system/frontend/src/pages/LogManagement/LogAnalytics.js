@@ -35,10 +35,9 @@ import {getAdminLogStats,
   getLogAnalytics} from '../../services/logService';
 import moment from 'dayjs';
 
-const { Title, Text, Paragraph } = Typography;
+const {Text} = Typography;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
-const { Option } = Select;
 
 // 日志分析页面组件
 

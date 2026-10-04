@@ -27,7 +27,6 @@ import {getAllConfigs,
 
 const { TabPane } = Tabs;
 const { Option } = Select;
-const { Title, Text } = Typography;
 
 const SystemConfig = () => {
   const [form] = Form.useForm();

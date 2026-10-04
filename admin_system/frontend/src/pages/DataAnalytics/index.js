@@ -15,7 +15,7 @@ import { Line, Bar, Pie, Area } from '@ant-design/plots';
 import { getDashboardStats, exportStats } from '../../services/statsService';
 import '../../styles/DataAnalytics.css';
 
-const { Title, Text, Paragraph } = Typography;
+const {Title, Text} = Typography;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 

@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, 
 import { useNavigate } from 'react-router-dom';
 import { getTags, createTag, updateTag, deleteTag, batchDeleteTags, mergeTags, getTagStats } from '../../services/tagService';
 
-const { Title, Text } = Typography;
+const {Title} = Typography;
 const { confirm } = Modal;
 const { Option } = Select;
 
