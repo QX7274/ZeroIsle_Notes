@@ -289,6 +289,13 @@ jobs:
         env:
           CI: "false"
 
+      # 前端单元测试：目前只有导航死链守护这一条，
+      # 但它拦的是"菜单指向不存在的路由"这类构建与 lint 都发现不了的缺陷。
+      - name: Unit tests (navigation guard)
+        run: npx react-scripts test --watchAll=false --testPathPattern="navigation"
+        env:
+          CI: "true"
+
       # lint 报告：输出但不阻塞。待技术债清理完后可改为阻塞。
       - name: Lint report (non-blocking)
         continue-on-error: true
