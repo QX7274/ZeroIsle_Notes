@@ -241,6 +241,7 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                           path.includes('sync') ? '数据同步' :
                           path.includes('security') ? '安全设置' :
                           path.includes('general') ? '通用设置' :
+                          path.includes('admins') ? '管理员管理' :
                           path.includes('profile') ? '个人资料' : '系统设置';
       const settingIcon = path.includes('config') ? <SettingOutlined /> :
                          path.includes('announcements') ? <BellOutlined /> :
@@ -418,6 +419,10 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                 {
                   key: '/settings/general',
                   label: '通用设置',
+                },
+                {
+                  key: '/settings/admins',
+                  label: '管理员管理',
                 },
               ],
             },

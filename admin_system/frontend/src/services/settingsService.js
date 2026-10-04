@@ -121,14 +121,20 @@ export const updateSecurityConfig = async (configData) => {
 };
 
 // 获取管理员列表
+//
+// 修复：此函数原先**直接返回 mockAdmins(params) 的假数据**，
+// 真实接口调用被注释掉了。现在后端已补上 /settings/admins
+// （users 集合中 is_staff/is_superuser 的受控视图，见 admin_views.py），
+// 因此改回真实请求 —— 否则管理员管理页展示的是一份虚构名单。
 export const getAdmins = async (params) => {
   try {
-    // 实际项目中使用API调用
-    // const response = await api.get('/settings/admins', { params });
-    // return response.data;
-
-    // 使用模拟数据
-    return mockAdmins(params);
+    const response = await api.get('/settings/admins/', { params });
+    // 后端返回 {count, results}，与前端列表组件期望的形状一致；
+    // 这里统一成 {data, total} 以免调用方再判断两种形状。
+    return {
+      data: response.data.results ?? response.data,
+      total: response.data.count ?? (response.data.results || []).length,
+    };
   } catch (error) {
     console.error('获取管理员列表错误:', error);
     throw error;
@@ -138,7 +144,7 @@ export const getAdmins = async (params) => {
 // 创建管理员
 export const createAdmin = async (adminData) => {
   try {
-    const response = await api.post('/settings/admins', adminData);
+    const response = await api.post('/settings/admins/', adminData);
     return response.data;
   } catch (error) {
     console.error('创建管理员错误:', error);
@@ -149,7 +155,7 @@ export const createAdmin = async (adminData) => {
 // 更新管理员
 export const updateAdmin = async (id, adminData) => {
   try {
-    const response = await api.put(`/settings/admins/${id}`, adminData);
+    const response = await api.put(`/settings/admins/${id}/`, adminData);
     return response.data;
   } catch (error) {
     console.error('更新管理员错误:', error);
@@ -160,7 +166,7 @@ export const updateAdmin = async (id, adminData) => {
 // 删除管理员
 export const deleteAdmin = async (id) => {
   try {
-    const response = await api.delete(`/settings/admins/${id}`);
+    const response = await api.delete(`/settings/admins/${id}/`);
     return response.data;
   } catch (error) {
     console.error('删除管理员错误:', error);
@@ -171,7 +177,7 @@ export const deleteAdmin = async (id) => {
 // 获取角色列表
 export const getRoles = async () => {
   try {
-    const response = await api.get('/settings/roles');
+    const response = await api.get('/settings/roles/');
     return response.data;
   } catch (error) {
     console.error('获取角色列表错误:', error);
@@ -182,7 +188,7 @@ export const getRoles = async () => {
 // 创建角色
 export const createRole = async (roleData) => {
   try {
-    const response = await api.post('/settings/roles', roleData);
+    const response = await api.post('/settings/roles/', roleData);
     return response.data;
   } catch (error) {
     console.error('创建角色错误:', error);
@@ -193,7 +199,7 @@ export const createRole = async (roleData) => {
 // 更新角色
 export const updateRole = async (id, roleData) => {
   try {
-    const response = await api.put(`/settings/roles/${id}`, roleData);
+    const response = await api.put(`/settings/roles/${id}/`, roleData);
     return response.data;
   } catch (error) {
     console.error('更新角色错误:', error);
@@ -204,7 +210,7 @@ export const updateRole = async (id, roleData) => {
 // 删除角色
 export const deleteRole = async (id) => {
   try {
-    const response = await api.delete(`/settings/roles/${id}`);
+    const response = await api.delete(`/settings/roles/${id}/`);
     return response.data;
   } catch (error) {
     console.error('删除角色错误:', error);

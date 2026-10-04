@@ -14,6 +14,9 @@ import BackupManagement from './BackupManagement';
 import SyncSettings from './SyncSettings';
 import SecuritySettings from './SecuritySettings';
 import GeneralSettings from './GeneralSettings';
+// 管理员管理：此前因后端缺 /settings/admins 与 /settings/roles 而无法接入；
+// 本轮补齐后端后接入（页面原有 mock 兜底也已切回真实接口）。
+import AdminManagement from './AdminManagement';
 import '../../styles/SystemSettings.css';
 
 const SystemSettings = () => {
@@ -27,6 +30,7 @@ const SystemSettings = () => {
         <Route path="/sync" element={<SyncSettings />} />
         <Route path="/security" element={<SecuritySettings />} />
         <Route path="/general" element={<GeneralSettings />} />
+        <Route path="/admins" element={<AdminManagement />} />
       </Routes>
     </div>
   );
