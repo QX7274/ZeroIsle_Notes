@@ -32,7 +32,11 @@ import {DashboardOutlined,
   BarChartOutlined,
   FileExcelOutlined,
   LineChartOutlined,
-  UnorderedListOutlined} from '@ant-design/icons';
+  UnorderedListOutlined,
+  // 以下三个用于系统设置子项的面包屑图标（本轮新增 sync/security/general 三个入口）
+  DatabaseOutlined,
+  SyncOutlined,
+  SafetyCertificateOutlined} from '@ant-design/icons';
 import {logout,
   getCurrentUser} from '../../services/authService';
 import '../../styles/AdminLayout.css';
@@ -229,11 +233,21 @@ const AdminLayout = ({ setIsAuthenticated }) => {
     } else if (path.startsWith('/notes/')) {
       return [...breadcrumbMap['/notes'], { title: '笔记详情', icon: <FileTextOutlined /> }];
     } else if (path.startsWith('/settings/')) {
+      // 面包屑标题：按具体子路径给出对应名称，
+      // 新增的 sync / security / general 也一并覆盖（此前会一律落到"系统设置"）。
       const settingTitle = path.includes('config') ? '系统配置' :
                           path.includes('announcements') ? '公告管理' :
+                          path.includes('backups') ? '备份管理' :
+                          path.includes('sync') ? '数据同步' :
+                          path.includes('security') ? '安全设置' :
+                          path.includes('general') ? '通用设置' :
                           path.includes('profile') ? '个人资料' : '系统设置';
       const settingIcon = path.includes('config') ? <SettingOutlined /> :
                          path.includes('announcements') ? <BellOutlined /> :
+                         path.includes('backups') ? <DatabaseOutlined /> :
+                         path.includes('sync') ? <SyncOutlined /> :
+                         path.includes('security') ? <SafetyCertificateOutlined /> :
+                         path.includes('general') ? <AppstoreOutlined /> :
                          path.includes('profile') ? <UserOutlined /> : <AppstoreOutlined />;
       return [...breadcrumbMap['/settings'], { title: settingTitle, icon: settingIcon }];
     }
@@ -390,6 +404,20 @@ const AdminLayout = ({ setIsAuthenticated }) => {
                 {
                   key: '/settings/backups',
                   label: '备份管理',
+                },
+                // 以下三项原先在页面层已实现、但没有菜单入口也没有路由，
+                // 导致对应后端能力整体不可达（尤其"数据同步"是 /api/sync/* 的唯一入口）。
+                {
+                  key: '/settings/sync',
+                  label: '数据同步',
+                },
+                {
+                  key: '/settings/security',
+                  label: '安全设置',
+                },
+                {
+                  key: '/settings/general',
+                  label: '通用设置',
                 },
               ],
             },
