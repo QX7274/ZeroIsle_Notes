@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 
 from rest_framework.filters import BaseFilterBackend
+from rest_framework.pagination import PageNumberPagination
 
 logger = logging.getLogger(__name__)
 
@@ -189,3 +190,45 @@ class MongoSearchFilter(BaseFilterBackend):
                 "schema": {"type": "string"},
             }
         ]
+
+
+class MongoPageNumberPagination(PageNumberPagination):
+    """分页类：同时接受 page_size 与 pageSize 两种参数名。
+
+    为什么需要它：
+    DRF 的 PageNumberPagination 只认 query 参数 `page_size`（下划线），
+    而本项目管理后台前端统一发送 **camelCase 的 pageSize**
+    （见 admin_system/frontend/src/services/userService.js 与各页面）。
+    两者对不上，导致前端传的每页条数被**静默忽略**，永远返回默认的 10 条 ——
+    用户翻到第 2 页仍只看到 10 条，且没有任何报错，属于很难发现的集成缺陷。
+
+    这里同时接受两种写法，与前端现有调用保持一致；
+    并对 page_size 做上限约束，避免一次性拉取过多数据。
+    """
+
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+    def get_page_size(self, request):
+        params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+        # 前端用小驼峰；若只给了 pageSize，则临时映射成 page_size 走父类逻辑
+        if params.get(self.page_size_query_param) in (None, ""):
+            camel = params.get("pageSize")
+            if camel not in (None, ""):
+                try:
+                    mutable = request.query_params.copy()
+                except Exception:  # noqa: BLE001
+                    mutable = None
+                if mutable is not None:
+                    mutable[self.page_size_query_param] = camel
+                    request._request.GET = mutable
+                    try:
+                        request.query_params._mutable = True
+                        request.query_params[self.page_size_query_param] = camel
+                    except Exception:  # noqa: BLE001
+                        pass
+        size = super().get_page_size(request)
+        # 非法或超限时回退到默认值，绝不因为一个坏参数让请求 500
+        if not isinstance(size, int) or size <= 0:
+            return self.page_size
+        return min(size, self.max_page_size)

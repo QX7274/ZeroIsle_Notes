@@ -184,7 +184,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    # 改用自建分页类：同时接受 page_size 与 pageSize（前端用小驼峰），
+    # 并约束最大页大小。详见 common/filters.py 的说明。
+    'DEFAULT_PAGINATION_CLASS': 'common.filters.MongoPageNumberPagination',
     'PAGE_SIZE': 10
 }
 
