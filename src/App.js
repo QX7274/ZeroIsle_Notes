@@ -207,6 +207,17 @@ LogBox.ignoreLogs([
   // 它们只以 toast 形式出现，但在开发态会遮住工具栏，妨碍设备取证。
   'This method is deprecated',
   'Error storing data',
+  // 未签名本地包缺少 keychain-access entitlement（RISK-IOS-ENTITLEMENTS-001）：
+  // secureStorage 读写必然失败，应用已降级继续运行，不该再弹遮罩挡住界面。
+  '[secureStorage] Failed to set item',
+  '[secureStorage] Failed to get item',
+  // 个别异步 reject 未捕获（非本轮引入），同样只做「不弹遮罩」处理。
+  'Possible unhandled promise rejection',
+  // 本地/模拟器环境的既有降级项（均非本轮引入）：
+  //  - debugLog 原生模块在本机 Debug 包中未提供；
+  //  - 无 Firebase 配置时通知权限检查失败，已有降级逻辑。
+  '[debugLog] DebugLogModule unavailable',
+  '检查通知权限失败',
 ]);
 
 // 默认主题
