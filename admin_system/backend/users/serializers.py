@@ -1,9 +1,10 @@
 from rest_framework import serializers
+from common.serializers import MongoDocumentSerializer
 from django.utils import timezone
 from datetime import timedelta
 from .models import UserProfile, UserActivity
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(MongoDocumentSerializer):
     """用户资料序列化器"""
     full_name = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
@@ -19,7 +20,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_is_banned(self, obj):
         return obj.is_banned
 
-class UserProfileListSerializer(serializers.ModelSerializer):
+class UserProfileListSerializer(MongoDocumentSerializer):
     """用户资料列表序列化器"""
     full_name = serializers.SerializerMethodField()
 
@@ -31,7 +32,7 @@ class UserProfileListSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return obj.full_name
 
-class UserProfileCreateSerializer(serializers.ModelSerializer):
+class UserProfileCreateSerializer(MongoDocumentSerializer):
     """创建用户资料序列化器"""
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True, required=True)
@@ -70,7 +71,7 @@ class UserProfileCreateSerializer(serializers.ModelSerializer):
 
         return user
 
-class UserProfileUpdateSerializer(serializers.ModelSerializer):
+class UserProfileUpdateSerializer(MongoDocumentSerializer):
     """更新用户资料序列化器"""
     class Meta:
         model = UserProfile
@@ -111,7 +112,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
         return instance
 
-class UserActivitySerializer(serializers.ModelSerializer):
+class UserActivitySerializer(MongoDocumentSerializer):
     """用户活动序列化器"""
     username = serializers.SerializerMethodField()
 

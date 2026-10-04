@@ -1,21 +1,22 @@
 from rest_framework import serializers
+from common.serializers import MongoDocumentSerializer
 from .models import SystemSetting, Announcement, SystemBackup
 
-class SystemSettingSerializer(serializers.ModelSerializer):
+class SystemSettingSerializer(MongoDocumentSerializer):
     """系统设置序列化器"""
     class Meta:
         model = SystemSetting
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-class AnnouncementSerializer(serializers.ModelSerializer):
+class AnnouncementSerializer(MongoDocumentSerializer):
     """系统公告序列化器"""
     class Meta:
         model = Announcement
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-class AnnouncementListSerializer(serializers.ModelSerializer):
+class AnnouncementListSerializer(MongoDocumentSerializer):
     """系统公告列表序列化器"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
@@ -24,7 +25,7 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'status', 'status_display', 'start_time', 'end_time', 'created_by', 'created_at']
 
 
-class SystemBackupSerializer(serializers.ModelSerializer):
+class SystemBackupSerializer(MongoDocumentSerializer):
     """系统备份序列化器"""
     file_size_display = serializers.SerializerMethodField()
     backup_type_display = serializers.SerializerMethodField()
@@ -45,7 +46,7 @@ class SystemBackupSerializer(serializers.ModelSerializer):
         return dict(SystemBackup.STATUS_CHOICES).get(obj.status, obj.status)
 
 
-class SystemBackupListSerializer(serializers.ModelSerializer):
+class SystemBackupListSerializer(MongoDocumentSerializer):
     """系统备份列表序列化器"""
     file_size_display = serializers.SerializerMethodField()
     backup_type_display = serializers.SerializerMethodField()

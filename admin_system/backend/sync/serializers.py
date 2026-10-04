@@ -1,7 +1,8 @@
 from rest_framework import serializers
+from common.serializers import MongoDocumentSerializer
 from .models import SyncRecord, SyncConfig, SyncStatistics
 
-class SyncRecordSerializer(serializers.ModelSerializer):
+class SyncRecordSerializer(MongoDocumentSerializer):
     """同步记录序列化器"""
     duration_display = serializers.SerializerMethodField()
     sync_type_display = serializers.SerializerMethodField()
@@ -35,14 +36,14 @@ class SyncRecordSerializer(serializers.ModelSerializer):
         """获取状态显示名称"""
         return dict(SyncRecord.SYNC_STATUS_CHOICES).get(obj.status, obj.status)
 
-class SyncConfigSerializer(serializers.ModelSerializer):
+class SyncConfigSerializer(MongoDocumentSerializer):
     """同步配置序列化器"""
     class Meta:
         model = SyncConfig
         fields = '__all__'
         read_only_fields = ['updated_at']
 
-class SyncStatisticsSerializer(serializers.ModelSerializer):
+class SyncStatisticsSerializer(MongoDocumentSerializer):
     """同步统计序列化器"""
     date_display = serializers.SerializerMethodField()
     
