@@ -10,7 +10,22 @@ class UserProfile(Document):
         ('banned', '已禁用'),
     )
 
-    id = UUIDField(primary_key=True, default=uuid.uuid4, binary=False)
+    # 主键口径必须与主后端 backend/users/mongodb_models.py:User 一致。
+    #
+    # 历史缺陷（务必不要改回 binary=False）：此处曾写死 binary=False，
+    # 导致 mongoengine 把 _id 落库成**字符串**；而主后端用默认的
+    # UUIDField(binary=True)（见 mongoengine UUIDField.__init__ 默认值），
+    # 落库为 **Binary UUID**（BSON subtype 4）。两者指向同一个 users 集合，于是：
+    #   - 管理端写入的用户，主后端按 Binary UUID 反解 → 查不到（DoesNotExist）；
+    #   - 主后端写入的用户，管理端按字符串查 → 同样查不到；
+    #   - UserActivity.user / VerificationCode.user 等 ReferenceField 也会因
+    #     主键类型不匹配而引用失败。
+    # 这与主后端注释中记录的 RISK-BE-003 属同一类事故。
+    #
+    # 修复：去掉 binary=False，使用默认值（binary=True）与主后端对齐。
+    # 注意：**已存在的历史字符串 _id 数据不会被本次改动修正**，需要另做数据迁移，
+    # 否则库中会并存两种主键形态。迁移方案见 docs/管理后台功能基线与演进规划.md。
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     username = StringField(max_length=150, unique=True, required=True, verbose_name='用户名')
     email = EmailField(unique=True, sparse=True, verbose_name='邮箱')
     phone = StringField(max_length=20, unique=True, sparse=True, verbose_name='手机号')
@@ -63,7 +78,17 @@ class UserProfile(Document):
         return self.status == 'banned' or not self.is_active
 
 class UserActivity(Document):
-    """用户活动记录"""
+    """用户活动记录
+
+    注意：collection 为 **user_activities**，与主后端
+    backend/common/analytics_service.py:UserActivity 是同一个集合。
+
+    主后端该模型使用 user_id = StringField(...)（字符串外键）且带 90 天 TTL 索引；
+    此处原先用 user = ReferenceField(UserProfile)。在主键口径已对齐（见上）
+    之后，ReferenceField 可以正常解引用，但两边字段形态仍不一致，
+    属阶段3后续待对齐项；当前先补主键，避免新写入的文档落成 ObjectId。
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
     user = ReferenceField(UserProfile, required=True, verbose_name='用户')
     activity_type = StringField(required=True, verbose_name='活动类型')
     description = StringField(verbose_name='活动描述')
@@ -87,7 +112,14 @@ class UserActivity(Document):
         return f"{self.user.username} - {self.activity_type} - {self.created_at}"
 
 class VerificationCode(Document):
-    """验证码"""
+    """验证码
+
+    注意：collection 为 **verification_codes**，与主后端
+    backend/users/mongodb_models.py:VerificationCode 是同一个集合，
+    主键口径必须一致（主后端为 UUID binary）。
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
+
     PURPOSE_CHOICES = (
         ('register', '注册'),
         ('login', '登录'),
