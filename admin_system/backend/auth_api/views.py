@@ -3,11 +3,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
 from mongoengine.queryset.visitor import Q
+from .authentication import authenticate_admin, get_user_model
 from .models import AdminLoginLog
 from .serializers import (
     UserSerializer,
@@ -55,9 +54,10 @@ class LoginView(APIView):
                 }, status=status.HTTP_429_TOO_MANY_REQUESTS)
             # --- 防护结束 ---
 
-            user = authenticate(username=username, password=password)
+            # 方案 B：走 MongoDB users 集合校验（不再用 Django ORM 的 authenticate）
+            user = authenticate_admin(username, password)
 
-            if user is not None and user.is_staff:
+            if user is not None:
                 refresh = RefreshToken.for_user(user)
 
                 # 记录登录日志
@@ -154,16 +154,23 @@ class ChangePasswordView(APIView):
             old_password = serializer.validated_data['old_password']
             new_password = serializer.validated_data['new_password']
 
-            # 验证旧密码
-            if not user.check_password(old_password):
+            # 验证旧密码（与管理后台登录同一套 Django 哈希校验）
+            from django.contrib.auth.hashers import check_password, make_password
+
+            stored = getattr(user, 'password', None)
+            if not stored or not check_password(old_password, stored):
                 return Response({
                     'status': 'error',
                     'message': '旧密码不正确'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 设置新密码
-            user.set_password(new_password)
-            user.save()
+            # 写入新密码哈希。注意：admin 的 UserProfile 未声明 password 字段，
+            # 需用 update() 直接落地到 users 集合，避免被 mongoengine 忽略。
+            get_user_model().objects(id=user.id).update(
+                password=make_password(new_password),
+                password_reset_at=timezone.now(),
+                password_reset_by=getattr(user, 'username', ''),
+            )
 
             return Response({
                 'status': 'success',

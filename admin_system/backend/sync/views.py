@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+from auth_api.authentication import IsAdminStaff
 from django.utils import timezone
 from .models import SyncRecord, SyncConfig, SyncStatistics
 from .serializers import SyncRecordSerializer, SyncConfigSerializer, SyncStatisticsSerializer
@@ -14,7 +15,7 @@ class SyncViewSet(viewsets.ModelViewSet):
     """同步视图集"""
     queryset = []
     serializer_class = SyncRecordSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminStaff]
     
     def get_queryset(self):
         """获取查询集"""
@@ -171,7 +172,7 @@ class SyncConfigViewSet(viewsets.ModelViewSet):
     """同步配置视图集"""
     queryset = []
     serializer_class = SyncConfigSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminStaff]
     
     @action(detail=False, methods=['get'])
     def all_configs(self, request):

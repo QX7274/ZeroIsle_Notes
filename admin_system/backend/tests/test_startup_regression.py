@@ -76,14 +76,34 @@ def test_every_mongo_serializer_instantiates():
     assert not failures, "以下序列化器实例化失败：\n" + "\n".join(failures)
 
 
-def test_django_orm_serializer_kept_on_model_serializer():
-    """面向 Django ORM 模型的序列化器必须继续使用 DRF ModelSerializer。"""
-    from rest_framework import serializers as drf
+def test_all_serializers_are_mongoengine_backed():
+    """所有序列化器都应绑定 mongoengine 文档。
 
+    历史说明：阶段2 时 auth_api.UserSerializer 绑定的是 Django ORM 的
+    django.contrib.auth.models.User（因当时登录走 ORM），是本仓库唯一
+    保留 DRF ModelSerializer 的序列化器，故当时专门有一条测试守护它。
+
+    阶段（方案 B）后，管理后台登录改为读取 MongoDB users 集合，
+    不再依赖 Django ORM，UserSerializer 也随之绑定 mongoengine 用户文档。
+    因此这条测试改断言语义：**不再有任何 ORM 序列化器残留**。
+    （管理后台的数据库引擎是 dummy，任何 ORM 序列化器都无法工作。）
+    """
     from auth_api.serializers import UserSerializer
 
-    assert issubclass(UserSerializer, drf.ModelSerializer)
-    assert not issubclass(UserSerializer, MongoDocumentSerializer)
+    # 注意：不能断言"不是 DRF ModelSerializer" ——
+    # rest_framework_mongoengine 的 DocumentSerializer 本身就继承自
+    # rest_framework.serializers.ModelSerializer（已实测 MRO 确认），
+    # 真正决定"按 mongoengine 文档工作"的是它覆盖掉的 get_fields 实现。
+    # 因此这里断言的是：它确实经由我们的 MongoDocumentSerializer 基类，
+    # 而不是直接用 DRF 的 ModelSerializer 绑定 ORM 模型。
+    assert issubclass(UserSerializer, MongoDocumentSerializer)
+
+    # 绑定的模型必须是 mongoengine 文档（具有 _fields），而不是 Django ORM 模型
+    from auth_api.authentication import get_user_model
+
+    model = get_user_model()
+    assert hasattr(model, '_fields'), 'UserSerializer 应绑定 mongoengine 文档'
+    assert UserSerializer.Meta.model is model
 
 
 def test_choice_display_fields_resolve_display_names():

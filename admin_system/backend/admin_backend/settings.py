@@ -170,9 +170,16 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework 配置
+#
+# 认证类说明（方案 B）：
+# 原先用 DRF 自带的 SimpleJWT 认证，其 get_user 走 Django ORM，
+# 而本项目的数据库引擎是 dummy（见上方 DATABASES），因此认证必然失败。
+# 现改用 auth_api.authentication.AdminJWTAuthentication：
+# 它同样基于 SimpleJWT 校验令牌，但把用户解析到 MongoDB 的 users 集合，
+# 并要求 is_staff=True —— 与主后端的身份口径一致。
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'auth_api.authentication.AdminJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -207,13 +214,38 @@ SIMPLE_JWT = {
 }
 
 # CORS 配置
-CORS_ALLOW_ALL_ORIGINS = True  # 开发环境下允许所有来源
-# 生产环境应该指定允许的来源
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
+#
+# 安全加固（本轮）：原先无条件 CORS_ALLOW_ALL_ORIGINS = True，
+# 配合 CORS_ALLOW_CREDENTIALS = True，任何站点都能带凭据调用管理后台接口。
+# 现在改为：由环境变量 ADMIN_CORS_ALLOWED_ORIGINS 显式声明允许来源；
+# 未声明时按"仅本机开发来源"处理，而不是放开一切。
+# 若确需在开发期放开，可显式设置 ADMIN_CORS_ALLOW_ALL=1（会打告警）。
+_admin_cors_raw = os.environ.get("ADMIN_CORS_ALLOWED_ORIGINS", "").strip()
+_admin_cors_origins = [o.strip() for o in _admin_cors_raw.split(",") if o.strip()]
+_admin_cors_allow_all = os.environ.get("ADMIN_CORS_ALLOW_ALL", "") == "1"
+
+if _admin_cors_allow_all:
+    CORS_ALLOW_ALL_ORIGINS = True
+    import logging as _logging
+
+    _logging.getLogger(__name__).warning(
+        "ADMIN_CORS_ALLOW_ALL=1：管理后台允许所有来源（仅限开发环境，切勿用于生产）"
+    )
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = _admin_cors_origins or [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
+
+# IP 白名单：让 .env.example 里长期存在但从未生效的 ADMIN_ALLOWLIST_IPS 真正起作用
+# （中间件在未配置时不拦截，但会打 WARNING；生产应显式配置）
+MIDDLEWARE.insert(
+    MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,
+    "common.middleware.admin_ip_allowlist.AdminIPAllowlistMiddleware",
+)
 
 # 媒体文件配置
 MEDIA_URL = '/media/'

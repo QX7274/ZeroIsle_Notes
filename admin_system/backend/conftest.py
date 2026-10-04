@@ -23,12 +23,65 @@
 import os
 import sys
 
+import bson
+import bson.binary
 import mongomock
 from bson.binary import UuidRepresentation
+from bson.codec_options import CodecOptions
 
 # 让 tests 可以直接 import 各 app（本目录即 manage.py 所在目录）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin_backend.settings")
+
+
+# --- mongomock UUID 编码垫片 -----------------------------------------------
+#
+# 背景（与主后端 RISK-BE-002 是同一环境问题）：
+# pymongo 4 起 CodecOptions 默认 uuid_representation = UNSPECIFIED，
+# 此时 bson 拒绝编码原生 uuid.UUID；而 mongomock 4.3.0 虽然接受
+# uuidRepresentation 关键字，却把它吞进 **kwargs 未传给自己的 CodecOptions，
+# 且文档校验时调用 BSON.encode 未透传 codec_options，必然落到 UNSPECIFIED。
+#
+# 影响：本项目用户/笔记/标签等模型的主键都是 UUIDField(binary=True)，
+# 测试里一保存就抛 ValueError，与业务代码无关。
+#
+# 处置：只替换 mongomock.collection 模块内的 BSON 引用，使其校验编码使用
+# STANDARD 表示。仅作用于测试进程内的 mongomock，不影响生产与真实 MongoDB。
+# 做法与 backend/notes/tests/conftest.py 保持一致。
+#
+# 上游修复该行为后，本垫片即可删除。
+_UUID_STANDARD_CODEC_OPTIONS = CodecOptions(
+    uuid_representation=UuidRepresentation.STANDARD
+)
+
+
+class _UuidFriendlyBSON:
+    """mongomock 专用 BSON 包装：校验编码时强制 STANDARD UUID 表示。"""
+
+    @staticmethod
+    def encode(document, check_keys=False, codec_options=None):
+        chosen = codec_options
+        if chosen is None or getattr(
+            chosen, 'uuid_representation', None
+        ) == UuidRepresentation.UNSPECIFIED:
+            chosen = _UUID_STANDARD_CODEC_OPTIONS
+        return bson.BSON.encode(document, check_keys=check_keys, codec_options=chosen)
+
+
+def _install_mongomock_uuid_shim():
+    """幂等安装垫片；mongomock 不可用时静默跳过。"""
+    try:
+        import mongomock.collection as mongomock_collection
+    except Exception:  # pragma: no cover
+        return False
+    if getattr(mongomock_collection, '_uuid_compat_shim_installed', False):
+        return True
+    mongomock_collection.BSON = _UuidFriendlyBSON
+    mongomock_collection._uuid_compat_shim_installed = True
+    return True
+
+
+_SHIM_INSTALLED = _install_mongomock_uuid_shim()
 
 
 # mongomock 客户端只建一次并复用，保证各测试看到同一个内存库

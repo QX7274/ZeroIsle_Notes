@@ -1,13 +1,40 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from common.serializers import MongoDocumentSerializer
 from .models import AdminLoginLog
 
-class UserSerializer(serializers.ModelSerializer):
-    """用户序列化器"""
+
+class UserSerializer(MongoDocumentSerializer):
+    """当前登录管理员的序列化器。
+
+    说明（方案 B）：原先绑定 Django ORM 的 django.contrib.auth.models.User，
+    而管理后台的数据库引擎是 dummy，该模型根本不可用。
+    现在登录返回的是 MongoDB users 集合里的 mongoengine 用户文档，
+    因此改用 MongoDocumentSerializer（与其余 6 个 app 的序列化器口径一致）。
+
+    字段沿用原列表；mongoengine 文档没有 first_name/last_name（主后端用
+    nickname），这里映射为 nickname 与空字符串，保持前端字段不缺失。
+    """
+
+    first_name = serializers.SerializerMethodField()
+    last_name = serializers.SerializerMethodField()
+
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff', 'date_joined', 'last_login']
+        # 直接绑定 mongoengine 用户模型：实测导入 users.models 不会额外触发
+        # MongoDB 连接（settings 阶段已连过一次），因此无需延迟解析。
+        from users.models import UserProfile as _UserProfile
+
+        model = _UserProfile
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'is_active', 'is_staff', 'date_joined', 'last_login',
+        ]
         read_only_fields = ['id', 'date_joined', 'last_login']
+
+    def get_first_name(self, obj):
+        return ''
+
+    def get_last_name(self, obj):
+        return ''
 
 class AdminLoginSerializer(serializers.Serializer):
     """管理员登录序列化器"""

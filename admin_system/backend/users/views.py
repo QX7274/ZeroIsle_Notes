@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+from auth_api.authentication import IsAdminStaff
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q
@@ -25,7 +26,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     """用户资料视图集"""
     # 避免导入阶段触发 MongoDB 连接
     queryset = []
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminStaff]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'phone', 'nickname']
@@ -873,7 +874,7 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
     # 避免导入阶段触发 MongoDB 连接
     queryset = []
     serializer_class = UserActivitySerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminStaff]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['activity_type']
     search_fields = ['description', 'ip_address']

@@ -46,6 +46,18 @@ class UserProfile(Document):
     canvas_count = IntField(default=0, verbose_name='画布数量')
     login_count = IntField(default=0, verbose_name='登录次数')
 
+    # 密码哈希（方案 B 必需）
+    #
+    # 这个字段在 users 集合里**一直存在** —— 主后端
+    # backend/users/mongodb_models.py:26 声明了 password = StringField(required=True)，
+    # 并由 login/register 写入。但管理后台的 UserProfile 此前没有声明它，
+    # 于是 mongoengine 既不加载、也不允许查询该字段：
+    #   - UserProfile.objects(username=...) 取回的文档没有 password 属性；
+    #   - 用 .update(password=...) 会抛 InvalidQueryError: Cannot resolve field "password"。
+    # 结果是管理后台**无法校验任何密码**，登录不可能成功。
+    # 现在显式声明，使管理后台能读取主后端写入的同一份哈希。
+    password = StringField(required=False, verbose_name='密码哈希')
+
     # 密码重置相关字段
     password_reset_at = DateTimeField(verbose_name='密码重置时间')
     password_reset_by = StringField(max_length=150, verbose_name='密码重置管理员')
@@ -76,6 +88,21 @@ class UserProfile(Document):
     @property
     def is_banned(self):
         return self.status == 'banned' or not self.is_active
+
+    # --- DRF 兼容属性（方案 B 必需）---
+    #
+    # 方案 B 让 DRF 的 request.user 直接是 mongoengine 用户文档。
+    # DRF 的 IsAuthenticated 权限类会检查 `user.is_authenticated`，
+    # 若该属性不存在，*所有*受保护接口都会被判为未认证。
+    # 主后端 backend/users/mongodb_models.py:100 也定义了同名属性，此处对齐。
+    @property
+    def is_authenticated(self):
+        """经认证取到的用户对象恒为已认证（与主后端口径一致）。"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
 
 class UserActivity(Document):
     """用户活动记录
