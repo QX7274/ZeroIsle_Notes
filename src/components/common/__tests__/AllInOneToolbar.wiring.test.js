@@ -256,6 +256,44 @@ describe('AllInOneToolbar 工具栏接线', () => {
     expect(getByTestId('all-in-one-toolbar-group-drawing')).toBeTruthy();
   });
 
+  it('形状入口消歧：两个入口的 accessibilityLabel 互不重复', () => {
+    // 修复前两个入口都叫「形状工具」，读屏用户无法区分，UI 测试也会同时命中两个节点。
+    // 这条断言把消歧结果钉住：各自恰好 1 个，且不相等。
+    const { queryAllByLabelText } = renderToolbar();
+    expect(queryAllByLabelText('更多形状')).toHaveLength(1);
+    expect(queryAllByLabelText('形状工具')).toHaveLength(1);
+  });
+
+  it('工具栏工具按钮统一走 ToolbarPressable（compact 下有效触达 >= 44）', () => {
+    // 修复前只有标尺/网格/防误触/手指书写四处有 hitSlop，其余 24 个工具按钮仍是
+    // TouchableOpacity（compact 下仅 36 触达，未达 44）。
+    // 现在工具栏内的工具按钮统一由 ToolbarPressable 渲染，未显式传 hitSlop 时按断点补足。
+    // 注意：这里只针对「工具栏容器内」的按钮；弹窗（AI 结果/手感面板等）里的按钮
+    // 有自己的尺寸约束（它们自带 minHeight/minWidth 44），不属于本约束范围。
+    const { getByTestId } = renderToolbar();
+
+    // 只在「9 个工具组」范围内统计，且只看原生节点。
+    // 原因（WS-B 探针实测）：toolbar.allInOne 容器内同时挂着 Modal（手感面板/AI 面板），
+    // 且 findAll 会把 ToolbarPressable 这个复合组件实例本身也当成 button 收进来 ——
+    // 复合节点不持有 hitSlop（hitSlop 是它往下传给原生 Pressable 的），
+    // 用它统计会把 24 个真实按钮全部误判为「缺 hitSlop」。
+    const GROUPS = ['bookmarks', 'preset', 'history', 'drawing', 'erase', 'style', 'assist', 'ai', 'page'];
+    const isHostButton = (n) => typeof n.type === 'string' && n.props && n.props.accessibilityRole === 'button';
+    let toolButtons = [];
+    let legacy = [];
+    GROUPS.forEach((g) => {
+      const group = getByTestId(`all-in-one-toolbar-group-${g}`);
+      toolButtons = toolButtons.concat(group.findAll(isHostButton));
+      legacy = legacy.concat(group.findAll((n) => n.type === 'TouchableOpacity'));
+    });
+
+    expect(toolButtons.length).toBe(28); // 9 组共 28 个工具按钮
+    // 每个工具按钮都必须显式带上 hitSlop（由 ToolbarPressable 统一补足 44 触达）
+    expect(toolButtons.filter((b) => !b.props.hitSlop)).toHaveLength(0);
+    // 工具组内不应再残留 TouchableOpacity（已全部换成 ToolbarPressable）
+    expect(legacy).toHaveLength(0);
+  });
+
   it('内容溢出时显示「右侧还有内容」提示（不因屏幕宽而消失）', () => {
     // 测试环境的 Dimensions.get('window') 是 375 宽（见 jestSetup），
     // 远小于 9 组 28 个按钮所需宽度，因此必然溢出、必须给出提示。

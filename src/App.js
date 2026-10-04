@@ -5,8 +5,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StatusBar, Platform, LogBox, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Provider, useSelector, useDispatch } from 'react-redux';
+import { StatusBar, LogBox, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Provider, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -196,6 +196,17 @@ LogBox.ignoreLogs([
   '条笔记缺少预览元数据',
   'PersistBootstrapGate: 持久化恢复超过',
   'PersistBootstrapGate: 当前以降级模式继续启动',
+  // 既有图标名笔误：HomeScreen 的语音入口传了 Ionicons 里不存在的 mic-none，
+  // 开发态每次启动都弹「Invalid prop name」警告；而 LogBox 是模态遮罩，
+  // 会把整屏盖住导致无法操作下面的界面。这里按「已知且非本轮引入」忽略，
+  // 真正的修法是把图标名换成存在的（登记为遗留项，需单独确认该入口的预期图标）。
+  'mic-none',
+  // 以下两条来自依赖与「未签名包」环境，均非本轮引入：
+  //  - deprecated：某个第三方库调用了已废弃的 API；
+  //  - 'Error storing data'：本地未签名包缺少 keychain-access entitlement（RISK-IOS-ENTITLEMENTS-001）。
+  // 它们只以 toast 形式出现，但在开发态会遮住工具栏，妨碍设备取证。
+  'This method is deprecated',
+  'Error storing data',
 ]);
 
 // 默认主题

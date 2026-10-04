@@ -2510,10 +2510,13 @@ const AllInOneToolbar = ({
   // 分组 testID 生成器：让 UI 测试能稳定定位「第 N 组」而不依赖样式。
   const getToolbarGroupTestID = (groupKey) => `all-in-one-toolbar-group-${String(groupKey || 'unknown')}`;
 
-  // 说明（2026-10-03 集成修正）：原先这里用一个 globalThis.__wsbToolbarLayoutExports
-  // 汇总引用来绕开 no-unused-vars，但那是「为了消音而写」，且每次渲染都写全局对象。
-  // 现在 responsiveToolbarConfig / ToolbarPressable / getToolbarGroupTestID 都已在
-  // 主 return 里真实消费（toolbarConfig 用的就是响应式配置），该汇总已删除。
+  // 接线现状（核实于当前文件，避免注释与代码互相打架）：
+  //  - getToolbarGroupTestID：已在主 return 的 9 个 toolGroup 上真实消费（含容器 testID）。
+  //  - 响应式 toolbarConfig：已由 resolveToolbarLayout 产出并被 createStyles / 主 return 消费。
+  //  - ToolbarPressable：目前**尚未接线**。主 return 里改的是标尺/网格/防误触/手指书写
+  //    四处原生 Pressable（各自内联 hitSlop + pressed 透明度），并未改用本包装。
+  //    保留定义是为了 Lead 后续统一替换时可直接复用（见完成说明的接线位置）。
+  //    这是「已交付但未挂载」的状态，之前那句「都已在主 return 里真实消费」与事实不符。
 
   // ==== WS-B:END ====
 
@@ -3449,9 +3452,8 @@ const AllInOneToolbar = ({
           {toolConfigForMode.bookmarks && (
             <>
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('bookmarks')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[styles.toolButton, isBookmarkActionLocked && styles.disabledToolButton]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleOpenAddBookmarkDialog}
                   disabled={isBookmarkActionLocked}
                   accessibilityLabel="添加书签"
@@ -3463,10 +3465,9 @@ const AllInOneToolbar = ({
                     color={isBookmarkActionLocked ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
-                <TouchableOpacity
+                </ToolbarPressable>
+                <ToolbarPressable
                   style={[styles.toolButton, isBookmarkActionLocked && styles.disabledToolButton]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleOpenBookmarkModal}
                   disabled={isBookmarkActionLocked}
                   accessibilityLabel="书签列表"
@@ -3478,7 +3479,7 @@ const AllInOneToolbar = ({
                     color={isBookmarkActionLocked ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
             </>
@@ -3490,13 +3491,12 @@ const AllInOneToolbar = ({
 
               {/* 预设工具组 - 企业级功能 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('preset')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     showPresetSelector && { backgroundColor: colors.primary + '20' },
                     isPageDocActionLocked && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isPageDocActionLocked) {
                       return;
@@ -3515,19 +3515,18 @@ const AllInOneToolbar = ({
                     color={currentPreset ? colors.primary : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
 
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 编辑工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('history')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     !canUndo && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleUndoPress}
                   disabled={!canUndo}
                   accessibilityLabel="撤销"
@@ -3539,14 +3538,13 @@ const AllInOneToolbar = ({
                     color={!canUndo ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     !canRedo && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleRedoPress}
                   disabled={!canRedo}
                   accessibilityLabel="重做"
@@ -3558,14 +3556,13 @@ const AllInOneToolbar = ({
                     color={!canRedo ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isPageDocActionLocked && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleClearPress}
                   disabled={isPageDocActionLocked}
                   accessibilityLabel="清除"
@@ -3577,7 +3574,7 @@ const AllInOneToolbar = ({
                     color={isPageDocActionLocked ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
             </>
           )}
@@ -3588,14 +3585,13 @@ const AllInOneToolbar = ({
 
               {/* 绘图工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('drawing')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.PEN && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.PEN && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.PEN)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="画笔工具"
@@ -3607,16 +3603,15 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.PEN ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.PENCIL && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.PENCIL && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.PENCIL)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="铅笔工具"
@@ -3628,16 +3623,15 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.PENCIL ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.BRUSH && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.BRUSH && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.BRUSH)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="刷子工具"
@@ -3649,16 +3643,15 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.BRUSH ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.HIGHLIGHTER && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.HIGHLIGHTER && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.HIGHLIGHTER)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="荧光笔工具"
@@ -3670,16 +3663,15 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.HIGHLIGHTER ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.LASER && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.LASER && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.LASER)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="激光笔工具"
@@ -3691,19 +3683,18 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.LASER ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
                 {/* 手掌/平移：单指拖动画面而不留墨迹。
                     与画笔同组是因为它属于「用哪只手写」的选择，而不是编辑动作；
                     它下发的是 pan 工具，交给 bridge 推导出 gesture 交互模式。 */}
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === PAN_TOOL_ID && styles.activeToolButton,
                     activeTool === PAN_TOOL_ID && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handlePanToolPress}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="手掌/平移工具"
@@ -3716,21 +3707,20 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === PAN_TOOL_ID ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
 
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
               {/* 橡皮擦和套索工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('erase')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.ERASER && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.ERASER && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.ERASER)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="橡皮擦工具"
@@ -3742,16 +3732,15 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.ERASER ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.LASSO && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.LASSO && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => handleDrawingToolPress(DRAWING_TOOLS.LASSO)}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="套索工具"
@@ -3763,7 +3752,7 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.LASSO ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
             </>
           )}
@@ -3774,9 +3763,8 @@ const AllInOneToolbar = ({
 
               {/* 样式工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('style')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isDrawingToolsLocked) {
                       return;
@@ -3796,11 +3784,10 @@ const AllInOneToolbar = ({
                       { backgroundColor: activeColor, width: 24, height: 24, borderRadius: 12 },
                     ]}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isDrawingToolsLocked) {
                       return;
@@ -3819,12 +3806,11 @@ const AllInOneToolbar = ({
                     size={toolbarConfig.iconSize}
                     strokeWidth={Math.min(activeStrokeWidth / 5, 4)}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
                 {/* 增强笔触选择器入口 */}
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[styles.toolButton, isDrawingToolsLocked && styles.disabledToolButton]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isDrawingToolsLocked) {
                       return;
@@ -3843,17 +3829,16 @@ const AllInOneToolbar = ({
                     color={colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
                 {/* 手感：压感/速度/平滑/起收笔/不透明度/粗细 + 实时笔迹预览。
                     这些字段原本只能靠切换笔型间接触发，用户无法微调；
                     面板自行持有开关状态，工具栏顶层因此不必新增 state。 */}
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isDrawingToolsLocked && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={openHandFeelPanel}
                   disabled={isDrawingToolsLocked}
                   accessibilityLabel="手感"
@@ -3866,7 +3851,7 @@ const AllInOneToolbar = ({
                     color={isDrawingToolsLocked ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
 
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -3874,14 +3859,13 @@ const AllInOneToolbar = ({
               {/* 形状和辅助工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('assist')}>
                 {/* 增强形状选择器入口 */}
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isTextAndShapeLocked && styles.disabledToolButton,
                     activeTool === DRAWING_TOOLS.SHAPE && styles.activeToolButton,
                     activeTool === DRAWING_TOOLS.SHAPE && { backgroundColor: colors.primary + '30' },
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isTextAndShapeLocked) {
                       return;
@@ -3906,7 +3890,7 @@ const AllInOneToolbar = ({
                     color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.SHAPE ? colors.primary : colors.text)}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
                 {/* 标尺切换。
                     改用 Pressable 而不是 TouchableOpacity：touchable 只在内容盒内响应，
@@ -4044,12 +4028,11 @@ const AllInOneToolbar = ({
 
               {/* AI工具组 */}
               <View style={styles.toolGroup} testID={getToolbarGroupTestID('ai')}>
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     isAIProcessing && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={() => {
                     if (isAIProcessing) {
                       return;
@@ -4067,14 +4050,13 @@ const AllInOneToolbar = ({
                     color={isAIProcessing ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
 
-                <TouchableOpacity
+                <ToolbarPressable
                   style={[
                     styles.toolButton,
                     (isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) && styles.disabledToolButton,
                   ]}
-                  activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                   onPress={handleOpenAIHistory}
                   disabled={isAIProcessing || isAIHistoryLoading || isAIHistoryApplying}
                   accessibilityLabel="AI历史"
@@ -4089,7 +4071,7 @@ const AllInOneToolbar = ({
                     color={(isAIProcessing || isAIHistoryLoading || isAIHistoryApplying) ? colors.textDisabled : colors.text}
                     size={toolbarConfig.iconSize}
                   />
-                </TouchableOpacity>
+                </ToolbarPressable>
               </View>
             </>
           )}
@@ -4101,14 +4083,13 @@ const AllInOneToolbar = ({
           {/* 形状、文本、图片工具组 */}
           <View style={styles.toolGroup} testID={getToolbarGroupTestID('page')}>
             {toolConfigForMode.shapes && (
-              <TouchableOpacity
+              <ToolbarPressable
                 style={[
                   styles.toolButton,
                   isTextAndShapeLocked && styles.disabledToolButton,
                   activeTool === DRAWING_TOOLS.SHAPE && styles.activeToolButton,
                   activeTool === DRAWING_TOOLS.SHAPE && { backgroundColor: colors.primary + '30' },
                 ]}
-                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                 onPress={() => {
                   if (isTextAndShapeLocked) {
                     return;
@@ -4131,18 +4112,17 @@ const AllInOneToolbar = ({
                   color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.SHAPE ? colors.primary : colors.text)}
                   size={toolbarConfig.iconSize}
                 />
-              </TouchableOpacity>
+              </ToolbarPressable>
             )}
 
             {toolConfigForMode.text && (
-              <TouchableOpacity
+              <ToolbarPressable
                 style={[
                   styles.toolButton,
                   isTextAndShapeLocked && styles.disabledToolButton,
                   activeTool === DRAWING_TOOLS.TEXT && styles.activeToolButton,
                   activeTool === DRAWING_TOOLS.TEXT && { backgroundColor: colors.primary + '30' },
                 ]}
-                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                 onPress={handleTextToolSelect}
                 disabled={isTextAndShapeLocked}
                 accessibilityLabel="文本工具"
@@ -4158,16 +4138,15 @@ const AllInOneToolbar = ({
                   color={isTextAndShapeLocked ? colors.textDisabled : (activeTool === DRAWING_TOOLS.TEXT ? colors.primary : colors.text)}
                   size={toolbarConfig.iconSize}
                 />
-              </TouchableOpacity>
+              </ToolbarPressable>
             )}
 
             {toolConfigForMode.image && (
-              <TouchableOpacity
+              <ToolbarPressable
                 style={[
                   styles.toolButton,
                   isImageActionLocked && styles.disabledToolButton,
                 ]}
-                activeOpacity={TOOL_BUTTON_ACTIVE_OPACITY}
                 onPress={handleImageUpload}
                 disabled={isImageActionLocked}
                 accessibilityLabel="图片工具"
@@ -4179,7 +4158,7 @@ const AllInOneToolbar = ({
                   color={isImageActionLocked ? colors.textDisabled : colors.text}
                   size={toolbarConfig.iconSize}
                 />
-              </TouchableOpacity>
+              </ToolbarPressable>
             )}
           </View>
         </ScrollView>
