@@ -578,13 +578,22 @@ class BackupServiceEnhanced:
             List[str]: 集合名称列表
         """
         # 集合分类配置
+        #
+        # 命名口径修正（阶段3）：此处原先使用 'comments' / 'attachments' 等名称，
+        # 但主 App 实际写入的是 note_comments / note_attachments，
+        # 导致按 'data' 备份时**评论与附件实际未被备份**（集合不存在会被下方
+        # 过滤逻辑静默剔除）。现统一为主 App 的真实集合名。
+        # 同时在末尾保留历史名称，兼容库中可能残留的旧集合。
         collection_groups = {
             'full': None,  # None表示所有集合
             'data': [
                 'notes', 'note_versions', 'note_backups',
-                'comments', 'attachments', 'categories', 'tags',
+                # 主 App 真实集合名（修正前误写为 comments / attachments）
+                'note_comments', 'note_attachments', 'categories', 'tags',
                 'note_shares', 'note_collaborations', 'note_reminders',
-                'annotations', 'drawing_paths'
+                'annotations', 'drawing_paths',
+                # 历史名称，仅用于兼容可能残留的旧集合
+                'comments', 'attachments',
             ],
             'settings': [
                 'system_settings', 'announcements', 'system_logs'
