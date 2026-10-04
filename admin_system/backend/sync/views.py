@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -108,6 +109,10 @@ class SyncViewSet(viewsets.ModelViewSet):
             serializer = SyncRecordSerializer(sync_record)
             return Response(serializer.data)
         
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"执行同步操作时出错: {str(e)}")
             return Response(
@@ -139,6 +144,10 @@ class SyncViewSet(viewsets.ModelViewSet):
             serializer = SyncRecordSerializer(sync_record)
             return Response(serializer.data)
         
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"取消同步操作时出错: {str(e)}")
             return Response(
@@ -253,6 +262,10 @@ class SyncConfigViewSet(viewsets.ModelViewSet):
             
             return Response({"message": "配置更新成功"})
         
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量更新配置时出错: {str(e)}")
             return Response(

@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -300,6 +301,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                     "password_reset": True,
                     "updated_at": timezone.now()
                 })
+            except ValidationError:
+                # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+                # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+                raise
             except Exception as e:
                 logger.error(f"在主应用中重置用户密码时出错: {str(e)}")
                 return Response(
@@ -324,6 +329,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 'new_password': new_password  # 在实际生产环境中，应该通过更安全的方式传递密码
             })
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"重置用户密码时出错: {str(e)}")
             return Response(
@@ -369,6 +378,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 'message': '用户数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步用户数据时出错: {str(e)}")
             return Response(
@@ -555,6 +568,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 "message": f"成功激活 {activated_count} 个用户",
                 "activated_count": activated_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量激活用户时出错: {str(e)}")
             return Response(
@@ -613,6 +630,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 "message": f"成功禁用 {deactivated_count} 个用户",
                 "deactivated_count": deactivated_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量禁用用户时出错: {str(e)}")
             return Response(
@@ -666,6 +687,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 "message": f"成功删除 {deleted_count} 个用户",
                 "deleted_count": deleted_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量删除用户时出错: {str(e)}")
             return Response(
@@ -762,6 +787,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 "errors": errors
             })
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"导入用户数据时出错: {str(e)}")
             return Response(
@@ -836,6 +865,10 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 "format": export_format,
                 "data": users_data
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"导出用户数据时出错: {str(e)}")
             return Response(

@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -71,6 +72,10 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': '管理员操作日志数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步管理员操作日志数据时出错: {str(e)}")
             return Response(
@@ -134,6 +139,10 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
                 },
                 'message': '管理员操作日志已清空'
             }, status=status.HTTP_200_OK)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"清空管理员操作日志失败: {str(e)}")
             return Response({
@@ -335,6 +344,10 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': '系统日志数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步系统日志数据时出错: {str(e)}")
             return Response(
@@ -395,6 +408,10 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
                 },
                 'message': '系统日志已清空'
             }, status=status.HTTP_200_OK)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"清空系统日志失败: {str(e)}")
             return Response({
@@ -586,6 +603,10 @@ class LogExportHistoryViewSet(viewsets.ModelViewSet):
 
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"创建日志导出历史记录时出错: {str(e)}")
             return Response({

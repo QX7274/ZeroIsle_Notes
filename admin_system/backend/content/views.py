@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -100,6 +101,10 @@ class NoteCategoryViewSet(viewsets.ModelViewSet):
                 'message': '分类数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步分类数据时出错: {str(e)}")
             return Response(
@@ -165,6 +170,10 @@ class TagViewSet(viewsets.ModelViewSet):
                 'message': '标签数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步标签数据时出错: {str(e)}")
             return Response(
@@ -347,6 +356,10 @@ class ContentReportViewSet(viewsets.ModelViewSet):
                 'message': '举报数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步举报数据时出错: {str(e)}")
             return Response(
@@ -644,6 +657,10 @@ class NoteViewSet(viewsets.ModelViewSet):
                 'message': '笔记数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步笔记数据时出错: {str(e)}")
             return Response(
@@ -703,6 +720,10 @@ class NoteViewSet(viewsets.ModelViewSet):
                 "message": f"成功将 {updated_count} 个笔记状态更新为 {status_display}",
                 "updated_count": updated_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量更新笔记状态时出错: {str(e)}")
             return Response(
@@ -749,6 +770,10 @@ class NoteViewSet(viewsets.ModelViewSet):
                 "message": f"成功删除 {deleted_count} 个笔记",
                 "deleted_count": deleted_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量删除笔记时出错: {str(e)}")
             return Response(
@@ -819,6 +844,10 @@ class NoteViewSet(viewsets.ModelViewSet):
                 "message": f"成功导出 {len(notes_data)} 个笔记数据",
                 "data": notes_data
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"导出笔记数据时出错: {str(e)}")
             return Response(
@@ -940,6 +969,10 @@ class CommentViewSet(viewsets.ModelViewSet):
                 "message": f"成功删除 {deleted_count} 个评论",
                 "deleted_count": deleted_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量删除评论时出错: {str(e)}")
             return Response(
@@ -984,6 +1017,10 @@ class CommentViewSet(viewsets.ModelViewSet):
                 'message': '评论数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步评论数据时出错: {str(e)}")
             return Response(
@@ -1112,6 +1149,10 @@ class AttachmentViewSet(viewsets.ModelViewSet):
                 "message": f"成功删除 {deleted_count} 个附件",
                 "deleted_count": deleted_count
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"批量删除附件时出错: {str(e)}")
             return Response(
@@ -1156,6 +1197,10 @@ class AttachmentViewSet(viewsets.ModelViewSet):
                 'message': '附件数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步附件数据时出错: {str(e)}")
             return Response(

@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -100,6 +101,10 @@ class AnalyticsReportViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(report)
             return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
         
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"生成报表时出错: {str(e)}")
             return Response(
@@ -253,6 +258,10 @@ class ReportTemplateViewSet(viewsets.ModelViewSet):
             serializer = AnalyticsReportSerializer(report)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"使用模板生成报表时出错: {str(e)}")
             return Response(

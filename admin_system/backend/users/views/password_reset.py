@@ -6,6 +6,7 @@ import logging
 import importlib.util
 from pathlib import Path
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -77,6 +78,10 @@ class PasswordResetView(APIView):
             else:
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"发送密码重置验证码失败: {str(e)}")
             return Response({
@@ -129,6 +134,10 @@ class VerifyResetCodeView(APIView):
             else:
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"验证重置码失败: {str(e)}")
             return Response({
@@ -187,6 +196,10 @@ class CompletePasswordResetView(APIView):
             else:
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"完成密码重置失败: {str(e)}")
             return Response({

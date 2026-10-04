@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -107,6 +108,10 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
                 'message': '系统设置数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步系统设置数据时出错: {str(e)}")
             return Response(
@@ -377,6 +382,10 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                 'message': '系统公告数据同步成功',
                 'result': result
             })
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"同步系统公告数据时出错: {str(e)}")
             return Response(
@@ -493,6 +502,10 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                 'message': '通知发送成功',
                 'data': result
             }, status=status.HTTP_200_OK)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"发送公告通知时出错: {str(e)}")
             return Response({
@@ -755,6 +768,10 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
                 'message': '备份恢复成功',
                 'data': result
             }, status=status.HTTP_200_OK)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"恢复备份时出错: {str(e)}")
             return Response({
@@ -795,6 +812,10 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
                 'backup_id': result['backup_id']
             }, status=status.HTTP_201_CREATED)
 
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"导入备份文件时出错: {str(e)}")
             return Response({
@@ -887,6 +908,10 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
                 'message': '完整备份创建成功',
                 'backup_id': result['backup_id']
             }, status=status.HTTP_201_CREATED)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"创建完整备份时出错: {str(e)}")
             return Response({
@@ -923,6 +948,10 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
                 'message': '数据备份创建成功',
                 'backup_id': result['backup_id']
             }, status=status.HTTP_201_CREATED)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"创建数据备份时出错: {str(e)}")
             return Response({
@@ -959,6 +988,10 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
                 'message': '设置备份创建成功',
                 'backup_id': result['backup_id']
             }, status=status.HTTP_201_CREATED)
+        except ValidationError:
+            # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
+            # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
+            raise
         except Exception as e:
             logger.error(f"创建设置备份时出错: {str(e)}")
             return Response({
