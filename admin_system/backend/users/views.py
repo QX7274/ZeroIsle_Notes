@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from auth_api.authentication import IsAdminStaff
 from common.filters import MongoFilterBackend
 from django.utils import timezone
-from django.db.models import Q
+from mongoengine.queryset.visitor import Q
 from datetime import timedelta
 import logging
 

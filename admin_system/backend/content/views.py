@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from common.filters import MongoFilterBackend
 from django.utils import timezone
-from django.db.models import Q
+from mongoengine.queryset.visitor import Q
 from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment
 from .serializers import (
     NoteCategorySerializer,
