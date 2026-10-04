@@ -105,7 +105,11 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         # 按模块统计
         module_stats = {}
-        modules = AdminOperationLog.objects.values_list('module', flat=True).distinct()
+        # mongoengine 不支持 Django ORM 的 values_list(flat=True).distinct()；
+        # 对应写法是 distinct('field')，直接返回值列表。
+        # mongoengine 不支持 Django ORM 的 values_list(flat=True).distinct()；
+        # 对应写法是 distinct('field')，直接返回值列表。
+        modules = AdminOperationLog.objects.distinct('module')
         for module in modules:
             module_stats[module] = AdminOperationLog.objects.filter(module=module).count()
 
@@ -365,7 +369,8 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         # 按来源统计
         source_stats = {}
-        sources = SystemLog.objects.values_list('source', flat=True).distinct()
+        # 同上：改用 mongoengine 的 distinct('field')
+        sources = SystemLog.objects.distinct('source')
         for source in sources:
             source_stats[source] = SystemLog.objects.filter(source=source).count()
 
@@ -595,19 +600,20 @@ class LogExportHistoryViewSet(viewsets.ModelViewSet):
 
         # 按日志类型统计
         log_type_stats = {}
-        log_types = LogExportHistory.objects.values_list('log_type', flat=True).distinct()
+        # mongoengine：distinct('field') 而非 values_list(flat=True)
+        log_types = LogExportHistory.objects.distinct('log_type')
         for log_type in log_types:
             log_type_stats[log_type] = LogExportHistory.objects.filter(log_type=log_type).count()
 
         # 按格式统计
         format_stats = {}
-        formats = LogExportHistory.objects.values_list('format', flat=True).distinct()
+        formats = LogExportHistory.objects.distinct('format')
         for format_type in formats:
             format_stats[format_type] = LogExportHistory.objects.filter(format=format_type).count()
 
         # 按用户统计
         user_stats = {}
-        users = LogExportHistory.objects.values_list('created_by', flat=True).distinct()
+        users = LogExportHistory.objects.distinct('created_by')
         for user in users:
             user_stats[user] = LogExportHistory.objects.filter(created_by=user).count()
 
@@ -842,71 +848,105 @@ class LogAnalyticsView(APIView):
 
         return distribution
 
+    # --- 聚合辅助 ---------------------------------------------------------
+    #
+    # 以下排行榜原先用 Django ORM 的写法：
+    #     Qs.objects.values('field').annotate(count=models.Count('field'))
+    # mongoengine 的 QuerySet 没有 values()，也没有 annotate()（实测确认），
+    # 直接调用会抛 AttributeError，导致接口 500。
+    # 这里改用 mongoengine 原生聚合管道（aggregate + $group + $sort + $limit），
+    # 与原 group by + count + order by + limit 语义等价。
+    @staticmethod
+    def _top_by_field(queryset, field, limit=10, extra_fields=()):
+        """按 field 分组计数并取前 limit 条，按 count 降序。"""
+        group_id = {field: '$' + field}
+        for _name in extra_fields:
+            group_id[_name] = '$' + _name
+
+        pipeline = [
+            {'$group': {'_id': group_id, 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+            {'$limit': limit},
+        ]
+        rows = list(queryset.aggregate(pipeline))
+        result = []
+        for row in rows:
+            group = row.get('_id') or {}
+            item = {field: group.get(field), 'count': row.get('count', 0)}
+            for _name in extra_fields:
+                item[_name] = group.get(_name)
+            result.append(item)
+        return result
+
     def _get_top_modules(self):
         """获取热门模块排行榜"""
-        modules = AdminOperationLog.objects.values('module').annotate(
-            count=models.Count('module')
-        ).order_by('-count')[:10]
-
-        return [{'name': module['module'], 'value': module['count']} for module in modules]
+        modules = self._top_by_field(AdminOperationLog.objects, 'module')
+        return [{'name': m['module'], 'value': m['count']} for m in modules]
 
     def _get_top_ips(self):
         """获取热门IP地址排行榜"""
-        ips = AdminOperationLog.objects.values('ip_address').annotate(
-            count=models.Count('ip_address')
-        ).order_by('-count')[:10]
-
+        ips = self._top_by_field(AdminOperationLog.objects, 'ip_address')
         return [{'name': ip['ip_address'], 'value': ip['count']} for ip in ips]
 
     def _get_top_errors(self):
         """获取热门错误消息"""
-        errors = SystemLog.objects.filter(level='error').values('message', 'source').annotate(
-            count=models.Count('message')
-        ).order_by('-count')[:10]
+        errors = self._top_by_field(
+            SystemLog.objects.filter(level='error'),
+            'message',
+            extra_fields=('source',),
+        )
 
-        return [
-            {
+        result = []
+        for error in errors:
+            last = SystemLog.objects.filter(
+                message=error['message'], level='error'
+            ).order_by('-timestamp').first()
+            result.append({
                 'message': error['message'],
                 'source': error['source'],
                 'count': error['count'],
-                'last_time': SystemLog.objects.filter(
-                    message=error['message'],
-                    level='error'
-                ).order_by('-timestamp').first().timestamp
-            }
-            for error in errors
-        ]
+                'last_time': last.timestamp if last else None,
+            })
+        return result
 
     def _get_top_admins(self):
         """获取活跃管理员排行"""
-        admins = AdminOperationLog.objects.values('admin_username', 'admin_id').annotate(
-            count=models.Count('admin_username')
-        ).order_by('-count')[:10]
+        admins = self._top_by_field(
+            AdminOperationLog.objects, 'admin_username', extra_fields=('admin_id',)
+        )
 
         return [
             {
-                'admin_username': admin['admin_username'],
-                'admin_id': admin['admin_id'],
-                'count': admin['count']
+                'admin_username': a['admin_username'],
+                'admin_id': a['admin_id'],
+                'count': a['count'],
             }
-            for admin in admins
+            for a in admins
         ]
-
     def _get_admin_time_distribution(self):
-        """获取管理员操作时间分布"""
-        distribution = []
+        """获取管理员操作时间分布。
 
-        for hour in range(24):
-            count = AdminOperationLog.objects.filter(
-                operation_time__hour=hour
-            ).count()
+        修正：原实现用 Django ORM 的 `operation_time__hour=hour` 查询运算符，
+        但 mongoengine **不支持 __hour 这类"字段变换"运算符**，实测抛：
+            InvalidQueryError: Cannot resolve subfield or operator hour
+        导致 /api/logs/analytics/ 每次都 500。
+        改为用 MongoDB 聚合管道的 $hour 一次算出 24 个小时的分布
+        （同时把原来的 24 次查询减少为 1 次）。
+        """
+        rows = AdminOperationLog.objects.aggregate([
+            {
+                '$group': {
+                    '_id': {'$hour': {'date': '$operation_time', 'timezone': 'UTC'}},
+                    'count': {'$sum': 1},
+                }
+            }
+        ])
+        counts = {int(r['_id']): r.get('count', 0) for r in rows if r.get('_id') is not None}
 
-            distribution.append({
-                'hour': f"{hour:02d}:00",
-                'count': count
-            })
-
-        return distribution
+        return [
+            {'hour': f'{hour:02d}:00', 'count': counts.get(hour, 0)}
+            for hour in range(24)
+        ]
 
     def _calculate_health_status(self):
         """计算系统健康状态"""
@@ -944,9 +984,10 @@ class LogAnalyticsView(APIView):
             })
 
         # 检查是否有频繁出现的错误
-        top_errors = SystemLog.objects.filter(level='error').values('message').annotate(
-            count=models.Count('message')
-        ).order_by('-count')[:3]
+        # 同上：mongoengine 无 values()/annotate()，改用聚合管道
+        top_errors = self._top_by_field(
+            SystemLog.objects.filter(level='error'), 'message', limit=3
+        )
 
         for error in top_errors:
             if error['count'] > 10:

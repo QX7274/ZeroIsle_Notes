@@ -512,32 +512,45 @@ class NoteViewSet(viewsets.ModelViewSet):
                 })
 
             # 统计最活跃的分类
-            from django.db.models import Count
-            top_categories = NoteCategory.objects.annotate(
-                note_count=Count('note')
-            ).order_by('-note_count')[:5]
-
+            # mongoengine 的 QuerySet 没有 annotate()（Django ORM 专有），
+            # 且 Note.category 是 ReferenceField —— ORM 式的 Count('note') 反向计数
+            # 在 mongoengine 下也不成立。这里改为显式计数：
+            # 用 Note 集合按 category 做一次聚合，再回填名称。
+            category_counts = Note.objects.aggregate([
+                {'$match': {'category': {'$ne': None}}},
+                {'$group': {'_id': '$category', 'note_count': {'$sum': 1}}},
+                {'$sort': {'note_count': -1}},
+                {'$limit': 5},
+            ])
             top_categories_data = []
-            for category in top_categories:
+            for row in category_counts:
+                category = NoteCategory.objects(id=row["_id"]).first()
+                if category is None:
+                    continue
                 top_categories_data.append({
                     'id': str(category.id),
                     'name': category.name,
-                    'note_count': category.note_count
+                    'note_count': row.get('note_count', 0),
                 })
 
             # 统计最活跃的标签
-            top_tags = Tag.objects.annotate(
-                note_count=Count('note')
-            ).order_by('-note_count')[:5]
-
+            # 同上：Note.tags 是 ListField(ReferenceField)，先 unwind 再分组。
+            tag_counts = Note.objects.aggregate([
+                {'$unwind': '$tags'},
+                {'$group': {'_id': '$tags', 'note_count': {'$sum': 1}}},
+                {'$sort': {'note_count': -1}},
+                {'$limit': 5},
+            ])
             top_tags_data = []
-            for tag in top_tags:
+            for row in tag_counts:
+                tag = Tag.objects(id=row["_id"]).first()
+                if tag is None:
+                    continue
                 top_tags_data.append({
                     'id': str(tag.id),
                     'name': tag.name,
-                    'note_count': tag.note_count
+                    'note_count': row.get('note_count', 0),
                 })
-
             # 统计浏览量、点赞数和评论数最多的笔记
             top_viewed_notes = Note.objects.order_by('-view_count')[:5]
             top_liked_notes = Note.objects.order_by('-like_count')[:5]

@@ -424,7 +424,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
             # 获取用户活跃度分布
             login_distribution = {
-                'never_logged_in': UserProfile.objects.filter(last_login__isnull=True).count(),
+                # 修正：mongoengine 不支持 Django ORM 的 __isnull 运算符，
+                # 实测抛 InvalidQueryError: Cannot resolve subfield or operator isnull。
+                # mongoengine 里"字段为空"对应 __exists=False 或 __in=[None]。
+                'never_logged_in': UserProfile.objects.filter(
+                    last_login__exists=False
+                ).count(),
                 'inactive_90_days': UserProfile.objects.filter(
                     last_login__lt=timezone.now() - timezone.timedelta(days=90)
                 ).count(),
@@ -442,12 +447,38 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                 logger.warning(f"从主应用获取用户统计信息时出错: {str(e)}")
                 main_app_stats = {}
 
-            # 合并统计信息
+            # 统计口径修正：
+            # UserStatsSerializer 声明的字段是 total_users / active_users /
+            # inactive_users / banned_users / new_users_today / new_users_this_week /
+            # new_users_this_month / login_users_today，
+            # 而这里此前只塞了 new_users_7_days / active_users_7_days 等名字，
+            # 于是 DRF 取不到字段，抛：
+            #   KeyError when attempting to get a value for field new_users_today
+            # 导致 /api/users/profiles/stats/ 每次 500。
+            # 现在按序列化器声明的字段名给出对应值（今日/本周/本月从本地统计口径换算）。
             stats_data = {
                 'total_users': total_users,
                 'active_users': active_users,
                 'inactive_users': inactive_users,
                 'banned_users': banned_users,
+                # 序列化器声明的是"今日/本周/本月"，此处用 7/30 天口径映射不合适，
+                # 因此按真实时间窗重新取数，保证字段语义与名字一致。
+                'new_users_today': UserProfile.objects.filter(
+                    date_joined__gte=timezone.now() - timezone.timedelta(days=1)
+                ).count(),
+                'new_users_this_week': new_users_7_days,
+                'new_users_this_month': new_users_30_days,
+                'login_users_today': UserProfile.objects.filter(
+                    last_login__gte=timezone.now() - timezone.timedelta(days=1)
+                ).count(),
+            }
+
+            serializer = UserStatsSerializer(stats_data)
+
+            # 除序列化器声明的核心字段外，把此前额外统计的信息一并返回，
+            # 既保留原有信息量，又不破坏序列化器的字段契约。
+            payload = dict(serializer.data)
+            payload.update({
                 'active_rate': active_rate,
                 'inactive_rate': inactive_rate,
                 'banned_rate': banned_rate,
@@ -460,14 +491,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                     'total_notes': total_notes,
                     'total_canvases': total_canvases,
                     'avg_notes_per_user': round(total_notes / total_users, 2) if total_users > 0 else 0,
-                    'avg_canvases_per_user': round(total_canvases / total_users, 2) if total_users > 0 else 0
+                    'avg_canvases_per_user': round(total_canvases / total_users, 2) if total_users > 0 else 0,
                 },
                 'login_distribution': login_distribution,
-                'main_app_stats': main_app_stats
-            }
-
-            serializer = UserStatsSerializer(stats_data)
-            return Response(serializer.data)
+                'main_app_stats': main_app_stats,
+            })
+            return Response(payload)
         except Exception as e:
             logger.error(f"获取用户统计信息时出错: {str(e)}")
             return Response(

@@ -232,10 +232,32 @@ class UserService:
         user_distribution = self._get_local_user_distribution()
 
         # 获取最近注册的用户
-        recent_users = list(UserProfile.objects.all().order_by('-date_joined')[:5].values('id', 'username', 'email', 'date_joined'))
+        # mongoengine 的 QuerySet 没有 values()（Django ORM 专有），
+        # 用 only() 限定字段后用属性取值，效果等价。
+        recent_users = [
+            {
+                'id': str(u.id),
+                'username': u.username,
+                'email': u.email,
+                'date_joined': u.date_joined,
+            }
+            for u in UserProfile.objects.all().order_by('-date_joined').only(
+                'username', 'email', 'date_joined'
+            )[:5]
+]
 
         # 获取最活跃的用户
-        most_active_users = list(UserProfile.objects.all().order_by('-login_count')[:5].values('id', 'username', 'email', 'login_count'))
+        most_active_users = [
+            {
+                'id': str(u.id),
+                'username': u.username,
+                'email': u.email,
+                'login_count': u.login_count,
+            }
+            for u in UserProfile.objects.all().order_by('-login_count').only(
+                'username', 'email', 'login_count'
+            )[:5]
+]
 
         return {
             "total_users": total_users,

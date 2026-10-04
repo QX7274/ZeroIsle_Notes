@@ -556,16 +556,19 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                 })
 
             # 统计创建者分布
-            from django.db.models import Count
-            creators = Announcement.objects.values('created_by').annotate(
-                count=Count('id')
-            ).order_by('-count')[:5]
+            # mongoengine 无 values()/annotate()（Django ORM 专有），
+            # 改用聚合管道做 group by + count + 排序 + 取前 5。
+            creators = Announcement.objects.aggregate([
+                {'$group': {'_id': '$created_by', 'count': {'$sum': 1}}},
+                {'$sort': {'count': -1}},
+                {'$limit': 5},
+            ])
 
             creators_data = []
             for creator in creators:
                 creators_data.append({
-                    'name': creator['created_by'],
-                    'count': creator['count']
+                    'name': creator.get('_id'),
+                    'count': creator.get('count', 0),
                 })
 
             return Response({
