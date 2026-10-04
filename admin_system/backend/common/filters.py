@@ -98,3 +98,94 @@ class MongoFilterBackend(BaseFilterBackend):
             # 过滤条件非法时不要让整个请求 500：记录后忽略该条件
             logger.warning("MongoFilterBackend 过滤失败，已忽略条件 %s：%s", lookup, exc)
             return queryset
+
+
+class MongoSearchFilter(BaseFilterBackend):
+    """用 mongoengine 语法实现的搜索后端，替代 DRF 的 SearchFilter。
+
+    为什么不能用 DRF 自带的 SearchFilter：
+    它内部会构造 Django ORM 的 Q 对象并依赖 queryset.model._meta，
+    而本项目的 queryset 是 mongoengine QuerySet。实测带 ?search= 请求时抛：
+        InvalidQueryError: Not a query object: (OR: ('title__icontains', 'x'), ...)
+        Did you intend to use key=value?
+    即 **每个挂了 SearchFilter 的接口一旦使用搜索就 500**（本轮实测 17 个端点全中）。
+
+    行为对齐：读取 view.search_fields（与 DRF 同名），
+    默认用 icontains 做 OR 模糊匹配，支持 DRF 的前缀约定：
+        ^  前缀匹配（startswith）
+        =  精确匹配（exact）
+        $  正则匹配（regex）
+        @  全文检索（本项目未启用，按 icontains 处理）
+    多个搜索词之间为 AND（与 DRF 一致）。
+    """
+
+    search_param = "search"
+
+    # 与 DRF SearchFilter.lookup_prefixes 保持一致的前缀语义
+    lookup_prefixes = {
+        "^": "istartswith",
+        "=": "iexact",
+        "$": "iregex",
+        "@": "icontains",  # 未启用全文检索，退化为包含匹配
+    }
+
+    def get_search_fields(self, view, request):
+        return getattr(view, "search_fields", None)
+
+    def get_search_terms(self, request):
+        """按空格/逗号切分搜索词（与 DRF 行为一致）。"""
+        params = request.query_params.get(self.search_param, "")
+        params = params.replace("\x00", "").replace(",", " ")
+        return [t for t in params.split() if t]
+
+    def construct_search(self, field_name, search_term):
+        """把 search_fields 条目转换成一个 mongoengine 查询条件。
+
+        返回 (lookup_string, value)，可直接喂给 queryset.filter(**{lookup: value})。
+        """
+        if field_name and field_name[0] in self.lookup_prefixes:
+            lookup = self.lookup_prefixes[field_name[0]]
+            field_name = field_name[1:]
+        else:
+            lookup = "icontains"
+        return f"{field_name}__{lookup}", search_term
+
+    def filter_queryset(self, request, queryset, view):
+        search_fields = self.get_search_fields(view, request)
+        search_terms = self.get_search_terms(request)
+        if not search_fields or not search_terms:
+            return queryset
+
+        from mongoengine.queryset.visitor import Q as MongoQ
+
+        try:
+            # 每个词内部 OR，词与词之间 AND（与 DRF 语义一致）
+            combined = None
+            for term in search_terms:
+                term_q = None
+                for field in search_fields:
+                    lookup, value = self.construct_search(field, term)
+                    piece = MongoQ(**{lookup: value})
+                    term_q = piece if term_q is None else (term_q | piece)
+                if term_q is None:
+                    continue
+                combined = term_q if combined is None else (combined & term_q)
+            if combined is None:
+                return queryset
+            return queryset.filter(combined)
+        except Exception as exc:  # noqa: BLE001
+            # 搜索条件非法（例如字段不存在）时不要让请求 500：
+            # 记 warning 并忽略搜索条件，返回未过滤结果。
+            logger.warning("MongoSearchFilter 搜索失败，已忽略搜索条件：%s", exc)
+            return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            {
+                "name": self.search_param,
+                "required": False,
+                "in": "query",
+                "description": "模糊搜索（多个词以空格分隔，词间为 AND）",
+                "schema": {"type": "string"},
+            }
+        ]

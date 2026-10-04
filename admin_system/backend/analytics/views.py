@@ -3,7 +3,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from common.filters import MongoFilterBackend
+from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.http import HttpResponse
@@ -40,8 +40,12 @@ class AnalyticsReportViewSet(viewsets.ModelViewSet):
         return AnalyticsReport.objects.all()
 
     serializer_class = AnalyticsReportSerializer
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['report_type', 'created_by', 'status']
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
+    # 修正：AnalyticsReport 模型没有 status 字段（见 analytics/models.py），
+    # 原先声明在此会让 ?status=xxx 触发
+    #   InvalidQueryError: Cannot resolve field "status"  -> 500。
+    # 模型上真实可用于过滤的是 is_scheduled / schedule_frequency，以及 report_type/created_by。
+    filterset_fields = ['report_type', 'created_by', 'is_scheduled', 'schedule_frequency']
 
     def get_permissions(self):
         """根据操作动态设置权限"""
@@ -165,7 +169,7 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
 
     serializer_class = DashboardWidgetSerializer
     permission_classes = [IsAuthenticated, CanViewAnalytics]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['widget_type', 'created_by']
     search_fields = ['title', 'data_source']
     ordering_fields = ['created_at', 'updated_at']
@@ -213,7 +217,7 @@ class ReportTemplateViewSet(viewsets.ModelViewSet):
 
     serializer_class = ReportTemplateSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['template_type', 'is_system', 'created_by']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'updated_at']

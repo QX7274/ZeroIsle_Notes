@@ -3,7 +3,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from common.filters import MongoFilterBackend
+from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from django.http import FileResponse
 import os
@@ -36,7 +36,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
 
     serializer_class = SystemSettingSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['key', 'value', 'description']
     ordering_fields = ['key', 'created_at', 'updated_at']
     ordering = ['key']
@@ -300,7 +300,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     """系统公告视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
     search_fields = ['title', 'content', 'created_by']
     ordering_fields = ['start_time', 'end_time', 'created_at']
@@ -709,7 +709,7 @@ class SystemBackupViewSet(viewsets.ModelViewSet):
         return SystemBackup.objects.all()
 
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['backup_type', 'status', 'is_auto', 'created_by']
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'completed_at']

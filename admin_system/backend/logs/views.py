@@ -3,7 +3,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from common.filters import MongoFilterBackend
+from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from django.db import models
 from .models import AdminOperationLog, SystemLog, LogExportHistory
@@ -26,7 +26,7 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = []
     serializer_class = AdminOperationLogSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['admin_username', 'module', 'action']
     search_fields = ['admin_username', 'module', 'description', 'resource_id']
     ordering_fields = ['operation_time']
@@ -298,7 +298,7 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = []
     serializer_class = SystemLogSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['level', 'source']
     search_fields = ['source', 'message']
     ordering_fields = ['timestamp']
@@ -565,7 +565,7 @@ class LogExportHistoryViewSet(viewsets.ModelViewSet):
 
     serializer_class = LogExportHistorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['log_type', 'format', 'created_by']
     search_fields = ['file_name', 'created_by']
     ordering_fields = ['created_at']

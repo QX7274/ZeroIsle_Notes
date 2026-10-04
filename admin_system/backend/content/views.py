@@ -3,7 +3,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from common.filters import MongoFilterBackend
+from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from mongoengine.queryset.visitor import Q
 from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment
@@ -43,7 +43,7 @@ class NoteCategoryViewSet(viewsets.ModelViewSet):
 
     serializer_class = NoteCategorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at', 'updated_at']
     ordering = ['name']
@@ -128,7 +128,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['name']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
@@ -185,7 +185,7 @@ class ContentReportViewSet(viewsets.ModelViewSet):
     """内容举报视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'reason', 'content_type']
     search_fields = ['content_id', 'reporter_id', 'description']
     ordering_fields = ['created_at', 'updated_at']
@@ -371,7 +371,7 @@ class NoteViewSet(viewsets.ModelViewSet):
     """笔记视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'updated_at', 'view_count', 'like_count', 'comment_count']
     ordering = ['-created_at']
@@ -859,7 +859,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     """评论视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['content', 'username']
     ordering_fields = ['created_at', 'like_count']
     ordering = ['-created_at']
@@ -1032,7 +1032,7 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     """附件视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     search_fields = ['filename', 'mime_type']
     ordering_fields = ['created_at', 'file_size']
     ordering = ['-created_at']

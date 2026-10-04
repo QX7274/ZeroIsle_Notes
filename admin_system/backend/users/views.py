@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from auth_api.authentication import IsAdminStaff
-from common.filters import MongoFilterBackend
+from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from mongoengine.queryset.visitor import Q
 from datetime import timedelta
@@ -28,7 +28,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     # 避免导入阶段触发 MongoDB 连接
     queryset = []
     permission_classes = [IsAuthenticated, IsAdminStaff]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'phone', 'nickname']
     ordering_fields = ['date_joined', 'last_login', 'note_count', 'canvas_count', 'login_count']
@@ -937,7 +937,7 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = []
     serializer_class = UserActivitySerializer
     permission_classes = [IsAuthenticated, IsAdminStaff]
-    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
     filterset_fields = ['activity_type']
     search_fields = ['description', 'ip_address']
     ordering_fields = ['created_at']
