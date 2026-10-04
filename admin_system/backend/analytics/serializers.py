@@ -1,13 +1,14 @@
 from rest_framework import serializers
+from common.serializers import MongoDocumentSerializer
 from .models import AnalyticsReport, DashboardWidget, ReportTemplate
 
-class AnalyticsReportSerializer(serializers.ModelSerializer):
+class AnalyticsReportSerializer(MongoDocumentSerializer):
     """分析报表序列化器"""
     class Meta:
         model = AnalyticsReport
         fields = '__all__'
 
-class AnalyticsReportListSerializer(serializers.ModelSerializer):
+class AnalyticsReportListSerializer(MongoDocumentSerializer):
     """分析报表列表序列化器"""
     report_type_display = serializers.SerializerMethodField()
     
@@ -18,13 +19,13 @@ class AnalyticsReportListSerializer(serializers.ModelSerializer):
     def get_report_type_display(self, obj):
         return dict(AnalyticsReport.REPORT_TYPES).get(obj.report_type, obj.report_type)
 
-class DashboardWidgetSerializer(serializers.ModelSerializer):
+class DashboardWidgetSerializer(MongoDocumentSerializer):
     """仪表盘小部件序列化器"""
     class Meta:
         model = DashboardWidget
         fields = '__all__'
 
-class DashboardWidgetListSerializer(serializers.ModelSerializer):
+class DashboardWidgetListSerializer(MongoDocumentSerializer):
     """仪表盘小部件列表序列化器"""
     widget_type_display = serializers.SerializerMethodField()
     
@@ -35,13 +36,13 @@ class DashboardWidgetListSerializer(serializers.ModelSerializer):
     def get_widget_type_display(self, obj):
         return dict(DashboardWidget.WIDGET_TYPES).get(obj.widget_type, obj.widget_type)
 
-class ReportTemplateSerializer(serializers.ModelSerializer):
+class ReportTemplateSerializer(MongoDocumentSerializer):
     """报表模板序列化器"""
     class Meta:
         model = ReportTemplate
         fields = '__all__'
 
-class ReportTemplateListSerializer(serializers.ModelSerializer):
+class ReportTemplateListSerializer(MongoDocumentSerializer):
     """报表模板列表序列化器"""
     template_type_display = serializers.SerializerMethodField()
     

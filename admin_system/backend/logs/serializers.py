@@ -1,7 +1,8 @@
 from rest_framework import serializers
+from common.serializers import MongoDocumentSerializer
 from .models import AdminOperationLog, SystemLog, LogExportHistory
 
-class AdminOperationLogSerializer(serializers.ModelSerializer):
+class AdminOperationLogSerializer(MongoDocumentSerializer):
     """管理员操作日志序列化器"""
     action_display = serializers.CharField(source='get_action_display', read_only=True)
 
@@ -10,7 +11,7 @@ class AdminOperationLogSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'operation_time']
 
-class SystemLogSerializer(serializers.ModelSerializer):
+class SystemLogSerializer(MongoDocumentSerializer):
     """系统日志序列化器"""
     level_display = serializers.CharField(source='get_level_display', read_only=True)
 
@@ -20,7 +21,7 @@ class SystemLogSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'timestamp']
 
 
-class LogExportHistorySerializer(serializers.ModelSerializer):
+class LogExportHistorySerializer(MongoDocumentSerializer):
     """日志导出历史记录序列化器"""
     log_type_display = serializers.SerializerMethodField()
     format_display = serializers.SerializerMethodField()
