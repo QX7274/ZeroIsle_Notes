@@ -23,7 +23,7 @@
 .analytics-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -67,7 +67,7 @@
 }
 
 .analytics-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }

@@ -23,7 +23,7 @@
 .settings-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -67,7 +67,7 @@
 }
 
 .settings-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }
@@ -120,7 +120,7 @@
 .settings-form .ant-select-selector:hover,
 .settings-form .ant-input-number:hover,
 .settings-form .ant-picker:hover {
-  border-color: #4361EE;
+  border-color: var(--primary-color);
 }
 
 .settings-form .ant-input:focus,
@@ -151,7 +151,7 @@
 }
 
 .settings-form-buttons .ant-btn-primary {
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   border: none;
   box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
 }
@@ -167,8 +167,8 @@
 }
 
 .settings-form-buttons .ant-btn-default:hover {
-  border-color: #4361EE;
-  color: #4361EE;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 /* 分割线 */
@@ -396,7 +396,7 @@
 
 .backup-history-item-size {
   background-color: rgba(67, 97, 238, 0.1);
-  color: #4361EE;
+  color: var(--primary-color);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;

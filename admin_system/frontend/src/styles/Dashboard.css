@@ -22,8 +22,8 @@
 .dashboard-icon {
   font-size: 28px;
   margin-right: 16px;
-  color: #4361EE;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  color: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -259,7 +259,7 @@
 .status-title .anticon {
   margin-right: 10px;
   font-size: 20px; /* 增加图标大小 */
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -359,13 +359,13 @@
 .stat-card .ant-statistic-title .anticon {
   margin-right: 8px;
   font-size: 20px; /* 增加图标大小 */
-  color: #4361EE; /* 使用主色调 */
+  color: var(--primary-color); /* 使用主色调 */
 }
 
 .stat-card .ant-statistic-content {
   font-size: 28px; /* 增加字体大小 */
   font-weight: 600; /* 增加字体粗细 */
-  color: #4361EE; /* 使用主色调 */
+  color: var(--primary-color); /* 使用主色调 */
 }
 
 /* 图表标题 */
@@ -381,7 +381,7 @@
 .chart-title .anticon {
   margin-right: 8px;
   font-size: 20px; /* 增加图标大小 */
-  color: #4361EE; /* 使用主色调 */
+  color: var(--primary-color); /* 使用主色调 */
 }
 
 /* 图表容器 */
@@ -460,9 +460,9 @@
   height: 200px;
   border-radius: 50%;
   background: conic-gradient(
-    #4361EE 0% 20%,
+    var(--primary-color) 0% 20%,
     #4CC9F0 20% 40%,
-    #3A0CA3 40% 60%,
+    var(--primary-7) 40% 60%,
     #F72585 60% 80%,
     #7209B7 80% 100%
   );
@@ -518,7 +518,7 @@
 .chart-title .anticon {
   margin-right: 10px;
   font-size: 20px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -530,7 +530,7 @@
 }
 
 .chart-refresh-btn:hover {
-  color: #4361EE;
+  color: var(--primary-color);
   transform: rotate(180deg);
 }
 
@@ -560,7 +560,7 @@
 .table-title .anticon {
   margin-right: 10px;
   font-size: 22px; /* 增加图标大小 */
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

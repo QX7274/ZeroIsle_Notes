@@ -10,7 +10,7 @@
   margin-bottom: 16px;
   white-space: nowrap;
   overflow: hidden;
-  background-image: linear-gradient(135deg, #4361EE, #3A0CA3); /* 更新渐变色角度 */
+  background-image: linear-gradient(135deg, var(--primary-color), var(--primary-7)); /* 更新渐变色角度 */
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -30,7 +30,7 @@
   transform: translateX(-50%);
   width: 40%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, #4361EE, transparent);
+  background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
   border-radius: 3px;
 }
 
@@ -138,7 +138,7 @@
 }
 
 .header-icon:hover {
-  color: #4361EE; /* 更新悬停颜色 */
+  color: var(--primary-color); /* 更新悬停颜色 */
   background-color: rgba(67, 97, 238, 0.08); /* 更新悬停背景色 */
   transform: translateY(-2px); /* 添加上移效果 */
   box-shadow: 0 4px 12px rgba(67, 97, 238, 0.1); /* 添加悬停阴影 */
@@ -275,11 +275,11 @@
 }
 
 .breadcrumb-text.clickable:hover {
-  color: #4361EE;
+  color: var(--primary-color);
 }
 
 .breadcrumb-text.current {
-  color: #4361EE;
+  color: var(--primary-color);
   font-weight: 500;
 }
 

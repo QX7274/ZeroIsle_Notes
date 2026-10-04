@@ -289,10 +289,12 @@ jobs:
         env:
           CI: "false"
 
-      # 前端单元测试：目前只有导航死链守护这一条，
-      # 但它拦的是"菜单指向不存在的路由"这类构建与 lint 都发现不了的缺陷。
-      - name: Unit tests (navigation guard)
-        run: npx react-scripts test --watchAll=false --testPathPattern="navigation"
+      # 前端单元测试：目前覆盖两类"构建与 lint 都发现不了"的缺陷 ——
+      #   1. 导航死链：菜单项指向不存在的路由；
+      #   2. 主题色分叉：antd token 与自定义 CSS 用了不同的品牌色，
+      #      页面出现"两种蓝"。
+      - name: Unit tests (navigation + theme guards)
+        run: npx react-scripts test --watchAll=false
         env:
           CI: "true"
 

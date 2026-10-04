@@ -23,7 +23,7 @@
 .report-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -67,7 +67,7 @@
 }
 
 .report-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }
@@ -207,7 +207,7 @@
 .report-form .ant-select-selector:hover,
 .report-form .ant-input-number:hover,
 .report-form .ant-picker:hover {
-  border-color: #4361EE;
+  border-color: var(--primary-color);
 }
 
 .report-form .ant-input:focus,

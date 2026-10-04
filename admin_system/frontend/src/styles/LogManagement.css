@@ -23,7 +23,7 @@
 .log-list-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -172,7 +172,7 @@
 .log-detail-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -278,7 +278,7 @@
 
 .log-level-debug {
   background-color: rgba(58, 12, 163, 0.1);
-  color: #3A0CA3;
+  color: var(--primary-7);
   border: 1px solid rgba(58, 12, 163, 0.2);
 }
 
@@ -484,7 +484,7 @@
 }
 
 .analytics-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }
@@ -498,7 +498,7 @@
   border-radius: 50%;
   background-color: #f0f0f0;
   font-weight: bold;
-  color: #1890ff;
+  color: var(--primary-color);
 }
 
 .suggestion-avatar {
@@ -523,7 +523,7 @@
 
 .suggestion-avatar.low {
   background-color: #f0f5ff;
-  color: #1890ff;
+  color: var(--primary-color);
 }
 
 /* 响应式调整 */

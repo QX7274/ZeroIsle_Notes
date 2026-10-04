@@ -23,7 +23,7 @@
 .user-list-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -172,7 +172,7 @@
 .user-detail-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -278,7 +278,7 @@
 }
 
 .user-detail-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }
@@ -336,7 +336,7 @@
 .user-edit-icon {
   font-size: 28px;
   margin-right: 16px;
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -375,7 +375,7 @@
 .user-edit-form .ant-select-selector:hover,
 .user-edit-form .ant-input-number:hover,
 .user-edit-form .ant-picker:hover {
-  border-color: #4361EE;
+  border-color: var(--primary-color);
 }
 
 .user-edit-form .ant-input:focus,
@@ -405,7 +405,7 @@
 }
 
 .user-edit-form-buttons .ant-btn-primary {
-  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-7));
   border: none;
   box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
 }
@@ -421,8 +421,8 @@
 }
 
 .user-edit-form-buttons .ant-btn-default:hover {
-  border-color: #4361EE;
-  color: #4361EE;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 /* 批量操作工具栏 */
@@ -594,7 +594,7 @@
 }
 
 .analytics-tabs .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, #4361EE, #3A0CA3);
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-7));
   height: 3px;
   border-radius: 3px;
 }

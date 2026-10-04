@@ -131,7 +131,7 @@
 
 .login-form-forgot {
   float: right;
-  color: #1890ff;
+  color: var(--primary-color);
 }
 
 .login-form-forgot:hover {
@@ -163,7 +163,7 @@
 }
 
 .login-other-methods button:hover {
-  color: #1890ff;
+  color: var(--primary-color);
   transform: scale(1.1);
   background-color: rgba(24, 144, 255, 0.1);
 }

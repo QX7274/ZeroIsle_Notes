@@ -2,21 +2,29 @@
 @import url('animations.css');
 
 :root {
-  /* 主色调 - 使用零屿笔记的品牌色 */
-  --primary-color: #2F54EB;
-  --primary-color-hover: #597EF7;
-  --primary-color-active: #1D39C4;
-  --primary-color-outline: rgba(47, 84, 235, 0.2);
-  --primary-1: #E6F7FF;
-  --primary-2: #BAE7FF;
-  --primary-3: #91D5FF;
-  --primary-4: #69C0FF;
-  --primary-5: #40A9FF;
-  --primary-6: #2F54EB;
-  --primary-7: #1D39C4;
-  --primary-8: #10239E;
-  --primary-9: #061178;
-  --primary-10: #030852;
+  /* 主色调 —— 品牌色的**唯一来源**。
+   *
+   * 此前这里写的是 #2F54EB，而 antd 的 theme.js 用 #4361EE、
+   * config.js 也用 #4361EE，variables.less 甚至还是 antd v4 的 #1890ff ——
+   * 四处不一致，导致按钮（跟随 antd token）与自定义 CSS 区块颜色对不上。
+   * 现统一以 theme.js 的 #4361EE 为准，并在此给出对应的状态色与梯度。
+   * 修改品牌色时请同时改 theme.js 与 config.js（三处保持同一值）。 */
+  --primary-color: #4361EE;
+  --primary-color-hover: #5B75F0;
+  --primary-color-active: #3451D1;
+  --primary-color-outline: rgba(67, 97, 238, 0.2);
+  /* 主色梯度（由浅到深），供自定义区块使用；与 antd 的色板生成结果可能略有差异，
+   * 因此只用于纯 CSS 场景（如渐变、边框），组件内仍应优先用 antd token。 */
+  --primary-1: #EEF1FD;
+  --primary-2: #D6DEFB;
+  --primary-3: #B3C1F7;
+  --primary-4: #8B9EF2;
+  --primary-5: #6B84EF;
+  --primary-6: #4361EE;
+  --primary-7: #3451D1;
+  --primary-8: #273EA8;
+  --primary-9: #1B2C7A;
+  --primary-10: #101C4F;
 
   /* 功能色 */
   --success-color: #52C41A;
