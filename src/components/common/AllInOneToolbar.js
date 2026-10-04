@@ -14,6 +14,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ColorPicker from './ColorPicker'; // 企业级颜色选择器组件
@@ -721,6 +722,23 @@ const AllInOneToolbar = ({
   const { colors } = useTheme();
   const handleStreamingAIToolSelectRef = useRef(null);
 
+  // 屏幕宽度必须**响应式**获取。
+  // 模块顶层的 `Dimensions.get('window')` 只在首次求值时取一次快照：
+  // 旋转、分屏、以及 iPad 从「iPhone 兼容模式」切到平板模式等场景都不会更新，
+  // 会让断点判定与换行策略一直用旧值（真机实测：iPad 报告 w=1032 却仍按 390 的布局走）。
+  // useWindowDimensions 是 RN 官方推荐做法，尺寸变化会自动触发重渲染。
+  const windowDimensions = useWindowDimensions();
+  const screenWidth = Math.round(
+    (windowDimensions && windowDimensions.width > 0)
+      ? windowDimensions.width
+      : SCREEN_WIDTH
+  );
+  const screenHeight = Math.round(
+    (windowDimensions && windowDimensions.height > 0)
+      ? windowDimensions.height
+      : SCREEN_HEIGHT
+  );
+
   // ==================== 工作流代码插入区（互不越界，勿删标记） ====================
   // 说明：本轮工具栏优化由三条工作流并行完成，它们只允许在各自标记内追加代码，
   // 主渲染 JSX 由 Lead 统一集成，避免多方同时改同一段 JSX 造成冲突。
@@ -1152,8 +1170,8 @@ const AllInOneToolbar = ({
   // 而 WS-B 交付的 resolveToolbarLayout 只能算出配置却没人用 —— 等于没接通。
   // 现在这里真实采用响应式布局结果：断点分档 + 安全区 + 44dp 触达 + 分组间距。
   const wsbBaseToolbarConfig = getToolbarConfig();
-  const wsbScreenWidth = (typeof SCREEN_WIDTH === 'number' && SCREEN_WIDTH > 0)
-    ? SCREEN_WIDTH
+  const wsbScreenWidth = (typeof screenWidth === 'number' && screenWidth > 0)
+    ? screenWidth
     : wsbBaseToolbarConfig.buttonSize * 10;
   const wsbLayout = resolveToolbarLayout(wsbScreenWidth, {
     insets: defaultInsetsForToolbar,
@@ -1174,21 +1192,10 @@ const AllInOneToolbar = ({
     showLabels: wsbLayout.showLabels,
   }), [wsbBaseToolbarConfig, wsbLayout]);
 
-  // 动态生成样式。换行模式下要给容器更高的上限（否则多行会被 maxHeight 裁掉），
-  // 这也是本轮「工具栏被裁切」隐患的根因：单行时的 maxHeight 是定值。
-  const styles = useMemo(
-    () => createStyles(toolbarConfig, { wrapped: wsbLayout.tier === 'wide' }),
-    [toolbarConfig, wsbLayout.tier],
-  );
-
   // 工具栏是否需要在窄屏上横滑：用布局纯函数估算「全部工具组一行是否放得下」。
-  // 这是 estimateToolbarWidth / TOOLBAR_BREAKPOINTS 的实际用途——
-  // 宽屏(>=1200) 下单行容得下就隐藏提示，窄屏才提示用户「还可以往右滑」，
-  // 避免用户以为常用工具（颜色/粗细）不存在。
   const toolbarNeedsScroll = useMemo(() => {
     // 必须传「每组各自的按钮数」而不是组数：一个绘图组就有 6 个按钮，
     // 只按组数估算会严重低估，导致溢出提示永不出现（集成期用真机实测发现）。
-    // 这里的数字与主 return 中各 toolGroup 内的按钮数保持一致。
     const buttonsPerGroup = [
       2, // bookmarks：添加书签 / 书签列表
       1, // preset：场景预设
@@ -1201,13 +1208,26 @@ const AllInOneToolbar = ({
       3, // page：形状 / 文本 / 图片
     ];
     const estimated = estimateToolbarWidth(toolbarConfig, buttonsPerGroup);
-    return estimated > SCREEN_WIDTH;
-  }, [toolbarConfig]);
+    return estimated > screenWidth;
+    // screenWidth 必须进依赖：旋转/分屏/平板模式切换后要重新判定是否溢出。
+  }, [toolbarConfig, screenWidth]);
 
   // 平板/宽屏改用「多行换行」而不是横滑：真机实测发现单行横滑时平板上
   // 颜色/粗细/手感永远在屏幕外，用户根本发现不了这些功能。
-  // 平板有足够纵向空间，换行能让全部工具一次可见。
-  const shouldWrapToolbar = SCREEN_WIDTH >= TOOLBAR_BREAKPOINTS.wide;
+  // 判据是「设备够宽（平板）且内容真的放不下」，不能写死 1200pt 断点：
+  // iPad Pro 13" 竖屏逻辑宽只有 1024pt（< 1200），按 wide 断点判定会落进 regular 而仍然横滑。
+  // 下限沿用项目既有的平板口径 768pt（getToolbarConfig 的 isLargeScreen）。
+  const TABLET_MIN_WIDTH = 768;
+  const shouldWrapToolbar = screenWidth >= TABLET_MIN_WIDTH && toolbarNeedsScroll;
+
+  // 动态生成样式。必须把 shouldWrapToolbar 传进去决定 maxHeight：
+  // 单行模式下容器高度是定值（buttonSize 级别），换行时会裁掉第二行起的内容。
+  // 注意不能用 `{ maxHeight: undefined }` 覆盖——RN 的 StyleSheet.flatten 不会用
+  // undefined 覆盖已有值（真机实测：判据已是 wrap=true，界面却仍只有一行）。
+  const styles = useMemo(
+    () => createStyles(toolbarConfig, shouldWrapToolbar),
+    [toolbarConfig, shouldWrapToolbar],
+  );
 
   // 只有「确实溢出但又不换行」时才提示右侧还有内容。
   // 曾经写成 `SCREEN_WIDTH < TOOLBAR_BREAKPOINTS.wide`，结果平板上（最需要提示）反而消失；
@@ -2200,9 +2220,9 @@ const AllInOneToolbar = ({
     // popover 定位只算一次：锚点取「工具栏正下方居中」（宽度 0、y 为工具栏底边），
     // 由布局纯函数做左右/上下夹取，保证任何屏幕宽度下都完整可见。
     const strokeWidthPopoverPosition = resolvePopoverPosition(
-      { x: SCREEN_WIDTH / 2, y: toolbarConfig.height, width: 0, height: 0 },
+      { x: screenWidth / 2, y: toolbarConfig.height, width: 0, height: 0 },
       { width: 280, height: 190 },
-      { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+      { width: screenWidth, height: screenHeight },
       { margin: 8 },
     );
 
@@ -3422,8 +3442,14 @@ const AllInOneToolbar = ({
       {/* 套索选中笔迹的操作条：没有选中内容时不渲染 */}
       {renderSelectedStrokesBar(selectedStrokeIds, onSelectedStrokesAction)}
 
-      {/* 主工具栏 */}
-      <View style={[styles.container, { backgroundColor: colors.card }]} testID="toolbar.allInOne">
+      {/* 主工具栏。
+          换行时放开容器高度上限：单行模式的 maxHeight 是定值（buttonSize 级别），
+          一旦换成多行就会被裁掉第二行起的内容（真机实测：iPad 上换行后只见一行）。
+          判据必须与 shouldWrapToolbar 一致，不能用 tier（iPad 是 regular 但确实要换行）。 */}
+      <View
+        style={[styles.container, { backgroundColor: colors.card }]}
+        testID="toolbar.allInOne"
+      >
 
         {/* 绘图工具。
             两种排布策略，按可用宽度切换：
@@ -3434,11 +3460,15 @@ const AllInOneToolbar = ({
             ② 窄屏：保持单行横滑，并显示右侧溢出提示。
             注意横滑时内容容器必须左对齐（不能用 justifyContent:'center' + flexGrow:1），
             否则内容被居中、左端被推出视口且滚动不到。 */}
+        {/* 关键：横向 ScrollView 的 style 里带着 flexDirection:'row'（styles.toolbarSection），
+            它会与内容容器的 flexWrap:'wrap' 互相干扰 —— 结果是「wrap 判据为 true、界面却仍是一行
+            且超出部分被裁掉」（真机实测）。
+            因此换行分支必须**同时**关掉 horizontal 并去掉 row 方向，
+            只让内容容器负责 row + wrap。 */}
         <ScrollView
           horizontal={!shouldWrapToolbar}
           showsHorizontalScrollIndicator={false}
-          scrollEnabled={!shouldWrapToolbar}
-          style={styles.toolbarSection}
+          style={shouldWrapToolbar ? styles.toolbarSectionWrapped : styles.toolbarSection}
           contentContainerStyle={[
             styles.toolbarContentContainer,
             shouldWrapToolbar
@@ -4271,8 +4301,7 @@ const AllInOneToolbar = ({
 };
 
 // 样式定义函数（动态生成）
-const createStyles = (config, options = {}) => {
-  const wrapped = !!options.wrapped;
+const createStyles = (config, wrapped = false) => {
   return StyleSheet.create({
   container: {
     paddingVertical: 0,
@@ -4286,13 +4315,20 @@ const createStyles = (config, options = {}) => {
     marginHorizontal: 0,
     marginVertical: 0,
     minHeight: config.height,
-    // 单行时保持原来的紧凑高度；换行（平板）时放开上限，否则第二行会被裁掉。
-    // 单行高度按「按钮 + 上下内边距」估，换行按 3 行留余量。
+    // 单行时的高度上限（紧凑）。换行（平板）时必须放开，否则第二行起会被裁掉。
+    // 注意用 undefined 在内联 style 里覆盖是无效的——RN 的 StyleSheet.flatten
+    // 不会用 undefined 覆盖已有值（真机实测：wrap 判据已为 true，界面却仍只有一行），
+    // 所以必须在这里按 wrapped 直接决定。
     maxHeight: wrapped ? undefined : config.height + 4,
     position: 'relative',
   },
   toolbarSection: {
     flexDirection: 'row',
+  },
+  // 换行模式：不能带 row 方向，否则会压住内容容器的 flexWrap。
+  toolbarSectionWrapped: {
+    flexDirection: 'column',
+    flexGrow: 0,
   },
   toolbarContentContainer: {
     alignItems: 'center',

@@ -91,6 +91,14 @@ jest.mock('react-native', () => {
             get: () => 1,
         },
         requireNativeComponent: (name) => name,
+        // RN 官方推荐用 useWindowDimensions 拿响应式尺寸（旋转/分屏/平板模式切换会自动更新）。
+        // 老 mock 没提供它，于是任何使用该 Hook 的组件在测试里直接崩。
+        useWindowDimensions: () => ({
+            width: 375,
+            height: 812,
+            scale: 1,
+            fontScale: 1,
+        }),
         // react-native-svg 的属性提取逻辑直接调用 RN 的 processColor；
         // 补一个「原样返回」的实现，缺失时任何 svg 组件都会在 import 阶段崩掉。
         processColor: (color) => color,
