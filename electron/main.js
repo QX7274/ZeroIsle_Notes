@@ -4,8 +4,9 @@
  * This file is the entry point for the Electron desktop application.
  */
 
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const fs = require('fs');
 const path = require('path');
 const Store = require('electron-store');
 const log = require('electron-log');
@@ -64,7 +65,27 @@ function createWindow() {
         mainWindow.loadURL('http://127.0.0.1:8081/shared-screen-lab/');
         mainWindow.webContents.openDevTools();
     } else {
-        mainWindow.loadFile(path.join(__dirname, '../web-build/index.html'));
+        // 生产模式下加载打包好的 web 产物。
+        //
+        // 背景：electron-builder.yml 声明收录 web-build/**，但仓库中并无该目录，
+        // 也没有任何脚本生成它（详见 docs/发布物与管理后台解耦说明.md 第 3 节）。
+        // 此前这里会直接 loadFile 一个不存在的路径，表现为窗口白屏 + 一条难以定位的
+        // ENOENT，排查成本高。现改为在加载前显式校验，缺失时给出可操作的错误信息。
+        const webBuildEntry = path.join(__dirname, '../web-build/index.html');
+        if (!fs.existsSync(webBuildEntry)) {
+            const detail =
+                '未找到桌面端 web 产物：' + webBuildEntry + '\n\n' +
+                'electron-builder.yml 要求打包 web-build/**，但当前仓库没有该目录，' +
+                '也没有生成它的构建脚本，因此该包无法正常显示界面。\n\n' +
+                '处置建议：先确认 web-build 的产出方式（参见 ' +
+                'docs/发布物与管理后台解耦说明.md 第 3.4 节的三个候选方案），' +
+                '或在暂不交付桌面端时移除 electron-builder 配置。';
+            log.error(detail);
+            dialog.showErrorBox('零屿笔记桌面端启动失败', detail);
+            app.quit();
+            return;
+        }
+        mainWindow.loadFile(webBuildEntry);
     }
 
     // Show window when ready
