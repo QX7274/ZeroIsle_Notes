@@ -1,8 +1,13 @@
-Django==5.2
-djangorestframework==3.16.0
+# 版本口径说明：此前此处钉的是 Django 5.2 / DRF 3.16，但代码实际是按
+# Django 4.2 + DRF 3.14 编写并在该组合下验证通过（本机 conda 环境 ZeroIsle）。
+# 现按实际验证过的版本对齐，避免安装到一个从未被验证过的组合。
+Django==4.2.20
+djangorestframework==3.14.0
 djangorestframework-simplejwt==5.5.0
 django-cors-headers==4.7.0
 django-filter==24.1
+# coreapi 仅供旧的 include_docs_urls 使用；现已改用 drf-yasg 提供 /api/docs/，
+# 保留此项仅为兼容历史环境，新环境可不安装。
 coreapi==2.3.3
 Markdown==3.6
 Pillow==10.3.0
@@ -10,7 +15,12 @@ PyJWT==2.9.0
 mongoengine==0.27.0
 pymongo==4.6.1
 python-dotenv==1.0.1
+# common/serializers.py 的 MongoDocumentSerializer 继承自此包。
+# 此前为隐式依赖（环境中恰好已装），在此显式声明。
+django-rest-framework-mongoengine==3.4.1
 drf-yasg==1.21.7
+# 测试用：以内存实现替代真实 MongoDB，使 pytest 无需 mongod
+mongomock==4.3.0
 pandas==2.2.1
 openpyxl==3.1.2
 django-mongoengine-filter==0.4.1
