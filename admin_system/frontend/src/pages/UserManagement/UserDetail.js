@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Card,
+import {useParams,
+  useNavigate} from 'react-router-dom';
+import {Card,
   Descriptions,
   Button,
   Tabs,
@@ -15,11 +15,8 @@ import {
   Avatar,
   Row,
   Col,
-  Statistic,
-  Modal,
-} from 'antd';
-import {
-  UserOutlined,
+  Statistic} from 'antd';
+import {UserOutlined,
   EditOutlined,
   DeleteOutlined,
   LockOutlined,
@@ -30,10 +27,12 @@ import {
   FileTextOutlined,
   TagOutlined,
   CommentOutlined,
-  KeyOutlined,
-} from '@ant-design/icons';
-import { getUserDetail, updateUserStatus, deleteUser } from '../../services/userService';
-import { getUserNotes, getUserComments } from '../../services/contentService';
+  KeyOutlined} from '@ant-design/icons';
+import {getUserDetail,
+  updateUserStatus,
+  deleteUser} from '../../services/userService';
+import {getUserNotes,
+  getUserComments} from '../../services/contentService';
 import PasswordResetModal from '../../components/users/PasswordResetModal';
 
 const { Title, Text } = Typography;

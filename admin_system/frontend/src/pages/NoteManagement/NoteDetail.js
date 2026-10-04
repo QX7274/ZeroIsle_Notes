@@ -1,19 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Descriptions, Tag, Spin, Button, message,
-  Typography, Space, Tabs, Divider, Row, Col, Avatar,
-  Tooltip, Popconfirm, Badge, Statistic
-} from 'antd';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeftOutlined, UserOutlined, FileTextOutlined,
-  TagOutlined, CalendarOutlined, EyeOutlined, LikeOutlined,
-  CommentOutlined, EditOutlined, DeleteOutlined,
-  CheckCircleOutlined, ExclamationCircleOutlined,
-  HistoryOutlined, DownloadOutlined
-} from '@ant-design/icons';
-import { getNoteDetail, deleteNote, updateNoteStatus, getNoteVersions } from '../../services/noteService';
-import { PageHeader } from '../../components/common';
+import {Card,
+  Descriptions,
+  Tag,
+  Spin,
+  Button,
+  message,
+  Typography,
+  Space,
+  Tabs,
+  Divider,
+  Row,
+  Col,
+  Avatar,
+  Popconfirm,
+  Badge,
+  Statistic,
+  Table,
+  Empty} from 'antd';
+import {useParams,
+  useNavigate} from 'react-router-dom';
+import {UserOutlined,
+  FileTextOutlined,
+  TagOutlined,
+  CalendarOutlined,
+  EyeOutlined,
+  LikeOutlined,
+  CommentOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  HistoryOutlined,
+  DownloadOutlined} from '@ant-design/icons';
+import {getNoteDetail,
+  deleteNote,
+  updateNoteStatus,
+  getNoteVersions} from '../../services/noteService';
+import {PageHeader} from '../../components/common';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;

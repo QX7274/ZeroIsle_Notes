@@ -350,6 +350,39 @@ export const deleteNote = async (noteId) => {
   }
 };
 
+// 更新单条笔记状态
+//
+// 说明：NoteList.js 一直在 import { updateNoteStatus }，但本文件此前**没有导出它**，
+// 导致前端构建报 "Attempted import error: updateNoteStatus is not exported"。
+// 后端对应动作是 NoteViewSet 的 batch_update_status（POST /content/notes/batch_update_status/），
+// 单条更新即"只传一个 id"的批量更新，故这里复用它，避免新增后端接口。
+export const updateNoteStatus = async (id, status) => {
+  try {
+    const response = await api.post("/content/notes/batch_update_status/", {
+      note_ids: [id],
+      status,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('更新笔记状态错误:', error);
+    throw error;
+  }
+};
+
+// 获取笔记统计信息
+//
+// 同样是一直被 import 但未曾导出（NoteList.js 的 getNoteStats）。
+// 后端对应 NoteViewSet.stats（GET /content/notes/stats/）。
+export const getNoteStats = async () => {
+  try {
+    const response = await api.get("/content/notes/stats/");
+    return response.data;
+  } catch (error) {
+    console.error('获取笔记统计错误:', error);
+    throw error;
+  }
+};
+
 // 批量更新笔记状态
 export const batchUpdateNoteStatus = async (noteIds, status) => {
   try {

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Table,
   Button,
   Space,
@@ -13,26 +12,17 @@ import {
   Statistic,
   message,
   Tooltip,
-  Popconfirm,
-  Modal
-} from 'antd';
-import {
-  SearchOutlined,
-  ReloadOutlined,
+  Modal} from 'antd';
+import {SearchOutlined,
   DownloadOutlined,
+  CloudDownloadOutlined,
   SyncOutlined,
-  DeleteOutlined,
-  ExclamationCircleOutlined,
-  EyeOutlined,
-  FilterOutlined
-} from '@ant-design/icons';
-import { PageHeader } from '../../components/common';
-import {
-  getSystemLogs,
+  EyeOutlined} from '@ant-design/icons';
+import {PageHeader} from '../../components/common';
+import {getSystemLogs,
   getSystemLogStats,
   exportSystemLogs,
-  syncSystemLogs
-} from '../../services/logService';
+  syncSystemLogs} from '../../services/logService';
 import moment from 'dayjs';
 
 const { RangePicker } = DatePicker;

@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { Typography, Button, Space, message } from 'antd';
-import { UserOutlined, PlusOutlined, LineChartOutlined, HistoryOutlined } from '@ant-design/icons';
+import {Routes,
+  Route,
+  useNavigate} from 'react-router-dom';
+import {Typography,
+  Button,
+  Space} from 'antd';
+import {UserOutlined,
+  PlusOutlined,
+  LineChartOutlined,
+  HistoryOutlined} from '@ant-design/icons';
 import UserList from './UserList';
 import UserDetail from './UserDetail';
 import UserCreate from './UserCreate';

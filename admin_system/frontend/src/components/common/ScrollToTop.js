@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from 'antd';
-import { UpOutlined } from '@ant-design/icons';
+
+import {UpOutlined} from '@ant-design/icons';
 import PropTypes from 'prop-types';
 
 /**

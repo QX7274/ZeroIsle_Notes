@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Button, Space, Input, Modal, Form, message, Typography, Popconfirm, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { getCategories, createCategory, updateCategory, deleteCategory, getCategoryStats } from '../../services/categoryService';
+import {Table,
+  Card,
+  Button,
+  Space,
+  Input,
+  Modal,
+  Form,
+  message,
+  Typography,
+  Popconfirm} from 'antd';
+import {PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
+  ArrowLeftOutlined} from '@ant-design/icons';
+import {useNavigate} from 'react-router-dom';
+import {getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getCategoryStats} from '../../services/categoryService';
 
 const { Title, Text } = Typography;
 const { confirm } = Modal;

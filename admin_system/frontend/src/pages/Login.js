@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, message, Typography, Space, Checkbox, Alert, Divider } from 'antd';
-import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined, WechatOutlined, QqOutlined } from '@ant-design/icons';
-import { login } from '../services/authService';
-import { Loading } from '../components/feedback';
-import { FadeIn, Pulse } from '../components/animations';
+import {Form,
+  Input,
+  Button,
+  Card,
+  message,
+  Typography,
+  Checkbox,
+  Alert,
+  Divider} from 'antd';
+import {UserOutlined,
+  LockOutlined,
+  GithubOutlined} from '@ant-design/icons';
+import {login} from '../services/authService';
+import {Loading} from '../components/feedback';
+import {FadeIn,
+  Pulse} from '../components/animations';
 import '../styles/Login.css';
 
 const { Title } = Typography;

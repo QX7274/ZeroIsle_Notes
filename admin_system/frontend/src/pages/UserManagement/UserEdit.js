@@ -1,9 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, Select, Spin, message, Row, Col, Avatar, Upload, Switch } from 'antd';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeftOutlined, UserOutlined, UploadOutlined, LockOutlined } from '@ant-design/icons';
-import { getUserDetail, updateUser, resetUserPassword } from '../../services/userService';
-import { PageHeader } from '../../components/common';
+import {Form,
+  Input,
+  Button,
+  Card,
+  Select,
+  Spin,
+  message,
+  Row,
+  Col,
+  Avatar,
+  Upload,
+  Switch} from 'antd';
+import {useParams,
+  useNavigate} from 'react-router-dom';
+import {UserOutlined,
+  UploadOutlined,
+  LockOutlined} from '@ant-design/icons';
+import {getUserDetail,
+  updateUser,
+  resetUserPassword} from '../../services/userService';
+import {PageHeader} from '../../components/common';
 
 const { Option } = Select;
 const { TextArea } = Input;

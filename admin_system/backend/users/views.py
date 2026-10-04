@@ -282,35 +282,46 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
-        """重置用户密码"""
+        """重置用户密码。
+
+        修复说明（本轮）：
+        此前该动作是个**空壳** —— 它随机生成一个密码字符串，却只用
+        user_service.update_user_in_main_app() 写了一个 password_reset 标记，
+        **从未把任何密码哈希写入 users 集合**。也就是说：
+          - 接口返回"密码已重置"并把随机密码回给前端，但那个密码根本不能用；
+          - 前端 UserEdit.js 调用的是 resetUserPassword(id, newPassword)，
+            期望"按管理员指定的密码重置"，与本接口语义也不一致。
+        现改为：接受可选的新密码；未提供时生成一个随机密码；
+        两种情况都用 Django 哈希写入 users 集合的 password 字段
+        （与登录校验、主后端口径一致，见方案 B 的 authenticate_admin）。
+        """
+        from django.contrib.auth.hashers import make_password
+
         user = self.get_object()
 
         try:
-            # 生成随机密码
-            import random
+            import secrets
             import string
-            password_length = 12
-            password_chars = string.ascii_letters + string.digits + string.punctuation
-            new_password = ''.join(random.choice(password_chars) for i in range(password_length))
 
-            # 在主应用中更新密码
-            try:
-                # 这里应该调用主应用的密码重置API
-                # 由于我们没有直接访问主应用的密码哈希逻辑，这里只是模拟
-                user_service.update_user_in_main_app(user.id, {
-                    "password_reset": True,
-                    "updated_at": timezone.now()
-                })
-            except ValidationError:
-                # 数据不合法应由 DRF 返回 400；若在这里被 except Exception
-                # 吞掉并转成 500，就会把客户端错误伪装成服务端故障。
-                raise
-            except Exception as e:
-                logger.error(f"在主应用中重置用户密码时出错: {str(e)}")
-                return Response(
-                    {"error": f"在主应用中重置用户密码失败: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            requested = (request.data or {}).get('new_password')
+            if requested:
+                new_password = str(requested)
+                if len(new_password) < 8:
+                    return Response(
+                        {"error": "新密码长度至少 8 位"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                alphabet = string.ascii_letters + string.digits
+                new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+            # 用 Django 哈希写入 users 集合；admin 的 UserProfile 未声明 password 字段，
+            # 因此必须用 update() 直接落地（与 ChangePasswordView 的做法一致）。
+            UserProfile.objects(id=user.id).update(
+                password=make_password(new_password),
+                password_reset_at=timezone.now(),
+                password_reset_by=getattr(request.user, 'username', '') or 'admin',
+            )
 
             # 记录密码重置活动
             UserActivity(
@@ -323,11 +334,15 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
             logger.info(f"管理员 {request.user} 重置了用户密码: {user.username}")
 
-            return Response({
+            payload = {
                 'status': 'success',
                 'message': f'用户 {user.username} 的密码已重置',
-                'new_password': new_password  # 在实际生产环境中，应该通过更安全的方式传递密码
-            })
+            }
+            # 仅当密码由服务端生成时才回传，便于管理员转告用户；
+            # 管理员自定义的密码不回显，避免不必要的泄露面。
+            if not requested:
+                payload['new_password'] = new_password
+            return Response(payload)
 
         except ValidationError:
             # 数据不合法应由 DRF 返回 400；若在这里被 except Exception

@@ -170,3 +170,127 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # --- Admin System Backend (admin_system) ---
+  #
+  # 为什么单独加这个 job：
+  # 此前 CI 只覆盖 backend/（业务后端）与 RN 应用，**完全没覆盖 admin_system**。
+  # 结果是管理后台长期累积了多类只能靠人工排查的问题：无法启动、
+  # 大量接口 500、前端语法错误导致从未构建成功。
+  # 本 job 把所有已验证的检查固化为门禁，使同类回归在合并前被拦住。
+  #
+  # 全部检查使用 mongomock，不需要真实 MongoDB，因此可在 CI 直接跑。
+  admin-system-backend:
+    name: Admin System Backend Gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin_system/backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: admin_system/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest mongomock
+
+      - name: Django system check
+        run: python -X utf8 manage.py check
+
+      - name: Run backend tests
+        run: python -X utf8 -m pytest -q
+
+      - name: Upload pytest output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-backend-pytest-output
+          path: admin_system/backend/.pytest_cache
+          if-no-files-found: ignore
+
+  # --- Admin System Endpoint Sweeps ---
+  #
+  # 三类端点扫描的独立 job：任何接口出现 5xx 即失败。
+  # 这些扫描分别发现过 8 个接口 500、写路径校验吞成 500、
+  # 17 个端点 ?search= 全部 500，是性价比最高的回归网。
+  admin-system-sweeps:
+    name: Admin System Endpoint Sweeps (0 x 5xx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: admin_system/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r admin_system/backend/requirements.txt
+          pip install pytest mongomock
+
+      - name: Sweep - no-arg GET endpoints
+        run: python -X utf8 scripts/sweep_endpoints_get.py
+
+      - name: Sweep - write paths
+        run: python -X utf8 scripts/sweep_endpoints_write.py
+
+      - name: Sweep - query parameters
+        run: python -X utf8 scripts/sweep_endpoints_query.py
+
+  # --- Admin System Frontend Build ---
+  #
+  # 此前该前端**从未成功构建过**：package.json 缺少 4 个被 import 的依赖，
+  # 另有 11 处语法/引用错误。没有构建门禁，这些都不会被发现。
+  admin-system-frontend:
+    name: Admin System Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin_system/frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: admin_system/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --legacy-peer-deps
+
+      # 说明：这里刻意把 CI 显式设为 false。
+      # GitHub Actions 默认会设置 CI=true，而 CRA 在 CI=true 时会把 eslint
+      # 的 **warning** 也当成错误，使构建失败。本前端仍有约 87 条既有 lint 告警
+      # （未使用的局部变量、react-hooks/exhaustive-deps），属技术债，
+      # 不应在这一步阻塞构建。
+      #
+      # 关键点：**真正的编译期错误（语法错误、缺失导出、缺失依赖）
+      # 不受该设置影响，仍然会让构建失败** —— 本轮修复的 11 处正是这一类，
+      # 因此这道门禁依然能拦住它们。lint 告警见下方非阻塞报告步骤。
+      - name: Production build
+        run: npm run build
+        env:
+          CI: "false"
+
+      # lint 报告：输出但不阻塞。待技术债清理完后可改为阻塞。
+      - name: Lint report (non-blocking)
+        continue-on-error: true
+        run: npx eslint src --ext .js --format unix | tail -50
+

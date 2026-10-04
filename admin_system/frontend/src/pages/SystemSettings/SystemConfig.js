@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Form,
   Input,
   Button,
@@ -9,27 +8,22 @@ import {
   Switch,
   InputNumber,
   Select,
-  Divider,
-  Space,
   Spin,
   Row,
   Col,
   Typography,
-  Alert
-} from 'antd';
-import {
-  SaveOutlined,
+  Alert} from 'antd';
+import {SaveOutlined,
   SyncOutlined,
   ReloadOutlined,
-  SettingOutlined,
   GlobalOutlined,
   SecurityScanOutlined,
-  MailOutlined,
   FileOutlined,
-  UserOutlined
-} from '@ant-design/icons';
-import { PageHeader } from '../../components/common';
-import { getAllConfigs, updateConfig, syncSettings } from '../../services/settingService';
+  UserOutlined} from '@ant-design/icons';
+import {PageHeader} from '../../components/common';
+import {getAllConfigs,
+  updateConfig,
+  syncSettings} from '../../services/settingService';
 
 const { TabPane } = Tabs;
 const { Option } = Select;

@@ -117,6 +117,25 @@ export const completePasswordReset = async (userId, verificationId, newPassword)
   }
 };
 
+// 重置用户密码（管理员指定新密码）
+//
+// 说明：UserEdit.js 一直 import resetUserPassword 并调用 (id, newPassword)，
+// 但本文件此前**没有导出它**，导致前端构建报 "is not exported"。
+// 后端对应 UserProfileViewSet 的 reset_password 动作
+// （POST /users/profiles/{id}/reset_password/）；本轮已把该动作从空壳
+// 改为真正写入密码哈希，并支持传入 new_password。
+export const resetUserPassword = async (id, newPassword) => {
+  try {
+    const response = await api.post(`/users/profiles/${id}/reset_password/`, {
+      new_password: newPassword,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('重置用户密码错误:', error);
+    throw error;
+  }
+};
+
 // 获取用户统计数据
 export const getUserStats = async () => {
   try {

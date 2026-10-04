@@ -1,15 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Table, Card, Space, Typography, Tag, Input, Button, DatePicker,
-  Select, Row, Col, message, Tooltip, Badge
-} from 'antd';
-import {
-  SearchOutlined, ReloadOutlined, UserOutlined, ClockCircleOutlined,
-  GlobalOutlined, DesktopOutlined, ExportOutlined
-} from '@ant-design/icons';
-import { getUserActivities } from '../../services/userService';
-import { PageHeader } from '../../components/common';
-import { exportToExcel } from '../../utils/exportUtils';
+import {Table,
+  Card,
+  Space,
+  Typography,
+  Tag,
+  Input,
+  Button,
+  DatePicker,
+  Select,
+  Row,
+  Col,
+  message,
+  Tooltip} from 'antd';
+import {SearchOutlined,
+  ReloadOutlined,
+  UserOutlined,
+  ClockCircleOutlined,
+  GlobalOutlined,
+  DesktopOutlined,
+  ExportOutlined} from '@ant-design/icons';
+import {getUserActivities} from '../../services/userService';
+import {PageHeader} from '../../components/common';
+import {exportToExcel} from '../../utils/exportUtils';
 import moment from 'dayjs';
 
 const { RangePicker } = DatePicker;

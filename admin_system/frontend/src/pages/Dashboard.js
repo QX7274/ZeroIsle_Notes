@@ -1,47 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Table, Typography, Spin, Alert, Progress, Tooltip, Badge, DatePicker, Button, Space, Tabs, Avatar, List, Tag, Card, Statistic } from 'antd';
-import {
-  UserOutlined,
-  FileTextOutlined,
-  TagsOutlined,
+import {SlideIn,
+  Stagger} from '../components/animations';
+import {Row,
+  Col,
+  Table,
+  Typography,
+  Spin,
+  Alert,
+  Progress,
+  Tooltip,
+  Badge,
+  DatePicker,
+  Button,
+  Space,
+  Tabs,
+  Card} from 'antd';
+import {TagsOutlined,
   CommentOutlined,
   RiseOutlined,
-  FallOutlined,
-  ClockCircleOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   HddOutlined,
-  AppstoreOutlined,
-  BellOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  CloseCircleOutlined,
-  SyncOutlined,
   AreaChartOutlined,
   PieChartOutlined,
-  BarChartOutlined,
   LineChartOutlined,
-  CalendarOutlined,
   ReloadOutlined,
-  SettingOutlined,
-  EditOutlined,
-  EyeOutlined,
-  DeleteOutlined,
   DashboardOutlined,
   TeamOutlined,
   FileOutlined,
-  FolderOutlined,
-  StarOutlined,
-  FireOutlined,
-  ThunderboltOutlined,
-  TrophyOutlined,
-  RocketOutlined,
-  BarChartOutlined as BarIcon,
   PieChartOutlined as PieIcon,
   LineChartOutlined as LineIcon,
-  AreaChartOutlined as AreaIcon
-} from '@ant-design/icons';
-import { getDashboardStats } from '../services/statsService';
+  AreaChartOutlined as AreaIcon} from '@ant-design/icons';
+import {getDashboardStats} from '../services/statsService';
 import dayjs from 'dayjs';
 import '../styles/Dashboard.css';
 

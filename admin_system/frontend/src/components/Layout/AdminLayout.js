@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Button, Badge, Tooltip, theme, message, Space, Typography } from 'antd';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import {
-  DashboardOutlined,
+import {Layout,
+  Menu,
+  Avatar,
+  Dropdown,
+  Button,
+  Badge,
+  Tooltip,
+  theme,
+  message,
+  Space,
+  Typography} from 'antd';
+import {Outlet,
+  useNavigate,
+  useLocation} from 'react-router-dom';
+import {DashboardOutlined,
   UserOutlined,
   FileTextOutlined,
   SettingOutlined,
@@ -16,18 +27,14 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
   AppstoreOutlined,
-  TagOutlined,
-  CloudOutlined,
-  SafetyCertificateOutlined,
   TeamOutlined,
   HomeOutlined,
   BarChartOutlined,
   FileExcelOutlined,
-  PieChartOutlined,
   LineChartOutlined,
-  UnorderedListOutlined,
-} from '@ant-design/icons';
-import { logout, getCurrentUser } from '../../services/authService';
+  UnorderedListOutlined} from '@ant-design/icons';
+import {logout,
+  getCurrentUser} from '../../services/authService';
 import '../../styles/AdminLayout.css';
 
 const { Text } = Typography;

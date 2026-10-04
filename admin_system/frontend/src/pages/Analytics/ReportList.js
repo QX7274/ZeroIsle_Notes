@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Table,
   Button,
   Space,
@@ -14,26 +13,18 @@ import {
   Tooltip,
   Select,
   Row,
-  Col
-} from 'antd';
-import {
-  PlusOutlined,
+  Col} from 'antd';
+import {PlusOutlined,
   EyeOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined,
   SearchOutlined,
-  ReloadOutlined,
-  DownloadOutlined,
-  FileTextOutlined
-} from '@ant-design/icons';
-import { PageHeader } from '../../components/common';
-import {
-  getReports,
+  DownloadOutlined} from '@ant-design/icons';
+import {PageHeader} from '../../components/common';
+import {getReports,
   getReportDetail,
   generateReport,
   exportReport,
-  getReportTemplates
-} from '../../services/analyticsService';
+  getReportTemplates} from '../../services/analyticsService';
 import moment from 'dayjs';
 
 const { TextArea } = Input;

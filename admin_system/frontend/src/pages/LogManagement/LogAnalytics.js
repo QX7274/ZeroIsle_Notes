@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Row,
   Col,
   Statistic,
@@ -12,44 +11,28 @@ import {
   DatePicker,
   Button,
   Select,
-  Divider,
   Alert,
   List,
   Tag,
   Space,
   Tooltip,
-  Radio
-} from 'antd';
-import {
-  LineChartOutlined,
+  Radio} from 'antd';
+import {LineChartOutlined,
   BarChartOutlined,
-  PieChartOutlined,
-  CalendarOutlined,
   ReloadOutlined,
-  RiseOutlined,
-  FallOutlined,
-  ClockCircleOutlined,
   WarningOutlined,
   InfoCircleOutlined,
   ExclamationCircleOutlined,
-  BugOutlined,
   FileTextOutlined,
-  UserOutlined,
-  SettingOutlined,
-  DatabaseOutlined,
-  ApiOutlined,
-  CloudServerOutlined,
-  DesktopOutlined,
-  MobileOutlined,
-  GlobalOutlined
-} from '@ant-design/icons';
-import { Line, Pie, Column, Bar } from '@ant-design/plots';
-import { PageHeader } from '../../components/common';
-import {
-  getAdminLogStats,
+  UserOutlined} from '@ant-design/icons';
+import {Line,
+  Pie,
+  Column,
+  Bar} from '@ant-design/plots';
+import {PageHeader} from '../../components/common';
+import {getAdminLogStats,
   getSystemLogStats,
-  getLogAnalytics
-} from '../../services/logService';
+  getLogAnalytics} from '../../services/logService';
 import moment from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;

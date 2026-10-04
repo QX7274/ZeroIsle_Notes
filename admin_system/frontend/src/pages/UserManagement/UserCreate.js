@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Select, message, Row, Col, Avatar, Upload, Switch, Divider } from 'antd';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeftOutlined, UserOutlined, UploadOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { createUser } from '../../services/userService';
-import { PageHeader } from '../../components/common';
+import {Form,
+  Input,
+  Button,
+  Card,
+  Select,
+  message,
+  Row,
+  Col,
+  Avatar,
+  Upload,
+  Switch,
+  Divider} from 'antd';
+import {useNavigate} from 'react-router-dom';
+import {UserOutlined,
+  UploadOutlined,
+  InfoCircleOutlined} from '@ant-design/icons';
+import {createUser} from '../../services/userService';
+import {PageHeader} from '../../components/common';
 
 const { Option } = Select;
 const { TextArea } = Input;

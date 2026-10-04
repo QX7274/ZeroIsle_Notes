@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Row,
   Col,
   Statistic,
@@ -12,16 +11,12 @@ import {
   DatePicker,
   Button,
   Select,
-  Divider,
   Alert,
   List,
   Avatar,
   Tag,
-  Space,
-  Tooltip
-} from 'antd';
-import {
-  UserOutlined,
+  Space} from 'antd';
+import {UserOutlined,
   TeamOutlined,
   LockOutlined,
   StopOutlined,
@@ -32,17 +27,16 @@ import {
   ReloadOutlined,
   RiseOutlined,
   FallOutlined,
-  ClockCircleOutlined,
   UserSwitchOutlined,
   MailOutlined,
-  PhoneOutlined,
   LoginOutlined,
-  LogoutOutlined,
-  InfoCircleOutlined
-} from '@ant-design/icons';
-import { Line, Pie, Column } from '@ant-design/plots';
-import { PageHeader } from '../../components/common';
-import { getUserStats, getUserGrowth } from '../../services/userService';
+  InfoCircleOutlined} from '@ant-design/icons';
+import {Line,
+  Pie,
+  Column} from '@ant-design/plots';
+import {PageHeader} from '../../components/common';
+import {getUserStats,
+  getUserGrowth} from '../../services/userService';
 import moment from 'dayjs';
 
 const { Title, Text } = Typography;

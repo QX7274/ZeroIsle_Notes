@@ -1,15 +1,9 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { Typography } from 'antd';
-import {
-  SettingOutlined,
-  SafetyCertificateOutlined,
-  TeamOutlined,
-  NotificationOutlined,
-  CloudSyncOutlined,
-  SyncOutlined,
-  DatabaseOutlined
-} from '@ant-design/icons';
+import {Routes,
+  Route,
+  Navigate} from 'react-router-dom';
+import {Typography} from 'antd';
+
 import SystemConfig from './SystemConfig';
 import AnnouncementList from './AnnouncementList';
 import BackupManagement from './BackupManagement';

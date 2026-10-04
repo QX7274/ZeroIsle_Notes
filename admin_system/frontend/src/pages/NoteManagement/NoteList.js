@@ -1,35 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Table, Input, Button, Space, Tag, Popconfirm, message,
-  Card, Select, DatePicker, Row, Col, Typography, Tooltip,
-  Badge, Statistic, Avatar, Divider, Dropdown, Menu, Empty,
-  Modal
-} from 'antd';
-import {
-  SearchOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
-  PlusOutlined, TagOutlined, AppstoreOutlined, UserOutlined,
-  FileTextOutlined, CalendarOutlined, FilterOutlined,
-  SortAscendingOutlined, SortDescendingOutlined, ReloadOutlined,
-  DownloadOutlined, CheckCircleOutlined, StopOutlined,
-  ExportOutlined, MoreOutlined, FileSearchOutlined,
-  ExclamationCircleOutlined, LikeOutlined, CommentOutlined,
-  CloudDownloadOutlined, CopyOutlined, LinkOutlined
-} from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import {
-  getNotes,
+import {Table,
+  Input,
+  Button,
+  Space,
+  Tag,
+  Popconfirm,
+  message,
+  Card,
+  Select,
+  DatePicker,
+  Row,
+  Col,
+  Typography,
+  Badge,
+  Statistic,
+  Divider,
+  Empty,
+  Modal,
+  Spin} from 'antd';
+// 本项目统一用 dayjs（antd v5 的 DatePicker 默认也是 dayjs），
+// 这里沿用其他页面的写法把它别名成 moment，避免额外的 moment 依赖。
+import moment from 'dayjs';
+import {SearchOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  TagOutlined,
+  AppstoreOutlined,
+  FileTextOutlined,
+  ReloadOutlined,
+  CheckCircleOutlined,
+  ExportOutlined,
+  FileSearchOutlined,
+  ExclamationCircleOutlined,
+  CloudDownloadOutlined} from '@ant-design/icons';
+import {useNavigate} from 'react-router-dom';
+import {getNotes,
   deleteNote,
   updateNoteStatus,
   getNoteStats,
   batchDeleteNotes,
   batchUpdateNoteStatus,
   exportNotes,
-  syncNotes
-} from '../../services/contentService';
-import { getCategories, syncCategories } from '../../services/contentService';
-import { getTags, syncTags } from '../../services/contentService';
-import { PageHeader } from '../../components/common';
-import { exportToExcel } from '../../utils/exportUtils';
+  syncNotes} from '../../services/contentService';
+import {getCategories} from '../../services/contentService';
+import {getTags} from '../../services/contentService';
+import {PageHeader} from '../../components/common';
+import {exportToExcel} from '../../utils/exportUtils';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -292,37 +309,20 @@ const NoteList = () => {
     });
   };
 
-  // 导出笔记数据
-  const handleExport = () => {
-    try {
-      // 准备导出数据
-      const exportData = notes.map(note => ({
-        标题: note.title,
-        作者: note.author?.username || '',
-        分类: note.category?.name || '无分类',
-        标签: note.tags?.map(tag => tag.name).join(', ') || '',
-        状态: note.status === 'published' ? '已发布' : '草稿',
-        创建时间: note.createdAt,
-        更新时间: note.updatedAt,
-        浏览量: note.views || 0,
-        点赞数: note.likes || 0,
-      }));
-
-      // 导出Excel
-      exportToExcel(exportData, '笔记列表');
-      message.success('导出成功');
-    } catch (error) {
-      console.error('导出失败:', error);
-      message.error('导出失败，请稍后重试');
-    }
-  };
+  // 说明：这里**曾经有第二个同名 handleExport**，与上方 187 行的实现重复，
+  // 导致 Babel 报 "Identifier 'handleExport' has already been declared"，
+  // 整个前端因此无法构建（该错误自代码写入起就存在，从未被发现）。
+  // 上方那份实现调用真实导出接口（exportNotes）并带上筛选条件，
+  // 是更完整的一份，故删除本处这份基于本地 notes 数组的旧实现。
+  // 同时记录：旧实现引用的 note.author?.username / note.category?.name /
+  // note.createdAt 等字段与后端 NoteListSerializer 实际返回的
+  // username / category_name / created_at 并不一致，属于过时代码。
 
   // 刷新数据
-  const handleRefresh = () => {
-    fetchNotes();
-    fetchNoteStats();
-    message.success('数据已刷新');
-  };
+  // 说明：此处**曾经有第二个同名 handleRefresh**，导致 Babel 报
+  // "Identifier 'handleRefresh' has already been declared"，前端无法构建。
+  // 上方那一份实现同时刷新了分类与标签（fetchCategories/fetchTags），更完整，
+  // 故删除本处仅刷新笔记与统计的这份。
 
   // 同步数据
   const handleSync = async () => {

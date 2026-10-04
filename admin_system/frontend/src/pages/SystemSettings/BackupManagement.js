@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Table,
   Button,
   Space,
@@ -15,42 +14,30 @@ import {
   Row,
   Col,
   Statistic,
-  Divider,
   Alert,
   Progress,
   Typography,
-  Upload
-} from 'antd';
-import {
-  PlusOutlined,
+  Upload} from 'antd';
+import {PlusOutlined,
   DownloadOutlined,
-  ReloadOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
-  SyncOutlined,
-  CloudUploadOutlined,
   CloudDownloadOutlined,
   InfoCircleOutlined,
   SearchOutlined,
-  DatabaseOutlined,
-  SettingOutlined,
   UploadOutlined,
-  InboxOutlined
-} from '@ant-design/icons';
-import { PageHeader } from '../../components/common';
-import {
-  getBackups,
+  InboxOutlined} from '@ant-design/icons';
+import {PageHeader} from '../../components/common';
+import {getBackups,
   getBackupDetail,
   createBackup,
   deleteBackup,
   restoreBackup,
   downloadBackup,
-  getBackupInfo,
   createFullBackup,
   createDataBackup,
   createSettingsBackup,
-  importBackup
-} from '../../services/settingService';
+  importBackup} from '../../services/settingService';
 import moment from 'dayjs';
 
 const { TextArea } = Input;

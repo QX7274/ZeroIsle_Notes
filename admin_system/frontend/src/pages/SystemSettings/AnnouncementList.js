@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
+import {Card,
   Table,
   Button,
   Space,
@@ -23,28 +22,21 @@ import {
   Divider,
   Statistic,
   Spin,
-  Empty
-} from 'antd';
-import {
-  PlusOutlined,
+  Empty} from 'antd';
+import {PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined,
   SyncOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   SearchOutlined,
-  ReloadOutlined,
   SendOutlined,
   StopOutlined,
   EyeOutlined,
   BellOutlined,
-  NotificationOutlined,
-  SettingOutlined
-} from '@ant-design/icons';
-import { PageHeader } from '../../components/common';
-import {
-  getAnnouncements,
+  NotificationOutlined} from '@ant-design/icons';
+import {PageHeader} from '../../components/common';
+import {getAnnouncements,
   createAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
@@ -52,8 +44,7 @@ import {
   expireAnnouncement,
   syncAnnouncements,
   sendAnnouncementNotification,
-  getAnnouncementStats
-} from '../../services/settingService';
+  getAnnouncementStats} from '../../services/settingService';
 import moment from 'dayjs';
 import ReactQuill from 'react-quill';
 
@@ -936,7 +927,7 @@ const AnnouncementList = () => {
               <Form.Item
                 name="selectedUserGroups"
                 label="选择用户组"
-                extra="仅当"通知所有用户"关闭时生效"
+                extra="仅当「通知所有用户」关闭时生效"
               >
                 <Select
                   mode="multiple"
