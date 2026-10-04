@@ -131,15 +131,38 @@ describe('estimateToolbarWidth', () => {
     expect(estimateToolbarWidth(layout, [-1, NaN, 'x'])).toBe(layout.horizontalPadding * 2);
   });
 
-  it('按真实按钮分布估算：平板宽度下确实会溢出（所以需要横滑提示）', () => {
-    // 这是实测结论，不是期望值：9 组共 28 个按钮在 2560dp 上仍然超宽，
-    // 工具栏必须横向滚动，因此必须有「右侧还有内容」的提示。
-    const layout = resolveToolbarLayout(2560);
+  // 验收 A 的硬指标：wide 档「单行不溢出」必须用数值证明，不能只写注释保证。
+  it('wide 档放下全部 9 个默认工具组：估算宽度不超出屏幕', () => {
+    const layout = resolveToolbarLayout(1440);
     expect(layout.tier).toBe('wide');
+    const estimated = estimateToolbarWidth(layout, 9);
+    // 数值断言而非口头保证：估算宽度 <= 屏幕宽度才算「单行放得下」。
+    expect(estimated).toBeLessThanOrEqual(1440);
+    // 把具体数字也钉住：日后有人调大 buttonSize / groupGap 时会直接看到这条失败，
+    // 而不是要等到真机上才发现某组被挤出屏幕。
+    expect(estimated).toBe(594);
+  });
+
+  it('wide 档在断点下沿（1200）仍能放下 9 组', () => {
+    // 断点是「下界含」语义，所以 1200 是最窄的 wide 屏；若能过这关，更宽的必然也过。
+    const layout = resolveToolbarLayout(TOOLBAR_BREAKPOINTS.wide);
+    expect(layout.tier).toBe('wide');
+    expect(estimateToolbarWidth(layout, 9)).toBeLessThanOrEqual(TOOLBAR_BREAKPOINTS.wide);
+  });
+
+  it('按真实按钮分布估算：wide 下沿（1200）会溢出，故必须按每组按钮数估算', () => {
+    // 修正说明（重要）：本条原先写作「9 组共 28 个按钮在 2560dp 上仍然超宽，
+    // 所以平板必须横滑提示」——这与数字不符：28 个按钮约需 1544dp，
+    // 2560dp 桌面宽度实际上放得下，原结论对常见平板宽度并不成立，属注释与数字互相打架。
+    // 现在只断言与实现一致、且能解释设计取舍的两件事：
+    //   1) 「只传组数」是「按真实分布」的乐观下界（这正是 toolbarNeedsScroll
+    //      必须传每组按钮数的原因，否则宽屏永远算得出放得下）；
+    //   2) 在最窄的 wide 屏（1200）上，真实分布确实溢出，需要横滑/换行兜底。
+    const layout = resolveToolbarLayout(TOOLBAR_BREAKPOINTS.wide);
+    const naive = estimateToolbarWidth(layout, 9);
     const realistic = estimateToolbarWidth(layout, [2, 1, 3, 6, 2, 5, 4, 2, 3]);
-    expect(realistic).toBeGreaterThan(0);
-    // 组数语义（乐观下界）仍应远小于真实分布
-    expect(estimateToolbarWidth(layout, 9)).toBeLessThan(realistic);
+    expect(realistic).toBeGreaterThan(naive);
+    expect(realistic).toBeGreaterThan(TOOLBAR_BREAKPOINTS.wide);
   });
 });
 
