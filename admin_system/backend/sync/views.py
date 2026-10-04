@@ -171,6 +171,17 @@ class SyncViewSet(viewsets.ModelViewSet):
 class SyncConfigViewSet(viewsets.ModelViewSet):
     """同步配置视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return SyncConfig.objects.all()
+
     serializer_class = SyncConfigSerializer
     permission_classes = [IsAuthenticated, IsAdminStaff]
     

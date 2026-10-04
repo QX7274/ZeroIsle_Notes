@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from common.filters import MongoFilterBackend
 from django.utils import timezone
 from django.http import FileResponse
 import os
@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 class SystemSettingViewSet(viewsets.ModelViewSet):
     """系统设置视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return SystemSetting.objects.all()
+
     serializer_class = SystemSettingSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -284,7 +295,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     """系统公告视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status']
     search_fields = ['title', 'content', 'created_by']
     ordering_fields = ['start_time', 'end_time', 'created_at']
@@ -670,8 +681,19 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
 class SystemBackupViewSet(viewsets.ModelViewSet):
     """系统备份视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return SystemBackup.objects.all()
+
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['backup_type', 'status', 'is_auto', 'created_by']
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'completed_at']

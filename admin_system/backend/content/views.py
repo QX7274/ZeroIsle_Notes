@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from common.filters import MongoFilterBackend
 from django.utils import timezone
 from django.db.models import Q
 from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment
@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 class NoteCategoryViewSet(viewsets.ModelViewSet):
     """笔记分类视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return NoteCategory.objects.all()
+
     serializer_class = NoteCategorySerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -99,6 +110,17 @@ class NoteCategoryViewSet(viewsets.ModelViewSet):
 class TagViewSet(viewsets.ModelViewSet):
     """标签视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return Tag.objects.all()
+
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -154,7 +176,7 @@ class ContentReportViewSet(viewsets.ModelViewSet):
     """内容举报视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'reason', 'content_type']
     search_fields = ['content_id', 'reporter_id', 'description']
     ordering_fields = ['created_at', 'updated_at']
@@ -336,7 +358,7 @@ class NoteViewSet(viewsets.ModelViewSet):
     """笔记视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'updated_at', 'view_count', 'like_count', 'comment_count']
     ordering = ['-created_at']
@@ -795,7 +817,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     """评论视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['content', 'username']
     ordering_fields = ['created_at', 'like_count']
     ordering = ['-created_at']
@@ -960,7 +982,7 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     """附件视图集"""
     queryset = []
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['filename', 'mime_type']
     ordering_fields = ['created_at', 'file_size']
     ordering = ['-created_at']

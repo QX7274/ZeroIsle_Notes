@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from common.filters import MongoFilterBackend
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.http import HttpResponse
@@ -27,8 +27,19 @@ logger = logging.getLogger(__name__)
 class AnalyticsReportViewSet(viewsets.ModelViewSet):
     """分析报表视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return AnalyticsReport.objects.all()
+
     serializer_class = AnalyticsReportSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['report_type', 'created_by', 'status']
 
     def get_permissions(self):
@@ -136,9 +147,20 @@ class AnalyticsReportViewSet(viewsets.ModelViewSet):
 class DashboardWidgetViewSet(viewsets.ModelViewSet):
     """仪表盘小部件视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return DashboardWidget.objects.all()
+
     serializer_class = DashboardWidgetSerializer
     permission_classes = [IsAuthenticated, CanViewAnalytics]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['widget_type', 'created_by']
     search_fields = ['title', 'data_source']
     ordering_fields = ['created_at', 'updated_at']
@@ -173,9 +195,20 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     """报表模板视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return ReportTemplate.objects.all()
+
     serializer_class = ReportTemplateSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['template_type', 'is_system', 'created_by']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'updated_at']

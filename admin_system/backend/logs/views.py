@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from common.filters import MongoFilterBackend
 from django.utils import timezone
 from django.db import models
 from .models import AdminOperationLog, SystemLog, LogExportHistory
@@ -25,7 +25,7 @@ class AdminOperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = []
     serializer_class = AdminOperationLogSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['admin_username', 'module', 'action']
     search_fields = ['admin_username', 'module', 'description', 'resource_id']
     ordering_fields = ['operation_time']
@@ -285,7 +285,7 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = []
     serializer_class = SystemLogSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['level', 'source']
     search_fields = ['source', 'message']
     ordering_fields = ['timestamp']
@@ -530,9 +530,20 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
 class LogExportHistoryViewSet(viewsets.ModelViewSet):
     """日志导出历史记录视图集"""
     queryset = []
+    def get_queryset(self):
+        """
+        惰性返回 mongoengine 查询集。
+        
+        原先用 queryset = [] 作占位，但 DRF 的 list/retrieve 会调用
+        queryset.order_by() / filter()，而 list 没有这些方法，导致接口 500
+        （AttributeError: list object has no attribute order_by）。
+        改为在方法内构造，既保留不在 import 期连库的意图，又保证可用。
+        """
+        return LogExportHistory.objects.all()
+
     serializer_class = LogExportHistorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [MongoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['log_type', 'format', 'created_by']
     search_fields = ['file_name', 'created_by']
     ordering_fields = ['created_at']
