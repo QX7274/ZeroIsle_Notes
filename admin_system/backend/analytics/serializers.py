@@ -51,4 +51,12 @@ class ReportTemplateListSerializer(MongoDocumentSerializer):
         fields = ['id', 'title', 'description', 'template_type', 'template_type_display', 'is_system', 'created_by', 'created_at']
     
     def get_template_type_display(self, obj):
-        return dict(ReportTemplate.REPORT_TYPES).get(obj.template_type, obj.template_type)
+        # 修正：REPORT_TYPES 定义在 AnalyticsReport 上，不在 ReportTemplate 上。
+        # 原写法 ReportTemplate.REPORT_TYPES 会抛
+        #   AttributeError: type object 'ReportTemplate' has no attribute 'REPORT_TYPES'
+        # 而它位于 SerializerMethodField 内，因此**该接口每次请求都 500**。
+        # 模型层 template_type 的 choices 用的也是 AnalyticsReport.REPORT_TYPES
+        # （见 analytics/models.py:81），此处与之对齐。
+        return dict(AnalyticsReport.REPORT_TYPES).get(
+            obj.template_type, obj.template_type
+        )
